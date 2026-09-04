@@ -51,6 +51,13 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   AGWPE (Direwolf, UZ7HO SoundModem); the Linux kernel AX.25 stack if you
   already have one. VARA HF/FM and Mercury are implemented but not yet verified
   against hardware — see [docs/ROADMAP.md](docs/ROADMAP.md).
+- **USB TNCs are noticed when you plug them in.** No rescan, no restart --
+  enumerating serial ports costs 0.4 ms and touches nothing but the local
+  machine, so kissterm just watches. If the TNC you are *using* gets unplugged,
+  it says so instead of failing quietly later. **The network is never scanned
+  automatically**: a sweep is around 1,500 connection attempts, which is fine
+  when you ask for it and antisocial on a timer. A configured host that goes
+  away is reconnected to by address, not rediscovered by scanning.
 - **It finds your hardware.** First run enumerates serial ports, recognises the
   common TNC chipsets by USB ID, sweeps your LAN for the well-known KISS, AGWPE
   and VARA ports, and lists paired Bluetooth TNCs — then asks you to pick one.

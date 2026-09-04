@@ -53,6 +53,7 @@ from .. import __version__
 from ..ax25 import AX25Station, parse_path
 from ..ax25.frame import AX25Frame
 from ..heard import HeardTable
+from ..hotplug import PortEvent, SerialPortWatcher
 from ..monitor import MonitorFilter, format_frame
 from ..transport.base import SessionState, TransportError
 from .aprs_pane import AprsPane
@@ -106,6 +107,9 @@ class KissTermApp(App):
         #: than tracking their own copy -- see this module's docstring.
         self.link = None
         self._status = "starting"
+        #: Watches local serial ports only. The network is never scanned on a
+        #: timer -- see kissterm/hotplug.py for the cost argument.
+        self.port_watcher = SerialPortWatcher()
 
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -137,6 +141,7 @@ class KissTermApp(App):
         # reads as "the app has not connected to anything" at exactly the
         # moment the operator is looking for confirmation that it has.
         self._refresh_status()
+        self._start_port_watcher()
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(2.0, self._refresh_heard)
         if self.station is not None:
@@ -146,6 +151,57 @@ class KissTermApp(App):
         self.query_one(TerminalPane).log(
             f"kissterm {__version__} -- Ctrl+N to connect, Ctrl+H for help.\n"
         )
+
+    # ------------------------------------------------------------------
+    # Hardware hotplug (serial only -- never the network)
+    # ------------------------------------------------------------------
+    @work
+    async def _start_port_watcher(self) -> None:
+        """Notice a TNC being plugged in or unplugged, without scanning anything.
+
+        `prime()` first, so ports that were already present at launch do not
+        each produce a toast -- they are not news.
+        """
+        self.port_watcher.subscribe(self._on_port_event)
+        await self.port_watcher.prime()
+        self.port_watcher.start()
+
+    def _on_port_event(self, event: PortEvent) -> None:
+        if event.action == "added":
+            if not event.likely_tnc:
+                # An unrecognized port is more often a phone or a dongle than a
+                # TNC. Log it for --doctor, do not interrupt the operator.
+                log.info("serial port appeared: %s (%s)", event.device, event.note)
+                return
+            self._to_terminal(
+                "log", f"\n*** Plugged in: {event.device} -- {event.detail}\n"
+            )
+            self.notify(
+                f"{event.device} looks like a TNC ({event.detail}). "
+                f"Settings -> Transports to use it.",
+                title="New device",
+                timeout=10,
+            )
+            return
+
+        # Removed. Only worth shouting about if it is the one in use.
+        if self._active_device() == event.device:
+            self._to_terminal("log", f"\n*** {event.device} was unplugged\n")
+            self.notify(
+                f"{event.device} -- the transport in use -- was unplugged.",
+                severity="error",
+                timeout=15,
+            )
+        else:
+            log.info("serial port removed: %s", event.device)
+
+    def _active_device(self) -> str | None:
+        """The device path of the configured active transport, if it has one."""
+        name = getattr(self.config, "active_transport", "")
+        for entry in getattr(self.config, "transports", ()) or ():
+            if entry.get("name") == name:
+                return entry.get("device")
+        return None
 
     # ------------------------------------------------------------------
     # Frame fan-out

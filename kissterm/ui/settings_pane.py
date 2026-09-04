@@ -68,7 +68,10 @@ class SettingsPane(VerticalScroll):
         yield Label("Transports", classes="settings-section")
         yield Static(
             "Which TNC or modem kissterm talks to. Changing this reopens the "
-            "connection, so disconnect first.",
+            "connection, so disconnect first. USB and serial TNCs are noticed "
+            "automatically when you plug them in; scanning the network is "
+            "manual, because a sweep is around 1500 connection attempts and "
+            "does not belong on a timer.",
             classes="settings-note",
         )
         with Horizontal(classes="settings-row"):
@@ -160,7 +163,8 @@ class SettingsPane(VerticalScroll):
             detail.update(
                 "No transport configured. 'Scan for hardware' looks for serial "
                 "TNCs, KISS and AGWPE services on your network, and paired "
-                "Bluetooth TNCs. Nothing it does transmits."
+                "Bluetooth TNCs. Nothing it does transmits. Plugging in a USB "
+                "TNC is noticed without scanning."
             )
             return
         keys = ", ".join(

@@ -269,3 +269,35 @@ async def test_heard_table_populates_the_moment_the_tab_opens():
             f"heard table had {table.row_count} rows immediately after switching"
         )
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_unplugging_the_active_transport_is_reported():
+    """A TNC vanishing mid-session must say so, not fail silently later."""
+    from kissterm.hotplug import PortEvent
+
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    config = Config(
+        mycall=str(MYCALL),
+        transports=[{"name": "USB TNC", "kind": "serial", "device": "/dev/ttyUSB0"}],
+        active_transport="USB TNC",
+    )
+    station = AX25Station(MYCALL, ta, LinkParams())
+    app = KissTermApp(config, station)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        assert app._active_device() == "/dev/ttyUSB0"
+        app._on_port_event(PortEvent(action="removed", device="/dev/ttyUSB0"))
+        await pilot.pause()
+        text = "\n".join(str(line) for line in app.query_one("#session-log").lines)
+        assert "unplugged" in text.lower(), f"no warning logged: {text!r}"
+
+        # A different port disappearing is not the operator's problem.
+        before = text
+        app._on_port_event(PortEvent(action="removed", device="/dev/ttyS9"))
+        await pilot.pause()
+        after = "\n".join(str(line) for line in app.query_one("#session-log").lines)
+        assert after == before, "an unrelated port produced a warning"
+    station.close()

@@ -3,6 +3,50 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-04] — Hotplug for USB TNCs; the network is still never scanned
+
+### New Features
+- **`kissterm/hotplug.py` -- serial TNCs are noticed as they are plugged in.**
+  No rescan, no restart. If the transport currently *in use* is unplugged, the
+  app says so immediately rather than failing opaquely on the next frame. A
+  device that appears but does not look like a TNC is logged, not toasted --
+  an unrecognized serial port is more often a phone than a radio.
+
+### Why serial is polled and the network is not
+An asymmetry of four orders of magnitude, measured rather than assumed:
+
+- `list_ports.comports()` takes **0.4 ms** and reads only the local `/sys`
+  tree. The 3-second poll is a ~0.01% duty cycle and touches no other machine.
+- A network sweep is 254 hosts times six well-known ports -- about **1,500 TCP
+  connection attempts**. On a timer that is indistinguishable from a port
+  scanner, trips intrusion detection on managed networks, and is rude on a
+  club or shared link.
+
+So the network is scanned **only when a human asks**: `--discover`, the setup
+wizard, or the Settings "Scan for hardware" button. A configured TCP host that
+goes away does not need scanning either -- `TcpKissTransport` already
+reconnects to its known address with backoff, so re-sweeping a subnet to
+rediscover an address we already have would be pure waste. Bluetooth
+enumerates *paired* devices only; kissterm never initiates pairing or a BT
+discovery scan.
+
+`tests/unit/test_hotplug.py::test_hotplug_never_touches_the_network` asserts
+against the module source, because the failure it guards against is someone
+adding a convenience rescan later -- which would look perfectly reasonable in
+a diff and be antisocial on a club network.
+
+### Fixed
+- **A test that passed alone and failed in the suite.** The hotplug fixture
+  patched `sys.modules["serial.tools.list_ports"]`, but
+  `from serial.tools import list_ports` resolves through the *package
+  attribute* once anything has imported pyserial -- so the patch only worked
+  when that test ran first. Now patches `comports` directly. Recorded in
+  AGENTS.md; the same trap applies to any `from package import submodule`.
+
+**Files:** `kissterm/hotplug.py`, `kissterm/ui/{app,settings_pane}.py`,
+`tests/unit/test_hotplug.py`, `tests/pilot/test_app_mounts.py`, `README.md`,
+`AGENTS.md`.
+
 ## [2026-09-04] — Everything setup asks for is now editable in-app
 
 ### New Features

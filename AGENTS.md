@@ -163,7 +163,8 @@ kissterm/
 │   ├── app.py               # Textual app: tabs, panes, CSS, bindings
 │   ├── config.py            # Config dataclass <-> config.toml (never raises)
 │   ├── _isolate.py          # platformdirs monkeypatch for tests -- see §6
-│   ├── discovery.py         # serial / LAN / Bluetooth autodiscovery
+│   ├── discovery.py         # serial / LAN / Bluetooth autodiscovery (MANUAL)
+│   ├── hotplug.py           # serial-only hotplug watch (never the network)
 │   ├── doctor.py            # `--doctor` diagnostics
 │   ├── monitor.py           # frame -> monitor line, and sanitize()
 │   ├── heard.py             # MHEARD table
@@ -260,6 +261,12 @@ Gotchas that already cost time:
   correct behaviour, not a stall. 25% is the stable test point.
 - **`LinkParams` is `slots=True`** — `vars()` does not work on it. Use
   `dataclasses.replace()` to copy per-link params.
+- **Patch `serial.tools.list_ports.comports` itself, not `sys.modules`.**
+  `from serial.tools import list_ports` resolves through the package attribute
+  once anything has imported it, so a `monkeypatch.setitem(sys.modules, ...)`
+  works only when the test happens to run first. That produced tests that
+  passed alone and failed in the suite — the worst kind, because it looks like
+  a real regression. Same trap for any `from package import submodule`.
 - Textual needs a real terminal, so UI tests use `app.run_test()` with a pilot,
   same pattern as the sibling `google-tui` project. `app.save_screenshot(path)`
   inside `run_test` exports an SVG of the current render.
@@ -282,6 +289,24 @@ Gotchas that already cost time:
   no real config dir. Do not make it construct them internally.
 
 ## 7. ALWAYS / NEVER rules
+
+### Discovery and scanning
+- **NEVER scan the network on a timer.** A sweep is 254 hosts times six
+  ports -- about **1,500 TCP connection attempts**. Automatic, that is
+  indistinguishable from a port scanner, trips intrusion detection on managed
+  networks, and is rude on a club link. It happens only when a human asks:
+  `--discover`, the setup wizard, or the Settings "Scan for hardware" button.
+  `tests/unit/test_hotplug.py::test_hotplug_never_touches_the_network` fails if
+  someone adds a convenience rescan later.
+- **DO poll local serial ports.** `list_ports.comports()` costs about **0.4 ms**
+  and reads only the local `/sys` tree, so the 3-second poll in
+  `kissterm/hotplug.py` is a ~0.01% duty cycle touching no other machine. The
+  asymmetry between this rule and the one above is measured, not aesthetic.
+- **A configured host that goes away does not need a scan.**
+  `TcpKissTransport` already reconnects to its known address with backoff.
+  Re-scanning a subnet to rediscover an address you already have is waste.
+- **NEVER initiate Bluetooth pairing or a discovery scan.** Enumerate *paired*
+  devices only; pairing is a system-level action the operator takes deliberately.
 
 ### Radio and protocol
 - **NEVER** send anything to a transport that the operator did not ask for.
