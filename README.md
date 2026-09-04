@@ -136,7 +136,14 @@ kissterm --connect WS1EC-7   connect once the app is up
 
 ## Safety notes
 
-kissterm never transmits anything you did not ask it to. Discovery and probing
+kissterm never transmits anything you did not ask it to. **It does not answer
+calls from other stations unless you turn that on** -- answering is unattended
+transmission under your callsign, and a fresh install must not start doing that
+on its own. With it off, a station calling you gets a polite refusal (a DM) and
+stops retrying rather than transmitting into silence. With it on, the status
+bar says `ANSWERING` for as long as that is true, and callers get a banner you
+configure. Automatic-control rules differ by country and band; check what your
+licence allows before enabling it. Discovery and probing
 listen only — nothing in the scan will key your rig.
 
 Text arriving from a remote node is treated as untrusted and stripped of

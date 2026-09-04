@@ -226,6 +226,33 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         ),
     ),
     Section(
+        "Unattended operation",
+        "Answering a call transmits under your callsign with nobody present. "
+        "You remain the control operator. Off unless you turn it on.",
+        (
+            Field(
+                "accept_incoming",
+                "Answer incoming calls",
+                "bool",
+                "When off, a station calling you gets a polite refusal (DM) so "
+                "it stops retrying instead of burning its whole retry budget. "
+                "When on, kissterm answers and sends the banner below -- "
+                "unattended, under your callsign, whether or not you are at "
+                "the keyboard. Check what your licence allows for automatic "
+                "control on the band you are using.",
+                apply="live",
+            ),
+            Field(
+                "connect_banner",
+                "Connect banner",
+                "text",
+                "Sent to whoever connects. BPQ32 calls this CTEXT. Use \\r "
+                "for a line break -- packet is carriage-return oriented.",
+                apply="live",
+            ),
+        ),
+    ),
+    Section(
         "Display and logging",
         "Local only -- none of this reaches the air.",
         (

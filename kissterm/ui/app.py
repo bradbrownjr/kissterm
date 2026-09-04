@@ -215,10 +215,33 @@ class KissTermApp(App):
                 pane.write_line(line.as_text())
 
     def _on_incoming_link(self, link) -> None:
-        self.query_one(TerminalPane).log(f"\n*** Incoming connection from {link.peer}\n")
+        self._to_terminal("log", f"\n*** Incoming connection from {link.peer}\n")
         if self.link is None or not self.link.connected:
             self._bind_link(link)
+        self._send_banner(link)
         self.notify(f"Connection from {link.peer}", severity="information")
+
+    @work
+    async def _send_banner(self, link) -> None:
+        """Greet a caller, so the link does not open into silence.
+
+        Without this a station that connects gets a UA and then nothing, and
+        has no way to tell a working link from a broken one -- worse than a
+        clean refusal. BPQ32 calls this CTEXT; the default is deliberately
+        short, because every byte is airtime.
+
+        Guarded on `accept_incoming` even though we only reach here after
+        accepting: this is a transmission, and anything that transmits gets
+        checked against the operator's explicit opt-in at the moment it
+        happens, not only where the connection was accepted.
+        """
+        banner = (getattr(self.config, "connect_banner", "") or "").strip()
+        if not banner or not getattr(self.config, "accept_incoming", False):
+            return
+        try:
+            await link.send(banner.encode("latin-1", "replace") + b"\r")
+        except Exception:
+            log.exception("could not send connect banner to %s", link.peer)
 
     def _bind_link(self, link) -> None:
         self.link = link
@@ -379,6 +402,10 @@ class KissTermApp(App):
             parts.append(
                 f"tx {stats.frames_sent} rx {stats.frames_received} rtx {stats.retransmits}"
             )
+        if getattr(self.config, "accept_incoming", False):
+            # The honest counterpart to the opt-in: if this station will
+            # transmit with nobody present, that fact is always on screen.
+            parts.append("ANSWERING")
         parts.append(f"heard {len(self.heard)}")
         for bar in self._base_query("#status-bar"):
             bar.update("  |  ".join(parts))

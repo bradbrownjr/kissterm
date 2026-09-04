@@ -246,3 +246,99 @@ async def test_forgetting_a_transport():
         assert names == ["USB TNC"]
         assert app.config.active_transport == "USB TNC", "active must not dangle"
     station.close()
+
+
+# ---------------------------------------------------------------------------
+# Answering incoming calls. This is unattended transmission under the
+# operator's callsign, so the defaults matter more than the mechanics.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_station_that_is_not_answering_refuses_cleanly():
+    """Refusal must be a DM, not silence, so the caller stops retrying."""
+    from kissterm.ax25 import AX25Path
+    from kissterm.ax25.frame import UType
+
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    peer = AX25Address.parse("WS1EC-7")
+    a = AX25Station(MYCALL, ta, LinkParams(t1=0.2, retries=1), accept_incoming=False)
+    caller = AX25Station(peer, tb, LinkParams(t1=0.2, retries=1))
+
+    link = await caller.connect(AX25Path(MYCALL, peer), timeout=1.0)
+    assert link is None, "a station with answering off must not connect"
+    assert any(
+        f.kind == "U" and f.utype is UType.DM for f in ta.sent
+    ), "refusal must be an explicit DM, not silence"
+    a.close()
+    caller.close()
+
+
+@pytest.mark.asyncio
+async def test_answering_sends_the_banner_so_the_link_is_not_silent():
+    from kissterm.ax25 import AX25Path
+
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    peer = AX25Address.parse("WS1EC-7")
+    banner = "Welcome to the test station. 73"
+    config = Config(mycall=str(MYCALL), accept_incoming=True, connect_banner=banner)
+    a = AX25Station(MYCALL, ta, LinkParams(t1=0.3), accept_incoming=True)
+    caller = AX25Station(peer, tb, LinkParams(t1=0.3))
+    app = KissTermApp(config, a)
+
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await caller.connect(AX25Path(MYCALL, peer), timeout=2.0)
+        assert link is not None, "station should have answered"
+        received = b""
+        for _ in range(40):
+            await asyncio.sleep(0.05)
+            received += link.read_nowait()
+            if banner.encode() in received:
+                break
+        assert banner.encode() in received, (
+            f"caller got no banner -- the link opened into silence: {received!r}"
+        )
+    a.close()
+    caller.close()
+
+
+@pytest.mark.asyncio
+async def test_no_banner_is_sent_when_answering_is_off():
+    """Nothing transmits without the operator's explicit opt-in."""
+    app, station = await _app(Config(mycall=str(MYCALL), accept_incoming=False))
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+
+        class _Fake:
+            peer = "WS1EC-7"
+            sent: list = []
+
+            async def send(self, data):
+                self.sent.append(data)
+
+        fake = _Fake()
+        app._send_banner(fake)
+        await pilot.pause()
+        await asyncio.sleep(0.15)
+        assert fake.sent == [], "banner transmitted with answering disabled"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_status_bar_says_when_the_station_will_answer_unattended():
+    app, station = await _app(Config(mycall=str(MYCALL), accept_incoming=True))
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        assert "ANSWERING" in str(app.query_one("#status-bar").render())
+    station.close()
+
+    app2, station2 = await _app(Config(mycall=str(MYCALL), accept_incoming=False))
+    async with app2.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        assert "ANSWERING" not in str(app2.query_one("#status-bar").render())
+    station2.close()

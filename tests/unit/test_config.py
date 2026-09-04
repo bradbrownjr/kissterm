@@ -310,3 +310,56 @@ def test_modulo_survives_a_round_trip(tmp_path):
     kconfig.save_config(cfg, path)
     back = kconfig.load_config(path)
     assert (back.modulo, back.window) == (128, 32)
+
+
+# ---------------------------------------------------------------------------
+# TOML escaping. A write path that corrupts the file it just wrote is worse
+# than one that raises: load_config() is deliberately forgiving, so a broken
+# file silently reverts EVERY setting to its default.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "carriage\rreturn",       # connect_banner is CR-separated; packet is
+        "new\nline",
+        "tab\tseparated",
+        'quote"inside',
+        "back\\slash",
+        "bell\x07and\x00nul",
+        "form\ffeed",
+        "delete\x7fchar",
+        "everything\r\n\t\"\\\x01",
+    ],
+)
+def test_control_characters_survive_a_round_trip(tmp_path, value):
+    path = tmp_path / "esc.toml"
+    cfg = kconfig.Config(mycall="N1ABC-1", connect_banner=value, paclen=77)
+    kconfig.save_config(cfg, path)
+    back = kconfig.load_config(path)
+    assert not back.warnings, f"file did not parse: {back.warnings}"
+    assert back.connect_banner == value
+    # The real damage was collateral: an unparseable file reverts everything.
+    assert back.paclen == 77, "an unparseable file silently reset other settings"
+
+
+def test_a_banner_with_a_carriage_return_does_not_corrupt_the_file(tmp_path):
+    """The specific regression: the default banner is CR-separated."""
+    path = tmp_path / "banner.toml"
+    cfg = kconfig.Config(mycall="N1ABC-1", modulo=128, window=32)
+    assert "\r" in cfg.connect_banner, "default banner should be CR-separated"
+    kconfig.save_config(cfg, path)
+    back = kconfig.load_config(path)
+    assert (back.modulo, back.window) == (128, 32)
+
+
+def test_answering_is_off_by_default():
+    """Answering is unattended transmission under the operator's callsign."""
+    assert kconfig.Config().accept_incoming is False
+
+
+def test_accept_incoming_round_trips(tmp_path):
+    path = tmp_path / "ai.toml"
+    kconfig.save_config(kconfig.Config(mycall="N1ABC-1", accept_incoming=True), path)
+    assert kconfig.load_config(path).accept_incoming is True

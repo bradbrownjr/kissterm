@@ -149,6 +149,18 @@ class Config:
     #: T3: idle-link keepalive poll interval (seconds).
     t3: float = 300.0
     #: Free-text filter applied to the monitor pane, e.g. "APRS" or a callsign.
+    #: Answer connections from other stations. OFF by default and deliberately
+    #: so: answering is UNATTENDED TRANSMISSION under your callsign, and a
+    #: fresh install must not start doing that on its own. The operator is the
+    #: control operator; see docs/ROADMAP.md P9 for the regulatory note.
+    accept_incoming: bool = False
+    #: Sent to a station that connects to us, when `accept_incoming` is on.
+    #: BPQ32 calls this CTEXT. Without it a caller gets a link that opens into
+    #: silence and cannot tell a working link from a broken one.
+    connect_banner: str = (
+        "Welcome. This is an unattended kissterm station.\r"
+        "There is no mailbox here yet. 73\r"
+    )
     monitor_filter: str = ""
     #: Empty means "use log_path()" -- see that function below.
     log_dir: str = ""
@@ -242,6 +254,8 @@ def load_config(path: Path | None = None) -> Config:
     cfg.t1 = _load_float(raw, "t1", cfg.t1, warnings)
     cfg.t2 = _load_float(raw, "t2", cfg.t2, warnings)
     cfg.t3 = _load_float(raw, "t3", cfg.t3, warnings)
+    cfg.accept_incoming = _load_bool(raw, "accept_incoming", cfg.accept_incoming, warnings)
+    cfg.connect_banner = _load_str(raw, "connect_banner", cfg.connect_banner, warnings)
     cfg.monitor_filter = _load_str(raw, "monitor_filter", cfg.monitor_filter, warnings)
     cfg.log_dir = _load_str(raw, "log_dir", cfg.log_dir, warnings)
     cfg.theme = _load_str(raw, "theme", cfg.theme, warnings)
@@ -443,8 +457,37 @@ def save_config(config: Config, path: Path | None = None) -> None:
         raise
 
 
+#: TOML basic-string escapes. Order matters only in that backslash is handled
+#: first by `_toml_escape` itself, before anything else can introduce one.
+_TOML_ESCAPES = {
+    '"': '\\"',
+    "\b": "\\b",
+    "\t": "\\t",
+    "\n": "\\n",
+    "\f": "\\f",
+    "\r": "\\r",
+}
+
+
 def _toml_escape(text: str) -> str:
-    return text.replace("\\", "\\\\").replace('"', '\\"')
+    """Escape a string for a TOML basic string.
+
+    Control characters MUST be escaped, not just quotes and backslashes. An
+    earlier version escaped only those two, so any value containing a carriage
+    return -- `connect_banner` is CR-separated, because packet is -- wrote a
+    raw CR into the file. That makes the whole document unparseable, and
+    because `load_config()` is deliberately forgiving it then falls back to
+    *every* default silently: an operator's tuned timers, callsign and
+    transports would all quietly revert on the next launch. A write path that
+    can corrupt the file it just wrote is worse than one that raises.
+    """
+    out = text.replace("\\", "\\\\")
+    for char, escape in _TOML_ESCAPES.items():
+        out = out.replace(char, escape)
+    # Anything else below 0x20, plus DEL, has no short escape.
+    return "".join(
+        c if (c >= " " and c != "\x7f") else f"\\u{ord(c):04X}" for c in out
+    )
 
 
 def _toml_scalar(value: Any) -> str:

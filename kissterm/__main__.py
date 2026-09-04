@@ -277,6 +277,7 @@ async def _amain(args) -> int:
                 t3=config.t3,
             ),
             aliases=tuple(AX25Address.parse(a) for a in config.mycall_aliases),
+            accept_incoming=config.accept_incoming,
         )
 
     app = KissTermApp(config, station)

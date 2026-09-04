@@ -290,6 +290,18 @@ Gotchas that already cost time:
 
 ## 7. ALWAYS / NEVER rules
 
+### Unattended transmission
+- **Answering incoming calls is OFF by default and must stay that way.** It is
+  unattended transmission under the operator's callsign. Anything that
+  transmits checks the opt-in at the moment it transmits, not only where the
+  decision was made -- `_send_banner` re-checks `accept_incoming` even though
+  it only runs after a connection was accepted.
+- **A refusal is a DM, never silence.** A silently dropped call makes the
+  caller retry its full N2 budget and waste a minute of channel time.
+- **If the station will answer unattended, say so on screen** for as long as
+  that is true. The status bar's `ANSWERING` marker is the honest counterpart
+  to the opt-in.
+
 ### Discovery and scanning
 - **NEVER scan the network on a timer.** A sweep is 254 hosts times six
   ports -- about **1,500 TCP connection attempts**. Automatic, that is
@@ -390,15 +402,13 @@ Gotchas that already cost time:
   Everything else in `Config` is editable in the Settings tab; the coverage
   test in `tests/pilot/test_settings.py` fails if a new config field is added
   without one, so that gap cannot silently reopen.
-- **kissterm answers incoming connections and then says nothing.**
-  `AX25Station.accept_incoming` defaults to True, so a caller gets a UA and
-  then silence -- worse than a clean refusal, because they have no way to tell
-  a working link from a broken one. There is no banner, no prompt, and no
-  mailbox behind it. Two things to settle together (roadmap P9): send a
-  configurable connect banner, and make answering an explicit opt-in rather
-  than the default, since auto-answering is unattended transmission under the
-  operator's callsign. Do not build a mailbox without reading P9's regulatory
-  note first.
+- **Answering is opt-in and there is still no mailbox behind it.**
+  `Config.accept_incoming` defaults to False; a caller gets a DM refusal.
+  Turned on, kissterm answers, sends `Config.connect_banner`, and shows
+  `ANSWERING` in the status bar -- but the session then has nothing to say and
+  no commands. That is roadmap P9. **Read P9's regulatory note before building
+  a mailbox**: unattended answering and third-party traffic are both regulated
+  and vary by country and band.
 - **The APRS pane is a placeholder.** Decoding is wired into the frame fan-out
   and APRS traffic shows in the Monitor tab, but the dedicated pane
   (positions, messaging with ack/retry, beaconing) is roadmap P4.

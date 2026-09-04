@@ -83,6 +83,27 @@ t3 = 300.0
 # Free-text filter applied to the monitor/heard pane. Leave blank to see
 # everything. Example: "APRS" to show only APRS traffic, or a callsign to
 # watch just one station.
+# --- Unattended operation -------------------------------------------------
+#
+# Answering a call means TRANSMITTING UNDER YOUR CALLSIGN WITH NOBODY
+# PRESENT. You are still the control operator. Automatic control rules
+# differ by country and by band -- they are generally permissive above
+# 29.5 MHz in the US and restricted on HF -- so check what your licence
+# allows on the band you are using before turning this on.
+#
+# Off by default. With it off, a station that calls you gets a polite
+# refusal (a DM frame) and stops retrying, instead of burning its whole
+# retry budget against silence.
+accept_incoming = false
+
+# Sent to whoever connects, when accept_incoming is true. BPQ32 calls this
+# CTEXT. Use \r for a line break -- packet is carriage-return oriented, and
+# sending \n makes some nodes echo a spurious blank line.
+#
+# Keep it short. Every byte is airtime, and at 1200 baud a long banner is
+# several seconds of the channel nobody else can use.
+connect_banner = "Welcome. This is an unattended kissterm station.\rThere is no mailbox here yet. 73\r"
+
 monitor_filter = ""
 
 # Where session logs are written. Leave blank to use the platform default

@@ -3,6 +3,47 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-04] — Answering is opt-in, and a caller is no longer met with silence
+
+### Fixed
+- **kissterm answered incoming connections and then transmitted nothing.**
+  `accept_incoming` defaulted to True, so a caller got a UA and then dead
+  silence, with no way to tell a working link from a broken one -- worse than
+  a clean refusal. It now defaults to **False** and refuses with a DM, so the
+  caller stops retrying instead of burning its full N2 budget.
+- **The TOML writer corrupted any config containing a control character.**
+  `_toml_escape` handled only quotes and backslashes, so a value with a
+  carriage return -- and `connect_banner` is CR-separated, because packet is --
+  wrote a raw CR into `config.toml` and made the whole document unparseable.
+  Because `load_config()` is deliberately forgiving, the next launch then
+  silently reverted **every** setting to its default: callsign, transports,
+  tuned timers, all of it. A write path that can corrupt the file it just
+  wrote is worse than one that raises. Now escapes the full TOML basic-string
+  set plus `\uXXXX` for anything else below 0x20, with a parametrized
+  round-trip test that also asserts unrelated settings survive.
+
+### New Features
+- **`Config.accept_incoming` and `Config.connect_banner`**, both editable in a
+  new "Unattended operation" section of the Settings tab. Answering a call is
+  transmission under the operator's callsign with nobody present, so the
+  setting's help text says so plainly rather than burying it, and points at
+  checking what the licence allows on the band in use.
+- **A connect banner** (BPQ32 calls this CTEXT) is sent to whoever connects, so
+  the link opens into something rather than silence. Kept short by default:
+  every byte is airtime, and at 1200 baud a long banner is several seconds of
+  channel nobody else can use.
+- **`ANSWERING` in the status bar** whenever the station will answer
+  unattended -- the honest counterpart to the opt-in.
+
+`_send_banner` re-checks `accept_incoming` at the moment it transmits, even
+though it only runs after a connection was accepted. Anything that keys a
+transmitter checks the opt-in where the transmission happens, not only where
+the decision was made.
+
+**Files:** `kissterm/config.py`, `kissterm/ui/{settings_schema,app}.py`,
+`kissterm/__main__.py`, `config.toml.example`, `tests/unit/test_config.py`,
+`tests/pilot/test_settings.py`, `README.md`, `AGENTS.md`.
+
 ## [2026-09-04] — Hotplug for USB TNCs; the network is still never scanned
 
 ### New Features
