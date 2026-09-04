@@ -3,6 +3,52 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-04] — Everything setup asks for is now editable in-app
+
+### New Features
+- **A real Settings tab.** Callsign, alternate callsigns, which TNC or modem to
+  use, AX.25 timing (paclen, sequence mode, window, retries, T1/T2/T3), APRS
+  beaconing, monitor filter, ASCII-safe mode and log directory -- all editable,
+  validated, and persisted. Previously the wizard asked for two things
+  (callsign and transport) and the Settings tab could edit neither; the
+  callsign got a dialog last commit, and the transport -- the one that breaks
+  when a Direwolf host changes IP -- had no UI at all.
+- **Transport management in-app.** Pick the active transport, "Scan for
+  hardware" to re-run discovery without leaving the app, and forget one you no
+  longer use. Forgetting the active transport promotes another rather than
+  leaving `active_transport` dangling at a name that no longer exists.
+
+### How it is built
+`kissterm/ui/settings_schema.py` declares every setting -- label, kind, help
+text, bounds, and when the change takes effect. `settings_pane.py` is
+*generated* from that list. **Adding a config option means adding one schema
+entry**, with no widget, validator or save hook to write. The first, hand-built
+version of this pane was out of date with `Config` on the day it shipped, so
+`tests/pilot/test_settings.py` now fails if a config field has no schema entry
+and no documented reason to be excluded. Themes are the only exclusion that is
+a real gap, and only because there is no theme system yet (P6).
+
+Three behaviours worth keeping:
+- **Nothing saves unless everything validates.** A partial save leaves the
+  operator with some new values and some old ones and no way to tell which.
+- **Every field says when it applies** -- now, next connection, or restart.
+- **Link parameters do not change under an established link.** paclen, window
+  and the timers were negotiated when it came up; changing them mid-conversation
+  corrupts it. New links pick the new values up. There is a test for this.
+
+### Fixed
+- **Any modal open for more than a second crashed the status refresh.**
+  `App.query_one` resolves against the *top* of the screen stack, so with the
+  connect or callsign dialog up, the periodic refresh raised `NoMatches`
+  reaching for `#status-bar`. The panes are still visible behind a modal and
+  still need updating, so refreshes now address the base screen explicitly
+  rather than skipping. The same accessor also absorbs shutdown, where the
+  stack empties and even reading `self.screen` raises `ScreenStackError`.
+
+**Files:** `kissterm/ui/{settings_schema,settings_pane,app,styles}.py`,
+`tests/pilot/test_settings.py`, `scripts/generate_screenshot.py`, `README.md`,
+`AGENTS.md`, `kissterm/ui/AGENTS.md`, `assets/screenshot-settings.png`.
+
 ## [2026-09-04] — Callsign changing, screenshots, and three invisible UI bugs
 
 ### New Features

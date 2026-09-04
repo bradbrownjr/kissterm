@@ -155,7 +155,8 @@ class KissTermApp(App):
         self.heard.record(frame, port)
         if self.monitor_filter.allows(frame, port):
             line = format_frame(frame, port)
-            self.query_one(MonitorPane).write_line(line.as_text())
+            for pane in self._base_query(MonitorPane):
+                pane.write_line(line.as_text())
 
     def _on_incoming_link(self, link) -> None:
         self.query_one(TerminalPane).log(f"\n*** Incoming connection from {link.peer}\n")
@@ -170,6 +171,27 @@ class KissTermApp(App):
         link.on_error.append(lambda why: self._to_terminal("log", f"\n*** {why}\n"))
         self._to_terminal("set_placeholder", f"connected to {link.peer}")
 
+    def _base_query(self, selector):
+        """Query the app's own screen, not whatever modal is on top of it.
+
+        Two failure modes this exists to absorb, both of which produced real
+        crashes:
+
+        * `App.query_one` resolves against `self.screen`, the TOP of the screen
+          stack. With a modal open, any periodic refresh reaching for a pane by
+          id raises `NoMatches` -- so leaving the connect or callsign dialog
+          open for more than a second crashed the status refresh. The panes are
+          still visible behind a modal and still need updating, so addressing
+          the base screen is right; skipping the refresh is not.
+        * During shutdown the stack empties and even reading `self.screen`
+          raises `ScreenStackError`. Returning an empty result set lets
+          callbacks that outlive the UI simply do nothing.
+        """
+        stack = self.screen_stack
+        if not stack:
+            return ()
+        return stack[0].query(selector)
+
     def _to_terminal(self, method: str, *args) -> None:
         """Call a `TerminalPane` method, tolerating the pane not existing.
 
@@ -181,7 +203,7 @@ class KissTermApp(App):
         result set instead of raising, so a torn-down UI is simply nothing to
         write to.
         """
-        for pane in self.query(TerminalPane):
+        for pane in self._base_query(TerminalPane):
             getattr(pane, method)(*args)
             return
 
@@ -302,7 +324,8 @@ class KissTermApp(App):
                 f"tx {stats.frames_sent} rx {stats.frames_received} rtx {stats.retransmits}"
             )
         parts.append(f"heard {len(self.heard)}")
-        self.query_one("#status-bar", Static).update("  |  ".join(parts))
+        for bar in self._base_query("#status-bar"):
+            bar.update("  |  ".join(parts))
 
     def _refresh_heard(self, force: bool = False) -> None:
         """Repaint the heard table.
@@ -313,9 +336,12 @@ class KissTermApp(App):
         Heard and sees an empty table until the next interval tick, which reads
         as "nothing has been heard" when in fact everything has.
         """
-        if not force and self.query_one("#main-tabs", TabbedContent).active != "heard":
-            return
-        self.query_one(HeardPane).refresh_from(self.heard)
+        if not force:
+            tabs = list(self._base_query("#main-tabs"))
+            if not tabs or tabs[0].active != "heard":
+                return
+        for pane in self._base_query(HeardPane):
+            pane.refresh_from(self.heard)
 
     @on(TabbedContent.TabActivated, "#main-tabs")
     def _on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
@@ -327,4 +353,10 @@ class KissTermApp(App):
         """
         if event.pane.id == "heard":
             self._refresh_heard(force=True)
+        elif event.pane.id == "settings":
+            # Same rule as the heard table: a pane must be correct the instant
+            # it is visible. Re-rendering also discards half-typed edits the
+            # operator navigated away from without saving, which is the
+            # behaviour that matches "this shows what is in effect".
+            self.query_one(SettingsPane).render_settings(self.config)
         self._refresh_status()

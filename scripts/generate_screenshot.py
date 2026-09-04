@@ -94,10 +94,17 @@ async def _build():
     await tb.open()
     config = Config(
         mycall=str(MYCALL),
+        transports=[
+            {"name": "Direwolf (LAN)", "kind": "tcp", "host": "192.168.1.40", "port": 8001},
+            {"name": "Mobilinkd TNC3", "kind": "serial", "device": "/dev/rfcomm0", "baud": 38400},
+        ],
         active_transport="Direwolf (LAN)",
         paclen=256,
         window=4,
     )
+    config.aprs.latitude = 42.3601
+    config.aprs.longitude = -71.0589
+    config.aprs.comment = "kissterm test station"
     station = AX25Station(MYCALL, ta, LinkParams(t1=8.0, t2=1.0, t3=180.0))
     station.transport.info.detail = "192.168.1.40:8001"
     return KissTermApp(config, station), ta, tb, station
@@ -140,6 +147,7 @@ async def main() -> int:
             "terminal": "screenshot.svg",
             "monitor": "screenshot-monitor.svg",
             "heard": "screenshot-heard.svg",
+            "settings": "screenshot-settings.svg",
         }
         written = []
         for tab, name in shots.items():

@@ -15,7 +15,8 @@ Read this file plus the one pane you are changing.
 | `monitor_pane.py` | Channel log + filter bar |
 | `heard_pane.py` | Heard `DataTable` |
 | `aprs_pane.py` | Placeholder; the real pane is roadmap P4 |
-| `settings_pane.py` | Read-only config read-out |
+| `settings_schema.py` | **Declarative** list of every editable setting |
+| `settings_pane.py` | The settings form, generated from that schema |
 | `dialogs.py` | `ConnectScreen` and future modals |
 
 `kissterm/app.py` one level up is a thin shim re-exporting `KissTermApp`, so
@@ -61,7 +62,17 @@ Read this file plus the one pane you are changing.
     (`.venv/bin/python scripts/generate_screenshot.py`). Three invisible layout
     bugs passed the full suite and were caught only by looking at the picture.
     When it shows something the assertions did not, add a geometry test.
-11. No emoji anywhere.
+11. **Never hand-write a settings widget.** `settings_pane.py` is generated
+    from `SETTINGS_SCHEMA`. Adding a setting is one entry in
+    `settings_schema.py` — label, kind, help, bounds, and when it takes
+    effect. A hand-built form goes stale the first time someone adds a config
+    option and forgets the UI, which already happened once here.
+12. **Validate everything, then save; never save partially.** A half-applied
+    save leaves the operator unable to tell which values took.
+13. **Say when a change takes effect** (`Field.apply`: live / connect /
+    restart). Link parameters must not change under an *established* link —
+    they were negotiated when it came up.
+14. No emoji anywhere.
 
 ## Testing
 

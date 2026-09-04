@@ -1,54 +1,345 @@
-"""The Settings pane -- read-only for now, and honest about it.
+"""The Settings pane: every setup answer, editable, without leaving the app.
 
-`config.toml` is still hand-edited (roadmap P6 makes this editable). Showing
-the operator the values kissterm is actually running with, plus where the file
-lives, is most of the value of a settings screen and none of the risk: a
-half-finished editor that writes a malformed config is worse than no editor,
-because `load_config` would then start the app with silently different values.
+Generated from `settings_schema.SETTINGS_SCHEMA` rather than hand-built. Adding
+a config option means adding one schema entry; nothing here changes. That is
+deliberate -- the first version of this pane was hand-written, read-only, and
+already out of date with `Config` on the day it shipped.
 
-`render_settings` takes the config as an argument rather than reading
-`self.app.config` so this pane can be rendered in a test without an app.
+Two things this pane must get right, both learned the hard way:
+
+**Save nothing until everything validates.** Coerce every field first, collect
+the failures, and only then write to `Config`. A partial save leaves the
+operator with some new values and some old ones and no way to tell which --
+worse than refusing outright.
+
+**Say when a change takes effect.** `Field.apply` distinguishes "live", "next
+connection" and "restart", and the pane labels each field accordingly. Link
+parameters deliberately do *not* touch an established link: paclen, window and
+the timers were negotiated when it came up, and changing them underneath a
+running conversation corrupts it.
+
+Transports get their own section rather than schema fields, because they are a
+list of dicts with kind-specific keys -- a serial port has a baud rate, a TCP
+host has an address -- and flattening that would hard-code every transport kind
+into the UI. See `settings_schema`'s docstring.
 """
 
 from __future__ import annotations
 
+import logging
+
+from textual import on, work
 from textual.app import ComposeResult
-from textual.containers import Container
-from textual.widgets import Static
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.widgets import Button, Input, Label, Select, Static, Switch
+
+from .settings_schema import (
+    SETTINGS_SCHEMA,
+    Field,
+    ValidationError,
+    coerce,
+    cross_check,
+    format_value,
+    get_value,
+    set_value,
+)
+
+log = logging.getLogger(__name__)
+
+APPLY_NOTE = {
+    "live": "takes effect now",
+    "connect": "next connection",
+    "restart": "needs a restart",
+}
 
 
-class SettingsPane(Container):
-    """A static read-out of the running configuration."""
+def _widget_id(path: str) -> str:
+    """A DOM-safe id from a dotted schema path (`aprs.latitude`)."""
+    return "set-" + path.replace(".", "-")
+
+
+class SettingsPane(VerticalScroll):
+    """Scrollable form over the whole schema, plus transport management."""
 
     def compose(self) -> ComposeResult:
-        yield Static(id="settings-body", classes="placeholder")
+        yield Static("", id="settings-banner", classes="settings-banner")
 
+        # --- Transports: not schema-driven, see the module docstring --------
+        yield Label("Transports", classes="settings-section")
+        yield Static(
+            "Which TNC or modem kissterm talks to. Changing this reopens the "
+            "connection, so disconnect first.",
+            classes="settings-note",
+        )
+        with Horizontal(classes="settings-row"):
+            yield Label("Active", classes="settings-label")
+            yield Select([], id="set-active-transport", allow_blank=True)
+        with Horizontal(classes="settings-row"):
+            yield Label("", classes="settings-label")
+            yield Button("Scan for hardware", id="settings-scan")
+            yield Button("Forget selected", id="settings-forget")
+        yield Static("", id="settings-transport-detail", classes="settings-note")
+
+        # --- Everything else, straight from the schema ----------------------
+        for section in SETTINGS_SCHEMA:
+            yield Label(section.title, classes="settings-section")
+            yield Static(section.note, classes="settings-note")
+            for spec in section.fields:
+                yield from self._compose_field(spec)
+
+        with Horizontal(classes="settings-row"):
+            yield Button("Save", variant="primary", id="settings-save")
+            yield Button("Reload from file", id="settings-reload")
+        yield Static("", id="settings-footer", classes="settings-note")
+
+    def _compose_field(self, spec: Field) -> ComposeResult:
+        wid = _widget_id(spec.path)
+        with Horizontal(classes="settings-row"):
+            yield Label(spec.label, classes="settings-label")
+            if spec.kind == "bool":
+                yield Switch(id=wid)
+            elif spec.kind == "choice":
+                yield Select(
+                    [(label, value) for label, value in spec.choices],
+                    id=wid,
+                    allow_blank=False,
+                )
+            else:
+                yield Input(id=wid, placeholder=spec.placeholder)
+            yield Label(APPLY_NOTE.get(spec.apply, ""), classes="settings-apply")
+        if spec.help:
+            yield Static(spec.help, classes="settings-help")
+        yield Label("", id=f"{wid}-error", classes="settings-error")
+
+    # ------------------------------------------------------------------
+    # Loading
+    # ------------------------------------------------------------------
     def render_settings(self, config) -> None:
-        try:
-            from ..config import config_path
+        """Populate every widget from `config`. Safe to call repeatedly."""
+        for section in SETTINGS_SCHEMA:
+            for spec in section.fields:
+                wid = _widget_id(spec.path)
+                try:
+                    value = get_value(config, spec.path)
+                except AttributeError:
+                    # A schema entry naming a field the config does not have is
+                    # a bug, but not one worth taking the pane down for.
+                    log.warning("settings schema references unknown %s", spec.path)
+                    continue
+                if spec.kind == "bool":
+                    self.query_one(f"#{wid}", Switch).value = bool(value)
+                elif spec.kind == "choice":
+                    self.query_one(f"#{wid}", Select).value = value
+                else:
+                    self.query_one(f"#{wid}", Input).value = format_value(spec, value)
+                self._set_error(wid, "")
 
-            path = str(config_path())
-        except Exception:
-            # Never let a settings *display* problem stop the app; the operator
-            # can still use the radio without knowing where the file lives.
-            path = "(could not determine)"
+        self._render_transports(config)
+        self._render_banner(config)
 
-        lines = [
-            f"Callsign          {getattr(config, 'mycall', '') or '(unset)'}   (Ctrl+K to change)",
-            f"Active transport  {getattr(config, 'active_transport', '') or '(none)'}",
-            f"paclen / window   {getattr(config, 'paclen', '-')} / {getattr(config, 'window', '-')}",
-            f"T1 / T2 / T3      {getattr(config, 't1', '-')} / {getattr(config, 't2', '-')} / {getattr(config, 't3', '-')}",
-            f"Retries (N2)      {getattr(config, 'retries', '-')}",
-            "",
-            f"Config file       {path}",
-            "",
-            "Callsign is editable here with Ctrl+K, or from a shell with",
-            "'kissterm --callsign W1AW-1'. The remaining settings are still",
-            "hand-edited in config.toml (roadmap P6); 'kissterm --doctor'",
-            "checks the file over and says what is wrong with it.",
+    def _render_transports(self, config) -> None:
+        select = self.query_one("#set-active-transport", Select)
+        options = [
+            (f"{t.get('name', '?')}  ({t.get('kind', '?')})", t.get("name", ""))
+            for t in config.transports
         ]
+        select.set_options(options)
+        if config.active_transport and any(
+            v == config.active_transport for _, v in options
+        ):
+            select.value = config.active_transport
+        self._render_transport_detail(config)
+
+    def _render_transport_detail(self, config) -> None:
+        name = self.query_one("#set-active-transport", Select).value
+        entry = next(
+            (t for t in config.transports if t.get("name") == name), None
+        )
+        detail = self.query_one("#settings-transport-detail", Static)
+        if entry is None:
+            detail.update(
+                "No transport configured. 'Scan for hardware' looks for serial "
+                "TNCs, KISS and AGWPE services on your network, and paired "
+                "Bluetooth TNCs. Nothing it does transmits."
+            )
+            return
+        keys = ", ".join(
+            f"{k} = {v}" for k, v in sorted(entry.items()) if k not in ("name",)
+        )
+        detail.update(keys or "(no settings)")
+
+    def _render_banner(self, config) -> None:
         warnings = list(getattr(config, "warnings", ()) or ())
+        banner = self.query_one("#settings-banner", Static)
         if warnings:
-            lines += ["", "Problems found in config.toml (defaults used instead):"]
-            lines += [f"  - {w}" for w in warnings]
-        self.query_one("#settings-body", Static).update("\n".join(lines))
+            banner.update(
+                "Problems were found in config.toml and defaults were used "
+                "instead:\n  - " + "\n  - ".join(warnings)
+            )
+            banner.display = True
+        else:
+            banner.display = False
+
+    def _set_error(self, wid: str, message: str) -> None:
+        label = self.query_one(f"#{wid}-error", Label)
+        label.update(message)
+        label.display = bool(message)
+
+    # ------------------------------------------------------------------
+    # Saving
+    # ------------------------------------------------------------------
+    @on(Button.Pressed, "#settings-save")
+    def _save(self) -> None:
+        config = self.app.config  # type: ignore[attr-defined]
+        pending: dict[str, object] = {}
+        failed = False
+
+        for section in SETTINGS_SCHEMA:
+            for spec in section.fields:
+                wid = _widget_id(spec.path)
+                if spec.kind == "bool":
+                    raw = self.query_one(f"#{wid}", Switch).value
+                elif spec.kind == "choice":
+                    raw = self.query_one(f"#{wid}", Select).value
+                else:
+                    raw = self.query_one(f"#{wid}", Input).value
+                try:
+                    pending[spec.path] = coerce(spec, raw)
+                    self._set_error(wid, "")
+                except ValidationError as exc:
+                    self._set_error(wid, str(exc))
+                    failed = True
+
+        if failed:
+            # Nothing is written. A partial save leaves the operator unable to
+            # tell which values took -- worse than refusing outright.
+            self.query_one("#settings-footer", Static).update(
+                "Not saved -- fix the fields marked above."
+            )
+            self.app.notify("Settings not saved: some values are invalid.", severity="error")
+            return
+
+        for path, value in pending.items():
+            set_value(config, path, value)
+
+        selected = self.query_one("#set-active-transport", Select).value
+        if selected and selected != Select.BLANK:
+            config.active_transport = str(selected)
+
+        notes = cross_check(config)
+        saved = self.app._save_config()  # type: ignore[attr-defined]
+        self._apply_live(config)
+
+        message = "Settings saved." if saved else "Applied for this session (could not write config)."
+        if notes:
+            message += " " + " ".join(notes)
+        self.query_one("#settings-footer", Static).update(message)
+        self.app.notify(message, severity="information" if saved else "warning")
+
+    def _apply_live(self, config) -> None:
+        """Push the settings that can change under a running app.
+
+        Link parameters are deliberately excluded from any *established* link:
+        paclen, window and the timers were agreed when it came up, and changing
+        them underneath a running conversation corrupts it. New links pick them
+        up, which is what `Field.apply == "connect"` promises.
+        """
+        app = self.app
+        station = getattr(app, "station", None)
+        if station is None:
+            return
+        from ..ax25.address import AX25Address
+
+        try:
+            station.mycall = AX25Address.parse(config.mycall)
+            station.aliases = tuple(
+                AX25Address.parse(a) for a in config.mycall_aliases
+            )
+        except Exception:
+            log.exception("could not apply callsign settings")
+
+        params = station.params
+        params.paclen = config.paclen
+        params.window = config.window
+        params.modulo = config.modulo
+        params.retries = config.retries
+        params.t1 = config.t1
+        params.t2 = config.t2
+        params.t3 = config.t3
+
+        monitor_filter = getattr(app, "monitor_filter", None)
+        if monitor_filter is not None:
+            monitor_filter.contains = config.monitor_filter
+
+    @on(Button.Pressed, "#settings-reload")
+    def _reload(self) -> None:
+        from ..config import load_config
+
+        try:
+            fresh = load_config()
+        except Exception:
+            log.exception("could not reload config")
+            self.app.notify("Could not read config.toml.", severity="error")
+            return
+        self.app.config = fresh  # type: ignore[attr-defined]
+        self.render_settings(fresh)
+        self.query_one("#settings-footer", Static).update("Reloaded from config.toml.")
+
+    @on(Select.Changed, "#set-active-transport")
+    def _transport_changed(self) -> None:
+        self._render_transport_detail(self.app.config)  # type: ignore[attr-defined]
+
+    @on(Button.Pressed, "#settings-forget")
+    def _forget(self) -> None:
+        config = self.app.config  # type: ignore[attr-defined]
+        name = self.query_one("#set-active-transport", Select).value
+        if not name or name == Select.BLANK:
+            return
+        config.transports = [t for t in config.transports if t.get("name") != name]
+        if config.active_transport == name:
+            config.active_transport = (
+                config.transports[0].get("name", "") if config.transports else ""
+            )
+        self.app._save_config()  # type: ignore[attr-defined]
+        self._render_transports(config)
+        self.app.notify(f"Forgot transport {name}.")
+
+    @work
+    async def _scan(self) -> None:
+        config = self.app.config  # type: ignore[attr-defined]
+        detail = self.query_one("#settings-transport-detail", Static)
+        detail.update("Scanning serial ports, the local network, and paired Bluetooth...")
+        try:
+            from .. import discovery
+
+            found = await discovery.discover_all()
+        except Exception:
+            log.exception("discovery failed")
+            detail.update("Scan failed. 'kissterm --doctor' may say why.")
+            return
+
+        if not found:
+            detail.update(
+                "Nothing found. That is not proof there is no TNC -- a silent "
+                "KISS TNC looks like a wrong serial port until a frame arrives."
+            )
+            return
+
+        added = 0
+        for dev in found:
+            entry = dict(dev.config)
+            entry.setdefault("name", dev.label)
+            if any(t.get("name") == entry["name"] for t in config.transports):
+                continue
+            config.transports.append(entry)
+            added += 1
+        if added and not config.active_transport:
+            config.active_transport = config.transports[0].get("name", "")
+        self.app._save_config()  # type: ignore[attr-defined]
+        self._render_transports(config)
+        detail.update(f"Found {len(found)}; added {added} new.")
+        self.app.notify(f"Discovery added {added} transport(s).")
+
+    @on(Button.Pressed, "#settings-scan")
+    def _scan_pressed(self) -> None:
+        self._scan()

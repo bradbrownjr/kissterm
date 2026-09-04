@@ -13,6 +13,11 @@ has been active and whether you heard them directly:
 
 ![The heard list](assets/screenshot-heard.png)
 
+Everything the first-run wizard asks for stays editable in the app -- callsign,
+transport, link timing, APRS:
+
+![The settings pane](assets/screenshot-settings.png)
+
 ## Why this exists
 
 Packet radio on Linux has been stuck with a hard choice: use `linpac`, which
@@ -80,7 +85,16 @@ First run asks for your callsign and then goes looking for your TNC. See
 [SETUP.md](SETUP.md) for Direwolf, Bluetooth pairing, serial permissions, and
 the rest.
 
-**Changing your callsign later takes one keystroke.** `Ctrl+K` in the app, or
+**Nothing you answer at setup is locked in.** The Settings tab (`Ctrl+5`)
+edits your callsign, which TNC or modem to use, AX.25 timing (paclen, window,
+T1/T2/T3, retries) and APRS beaconing -- with validation, and a note on each
+field saying whether it takes effect now, on the next connection, or at
+restart. "Scan for hardware" re-runs discovery from inside the app, so moving
+your Direwolf host to a new IP does not mean editing a TOML file. Link
+parameters deliberately do not change under an established link; they were
+negotiated when it came up.
+
+**Changing your callsign specifically takes one keystroke.** `Ctrl+K` in the app, or
 `kissterm --callsign W1AW-9` from a shell -- neither re-runs the setup wizard.
 Operators change SSID constantly (a `-1` mailbox, a different SSID for portable
 or an emergency net, a club call for an event), so this is a first-class

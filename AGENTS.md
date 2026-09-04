@@ -176,6 +176,8 @@ kissterm/
 │   │   └── station.py       # AX25Station -- demux, incoming links
 │   ├── aprs/                # UI-frame payload decode + encode (+ AGENTS.md)
 │   ├── ui/                  # Textual panes, one file each (+ AGENTS.md)
+│   │   ├── settings_schema.py  # DECLARATIVE settings; add a field here only
+│   │   └── settings_pane.py    # generated from the schema, edits nothing else
 │   └── transport/           # + its own AGENTS.md (local contract)
 │       ├── base.py          # the two tiers, Session
 │       ├── kiss.py          # KISS codec, no I/O
@@ -358,9 +360,11 @@ Gotchas that already cost time:
 - **BLE TNCs are not supported.** Mobilinkd TNC4-class devices need GATT
   characteristic handling and a `bleak` dependency. `BleKissTransport` is a
   marked stub.
-- **Settings are still hand-edited, except the callsign.** `Ctrl+K` (or
-  `kissterm --callsign`) changes the callsign and persists it; everything else
-  means editing `config.toml`. Roadmap P6.
+- **Themes are the one setting with no UI**, because there is no theme system
+  yet (roadmap P6). `Config.theme` is read and written but does nothing.
+  Everything else in `Config` is editable in the Settings tab; the coverage
+  test in `tests/pilot/test_settings.py` fails if a new config field is added
+  without one, so that gap cannot silently reopen.
 - **The APRS pane is a placeholder.** Decoding is wired into the frame fan-out
   and APRS traffic shows in the Monitor tab, but the dedicated pane
   (positions, messaging with ack/retry, beaconing) is roadmap P4.
@@ -381,6 +385,14 @@ Gotchas that already cost time:
 - **Add a pane:** add a `TabPane` in `app.py`'s `compose()`, a `Binding` for
   `ctrl+N`/`fN`, and — if it needs frames — a subscriber on the existing
   fan-out, never a second decode path.
+- **Add a setting:** add the field to `Config` in `config.py` (with a loader
+  entry so a bad value degrades to the default), then add ONE entry to
+  `SETTINGS_SCHEMA` in `kissterm/ui/settings_schema.py`. The Settings pane is
+  generated from that list — no widget, validator or save hook to write. A
+  config field with no schema entry fails
+  `tests/pilot/test_settings.py::test_every_config_field_is_editable_or_deliberately_excluded`,
+  which is there precisely because the first, hand-built Settings pane was out
+  of date with `Config` on the day it shipped.
 - **Change link behaviour:** it is all in `ax25/session.py`. Add a loopback
   test in `tests/unit/test_ax25_link.py` first; that file is the safety net.
 - **Debug "the link stalls":** check the modular arithmetic in `_ack_upto`

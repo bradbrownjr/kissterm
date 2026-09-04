@@ -52,4 +52,26 @@ ConnectScreen { align: center middle; }
 #connect-buttons Button { margin-left: 1; }
 
 .placeholder { padding: 1 2; color: $text-muted; }
+
+/* Settings form. Generated from settings_schema, so these rules style whole
+   classes of row rather than any particular field -- adding a setting must
+   never mean adding CSS. */
+SettingsPane { padding: 0 2; }
+.settings-banner {
+    padding: 1 2; margin: 1 0;
+    background: $warning-darken-2; color: $text;
+}
+.settings-section {
+    margin: 1 0 0 0; padding: 0 1;
+    text-style: bold; color: $accent; width: 100%;
+}
+.settings-note { padding: 0 1 1 1; color: $text-muted; }
+.settings-row { height: auto; padding: 0 1; }
+.settings-label { width: 24; padding: 1 1 0 0; }
+.settings-apply { padding: 1 0 0 2; color: $text-muted; }
+.settings-help { padding: 0 1 0 25; color: $text-muted; }
+.settings-error { padding: 0 1 0 25; color: $error; display: none; }
+.settings-row Input { width: 1fr; max-width: 46; }
+.settings-row Select { width: 1fr; max-width: 46; }
+.settings-row Button { margin-right: 1; }
 """
