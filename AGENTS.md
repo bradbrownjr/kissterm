@@ -390,6 +390,15 @@ Gotchas that already cost time:
   Everything else in `Config` is editable in the Settings tab; the coverage
   test in `tests/pilot/test_settings.py` fails if a new config field is added
   without one, so that gap cannot silently reopen.
+- **kissterm answers incoming connections and then says nothing.**
+  `AX25Station.accept_incoming` defaults to True, so a caller gets a UA and
+  then silence -- worse than a clean refusal, because they have no way to tell
+  a working link from a broken one. There is no banner, no prompt, and no
+  mailbox behind it. Two things to settle together (roadmap P9): send a
+  configurable connect banner, and make answering an explicit opt-in rather
+  than the default, since auto-answering is unattended transmission under the
+  operator's callsign. Do not build a mailbox without reading P9's regulatory
+  note first.
 - **The APRS pane is a placeholder.** Decoding is wired into the frame fan-out
   and APRS traffic shows in the Monitor tab, but the dedicated pane
   (positions, messaging with ack/retry, beaconing) is roadmap P4.

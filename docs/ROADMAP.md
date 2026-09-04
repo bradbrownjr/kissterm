@@ -5,6 +5,11 @@ Update this file as items are completed — move the completed item's entry
 into CHANGELOG.md under a new dated section (`## [YYYY-MM-DD]`) instead of
 just checking it off here, so ROADMAP.md only ever shows what's still open.
 
+Phase numbers are labels, not a strict work order. The one real ordering
+constraint is that **P1's remaining verification-against-hardware items outrank
+everything else** -- the whole stack is proven only against a software loopback
+so far, and a bug found on the air could invalidate work built on top of it.
+
 ## P1 — Core terminal — DONE (2026-09-04)
 
 Everything P1 called for shipped: the AX.25 connected-mode state machine, KISS
@@ -215,3 +220,127 @@ transports and framing that already exist, not a new transport.
   rather than git, unlike google-tui's git-based updater — needs a decision
   on which distribution channel is authoritative once P7's PyPI item lands.
   Medium.
+
+## P8 — Terminal assistance: know what to type at the node you reached
+
+Packet's usability problem is not the protocol, it is that every node family
+has its own command set and a new operator faces a bare `}` prompt with no
+idea what is legal. kissterm is in a good position to fix that: it sees the
+connect banner, and it sees everything the node says.
+
+- [ ] **Fingerprint the node from its connect banner.** Node families announce
+      themselves distinctively -- BPQ32/LinBPQ emits a `CTEXT` then a
+      `CALL:ALIAS}` prompt (confirmed against a live config in the sibling
+      `bpq-apps` repo: `NODECALL=WS1EC-15`, `NODEALIAS=CCEMA`, prompt
+      `de WS1EC-15>`); FBB, JNOS, TheNet/X1J, KA-Node, DXSpider and Winlink RMS
+      each have their own. New module `kissterm/nodes/fingerprint.py`, fed from
+      the session stream. Must degrade to "unknown node" silently -- a wrong
+      guess that changes the UI is worse than no guess. Mid effort.
+- [ ] **A command reference per detected family**, shown in a pane or on a key.
+      Data-driven (`kissterm/nodes/*.toml`), one file per family, so adding a
+      family is data, not code -- same principle as `settings_schema.py`.
+- [ ] **Harvest commands from the node itself.** Most node software answers `?`
+      or `H` with its own command list. Parsing that is a better source than
+      any table we ship: it is current, it is that node's actual build, and it
+      covers local additions (the sibling `bpq-apps` repo adds CALENDAR, FORMS,
+      WALL and more to a stock BPQ32 -- no shipped reference would know about
+      those). Cache per node callsign. Mid effort, high payoff.
+- [ ] **Autocomplete and suggestions on the input line.** Sourced from, in
+      order: commands harvested from this node, the family reference, and the
+      operator's own history with this node. Must be strictly opt-in-feeling --
+      this is a *terminal*, and a completion that inserts characters the
+      operator did not type into a live BBS session is a bug. Tab to accept,
+      never autocomplete-on-enter. Touches `ui/terminal_pane.py`.
+- [ ] **A glossary of packet terminology** (digipeater, SSID, paclen, NET/ROM,
+      unproto, RMS, gateway, T1/T2/T3, mailbox hierarchical address...). Aimed
+      at someone who knows radio but not packet -- the audience the README
+      already writes for. Plain data file, searchable in-app.
+- [ ] **Research sources to work from.** G8BPQ's BPQ32/LinBPQ documentation;
+      FBB, JNOS and TheNet/X1J command sets; DXSpider's command reference;
+      Winlink RMS. The sibling `bpq-apps` repo is a local, already-trusted
+      source for the BPQ32 side, including a real node config and the custom
+      app menu a connecting user actually sees. **The most reliable source is
+      on-air capture** -- a saved transcript from a real node beats any
+      document, and kissterm will already be logging those (P2). Note that
+      `.github/bpq_research.txt` in that repo is currently empty despite its
+      name; do not go looking for content there.
+
+## P9 — Unattended operation: mailbox, file drop, and alerts
+
+**kissterm already answers incoming connections and then says nothing.**
+`AX25Station.accept_incoming` defaults to True, so it sends a UA and leaves the
+caller staring at silence. That is worse than refusing. Fixing it is the entry
+point to this whole phase, and the first item below is not optional.
+
+### Regulatory constraint -- read before building any of this
+Auto-answering means **transmitting unattended under the operator's callsign**,
+and a mailbox that accepts messages for onward delivery means **handling
+third-party traffic**. Both are regulated, and the rules differ by country and
+by band -- automatic control is broadly permissive above 29.5 MHz in the US but
+restricted on HF, and third-party traffic depends on international agreements
+with the other station's country. **These specifics need checking against the
+current rules by someone qualified; do not treat this paragraph as authority.**
+What follows from it for the design is not in doubt, though:
+
+- Unattended answering is **off by default** and requires an explicit opt-in.
+- The UI must make it obvious when the station will transmit unattended.
+- The operator is the control operator; kissterm states that plainly in the
+  setting's help text rather than burying it.
+- Anything that would relay a message from one third party to another is out
+  of scope for v1. A drop box that holds mail *for its own operator* is a much
+  smaller regulatory question than a forwarding BBS.
+
+### Items
+- [ ] **Send something on incoming connect.** A configurable connect banner
+      (BPQ32 calls it `CTEXT`) plus a prompt. Smallest possible fix for the
+      defect above, and it should land before anything else here. Small.
+- [ ] **`accept_incoming` as a real setting**, defaulting to refuse until the
+      operator opts in, with a DM sent on refusal so the caller stops retrying
+      rather than burning N2 attempts. One `settings_schema.py` entry plus
+      wiring. Small.
+- [ ] **A personal mailbox on an alternate SSID** -- the `-1` convention, which
+      `Config.mycall_aliases` and `AX25Station.aliases` already support at the
+      protocol level. Minimal command set in the EasyTerm//W0RLI tradition:
+      `H`/`?` help, `L` list, `R n` read, `S` send, `K n` kill, `B` bye. New
+      `kissterm/mailbox/` package. Messages stored as plain files, because a
+      mailbox whose contents can only be read by the app that wrote them is a
+      bad bargain for an emergency tool. Large effort.
+- [ ] **File upload and download to a drop box.** This is where the security
+      work is, and it must not be hand-waved -- an unattended station accepting
+      files is writing attacker-controlled bytes to disk from an unauthenticated
+      RF link:
+      - a single jail directory, with every path resolved and confirmed inside
+        it (`Path.resolve().is_relative_to`), never string-prefix checks;
+      - filenames sanitized to a strict allowlist, never trusted from the wire
+        -- no separators, no `..`, no leading dots, length capped;
+      - a total-size quota and a per-callsign quota, both enforced *during*
+        transfer, not after, or the quota is decorative;
+      - a per-callsign rate limit, so one station cannot occupy the channel;
+      - **never execute, never auto-open** anything received.
+      YAPP is the right transfer protocol here, and it *is* viable for kissterm
+      even though the sibling `bpq-apps` repo documents it as a dead end -- that
+      limitation is BPQ32's stdio terminal filter eating control characters,
+      which does not apply to a native binary-transparent AX.25 link. See P5.
+      Large effort.
+- [ ] **Notify when a watched callsign is heard.** Hangs off the existing frame
+      fan-out and `HeardTable` -- no new decode path. A watchlist in config,
+      matched on any frame's source, digipeater path included.
+      Rate limiting is the substance of this item, not an afterthought: a
+      friend running APRS beacons every minute would otherwise generate a
+      notification every minute, and the operator will disable the whole
+      feature rather than tune it. Needs, at minimum:
+      - a per-callsign cooldown (default on the order of an hour), so "heard
+        again" is only reported once per visit rather than once per beacon;
+      - a global cap on notifications per hour, so a band opening does not
+        produce a wall of toasts;
+      - optional quiet hours;
+      - suppression while the operator is actively using the app, since a toast
+        for a station already visible in the monitor pane is noise.
+      Delivery via the existing in-app notification plus optional OS
+      notification (`notify-send` / `terminal-notifier`), degrading silently
+      where no notifier exists. Mid effort.
+- [ ] **Notify on incoming connection and on new mail**, same rate-limiting
+      machinery. Small once the above exists.
+- [ ] **An "unattended" status indicator** in the status bar whenever the
+      station will answer without a human present. Small, and it is the honest
+      counterpart to the opt-in.
