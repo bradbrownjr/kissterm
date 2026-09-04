@@ -1,0 +1,312 @@
+"""Unit tests for `kissterm.config` and the `kissterm.discovery` scoring heuristics.
+
+`kissterm._isolate.isolate()` is called below, before any other `kissterm`
+import, so that even a test that forgets to pass an explicit `path=` to
+`load_config`/`save_config` cannot land on a real user's config directory.
+See the CRITICAL SAFETY RULE in `kissterm/config.py` and the docstring of
+`kissterm/_isolate.py` for why that ordering is load-bearing, not
+decorative.
+
+No real I/O happens against hardware or the network anywhere in this file:
+`serial.tools.list_ports.comports` is monkeypatched with fabricated port
+data for the discovery-scoring tests, and every config test reads/writes
+only files under pytest's `tmp_path`.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+
+from kissterm import _isolate
+
+# Must happen before any other `kissterm` import -- see module docstring.
+_isolate.isolate()
+
+from kissterm import config as kconfig  # noqa: E402
+from kissterm import discovery  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# load_config: defaults, malformed files, invalid callsigns
+# ---------------------------------------------------------------------------
+
+
+def test_defaults_load_with_no_file(tmp_path):
+    cfg = kconfig.load_config(path=tmp_path / "does-not-exist.toml")
+
+    assert cfg.warnings == []
+    assert cfg.mycall == ""
+    assert cfg.mycall_aliases == []
+    assert cfg.transports == []
+    assert cfg.active_transport == ""
+    assert cfg.paclen == 256
+    assert cfg.window == 4
+    assert cfg.retries == 10
+    assert cfg.t1 == 3.0
+    assert cfg.t2 == 3.0
+    assert cfg.t3 == 300.0
+    assert cfg.monitor_filter == ""
+    assert cfg.log_dir == ""
+    assert cfg.theme == "default"
+    assert cfg.ascii_safe is False
+    assert cfg.aprs.enabled is False
+    assert cfg.aprs.path == "WIDE1-1,WIDE2-1"
+    assert cfg.autoconnect == []
+
+
+def test_malformed_toml_yields_defaults_and_warnings(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text("this is [not valid TOML at all = \n\n[[[", encoding="utf-8")
+
+    cfg = kconfig.load_config(path=path)  # must not raise
+
+    assert cfg.mycall == ""
+    assert cfg.paclen == 256  # defaults intact
+    assert len(cfg.warnings) >= 1
+    assert "malformed" in cfg.warnings[0].lower()
+
+
+def test_missing_readable_dir_does_not_raise(tmp_path):
+    # A path whose parent doesn't exist should just be treated as "no file".
+    cfg = kconfig.load_config(path=tmp_path / "nested" / "config.toml")
+    assert cfg.warnings == []
+    assert cfg.mycall == ""
+
+
+def test_invalid_callsign_is_a_warning_not_an_exception(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text(
+        'mycall = "THIS-CALLSIGN-IS-WAY-TOO-LONG"\n'
+        'mycall_aliases = ["ALSO-WAY-TOO-LONG-TO-BE-VALID", "N0CALL-2"]\n',
+        encoding="utf-8",
+    )
+
+    cfg = kconfig.load_config(path=path)  # must not raise
+
+    assert cfg.mycall == ""
+    assert cfg.mycall_aliases == ["N0CALL-2"]  # the valid one survives
+    assert any("callsign" in w.lower() for w in cfg.warnings)
+
+
+def test_window_out_of_range_is_clamped_with_warning(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text("window = 12\n", encoding="utf-8")
+
+    cfg = kconfig.load_config(path=path)
+
+    assert cfg.window == 7
+    assert any("window" in w.lower() for w in cfg.warnings)
+
+
+def test_wrong_type_field_falls_back_to_default(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('paclen = "not a number"\nascii_safe = "yes"\n', encoding="utf-8")
+
+    cfg = kconfig.load_config(path=path)
+
+    assert cfg.paclen == 256
+    assert cfg.ascii_safe is False
+    assert len(cfg.warnings) >= 2
+
+
+def test_non_table_transport_entries_are_dropped(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('transports = ["not-a-table", 42]\n', encoding="utf-8")
+
+    cfg = kconfig.load_config(path=path)
+
+    assert cfg.transports == []
+    assert any("transports" in w.lower() for w in cfg.warnings)
+
+
+# ---------------------------------------------------------------------------
+# save_config: round-trip, atomicity
+# ---------------------------------------------------------------------------
+
+
+def _fully_populated_config() -> kconfig.Config:
+    cfg = kconfig.Config()
+    cfg.mycall = "N0CALL-1"
+    cfg.mycall_aliases = ["N0CALL-2", "N0CALL-3"]
+    cfg.transports = [
+        {"name": "direwolf", "kind": "tcp", "host": "127.0.0.1", "port": 8001},
+        {"name": "kantronics", "kind": "serial", "device": "/dev/ttyUSB0", "baud": 9600},
+    ]
+    cfg.active_transport = "direwolf"
+    cfg.paclen = 128
+    cfg.window = 7
+    cfg.retries = 5
+    cfg.t1 = 4.5
+    cfg.t2 = 1.5
+    cfg.t3 = 120.0
+    cfg.monitor_filter = "APRS"
+    cfg.log_dir = "/tmp/kissterm-logs"
+    cfg.theme = "solarized"
+    cfg.ascii_safe = True
+    cfg.aprs = kconfig.AprsConfig(
+        enabled=True,
+        beacon_interval_minutes=15,
+        symbol="/-",
+        latitude=41.7,
+        longitude=-72.7,
+        comment="test station",
+        path="WIDE2-1",
+    )
+    cfg.autoconnect = [{"target": "W1AW-1", "path": "WIDE1-1", "transport": "direwolf"}]
+    return cfg
+
+
+def test_save_load_round_trips_every_field(tmp_path):
+    path = tmp_path / "config.toml"
+    original = _fully_populated_config()
+
+    kconfig.save_config(original, path=path)
+    loaded = kconfig.load_config(path=path)
+
+    assert loaded.warnings == []
+    assert loaded.mycall == original.mycall
+    assert loaded.mycall_aliases == original.mycall_aliases
+    assert loaded.transports == original.transports
+    assert loaded.active_transport == original.active_transport
+    assert loaded.paclen == original.paclen
+    assert loaded.window == original.window
+    assert loaded.retries == original.retries
+    assert loaded.t1 == original.t1
+    assert loaded.t2 == original.t2
+    assert loaded.t3 == original.t3
+    assert loaded.monitor_filter == original.monitor_filter
+    assert loaded.log_dir == original.log_dir
+    assert loaded.theme == original.theme
+    assert loaded.ascii_safe == original.ascii_safe
+    assert loaded.aprs == original.aprs
+    assert loaded.autoconnect == original.autoconnect
+
+
+def test_atomic_save_leaves_no_temp_file_behind(tmp_path):
+    path = tmp_path / "config.toml"
+    kconfig.save_config(_fully_populated_config(), path=path)
+
+    entries = sorted(p.name for p in tmp_path.iterdir())
+    assert entries == ["config.toml"]
+    assert not list(tmp_path.glob(".config-*"))
+
+
+def test_save_creates_missing_parent_directories(tmp_path):
+    path = tmp_path / "nested" / "dir" / "config.toml"
+    kconfig.save_config(_fully_populated_config(), path=path)
+
+    assert path.exists()
+    loaded = kconfig.load_config(path=path)
+    assert loaded.mycall == "N0CALL-1"
+
+
+# ---------------------------------------------------------------------------
+# discovery.py: serial scoring heuristics (fabricated comports() data only)
+# ---------------------------------------------------------------------------
+
+
+class _FakePort:
+    def __init__(self, device, description="", manufacturer="", vid=None, pid=None):
+        self.device = device
+        self.description = description
+        self.manufacturer = manufacturer
+        self.vid = vid
+        self.pid = pid
+
+
+def test_discover_serial_scores_known_tnc_highest(monkeypatch):
+    fake_ports = [
+        _FakePort("/dev/ttyACM0", description="Mobilinkd TNC3", manufacturer="Mobilinkd LLC"),
+        _FakePort("/dev/ttyUSB0", description="FTDI FT232R USB UART", vid=0x0403, pid=0x6001),
+        _FakePort("/dev/ttyUSB1", description="USB Serial Device"),
+        _FakePort("/dev/rfcomm0", description="Standard Bluetooth Serial over Link"),
+    ]
+
+    import serial.tools.list_ports as list_ports
+
+    monkeypatch.setattr(list_ports, "comports", lambda: fake_ports)
+
+    results = asyncio.run(discovery.discover_serial())
+
+    by_device = {d.label: d for d in results}
+    assert by_device["/dev/ttyACM0"].confidence == pytest.approx(0.9)
+    assert by_device["/dev/ttyUSB0"].confidence == pytest.approx(0.5)
+    assert by_device["/dev/ttyUSB1"].confidence == pytest.approx(0.3)
+    assert by_device["/dev/rfcomm0"].confidence == pytest.approx(0.1)
+
+    # Highest confidence first.
+    assert [d.label for d in results] == [
+        "/dev/ttyACM0",
+        "/dev/ttyUSB0",
+        "/dev/ttyUSB1",
+        "/dev/rfcomm0",
+    ]
+
+    # Every result must carry a config dict shaped like a transports entry.
+    for device in results:
+        assert device.config["kind"] == "serial"
+        assert device.config["device"] == device.label
+
+
+def test_discover_serial_returns_empty_when_no_ports(monkeypatch):
+    import serial.tools.list_ports as list_ports
+
+    monkeypatch.setattr(list_ports, "comports", lambda: [])
+
+    results = asyncio.run(discovery.discover_serial())
+
+    assert results == []
+
+
+def test_score_serial_port_recognizes_known_brands_by_substring():
+    confidence, note = discovery._score_serial_port("Kantronics KPC3+", "", None, None)
+    assert confidence == pytest.approx(0.9)
+    assert "kantronics" in note.lower()
+
+
+def test_score_serial_port_unknown_device_gets_middling_score():
+    confidence, _note = discovery._score_serial_port("Generic Widget", "Acme", None, None)
+    assert confidence == pytest.approx(0.3)
+
+
+# ---------------------------------------------------------------------------
+# Sequence-number mode. The window ceiling scales with it -- hard-coding 7
+# silently capped every extended link at a modulo-8 window, which looks like
+# poor throughput rather than a config bug.
+# ---------------------------------------------------------------------------
+
+
+def test_modulo_defaults_to_8():
+    assert kconfig.Config().modulo == 8
+
+
+def test_modulo_accepts_only_8_and_128(tmp_path):
+    for value, expected, warns in ((8, 8, False), (128, 128, False), (16, 8, True), ("x", 8, True)):
+        path = tmp_path / f"m{value}.toml"
+        path.write_text(f"modulo = {value!r}\n" if isinstance(value, str) else f"modulo = {value}\n")
+        cfg = kconfig.load_config(path)
+        assert cfg.modulo == expected, f"modulo={value!r} gave {cfg.modulo}"
+        assert bool(cfg.warnings) is warns
+
+
+def test_window_ceiling_follows_modulo(tmp_path):
+    path = tmp_path / "w.toml"
+    path.write_text("modulo = 8\nwindow = 64\n")
+    cfg = kconfig.load_config(path)
+    assert cfg.window == 7, "modulo-8 must cap k at 7"
+    assert cfg.warnings
+
+    path.write_text("modulo = 128\nwindow = 64\n")
+    cfg = kconfig.load_config(path)
+    assert cfg.window == 64, "modulo-128 must allow a window of 64"
+    assert not cfg.warnings
+
+
+def test_modulo_survives_a_round_trip(tmp_path):
+    path = tmp_path / "rt.toml"
+    cfg = kconfig.Config(mycall="N1ABC-1", modulo=128, window=32)
+    kconfig.save_config(cfg, path)
+    back = kconfig.load_config(path)
+    assert (back.modulo, back.window) == (128, 32)

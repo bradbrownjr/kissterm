@@ -1,0 +1,154 @@
+# kissterm
+
+A terminal for packet radio that talks to your TNC directly — over a serial
+cable, over Bluetooth, or over TCP/IP to a KISS TNC anywhere on your network.
+No kernel AX.25 stack. No root. No Windows.
+
+```
+ Terminal   Monitor   Heard   APRS   Settings
++--------------------------------------------------------------+
+| WS1EC-7 (BPQ32) de N1ABC-1                                    |
+| Welcome to the WS1EC packet node.                             |
+| Type ? for help, B to disconnect.                             |
+| >                                                             |
++--------------------------------------------------------------+
+| > b                                                           |
++--------------------------------------------------------------+
+ kissterm 0.1.0 | 192.168.1.40:8001 | N1ABC-1 | WS1EC-7 connected
+```
+
+## Why this exists
+
+Packet radio on Linux has been stuck with a hard choice: use `linpac`, which
+needs the kernel AX.25 stack configured with root and cannot talk to a KISS TNC
+over the network at all — or boot Windows for BPQTerminal or UZ7HO EasyTerm.
+
+kissterm implements **AX.25 connected mode itself, in userspace, over KISS**.
+That one decision is what lets it run unprivileged, on any platform, against a
+TNC on a USB cable, a Bluetooth TNC in your pocket, or a Direwolf instance on a
+Raspberry Pi in the garage — with nothing to configure at the OS level.
+
+| | kissterm | linpac | BPQTerminal | EasyTerm |
+|---|---|---|---|---|
+| KISS over serial | yes | via kernel | yes | yes |
+| KISS over TCP/IP | **yes** | no | yes | yes |
+| Bluetooth TNC | yes | via kernel | no | no |
+| Needs kernel AX.25 | **no** | yes | no | no |
+| Needs root to set up | **no** | yes | no | no |
+| Runs on Linux / macOS / BSD | **yes** | Linux | no | no |
+| Terminal UI (works over SSH) | **yes** | yes | no | no |
+| VARA / HF modems | in progress | no | yes | no |
+| APRS decode | yes | no | no | separate app |
+
+## Features
+
+- **Connect to any packet node or BBS.** Full AX.25 2.2 connected mode with
+  retransmission and timer recovery, so a marginal path recovers instead of
+  dropping you. Modulo 128 (extended sequence numbers) is supported; modulo 8
+  is the default because it is what everything on the air actually speaks.
+- **Every transport.** KISS over serial, over TCP/IP, and over Bluetooth;
+  AGWPE (Direwolf, UZ7HO SoundModem); the Linux kernel AX.25 stack if you
+  already have one. VARA HF/FM and Mercury are implemented but not yet verified
+  against hardware — see [docs/ROADMAP.md](docs/ROADMAP.md).
+- **It finds your hardware.** First run enumerates serial ports, recognises the
+  common TNC chipsets by USB ID, sweeps your LAN for the well-known KISS, AGWPE
+  and VARA ports, and lists paired Bluetooth TNCs — then asks you to pick one.
+  Getting on the air should not require reading a manual first.
+- **A real monitor pane.** Every frame on the channel, decoded the way `listen`
+  and BPQ show it, with filtering by callsign or payload text.
+- **Heard list.** Who you have heard, when, how often, by what path, and
+  whether you heard them directly or through a digipeater.
+- **APRS.** Positions (uncompressed, compressed, and Mic-E), messages, status,
+  objects, weather and telemetry — APRS is just an AX.25 UI frame, so it comes
+  almost free on top of the same stack.
+- **`kissterm --doctor`.** Diagnoses the things that actually go wrong: serial
+  permissions, missing dependencies, an unreachable TNC host, a bad callsign.
+
+## Install
+
+```bash
+uv tool install kissterm      # or: pipx install kissterm
+kissterm
+```
+
+From source:
+
+```bash
+git clone https://github.com/bradbrownjr/kissterm
+cd kissterm
+python3 -m venv .venv && .venv/bin/pip install -e .
+.venv/bin/kissterm
+```
+
+First run walks you through your callsign and finding your TNC. See
+[SETUP.md](SETUP.md) for Direwolf, Bluetooth pairing, serial permissions, and
+the rest.
+
+## Keys
+
+| Key | Action |
+|-----|--------|
+| `F1`..`F4` / `Ctrl+1`..`Ctrl+5` | Terminal / Monitor / Heard / APRS / Settings |
+| `Ctrl+N` | Connect to a station |
+| `Ctrl+D` | Disconnect |
+| `Ctrl+L` | Clear the active log |
+| `Ctrl+Q` | Quit |
+
+Connect targets accept a digipeater path: `WS1EC-7 via W1AW-1,W1XYZ`.
+
+## Command line
+
+```
+kissterm                     launch
+kissterm --doctor            run diagnostics and exit
+kissterm --discover          scan for TNCs and modems, print, exit
+kissterm --setup             re-run the first-run wizard
+kissterm --transport NAME    open a specific configured transport
+kissterm --connect WS1EC-7   connect once the app is up
+```
+
+## Safety notes
+
+kissterm never transmits anything you did not ask it to. Discovery and probing
+listen only — nothing in the scan will key your rig.
+
+Text arriving from a remote node is treated as untrusted and stripped of
+terminal escape sequences before it is displayed. A corrupt frame off a noisy
+channel produces the same bytes as a malicious one, and neither should be able
+to repaint your screen in the middle of a net.
+
+## Status
+
+Version 0.1. The AX.25 stack, the KISS transports, the monitor, the heard list
+and APRS decoding are implemented and tested. VARA, Mercury and BLE TNCs are
+not yet verified against hardware. See [docs/ROADMAP.md](docs/ROADMAP.md) for
+what is open and [docs/CHANGELOG.md](docs/CHANGELOG.md) for what has changed.
+
+Bug reports are much more useful with `kissterm --doctor` output attached.
+
+## Development
+
+[AGENTS.md](AGENTS.md) is the design document — read it before changing
+anything. Each package also has its own short contract file
+(`kissterm/ax25/AGENTS.md`, `kissterm/transport/AGENTS.md`, and so on) so a
+single-file change does not require reading the whole repo.
+
+```bash
+.venv/bin/pip install -e ".[dev]"
+git config core.hooksPath hooks     # once per clone: version bump + dep resync
+.venv/bin/python -m pytest -q
+```
+
+The AX.25 stack is tested against a software loopback with injectable frame
+loss (`tests/loopback.py`), so the link layer — including retransmission and
+timer recovery — is exercised without a radio.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+Portions of this project were developed with AI assistance (Claude).
+
+## Author
+
+Brad Brown Jr — [github.com/bradbrownjr](https://github.com/bradbrownjr)

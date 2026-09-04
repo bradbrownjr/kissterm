@@ -1,0 +1,213 @@
+# kissterm example configuration
+#
+# This file documents every field kissterm's Config understands. It is NOT
+# read automatically -- copy it to your real config file location (run
+# `kissterm --doctor` to see exactly where that is on your system, it is
+# printed under the "config file" check) and edit the copy.
+#
+# IMPORTANT: kissterm's config writer does NOT preserve comments. If you let
+# kissterm save changes back to your live config.toml (from the setup wizard
+# or a settings screen), any hand-written comments in that file are lost --
+# the file is regenerated from the in-memory settings, not edited in place.
+# Keep this example around as the commented reference; treat your live
+# config.toml as a plain data file once kissterm has touched it.
+#
+# You do not have to fill in most of this by hand. Discovery (kissterm's
+# built-in TNC/host scanner) can find your TNC and write most of a
+# [[transports]] entry for you -- this file exists for the fields discovery
+# cannot guess (your callsign, timers you want to tune for a specific path)
+# and so you can see what a hand-editable config actually looks like.
+
+# Your station callsign, with SSID if you use one. Required before you can
+# connect to anything. Validated the same way an incoming frame's address
+# field is (kissterm.ax25.address.AX25Address) -- 1-6 letters/digits, SSID
+# 0-15.
+mycall = "N0CALL-1"
+
+# Other callsigns/SSIDs this station should also answer to -- e.g. a
+# personal packet mailbox listening on -2 while your main terminal session
+# uses the bare callsign.
+mycall_aliases = ["N0CALL-2"]
+
+# The name (see [[transports]] below) of the transport to open automatically
+# on startup. Leave blank to have kissterm ask, or to auto-select whatever
+# discovery finds.
+active_transport = "direwolf-local"
+
+# Maximum AX.25 information-field size, in bytes. 256 is the traditional
+# default and is fine on VHF/UHF FM where the path is quiet. On a marginal
+# HF path, drop this to 128 or even 64: a shorter frame has fewer bits for
+# QRM, fading, or another station's transmission to land on, so it is more
+# likely to get through whole on the first try even though each one carries
+# less data. Trading throughput for reliability is usually the right call
+# on HF.
+paclen = 256
+
+# Sequence-number mode: 8 (SABM) or 128 (SABME, "extended").
+#
+# Leave this at 8. It is what every BPQ32 node, KA-Node and TNC2-class
+# station on the air actually implements. Modulo 128 allows a much larger
+# window, which only helps on a fast, clean link with a long round trip --
+# and if the far end does not understand it, it answers DM and kissterm
+# falls back to modulo 8 by itself, so trying it costs you one extra frame.
+modulo = 8
+
+# Window size (k): how many I-frames can be outstanding, unacknowledged, at
+# once. Must stay below `modulo` -- so 1-7 in the default modulo-8 mode, or
+# 1-127 under modulo 128. (At k equal to modulo, a completely full window
+# and a completely empty one look identical to the protocol and the link
+# jams after exactly one cycle, which is why the ceiling exists.) kissterm
+# clamps anything out of range rather than rejecting the config.
+#
+# A busy or noisy channel generally wants a SMALLER window -- fewer frames
+# in flight means less has to be retransmitted when one gets lost -- while a
+# clean, fast VHF link can use a larger one to keep the pipe full.
+window = 4
+
+# How many times to retransmit an unacknowledged frame (T1 expiries) before
+# giving up on the link.
+retries = 10
+
+# Link timers, all in seconds:
+#   t1 - how long to wait for an acknowledgement before retransmitting.
+#        Longer on HF (where round-trip time and digipeater hops add up),
+#        shorter on a direct VHF/UHF link.
+#   t2 - how long to hold an outgoing acknowledgement in case a data frame
+#        you're about to send can piggyback it instead, saving a frame.
+#   t3 - idle-link keepalive: how long a connected link can sit silent
+#        before kissterm pokes it to make sure the other end is still there.
+t1 = 3.0
+t2 = 3.0
+t3 = 300.0
+
+# Free-text filter applied to the monitor/heard pane. Leave blank to see
+# everything. Example: "APRS" to show only APRS traffic, or a callsign to
+# watch just one station.
+monitor_filter = ""
+
+# Where session logs are written. Leave blank to use the platform default
+# (shown by `kissterm --doctor` under "log directory") -- set this only if
+# you want logs somewhere specific, e.g. a shared directory for a club
+# station's log-keeping.
+log_dir = ""
+
+theme = "default"
+
+# Force plain ASCII box-drawing characters and no Unicode/emoji glyphs
+# anywhere in the UI. Turn this on if your terminal is an old TTY, a serial
+# console, or an SSH client that mangles anything past code page 437 --
+# `kissterm --doctor` will suggest this automatically if it detects a
+# non-UTF-8 terminal.
+ascii_safe = false
+
+# --- APRS beaconing -------------------------------------------------------
+# Entirely optional. Leave enabled = false if you only want connected-mode
+# packet; nothing else in this section matters until you flip that on.
+[aprs]
+enabled = false
+
+# How often to send a position beacon, in minutes. Every 30 minutes is a
+# reasonable default for a fixed station; a mobile station moving quickly
+# should beacon more often, but beaconing too often on a shared frequency is
+# inconsiderate to everyone else using it -- do not go far below 10 minutes
+# without a real reason.
+beacon_interval_minutes = 30
+
+# APRS symbol table + code, e.g. "/>" for a car, "/-" for a house, "/k" for
+# a school. See any APRS symbol chart for the full list.
+symbol = "/>"
+
+# Station location in decimal degrees. Required for beacons to mean
+# anything -- get these from a GPS, a map, or your grid square converted to
+# lat/long. Positive latitude is north, positive longitude is east.
+latitude = 0.0
+longitude = 0.0
+
+comment = "kissterm packet station"
+
+# Digipeater path for outgoing beacons. WIDE1-1,WIDE2-1 is the standard
+# "new N-paradigm" path: it gets a beacon one hop through a fill-in digi
+# and then up to two hops through wide-coverage digis, without flooding a
+# whole region the way an old WIDE7-7 path would. Leave this as the default
+# unless you have a specific reason (a dense urban area, a known-quiet rural
+# path) to change it.
+path = "WIDE1-1,WIDE2-1"
+
+# --- Transports ------------------------------------------------------------
+# Each [[transports]] entry is one way kissterm can reach a TNC or modem.
+# `name` is how you refer to it (see active_transport and autoconnect
+# entries' "transport" key); `kind` selects which fields below it apply.
+# You can have as many of these as you have TNCs/hosts -- kissterm's
+# discovery scanner (kissterm --discover) will generate entries like these
+# for you when it finds hardware, so you rarely need to type one from
+# scratch.
+
+# serial: a TNC (or software TNC bound to a virtual serial pair) on a local
+# device node. This is the classic hardware-TNC connection.
+[[transports]]
+name = "kantronics-usb"
+kind = "serial"
+device = "/dev/ttyUSB0"
+baud = 9600
+
+# tcp: KISS-over-TCP to a software TNC, most commonly Direwolf running on
+# this machine or on a Raspberry Pi elsewhere on the LAN next to the radio.
+# This is the transport most new kissterm setups should default to, since
+# it has the fewest moving parts and works identically on Linux/macOS/
+# Windows.
+[[transports]]
+name = "direwolf-local"
+kind = "tcp"
+host = "127.0.0.1"
+port = 8001
+
+# agwpe: AGWPE's raw-frame TCP protocol, as exposed by SoundModem, UZ7HO
+# SoundModem, BPQ32, and Direwolf's AGW-compatible port. Not yet backed by a
+# transport implementation in every kissterm build -- `kissterm --doctor`
+# reports this kind as "skipped" rather than tested until one lands, but the
+# shape below is what it will expect.
+[[transports]]
+name = "bpq32-agw"
+kind = "agwpe"
+host = "127.0.0.1"
+port = 8000
+
+# bluetooth: a paired classic-Bluetooth TNC (a Mobilinkd TNC3/TNC4 in
+# RFCOMM mode, for instance). kissterm never pairs a device itself -- pair
+# it first through your OS's normal Bluetooth settings, then point this at
+# the resulting device address (or the /dev/rfcomm* node it creates on
+# Linux, in which case a plain [kind = "serial"] entry works just as well).
+[[transports]]
+name = "mobilinkd-tnc4"
+kind = "bluetooth"
+address = "AA:BB:CC:DD:EE:FF"
+
+# kernel: the Linux kernel's own AF_AX25 socket stack, for a station that
+# already has a kernel AX.25 configuration (axports, kissattach) set up and
+# wants kissterm to use it instead of managing its own AX.25 state machine.
+# This is the one transport kind kissterm does not need discovery for --
+# if you're already running kissattach, you already know the port name.
+[[transports]]
+name = "kernel-ax0"
+kind = "kernel"
+port = "ax0"
+
+# vara: VARA HF or VARA FM, connected via their command/data TCP port pair.
+# VARA runs its own link layer -- kissterm treats a VARA connection as an
+# already-connected byte stream, not as AX.25 frames it manages itself.
+[[transports]]
+name = "vara-hf"
+kind = "vara"
+host = "127.0.0.1"
+command_port = 8300
+data_port = 8301
+
+# --- Saved connect targets -------------------------------------------------
+# Optional shortcuts for stations you connect to often -- a local BBS, a
+# club's packet node, a friend's station. `path` is a digipeater route in
+# the same "CALL VIA DIGI1,DIGI2" shorthand kissterm accepts when you type a
+# connect command by hand.
+[[autoconnect]]
+target = "W1AW-1"
+path = "WIDE1-1"
+transport = "direwolf-local"
