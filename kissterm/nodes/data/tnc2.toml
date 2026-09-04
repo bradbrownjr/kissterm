@@ -1,0 +1,60 @@
+# TNC2 / TAPR-clone command mode. This is the TNC itself, NOT a remote node --
+# these are typed to hardware on your desk before it is in KISS mode, and are
+# the commands you need to GET a TNC into KISS mode in the first place.
+#
+# provenance: the TAPR TNC2 command set is long-standing and widely cloned
+# (Kantronics, MFJ, PacComm, Timewave). Exact spellings vary between firmware;
+# entries here are marked accordingly.
+
+[family]
+id = "tnc2"
+name = "TNC2 / TAPR-clone command mode"
+confidence = "documented"
+note = """
+Sent over the serial line to a TNC in command mode, not over the air. kissterm
+does not need these once the TNC is in KISS, but getting it there often does.
+On most TNC2 clones, Ctrl+C returns from converse mode to cmd:.
+"""
+detect_prompt = ['^cmd:\s*$']
+detect_banner = ['TNC2', 'KPC', 'MFJ', 'PacComm']
+
+[[commands]]
+name = "KISS ON"
+summary = "Put the TNC into KISS mode"
+usage = "KISS ON"
+detail = "Usually followed by RESTART. After this the TNC no longer answers command-mode text -- that is the point."
+
+[[commands]]
+name = "RESTART"
+summary = "Restart the TNC so a mode change takes effect"
+usage = "RESTART"
+
+[[commands]]
+name = "MYCALL"
+summary = "Set the TNC's callsign"
+usage = "MYCALL <call>"
+detail = "Irrelevant in KISS mode: kissterm puts its own callsign in every frame. It matters if you ever leave KISS."
+
+[[commands]]
+name = "TXDELAY"
+summary = "Keyup delay before data, in 10 ms units"
+usage = "TXDELAY <n>"
+detail = "Too short and the start of your packet is cut off by a slow-keying radio; too long is wasted airtime. 30 (300 ms) is a common starting point."
+
+[[commands]]
+name = "PERSIST"
+summary = "Channel-access persistence, 0-255"
+usage = "PERSIST <n>"
+confidence = "recalled"
+
+[[commands]]
+name = "SLOTTIME"
+summary = "Channel-access slot time, in 10 ms units"
+usage = "SLOTTIME <n>"
+confidence = "recalled"
+
+[[commands]]
+name = "DISPLAY"
+summary = "Show current parameter settings"
+usage = "DISPLAY  |  DISP <class>"
+confidence = "recalled"

@@ -69,6 +69,16 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
 - **APRS.** Positions (uncompressed, compressed, and Mic-E), messages, status,
   objects, weather and telemetry — APRS is just an AX.25 UI frame, so it comes
   almost free on top of the same stack.
+- **Command references built in.** kissterm ships the command sets for common
+  node software and TNCs and identifies the node from its banner, so `F5` shows
+  you what you can type before you have spent a byte. It does **not** ask the
+  node for its own help text unless you tell it to: at 1200 baud half-duplex
+  that is around 19 seconds of channel per 2 KB, and over a minute for a
+  verbose node -- time nobody else on the frequency can transmit.
+- **A terminal that only sends when you say so.** The conversation above is
+  read-only: scroll it, select and copy from it, click a URL in it. The input
+  line at the bottom is the only thing that ever transmits, and only when you
+  press Enter or click Send. Suggestions fill the input; they never send it.
 - **`kissterm --doctor`.** Diagnoses the things that actually go wrong: serial
   permissions, missing dependencies, an unreachable TNC host, a bad callsign.
 
@@ -117,6 +127,7 @@ conversation, and swapping it mid-session would kill the link by timeout.
 | `Ctrl+N` | Connect to a station |
 | `Ctrl+D` | Disconnect |
 | `Ctrl+K` | Change your callsign |
+| `F5` | Command reference for the detected node |
 | `Ctrl+L` | Clear the active log |
 | `Ctrl+Q` | Quit |
 

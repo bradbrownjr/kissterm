@@ -1,62 +1,109 @@
-"""The Terminal pane: the session scrollback and the line the operator types.
+"""The Terminal pane: read-only scrollback above a deliberate send line.
 
-This is the pane the whole program exists for, and it carries two rules that
-are load-bearing rather than stylistic.
+The shape is the one a packet operator expects and the one that is safe: the
+conversation above is **display only** -- scroll it, select it, copy from it,
+follow a link in it -- and the single-line field at the bottom is the *only*
+thing that ever puts bytes on the air, and only when the operator commits with
+Enter or the Send button.
 
-**Everything arriving from the far end goes through `monitor.sanitize()`.**
-Those bytes were put on the air by somebody else's transmitter. Written to a
-widget raw they can carry ANSI escape sequences that clear the screen, repaint
-it, set the window title, or provoke a terminal response the shell later reads.
-This is not paranoia about malicious operators -- a corrupt frame off a noisy
-channel produces the same bytes by accident, and losing the display in the
-middle of an emergency net is the failure that actually matters. `sanitize` is
-the only thing standing between the radio and the operator's terminal; do not
-add a path around it.
+Four rules here are load-bearing, not stylistic.
 
-**Lines go out CR-terminated, not LF.** Packet nodes and BBSes are CR-oriented.
-Sending LF makes a BPQ32 node echo a spurious blank line after every command,
-which looks like a kissterm bug and is not.
+**Everything from the far end goes through `monitor.sanitize()`.** Those bytes
+were put on the air by somebody else's transmitter. Written to a widget raw
+they can carry ANSI escapes that clear the screen, repaint it, set the window
+title, or provoke a terminal response the shell later reads. This is not
+paranoia about malicious operators: a corrupt frame off a noisy channel
+produces the same bytes by accident, and losing the display in the middle of an
+emergency net is the failure that matters.
 
-The pane owns its own submit handler rather than leaving it on the app, so that
-changing how typed input is handled means opening this file and nothing else.
-It reaches the active link as `self.app.link`, a documented attribute of
-`KissTermApp`.
+**Nothing transmits except through `send_line`.** One choke point, so "can this
+possibly key the transmitter?" is answerable by reading one method. Suggestions
+and completions may *fill the input*, and the operator still has to commit --
+a completion that transmits on its own would be a defect on a shared channel.
+
+**Lines go out CR-terminated, not LF.** Packet nodes and BBSes are CR-oriented;
+LF makes a BPQ32 node echo a spurious blank line after every command.
+
+**Links are built here, never parsed from remote markup.** URLs are detected in
+already-sanitized plain text and the link target is set to exactly the matched
+substring, so what is displayed and what would open can never differ. Remote
+text is not permitted to supply markup of its own.
 """
 
 from __future__ import annotations
 
+import re
+
+from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Container
-from textual.widgets import Input, RichLog
+from textual.containers import Container, Horizontal
+from textual.widgets import Button, Input, RichLog
 
 from ..monitor import sanitize
 
+#: Conservative URL match. Trailing punctuation is excluded so a link at the
+#: end of a sentence does not swallow the full stop into the target.
+_URL_RE = re.compile(r"\b((?:https?|gopher|gemini|ftp)://[^\s<>\"']+[^\s<>\"'.,;:!?)\]])")
+
+
+def linkify(text: str) -> Text:
+    """Render plain text with any URLs made clickable.
+
+    Input must already be sanitized. The link target is the matched substring
+    itself, so the visible text and the destination are the same string by
+    construction -- a remote station cannot display one address and open
+    another.
+    """
+    result = Text()
+    position = 0
+    for match in _URL_RE.finditer(text):
+        result.append(text[position : match.start()])
+        url = match.group(1)
+        result.append(url, style=f"underline link {url}")
+        position = match.end()
+    result.append(text[position:])
+    return result
+
 
 class TerminalPane(Container):
-    """Session scrollback (`#session-log`) above the input line (`#session-input`)."""
+    """Read-only session log, plus the send line that is the only transmit path."""
 
     def compose(self) -> ComposeResult:
+        # A RichLog is not editable, so the transcript cannot be typed into by
+        # accident. Textual's selection support keeps it copyable anyway.
         yield RichLog(
-            id="session-log", wrap=True, markup=False, highlight=False, max_lines=5000
+            id="session-log",
+            wrap=True,
+            markup=False,
+            highlight=False,
+            max_lines=5000,
+            auto_scroll=True,
         )
-        yield Input(placeholder="not connected -- Ctrl+N to connect", id="session-input")
+        with Horizontal(id="session-send-row"):
+            yield Input(
+                placeholder="not connected -- Ctrl+N to connect",
+                id="session-input",
+            )
+            yield Button("Send", id="session-send", variant="primary")
 
     # ------------------------------------------------------------------
     # Output
     # ------------------------------------------------------------------
     def log(self, text: str) -> None:
-        """Write locally-generated text -- status notes, echoes of what we sent.
+        """Write locally-generated text: status notes, echoes of what we sent.
 
-        Deliberately separate from `write_incoming`: text that kissterm itself
-        produced is already trusted, and routing it through `sanitize` would
-        quietly strip formatting we chose on purpose.
+        Deliberately separate from `write_incoming`. Text kissterm produced is
+        already trusted, and putting it through `sanitize` would strip
+        formatting chosen on purpose.
         """
         self.query_one("#session-log", RichLog).write(text)
 
     def write_incoming(self, data: bytes) -> None:
-        """Write bytes received from the far end. Sanitized -- see the docstring."""
-        self.query_one("#session-log", RichLog).write(sanitize(data), expand=True)
+        """Write bytes received from the far end. Sanitized, then linkified."""
+        self.query_one("#session-log", RichLog).write(
+            linkify(sanitize(data)), expand=True
+        )
 
     def clear(self) -> None:
         self.query_one("#session-log", RichLog).clear()
@@ -70,16 +117,41 @@ class TerminalPane(Container):
     def focus_input(self) -> None:
         self.query_one("#session-input", Input).focus()
 
+    def suggest(self, text: str) -> None:
+        """Put a suggested command in the input WITHOUT sending it.
+
+        The autocomplete path calls this. It fills the field and leaves the
+        cursor at the end; the operator still commits deliberately. Nothing in
+        this method can transmit, and it must stay that way.
+        """
+        field = self.query_one("#session-input", Input)
+        field.value = text
+        field.action_end()
+        field.focus()
+
     @on(Input.Submitted, "#session-input")
-    async def _send_line(self, event: Input.Submitted) -> None:
-        text = event.value
-        event.input.value = ""
+    async def _submitted(self, event: Input.Submitted) -> None:
+        await self.send_line(event.value)
+
+    @on(Button.Pressed, "#session-send")
+    async def _send_pressed(self) -> None:
+        await self.send_line(self.query_one("#session-input", Input).value)
+
+    async def send_line(self, text: str) -> None:
+        """The one and only path from this pane to the air.
+
+        Every transmit route -- Enter, the Send button, and anything added
+        later -- comes through here, so the answer to "what can key the
+        transmitter?" is this method and nothing else.
+        """
+        field = self.query_one("#session-input", Input)
+        field.value = ""
         link = getattr(self.app, "link", None)
         if link is None or not link.connected:
             self.app.notify("Not connected.", severity="warning")
             return
-        # latin-1, not UTF-8: packet is a byte-oriented medium and a callsign
-        # or payload the operator pasted must not fail to encode mid-session.
-        # CR, not LF -- see the module docstring.
+        # latin-1, not UTF-8: packet is byte-oriented, and a character the
+        # operator pasted must not fail to encode mid-session. CR, not LF --
+        # see the module docstring.
         await link.send(text.encode("latin-1", "replace") + b"\r")
         self.log(text + "\n")

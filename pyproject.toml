@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.5"
+version = "0.1.6"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -47,6 +47,12 @@ all = ["pyserial-asyncio-fast", "bleak"]
 
 [project.scripts]
 kissterm = "kissterm.__main__:main"
+
+[tool.setuptools.package-data]
+# The shipped command references are data, not code. Without this they are
+# absent from an installed wheel and the help pane is silently empty -- the
+# kind of bug that never shows up in a source checkout.
+"kissterm.nodes" = ["data/*.toml"]
 
 [tool.setuptools.packages.find]
 include = ["kissterm*"]

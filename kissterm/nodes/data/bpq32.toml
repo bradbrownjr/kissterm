@@ -1,0 +1,118 @@
+# BPQ32 / LinBPQ node command reference.
+#
+# provenance: the standard node command set is from G8BPQ's LinBPQ/BPQ32
+# documentation and long-standing on-air convention. The prompt and banner
+# shapes are confirmed against a real deployed node configuration (WS1EC-15,
+# NODEALIAS CCEMA) in the sibling bpq-apps repository.
+#
+# Anything marked confidence = "recalled" has NOT been checked against current
+# documentation or a live node. Correct it from a real session rather than
+# from memory -- see docs/ROADMAP.md P8.
+
+[family]
+id = "bpq32"
+name = "BPQ32 / LinBPQ node"
+confidence = "documented"
+note = """
+Most common node software on VHF packet. Applications (BBS, CHAT, and any
+local additions) are configured per node, so the command list here covers the
+node itself -- use "Learn from node" once per node to pick up its own menu.
+"""
+
+# The node prompt is CALL:ALIAS} or "de CALL>", both seen on real systems.
+detect_prompt = ['^[A-Z0-9]{1,6}(-\d{1,2})?:[A-Z0-9]{1,6}\}\s*$', '^de [A-Z0-9]{1,6}(-\d{1,2})?>\s*$']
+detect_banner = ['BPQ', 'LinBPQ']
+
+[[commands]]
+name = "?"
+aliases = ["H", "HELP"]
+summary = "List the commands this node accepts"
+usage = "?"
+detail = "Cheap on a node, expensive on a verbose BBS -- see the airtime note in the reference pane."
+
+[[commands]]
+name = "B"
+aliases = ["BYE"]
+summary = "Disconnect from the node"
+usage = "B"
+
+[[commands]]
+name = "C"
+aliases = ["CONNECT"]
+summary = "Connect onward to another station or node"
+usage = "C <call>  |  C <port> <call>"
+detail = "With a port number, connects out on that radio port rather than via the node's routing."
+
+[[commands]]
+name = "I"
+aliases = ["INFO"]
+summary = "Show the node's information text"
+usage = "I"
+
+[[commands]]
+name = "N"
+aliases = ["NODES"]
+summary = "List known NET/ROM nodes"
+usage = "N  |  N <call>"
+detail = "The bare form can be a long list on a busy network -- several thousand bytes, which is minutes of airtime at 1200 baud. Prefer N <call>."
+
+[[commands]]
+name = "P"
+aliases = ["PORTS"]
+summary = "List the node's radio ports"
+usage = "P"
+
+[[commands]]
+name = "R"
+aliases = ["ROUTES"]
+summary = "List neighbour nodes and route quality"
+usage = "R"
+
+[[commands]]
+name = "U"
+aliases = ["USERS"]
+summary = "Show who is connected to the node right now"
+usage = "U"
+
+[[commands]]
+name = "MH"
+aliases = ["MHEARD"]
+summary = "Stations the node has heard, most recent first"
+usage = "MH  |  MH <port>"
+
+[[commands]]
+name = "STATS"
+summary = "Node traffic and link statistics"
+usage = "STATS"
+confidence = "recalled"
+
+[[commands]]
+name = "PING"
+summary = "Test reachability of another node"
+usage = "PING <call>"
+confidence = "recalled"
+
+[[commands]]
+name = "CQ"
+summary = "Call CQ to other users connected to the node"
+usage = "CQ <text>"
+confidence = "recalled"
+
+[[commands]]
+name = "T"
+aliases = ["TALK"]
+summary = "Talk to another user connected to this node"
+usage = "T <call>"
+confidence = "recalled"
+
+[[commands]]
+name = "BBS"
+summary = "Enter the node's bulletin board, if it has one"
+usage = "BBS"
+detail = "Application name, not a node command -- present only if the sysop configured it."
+
+[[commands]]
+name = "CHAT"
+summary = "Enter the node's chat server, if it has one"
+usage = "CHAT"
+detail = "Application name, not a node command -- present only if the sysop configured it."

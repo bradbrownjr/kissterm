@@ -168,6 +168,7 @@ kissterm/
 │   ├── doctor.py            # `--doctor` diagnostics
 │   ├── monitor.py           # frame -> monitor line, and sanitize()
 │   ├── heard.py             # MHEARD table
+│   ├── nodes/               # SHIPPED command references (data/*.toml)
 │   ├── ax25/            # + its own AGENTS.md (local contract)
 │   │   ├── address.py       # callsign/SSID encode+decode, AX25Path
 │   │   ├── frame.py         # I/S/U frames, modulo 8 and 128
@@ -289,6 +290,37 @@ Gotchas that already cost time:
   no real config dir. Do not make it construct them internally.
 
 ## 7. ALWAYS / NEVER rules
+
+### Airtime is the scarce resource
+- **Never spend channel time to populate the UI.** At 1200 baud half-duplex,
+  2 KB is ~19 seconds and 8 KB is over a minute during which nobody else on the
+  frequency can transmit. Command references therefore **ship** as data in
+  `kissterm/nodes/data/`; asking a node for its own `?` output is opt-in, once
+  per node, cached forever, and shows the operator the cost first
+  (`nodes.reference.describe_airtime`). An earlier version of the roadmap had
+  this backwards.
+- **Node identification is passive.** `_sniff_node` reads the banner and prompt
+  that arrive anyway. It must never ask a question to identify a node.
+- **A wrong family shown confidently is worse than "unknown node"**, because
+  the operator types its commands. Detection patterns must be specific.
+- **Record provenance per command** (`confidence`: verified / documented /
+  recalled / learned) and show it. A reference that silently mixes documented
+  fact with half-remembered syntax is worse than none.
+
+### The terminal transmits only on a deliberate commit
+- **`TerminalPane.send_line` is the single transmit path** out of the terminal
+  pane. Enter and the Send button both route through it, so "what can key the
+  transmitter?" is answerable by reading one method.
+  `tests/pilot/test_terminal_ux.py` asserts against the source that there is
+  exactly one `link.send(` call in that module.
+- **Suggestions and completions fill the input; they never send.** Use
+  `TerminalPane.suggest`. A completion that transmits on its own is a defect on
+  a shared channel. Never complete-on-enter.
+- **The scrollback is a `RichLog`, not an editable widget** -- selectable and
+  copyable, but it cannot be typed into by accident.
+- **Links are constructed from sanitized text, never parsed from remote
+  markup.** The link target is the matched substring itself, so displayed text
+  and destination cannot differ.
 
 ### Unattended transmission
 - **Answering incoming calls is OFF by default and must stay that way.** It is

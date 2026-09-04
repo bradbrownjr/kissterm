@@ -3,6 +3,65 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-04] — Shipped command references, and a read-only terminal
+
+### New Features
+- **`kissterm/nodes/` -- command references that ship with the app.** TOML data
+  in `nodes/data/`, one file per family; adding a family is data, not code.
+  BPQ32/LinBPQ and TNC2-class command mode are in. `F5` opens a searchable
+  reference for whatever node was detected, and picking a command **fills the
+  input line without sending it**.
+- **Passive node identification.** The family is inferred from the banner and
+  prompt that arrive anyway -- kissterm never asks the node a question to
+  identify it. Confirmed against the real BPQ32 prompt shapes (`CALL:ALIAS}`
+  and `de CALL>`) from a deployed node config in the sibling bpq-apps repo.
+- **An airtime estimator** (`nodes.airtime_seconds` / `describe_airtime`) that
+  models framing, keyup and turnaround rather than just dividing by the baud
+  rate -- the overhead is what makes small transfers expensive.
+- **A Send button** beside the input, so committing a line does not require the
+  keyboard, and URLs in received text are clickable.
+
+### Correction: shipped references are primary, not fallback
+An earlier version of roadmap P8 said harvesting a node's own `?` output was
+"a better source than any table we ship". **That was wrong.** Measured at 1200
+baud half-duplex: 512 B is ~4.7 s of channel time, 2 KB is ~18.7 s, and 8 KB is
+~74.9 s -- during which nobody else on the frequency can transmit. Populating
+an autocomplete list that way, automatically, on every connect, would make
+kissterm the rudest client on the band. Harvesting is now roadmapped as opt-in,
+once per node, cached forever, and shown with its cost first. Harvested entries
+supplement the shipped ones and never replace them, because local additions are
+real: the WS1EC-15 node adds CALENDAR, FORMS, WALL and a dozen more to a stock
+BPQ32 via `APPLICATION` lines.
+
+Provenance is recorded per command (`verified` / `documented` / `recalled` /
+`learned`) and shown in the pane. A reference that quietly mixes documented
+fact with half-remembered syntax is worse than none: the operator types it, at
+1200 baud, and finds out it was wrong.
+
+### The terminal is read-only above, deliberate below
+`TerminalPane` was reworked to the shape that is both expected and safe: the
+scrollback is a `RichLog` -- selectable and copyable, but not typeable-into --
+and **`send_line` is the single path to the air**. Enter and the Send button
+both route through it, so "what can key the transmitter?" is answerable by
+reading one method; a test asserts against the source that exactly one
+`link.send(` call exists in that module. `suggest()` fills the input and cannot
+send, which is what makes future autocomplete safe by construction.
+
+Links are built from already-sanitized text with the target set to the matched
+substring, so a remote station cannot display one address and open another.
+
+### Fixed
+- **Footer bindings collided at ordinary terminal widths.** F1-F4 are now
+  hidden from the footer -- the tab bar already shows them -- so the *action*
+  bindings, which are not discoverable anywhere else, stop being truncated.
+- **`nodes/data/*.toml` was not declared as package data**, so the references
+  would have been absent from an installed wheel while working fine in a source
+  checkout.
+
+**Files:** `kissterm/nodes/*`, `kissterm/ui/{terminal_pane,dialogs,app,styles}.py`,
+`pyproject.toml`, `tests/unit/test_nodes.py`, `tests/pilot/test_terminal_ux.py`,
+`docs/ROADMAP.md`, `README.md`, `AGENTS.md`, `kissterm/ui/AGENTS.md`.
+
 ## [2026-09-04] — Answering is opt-in, and a caller is no longer met with silence
 
 ### Fixed

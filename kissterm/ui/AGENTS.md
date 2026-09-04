@@ -72,7 +72,14 @@ Read this file plus the one pane you are changing.
 13. **Say when a change takes effect** (`Field.apply`: live / connect /
     restart). Link parameters must not change under an *established* link —
     they were negotiated when it came up.
-14. No emoji anywhere.
+14. **`TerminalPane.send_line` is the only transmit path.** Enter and the
+    Send button both route through it. Suggestions use `suggest()`, which
+    fills the input and cannot send. A test asserts there is exactly one
+    `link.send(` in that module -- keep it that way.
+15. **Never spend airtime to populate the UI.** Command references ship as
+    data (`kissterm/nodes/data/`); asking a node costs ~19 s per 2 KB at 1200
+    baud. Node detection is passive -- read the banner, ask nothing.
+16. No emoji anywhere.
 
 ## Testing
 

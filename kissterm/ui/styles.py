@@ -31,7 +31,9 @@ Screen { layout: vertical; }
 /* Terminal pane */
 TerminalPane { layout: vertical; }
 #session-log { border: round $primary; height: 1fr; }
-#session-input { border: round $accent; }
+#session-send-row { height: auto; }
+#session-input { border: round $accent; width: 1fr; }
+#session-send { margin-left: 1; height: 3; min-width: 10; }
 
 /* Monitor pane */
 MonitorPane { layout: vertical; }
@@ -52,6 +54,14 @@ ConnectScreen { align: center middle; }
 #connect-buttons Button { margin-left: 1; }
 
 .placeholder { padding: 1 2; color: $text-muted; }
+
+#ref-box {
+    width: 90%; height: 80%; padding: 1 2;
+    border: thick $primary; background: $surface;
+}
+#ref-title { text-style: bold; color: $accent; }
+#ref-note, #ref-help { color: $text-muted; padding: 0 0 1 0; }
+#ref-table { height: 1fr; }
 
 /* Settings form. Generated from settings_schema, so these rules style whole
    classes of row rather than any particular field -- adding a setting must

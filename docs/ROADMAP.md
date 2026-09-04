@@ -224,46 +224,63 @@ transports and framing that already exist, not a new transport.
 ## P8 — Terminal assistance: know what to type at the node you reached
 
 Packet's usability problem is not the protocol, it is that every node family
-has its own command set and a new operator faces a bare `}` prompt with no
-idea what is legal. kissterm is in a good position to fix that: it sees the
-connect banner, and it sees everything the node says.
+has its own command set and a new operator faces a bare `}` prompt with no idea
+what is legal.
 
-- [ ] **Fingerprint the node from its connect banner.** Node families announce
-      themselves distinctively -- BPQ32/LinBPQ emits a `CTEXT` then a
-      `CALL:ALIAS}` prompt (confirmed against a live config in the sibling
-      `bpq-apps` repo: `NODECALL=WS1EC-15`, `NODEALIAS=CCEMA`, prompt
-      `de WS1EC-15>`); FBB, JNOS, TheNet/X1J, KA-Node, DXSpider and Winlink RMS
-      each have their own. New module `kissterm/nodes/fingerprint.py`, fed from
-      the session stream. Must degrade to "unknown node" silently -- a wrong
-      guess that changes the UI is worse than no guess. Mid effort.
-- [ ] **A command reference per detected family**, shown in a pane or on a key.
-      Data-driven (`kissterm/nodes/*.toml`), one file per family, so adding a
-      family is data, not code -- same principle as `settings_schema.py`.
-- [ ] **Harvest commands from the node itself.** Most node software answers `?`
-      or `H` with its own command list. Parsing that is a better source than
-      any table we ship: it is current, it is that node's actual build, and it
-      covers local additions (the sibling `bpq-apps` repo adds CALENDAR, FORMS,
-      WALL and more to a stock BPQ32 -- no shipped reference would know about
-      those). Cache per node callsign. Mid effort, high payoff.
-- [ ] **Autocomplete and suggestions on the input line.** Sourced from, in
-      order: commands harvested from this node, the family reference, and the
-      operator's own history with this node. Must be strictly opt-in-feeling --
-      this is a *terminal*, and a completion that inserts characters the
-      operator did not type into a live BBS session is a bug. Tab to accept,
-      never autocomplete-on-enter. Touches `ui/terminal_pane.py`.
+**Correction to an earlier version of this section**, which said harvesting a
+node's own `?` output was "a better source than any table we ship". That was
+wrong, on airtime grounds. Measured with `kissterm.nodes.airtime_seconds` at
+1200 baud half-duplex, including framing, keyup and turnaround:
+
+| help text | channel time |
+|---|---|
+| 512 B | ~4.7 s |
+| 2 KB | ~18.7 s |
+| 8 KB | ~74.9 s |
+
+A verbose node's help is a minute or more during which **nobody else on the
+frequency can transmit**. Doing that automatically on every connect, to
+populate an autocomplete list, would make kissterm the rudest client on the
+band. Shipped references are therefore the **primary** source; harvesting is
+opt-in, once per node, and cached forever.
+
+Shipped in `[2026-09-04]` (see CHANGELOG): the `kissterm/nodes/` package with
+TOML references for BPQ32/LinBPQ and TNC2-class command mode, passive family
+detection from the banner and prompt, the F5 reference pane, and the airtime
+estimator. Still open:
+
+- [ ] **More families.** FBB, JNOS, TheNet/X1J, KA-Node, DXSpider, Winlink RMS.
+      One TOML file each in `kissterm/nodes/data/` -- data, not code. Each needs
+      a `detect_prompt`/`detect_banner` that is specific enough not to false-
+      match; a wrong family shown confidently is worse than "unknown node",
+      because the operator types its commands. Small per family.
+- [ ] **Verify the shipped references against live nodes.** Entries carrying
+      `confidence = "recalled"` in `bpq32.toml` and `tnc2.toml` were written
+      from memory, are flagged as such in the UI, and should be corrected from
+      a real session -- kissterm will already be logging those (P2). The
+      documented entries deserve a check too. Small, and the highest-value item
+      here.
+- [ ] **Opt-in harvesting from the node**, replacing nothing. Ask before
+      spending the airtime, showing the estimate from
+      `nodes.reference.describe_airtime`, then cache per node callsign forever
+      so it is never paid twice. Harvested entries already have a home
+      (`CommandReference.learned`) and are marked `confidence = "learned"`;
+      shipped entries win on a name collision because they carry usage text.
+      This is what picks up local additions -- the WS1EC-15 node in the sibling
+      bpq-apps repo adds CALENDAR, FORMS, WALL, GOPHER, PREDICT and a dozen
+      more to a stock BPQ32 via `APPLICATION` lines. Mid effort.
+- [ ] **Inline completion on the send line.** `CommandReference.complete()` and
+      `TerminalPane.suggest()` already exist and neither can transmit; what is
+      missing is the UI -- a suggestion strip above the input, Tab to accept.
+      **Never complete-on-enter**: this is a terminal, and inserting characters
+      the operator did not type into a live BBS session is a defect. Mid.
 - [ ] **A glossary of packet terminology** (digipeater, SSID, paclen, NET/ROM,
-      unproto, RMS, gateway, T1/T2/T3, mailbox hierarchical address...). Aimed
-      at someone who knows radio but not packet -- the audience the README
-      already writes for. Plain data file, searchable in-app.
-- [ ] **Research sources to work from.** G8BPQ's BPQ32/LinBPQ documentation;
-      FBB, JNOS and TheNet/X1J command sets; DXSpider's command reference;
-      Winlink RMS. The sibling `bpq-apps` repo is a local, already-trusted
-      source for the BPQ32 side, including a real node config and the custom
-      app menu a connecting user actually sees. **The most reliable source is
-      on-air capture** -- a saved transcript from a real node beats any
-      document, and kissterm will already be logging those (P2). Note that
-      `.github/bpq_research.txt` in that repo is currently empty despite its
-      name; do not go looking for content there.
+      unproto, RMS, gateway, T1/T2/T3, hierarchical addresses...). Aimed at
+      someone who knows radio but not packet -- the audience the README already
+      writes for. Plain data file, searchable in the same pane as commands.
+- [ ] **Per-node notes.** Let the operator annotate a node ("BBS is on -2,
+      chat needs a callsign") and show it on connect. Cheap, and it is the
+      thing an operator actually wants to remember between sessions.
 
 ## P9 — Unattended operation: mailbox, file drop, and alerts
 

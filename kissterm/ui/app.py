@@ -57,7 +57,9 @@ from ..hotplug import PortEvent, SerialPortWatcher
 from ..monitor import MonitorFilter, format_frame
 from ..transport.base import SessionState, TransportError
 from .aprs_pane import AprsPane
-from .dialogs import CallsignScreen, ConnectScreen
+from ..nodes import CommandReference
+from ..nodes.reference import identify_family
+from .dialogs import CallsignScreen, CommandReferenceScreen, ConnectScreen
 from .heard_pane import HeardPane
 from .monitor_pane import MonitorPane
 from .settings_pane import SettingsPane
@@ -82,10 +84,14 @@ class KissTermApp(App):
 
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit"),
-        Binding("f1", "show_tab('terminal')", "Terminal"),
-        Binding("f2", "show_tab('monitor')", "Monitor"),
-        Binding("f3", "show_tab('heard')", "Heard"),
-        Binding("f4", "show_tab('aprs')", "APRS"),
+        # Hidden from the footer: the tab bar already shows these, and at 80
+        # columns -- a perfectly ordinary terminal -- the footer overflows and
+        # starts truncating the ACTION bindings, which are not discoverable
+        # anywhere else.
+        Binding("f1", "show_tab('terminal')", "Terminal", show=False),
+        Binding("f2", "show_tab('monitor')", "Monitor", show=False),
+        Binding("f3", "show_tab('heard')", "Heard", show=False),
+        Binding("f4", "show_tab('aprs')", "APRS", show=False),
         Binding("ctrl+1", "show_tab('terminal')", "Terminal", show=False),
         Binding("ctrl+2", "show_tab('monitor')", "Monitor", show=False),
         Binding("ctrl+3", "show_tab('heard')", "Heard", show=False),
@@ -94,6 +100,7 @@ class KissTermApp(App):
         Binding("ctrl+n", "connect", "Connect"),
         Binding("ctrl+d", "disconnect", "Disconnect"),
         Binding("ctrl+k", "set_callsign", "Callsign"),
+        Binding("f5", "command_reference", "Commands"),
         Binding("ctrl+l", "clear_log", "Clear", show=False),
     ]
 
@@ -110,6 +117,11 @@ class KissTermApp(App):
         #: Watches local serial ports only. The network is never scanned on a
         #: timer -- see kissterm/hotplug.py for the cost argument.
         self.port_watcher = SerialPortWatcher()
+        #: Shipped command reference for whatever node we are talking to.
+        #: Populated by sniffing the banner -- never by asking the node, which
+        #: costs real airtime (see kissterm/nodes/__init__.py).
+        self.reference = CommandReference()
+        self._detect_buffer = ""
 
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -244,6 +256,10 @@ class KissTermApp(App):
             log.exception("could not send connect banner to %s", link.peer)
 
     def _bind_link(self, link) -> None:
+        # A new conversation may be a different node; forget the last one's
+        # identification rather than offering its commands for this one.
+        self.reference = CommandReference()
+        self._detect_buffer = ""
         self.link = link
         link.on_data.append(self._on_link_data)
         link.on_state.append(self._on_link_state)
@@ -288,6 +304,32 @@ class KissTermApp(App):
 
     def _on_link_data(self, data: bytes) -> None:
         self._to_terminal("write_incoming", data)
+        self._sniff_node(data)
+
+    def _sniff_node(self, data: bytes) -> None:
+        """Identify the node family from what it already sent us.
+
+        Passive on purpose. Asking a node for its command list with `?` costs
+        roughly twenty seconds of a 1200-baud channel for a couple of
+        kilobytes, and over a minute for a verbose one -- airtime nobody else
+        can use. The banner and prompt arrive anyway, so they are free.
+
+        Only the first couple of kilobytes are examined; a node identifies
+        itself in its greeting or not at all, and scanning the whole session
+        forever would let ordinary message text trigger a false match.
+        """
+        if self.reference.family is not None or len(self._detect_buffer) > 2048:
+            return
+        from ..monitor import sanitize
+
+        self._detect_buffer += sanitize(data)
+        family = identify_family(self._detect_buffer)
+        if family is None:
+            return
+        self.reference = CommandReference(family=family)
+        self._to_terminal(
+            "log", f"\n*** Node looks like {family.name} -- F5 for its commands\n"
+        )
 
     def _on_link_state(self, state: SessionState) -> None:
         self._to_terminal("log", f"\n*** {state.value}\n")
@@ -380,6 +422,21 @@ class KissTermApp(App):
         except Exception:
             log.exception("could not save config")
             return False
+
+    @work
+    async def action_command_reference(self) -> None:
+        """Show the shipped command reference; put a pick in the input line.
+
+        Never sends. `TerminalPane.suggest` fills the field and the operator
+        commits deliberately -- a reference that transmitted on selection would
+        be a defect on a shared channel.
+        """
+        chosen = await self.push_screen_wait(
+            CommandReferenceScreen(self.reference)
+        )
+        if chosen:
+            self.action_show_tab("terminal")
+            self._to_terminal("suggest", chosen)
 
     @work
     async def action_disconnect(self) -> None:

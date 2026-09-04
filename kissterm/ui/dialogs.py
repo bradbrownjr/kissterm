@@ -124,3 +124,101 @@ class CallsignScreen(ModalScreen[str | None]):
             self.query_one("#callsign-error", Label).update(f"[red]{exc}[/red]")
             return
         self.dismiss(text)
+
+
+class CommandReferenceScreen(ModalScreen[str | None]):
+    """The shipped command reference for the node we are talking to.
+
+    Exists because asking the node itself is expensive: at 1200 baud
+    half-duplex, a couple of kilobytes of help text is roughly twenty seconds
+    during which nobody else on the frequency can transmit, and eight kilobytes
+    is over a minute. A reference that ships with the app costs nothing and is
+    available before the first byte is exchanged.
+
+    Selecting a command **fills the input line and does not send it**. The
+    operator still commits deliberately -- see `TerminalPane.send_line`, which
+    is the only path to the air.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Close")]
+
+    def __init__(self, reference, detected: str = "") -> None:
+        super().__init__()
+        self._reference = reference
+        self._detected = detected
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import DataTable, Static
+
+        with Vertical(id="ref-box"):
+            yield Label(self._title(), id="ref-title")
+            yield Static(self._note(), id="ref-note")
+            yield Input(placeholder="search commands", id="ref-search")
+            yield DataTable(id="ref-table", cursor_type="row", zebra_stripes=True)
+            yield Static(
+                "Enter puts a command in the input line. It is not sent until "
+                "you press Enter there or click Send.",
+                id="ref-help",
+            )
+            with Horizontal(id="connect-buttons"):
+                yield Button("Close", id="ref-close")
+
+    def _title(self) -> str:
+        family = self._reference.family
+        return f"Commands -- {family.name}" if family else "Commands -- unknown node"
+
+    def _note(self) -> str:
+        family = self._reference.family
+        if family is None:
+            return (
+                "The node has not been identified from its banner or prompt, so "
+                "this list may not apply. Nothing has been asked of the node -- "
+                "that would cost airtime."
+            )
+        parts = [family.note.replace("\n", " ").strip()]
+        if family.confidence == "recalled":
+            parts.append(
+                "This reference is unverified; check a command before spending "
+                "airtime on it."
+            )
+        return " ".join(p for p in parts if p)
+
+    def on_mount(self) -> None:
+        from textual.widgets import DataTable
+
+        table = self.query_one("#ref-table", DataTable)
+        table.add_columns("Command", "Usage", "What it does", "Source")
+        self._populate("")
+        self.query_one("#ref-search", Input).focus()
+
+    def _populate(self, needle: str) -> None:
+        from textual.widgets import DataTable
+
+        table = self.query_one("#ref-table", DataTable)
+        table.clear()
+        for command in self._reference.find(needle):
+            names = command.name
+            if command.aliases:
+                names += " / " + " / ".join(command.aliases)
+            table.add_row(
+                names,
+                command.usage or command.name,
+                command.summary,
+                # Say where each line came from. A reference that silently
+                # mixes documented fact with half-remembered syntax is worse
+                # than none: the operator types it, at 1200 baud, and finds out.
+                command.confidence,
+                key=command.name,
+            )
+
+    @on(Input.Changed, "#ref-search")
+    def _search(self, event: Input.Changed) -> None:
+        self._populate(event.value)
+
+    @on(Button.Pressed, "#ref-close")
+    def _close(self) -> None:
+        self.dismiss(None)
+
+    def on_data_table_row_selected(self, event) -> None:
+        """Hand the command back to the app, which fills the input line."""
+        self.dismiss(str(event.row_key.value or ""))
