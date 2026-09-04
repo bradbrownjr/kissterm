@@ -37,6 +37,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="run diagnostics and exit (paste the output into a bug report)",
     )
     parser.add_argument(
+        "--callsign",
+        metavar="CALL",
+        help="set your callsign and exit, e.g. --callsign W1AW-1 (no wizard)",
+    )
+    parser.add_argument(
         "--setup",
         action="store_true",
         help="re-run the first-run wizard even if a config already exists",
@@ -204,6 +209,25 @@ async def _amain(args) -> int:
     config = load_config()
     for warning in config.warnings:
         print(f"config: {warning}", file=sys.stderr)
+
+    if args.callsign:
+        # A one-shot so changing callsign never means sitting through the
+        # wizard's LAN sweep. Operators change SSID often -- portable, a -1
+        # mailbox, a club call for an event -- and re-running first-run setup
+        # to edit one string is the wrong shape for that.
+        from .ax25.address import AX25Address, AX25AddressError
+
+        try:
+            AX25Address.parse(args.callsign)
+        except AX25AddressError as exc:
+            print(f"Not a valid callsign: {exc}", file=sys.stderr)
+            return 2
+        config.mycall = args.callsign.upper()
+        save_config(config)
+        from .config import config_path
+
+        print(f"Callsign set to {config.mycall} in {config_path()}")
+        return 0
 
     if args.discover:
         _print_devices(await _run_discovery(args.no_discover))

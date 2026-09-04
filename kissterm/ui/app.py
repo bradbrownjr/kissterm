@@ -43,9 +43,10 @@ from __future__ import annotations
 
 import logging
 
-from textual import work
+from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
+from textual.containers import Vertical
 from textual.widgets import Footer, Header, Static, TabbedContent, TabPane
 
 from .. import __version__
@@ -55,7 +56,7 @@ from ..heard import HeardTable
 from ..monitor import MonitorFilter, format_frame
 from ..transport.base import SessionState, TransportError
 from .aprs_pane import AprsPane
-from .dialogs import ConnectScreen
+from .dialogs import CallsignScreen, ConnectScreen
 from .heard_pane import HeardPane
 from .monitor_pane import MonitorPane
 from .settings_pane import SettingsPane
@@ -91,6 +92,7 @@ class KissTermApp(App):
         Binding("ctrl+5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+n", "connect", "Connect"),
         Binding("ctrl+d", "disconnect", "Disconnect"),
+        Binding("ctrl+k", "set_callsign", "Callsign"),
         Binding("ctrl+l", "clear_log", "Clear", show=False),
     ]
 
@@ -119,11 +121,22 @@ class KissTermApp(App):
                 yield AprsPane()
             with TabPane("Settings", id="settings"):
                 yield SettingsPane()
-        yield Static(id="status-bar")
-        yield Footer()
+        # Status bar and Footer share one bottom-docked container. Docking
+        # them both individually puts them in the SAME region -- the Footer
+        # paints over the status bar and it is invisible, in either yield
+        # order. One docked parent with an explicit height lays them out as
+        # two distinct rows. Verified in tests/pilot/test_app_mounts.py.
+        with Vertical(id="bottom-bar"):
+            yield Static(id="status-bar")
+            yield Footer()
 
     def on_mount(self) -> None:
         self.query_one(SettingsPane).render_settings(self.config)
+        # Paint once immediately, then on a timer. Without the eager call the
+        # status bar is blank for the first second of every launch, which
+        # reads as "the app has not connected to anything" at exactly the
+        # moment the operator is looking for confirmation that it has.
+        self._refresh_status()
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(2.0, self._refresh_heard)
         if self.station is not None:
@@ -154,18 +167,31 @@ class KissTermApp(App):
         self.link = link
         link.on_data.append(self._on_link_data)
         link.on_state.append(self._on_link_state)
-        link.on_error.append(
-            lambda why: self.query_one(TerminalPane).log(f"\n*** {why}\n")
-        )
-        self.query_one(TerminalPane).set_placeholder(f"connected to {link.peer}")
+        link.on_error.append(lambda why: self._to_terminal("log", f"\n*** {why}\n"))
+        self._to_terminal("set_placeholder", f"connected to {link.peer}")
+
+    def _to_terminal(self, method: str, *args) -> None:
+        """Call a `TerminalPane` method, tolerating the pane not existing.
+
+        A link outlives the UI. On shutdown `__main__` exits the app first and
+        *then* calls `station.close()`, which fires every link's state callback
+        -- at which point the widget tree is gone and a bare `query_one` raises
+        `NoMatches` out of a callback nothing is catching. That turned a clean
+        quit with a live link into a traceback. `query()` returns an empty
+        result set instead of raising, so a torn-down UI is simply nothing to
+        write to.
+        """
+        for pane in self.query(TerminalPane):
+            getattr(pane, method)(*args)
+            return
 
     def _on_link_data(self, data: bytes) -> None:
-        self.query_one(TerminalPane).write_incoming(data)
+        self._to_terminal("write_incoming", data)
 
     def _on_link_state(self, state: SessionState) -> None:
-        self.query_one(TerminalPane).log(f"\n*** {state.value}\n")
+        self._to_terminal("log", f"\n*** {state.value}\n")
         if state is SessionState.DISCONNECTED:
-            self.query_one(TerminalPane).set_placeholder("not connected -- Ctrl+N")
+            self._to_terminal("set_placeholder", "not connected -- Ctrl+N")
 
     # ------------------------------------------------------------------
     # Actions
@@ -203,6 +229,58 @@ class KissTermApp(App):
         self.query_one(TerminalPane).focus_input()
 
     @work
+    async def action_set_callsign(self) -> None:
+        """Change the station callsign and persist it, without a restart.
+
+        Refused while a link is up: the callsign is in the address field of
+        every frame of an established conversation, and swapping it mid-session
+        would make our own traffic unrecognisable to the peer -- it would keep
+        answering the old call while we transmitted under the new one, and the
+        link would die by N2 timeout rather than by anything the operator could
+        diagnose. Disconnecting first is the honest requirement.
+        """
+        if self.link is not None and self.link.connected:
+            self.notify(
+                "Disconnect before changing callsign.", severity="warning"
+            )
+            return
+
+        current = getattr(self.config, "mycall", "") or ""
+        new_call = await self.push_screen_wait(CallsignScreen(current))
+        if not new_call or new_call == current:
+            return
+
+        self.config.mycall = new_call
+        if self.station is not None:
+            # Update the live station too, not just the file. Without this the
+            # change silently would not take effect until the next launch,
+            # which is exactly the confusion this feature exists to remove.
+            from ..ax25 import AX25Address
+
+            self.station.mycall = AX25Address.parse(new_call)
+
+        saved = self._save_config()
+        self.query_one(SettingsPane).render_settings(self.config)
+        where = "saved" if saved else "applied for this session only (could not write config)"
+        self.notify(f"Callsign is now {new_call} -- {where}.")
+        self.query_one(TerminalPane).log(f"\n*** Callsign changed to {new_call}\n")
+
+    def _save_config(self) -> bool:
+        """Persist config, reporting failure rather than raising.
+
+        A read-only or full config directory must not take the app off the air;
+        the operator can keep working with the in-memory value.
+        """
+        try:
+            from ..config import save_config
+
+            save_config(self.config)
+            return True
+        except Exception:
+            log.exception("could not save config")
+            return False
+
+    @work
     async def action_disconnect(self) -> None:
         if self.link is None or not self.link.connected:
             self.notify("Not connected.", severity="warning")
@@ -226,7 +304,27 @@ class KissTermApp(App):
         parts.append(f"heard {len(self.heard)}")
         self.query_one("#status-bar", Static).update("  |  ".join(parts))
 
-    def _refresh_heard(self) -> None:
-        if self.query_one("#main-tabs", TabbedContent).active != "heard":
+    def _refresh_heard(self, force: bool = False) -> None:
+        """Repaint the heard table.
+
+        Skipped while the tab is hidden -- rebuilding a 500-row table twice a
+        second that nobody is looking at is pure waste. `force` exists for the
+        moment the tab *becomes* visible: without it the operator switches to
+        Heard and sees an empty table until the next interval tick, which reads
+        as "nothing has been heard" when in fact everything has.
+        """
+        if not force and self.query_one("#main-tabs", TabbedContent).active != "heard":
             return
         self.query_one(HeardPane).refresh_from(self.heard)
+
+    @on(TabbedContent.TabActivated, "#main-tabs")
+    def _on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """Populate a pane the instant it becomes visible, not on the next tick.
+
+        Any pane whose content is built by a periodic refresh needs a hook
+        here, or it shows stale or empty content for up to one interval every
+        time the operator switches to it.
+        """
+        if event.pane.id == "heard":
+            self._refresh_heard(force=True)
+        self._refresh_status()

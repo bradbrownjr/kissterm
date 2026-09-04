@@ -34,7 +34,7 @@ class SettingsPane(Container):
             path = "(could not determine)"
 
         lines = [
-            f"Callsign          {getattr(config, 'mycall', '') or '(unset)'}",
+            f"Callsign          {getattr(config, 'mycall', '') or '(unset)'}   (Ctrl+K to change)",
             f"Active transport  {getattr(config, 'active_transport', '') or '(none)'}",
             f"paclen / window   {getattr(config, 'paclen', '-')} / {getattr(config, 'window', '-')}",
             f"T1 / T2 / T3      {getattr(config, 't1', '-')} / {getattr(config, 't2', '-')} / {getattr(config, 't3', '-')}",
@@ -42,8 +42,10 @@ class SettingsPane(Container):
             "",
             f"Config file       {path}",
             "",
-            "Editing settings in the UI is P6 on the roadmap. For now edit",
-            "config.toml and restart. 'kissterm --doctor' checks it over.",
+            "Callsign is editable here with Ctrl+K, or from a shell with",
+            "'kissterm --callsign W1AW-1'. The remaining settings are still",
+            "hand-edited in config.toml (roadmap P6); 'kissterm --doctor'",
+            "checks the file over and says what is wrong with it.",
         ]
         warnings = list(getattr(config, "warnings", ()) or ())
         if warnings:

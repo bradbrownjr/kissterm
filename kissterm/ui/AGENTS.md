@@ -45,7 +45,23 @@ Read this file plus the one pane you are changing.
 6. **Do not bind single letters** while the input line has focus. This is a
    *terminal*: a key that does something other than type a character into a
    live BBS session is a bug the operator will hit at the worst moment.
-7. No emoji anywhere.
+7. **Two bottom-docked widgets land in the same region.** Textual's `Footer`
+   docks bottom; anything else docked bottom is painted over, in either yield
+   order. `#bottom-bar` is one docked container holding the status bar and the
+   Footer as two rows. This bug shipped once and was invisible to the tests.
+8. **A pane fed by a periodic refresh needs a `TabActivated` hook**
+   (`_on_tab_activated`), or it shows empty or stale content for up to one
+   interval every time the operator switches to it. Same for anything painted
+   only by `set_interval` -- paint once on mount too.
+9. **Callbacks from a link must tolerate a torn-down widget tree.** A link
+   outlives the UI: shutdown exits the app and then closes the station, firing
+   state callbacks at widgets that are gone. Use `self._to_terminal(...)`,
+   which no-ops, not a bare `query_one`.
+10. **Generate a screenshot after any layout change**
+    (`.venv/bin/python scripts/generate_screenshot.py`). Three invisible layout
+    bugs passed the full suite and were caught only by looking at the picture.
+    When it shows something the assertions did not, add a geometry test.
+11. No emoji anywhere.
 
 ## Testing
 

@@ -134,9 +134,8 @@ docstring; it is long on purpose. The points that cost time if forgotten:
   modulo 8 is the default because it is what every BPQ32, KA-Node and
   TNC2-class station on the air actually implements. A station that does not
   understand SABME answers DM; `_on_dm` falls back to SABM once before giving
-  up, which is what makes the non-default safe to turn on.
-  *(Note: `config.py`'s `window` docstring currently claims modulo 128 is not
-  implemented and clamps k to 7. That comment is stale — see §8.)*
+  up, which is what makes the non-default safe to turn on. `Config.modulo`
+  selects it and the window ceiling scales with it (k < modulo).
 - **Answer DM to traffic for a link you do not have.** A silent drop makes the
   caller retry N2 times and waste a minute of channel time.
 - **Single-threaded per link, no locks.** `AX25Link` schedules `call_later`
@@ -262,6 +261,20 @@ Gotchas that already cost time:
 - Textual needs a real terminal, so UI tests use `app.run_test()` with a pilot,
   same pattern as the sibling `google-tui` project. `app.save_screenshot(path)`
   inside `run_test` exports an SVG of the current render.
+- **Generate a screenshot after any layout change.**
+  `.venv/bin/python scripts/generate_screenshot.py` runs the real app headless
+  against a loopback and writes `assets/*.png`. This is not just for the
+  README: two invisible layout bugs -- a status bar the Footer painted over,
+  and a heard table that stayed empty until an interval ticked -- passed the
+  whole test suite and were caught only by looking at the picture. Both now
+  have geometry regression tests in `tests/pilot/test_app_mounts.py`; write one
+  like them when the picture shows something the assertions did not.
+- **Two bottom-docked widgets land in the same region.** Textual's `Footer`
+  docks bottom; anything else docked bottom is painted over, in either yield
+  order. Put them in one docked container with an explicit height instead.
+- **A pane fed by a periodic refresh needs a `TabActivated` hook**, or it shows
+  empty or stale content for up to one interval every time the operator
+  switches to it. See `_on_tab_activated`.
 - `KissTermApp` takes `config` and `station` as constructor arguments
   specifically so a test can mount it against a loopback with no hardware and
   no real config dir. Do not make it construct them internally.
@@ -345,8 +358,9 @@ Gotchas that already cost time:
 - **BLE TNCs are not supported.** Mobilinkd TNC4-class devices need GATT
   characteristic handling and a `bleak` dependency. `BleKissTransport` is a
   marked stub.
-- **No UI for settings.** `config.toml` is hand-edited; the Settings tab is
-  read-only. Roadmap P6.
+- **Settings are still hand-edited, except the callsign.** `Ctrl+K` (or
+  `kissterm --callsign`) changes the callsign and persists it; everything else
+  means editing `config.toml`. Roadmap P6.
 - **The APRS pane is a placeholder.** Decoding is wired into the frame fan-out
   and APRS traffic shows in the Monitor tab, but the dedicated pane
   (positions, messaging with ack/retry, beaconing) is roadmap P4.

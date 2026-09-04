@@ -3,6 +3,56 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-04] — Callsign changing, screenshots, and three invisible UI bugs
+
+### New Features
+- **Change your callsign without a restart or a wizard.** `Ctrl+K` opens a
+  validated dialog (`ui/dialogs.py::CallsignScreen`); `kissterm --callsign
+  W1AW-9` does it from a shell and exits. Previously the only route was
+  `--setup`, which re-runs the whole first-run wizard including a multi-second
+  LAN sweep, to change one string. Operators change SSID constantly -- a `-1`
+  mailbox, a different SSID for portable or an emergency net, a club call for
+  an event -- so this is a first-class action now.
+  The change reaches the **live station**, not just the config file, so it
+  takes effect on the next connect rather than the next launch; a test asserts
+  the new call is what actually appears in the transmitted address field. It is
+  refused while a link is up: the callsign is in every frame of an established
+  conversation, and swapping it mid-session would kill the link by N2 timeout
+  rather than by anything the operator could diagnose.
+- **`scripts/generate_screenshot.py`** — runs the real app headless against a
+  loopback with fabricated traffic and writes `assets/*.svg` and `*.png`. No
+  radio, no real config directory (it calls `_isolate()` first), nothing on the
+  air. README now shows the terminal, monitor and heard panes.
+
+### Fixed
+Three bugs that the entire 83-test suite passed straight over, and that
+generating a screenshot exposed immediately:
+- **The status bar was invisible.** It and Textual's `Footer` both docked
+  bottom and resolved to the *same region* -- the Footer painted over it in
+  either yield order -- so link state, frame counts and retransmit count were
+  never on screen. Both now live in one bottom-docked container with an
+  explicit height.
+- **The status bar was blank for the first second of every launch**, because
+  it was only painted by a 1-second interval. It now paints on mount.
+- **The heard table was empty for up to two seconds after switching to it**,
+  because its refresh both ran on an interval and skipped unless the tab was
+  already active -- so the status bar could read "heard 6" beside an empty
+  table. Panes fed by a periodic refresh now repaint on `TabActivated`.
+
+All three have geometry/timing regression tests in
+`tests/pilot/test_app_mounts.py`, which assert on what is actually visible
+rather than on state.
+
+- **A clean quit with a live link raised.** `__main__` exits the app and *then*
+  calls `station.close()`, which fires each link's state callback into a widget
+  tree that no longer exists -- `query_one` raised `NoMatches` out of a
+  callback nothing was catching. Link callbacks now tolerate a torn-down UI.
+
+**Files:** `kissterm/ui/{app,dialogs,styles,settings_pane}.py`,
+`kissterm/__main__.py`, `scripts/generate_screenshot.py`,
+`tests/pilot/test_app_mounts.py`, `README.md`, `AGENTS.md`,
+`kissterm/ui/AGENTS.md`, `assets/`.
+
 ## [2026-09-04] — P1 complete: the state machine, the app, and a modular layout
 
 Everything P1 asked for is in and tested. 83 tests pass, all against a software

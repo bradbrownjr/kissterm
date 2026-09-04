@@ -16,8 +16,15 @@ from __future__ import annotations
 APP_CSS = """
 Screen { layout: vertical; }
 
+/* The status bar and the Footer live inside ONE bottom-docked container.
+   Docking each of them separately lands both in the same region -- the Footer
+   paints over the status bar and it is invisible, in either yield order. That
+   bug shipped in the first cut and was only caught by generating a
+   screenshot, which is a good argument for keeping scripts/generate_screenshot.py
+   working. */
+#bottom-bar { dock: bottom; height: 2; }
 #status-bar {
-    dock: bottom; height: 1; padding: 0 1;
+    height: 1; width: 100%; padding: 0 1;
     background: $panel; color: $text-muted;
 }
 

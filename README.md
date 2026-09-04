@@ -4,18 +4,14 @@ A terminal for packet radio that talks to your TNC directly — over a serial
 cable, over Bluetooth, or over TCP/IP to a KISS TNC anywhere on your network.
 No kernel AX.25 stack. No root. No Windows.
 
-```
- Terminal   Monitor   Heard   APRS   Settings
-+--------------------------------------------------------------+
-| WS1EC-7 (BPQ32) de N1ABC-1                                    |
-| Welcome to the WS1EC packet node.                             |
-| Type ? for help, B to disconnect.                             |
-| >                                                             |
-+--------------------------------------------------------------+
-| > b                                                           |
-+--------------------------------------------------------------+
- kissterm 0.1.0 | 192.168.1.40:8001 | N1ABC-1 | WS1EC-7 connected
-```
+![kissterm connected to a BPQ32 node](assets/screenshot.png)
+
+The monitor pane shows everything on the channel, and the heard list shows who
+has been active and whether you heard them directly:
+
+![The monitor pane](assets/screenshot-monitor.png)
+
+![The heard list](assets/screenshot-heard.png)
 
 ## Why this exists
 
@@ -80,9 +76,17 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/kissterm
 ```
 
-First run walks you through your callsign and finding your TNC. See
+First run asks for your callsign and then goes looking for your TNC. See
 [SETUP.md](SETUP.md) for Direwolf, Bluetooth pairing, serial permissions, and
 the rest.
+
+**Changing your callsign later takes one keystroke.** `Ctrl+K` in the app, or
+`kissterm --callsign W1AW-9` from a shell -- neither re-runs the setup wizard.
+Operators change SSID constantly (a `-1` mailbox, a different SSID for portable
+or an emergency net, a club call for an event), so this is a first-class
+action, not something buried in a config file. It is refused while a link is
+up: the callsign is in the address field of every frame of an established
+conversation, and swapping it mid-session would kill the link by timeout.
 
 ## Keys
 
@@ -91,6 +95,7 @@ the rest.
 | `F1`..`F4` / `Ctrl+1`..`Ctrl+5` | Terminal / Monitor / Heard / APRS / Settings |
 | `Ctrl+N` | Connect to a station |
 | `Ctrl+D` | Disconnect |
+| `Ctrl+K` | Change your callsign |
 | `Ctrl+L` | Clear the active log |
 | `Ctrl+Q` | Quit |
 
@@ -102,6 +107,7 @@ Connect targets accept a digipeater path: `WS1EC-7 via W1AW-1,W1XYZ`.
 kissterm                     launch
 kissterm --doctor            run diagnostics and exit
 kissterm --discover          scan for TNCs and modems, print, exit
+kissterm --callsign W1AW-1   set your callsign and exit (no wizard)
 kissterm --setup             re-run the first-run wizard
 kissterm --transport NAME    open a specific configured transport
 kissterm --connect WS1EC-7   connect once the app is up
