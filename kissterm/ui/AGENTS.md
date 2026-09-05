@@ -1,5 +1,10 @@
 # kissterm/ui — local contract
 
+**Read `DESIGN.md` at the repo root before changing how anything looks.** It
+holds the color tokens, the settings column grid, spacing, the F-key/Ctrl
+split, and the text style rules. The numbered rules below are the
+implementation contract; DESIGN.md is the reasoning behind them.
+
 The Textual layer. One file per pane, so changing the monitor means opening
 `monitor_pane.py` and nothing else.
 

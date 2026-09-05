@@ -119,23 +119,51 @@ ConnectScreen { align: center middle; }
 
 /* Settings form. Generated from settings_schema, so these rules style whole
    classes of row rather than any particular field -- adding a setting must
-   never mean adding CSS. */
+   never mean adding CSS.
+
+   THE COLUMN GRID. Every row is the same three columns, so labels, controls
+   and apply-notes line up down the whole page instead of each row finding its
+   own edges:
+
+       |<-- 26 -->|<------- 46 ------->|<-- 20 -->|
+        Callsign    [ N1ABC-1        ]   next connection
+        ^label      ^control             ^apply note
+
+   The help/error indent (27) is the label width plus its right padding, so
+   help text hangs under the CONTROL, not under the label. If you change
+   --label width, change the help indent by the same amount; they are two
+   numbers that have to agree and Textual CSS has no arithmetic to tie them.
+
+   Body text is capped at 92 columns (`max-width` on notes and help). A help
+   line running the full width of an ultrawide terminal is technically
+   readable and practically not -- the eye loses the line start on the way
+   back. The form column itself is ~92 wide, so the two agree. */
 SettingsPane { padding: 0 2; }
 .settings-banner {
     padding: 1 2; margin: 1 0;
     background: $warning-darken-2; color: $text;
+    max-width: 92;
 }
+/* A rule under each heading gives the page structure at a glance -- with only
+   bold accent text, sections blur together while scrolling. */
 .settings-section {
-    margin: 1 0 0 0; padding: 0 1;
-    text-style: bold; color: $accent; width: 100%;
+    margin: 2 0 0 0; padding: 0 1;
+    text-style: bold; color: $accent;
+    width: 92;
+    border-bottom: solid $panel;
 }
-.settings-note { padding: 0 1 1 1; color: $text-muted; }
-.settings-row { height: auto; padding: 0 1; }
-.settings-label { width: 24; padding: 1 1 0 0; }
-.settings-apply { padding: 1 0 0 2; color: $text-muted; }
-.settings-help { padding: 0 1 0 25; color: $text-muted; }
-.settings-error { padding: 0 1 0 25; color: $error; display: none; }
-.settings-row Input { width: 1fr; max-width: 46; }
-.settings-row Select { width: 1fr; max-width: 46; }
+.settings-note { padding: 0 1 1 1; color: $text-muted; max-width: 92; }
+.settings-row { height: auto; padding: 0 1; margin-top: 1; }
+.settings-label { width: 26; padding: 1 1 0 0; }
+.settings-apply { width: 20; padding: 1 0 0 2; color: $text-muted; }
+.settings-help { padding: 0 1 0 27; color: $text-muted; max-width: 92; }
+.settings-error { padding: 0 1 0 27; color: $error; display: none; }
+/* Fixed, not 1fr: a control that stretches with the window makes the
+   apply-note column drift and the page lose its vertical alignment. */
+.settings-row Input { width: 46; }
+.settings-row Select { width: 46; }
 .settings-row Button { margin-right: 1; }
+/* The Save/Reload row has no label column, so indent it to the control
+   column and let it breathe away from the last field. */
+.settings-actions { margin-top: 2; padding-left: 27; }
 """

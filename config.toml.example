@@ -181,6 +181,29 @@ panel      = "#414868"
 # default contrast choices). Not a color.
 dark = true
 
+# --- Clock (title bar) ----------------------------------------------------
+#
+# Amateur radio runs on UTC -- logs, nets, contest windows, DX spots -- while
+# you live in local time. "both" shows each so you are not doing the
+# arithmetic in your head mid-net.
+#
+#   "local"  local time only (unmarked, the way a paper log writes it)
+#   "utc"    UTC only
+#   "both"   local / UTC side by side
+#
+# UTC readings are ALWAYS marked: "Z" on a 24-hour clock, "UTC" on a 12-hour
+# one. Local time is never marked.
+clock_source = "local"
+
+# 24-hour clock. True by default: 24-hour is the amateur radio convention,
+# especially for anything logged in UTC.
+clock_24h = true
+
+# Show the date beside the clock. Always ISO 8601 (2026-09-05), never locale
+# order -- 03/04 is March 4th in the US and April 3rd almost everywhere else,
+# and packet is an international medium.
+show_date = false
+
 # Force plain ASCII box-drawing characters and no Unicode/emoji glyphs
 # anywhere in the UI. Turn this on if your terminal is an old TTY, a serial
 # console, or an SSH client that mangles anything past code page 437 --

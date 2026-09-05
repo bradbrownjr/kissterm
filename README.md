@@ -98,6 +98,21 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/kissterm
 ```
 
+That `pip install -e .` creates a real executable at `.venv/bin/kissterm`.
+Three equivalent ways to run it:
+
+```bash
+.venv/bin/kissterm            # the installed console script
+.venv/bin/python -m kissterm  # same thing, without relying on PATH
+./scripts/kissterm-dev        # wrapper: finds the venv itself, works from any directory
+```
+
+To get it on your PATH without installing system-wide:
+
+```bash
+ln -s "$(pwd)/scripts/kissterm-dev" ~/.local/bin/kissterm
+```
+
 First run asks for your callsign and then goes looking for your TNC. See
 [SETUP.md](SETUP.md) for Direwolf, Bluetooth pairing, serial permissions, and
 the rest.
@@ -144,6 +159,21 @@ kissterm --setup             re-run the first-run wizard
 kissterm --transport NAME    open a specific configured transport
 kissterm --connect WS1EC-7   connect once the app is up
 ```
+
+## Clock
+
+The title bar clock shows local time, UTC, or **both side by side** -- because
+amateur radio runs on UTC while you live in local time, and doing that
+arithmetic mid-net is how a log ends up an hour wrong. 12- or 24-hour (24 by
+default, the amateur convention), with an optional date.
+
+UTC is always marked (`Z` on a 24-hour clock, `UTC` on a 12-hour one); local
+time is unmarked, the same convention a paper log uses. Dates are ISO 8601
+(`2026-09-05`), never locale order -- `03/04` is March 4th to an American
+operator and April 3rd to nearly everyone else, and packet is international.
+
+Set it in Settings (`F5`) under Clock, or in `config.toml`
+(`clock_source`, `clock_24h`, `show_date`).
 
 ## Themes
 
@@ -200,8 +230,9 @@ Bug reports are much more useful with `kissterm --doctor` output attached.
 
 ## Development
 
-[AGENTS.md](AGENTS.md) is the design document — read it before changing
-anything. Each package also has its own short contract file
+[AGENTS.md](AGENTS.md) is the engineering document and
+[DESIGN.md](DESIGN.md) is the visual and interaction schema — read both before
+changing anything. Each package also has its own short contract file
 (`kissterm/ax25/AGENTS.md`, `kissterm/transport/AGENTS.md`, and so on) so a
 single-file change does not require reading the whole repo.
 

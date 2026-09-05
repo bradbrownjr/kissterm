@@ -365,3 +365,50 @@ What follows from it for the design is not in doubt, though:
 - [ ] **An "unattended" status indicator** in the status bar whenever the
       station will answer without a human present. Small, and it is the honest
       counterpart to the opt-in.
+
+## P10 — Application tabs: Mail, Bulletins, Files
+
+The three tabs that turn kissterm from a terminal into a station. Each is a
+front-end over machinery P9 builds (the mailbox and the file drop); this phase
+is the operator-facing half, and it is worth designing the navigation before
+any of it is written.
+
+### The F-key ceiling -- decide this before adding tabs
+Function keys are tabs; Ctrl sequences are actions and modals (see
+`kissterm/ui/app.py`'s module docstring). **F1..F8 are delivered reliably by
+essentially every terminal; F9+ are not.** Five tabs exist (F1 Terminal, F2
+Monitor, F3 Heard, F4 APRS, F5 Settings) and the three below would take F6,
+F7, F8 -- landing exactly on the ceiling with nothing to spare. A ninth tab
+needs a different scheme (a tab-cycle key, a menu, or collapsing two existing
+tabs), not a ninth function key. Do not spend F6-F8 on anything that is not a
+tab.
+
+- [ ] **Mail tab (F6)** -- personal message store, sub-views for Inbox,
+      Outbox, Sent and Deleted. Reads the mailbox P9 builds; the tab is the
+      view layer, not a second copy of the storage. Deleted should be a real
+      recoverable folder rather than immediate destruction -- an operator who
+      fat-fingers a delete on a message that arrived over a marginal HF path
+      may have no way to get it re-sent. Large.
+- [ ] **Bulletins tab (F7)** -- same four sub-views, but bulletins are
+      broadcast-addressed rather than person-addressed, and that difference is
+      not cosmetic: a bulletin is addressed to a category (`ALL`, `ARES`,
+      `WX`) and typically carries a lifetime after which it should stop being
+      shown or forwarded. Model the category and expiry from the start rather
+      than reusing the mail schema unchanged. Large.
+- [ ] **Files tab (F8)** -- sub-views for Downloads (files this station
+      fetched), Received (files other stations sent us, which is the P9 drop
+      box and carries all of its security requirements: a resolved jail
+      directory, allowlisted filenames, quotas enforced during transfer, never
+      execute or auto-open), a local browser for choosing something to upload,
+      and -- where the far end supports it -- a remote directory listing.
+      Large.
+- [ ] **Sub-view navigation within a tab.** Four sub-views per tab across
+      three tabs means the F-row cannot address them; they need their own
+      consistent scheme (left/right arrows, or a sub-tab strip like the
+      Calendar tab in the sibling google-tui project). Pick ONE pattern and
+      use it in all three, decided before the first of them is built rather
+      than three times independently. Small, but blocking.
+- [ ] **A shared message-list widget.** Mail and Bulletins are the same list
+      of headers over different stores; Files is a list too. One widget with
+      a column spec beats three that drift apart -- the same argument that
+      made `settings_schema.py` worth having. Mid.

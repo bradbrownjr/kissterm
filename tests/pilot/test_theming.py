@@ -120,3 +120,48 @@ async def test_settings_pane_offers_every_catalog_choice():
         offered = {value for _prompt, value, *_ in select._options}
         assert offered == set(themes_mod.all_theme_ids())
     station.close()
+
+
+# ---------------------------------------------------------------------------
+# The header clock reads config, not just the system clock
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_header_clock_reflects_the_configured_format():
+    """Textual's own HeaderClock is local-only, 24h, no date. Ours must
+    actually read Config -- a passing format_clock() unit test proves the
+    formatter, not the wiring."""
+    cfg = Config(mycall=str(MYCALL), clock_source="utc", clock_24h=True, show_date=True)
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        rendered = str(app.query_one("KissTermClock").render())
+        assert "Z" in rendered, f"UTC not marked in header: {rendered!r}"
+        assert rendered.count("-") >= 2, f"date missing from header: {rendered!r}"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_header_clock_defaults_to_bare_local_time():
+    app, station = await _app(Config(mycall=str(MYCALL)))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        rendered = str(app.query_one("KissTermClock").render())
+        assert "Z" not in rendered and "UTC" not in rendered
+        assert "-" not in rendered, f"date shown by default: {rendered!r}"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_changing_clock_settings_applies_without_restart():
+    app, station = await _app(Config(mycall=str(MYCALL), clock_source="local"))
+    async with app.run_test(size=(120, 60)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        app.query_one(f"#{_widget_id('clock_source')}").value = "utc"
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.clock_source == "utc"
+        assert "Z" in str(app.query_one("KissTermClock").render())
+    station.close()

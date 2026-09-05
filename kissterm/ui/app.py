@@ -10,7 +10,7 @@ be modern, not a novel one they have to relearn:
     +--------------------------------------------+
     | > type here                          [Send] |
     +--------------------------------------------+
-      f6 Commands  ^n Connect  ^d Disconnect  ...   <- shortcut keys
+      ^r Commands  ^n Connect  ^d Disconnect  ...   <- shortcut keys
       kissterm 0.1 | transport | callsign | heard N <- status, BELOW them
 
 The F-key for each tab is printed IN THE TAB LABEL (`F1 Terminal`, keyboard-
@@ -22,13 +22,20 @@ All five `Binding`s stay registered (`show=False`) so the keys still work;
 only the redundant on-screen label moves. `Ctrl+1..5` remain as unlabelled
 fallback aliases for terminals that intercept function keys.
 
-Settings deliberately gets F5, not F6, even though it was the last tab added:
-F1..F5 mapping onto "the five tabs, left to right" is the pattern an operator
-already has muscle memory for once F1..F4 exist, and F5 silently meaning
-something else (a modal, not a tab) broke that the moment a fifth tab existed
-to expect it. The command reference -- not a tab, opened over whatever tab is
-active -- got bumped to F6 instead. F6 is still well inside the F1..F8 range
-every terminal delivers reliably; the unreliable territory starts at F9+.
+**Function keys are tabs. Ctrl sequences are actions and modals.** That is
+the whole rule, and it is why Settings is F5 (the fifth tab, left to right)
+rather than the command reference, and why the command reference -- a modal
+opened over whatever tab is active -- is `Ctrl+R`, not a function key. A
+non-tab action squatting on the next free F-number breaks the "F<n> is the
+n-th tab" pattern the moment an n-th tab exists to expect it, which already
+happened once here.
+
+This also reserves the F-row for the tabs still to come (Mail, Bulletins,
+Files -- see docs/ROADMAP.md). Note the ceiling: F1..F8 are delivered
+reliably by essentially every terminal, F9+ are not, so **eight tabs is the
+practical maximum** for this scheme. Five exist and three are planned, which
+lands exactly on it -- a ninth tab needs a different navigation scheme, not a
+ninth function key.
 
 The status bar sits BELOW the Footer's shortcut-key row, not above it -- the
 keys you might press come first, reading top to bottom, and the passive status
@@ -71,7 +78,7 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
-from textual.widgets import Footer, Header, Static, TabbedContent, TabPane
+from textual.widgets import Footer, Static, TabbedContent, TabPane
 
 from .. import __version__
 from ..ax25 import AX25Station, parse_path
@@ -82,6 +89,7 @@ from ..monitor import MonitorFilter, format_frame
 from ..transport.base import SessionState, TransportError
 from .aprs_pane import AprsPane
 from . import themes
+from .clock import KissTermHeader
 from ..nodes import CommandReference
 from ..nodes.reference import identify_family
 from .dialogs import CallsignScreen, CommandReferenceScreen, ConnectScreen
@@ -149,7 +157,7 @@ class KissTermApp(App):
         Binding("ctrl+n", "connect", "Connect"),
         Binding("ctrl+d", "disconnect", "Disconnect"),
         Binding("ctrl+k", "set_callsign", "Callsign"),
-        Binding("f6", "command_reference", "Commands"),
+        Binding("ctrl+r", "command_reference", "Commands"),
         Binding("ctrl+l", "clear_log", "Clear", show=False),
     ]
 
@@ -178,7 +186,7 @@ class KissTermApp(App):
 
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
+        yield KissTermHeader(show_clock=True)
         with TabbedContent(initial="terminal", id="main-tabs"):
             with TabPane("F1 Terminal", id="terminal"):
                 yield TerminalPane()
@@ -400,7 +408,7 @@ class KissTermApp(App):
             return
         self.reference = CommandReference(family=family)
         self._to_terminal(
-            "log", f"\n*** Node looks like {family.name} -- F6 for its commands\n"
+            "log", f"\n*** Node looks like {family.name} -- Ctrl+R for its commands\n"
         )
 
     def _on_link_state(self, state: SessionState) -> None:

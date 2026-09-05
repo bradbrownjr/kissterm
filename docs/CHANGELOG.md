@@ -3,6 +3,63 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — DESIGN.md, settings layout, configurable clock
+
+### New Features
+- **`DESIGN.md`** -- the visual and interaction schema, which did not exist
+  before: color tokens and what each means, the settings column grid, the
+  92-column text measure, the shape language, the F-key/Ctrl split and its
+  eight-tab ceiling, text and date conventions, and how to change any of it.
+  Linked from `README.md`, `AGENTS.md` and `kissterm/ui/AGENTS.md`.
+- **A configurable header clock** (`kissterm/ui/clock.py`): local, UTC, or
+  **both side by side**; 12- or 24-hour; optional date. Textual's own
+  `HeaderClock` is local-only, 24-hour, no date, and a fixed 10 columns wide
+  that a date would silently truncate -- `KissTermClock` subclasses it and
+  reads `Config` instead.
+  - **UTC is always marked** -- `Z` on a 24-hour clock, `UTC` on a 12-hour one
+    (`7:05 PM Z` reads wrong; Z is an ISO/24-hour convention). Local time is
+    unmarked, the convention a paper log already uses.
+  - **`both` is not a novelty**: amateur radio logs and nets run on UTC while
+    the operator lives in local time, and doing that arithmetic mid-net is how
+    a log ends up an hour wrong.
+  - **Dates are ISO 8601**, never locale order, and the date follows the zone
+    it sits beside -- around midnight the local and UTC dates differ, and a
+    date belonging to the wrong reading puts a log entry on the wrong day.
+    There is a test for exactly that boundary.
+- **`scripts/kissterm-dev`** -- a launcher that finds the venv itself and works
+  from any directory, for symlinking onto PATH without a system-wide install.
+
+### Changed
+- **Settings layout.** Station (callsign, aliases) now opens the page, with
+  Transports directly beneath it -- identity first, then the radio, then
+  tuning. Previously Transports came first and the callsign was below it.
+- **A real column grid**: label 26 / control 46 / apply-note 20, with controls
+  at a fixed width rather than `1fr` (a control that stretches with the window
+  makes the third column drift and the page lose its alignment). Help text
+  hangs under the control, not the label.
+- **Section headings carry a rule**, body text is capped at 92 columns, and
+  rows have a blank line between them. With bold accent text alone the
+  sections blurred together while scrolling, and help lines ran the full width
+  of a wide terminal, where the eye loses the line start on the way back.
+- **Function keys are tabs; Ctrl sequences are actions and modals.** The
+  command reference moved from F6 to **Ctrl+R**, freeing the whole F-row for
+  the tabs still to come. The footer now shows no function key at all, and a
+  test asserts that generally rather than naming one key.
+
+### Roadmap
+- **P10 — Application tabs: Mail, Bulletins, Files**, with sub-views
+  (inbox/outbox/sent/deleted; downloads/received/local browse/remote listing).
+  Records the **F1-F8 ceiling** up front: five tabs exist and three are
+  planned, landing exactly on it, so a ninth tab needs a different navigation
+  scheme rather than a ninth function key. Also flags that bulletins are
+  category-addressed with a lifetime, not just mail with a different name.
+
+**Files:** `kissterm/ui/{clock,app,styles,settings_pane,settings_schema}.py`,
+`kissterm/config.py`, `scripts/kissterm-dev`, `config.toml.example`,
+`tests/unit/test_clock.py`, `tests/pilot/{test_theming,test_app_mounts,test_terminal_ux}.py`,
+`DESIGN.md`, `README.md`, `AGENTS.md`, `kissterm/ui/AGENTS.md`,
+`docs/ROADMAP.md`, `assets/*.png`.
+
 ## [2026-09-05] — Settings is F5; the command reference moves to F6
 
 Flagged directly, and correctly: once F1..F4 existed as tab-switching keys,

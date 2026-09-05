@@ -344,10 +344,14 @@ async def test_tab_switching_keys_are_not_duplicated_in_the_footer():
             assert key not in shown, (
                 f"{key} is shown in the footer, duplicating its tab label"
             )
-        # F6 is not a tab -- it opens the command reference over whatever tab
-        # is active -- so it is correctly the one function key the footer
-        # still shows.
-        assert "f6" in shown
+        # Function keys are tabs; Ctrl sequences are actions and modals. So
+        # NO function key should appear in the footer at all -- the command
+        # reference is ctrl+r, and the F-row stays reserved for the tabs
+        # still to come (Mail, Bulletins, Files).
+        assert not any(k.startswith("f") and k[1:].isdigit() for k in shown), (
+            f"a function key is in the footer: {sorted(shown)}"
+        )
+        assert "ctrl+r" in shown
     station.close()
 
 

@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Run kissterm from this checkout without activating the venv first.
+#
+# The packaged entry point (.venv/bin/kissterm, created by `pip install -e .`)
+# works perfectly well; this exists so there is ONE path that keeps working
+# whether or not the venv is on PATH, whether or not it is activated, and from
+# any working directory -- which is what you want from a launcher you are
+# about to symlink somewhere.
+#
+# Put it on your PATH if you like:
+#     ln -s "$(pwd)/scripts/kissterm-dev" ~/.local/bin/kissterm
+#
+# All arguments are passed straight through:
+#     kissterm-dev --doctor
+#     kissterm-dev --connect WS1EC-7
+set -euo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VENV_PYTHON="$REPO/.venv/bin/python"
+
+if [[ ! -x "$VENV_PYTHON" ]]; then
+    echo "kissterm: no virtualenv at $REPO/.venv" >&2
+    echo "Create one first:" >&2
+    echo "    python3 -m venv $REPO/.venv" >&2
+    echo "    $REPO/.venv/bin/pip install -e '$REPO'" >&2
+    exit 1
+fi
+
+# exec, not a subshell: the terminal app should own the TTY directly, and
+# Ctrl+C / SIGTERM should reach it rather than this wrapper.
+exec "$VENV_PYTHON" -m kissterm "$@"

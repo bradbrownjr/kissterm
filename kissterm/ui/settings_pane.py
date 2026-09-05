@@ -46,6 +46,12 @@ from .settings_schema import (
 
 log = logging.getLogger(__name__)
 
+#: The Transports block is emitted immediately after this schema section.
+#: "Station" puts callsign and aliases at the very top of the page, with the
+#: hardware they talk through right below -- identity first, then the radio,
+#: then tuning.
+TRANSPORTS_AFTER_SECTION = "Station"
+
 APPLY_NOTE = {
     "live": "takes effect now",
     "connect": "next connection",
@@ -64,7 +70,30 @@ class SettingsPane(VerticalScroll):
     def compose(self) -> ComposeResult:
         yield Static("", id="settings-banner", classes="settings-banner")
 
-        # --- Transports: not schema-driven, see the module docstring --------
+        # Schema order decides the page order, with one exception: the
+        # hand-built Transports block is emitted straight after whichever
+        # section is named below. Who you are on the air (Station: callsign,
+        # aliases) belongs at the very top -- it is the first thing a new
+        # operator sets and the thing most often changed later -- and the
+        # hardware you talk through belongs immediately under it. Everything
+        # after that is tuning.
+        for section in SETTINGS_SCHEMA:
+            yield Label(section.title, classes="settings-section")
+            yield Static(section.note, classes="settings-note")
+            for spec in section.fields:
+                yield from self._compose_field(spec)
+            if section.title == TRANSPORTS_AFTER_SECTION:
+                yield from self._compose_transports()
+
+        with Horizontal(classes="settings-row settings-actions"):
+            yield Button("Save", variant="primary", id="settings-save")
+            yield Button("Reload from file", id="settings-reload")
+        yield Static("", id="settings-footer", classes="settings-note")
+
+    def _compose_transports(self) -> ComposeResult:
+        """The one hand-built section -- see the module docstring for why
+        transports cannot be schema fields (a list of dicts with
+        kind-specific keys, not scalars)."""
         yield Label("Transports", classes="settings-section")
         yield Static(
             "Which TNC or modem kissterm talks to. Changing this reopens the "
@@ -77,23 +106,12 @@ class SettingsPane(VerticalScroll):
         with Horizontal(classes="settings-row"):
             yield Label("Active", classes="settings-label")
             yield Select([], id="set-active-transport", allow_blank=True)
+            yield Label("", classes="settings-apply")
         with Horizontal(classes="settings-row"):
             yield Label("", classes="settings-label")
             yield Button("Scan for hardware", id="settings-scan")
             yield Button("Forget selected", id="settings-forget")
-        yield Static("", id="settings-transport-detail", classes="settings-note")
-
-        # --- Everything else, straight from the schema ----------------------
-        for section in SETTINGS_SCHEMA:
-            yield Label(section.title, classes="settings-section")
-            yield Static(section.note, classes="settings-note")
-            for spec in section.fields:
-                yield from self._compose_field(spec)
-
-        with Horizontal(classes="settings-row"):
-            yield Button("Save", variant="primary", id="settings-save")
-            yield Button("Reload from file", id="settings-reload")
-        yield Static("", id="settings-footer", classes="settings-note")
+        yield Static("", id="settings-transport-detail", classes="settings-help")
 
     def _compose_field(self, spec: Field) -> ComposeResult:
         wid = _widget_id(spec.path)

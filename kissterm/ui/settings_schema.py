@@ -274,6 +274,44 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         ),
     ),
     Section(
+        "Clock",
+        "Amateur radio runs on UTC while you live in local time -- 'Both' "
+        "shows each, so you are not doing the arithmetic mid-net.",
+        (
+            Field(
+                "clock_source",
+                "Show",
+                "choice",
+                "UTC readings are marked (Z on a 24-hour clock, UTC on a "
+                "12-hour one); local time is unmarked, the same convention a "
+                "paper log uses.",
+                apply="live",
+                choices=(
+                    ("Local time", "local"),
+                    ("UTC", "utc"),
+                    ("Both (local / UTC)", "both"),
+                ),
+            ),
+            Field(
+                "clock_24h",
+                "24-hour clock",
+                "bool",
+                "On by default: 24-hour is the amateur radio convention, "
+                "especially for anything logged in UTC.",
+                apply="live",
+            ),
+            Field(
+                "show_date",
+                "Show the date",
+                "bool",
+                "Always ISO 8601 (2026-09-05), never locale order -- "
+                "03/04 is March 4th in the US and April 3rd almost "
+                "everywhere else, and packet is an international medium.",
+                apply="live",
+            ),
+        ),
+    ),
+    Section(
         "Display and logging",
         "Local only -- none of this reaches the air.",
         (

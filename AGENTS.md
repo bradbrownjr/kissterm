@@ -7,7 +7,9 @@ This file is the single source of truth for a future session continuing work
 WITHOUT prior chat context. Read it top to bottom before touching code.
 
 Companion files: `README.md` (users), `SETUP.md` (operators getting on the air),
-`docs/ROADMAP.md` (what is still open), `docs/CHANGELOG.md` (what changed and why).
+**`DESIGN.md` (the visual and interaction schema -- read before changing how
+anything looks)**, `docs/ROADMAP.md` (what is still open), `docs/CHANGELOG.md`
+(what changed and why).
 
 ---
 
@@ -150,6 +152,7 @@ kissterm/
 ├── README.md                # users
 ├── AGENTS.md                # THIS file
 ├── SETUP.md                 # getting a radio on the air
+├── DESIGN.md                # visual + interaction schema (colors, grid, keys)
 ├── LICENSE                  # MIT
 ├── config.toml.example      # documented config template (never auto-copied)
 ├── docs/
