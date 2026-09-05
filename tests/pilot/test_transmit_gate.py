@@ -285,3 +285,47 @@ async def test_a_dead_tnc_link_is_not_reported_as_a_dead_rf_path():
         assert "not an RF problem" in text, text
         assert ta.sent == [], "SABMs were sent into a transport that was down"
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_d_cancels_a_stuck_connect_instead_of_saying_not_connected():
+    """From a real report: typing the wrong station, then wanting out before
+    N2 retries expire. Before this, Ctrl+D checked only `self.link`, which is
+    not bound until a connect SUCCEEDS -- so a stuck attempt made Ctrl+D
+    report "Not connected" (true, useless) and the operator had to wait out
+    the whole retry budget while the radio kept keying up on its own."""
+    app, station, ta = await _app(tx_armed_at_start=True)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        for key in "WS1EC-7":
+            await pilot.press(key if key != "-" else "minus")
+        await pilot.press("enter")
+        await pilot.pause()
+        await asyncio.sleep(0.1)  # let the first SABM go out
+
+        sent_before_cancel = len(ta.sent)
+        assert sent_before_cancel >= 1, "the connect attempt never sent anything"
+
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        assert app.link is None, "there was never a UA -- nothing came up to bind"
+        assert app._connect_target is None, "the cancelled attempt is still tracked as in-flight"
+
+        # If cancellation only stopped the *UI* and not the retry timer, more
+        # SABMs would still be queued to go out; wait past where the next
+        # retry (T1=0.2s) would have fired and confirm none did.
+        await asyncio.sleep(0.3)
+        assert len(ta.sent) == sent_before_cancel, "a retry fired after cancellation"
+
+        log = app.query_one(TerminalPane).query_one("#session-log")
+        text = "\n".join(str(line) for line in log.lines)
+        assert "cancel" in text.lower(), text
+        assert "No connection to" not in text, (
+            "a cancelled attempt was reported as a timed-out one: " + text
+        )
+    station.close()

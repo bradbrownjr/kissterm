@@ -56,6 +56,7 @@ class ConnectScreen(ModalScreen[str | None]):
                 id="connect-target",
             )
             yield Label("", id="connect-error")
+            yield Label("Recent stations", id="connect-history-title")
             yield OptionList(id="connect-history")
             yield Label(
                 "Down for previous stations - Enter connects - Delete forgets",
@@ -91,6 +92,7 @@ class ConnectScreen(ModalScreen[str | None]):
         history.add_options(options)
         history.display = bool(options)
         self.query_one("#connect-hint", Label).display = bool(options)
+        self.query_one("#connect-history-title", Label).display = bool(options)
 
     def action_into_list(self) -> None:
         history = self.query_one("#connect-history", OptionList)

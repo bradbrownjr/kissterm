@@ -101,16 +101,23 @@ HeardPane { layout: vertical; }
 /* Connect dialog */
 ConnectScreen { align: center middle; }
 #connect-box {
-    width: 60; height: auto; padding: 1 2;
+    width: 66; height: auto; padding: 1 2;
     border: thick $primary; background: $surface;
 }
 #connect-buttons { height: auto; align: right middle; margin-top: 1; }
 #connect-buttons Button { margin-left: 1; }
-/* The address book. `max-height` rather than a fixed height so a first run
-   with no history does not reserve a blank hole in the middle of the box,
-   and a long list scrolls instead of pushing the buttons off screen. */
-#connect-history { max-height: 8; margin-top: 1; border: none; background: $surface; }
-#connect-hint { color: $text-muted; }
+/* The address book. A visible border and its own title, because "no border,
+   same background as the dialog" made a first-time operator unable to tell
+   the history apart from the rest of the box -- it read as decoration, not
+   as a list of anything. `max-height` rather than a fixed height so a first
+   run with no history does not reserve a blank hole in the middle of the
+   box, and a long list scrolls instead of pushing the buttons off screen. */
+#connect-history-title { color: $text-muted; margin-top: 1; }
+#connect-history { max-height: 8; border: round $primary; background: $surface; }
+/* `width: 100%` so this wraps inside the box instead of being clipped at its
+   edge -- a `Label`'s default auto width sizes to fit the text on one line,
+   which is longer than the dialog and was reading as cut off mid-sentence. */
+#connect-hint { color: $text-muted; width: 100%; height: auto; }
 
 .placeholder { padding: 1 2; color: $text-muted; }
 

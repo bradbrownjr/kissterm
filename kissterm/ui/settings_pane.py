@@ -64,6 +64,36 @@ def _widget_id(path: str) -> str:
     return "set-" + path.replace(".", "-")
 
 
+#: What "Test selected" prints for each `discovery.Identity.verdict`. An
+#: operator pressing this button wants OK or FAILED, not the paragraph
+#: `identity.summary` carries for the scan results list -- that wording stays
+#: in `discovery.py` for the audience that has never seen a silent KISS port
+#: before. This button's audience just asked a specific transport a direct
+#: question and wants a direct answer.
+_TEST_LABEL = {
+    "agwpe": "OK",
+    "kiss": "OK",
+    "not-a-tnc": "FAILED",
+    "unreachable": "FAILED",
+    "unknown": "UNKNOWN",
+}
+
+
+def _test_result_line(host: str, port: int, identity) -> str:
+    label = _TEST_LABEL.get(identity.verdict, "UNKNOWN")
+    if identity.is_tnc:
+        reason = identity.summary.removeprefix("Confirmed: ").rstrip(".")
+    elif identity.verdict in ("not-a-tnc", "unreachable"):
+        # Already one short sentence, and the wording ("Not a TNC", what
+        # answered) is exactly what an operator needs to fix config.toml.
+        reason = identity.summary.rstrip(".")
+    else:
+        # Silence is inconclusive, not a failure -- an idle KISS TNC looks
+        # exactly like this. Say so in five words, not a paragraph.
+        reason = "open, identity unconfirmed (silent)"
+    return f"{host}:{port}  {label}  --  {reason}"
+
+
 class SettingsPane(VerticalScroll):
     """Scrollable form over the whole schema, plus transport management."""
 
@@ -455,14 +485,14 @@ class SettingsPane(VerticalScroll):
             detail.update("The test itself failed. 'kissterm --doctor' may say why.")
             return
 
-        evidence = f"  ({identity.detail})" if identity.detail else ""
-        detail.update(f"{host}:{port} -- {identity.summary}{evidence}")
+        line = _test_result_line(host, port, identity)
+        detail.update(line)
         severity = (
             "information" if identity.is_tnc
             else "error" if identity.verdict in ("not-a-tnc", "unreachable")
             else "warning"
         )
-        self.app.notify(identity.summary, severity=severity)
+        self.app.notify(line, severity=severity)
 
     @on(Button.Pressed, "#settings-test")
     def _test_pressed(self) -> None:

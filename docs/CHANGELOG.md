@@ -3,6 +3,44 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Ctrl+D can now stop a stuck connect
+
+From the same on-air test session, after the subnet fix below. Mistyped the
+target and had to wait out the full SABM retry budget: Ctrl+D checked only
+`self.link`, which is not bound until a connect *succeeds*, so it answered
+"Not connected" -- true, and useless, while the radio kept keying up on its
+own. Also folded in: a "Test selected" result that read like a paragraph
+where the operator wanted OK or FAILED, and a connect dialog whose history
+list blended into the background and whose hint text was clipped at the box
+edge.
+
+### Fixes
+- **Ctrl+D cancels an in-flight connect**, not just an established one.
+  `AX25Station.connect` registers the link before it awaits anything, so
+  `KissTermApp._connect_target` (set for exactly the SABM/retry window) can
+  find it and call `link.close(reason=...)`, which stops the retry timer at
+  once and sends nothing further -- there was never a UA, so there is nothing
+  for a DISC to end. The cancelled attempt is reported as "cancelled", not
+  run through the "no answer" wording meant for a genuine timeout.
+- **"Test selected" prints one line: OK, FAILED, or UNKNOWN**, plus the short
+  reason, instead of the multi-sentence explanation written for the scan
+  results list. That explanation stays where a first-time operator needs it
+  (`discovery.Identity.summary`); this button's audience already asked a
+  specific transport a direct question.
+- **The connect dialog's history list is visibly a list.** It had no border
+  and the same background as the dialog around it, so a first-time operator
+  could not tell it apart from decoration. It now has a border and a "Recent
+  stations" title, shown only when there is history to show.
+- **The connect dialog's hint text no longer clips at the box edge.** A
+  `Label`'s default width sizes to fit its content on one line; inside a
+  fixed-width box that is what "cut off" looks like. Fixed with `width: 100%`
+  so it wraps instead.
+
+**Files:** `kissterm/ax25/session.py`, `kissterm/ui/app.py`,
+`kissterm/ui/settings_pane.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/styles.py`, `tests/pilot/test_transmit_gate.py`,
+`tests/pilot/test_settings.py`
+
 ## [2026-09-05] — The scan was only looking at a sixth of the subnet
 
 Asked after a rescan still failed to find a known-good station: "I know the

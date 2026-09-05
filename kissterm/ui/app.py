@@ -137,6 +137,13 @@ def _status_row(parts: list[str]) -> Table:
     return table
 
 
+#: `AX25Link.last_error` set by `action_disconnect` when it cancels a connect
+#: still in the SABM/retry phase. Checked back in `action_connect` so a
+#: cancelled attempt is reported as cancelled, not run through the "no
+#: answer" / "check the Monitor tab" wording meant for a genuine timeout.
+CANCELLED_REASON = "cancelled by operator"
+
+
 class KissTermApp(App):
     """The application.
 
@@ -221,6 +228,13 @@ class KissTermApp(App):
         #: The one active link, if any. Panes read this off `self.app` rather
         #: than tracking their own copy -- see this module's docstring.
         self.link = None
+        #: The peer of a connect attempt still in the SABM/retry phase, or
+        #: None. Set only for that window -- see `action_connect` and
+        #: `action_disconnect`. Needed because `self.link` is not bound until
+        #: the attempt SUCCEEDS, so without this Ctrl+D during a stuck connect
+        #: has nothing to act on and can only say "Not connected", leaving
+        #: the operator to wait out N2 retries with no way to stop them.
+        self._connect_target = None
         self._status = "starting"
         #: Stations already tried, offered in the connect dialog. Owned here
         #: rather than by the dialog so a successful connect can be recorded
@@ -763,20 +777,30 @@ class KissTermApp(App):
         # with a dead end that only reads as "the far station is not there".
         self._arm_for(f"connect to {path.destination}")
         self.query_one(TerminalPane).log(f"\n*** Connecting to {path.destination}...\n")
+        # Set before the await, not after: `AX25Station.connect` registers the
+        # link synchronously before it awaits anything, so by the time this
+        # coroutine yields control the link is already reachable by peer
+        # address -- which is what lets Ctrl+D find and cancel it mid-attempt.
+        self._connect_target = path.destination
         try:
             link = await self.station.connect(path)
         except TransportError as exc:
             self.notify(str(exc), severity="error")
             return
+        finally:
+            self._connect_target = None
         if link is None:
+            failed = self.station.link_to(path.destination)
+            reason = getattr(failed, "last_error", "") if failed else ""
+            if reason == CANCELLED_REASON:
+                self._to_terminal("log", f"*** Connect to {path.destination} cancelled.\n")
+                return
             # Say WHY. "No connection" alone cannot be acted on: a DM means
             # the node heard us and refused, which is a configuration problem
             # at one end or the other; silence after N2 tries means the path
             # did not carry, which is an antenna, power or propagation
             # problem. On a marginal path that distinction is the whole
             # diagnosis, and it is already known here.
-            failed = self.station.link_to(path.destination)
-            reason = getattr(failed, "last_error", "") if failed else ""
             attempts = getattr(failed, "rc", 0) if failed else 0
             detail = f" -- {reason}" if reason else ""
             self._to_terminal("log", f"*** No connection to {path.destination}{detail}\n")
@@ -878,16 +902,31 @@ class KissTermApp(App):
 
     @work
     async def action_disconnect(self) -> None:
-        if self.link is None or not self.link.connected:
-            self.notify("Not connected.", severity="warning")
+        if self.link is not None and self.link.connected:
+            # Same reasoning as connect, and more so: a DISC is how a link is
+            # ended politely. Refusing to send it leaves the far station
+            # holding a session open until ITS timers give up, which is a
+            # worse outcome for the channel than the transmission we would
+            # be avoiding.
+            self._arm_for(f"disconnect from {self.link.peer}")
+            self.query_one(TerminalPane).log("\n*** Disconnecting...\n")
+            await self.link.disconnect()
             return
-        # Same reasoning as connect, and more so: a DISC is how a link is
-        # ended politely. Refusing to send it leaves the far station holding
-        # a session open until ITS timers give up, which is a worse outcome
-        # for the channel than the transmission we would be avoiding.
-        self._arm_for(f"disconnect from {self.link.peer}")
-        self.query_one(TerminalPane).log("\n*** Disconnecting...\n")
-        await self.link.disconnect()
+        # No established link -- but a connect attempt may still be working
+        # through its SABM retries. Without this, the only way off a stuck
+        # attempt was to wait out N2 in full: Ctrl+D said "Not connected"
+        # (true, but useless) while the radio kept keying up on its own.
+        if self._connect_target is not None and self.station is not None:
+            connecting = self.station.link_to(self._connect_target)
+            if connecting is not None and not connecting.connected:
+                self.query_one(TerminalPane).log(
+                    f"\n*** Cancelling connect to {connecting.peer} -- no "
+                    "further SABMs will be sent.\n"
+                )
+                connecting.close(reason=CANCELLED_REASON)
+                self.notify(f"Cancelled connect to {connecting.peer}.")
+                return
+        self.notify("Not connected.", severity="warning")
 
     # ------------------------------------------------------------------
     # Periodic UI refresh

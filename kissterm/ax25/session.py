@@ -311,14 +311,23 @@ class AX25Link:
         self._inbound.clear()
         return out
 
-    def close(self) -> None:
-        """Tear down timers without transmitting. For app shutdown only.
+    def close(self, reason: str = "") -> None:
+        """Tear down timers without transmitting.
 
-        This deliberately does not send DISC: it is what runs when the process
-        is going away and there may be no transport left to send on. Use
-        `disconnect` for an orderly release that the far end will notice.
+        For app shutdown, and for cancelling a connect attempt still in the
+        SABM/retry phase: it stops the retry timer immediately rather than
+        making the operator wait out N2, and sends nothing further -- there
+        was never a UA, so there is no session for a DISC to end. Use
+        `disconnect` instead for an orderly release of a link that came up
+        and the far end will notice going away.
+
+        `reason`, if given, becomes `last_error` unless one is already set --
+        an operator who cancels mid-attempt should see "cancelled", not a
+        blank reason or a stale one from an earlier retry.
         """
         self._stop_all_timers()
+        if reason and not self.last_error:
+            self.last_error = reason
         if self._connect_result is not None and not self._connect_result.done():
             self._connect_result.set_result(False)
         self.state = SessionState.DISCONNECTED
