@@ -45,13 +45,33 @@ Button.-warning { border: round $warning; color: $warning; }
 Button.-error { border: round $error; color: $error; }
 Button.-error:hover { background: $error 20%; }
 
+/* Active tab: bold accent-colored text plus the underline bar below it,
+   nothing else. Textual's default fills the active tab with a solid
+   "block cursor" background as soon as the tab strip has focus (its normal
+   behaviour for a keyboard-navigable list), which reads as a heavy, jarring
+   rectangle next to the flat outlined panels everywhere else in this app --
+   flagged from a real screenshot as "looking funny". The underline bar is the
+   indicator; the tab text just needs to stand out, not sit in a filled box. */
+Tabs Tab.-active { background: transparent; text-style: bold; color: $accent; }
+Tabs:focus Tab.-active { background: transparent; text-style: bold; color: $accent; }
+Underline > .underline--bar { color: $accent; }
+
 /* The status bar and the Footer live inside ONE bottom-docked container.
    Docking each of them separately lands both in the same region -- the Footer
    paints over the status bar and it is invisible, in either yield order. That
    bug shipped in the first cut and was only caught by generating a
    screenshot, which is a good argument for keeping scripts/generate_screenshot.py
-   working. */
+   working.
+
+   Order within the container is deliberate too, and yield order alone does
+   NOT control it: `Footer`'s own DEFAULT_CSS docks it to "bottom" no matter
+   where it is yielded, so it would pin itself under the status bar even
+   when written second. It has to be told to dock to the TOP of this
+   container instead, which is what `#bottom-bar Footer` below overrides. The
+   keys you might press read above the passive transport/link/heard-count
+   summary, top to bottom, matching what a user actually does with each row. */
 #bottom-bar { dock: bottom; height: 2; }
+#bottom-bar Footer { dock: top; }
 #status-bar {
     height: 1; width: 100%; padding: 0 1;
     background: $panel; color: $text-muted;

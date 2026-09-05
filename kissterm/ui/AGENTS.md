@@ -80,17 +80,26 @@ Read this file plus the one pane you are changing.
     data (`kissterm/nodes/data/`); asking a node costs ~19 s per 2 KB at 1200
     baud. Node detection is passive -- read the banner, ask nothing.
 16. **The tab bar is the ONLY place a tab-switching key is shown.** F1-F4
-    are named in the tab label itself (`Terminal (F1)`); `Binding(..., show=
-    False)` keeps them registered without the Footer repeating the same word
-    that is already in the tab strip above it. Only add a Footer-visible
-    binding for something that is NOT a tab (the command reference, F5, is
-    the existing example).
+    are named in the tab label itself, key first (`F1 Terminal`, like a menu
+    accelerator); `Binding(..., show=False)` keeps them registered without the
+    Footer repeating the same word that is already in the tab strip above it.
+    Only add a Footer-visible binding for something that is NOT a tab (the
+    command reference, F5, is the existing example).
 17. **One `Button` style for the whole app** (`styles.py`, top of `APP_CSS`):
     a flat rounded border, no filled 3D bevel. Variant classes
     (`-primary`/`-error`/...) change only the border and text color, never the
     shape. A Connect, Save or Send button styled differently from the rest is
     the thing this rule exists to prevent -- it happened once already.
-18. No emoji anywhere.
+18. **The active tab gets bold accent text and the underline bar, never a
+    solid fill.** Textual's default fills the focused tab strip's active tab
+    with a "block cursor" background, which reads as a heavy rectangle next
+    to the flat panels everywhere else. Overridden in `styles.py`.
+19. **A widget's own `DEFAULT_CSS` can override yield order.** `Footer` docks
+    itself to `bottom` no matter where it is written in `compose()` -- getting
+    it to sit above the status bar took `#bottom-bar Footer { dock: top; }`,
+    not reordering the `yield` statements. Check a widget's own default CSS
+    before assuming compose-order controls layout.
+20. No emoji anywhere.
 
 ## Testing
 

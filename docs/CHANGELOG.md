@@ -3,6 +3,39 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Key-first tab labels, footer above status, a flat active tab
+
+Three follow-up UI corrections, all from direct feedback on the previous
+commit's screenshot.
+
+### Fixed
+- **Label order.** `Terminal (F1)` read wrong; a keyboard accelerator is named
+  before the label it triggers, like a menu (`F1 Terminal`). Same for the
+  other three tabs.
+- **Status bar was above the shortcut-key row, not below it.** Swapping the
+  `yield` order in `compose()` had no effect, because `Footer`'s own
+  `DEFAULT_CSS` sets `dock: bottom` unconditionally -- it pins itself to the
+  container edge no matter where it is written. Fixed with `#bottom-bar
+  Footer { dock: top; }`, which was the actual lesson here: a widget's own
+  default CSS can override compose order, and it is worth checking before
+  assuming reordering `yield`s will move anything.
+- **The active tab "looked funny".** Textual fills the focused tab strip's
+  active tab with a solid "block cursor" background by default -- a heavy
+  rectangle next to the flat, rounded, unfilled panels the rest of this app
+  uses. It is now bold accent-colored text plus the existing underline bar,
+  nothing else.
+
+Two tests added: one drives `App.active_bindings`/tab region geometry the way
+the earlier footer-duplication test did (status bar below the footer); the
+other compares an active tab's resolved background against an inactive one's,
+since Textual's "transparent" composites to the ambient screen color rather
+than reporting zero alpha -- an alpha check would have passed even with the
+bug still present, so the comparison is the only assertion that actually
+proves nothing extra is being painted.
+
+**Files:** `kissterm/ui/{app,styles}.py`, `tests/pilot/test_app_mounts.py`,
+`README.md`, `AGENTS.md`, `kissterm/ui/AGENTS.md`, `assets/*.png`.
+
 ## [2026-09-05] — UI consistency: no duplicate labels, one button style
 
 ### Fixed

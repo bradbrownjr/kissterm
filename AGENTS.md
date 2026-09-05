@@ -309,15 +309,26 @@ Gotchas that already cost time:
 
 ### One visual language, one place for each fact
 - **A tab-switching key is shown in the tab label, never in the footer too.**
-  `Terminal (F1)` etc. Textual's `Footer` would otherwise print the same word
-  the tab bar already shows, in a different corner of the screen -- exactly
-  the duplication a user flagged from a real screenshot. The `Binding`s stay
-  registered with `show=False`; only the on-screen label moved.
+  `F1 Terminal` (key first, like a menu accelerator), not `Terminal (F1)`.
+  Textual's `Footer` would otherwise print the same word the tab bar already
+  shows, in a different corner of the screen -- exactly the duplication a user
+  flagged from a real screenshot. The `Binding`s stay registered with
+  `show=False`; only the on-screen label moved.
 - **Every `Button` shares one flat, rounded style** (`styles.py`). Textual's
   default is a two-tone "tall" border reading as a raised 3D bezel; a `Send`
   button styled with `variant="primary"` and everything else left default
   looked like it belonged to a different app. Variant classes change color
   only, never the shape.
+- **The active tab is bold accent text plus the underline bar, not a filled
+  block.** Textual fills the focused tab strip's active tab with a solid
+  "block cursor" background by default -- flagged as "looks funny" next to the
+  flat outlined panels everywhere else.
+- **Footer docks itself; yield order does not decide its position.**
+  `Footer`'s own `DEFAULT_CSS` sets `dock: bottom` unconditionally, so writing
+  it second in `compose()` does not put it below a sibling -- it pins to the
+  container edge regardless. Getting the status bar to sit below it needed
+  `#bottom-bar Footer { dock: top; }`, not a reordered `yield`. Check a
+  widget's own default CSS before assuming compose order controls layout.
 
 ### The terminal transmits only on a deliberate commit
 - **`TerminalPane.send_line` is the single transmit path** out of the terminal

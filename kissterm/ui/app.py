@@ -4,23 +4,30 @@ Layout follows the shape a packet operator already has in their head from
 BPQTerminal and EasyTerm, because the goal is a familiar tool that happens to
 be modern, not a novel one they have to relearn:
 
-    Terminal F1  Monitor F2  Heard F3  APRS F4  Settings
+    F1 Terminal  F2 Monitor  F3 Heard  F4 APRS  Settings
     +--------------------------------------------+
     | session output (scrollback, selectable)     |
     +--------------------------------------------+
     | > type here                          [Send] |
     +--------------------------------------------+
-      status: transport - link state - queue depth
+      f5 Commands  ^n Connect  ^d Disconnect  ...   <- shortcut keys
+      kissterm 0.1 | transport | callsign | heard N <- status, BELOW them
 
-The F-key for each tab is printed IN THE TAB LABEL, not in the footer. Textual's
-`Footer` widget would otherwise show `f1 Terminal  f2 Monitor  f3 Heard  f4
-APRS` right below a tab bar already showing `Terminal Monitor Heard APRS` --
-the same four words twice, in two different corners of the screen. The four
-`Binding`s stay registered (`show=False`) so the keys still work; only the
-redundant on-screen label moves. `Ctrl+1..5` remain as unlabelled fallback
-aliases for terminals that intercept function keys. `Settings` has no F-key
-(F5 is the command reference, `F5`, which is not a tab and does not have this
+The F-key for each tab is printed IN THE TAB LABEL (`F1 Terminal`, keyboard-
+shortcut-first, matching how a menu shows an accelerator), not in the footer.
+Textual's `Footer` widget would otherwise show `f1 Terminal  f2 Monitor  f3
+Heard  f4 APRS` right below a tab bar already showing `Terminal Monitor Heard
+APRS` -- the same four words twice, in two different corners of the screen.
+The four `Binding`s stay registered (`show=False`) so the keys still work;
+only the redundant on-screen label moves. `Ctrl+1..5` remain as unlabelled
+fallback aliases for terminals that intercept function keys. `Settings` has no
+F-key (F5 is the command reference, which is not a tab and does not have this
 duplication problem, so it keeps its own footer entry).
+
+The status bar sits BELOW the Footer's shortcut-key row, not above it -- the
+keys you might press come first, reading top to bottom, and the passive status
+readout comes last. See `#bottom-bar` in `styles.py` for the container that
+makes this ordering deliberate rather than incidental.
 
 Each pane's `compose()` fragment and widget handlers used to live inline in
 this file. They now live one module per pane (`terminal_pane.py`,
@@ -137,13 +144,13 @@ class KissTermApp(App):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with TabbedContent(initial="terminal", id="main-tabs"):
-            with TabPane("Terminal (F1)", id="terminal"):
+            with TabPane("F1 Terminal", id="terminal"):
                 yield TerminalPane()
-            with TabPane("Monitor (F2)", id="monitor"):
+            with TabPane("F2 Monitor", id="monitor"):
                 yield MonitorPane()
-            with TabPane("Heard (F3)", id="heard"):
+            with TabPane("F3 Heard", id="heard"):
                 yield HeardPane()
-            with TabPane("APRS (F4)", id="aprs"):
+            with TabPane("F4 APRS", id="aprs"):
                 yield AprsPane()
             with TabPane("Settings", id="settings"):  # no F-key: see above
                 yield SettingsPane()
@@ -153,8 +160,8 @@ class KissTermApp(App):
         # order. One docked parent with an explicit height lays them out as
         # two distinct rows. Verified in tests/pilot/test_app_mounts.py.
         with Vertical(id="bottom-bar"):
-            yield Static(id="status-bar")
             yield Footer()
+            yield Static(id="status-bar")
 
     def on_mount(self) -> None:
         self.query_one(SettingsPane).render_settings(self.config)

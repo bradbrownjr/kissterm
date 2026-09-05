@@ -126,7 +126,7 @@ conversation, and swapping it mid-session would kill the link by timeout.
 | `F1`..`F4` / `Ctrl+1`..`Ctrl+5` | Terminal / Monitor / Heard / APRS / Settings |
 | `Ctrl+N` | Connect to a station |
 | `Ctrl+D` | Disconnect |
-| `F1`..`F4` | Switch tabs (also shown right in each tab's label) |
+| `F1`..`F4` | Switch tabs (shown as the key right in each tab's label) |
 | `Ctrl+K` | Change your callsign |
 | `F5` | Command reference for the detected node |
 | `Ctrl+L` | Clear the active log |

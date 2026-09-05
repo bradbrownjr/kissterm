@@ -339,9 +339,47 @@ async def test_tab_labels_carry_the_function_key_hint():
         await pilot.pause()
         tabs = app.query_one("#main-tabs")
         labels = {str(tab.label) for tab in tabs.query("Tab")}
-        for hint in ("Terminal (F1)", "Monitor (F2)", "Heard (F3)", "APRS (F4)"):
+        for hint in ("F1 Terminal", "F2 Monitor", "F3 Heard", "F4 APRS"):
             assert hint in labels, f"missing {hint!r} in tab labels: {labels}"
         # Settings has no F-key (F5 is taken by the command reference) and
         # must not claim one it does not have.
         assert "Settings" in labels
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_status_bar_sits_below_the_footer():
+    """The keys you might press come first; the passive readout comes last."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        footer_y = app.query_one("Footer").region.y
+        status_y = app.query_one("#status-bar").region.y
+        assert status_y > footer_y, "status bar is not below the footer"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_active_tab_has_no_solid_block_background():
+    """Regression: Textual's default block-cursor fill on the focused tab
+    strip read as a heavy rectangle next to the flat panels elsewhere.
+
+    "transparent" composites down to the ambient screen color rather than
+    reporting zero alpha, so the right check is that the ACTIVE tab's
+    resolved background matches an INACTIVE one -- i.e. our override adds no
+    extra fill of its own -- rather than asserting anything about alpha.
+    """
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        tabs_widget = app.query_one("#main-tabs").query_one("Tabs")
+        all_tabs = list(tabs_widget.query("Tab"))
+        active = next(t for t in all_tabs if "-active" in t.classes)
+        inactive = next(t for t in all_tabs if "-active" not in t.classes)
+        active_bg = active.get_visual_style().background
+        inactive_bg = inactive.get_visual_style().background
+        assert active_bg == inactive_bg, (
+            f"active tab has its own fill ({active_bg}) distinct from an "
+            f"inactive tab's ({inactive_bg})"
+        )
     station.close()
