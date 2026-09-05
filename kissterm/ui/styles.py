@@ -72,9 +72,14 @@ Underline > .underline--bar { color: $accent; }
    summary, top to bottom, matching what a user actually does with each row. */
 #bottom-bar { dock: bottom; height: 2; }
 #bottom-bar Footer { dock: top; }
+/* $background, not $panel -- matches the near-black the tab bar and the
+   Screen itself already use (measured: $background #121212 vs $panel
+   #242F38, the slate-blue the Header and Footer keep). Requested directly:
+   the status readout should look like the same black chrome as the row
+   above the panes, not like the Header/Footer's own shade. */
 #status-bar {
     height: 1; width: 100%; padding: 0 1;
-    background: $panel; color: $text-muted;
+    background: $background; color: $text-muted;
 }
 
 /* Terminal pane */

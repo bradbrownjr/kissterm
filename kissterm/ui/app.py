@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import logging
 
+from rich.table import Table
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -84,6 +85,29 @@ from .styles import APP_CSS
 from .terminal_pane import TerminalPane
 
 log = logging.getLogger(__name__)
+
+
+def _status_row(parts: list[str]) -> Table:
+    """Lay `parts` out across the FULL width of the status bar, not bunched
+    at the left with the rest of the row empty.
+
+    A plain ``"  |  ".join(parts)`` string looks fine on a narrow terminal and
+    leaves most of a wide one blank -- exactly the "half the screen is empty"
+    look this replaces. A `Table.grid` with one equal-ratio column per field
+    re-flows automatically as the terminal is resized and as the number of
+    fields changes (there are more of them once a link is connected), which a
+    hand-computed padding string would not do without being recomputed on
+    every resize event. The first field reads as a left anchor (the app
+    identity), the last as a right anchor (heard count), and everything
+    between is centered in its own share of the row -- the conventional shape
+    of an editor or IDE status bar.
+    """
+    table = Table.grid(expand=True, padding=(0, 1))
+    for i in range(len(parts)):
+        justify = "left" if i == 0 else "right" if i == len(parts) - 1 else "center"
+        table.add_column(justify=justify, ratio=1)
+    table.add_row(*parts)
+    return table
 
 
 class KissTermApp(App):
@@ -481,8 +505,9 @@ class KissTermApp(App):
             # transmit with nobody present, that fact is always on screen.
             parts.append("ANSWERING")
         parts.append(f"heard {len(self.heard)}")
+        renderable = _status_row(parts)
         for bar in self._base_query("#status-bar"):
-            bar.update("  |  ".join(parts))
+            bar.update(renderable)
 
     def _refresh_heard(self, force: bool = False) -> None:
         """Repaint the heard table.

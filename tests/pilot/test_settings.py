@@ -30,6 +30,24 @@ from kissterm.ui.settings_schema import (  # noqa: E402
 )
 from tests.loopback import loopback_pair  # noqa: E402
 
+
+def _plain(widget) -> str:
+    """The text currently visible in `widget`, read from its rendered strips.
+
+    `#status-bar` holds a `rich.table.Table` (see `kissterm.ui.app._status_row`),
+    not a plain string, so `str(widget.render())` stopped containing the
+    visible text the moment that changed -- `render()` returns a Textual
+    `Visual` wrapper, and reaching into its private `_renderable` attribute is
+    exactly the kind of internals-coupling that breaks on the next Textual
+    upgrade. Rendering the actual strips is what the terminal itself would
+    show, so it cannot drift from the display.
+    """
+    from textual.geometry import Region
+
+    region = Region(0, 0, widget.size.width or 200, widget.size.height or 5)
+    return "\n".join(strip.text for strip in widget.render_lines(region))
+
+
 MYCALL = AX25Address.parse("N1ABC-1")
 
 #: Config fields the Settings pane deliberately does not expose as form fields.
@@ -334,11 +352,11 @@ async def test_status_bar_says_when_the_station_will_answer_unattended():
     app, station = await _app(Config(mycall=str(MYCALL), accept_incoming=True))
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        assert "ANSWERING" in str(app.query_one("#status-bar").render())
+        assert "ANSWERING" in _plain(app.query_one("#status-bar"))
     station.close()
 
     app2, station2 = await _app(Config(mycall=str(MYCALL), accept_incoming=False))
     async with app2.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        assert "ANSWERING" not in str(app2.query_one("#status-bar").render())
+        assert "ANSWERING" not in _plain(app2.query_one("#status-bar"))
     station2.close()

@@ -30,6 +30,24 @@ from kissterm.ui.settings_pane import SettingsPane  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
+
+def _plain(widget) -> str:
+    """The text currently visible in `widget`, read from its rendered strips.
+
+    `#status-bar` holds a `rich.table.Table` (see `kissterm.ui.app._status_row`),
+    not a plain string, so `str(widget.render())` stopped containing the
+    visible text the moment that changed -- `render()` returns a Textual
+    `Visual` wrapper, and reaching into its private `_renderable` attribute is
+    exactly the kind of internals-coupling that breaks on the next Textual
+    upgrade. Rendering the actual strips is what the terminal itself would
+    show, so it cannot drift from the display.
+    """
+    from textual.geometry import Region
+
+    region = Region(0, 0, widget.size.width or 200, widget.size.height or 5)
+    return "\n".join(strip.text for strip in widget.render_lines(region))
+
+
 MYCALL = AX25Address.parse("N1ABC-1")
 PEER = AX25Address.parse("WS1EC-7")
 
@@ -241,7 +259,7 @@ async def test_status_bar_is_populated_on_mount():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        text = str(app.query_one("#status-bar").render())
+        text = _plain(app.query_one("#status-bar"))
         assert str(MYCALL) in text, f"status bar was blank on mount: {text!r}"
     station.close()
 
@@ -381,5 +399,44 @@ async def test_active_tab_has_no_solid_block_background():
         assert active_bg == inactive_bg, (
             f"active tab has its own fill ({active_bg}) distinct from an "
             f"inactive tab's ({inactive_bg})"
+        )
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_status_bar_matches_the_tab_bars_black_not_the_header_panel():
+    """Requested directly: status bar should read as the same black as the
+    tab row, not the slate-blue $panel shade Header/Footer use.
+    """
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        status_bg = app.query_one("#status-bar").get_visual_style().background
+        tabs_bg = app.query_one("#main-tabs").query_one("Tabs").get_visual_style().background
+        header_bg = app.query_one("Header").get_visual_style().background
+        assert status_bg == tabs_bg, f"status bar ({status_bg}) != tab bar ({tabs_bg})"
+        assert status_bg != header_bg, "status bar should not match the Header's panel shade"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_status_fields_spread_across_the_full_width_not_bunched_left():
+    """The old '  |  '.join() rendering left most of a wide terminal blank."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        region = app.query_one("#status-bar").size
+        from textual.geometry import Region as _Region
+
+        line = app.query_one("#status-bar").render_lines(
+            _Region(0, 0, region.width, 1)
+        )[0]
+        text = line.text
+        first_content_col = len(text) - len(text.lstrip())
+        last_content_col = len(text.rstrip())
+        # A left-bunched single string would leave a large blank run at the
+        # right; spread fields should reach well past the middle of the row.
+        assert last_content_col > region.width * 0.6, (
+            f"status content ends at column {last_content_col} of {region.width}"
         )
     station.close()

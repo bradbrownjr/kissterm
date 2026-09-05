@@ -329,6 +329,13 @@ Gotchas that already cost time:
   container edge regardless. Getting the status bar to sit below it needed
   `#bottom-bar Footer { dock: top; }`, not a reordered `yield`. Check a
   widget's own default CSS before assuming compose order controls layout.
+- **Status bar background is `$background` (near-black, matches the tab
+  row), not `$panel`** (the slate-blue Header/Footer use). Requested directly:
+  the readout should look like the chrome above the panes, not the Header.
+- **Status fields are laid out in a `Table.grid`, not joined with `"  |  "`.**
+  A joined string bunches at the left and leaves most of a wide terminal
+  blank; equal-ratio columns spread across the full width and re-flow on
+  resize. See `_status_row` in `ui/app.py`.
 
 ### The terminal transmits only on a deliberate commit
 - **`TerminalPane.send_line` is the single transmit path** out of the terminal

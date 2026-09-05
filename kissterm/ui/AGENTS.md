@@ -99,7 +99,19 @@ Read this file plus the one pane you are changing.
     it to sit above the status bar took `#bottom-bar Footer { dock: top; }`,
     not reordering the `yield` statements. Check a widget's own default CSS
     before assuming compose-order controls layout.
-20. No emoji anywhere.
+20. **The status bar is a `rich.table.Table` grid, not a joined string.**
+    `_status_row` in `app.py` builds one equal-ratio column per field so the
+    content spreads across the full width and re-flows on resize; a hand-
+    joined `"  |  ".join(parts)` string looks fine narrow and leaves most of a
+    wide terminal blank. Add a field by appending to `parts` in
+    `_refresh_status` -- the layout adapts on its own.
+21. **A widget updated with a Rich renderable is not `str()`-able the way a
+    plain string one is.** `Static.render()` returns a Textual `Visual`
+    wrapper once the content is anything but a string; reaching into its
+    private `_renderable` is exactly the internals-coupling that breaks on
+    the next Textual upgrade. In tests, read `widget.render_lines(region)`
+    instead -- the same strips the terminal itself would draw.
+22. No emoji anywhere.
 
 ## Testing
 

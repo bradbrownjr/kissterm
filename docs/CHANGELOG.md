@@ -3,6 +3,34 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Status bar: black to match the tab row, spread across the width
+
+### Changed
+- **Background is `$background` (near-black, ~#121212), not `$panel`
+  (slate-blue, ~#242F38).** Requested directly: the status readout should look
+  like the same black chrome as the tab row above the panes, not the Header
+  and Footer's own shade -- measured, they were two different colors.
+- **Fields are laid out in a `rich.table.Table` grid instead of joined with
+  `"  |  "`.** A joined string bunches everything at the left edge and leaves
+  most of a wide terminal blank. `_status_row` (`ui/app.py`) gives each field
+  an equal-ratio column -- the first left-anchored, the last right-anchored,
+  everything between centered -- so the row fills the available width and
+  re-flows on resize without being recomputed by hand. Fields are unchanged
+  (`kissterm <version>`, transport, callsign, link state when connected,
+  `ANSWERING` when unattended answering is on, heard count); only the layout
+  changed.
+
+### Fixed (test infrastructure)
+- Two tests read `str(widget.render())` to check the status bar's text. That
+  stopped working the moment the widget started holding a `Table` instead of
+  a string -- `render()` returns a Textual `Visual` wrapper, not the original
+  content. Fixed by reading `widget.render_lines(region)`, the actual strips
+  the terminal draws, rather than reaching into a private `Visual._renderable`
+  attribute that would just break again on the next Textual upgrade.
+
+**Files:** `kissterm/ui/{app,styles}.py`, `tests/pilot/{test_app_mounts,test_settings}.py`,
+`AGENTS.md`, `kissterm/ui/AGENTS.md`, `assets/*.png`.
+
 ## [2026-09-05] — Key-first tab labels, footer above status, a flat active tab
 
 Three follow-up UI corrections, all from direct feedback on the previous
