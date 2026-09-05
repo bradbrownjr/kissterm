@@ -130,7 +130,7 @@ async def _run_discovery(no_network: bool):
     print("Looking for TNCs and modems...")
     if not no_network:
         print("  (sweeping the local network -- this takes a few seconds)")
-    return await discovery.discover_all(deadline=2.0 if no_network else 6.0)
+    return await discovery.discover_all(deadline=3.0 if no_network else 16.0)
 
 
 def _prompt(question: str, default: str = "") -> str:

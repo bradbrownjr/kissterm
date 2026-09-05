@@ -3,6 +3,43 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — The scan was only looking at a sixth of the subnet
+
+Asked after a rescan still failed to find a known-good station: "I know the
+radio room is running KISS and AGWPE at 10.6.26.128. Are we not scanning the
+whole subnet?" It was not. Measured on the real network: **43 of 254
+addresses, 17% of the planned probes, giving up at `.43`** -- and reporting
+that as a finished scan.
+
+### Fixes
+- **The sweep now finishes.** A /24 across the well-known ports is ~1300
+  attempts; it ran 64 at a time with a 0.75 s per-attempt timeout inside a
+  3 s budget, which is about 21 seconds of work in a 3 second window. Now 256
+  in flight at 0.5 s each with a 12 s budget: a full /24 in **6.8 seconds**,
+  all 254 addresses, on the network where this was found.
+- **Ports are the outer loop, hosts the inner one.** Every host is probed on
+  8001 before any host is probed on 8300, so a sweep that does run short
+  degrades to "all hosts, fewer ports" instead of "the first forty hosts,
+  every port". The old order is why a TNC at `.128` was invisible while a web
+  server at `.3` was offered as a transport.
+- **A truncated sweep says so.** New `ScanCoverage` reports how many probes
+  and addresses were actually reached; Settings shows it, and it is logged as
+  a warning. "Nothing found" and "gave up before looking" are different
+  answers and the scan used to give the first when it meant the second.
+  Truncation is counted in probes rather than hosts -- with ports as the
+  outer loop a badly truncated sweep still touches every address on the first
+  port, so counting hosts would call it complete.
+- **Identification moved out of the sweep into a second phase.** It costs up
+  to a second per open port, and doing it inline let a few chatty services eat
+  the budget for whole ranges of the subnet.
+- **VARA's data ports are no longer swept.** 8301 and 8401 are the other half
+  of a two-port modem, never a device of their own -- 508 pointless
+  connections per scan.
+
+**Files:** `kissterm/discovery.py`, `kissterm/ui/settings_pane.py`,
+`kissterm/__main__.py`, `tests/unit/test_scan_coverage.py`, `README.md`,
+`AGENTS.md`
+
 ## [2026-09-05] — A dead TNC socket stops looking like a dead antenna
 
 From the first real on-air attempt. The log said four SABMs went to WS1EC-15

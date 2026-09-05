@@ -56,6 +56,14 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   AGWPE (Direwolf, UZ7HO SoundModem); the Linux kernel AX.25 stack if you
   already have one. VARA HF/FM and Mercury are implemented but not yet verified
   against hardware — see [docs/ROADMAP.md](docs/ROADMAP.md).
+- **The network scan covers the whole subnet, and says so if it cannot.** A
+  /24 across the well-known packet ports is over a thousand connection
+  attempts; the first version fit about a sixth of them into its time budget,
+  gave up at `.43`, and reported the result as though it had finished --
+  which hid a real TNC at `.128` behind a web server at `.3`. Ports are now
+  the outer loop, so a scan that does run short still touches every address
+  on the likeliest port, and a truncated sweep tells you how far it got
+  instead of pretending.
 - **USB TNCs are noticed when you plug them in.** No rescan, no restart --
   enumerating serial ports costs 0.4 ms and touches nothing but the local
   machine, so kissterm just watches. If the TNC you are *using* gets unplugged,

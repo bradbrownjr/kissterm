@@ -283,13 +283,70 @@ _WELL_KNOWN_PORTS: dict[int, tuple[str, str | None, bool]] = {
 
 #: Cap on simultaneous connection attempts. A /24 sweep across every
 #: well-known port is roughly 1500 attempts; left unbounded that is enough
-#: outstanding sockets to look like a port-scan to a network's IDS, and
-#: enough concurrent threads-of-work to bog down a Raspberry Pi doing the
-#: scan. 64 keeps a full sweep brisk without either problem.
-_MAX_CONCURRENT_PROBES = 64
+#: outstanding sockets to exhaust a file-descriptor limit and enough
+#: concurrent work to bog down a Raspberry Pi doing the scan.
+#:
+#: This was 64, with a 0.75 s per-attempt timeout and a 3 s overall budget --
+#: which is about 21 seconds of work in a 3 second window. The sweep silently
+#: gave up after 43 of 254 hosts and reported its partial results as if they
+#: were the whole subnet, so a TNC at .128 was invisible while a web server at
+#: .3 was offered as a transport. 256 in flight at 0.5 s each finishes a full
+#: /24 in a few seconds; `ScanCoverage` exists so that if it still runs short,
+#: it says so instead of pretending.
+_MAX_CONCURRENT_PROBES = 256
+
+#: Per-connection timeout. A LAN host answers or refuses in single-digit
+#: milliseconds; this budget is really for addresses with nothing at them at
+#: all, where the wait is an ARP timeout. Long enough not to miss a busy
+#: host, short enough that 254 empty addresses do not eat the sweep.
+_PER_ATTEMPT_TIMEOUT = 0.5
 #: Passive banner read -- short, because most of these services say nothing
 #: until spoken to and this must never be the thing that speaks first.
 _BANNER_READ_TIMEOUT = 0.2
+
+
+@dataclass(slots=True)
+class ScanCoverage:
+    """How much of the subnet a sweep actually reached.
+
+    This exists because the alternative is what the scan used to do: run out
+    of time a sixth of the way through a /24 and return its partial results
+    with no indication they were partial. "Nothing found" and "gave up before
+    looking" are completely different answers for an operator deciding
+    whether their TNC is on the network, and a scan that cannot tell them
+    apart will send someone to check cabling that is fine.
+    """
+
+    subnet: str = ""
+    hosts_planned: int = 0
+    hosts_reached: int = 0
+    probes_planned: int = 0
+    probes_done: int = 0
+
+    @property
+    def truncated(self) -> bool:
+        """Whether any planned probe never happened.
+
+        Counted in PROBES, not hosts. With ports as the outer loop a
+        truncated sweep still touches every address on the likeliest port, so
+        `hosts_reached` stays at 254 and would call a sweep complete that
+        skipped four ports on every one of them.
+        """
+        return self.probes_done < self.probes_planned
+
+    @property
+    def summary(self) -> str:
+        if not self.hosts_planned:
+            return "no subnet to scan"
+        where = f"{self.subnet}.0/24" if self.subnet else "the subnet"
+        if not self.truncated:
+            return f"scanned all {self.hosts_planned} addresses on {where}"
+        return (
+            f"ran out of time: {self.probes_done} of {self.probes_planned} "
+            f"probes on {where}, {self.hosts_reached} of {self.hosts_planned} "
+            f"addresses touched -- a TNC may have been missed; scan again or "
+            f"add it by hand"
+        )
 
 
 def _guess_local_subnet() -> str | None:
@@ -534,24 +591,38 @@ def _agw_version(payload: bytes) -> str:
     return ""
 
 
-async def discover_network(subnet: str | None = None, timeout: float = 3.0) -> list[DiscoveredDevice]:
+async def discover_network(
+    subnet: str | None = None,
+    timeout: float = 12.0,
+    coverage: ScanCoverage | None = None,
+) -> list[DiscoveredDevice]:
     """Scan a local /24 for well-known KISS/AGW/VARA TCP ports.
 
     `subnet` is a dotted first-three-octets string (``"192.168.1"``); when
     omitted it is derived from the host's own address via
-    `_guess_local_subnet`. Every connection attempt is bounded by a
-    per-attempt timeout and the whole sweep by `timeout` overall, with at
-    most `_MAX_CONCURRENT_PROBES` connections in flight -- see that
-    constant's docstring for why.
+    `_guess_local_subnet`. Pass a `ScanCoverage` to find out how much of the
+    subnet was actually reached -- see that class for why that is not
+    optional information.
 
-    A candidate is then handed to `identify_tcp`, which asks it what it is.
-    VARA's ports are exempt and never spoken to: its command channel takes
-    line-oriented commands that could start a session, and "probing for a
-    TNC" must never be the thing that keys a transmitter. What goes to the
-    others is two bare FEND bytes or one AGWPE version query -- neither can
-    become a transmission, for the reasons set out on `identify_tcp` and
-    `probe_kiss_serial`. Ports that answer with a protocol no TNC speaks are
-    dropped rather than offered.
+    **Two phases, and the split matters.** Phase one is a plain connect sweep
+    of every host and port; phase two asks only the handful that answered
+    what they actually are. Identification costs up to a second per port, and
+    doing it inline meant a few chatty services could eat the budget for
+    entire ranges of the subnet.
+
+    **Ports are the outer loop, hosts the inner one.** Every host is probed on
+    8001 before any host is probed on 8300. A sweep that runs out of time then
+    degrades into "all hosts, most likely ports" instead of "the first forty
+    hosts, every port" -- which is what it used to do, and why a TNC at .128
+    was invisible while a web server at .3 was offered.
+
+    Phase two hands each open port to `identify_tcp`. VARA's ports are exempt
+    and never spoken to: its command channel takes line-oriented commands that
+    could start a session, and "probing for a TNC" must never be the thing
+    that keys a transmitter. What goes to the others is two bare FEND bytes or
+    one AGWPE version query -- neither can become a transmission, for the
+    reasons set out on `identify_tcp` and `probe_kiss_serial`. Ports that
+    answer with a protocol no TNC speaks are dropped rather than offered.
     """
     if subnet is None:
         subnet = await asyncio.to_thread(_guess_local_subnet)
@@ -559,23 +630,40 @@ async def discover_network(subnet: str | None = None, timeout: float = 3.0) -> l
         logger.debug("discover_network: could not determine local subnet, skipping")
         return []
 
+    hosts = [f"{subnet}.{octet}" for octet in range(1, 255)]
+    ports = [p for p in _WELL_KNOWN_PORTS if _WELL_KNOWN_PORTS[p][1] is not None]
+    if coverage is not None:
+        coverage.subnet = subnet
+        coverage.hosts_planned = len(hosts)
+        coverage.probes_planned = len(hosts) * len(ports)
+
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT_PROBES)
     loop = asyncio.get_event_loop()
     deadline = loop.time() + timeout
-    results: list[DiscoveredDevice] = []
+    #: (host, port) -> the banner it volunteered, if any.
+    open_ports: dict[tuple[str, int], bytes] = {}
+    reached: set[str] = set()
+    #: Probes that actually reached the point of opening a socket. Counted
+    #: here rather than derived from unfinished tasks, because a probe that
+    #: returns early on the deadline check has "finished" without having
+    #: looked at anything -- deriving it from `pending` reported a sweep that
+    #: skipped four fifths of its work as complete.
+    attempted = 0
 
     async def _probe_one(host: str, port: int) -> None:
+        nonlocal attempted
         async with semaphore:
-            remaining = deadline - loop.time()
-            if remaining <= 0:
+            if loop.time() >= deadline:
                 return
-            per_attempt = min(0.75, remaining)
+            attempted += 1
             try:
                 reader, writer = await asyncio.wait_for(
-                    asyncio.open_connection(host, port), timeout=per_attempt
+                    asyncio.open_connection(host, port), timeout=_PER_ATTEMPT_TIMEOUT
                 )
             except (OSError, asyncio.TimeoutError):
+                reached.add(host)
                 return
+            reached.add(host)
 
             banner = b""
             try:
@@ -586,67 +674,12 @@ async def discover_network(subnet: str | None = None, timeout: float = 3.0) -> l
                 writer.close()
                 with contextlib.suppress(Exception):
                     await writer.wait_closed()
-
-            service, kind, complete = _WELL_KNOWN_PORTS.get(
-                port, (f"TCP {port}", "tcp", True)
-            )
-            if kind is None:
-                # The data half of a two-port modem. Reporting it as its own
-                # device would offer the operator a second thing to connect
-                # to that is really the same radio.
-                return
-
-            label = f"{host}:{port}"
-            note = _describe_banner(banner)
-
-            # Port number alone is a guess, and on a LAN full of self-hosted
-            # services it is a bad one: 8000 and 8001 are as popular with web
-            # apps as with packet software. So every candidate that is not
-            # VARA gets asked what it actually is. A DISPROVED port is
-            # dropped outright rather than listed with a low score -- the
-            # module's usual "fail toward listing it" rule is about
-            # heuristics being uncertain, and this is not a heuristic: an
-            # HTTP status line is proof. Listing it anyway would put a web
-            # app into `config.transports`, which is what the scan did
-            # before and what sent an operator hunting for a TNC that was
-            # never there.
-            identity = await identify_tcp(host, port, kind=kind, timeout=1.0)
-            if identity.is_disproved:
-                logger.debug("discover_network: %s ruled out -- %s", label, identity.summary)
-                return
-            confidence = 0.95 if identity.is_tnc else 0.5
-            if identity.verdict != "unknown":
-                note = identity.summary
-            elif not banner:
-                note = "open, identity unconfirmed -- nothing said either way"
-
-            if complete:
-                config = {"kind": kind, "name": label, "host": host, "port": port}
-            else:
-                # Found, but not configurable from a probe -- see
-                # _WELL_KNOWN_PORTS. Say so rather than writing an entry that
-                # is the wrong kind or missing a required field.
-                config = {}
-                note = (
-                    f"{note + '; ' if note else ''}needs your callsign and both "
-                    f"ports -- add a [[transports]] entry by hand"
-                ).strip()
-
-            results.append(
-                DiscoveredDevice(
-                    kind=kind,
-                    label=label,
-                    detail=f"{service} at {host}:{port}",
-                    confidence=confidence,
-                    config=config,
-                    note=note,
-                )
-            )
+            open_ports[(host, port)] = banner
 
     tasks = [
-        asyncio.create_task(_probe_one(f"{subnet}.{host}", port))
-        for host in range(1, 255)
-        for port in _WELL_KNOWN_PORTS
+        asyncio.create_task(_probe_one(host, port))
+        for port in ports
+        for host in hosts
     ]
     done, pending = await asyncio.wait(tasks, timeout=timeout + 1.0)
     for task in pending:
@@ -654,8 +687,75 @@ async def discover_network(subnet: str | None = None, timeout: float = 3.0) -> l
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
 
+    if coverage is not None:
+        coverage.hosts_reached = len(reached)
+        coverage.probes_done = attempted
+        if coverage.truncated:
+            logger.warning("network scan incomplete: %s", coverage.summary)
+
+    results: list[DiscoveredDevice] = []
+    for (host, port), banner in sorted(open_ports.items()):
+        device = await _describe_open_port(host, port, banner)
+        if device is not None:
+            results.append(device)
+
     results.sort(key=lambda d: d.confidence, reverse=True)
     return results
+
+
+async def _describe_open_port(
+    host: str, port: int, banner: bytes
+) -> DiscoveredDevice | None:
+    """One open port, identified, as a device to offer -- or `None` to drop it."""
+    service, kind, complete = _WELL_KNOWN_PORTS.get(port, (f"TCP {port}", "tcp", True))
+    if kind is None:
+        # The data half of a two-port modem. Reporting it as its own device
+        # would offer the operator a second thing to connect to that is
+        # really the same radio.
+        return None
+
+    label = f"{host}:{port}"
+    note = _describe_banner(banner)
+
+    # Port number alone is a guess, and on a LAN full of self-hosted services
+    # it is a bad one: 8000 and 8001 are as popular with web apps as with
+    # packet software. So every candidate that is not VARA gets asked what it
+    # actually is. A DISPROVED port is dropped outright rather than listed
+    # with a low score -- the module's usual "fail toward listing it" rule is
+    # about heuristics being uncertain, and this is not a heuristic: an HTTP
+    # status line is proof. Listing it anyway would put a web app into
+    # `config.transports`, which is what the scan did before and what sent an
+    # operator hunting for a TNC that was never there.
+    identity = await identify_tcp(host, port, kind=kind, timeout=1.5)
+    if identity.is_disproved:
+        logger.debug("discover_network: %s ruled out -- %s", label, identity.summary)
+        return None
+    confidence = 0.95 if identity.is_tnc else 0.5
+    if identity.verdict != "unknown":
+        note = identity.summary
+    elif not banner:
+        note = "open, identity unconfirmed -- nothing said either way"
+
+    if complete:
+        config = {"kind": kind, "name": label, "host": host, "port": port}
+    else:
+        # Found, but not configurable from a probe -- see _WELL_KNOWN_PORTS.
+        # Say so rather than writing an entry that is the wrong kind or
+        # missing a required field.
+        config = {}
+        note = (
+            f"{note + '; ' if note else ''}needs your callsign and both "
+            f"ports -- add a [[transports]] entry by hand"
+        ).strip()
+
+    return DiscoveredDevice(
+        kind=kind,
+        label=label,
+        detail=f"{service} at {host}:{port}",
+        confidence=confidence,
+        config=config,
+        note=note,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -728,7 +828,11 @@ async def discover_bluetooth() -> list[DiscoveredDevice]:
 # ---------------------------------------------------------------------------
 
 
-async def discover_all(subnet: str | None = None, deadline: float = 6.0) -> list[DiscoveredDevice]:
+async def discover_all(
+    subnet: str | None = None,
+    deadline: float = 16.0,
+    coverage: ScanCoverage | None = None,
+) -> list[DiscoveredDevice]:
     """Run every discovery method concurrently, bounded by one overall deadline.
 
     Uses `asyncio.wait` with a timeout rather than `asyncio.gather` so that
@@ -739,10 +843,17 @@ async def discover_all(subnet: str | None = None, deadline: float = 6.0) -> list
     every method's own internal degrade-to-empty behaviour, this function
     itself never raises.
     """
-    network_timeout = max(1.0, deadline - 1.0)
+    # The network sweep is the long pole and the only one that can be
+    # truncated into a wrong answer, so it gets nearly the whole budget. The
+    # default deadline is sized for a full /24 rather than for how long
+    # someone is willing to stare at a spinner -- a scan that finishes fast by
+    # missing most of the subnet is worse than one that takes ten seconds.
+    network_timeout = max(1.0, deadline - 2.0)
     tasks = {
         asyncio.create_task(discover_serial()): "serial",
-        asyncio.create_task(discover_network(subnet=subnet, timeout=network_timeout)): "network",
+        asyncio.create_task(
+            discover_network(subnet=subnet, timeout=network_timeout, coverage=coverage)
+        ): "network",
         asyncio.create_task(discover_bluetooth()): "bluetooth",
     }
 

@@ -368,16 +368,23 @@ class SettingsPane(VerticalScroll):
         try:
             from .. import discovery
 
-            found = await discovery.discover_all()
+            # Coverage, because "nothing found" and "gave up before looking"
+            # are different answers and the scan used to give the first when
+            # it meant the second -- it reached 43 of 254 addresses and said
+            # nothing, so a TNC at .128 was invisible.
+            coverage = discovery.ScanCoverage()
+            found = await discovery.discover_all(coverage=coverage)
         except Exception:
             log.exception("discovery failed")
             detail.update("Scan failed. 'kissterm --doctor' may say why.")
             return
 
+        reach = coverage.summary if coverage.hosts_planned else ""
         if not found:
             detail.update(
                 "Nothing found. That is not proof there is no TNC -- a silent "
-                "KISS TNC looks like a wrong serial port until a frame arrives."
+                "KISS TNC looks like a wrong serial port until a frame "
+                f"arrives.{chr(10) + reach if reach else ''}"
             )
             return
 
@@ -393,7 +400,10 @@ class SettingsPane(VerticalScroll):
             config.active_transport = config.transports[0].get("name", "")
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_transports(config)
-        detail.update(f"Found {len(found)}; added {added} new.")
+        summary = f"Found {len(found)}; added {added} new."
+        if coverage.truncated:
+            summary = f"{summary}  {coverage.summary}"
+        detail.update(summary)
         self.app.notify(f"Discovery added {added} transport(s).")
 
     @on(Button.Pressed, "#settings-scan")

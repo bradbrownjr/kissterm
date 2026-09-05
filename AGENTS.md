@@ -504,6 +504,19 @@ Gotchas that already cost time:
   by that kind's `__init__`.
 
 ### Discovery and scanning
+- **A sweep must cover the subnet or say that it did not.** `ScanCoverage`
+  exists for exactly this: the first version budgeted ~21 seconds of work
+  into a 3 second window, silently reached 43 of 254 addresses, and returned
+  partial results indistinguishable from a complete scan. "Nothing found" and
+  "gave up before looking" are different answers, and a scan that cannot tell
+  them apart sends an operator to check cabling that is fine.
+- **Ports are the OUTER loop of the sweep, hosts the inner one.** Every host
+  is probed on 8001 before any host is probed on 8300, so truncation costs
+  ports rather than whole address ranges. Reversing this is what made a TNC
+  at `.128` invisible while a web server at `.3` was offered as a transport.
+- **Truncation is counted in probes, not hosts.** With ports as the outer
+  loop a badly truncated sweep still touches all 254 addresses on the first
+  port -- counting hosts would call it complete.
 - **NEVER scan the network on a timer.** A sweep is 254 hosts times six
   ports -- about **1,500 TCP connection attempts**. Automatic, that is
   indistinguishable from a port scanner, trips intrusion detection on managed
