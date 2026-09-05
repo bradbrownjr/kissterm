@@ -162,18 +162,21 @@ kissterm --connect WS1EC-7   connect once the app is up
 
 ## Clock
 
-The title bar clock shows local time, UTC, or **both side by side** -- because
-amateur radio runs on UTC while you live in local time, and doing that
-arithmetic mid-net is how a log ends up an hour wrong. 12- or 24-hour (24 by
-default, the amateur convention), with an optional date.
+Local time, UTC time and the date are three **independent** toggles -- show
+any combination, including none at all. Local time is on by default. Showing
+both times side by side is a real operating mode: amateur radio runs on UTC
+while you live in local time, and doing that arithmetic mid-net is how a log
+ends up an hour wrong. 12- or 24-hour (24 by default, the amateur convention).
 
 UTC is always marked (`Z` on a 24-hour clock, `UTC` on a 12-hour one); local
 time is unmarked, the same convention a paper log uses. Dates are ISO 8601
 (`2026-09-05`), never locale order -- `03/04` is March 4th to an American
 operator and April 3rd to nearly everyone else, and packet is international.
+On the nights the local and UTC dates disagree, each reading carries its own
+date rather than one covering both.
 
 Set it in Settings (`F5`) under Clock, or in `config.toml`
-(`clock_source`, `clock_24h`, `show_date`).
+(`show_local_time`, `show_utc_time`, `clock_24h`, `show_date`).
 
 ## Themes
 

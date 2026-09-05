@@ -204,11 +204,13 @@ class Config:
     theme: str = "tokyo-night"
     #: Only read when `theme == "custom"`. See `CustomThemeConfig`.
     custom_theme: CustomThemeConfig = field(default_factory=CustomThemeConfig)
-    #: Header clock: "local", "utc", or "both". Amateur radio logs and nets
-    #: run on UTC while the operator lives in local time, so "both" is a
-    #: genuinely useful operating mode, not a novelty -- see
-    #: `kissterm.ui.clock`.
-    clock_source: str = "local"
+    #: Header clock. Local time, UTC time and the date are three INDEPENDENT
+    #: toggles, not one either/or setting with the date bolted on: an operator
+    #: may want UTC only, both (amateur radio logs and nets run on UTC while
+    #: the operator lives in local time), local plus the date, or -- all three
+    #: off -- an empty header. See `kissterm.ui.clock.format_clock`.
+    show_local_time: bool = True
+    show_utc_time: bool = False
     #: 24-hour clock. True by default because amateur radio convention is
     #: 24-hour, especially for anything UTC.
     clock_24h: bool = True
@@ -311,9 +313,7 @@ def load_config(path: Path | None = None) -> Config:
     cfg.log_dir = _load_str(raw, "log_dir", cfg.log_dir, warnings)
     cfg.theme = _load_str(raw, "theme", cfg.theme, warnings)
     cfg.custom_theme = _load_custom_theme(raw.get("custom_theme"), warnings)
-    cfg.clock_source = _load_choice(
-        raw, "clock_source", cfg.clock_source, ("local", "utc", "both"), warnings
-    )
+    _load_clock(raw, cfg, warnings)
     cfg.clock_24h = _load_bool(raw, "clock_24h", cfg.clock_24h, warnings)
     cfg.show_date = _load_bool(raw, "show_date", cfg.show_date, warnings)
     cfg.ascii_safe = _load_bool(raw, "ascii_safe", cfg.ascii_safe, warnings)
@@ -374,23 +374,49 @@ def _load_modulo(value: Any, warnings: list[str]) -> int:
     return 8
 
 
-def _load_choice(
-    raw: dict[str, Any], key: str, default: str, allowed: tuple[str, ...],
-    warnings: list[str],
-) -> str:
-    """Accept one of a fixed set of strings, or warn and use the default.
+#: Old `clock_source` values -> the (show_local_time, show_utc_time) pair
+#: that replaced them. Kept so a config written by an earlier build keeps
+#: working instead of silently reverting to defaults.
+_LEGACY_CLOCK_SOURCE = {
+    "local": (True, False),
+    "utc": (False, True),
+    "both": (True, True),
+}
 
-    Kept separate from `_load_str` so a typo in a closed-vocabulary field
-    (`clock_source = "gmt"`) is reported at load time rather than silently
-    behaving like the default with no explanation.
+
+def _load_clock(raw: dict[str, Any], cfg: "Config", warnings: list[str]) -> None:
+    """Load the two clock toggles, migrating the old `clock_source` enum.
+
+    `clock_source = "local"|"utc"|"both"` was the first cut, and it was the
+    wrong shape: it modelled the two times as one either/or choice while the
+    date got an independent flag, so "show me nothing" and "show me only the
+    date" were both unreachable. The explicit toggles replace it.
+
+    A config file still carrying `clock_source` is migrated rather than
+    ignored -- silently reverting someone's clock to defaults because a key
+    was renamed is exactly the kind of surprise `load_config` exists to avoid.
+    The new keys win if both are present.
     """
-    value = raw.get(key, default)
-    if isinstance(value, str) and value in allowed:
-        return value
-    warnings.append(
-        f"'{key}' should be one of {', '.join(allowed)}; got {value!r}, using {default!r}"
-    )
-    return default
+    legacy = raw.get("clock_source")
+    if legacy is not None and "show_local_time" not in raw and "show_utc_time" not in raw:
+        pair = _LEGACY_CLOCK_SOURCE.get(legacy)
+        if pair is None:
+            warnings.append(
+                f"'clock_source' (no longer used) was {legacy!r}, which is not one of "
+                f"{', '.join(_LEGACY_CLOCK_SOURCE)}; using the defaults instead"
+            )
+        else:
+            cfg.show_local_time, cfg.show_utc_time = pair
+            warnings.append(
+                f"'clock_source = {legacy!r}' is obsolete; migrated to "
+                f"show_local_time = {str(cfg.show_local_time).lower()}, "
+                f"show_utc_time = {str(cfg.show_utc_time).lower()}. "
+                f"Save from Settings to rewrite config.toml without it."
+            )
+        return
+
+    cfg.show_local_time = _load_bool(raw, "show_local_time", cfg.show_local_time, warnings)
+    cfg.show_utc_time = _load_bool(raw, "show_utc_time", cfg.show_utc_time, warnings)
 
 
 def _load_window(value: Any, warnings: list[str], modulo: int = 8) -> int:

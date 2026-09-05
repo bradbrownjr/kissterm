@@ -132,7 +132,8 @@ async def test_header_clock_reflects_the_configured_format():
     """Textual's own HeaderClock is local-only, 24h, no date. Ours must
     actually read Config -- a passing format_clock() unit test proves the
     formatter, not the wiring."""
-    cfg = Config(mycall=str(MYCALL), clock_source="utc", clock_24h=True, show_date=True)
+    cfg = Config(mycall=str(MYCALL), show_local_time=False, show_utc_time=True,
+                 clock_24h=True, show_date=True)
     app, station = await _app(cfg)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
@@ -155,13 +156,26 @@ async def test_header_clock_defaults_to_bare_local_time():
 
 @pytest.mark.asyncio
 async def test_changing_clock_settings_applies_without_restart():
-    app, station = await _app(Config(mycall=str(MYCALL), clock_source="local"))
+    app, station = await _app(Config(mycall=str(MYCALL)))
     async with app.run_test(size=(120, 60)) as pilot:
         app.action_show_tab("settings")
         await pilot.pause()
-        app.query_one(f"#{_widget_id('clock_source')}").value = "utc"
+        app.query_one(f"#{_widget_id('show_utc_time')}").value = True
         app.query_one(SettingsPane)._save()
         await pilot.pause()
-        assert app.config.clock_source == "utc"
+        assert app.config.show_utc_time is True
         assert "Z" in str(app.query_one("KissTermClock").render())
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_header_clock_can_be_turned_off_entirely():
+    """All three toggles off is a legitimate choice, not a broken state."""
+    cfg = Config(
+        mycall=str(MYCALL), show_local_time=False, show_utc_time=False, show_date=False
+    )
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert str(app.query_one("KissTermClock").render()).strip() == ""
     station.close()

@@ -30,10 +30,6 @@ from textual.app import ComposeResult
 from textual.widgets import Header
 from textual.widgets._header import HeaderClock, HeaderClockSpace, HeaderIcon, HeaderTitle
 
-#: `Config.clock_source` values.
-CLOCK_SOURCES = ("local", "utc", "both")
-
-
 def format_time(moment: datetime, use_24h: bool, utc: bool) -> str:
     """One clock time, marked as UTC when it is.
 
@@ -50,34 +46,61 @@ def format_time(moment: datetime, use_24h: bool, utc: bool) -> str:
     return text + (" UTC" if utc else "")
 
 
+def _iso_date(moment: datetime) -> str:
+    """ISO 8601 only -- see the module docstring on why never locale order."""
+    return moment.strftime("%Y-%m-%d")
+
+
 def format_clock(
     local: datetime,
     utc: datetime,
-    source: str = "local",
-    use_24h: bool = True,
+    show_local: bool = True,
+    show_utc: bool = False,
     show_date: bool = False,
+    use_24h: bool = True,
 ) -> str:
-    """Render the header clock.
+    """Render the header clock from three independent toggles.
+
+    Local time, UTC time and the date are each shown or not shown on their
+    own. They are deliberately NOT one either/or setting: an operator may want
+    UTC only, both, local plus the date, or -- turning all three off -- an
+    empty header. An enum for the times with a separate flag for the date
+    modelled the same kind of thing two different ways.
+
+    **Which date, when both times are shown and they disagree.** Around
+    midnight the local and UTC dates differ, and a single date printed beside
+    two readings silently belongs to only one of them -- which is how a log
+    entry lands on the wrong day. So:
+
+    * one time shown -> one leading date, that reading's own;
+    * both shown, same date -> one leading date, unambiguous;
+    * both shown, dates differ -> **each reading carries its own date**, e.g.
+      ``2026-09-05 21:30 / 2026-09-06 02:30Z``. The layout only widens at the
+      boundary where the ambiguity actually exists, which is exactly when the
+      operator needs the extra clarity;
+    * no time shown at all -> just the date, from UTC if UTC is the zone being
+      shown, otherwise local.
 
     Both `datetime`s are passed in rather than read from the system clock so
     this stays a pure function -- see the module docstring.
     """
-    if source == "utc":
-        body = format_time(utc, use_24h, utc=True)
-        date_from = utc
-    elif source == "both":
-        # Local first: it is the one the operator glances at most, and the
-        # Z-marked UTC reading is the one they deliberately look for.
-        body = f"{format_time(local, use_24h, utc=False)} / {format_time(utc, use_24h, utc=True)}"
-        date_from = utc
-    else:
-        body = format_time(local, use_24h, utc=False)
-        date_from = local
+    local_text = format_time(local, use_24h, utc=False) if show_local else ""
+    utc_text = format_time(utc, use_24h, utc=True) if show_utc else ""
 
-    if show_date:
-        # ISO 8601, never locale order -- see the module docstring.
-        return f"{date_from.strftime('%Y-%m-%d')}  {body}"
-    return body
+    if not show_date:
+        return " / ".join(p for p in (local_text, utc_text) if p)
+
+    dates_differ = local.date() != utc.date()
+
+    if show_local and show_utc and dates_differ:
+        # The only case where one date cannot honestly cover both readings.
+        return f"{_iso_date(local)} {local_text} / {_iso_date(utc)} {utc_text}"
+
+    body = " / ".join(p for p in (local_text, utc_text) if p)
+    # The date belongs to whichever zone is on screen; UTC wins when shown,
+    # because that is the reading an operator logs against.
+    date_source = utc if show_utc else local
+    return f"{_iso_date(date_source)}  {body}".rstrip()
 
 
 class KissTermClock(HeaderClock):
@@ -102,16 +125,14 @@ class KissTermClock(HeaderClock):
 
     def render(self):
         config = getattr(self.app, "config", None)
-        source = getattr(config, "clock_source", "local")
-        use_24h = getattr(config, "clock_24h", True)
-        show_date = getattr(config, "show_date", False)
         return Text(
             format_clock(
                 datetime.now(),
                 datetime.now(timezone.utc),
-                source=source,
-                use_24h=use_24h,
-                show_date=show_date,
+                show_local=getattr(config, "show_local_time", True),
+                show_utc=getattr(config, "show_utc_time", False),
+                show_date=getattr(config, "show_date", False),
+                use_24h=getattr(config, "clock_24h", True),
             )
         )
 

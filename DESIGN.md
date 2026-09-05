@@ -178,6 +178,15 @@ tab existed to expect it.
   international medium.
 - **UTC is always marked** — `Z` on a 24-hour clock, `UTC` on a 12-hour one.
   Local time is unmarked, the convention a paper log already uses.
+- **Independent things get independent controls.** Local time, UTC time and
+  the date are three toggles, not an either/or enum with the date bolted on
+  beside it. The first cut modelled them the second way and made "show
+  nothing" and "show only the date" unreachable — if two settings are the same
+  *kind* of choice, they get the same *kind* of control.
+- **Never print one value where it could belong to two things.** With both
+  clocks shown, a single date belongs to only one of them, so on the nights
+  they disagree each reading carries its own. The display gets wider exactly
+  where the ambiguity exists.
 - **Remote text is never trusted.** Everything from the air goes through
   `monitor.sanitize()` before it reaches a widget. See `AGENTS.md`.
 

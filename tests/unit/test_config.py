@@ -363,3 +363,54 @@ def test_accept_incoming_round_trips(tmp_path):
     path = tmp_path / "ai.toml"
     kconfig.save_config(kconfig.Config(mycall="N1ABC-1", accept_incoming=True), path)
     assert kconfig.load_config(path).accept_incoming is True
+
+
+# ---------------------------------------------------------------------------
+# Clock toggles, and migration from the `clock_source` enum they replaced.
+# Silently reverting someone's clock to defaults because a key was renamed is
+# exactly the surprise load_config exists to avoid.
+# ---------------------------------------------------------------------------
+
+
+def test_local_time_is_on_by_default_and_utc_is_not():
+    cfg = kconfig.Config()
+    assert cfg.show_local_time is True
+    assert cfg.show_utc_time is False
+    assert cfg.show_date is False
+
+
+def test_clock_toggles_round_trip(tmp_path):
+    path = tmp_path / "clock.toml"
+    cfg = kconfig.Config(
+        mycall="N1ABC-1", show_local_time=False, show_utc_time=True, show_date=True
+    )
+    kconfig.save_config(cfg, path)
+    back = kconfig.load_config(path)
+    assert (back.show_local_time, back.show_utc_time, back.show_date) == (False, True, True)
+
+
+@pytest.mark.parametrize(
+    "legacy,expected",
+    [("local", (True, False)), ("utc", (False, True)), ("both", (True, True))],
+)
+def test_legacy_clock_source_is_migrated_not_ignored(tmp_path, legacy, expected):
+    path = tmp_path / "legacy.toml"
+    path.write_text(f'clock_source = "{legacy}"\n')
+    cfg = kconfig.load_config(path)
+    assert (cfg.show_local_time, cfg.show_utc_time) == expected
+    assert any("obsolete" in w for w in cfg.warnings), cfg.warnings
+
+
+def test_new_keys_win_over_a_leftover_legacy_one(tmp_path):
+    path = tmp_path / "mixed.toml"
+    path.write_text('clock_source = "both"\nshow_local_time = false\nshow_utc_time = true\n')
+    cfg = kconfig.load_config(path)
+    assert (cfg.show_local_time, cfg.show_utc_time) == (False, True)
+
+
+def test_an_unrecognised_legacy_value_falls_back_to_defaults(tmp_path):
+    path = tmp_path / "bad.toml"
+    path.write_text('clock_source = "gmt"\n')
+    cfg = kconfig.load_config(path)
+    assert (cfg.show_local_time, cfg.show_utc_time) == (True, False)
+    assert cfg.warnings

@@ -275,22 +275,25 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         "Clock",
-        "Amateur radio runs on UTC while you live in local time -- 'Both' "
-        "shows each, so you are not doing the arithmetic mid-net.",
+        "Three independent toggles for the title bar. Amateur radio runs on "
+        "UTC while you live in local time, so showing both is a real "
+        "operating mode -- and turning all three off is allowed too.",
         (
             Field(
-                "clock_source",
-                "Show",
-                "choice",
-                "UTC readings are marked (Z on a 24-hour clock, UTC on a "
-                "12-hour one); local time is unmarked, the same convention a "
-                "paper log uses.",
+                "show_local_time",
+                "Local time",
+                "bool",
+                "Shown unmarked, the same convention a paper log uses. On by "
+                "default.",
                 apply="live",
-                choices=(
-                    ("Local time", "local"),
-                    ("UTC", "utc"),
-                    ("Both (local / UTC)", "both"),
-                ),
+            ),
+            Field(
+                "show_utc_time",
+                "UTC time",
+                "bool",
+                "Always marked: Z on a 24-hour clock, UTC on a 12-hour one. "
+                "Turn both this and local time on to see each side by side.",
+                apply="live",
             ),
             Field(
                 "clock_24h",
@@ -302,11 +305,12 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "show_date",
-                "Show the date",
+                "Date",
                 "bool",
-                "Always ISO 8601 (2026-09-05), never locale order -- "
-                "03/04 is March 4th in the US and April 3rd almost "
-                "everywhere else, and packet is an international medium.",
+                "Always ISO 8601 (2026-09-05), never locale order -- 03/04 is "
+                "March 4th in the US and April 3rd almost everywhere else. "
+                "With both times shown, each gets its own date on the nights "
+                "they differ.",
                 apply="live",
             ),
         ),

@@ -3,6 +3,48 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Clock: three independent toggles, not an enum plus a flag
+
+### Changed
+Flagged directly, and correct: the clock modelled two settings of the same
+kind two different ways. `clock_source` was an either/or enum ("local" /
+"utc" / "both") while the date got its own boolean beside it -- so **"show
+nothing" and "show only the date" were both unreachable**, and the times could
+not be turned off at all.
+
+Local time, UTC time and the date are now **three independent toggles**
+(`show_local_time`, `show_utc_time`, `show_date`). Any of the eight
+combinations is reachable, including none of them for an empty title bar.
+**Local time defaults to on**; UTC and the date default to off.
+
+### Fixed by the remodelling
+- **The date could belong to the wrong reading.** With both clocks shown, one
+  leading date silently belongs to only one of them -- and on the nights the
+  local and UTC dates disagree, that is how a log entry lands on the wrong
+  day. Now: one time shown gets its own date; both times on the same date
+  share one; **both times across midnight each carry their own**
+  (`2026-09-05 21:30 / 2026-09-06 02:30Z`). The display widens only at the
+  boundary where the ambiguity actually exists.
+- With no time shown at all, the date still follows the zone being shown --
+  UTC if UTC is on, otherwise local.
+
+### Migration
+A `config.toml` still carrying `clock_source` is **migrated, not ignored**
+(`local` -> local only, `utc` -> UTC only, `both` -> both), with a warning
+naming the new keys. Silently reverting an operator's clock to defaults
+because a key was renamed is exactly the surprise `load_config` exists to
+avoid. New keys win if both are present; an unrecognised legacy value falls
+back to the defaults with a warning.
+
+Also recorded in `DESIGN.md`: if two settings are the same *kind* of choice
+they get the same *kind* of control, and never print one value where it could
+belong to two things.
+
+**Files:** `kissterm/ui/clock.py`, `kissterm/config.py`,
+`kissterm/ui/settings_schema.py`, `config.toml.example`,
+`tests/unit/{test_clock,test_config}.py`, `tests/pilot/test_theming.py`,
+`DESIGN.md`, `README.md`, `scripts/generate_screenshot.py`, `assets/*.png`.
+
 ## [2026-09-05] — DESIGN.md, settings layout, configurable clock
 
 ### New Features

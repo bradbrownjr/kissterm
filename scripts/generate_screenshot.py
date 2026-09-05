@@ -104,7 +104,8 @@ async def _build():
     )
     # Show the clock doing something worth seeing: an operator running
     # local+UTC with the date, which is the realistic net-control setup.
-    config.clock_source = "both"
+    config.show_local_time = True
+    config.show_utc_time = True
     config.show_date = True
     config.aprs.latitude = 42.3601
     config.aprs.longitude = -71.0589
