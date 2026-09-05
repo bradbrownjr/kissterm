@@ -91,13 +91,20 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   scrollback already holds it; this is what makes it survive closing the app.
   A log that cannot be written is reported once and then never allowed to
   disturb the link.
+- **A transmit switch you can see, like every other ham program.** `Ctrl+T`
+  is the master gate, in the same sense as WSJT-X's Enable Tx: with it off,
+  nothing keys the radio -- not a beacon, not answering a call, not
+  connecting, not the send line. It starts **off**, so a fresh launch cannot
+  transmit until you say so, and the status bar reads `TX OFF` for as long as
+  that is true. A station meant to run unattended sets `tx_armed_at_start`.
 - **Beacons.** A short text on a timer telling the channel you are there --
   the `BTEXT` convention, sent as unproto UI frames, separate from APRS
-  beaconing. Off until you turn it on, silent while the text is empty, first
-  transmission one full interval after you enable it rather than the moment
-  you press Save, and a ten-minute floor that is enforced rather than
-  suggested. Settings shows what your chosen interval actually costs the
-  channel, in seconds and as a percentage of the frequency.
+  beaconing. Off until you turn it on, silent while the text is empty, and a
+  ten-minute floor that is enforced rather than suggested. Settings shows what
+  your chosen interval actually costs the channel, in seconds and as a
+  percentage of the frequency. The timer waits a full interval before its
+  first transmission -- **`Ctrl+B` sends one right now**, the way JS8Call's
+  heartbeat button does, without turning the timer on.
 - **`kissterm --doctor`.** Diagnoses the things that actually go wrong: serial
   permissions, missing dependencies, an unreachable TNC host, a bad callsign.
 
@@ -159,6 +166,8 @@ conversation, and swapping it mid-session would kill the link by timeout.
 |-----|--------|
 | `F1`..`F5` | Terminal / Monitor / Heard / APRS / Settings -- shown as the key right in each tab's label (also `Ctrl+1`..`Ctrl+5`, for a terminal that intercepts function keys) |
 | `F6` | Command reference for the detected node |
+| `Ctrl+T` | Enable / disable transmit -- the master switch |
+| `Ctrl+B` | Send one beacon now |
 | `Ctrl+N` | Connect to a station |
 | `Ctrl+D` | Disconnect |
 | `Ctrl+K` | Change your callsign |
@@ -226,11 +235,20 @@ warning rather than leaving the app unstyled or refusing to start.
 
 ## Safety notes
 
-kissterm never transmits anything you did not ask it to. The two things that
-can transmit without you at the keyboard -- answering a call, and beaconing --
-are both off on a fresh install, both say so in the status bar (`ANSWERING`,
-`BEACON`) for as long as they are armed, and both write every transmission
-into the terminal pane where you can see it happened.
+**kissterm starts unable to transmit.** `Ctrl+T` is the master gate and it is
+closed on launch -- the same convention WSJT-X uses, for the same reason. It is
+enforced in `FrameTransport.send_frame` and `Session.send`, the one place every
+frame and every byte passes through, so it holds for the state machine, a
+background timer, and any backend written later; the checks in the panes exist
+only to tell you *why* nothing happened. A blocked transmission is counted, not
+raised, because AX.25 retransmission runs on timer callbacks where an exception
+has nowhere to go.
+
+The two things that can transmit without you at the keyboard -- answering a
+call, and beaconing -- are additionally off on a fresh install, both say so in
+the status bar (`ANSWERING`, `BEACON`) for as long as they are armed, and both
+write every transmission into the terminal pane where you can see it happened.
+A beacon that the gate suppressed is reported as not sent, never as sent.
 
 **It does not answer calls from other stations unless you turn that on** -- answering is unattended
 transmission under your callsign, and a fresh install must not start doing that

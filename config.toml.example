@@ -83,6 +83,18 @@ t3 = 300.0
 # Free-text filter applied to the monitor/heard pane. Leave blank to see
 # everything. Example: "APRS" to show only APRS traffic, or a callsign to
 # watch just one station.
+# --- Transmit ---------------------------------------------------------------
+#
+# The master switch, in the same sense as WSJT-X's "Enable Tx": with it off,
+# NOTHING kissterm does can key a radio -- not a beacon, not answering a call,
+# not connecting, not the send line in the terminal. Ctrl+T toggles it and the
+# status bar shows "TX OFF" for as long as it is closed.
+#
+# False by default, so a fresh launch cannot transmit until you say so. Set it
+# true only for a station meant to run unattended, where a restart quietly
+# taking the station off the air is the worse failure.
+tx_armed_at_start = false
+
 # --- Unattended operation -------------------------------------------------
 #
 # Answering a call means TRANSMITTING UNDER YOUR CALLSIGN WITH NOBODY

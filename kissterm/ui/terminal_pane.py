@@ -53,6 +53,7 @@ from textual.widgets import Button, Input, RichLog
 
 from ..ansi import to_text
 from ..monitor import sanitize
+from ..tx import DISABLED_MESSAGE
 
 #: Conservative URL match. Trailing punctuation is excluded so a link at the
 #: end of a sentence does not swallow the full stop into the target.
@@ -164,8 +165,16 @@ class TerminalPane(Container):
         transmitter?" is this method and nothing else.
         """
         field = self.query_one("#session-input", Input)
-        field.value = ""
         link = getattr(self.app, "link", None)
+        gate = getattr(self.app, "gate", None)
+        if gate is not None and not gate.enabled:
+            # Keep what they typed. The transport would drop this silently --
+            # clearing the field as well would look exactly like a successful
+            # send, which is the worst possible feedback for "nothing went
+            # out". The refusal is a courtesy; kissterm/tx.py is the interlock.
+            self.app.notify(DISABLED_MESSAGE, severity="warning")
+            return
+        field.value = ""
         if link is None or not link.connected:
             self.app.notify("Not connected.", severity="warning")
             return

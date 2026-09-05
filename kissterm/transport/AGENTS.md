@@ -1,5 +1,12 @@
 # kissterm/transport — local contract
 
+> **Implement `_send_frame`, never `send_frame`.** `FrameTransport.send_frame`
+> is concrete: it checks the master transmit gate (`kissterm/tx.py`) and then
+> calls your `_send_frame`. Overriding the public name bypasses the operator's
+> TX switch, which means a backend that can key a radio the operator has
+> switched off. `tests/unit/test_tx_gate.py` fails if any subclass does it.
+> `Session.send` gates the session tier the same way.
+
 Everything that moves bytes to and from a radio. Read this file plus the one
 transport you are changing; you should not need the rest of the repo.
 

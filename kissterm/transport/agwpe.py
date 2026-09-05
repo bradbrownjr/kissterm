@@ -187,7 +187,7 @@ class AgwpeTransport(FrameTransport):
             return
         await self.dispatch(frame, frame_port)
 
-    async def send_frame(self, frame: AX25Frame, port: int = 0) -> None:
+    async def _send_frame(self, frame: AX25Frame, port: int = 0) -> None:
         if self.state is not TransportState.OPEN:
             raise TransportError("AGWPE transport is not open")
         raw = frame.encode()

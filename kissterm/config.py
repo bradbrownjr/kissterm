@@ -221,6 +221,14 @@ class Config:
     #: T3: idle-link keepalive poll interval (seconds).
     t3: float = 300.0
     #: Free-text filter applied to the monitor pane, e.g. "APRS" or a callsign.
+    #: Open the master transmit gate at startup. FALSE by default, the way
+    #: WSJT-X's "Enable Tx" resets every launch: a fresh start cannot key a
+    #: radio until the operator presses Ctrl+T. Set true only for a station
+    #: meant to run unattended, where a restart silently taking it off the
+    #: air would be the worse failure. This is the one master switch --
+    #: closed, nothing transmits, including the terminal send line. See
+    #: kissterm/tx.py.
+    tx_armed_at_start: bool = False
     #: Answer connections from other stations. OFF by default and deliberately
     #: so: answering is UNATTENDED TRANSMISSION under your callsign, and a
     #: fresh install must not start doing that on its own. The operator is the
@@ -363,6 +371,9 @@ def load_config(path: Path | None = None) -> Config:
     cfg.t1 = _load_float(raw, "t1", cfg.t1, warnings)
     cfg.t2 = _load_float(raw, "t2", cfg.t2, warnings)
     cfg.t3 = _load_float(raw, "t3", cfg.t3, warnings)
+    cfg.tx_armed_at_start = _load_bool(
+        raw, "tx_armed_at_start", cfg.tx_armed_at_start, warnings
+    )
     cfg.accept_incoming = _load_bool(raw, "accept_incoming", cfg.accept_incoming, warnings)
     cfg.connect_banner = _load_str(raw, "connect_banner", cfg.connect_banner, warnings)
     cfg.monitor_filter = _load_str(raw, "monitor_filter", cfg.monitor_filter, warnings)

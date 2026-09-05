@@ -49,6 +49,9 @@ def _rendered(log) -> str:
 
 def _config(tmp_path, **kw) -> Config:
     cfg = Config(mycall=str(MYCALL))
+    # See tests/pilot/test_transmit_gate.py for the closed-by-default rule;
+    # a transcript needs a session, and a session needs to transmit.
+    cfg.tx_armed_at_start = True
     cfg.log_dir = str(tmp_path / "logs")
     for key, value in kw.items():
         setattr(cfg, key, value)

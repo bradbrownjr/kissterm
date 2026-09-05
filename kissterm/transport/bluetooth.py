@@ -145,7 +145,7 @@ class BluetoothKissTransport(FrameTransport):
             self.state = TransportState.ERROR
             self._error = str(exc)
 
-    async def send_frame(self, frame: AX25Frame, port: int = 0) -> None:
+    async def _send_frame(self, frame: AX25Frame, port: int = 0) -> None:
         if self._sock is None or self.state is not TransportState.OPEN:
             raise TransportError("Bluetooth transport is not open")
         loop = asyncio.get_running_loop()
@@ -195,5 +195,5 @@ class BleKissTransport(FrameTransport):
     async def close(self) -> None:
         raise NotImplementedError(self._NOT_IMPLEMENTED)
 
-    async def send_frame(self, frame: AX25Frame, port: int = 0) -> None:
+    async def _send_frame(self, frame: AX25Frame, port: int = 0) -> None:
         raise NotImplementedError(self._NOT_IMPLEMENTED)

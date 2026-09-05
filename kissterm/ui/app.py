@@ -91,6 +91,7 @@ from ..hotplug import PortEvent, SerialPortWatcher
 from ..monitor import MonitorFilter, format_frame, sanitize
 from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError
+from ..tx import DISABLED_MESSAGE, TransmitGate
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
@@ -158,6 +159,8 @@ class KissTermApp(App):
         Binding("ctrl+4", "show_tab('aprs')", "APRS", show=False),
         Binding("f5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+5", "show_tab('settings')", "Settings", show=False),
+        Binding("ctrl+t", "toggle_transmit", "TX"),
+        Binding("ctrl+b", "beacon_now", "Beacon"),
         Binding("ctrl+n", "connect", "Connect"),
         Binding("ctrl+d", "disconnect", "Disconnect"),
         Binding("ctrl+k", "set_callsign", "Callsign"),
@@ -173,6 +176,15 @@ class KissTermApp(App):
         # visibly flashing over to the right one a moment later.
         self.apply_theme()
         self.station = station
+        #: The master transmit switch, installed here rather than left to
+        #: whatever built the transport: a bare transport is a dumb pipe with
+        #: no operator, and the app is the thing that HAS an operator. Closed
+        #: unless `tx_armed_at_start` says otherwise, so a fresh launch cannot
+        #: key a radio until Ctrl+T. See kissterm/tx.py.
+        self.gate = TransmitGate(enabled=getattr(config, "tx_armed_at_start", False))
+        if station is not None:
+            station.transport.gate = self.gate
+        self.gate.on_change.append(self._on_transmit_change)
         self.heard = HeardTable()
         self.monitor_filter = MonitorFilter()
         #: The one active link, if any. Panes read this off `self.app` rather
@@ -287,9 +299,11 @@ class KissTermApp(App):
         self.beaconer.station = self.station
         self.beaconer.config = getattr(self.config, "beacon", None) or BeaconConfig()
         why = self.beaconer.start()
-        if why and self.beaconer.config.enabled:
-            # Only worth saying when the operator asked for a beacon and did
-            # not get one. "beaconing is off" is not news.
+        # Only worth saying when the operator asked for a beacon and did not
+        # get one. "beaconing is off" is not news, and "transmit is disabled"
+        # is already the loudest thing in the status bar -- repeating it as a
+        # toast on every launch and every Settings save is noise.
+        if why and self.beaconer.config.enabled and why != "transmit is disabled":
             self.notify(f"Beacon not started: {why}", severity="warning")
 
     def _on_beacon_sent(self, frame: AX25Frame) -> None:
@@ -375,6 +389,17 @@ class KissTermApp(App):
 
     def _on_incoming_link(self, link) -> None:
         self._to_terminal("log", f"\n*** Incoming connection from {link.peer}\n")
+        if not self.gate.enabled:
+            # The UA never went out, so the caller is talking to nobody. Say
+            # so: "somebody called and you could not answer" is exactly the
+            # thing an operator wants to find in the scrollback later.
+            self._to_terminal(
+                "log",
+                f"*** Could not answer {link.peer} -- transmit is disabled (Ctrl+T)\n",
+            )
+            self.notify(
+                f"{link.peer} called, but transmit is disabled.", severity="warning"
+            )
         if self.link is None or not self.link.connected:
             self._bind_link(link)
         self._send_banner(link)
@@ -539,6 +564,67 @@ class KissTermApp(App):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Transmit
+    # ------------------------------------------------------------------
+    def _on_transmit_change(self, enabled: bool) -> None:
+        """React to the master switch moving, whoever moved it.
+
+        The beacon is re-armed rather than left running with a closed gate in
+        front of it, because `Beaconer.problem()` treats a closed gate as a
+        reason not to beacon -- so a timer left running would spend every
+        interval deciding to do nothing. Arming on enable is what makes
+        Ctrl+T start a configured beacon without a second keystroke.
+        """
+        self._restart_beacon()
+        self._refresh_status()
+
+    def action_toggle_transmit(self) -> None:
+        """Ctrl+T -- the master switch, in the WSJT-X sense.
+
+        Deliberately not a config setting that a Settings save can flip
+        underneath the operator: this is operational state for the session in
+        front of them, the way "Enable Tx" is. `tx_armed_at_start` decides
+        where it begins and nothing else writes to it.
+        """
+        enabled = self.gate.toggle()
+        if enabled:
+            self.notify("Transmit ENABLED. This station can now key the radio.")
+            self._to_terminal("log", "\n*** Transmit enabled\n")
+        else:
+            blocked = ""
+            self.notify(
+                "Transmit DISABLED. Nothing will be sent." + blocked,
+                severity="warning",
+            )
+            self._to_terminal("log", "\n*** Transmit disabled\n")
+        self._refresh_status()
+
+    @work
+    async def action_beacon_now(self) -> None:
+        """Ctrl+B -- send one beacon immediately.
+
+        The timed beacon deliberately waits a full interval before its first
+        transmission, because launching the app is not a request to key the
+        radio. This is how an operator says "yes it is, right now" without
+        having to wait out the interval or shorten it -- the same role
+        JS8Call's heartbeat button plays. It does not enable the timer and
+        does not need the timer to be on.
+        """
+        if not self.gate.enabled:
+            self.notify(DISABLED_MESSAGE, severity="warning")
+            return
+        why = self.beaconer.problem()
+        # "beaconing is off" is about the TIMER, and a manual beacon is not
+        # the timer -- so it is not a reason to refuse one. Anything else is.
+        if why and why != "beaconing is off":
+            self.notify(f"No beacon sent: {why}", severity="warning")
+            return
+        if await self.beaconer.send_once(force=True):
+            self.notify("Beacon sent.")
+        else:
+            self.notify("Beacon not sent.", severity="warning")
+
     def action_show_tab(self, tab: str) -> None:
         self.query_one("#main-tabs", TabbedContent).active = tab
 
@@ -553,6 +639,12 @@ class KissTermApp(App):
     async def action_connect(self) -> None:
         if self.station is None:
             self.notify("No transport is open.", severity="error")
+            return
+        if not self.gate.enabled:
+            # Connecting sends a SABM. Without this the operator types a
+            # callsign, waits out the full retry budget, and gets "failed" --
+            # which looks like the far station is not there.
+            self.notify(DISABLED_MESSAGE, severity="warning")
             return
         target = await self.push_screen_wait(ConnectScreen())
         if not target:
@@ -651,6 +743,13 @@ class KissTermApp(App):
     # ------------------------------------------------------------------
     def _refresh_status(self) -> None:
         parts = [f"kissterm {__version__}", self._status]
+        if not self.gate.enabled:
+            # First after the version, and always present while it is true.
+            # "Why is nothing happening?" must be answerable without opening
+            # a menu -- this is the state that explains a failed connect, a
+            # silent send line and a beacon that never fires.
+            blocked = f" ({self.gate.blocked} held)" if self.gate.blocked else ""
+            parts.append(f"TX OFF{blocked}")
         if self.station is not None:
             parts.append(str(self.station.mycall))
         if self.link is not None:

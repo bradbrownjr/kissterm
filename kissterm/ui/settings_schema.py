@@ -233,6 +233,17 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         "You remain the control operator. Off unless you turn it on.",
         (
             Field(
+                "tx_armed_at_start",
+                "Enable transmit at startup",
+                "bool",
+                "Off by default: kissterm starts unable to key the radio, "
+                "and Ctrl+T arms it -- the same way WSJT-X's Enable Tx "
+                "resets every launch. Turn this on only for a station meant "
+                "to run unattended, where a restart quietly taking it off "
+                "the air is the worse failure.",
+                apply="restart",
+            ),
+            Field(
                 "accept_incoming",
                 "Answer incoming calls",
                 "bool",

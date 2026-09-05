@@ -45,6 +45,10 @@ async def _app(**beacon):
     config.log_sessions = False
     for key, value in beacon.items():
         setattr(config.beacon, key, value)
+    # Armed at start: these tests are about whether the app arms the BEACON,
+    # and a closed transmit gate would mask that by refusing everything for a
+    # different reason. The gate has its own file.
+    config.tx_armed_at_start = True
     station = AX25Station(MYCALL, ta, LinkParams())
     return KissTermApp(config, station), station, ta
 

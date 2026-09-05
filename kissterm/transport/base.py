@@ -28,6 +28,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from ..tx import TransmitGate
+
 if TYPE_CHECKING:
     # Deferred to type-checking only: kissterm.ax25 imports back from this
     # module (AX25Station and the link layer both hold a Session/transport
@@ -90,6 +92,11 @@ class Transport(abc.ABC):
         self.info = info
         self.state = TransportState.CLOSED
         self._error: str = ""
+        #: The master transmit switch. Open by default because a transport
+        #: built by a test, a script or a probe has no operator to throw it;
+        #: `KissTermApp` replaces this with a closed one from
+        #: `Config.tx_armed_at_start`. See kissterm/tx.py.
+        self.gate = TransmitGate(enabled=True)
 
     @property
     def error(self) -> str:
@@ -145,8 +152,25 @@ class FrameTransport(Transport):
             if asyncio.iscoroutine(result):
                 await result
 
+    async def send_frame(self, frame: AX25Frame, port: int = 0) -> None:
+        """Put one frame on the air, if the transmit gate is open.
+
+        **Concrete on purpose, and the only public way out.** Subclasses
+        implement `_send_frame`; this method is the single choke point where
+        the master transmit switch is enforced, so a new backend cannot
+        forget to check it and no caller -- pane, timer, state machine or
+        background task -- can route around it. A closed gate drops the frame
+        silently and counts it; see kissterm/tx.py for why that is not an
+        exception.
+        """
+        if not self.gate.allow():
+            return
+        await self._send_frame(frame, port)
+
     @abc.abstractmethod
-    async def send_frame(self, frame: AX25Frame, port: int = 0) -> None: ...
+    async def _send_frame(self, frame: AX25Frame, port: int = 0) -> None:
+        """Actually transmit. Implemented by each backend; never called
+        directly -- go through `send_frame` so the gate is honoured."""
 
 
 class SessionTransport(Transport):
@@ -198,8 +222,17 @@ class Session:
         await self.incoming.put(data)
 
     async def send(self, data: bytes) -> None:
+        """Send bytes to the far end, if the transmit gate is open.
+
+        The session-tier counterpart to `FrameTransport.send_frame`. A VARA or
+        Mercury link never produces an `AX25Frame`, so gating only the frame
+        tier would leave every HF modem ungated -- which is exactly the tier
+        where an operator most wants a master switch.
+        """
         if self._sender is None:
             raise TransportError("session has no sender bound")
+        if not self.transport.gate.allow():
+            return
         await self._sender(data)
 
     async def close(self) -> None:

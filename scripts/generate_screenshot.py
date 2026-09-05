@@ -102,6 +102,11 @@ async def _build():
         paclen=256,
         window=4,
     )
+    # The screenshots show a live session, so transmit has to be armed --
+    # otherwise the README shows a connected link above a "TX OFF" status
+    # bar, which is a state that cannot happen and would teach the wrong
+    # thing about the gate. See kissterm/tx.py.
+    config.tx_armed_at_start = True
     # Show the clock doing something worth seeing: an operator running
     # local+UTC with the date, which is the realistic net-control setup.
     config.show_local_time = True

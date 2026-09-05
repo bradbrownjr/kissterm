@@ -3,6 +3,82 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — A master transmit switch, and a manual beacon key
+
+Requested: handle the "does not transmit at startup" problem the way other
+amateur software does -- an Enable Tx switch like WSJT-X, and a manual beacon
+button like JS8Call's heartbeat, both on control keys. That is a better answer
+than the previous one, which was a rule ("the timer sleeps a full interval
+first") rather than a control the operator can see and press.
+
+### New Features
+
+**`Ctrl+T` -- the master transmit gate** (`kissterm/tx.py`). Closed on launch:
+with it closed **nothing** kissterm does can key a radio -- not a beacon, not
+answering a call, not connecting, not the terminal send line. The status bar
+reads `TX OFF`, with a count of what the closed gate has held, for as long as
+that is true.
+
+The part that makes it a guarantee rather than a checkbox is where it lives.
+`FrameTransport.send_frame` is now **concrete** and calls a new abstract
+`_send_frame`, so the gate check sits in the single place every frame passes
+through, whatever produced it -- a pane, a timer, the AX.25 state machine, a
+background task, or a backend nobody has written yet. `Session.send` gates the
+session tier the same way, because a VARA or Mercury link never produces an
+`AX25Frame` and gating only the frame tier would leave every HF modem open. A
+test fails if any subclass overrides the public `send_frame`.
+
+A blocked transmission returns normally and is counted, never raised: AX.25
+retransmission runs on `call_later` callbacks with nowhere for an exception to
+go, and the house rule is that a background task never dies of one. The checks
+in the panes and the connect action exist only so the operator is told *why*
+nothing happened -- connecting is refused up front rather than after the full
+retry budget, which would look like the far station simply not being there.
+
+`Config.tx_armed_at_start` (default false) is the opt-out for a station meant
+to run unattended, where a restart quietly taking it off the air is the worse
+failure.
+
+**`Ctrl+B` -- send one beacon now.** The timed beacon still waits a full
+interval before its first transmission, because launching the app is not a
+request to key the radio; this is how the operator says "yes it is, right now"
+without shortening the interval or waiting it out, the role JS8Call's
+heartbeat button plays. It does not enable the timer and does not need the
+timer to be on -- it waives exactly one check, whether the *timer* is enabled,
+and nothing else. A closed gate, empty text or a bad destination still refuse.
+
+### Fixed
+- **A beacon suppressed by the gate was reported as sent.** The transport
+  drops a gated frame silently, so `Beaconer.send_once` returned True and the
+  terminal pane logged "Beacon sent" for a frame that never left. `problem()`
+  now treats a closed gate as a reason not to beacon. Telling an operator
+  something went on the air when nothing did is the one lie a transmit
+  indicator must not tell.
+- Enabling transmit re-arms a configured beacon, so `Ctrl+T` is enough on its
+  own -- otherwise the timer sat running in front of a closed gate, deciding
+  every interval to do nothing.
+- An incoming call that arrives while transmit is disabled now says so in the
+  terminal pane and as a notification. The UA never went out, so the caller is
+  talking to nobody, and "somebody called and you could not answer" is exactly
+  what an operator wants to find in the scrollback later.
+- The README screenshot showed a connected session above a `TX OFF` status
+  bar -- a state that cannot occur, teaching the wrong thing about the gate.
+  The screenshot fixture arms transmit.
+
+**Files:** new `kissterm/tx.py`, `tests/unit/test_tx_gate.py`,
+`tests/pilot/test_transmit_gate.py`; changed `kissterm/transport/base.py`
+(concrete `send_frame`, abstract `_send_frame`), `kissterm/transport/agwpe.py`,
+`bluetooth.py`, `serial_kiss.py`, `tcp_kiss.py`, `tests/loopback.py` (renamed
+to `_send_frame`), `kissterm/beacon.py`, `kissterm/config.py`,
+`kissterm/ui/app.py`, `kissterm/ui/terminal_pane.py`,
+`kissterm/ui/settings_schema.py`, `scripts/generate_screenshot.py`,
+`config.toml.example`, `README.md`, `AGENTS.md`,
+`kissterm/transport/AGENTS.md`, and the pilot test helpers.
+
+**Tests:** 369 passing.
+
+---
+
 ## [2026-09-05] — Beacons, session transcripts, and remote colour
 
 Three roadmap items built and tested: P9's beacon text, P2's per-session

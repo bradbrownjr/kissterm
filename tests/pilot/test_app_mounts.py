@@ -61,7 +61,12 @@ async def _app():
     ta, tb = loopback_pair()
     await ta.open()
     await tb.open()
+    # Transmit is disabled on a fresh app (kissterm/tx.py); these tests are
+    # about other behaviour and would otherwise all fail at the gate. The
+    # closed-by-default guarantee itself is asserted in
+    # tests/pilot/test_transmit_gate.py.
     config = Config(mycall=str(MYCALL), active_transport="loopback")
+    config.tx_armed_at_start = True
     station = AX25Station(MYCALL, ta, LinkParams(t1=0.3, t2=0.05, t3=5.0))
     return KissTermApp(config, station), ta, tb, station
 
@@ -212,6 +217,7 @@ async def test_callsign_change_refused_while_connected():
     await ta.open()
     await tb.open()
     config = Config(mycall=str(MYCALL))
+    config.tx_armed_at_start = True  # this test needs a real link; see test_transmit_gate.py
     a = AX25Station(MYCALL, ta, LinkParams(t1=0.3, t2=0.05, t3=5.0))
     b = AX25Station(PEER, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
     app = KissTermApp(config, a)

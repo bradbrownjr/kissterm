@@ -170,6 +170,7 @@ kissterm/
 │   ├── hotplug.py           # serial-only hotplug watch (never the network)
 │   ├── doctor.py            # `--doctor` diagnostics
 │   ├── monitor.py           # frame -> monitor line, and sanitize()
+│   ├── tx.py                # MASTER TRANSMIT GATE -- closed on launch
 │   ├── ansi.py              # SGR ALLOWLIST for the terminal pane only
 │   ├── beacon.py            # BTEXT: unproto UI frames on a timer (NOT APRS)
 │   ├── session_log.py       # per-session plain-text transcript
@@ -357,6 +358,37 @@ Gotchas that already cost time:
 - **Links are constructed from sanitized text, never parsed from remote
   markup.** The link target is the matched substring itself, so displayed text
   and destination cannot differ.
+
+### The transmit gate -- read this before touching any send path
+- **`kissterm/tx.py` is the master switch, and it is CLOSED on launch.**
+  `Ctrl+T` opens it; `Config.tx_armed_at_start` (default false) decides where
+  it starts. Modelled on WSJT-X's "Enable Tx" because that is the convention
+  an operator already knows. With it closed, nothing keys the radio -- not a
+  beacon, not answering, not connecting, not the terminal send line.
+- **It is enforced at the transport, not in the UI.**
+  `FrameTransport.send_frame` is CONCRETE and calls the abstract
+  `_send_frame`; `Session.send` gates the session tier so VARA and Mercury are
+  covered too. A new backend implements `_send_frame` and **must never
+  override `send_frame`** -- that would route around the interlock, and
+  `tests/unit/test_tx_gate.py` fails if one does. The checks in the panes are
+  a courtesy so the operator learns *why* nothing happened; the transport
+  check is the guarantee.
+- **A blocked send returns normally and is counted, never raised.** AX.25
+  retransmission runs on `call_later` callbacks with nowhere for an exception
+  to go, and the house rule is that a background task never dies of one.
+- **A bare `Transport` has an OPEN gate.** A transport built by a test, a
+  script or a probe has no operator to throw the switch, and a safety
+  interlock nobody can reach is just a broken program. `KissTermApp.__init__`
+  installs the closed one, and `tests/pilot/test_transmit_gate.py` asserts a
+  freshly mounted app cannot transmit.
+- **Never report a suppressed transmission as a sent one.**
+  `Beaconer.problem()` treats a closed gate as a reason not to beacon
+  precisely so `send_once` cannot log "Beacon sent" for a frame the gate
+  dropped. Telling an operator something went on the air when nothing did is
+  the one lie a transmit indicator must not tell.
+- **`Ctrl+B` is a manual beacon and waives exactly one check** -- whether the
+  *timer* is enabled, because a manual beacon is not the timer. It does not
+  waive the gate, empty text, or a bad destination.
 
 ### Unattended transmission
 - **Two things can transmit with nobody present: answering a call, and
@@ -583,6 +615,8 @@ again after a Settings save or a config reload.
   dependency never breaks `import kissterm`), add a worked example to
   `config.toml.example`, and add a `discovery.py` heuristic if it is findable.
   Pick the tier by asking one question: *does this thing connect on its own?*
+- **Add a transport backend:** implement `_send_frame`, never `send_frame`.
+  See the transmit-gate rules above.
 - **Add a pane:** add a `TabPane` in `app.py`'s `compose()`, a `Binding` for
   `ctrl+N`/`fN`, and — if it needs frames — a subscriber on the existing
   fan-out, never a second decode path.

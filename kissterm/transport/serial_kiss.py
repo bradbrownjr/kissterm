@@ -238,7 +238,7 @@ class SerialKissTransport(FrameTransport):
                 continue
             await self.dispatch(frame, port)
 
-    async def send_frame(self, frame: AX25Frame, port: int = 0) -> None:
+    async def _send_frame(self, frame: AX25Frame, port: int = 0) -> None:
         if self.state is not TransportState.OPEN:
             raise TransportError("serial transport is not open")
         await self._write(encode(frame.encode(), port))

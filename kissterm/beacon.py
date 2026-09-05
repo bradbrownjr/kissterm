@@ -146,6 +146,13 @@ class Beaconer:
             return "no beacon text is set"
         if self.station is None:
             return "no transport"
+        gate = getattr(self.station.transport, "gate", None)
+        if gate is not None and not gate.enabled:
+            # The transport would drop the frame silently and this class
+            # would report a beacon it did not send. Telling an operator
+            # something went on the air when nothing did is the one lie a
+            # transmit indicator must never tell.
+            return "transmit is disabled"
         try:
             self._path()
         except AX25AddressError as exc:
@@ -177,15 +184,25 @@ class Beaconer:
         # station running strict AX.25 2.2 to answer it.
         return AX25Frame.u_frame(self._path(), UType.UI, command=False, info=payload)
 
-    async def send_once(self) -> bool:
+    async def send_once(self, force: bool = False) -> bool:
         """Transmit one beacon now. Returns whether anything went out.
 
         Re-checks `problem()` rather than trusting the state it was started
         in: config can change under a running beaconer, and the failure mode
         of not re-checking is transmitting text the operator has already
         deleted.
+
+        `force` is for the operator pressing "beacon now". It waives exactly
+        one check -- whether the *timer* is enabled -- because a manual
+        beacon is not the timer, and refusing to send one because the
+        periodic beacon is switched off would be answering a question nobody
+        asked. Every other refusal still stands: no text is still no
+        transmission, a bad destination is still a bad destination, and a
+        closed transmit gate is emphatically not waivable by a keystroke
+        that is not Ctrl+T.
         """
-        if self.problem():
+        why = self.problem()
+        if why and not (force and why == "beaconing is off"):
             return False
         frame = self.build_frame()
         if frame is None:

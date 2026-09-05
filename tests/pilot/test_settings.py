@@ -77,7 +77,12 @@ async def _app(config=None):
     ta, tb = loopback_pair()
     await ta.open()
     await tb.open()
+    # Transmit is disabled on a fresh app (kissterm/tx.py); these tests are
+    # about other behaviour and would otherwise all fail at the gate. The
+    # closed-by-default guarantee itself is asserted in
+    # tests/pilot/test_transmit_gate.py.
     config = config or Config(mycall=str(MYCALL))
+    config.tx_armed_at_start = True
     station = AX25Station(MYCALL, ta, LinkParams())
     return KissTermApp(config, station), station
 
@@ -269,7 +274,9 @@ async def test_link_params_do_not_change_under_an_established_link():
     peer = AX25Address.parse("WS1EC-7")
     a = AX25Station(MYCALL, ta, LinkParams(t1=0.3, paclen=128))
     b = AX25Station(peer, tb, LinkParams(t1=0.3))
-    app = KissTermApp(Config(mycall=str(MYCALL), paclen=128), a)
+    config = Config(mycall=str(MYCALL), paclen=128)
+    config.tx_armed_at_start = True  # this test needs a real link; see test_transmit_gate.py
+    app = KissTermApp(config, a)
     async with app.run_test(size=(120, 60)) as pilot:
         await pilot.pause()
         link = await a.connect(AX25Path(peer, MYCALL))
@@ -346,6 +353,9 @@ async def test_answering_sends_the_banner_so_the_link_is_not_silent():
     peer = AX25Address.parse("WS1EC-7")
     banner = "Welcome to the test station. 73"
     config = Config(mycall=str(MYCALL), accept_incoming=True, connect_banner=banner)
+    # An unattended station arms transmit at startup, or a restart silently
+    # takes it off the air -- which is exactly what tx_armed_at_start is for.
+    config.tx_armed_at_start = True
     a = AX25Station(MYCALL, ta, LinkParams(t1=0.3), accept_incoming=True)
     caller = AX25Station(peer, tb, LinkParams(t1=0.3))
     app = KissTermApp(config, a)

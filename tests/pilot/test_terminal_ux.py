@@ -40,7 +40,13 @@ async def _connected_app():
     b = AX25Station(PEER, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
     incoming: list = []
     b.on_incoming.append(incoming.append)
-    app = KissTermApp(Config(mycall=str(MYCALL)), a)
+    # Transmit is disabled on a fresh app (kissterm/tx.py); these tests are
+    # about other behaviour and would otherwise all fail at the gate. The
+    # closed-by-default guarantee itself is asserted in
+    # tests/pilot/test_transmit_gate.py.
+    config = Config(mycall=str(MYCALL))
+    config.tx_armed_at_start = True
+    app = KissTermApp(config, a)
     return app, a, b, incoming
 
 

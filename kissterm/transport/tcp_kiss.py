@@ -170,7 +170,7 @@ class TcpKissTransport(FrameTransport):
                     continue
                 await self.dispatch(frame, port)
 
-    async def send_frame(self, frame: AX25Frame, port: int = 0) -> None:
+    async def _send_frame(self, frame: AX25Frame, port: int = 0) -> None:
         if self._writer is None or self.state is not TransportState.OPEN:
             raise TransportError(f"tcp transport to {self.host}:{self.port} is not connected")
         self._writer.write(encode(frame.encode(), port))

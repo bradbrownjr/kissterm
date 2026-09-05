@@ -41,7 +41,7 @@ class LoopbackTransport(FrameTransport):
         self._tasks.clear()
         self.state = TransportState.CLOSED
 
-    async def send_frame(self, frame: AX25Frame, port: int = 0) -> None:
+    async def _send_frame(self, frame: AX25Frame, port: int = 0) -> None:
         self.sent.append(frame)
         if self.peer is None:
             return
