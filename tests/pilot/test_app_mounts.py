@@ -322,9 +322,9 @@ async def test_unplugging_the_active_transport_is_reported():
 
 
 # ---------------------------------------------------------------------------
-# The footer must not repeat what the tab bar already says. F1-F4 switch tabs
+# The footer must not repeat what the tab bar already says. F1-F5 switch tabs
 # and are named IN the tab label; showing them again in the footer put the
-# same four words on screen twice, in two different corners.
+# same words on screen twice, in two different corners.
 # ---------------------------------------------------------------------------
 
 
@@ -340,13 +340,14 @@ async def test_tab_switching_keys_are_not_duplicated_in_the_footer():
             for key, active in app.active_bindings.items()
             if active.binding.show
         }
-        for key in ("f1", "f2", "f3", "f4"):
+        for key in ("f1", "f2", "f3", "f4", "f5"):
             assert key not in shown, (
                 f"{key} is shown in the footer, duplicating its tab label"
             )
-        # F5 is not a tab -- it opens the command reference -- so it is
-        # correctly the one function key the footer still shows.
-        assert "f5" in shown
+        # F6 is not a tab -- it opens the command reference over whatever tab
+        # is active -- so it is correctly the one function key the footer
+        # still shows.
+        assert "f6" in shown
     station.close()
 
 
@@ -357,11 +358,8 @@ async def test_tab_labels_carry_the_function_key_hint():
         await pilot.pause()
         tabs = app.query_one("#main-tabs")
         labels = {str(tab.label) for tab in tabs.query("Tab")}
-        for hint in ("F1 Terminal", "F2 Monitor", "F3 Heard", "F4 APRS"):
+        for hint in ("F1 Terminal", "F2 Monitor", "F3 Heard", "F4 APRS", "F5 Settings"):
             assert hint in labels, f"missing {hint!r} in tab labels: {labels}"
-        # Settings has no F-key (F5 is taken by the command reference) and
-        # must not claim one it does not have.
-        assert "Settings" in labels
     station.close()
 
 

@@ -70,7 +70,7 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   objects, weather and telemetry — APRS is just an AX.25 UI frame, so it comes
   almost free on top of the same stack.
 - **Command references built in.** kissterm ships the command sets for common
-  node software and TNCs and identifies the node from its banner, so `F5` shows
+  node software and TNCs and identifies the node from its banner, so `F6` shows
   you what you can type before you have spent a byte. It does **not** ask the
   node for its own help text unless you tell it to: at 1200 baud half-duplex
   that is around 19 seconds of channel per 2 KB, and over a minute for a
@@ -102,7 +102,7 @@ First run asks for your callsign and then goes looking for your TNC. See
 [SETUP.md](SETUP.md) for Direwolf, Bluetooth pairing, serial permissions, and
 the rest.
 
-**Nothing you answer at setup is locked in.** The Settings tab (`Ctrl+5`)
+**Nothing you answer at setup is locked in.** The Settings tab (`F5`)
 edits your callsign, which TNC or modem to use, AX.25 timing (paclen, window,
 T1/T2/T3, retries) and APRS beaconing -- with validation, and a note on each
 field saying whether it takes effect now, on the next connection, or at
@@ -123,13 +123,11 @@ conversation, and swapping it mid-session would kill the link by timeout.
 
 | Key | Action |
 |-----|--------|
-| `F1`..`F4` / `Ctrl+1`..`Ctrl+5` | Terminal / Monitor / Heard / APRS / Settings |
+| `F1`..`F5` | Terminal / Monitor / Heard / APRS / Settings -- shown as the key right in each tab's label (also `Ctrl+1`..`Ctrl+5`, for a terminal that intercepts function keys) |
+| `F6` | Command reference for the detected node |
 | `Ctrl+N` | Connect to a station |
 | `Ctrl+D` | Disconnect |
-| `F1`..`F4` | Switch tabs (shown as the key right in each tab's label) |
 | `Ctrl+K` | Change your callsign |
-| `F5` | Command reference for the detected node |
-| `Ctrl+5` | Settings -- includes the theme picker |
 | `Ctrl+L` | Clear the active log |
 | `Ctrl+Q` | Quit |
 
@@ -150,7 +148,7 @@ kissterm --connect WS1EC-7   connect once the app is up
 ## Themes
 
 Every color in kissterm is a theme variable, so switching repaints the whole
-app instantly -- nothing to restart. Pick one in Settings (`Ctrl+5`), set
+app instantly -- nothing to restart. Pick one in Settings (`F5`), set
 `theme = "..."` in `config.toml`, or answer the wizard's theme prompt on first
 run. Default is **Tokyo Night**.
 

@@ -231,7 +231,7 @@ async def test_reference_screen_opens_and_lists_commands():
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.reference = CommandReference(family=load_family("bpq32"))
-        await pilot.press("f5")
+        await pilot.press("f6")
         await pilot.pause()
         await asyncio.sleep(0.2)
         await pilot.pause()

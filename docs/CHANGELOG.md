@@ -3,6 +3,23 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Settings is F5; the command reference moves to F6
+
+Flagged directly, and correctly: once F1..F4 existed as tab-switching keys,
+F5 read as "the fifth tab" (Settings) by the same pattern -- but F5 was bound
+to the command reference instead, a modal that is not a tab at all. The
+inconsistency was mine; fixed rather than defended.
+
+Settings is now `F5 Settings`, matching `F1 Terminal` .. `F4 APRS` exactly.
+The command reference -- opened over whatever tab is active, not a tab
+itself -- moved to `F6`, still well inside the F1..F8 range every terminal
+delivers reliably (F9+ is where that reliability drops off). `Ctrl+5` is kept
+as the unlabelled fallback alias alongside the new `F5`, same as `Ctrl+1..4`
+already were for the other tabs.
+
+**Files:** `kissterm/ui/app.py`, `tests/pilot/{test_app_mounts,test_terminal_ux}.py`,
+`README.md`, `AGENTS.md`, `kissterm/ui/AGENTS.md`, `docs/ROADMAP.md`, `assets/*.png`.
+
 ## [2026-09-05] — Theming: 21 built-in themes, config file and Settings UI
 
 Requested directly: full control over the app's colors, from both a config

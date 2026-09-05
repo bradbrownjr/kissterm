@@ -250,7 +250,7 @@ opt-in, once per node, and cached forever.
 
 Shipped in `[2026-09-04]` (see CHANGELOG): the `kissterm/nodes/` package with
 TOML references for BPQ32/LinBPQ and TNC2-class command mode, passive family
-detection from the banner and prompt, the F5 reference pane, and the airtime
+detection from the banner and prompt, the F6 reference pane, and the airtime
 estimator. Still open:
 
 - [ ] **More families.** FBB, JNOS, TheNet/X1J, KA-Node, DXSpider, Winlink RMS.

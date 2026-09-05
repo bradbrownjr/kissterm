@@ -4,25 +4,31 @@ Layout follows the shape a packet operator already has in their head from
 BPQTerminal and EasyTerm, because the goal is a familiar tool that happens to
 be modern, not a novel one they have to relearn:
 
-    F1 Terminal  F2 Monitor  F3 Heard  F4 APRS  Settings
+    F1 Terminal  F2 Monitor  F3 Heard  F4 APRS  F5 Settings
     +--------------------------------------------+
     | session output (scrollback, selectable)     |
     +--------------------------------------------+
     | > type here                          [Send] |
     +--------------------------------------------+
-      f5 Commands  ^n Connect  ^d Disconnect  ...   <- shortcut keys
+      f6 Commands  ^n Connect  ^d Disconnect  ...   <- shortcut keys
       kissterm 0.1 | transport | callsign | heard N <- status, BELOW them
 
 The F-key for each tab is printed IN THE TAB LABEL (`F1 Terminal`, keyboard-
 shortcut-first, matching how a menu shows an accelerator), not in the footer.
 Textual's `Footer` widget would otherwise show `f1 Terminal  f2 Monitor  f3
-Heard  f4 APRS` right below a tab bar already showing `Terminal Monitor Heard
-APRS` -- the same four words twice, in two different corners of the screen.
-The four `Binding`s stay registered (`show=False`) so the keys still work;
+Heard  f4 APRS  f5 Settings` right below a tab bar already showing those same
+five names -- the same words twice, in two different corners of the screen.
+All five `Binding`s stay registered (`show=False`) so the keys still work;
 only the redundant on-screen label moves. `Ctrl+1..5` remain as unlabelled
-fallback aliases for terminals that intercept function keys. `Settings` has no
-F-key (F5 is the command reference, which is not a tab and does not have this
-duplication problem, so it keeps its own footer entry).
+fallback aliases for terminals that intercept function keys.
+
+Settings deliberately gets F5, not F6, even though it was the last tab added:
+F1..F5 mapping onto "the five tabs, left to right" is the pattern an operator
+already has muscle memory for once F1..F4 exist, and F5 silently meaning
+something else (a modal, not a tab) broke that the moment a fifth tab existed
+to expect it. The command reference -- not a tab, opened over whatever tab is
+active -- got bumped to F6 instead. F6 is still well inside the F1..F8 range
+every terminal delivers reliably; the unreliable territory starts at F9+.
 
 The status bar sits BELOW the Footer's shortcut-key row, not above it -- the
 keys you might press come first, reading top to bottom, and the passive status
@@ -138,11 +144,12 @@ class KissTermApp(App):
         Binding("ctrl+2", "show_tab('monitor')", "Monitor", show=False),
         Binding("ctrl+3", "show_tab('heard')", "Heard", show=False),
         Binding("ctrl+4", "show_tab('aprs')", "APRS", show=False),
+        Binding("f5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+n", "connect", "Connect"),
         Binding("ctrl+d", "disconnect", "Disconnect"),
         Binding("ctrl+k", "set_callsign", "Callsign"),
-        Binding("f5", "command_reference", "Commands"),
+        Binding("f6", "command_reference", "Commands"),
         Binding("ctrl+l", "clear_log", "Clear", show=False),
     ]
 
@@ -181,7 +188,7 @@ class KissTermApp(App):
                 yield HeardPane()
             with TabPane("F4 APRS", id="aprs"):
                 yield AprsPane()
-            with TabPane("Settings", id="settings"):  # no F-key: see above
+            with TabPane("F5 Settings", id="settings"):
                 yield SettingsPane()
         # Status bar and Footer share one bottom-docked container. Docking
         # them both individually puts them in the SAME region -- the Footer
@@ -393,7 +400,7 @@ class KissTermApp(App):
             return
         self.reference = CommandReference(family=family)
         self._to_terminal(
-            "log", f"\n*** Node looks like {family.name} -- F5 for its commands\n"
+            "log", f"\n*** Node looks like {family.name} -- F6 for its commands\n"
         )
 
     def _on_link_state(self, state: SessionState) -> None:

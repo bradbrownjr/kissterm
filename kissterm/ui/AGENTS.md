@@ -80,12 +80,16 @@ Read this file plus the one pane you are changing.
 15. **Never spend airtime to populate the UI.** Command references ship as
     data (`kissterm/nodes/data/`); asking a node costs ~19 s per 2 KB at 1200
     baud. Node detection is passive -- read the banner, ask nothing.
-16. **The tab bar is the ONLY place a tab-switching key is shown.** F1-F4
-    are named in the tab label itself, key first (`F1 Terminal`, like a menu
-    accelerator); `Binding(..., show=False)` keeps them registered without the
-    Footer repeating the same word that is already in the tab strip above it.
-    Only add a Footer-visible binding for something that is NOT a tab (the
-    command reference, F5, is the existing example).
+16. **The tab bar is the ONLY place a tab-switching key is shown.** F1-F5
+    (all five tabs, including Settings) are named in the tab label itself, key
+    first (`F1 Terminal`, like a menu accelerator); `Binding(..., show=False)`
+    keeps them registered without the Footer repeating the same word that is
+    already in the tab strip above it. Only add a Footer-visible binding for
+    something that is NOT a tab -- the command reference is F6, specifically
+    NOT F5, because F1..F5 mapping onto "the five tabs" is the pattern an
+    operator expects once F1..F4 exist, and a non-tab action squatting on the
+    next number in sequence broke that the moment a fifth tab existed. If a
+    sixth tab is ever added, F6 needs to move again, not the reverse.
 17. **One `Button` style for the whole app** (`styles.py`, top of `APP_CSS`):
     a flat rounded border, no filled 3D bevel. Variant classes
     (`-primary`/`-error`/...) change only the border and text color, never the
