@@ -414,3 +414,34 @@ def test_an_unrecognised_legacy_value_falls_back_to_defaults(tmp_path):
     cfg = kconfig.load_config(path)
     assert (cfg.show_local_time, cfg.show_utc_time) == (True, False)
     assert cfg.warnings
+
+
+# ---------------------------------------------------------------------------
+# Doctor diagnostics must not report problems that are not problems -- a
+# check that cries wolf gets ignored at the moment it matters.
+# ---------------------------------------------------------------------------
+
+
+def test_only_one_async_serial_backend_is_required():
+    """They are alternatives. With the preferred one installed, the absence
+    of the fallback is not a finding."""
+    from kissterm import doctor
+
+    checks = doctor._check_optional_deps()
+    backend = [c for c in checks if c.name == "serial async backend"]
+    assert len(backend) == 1, "the backends should be one check, not one each"
+    if doctor._module_present("serial_asyncio_fast") or doctor._module_present(
+        "serial_asyncio"
+    ):
+        assert backend[0].status == "ok"
+
+
+def test_unimplemented_optional_deps_are_skipped_not_warned():
+    """Telling someone to install bleak to 'unlock' a stub sends them
+    installing a package and then wondering why nothing works."""
+    from kissterm import doctor
+
+    checks = {c.name: c for c in doctor._check_optional_deps()}
+    bleak = checks["dependency: bleak"]
+    assert bleak.status == "skip"
+    assert not bleak.remedy, "a skipped check must not tell the user to install it"

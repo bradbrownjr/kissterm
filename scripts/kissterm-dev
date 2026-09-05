@@ -15,7 +15,22 @@
 #     kissterm-dev --connect WS1EC-7
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve symlinks before locating the repo. The whole point of this script is
+# to be symlinked onto PATH, and `dirname "$BASH_SOURCE"` returns the
+# SYMLINK's directory (~/.local/bin), not the script's -- so without this the
+# launcher goes looking for ~/.local/.venv and fails in exactly the situation
+# it exists for. `readlink -f` is GNU-only, so follow the chain by hand.
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+    TARGET="$(readlink "$SOURCE")"
+    if [[ "$TARGET" == /* ]]; then
+        SOURCE="$TARGET"
+    else
+        SOURCE="$(cd -P "$(dirname "$SOURCE")" && pwd)/$TARGET"
+    fi
+done
+
+REPO="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 VENV_PYTHON="$REPO/.venv/bin/python"
 
 if [[ ! -x "$VENV_PYTHON" ]]; then

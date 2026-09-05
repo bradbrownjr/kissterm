@@ -3,6 +3,31 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Launcher fix, and diagnostics that stop crying wolf
+
+### Fixed
+- **`scripts/kissterm-dev` broke in exactly the situation it exists for.**
+  It located the repo with `dirname "$BASH_SOURCE"`, which returns the
+  *symlink's* directory -- so the moment it was symlinked onto PATH (the usage
+  its own comments recommend) it went looking for `~/.local/.venv` and failed.
+  Now follows the symlink chain by hand; `readlink -f` is GNU-only and this
+  has to work on macOS and BSD too. Verified via the symlink, directly from
+  the repo, and from an unrelated working directory.
+- **`--doctor` told the operator to install `bleak` to "unlock Bluetooth LE
+  TNC discovery and I/O".** BLE is a marked stub that raises -- following that
+  advice would install a package and leave them wondering why their TNC4 still
+  does not work. Now reported as `[SKIP]` with the truth, and with no remedy
+  line, because there is nothing to do.
+- **`--doctor` warned about a missing `pyserial-asyncio` while
+  `pyserial-asyncio-fast` was installed.** They are alternatives that
+  `serial_kiss.py` tries in order, not a checklist; the warning reported a
+  problem that did not exist. Collapsed into one `serial async backend` check
+  that is OK when either is present. A diagnostic that cries wolf gets ignored
+  at the moment it matters.
+
+**Files:** `scripts/kissterm-dev`, `kissterm/doctor.py`,
+`tests/unit/test_config.py`.
+
 ## [2026-09-05] — Clock: three independent toggles, not an enum plus a flag
 
 ### Changed

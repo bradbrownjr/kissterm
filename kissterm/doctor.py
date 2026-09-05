@@ -91,22 +91,67 @@ def _check_python_version() -> Check:
     )
 
 
-#: (importable module name, what it unlocks, pip package to install)
-_OPTIONAL_DEPS: tuple[tuple[str, str, str], ...] = (
-    ("serial", "USB/local serial TNC support", "pyserial"),
-    ("serial_asyncio_fast", "fast async serial I/O (preferred serial backend)", "pyserial-asyncio-fast"),
-    ("serial_asyncio", "async serial I/O (fallback serial backend)", "pyserial-asyncio"),
-    ("bleak", "Bluetooth LE TNC discovery and I/O", "bleak"),
+#: (module name, what it unlocks, pip package, is the feature actually built?)
+#:
+#: The last flag exists because `bleak` unlocks nothing today: `BleKissTransport`
+#: is a marked stub that raises. Telling an operator to `pip install bleak` to
+#: "unlock BLE TNC support" would send them installing a dependency and then
+#: wondering why their TNC4 still does not work -- a diagnostic that creates
+#: the confusion it exists to remove. Reported as "skip", with the truth.
+_OPTIONAL_DEPS: tuple[tuple[str, str, str, bool], ...] = (
+    ("serial", "USB/local serial TNC support", "pyserial", True),
+    ("bleak", "Bluetooth LE TNC support", "bleak", False),
 )
+
+#: The async serial backends are ALTERNATIVES, not a checklist.
+#: `serial_kiss.py` tries them in this order and falls back to a
+#: thread-pumped blocking read if neither is present, so warning about the
+#: fallback while the preferred one is installed reports a problem that does
+#: not exist -- and a diagnostic that cries wolf gets ignored when it matters.
+_SERIAL_BACKENDS: tuple[tuple[str, str], ...] = (
+    ("serial_asyncio_fast", "pyserial-asyncio-fast"),
+    ("serial_asyncio", "pyserial-asyncio"),
+)
+
+
+def _module_present(module: str) -> bool:
+    try:
+        return importlib.util.find_spec(module) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _check_serial_backend() -> Check:
+    """One check for the whole family: is there a fast path, or not?"""
+    for module, pip_name in _SERIAL_BACKENDS:
+        if _module_present(module):
+            return Check("serial async backend", "ok", f"{module} installed", "")
+    return Check(
+        "serial async backend",
+        "warn",
+        "neither pyserial-asyncio-fast nor pyserial-asyncio is installed; "
+        "serial TNCs will fall back to a slower thread-pumped read",
+        f"pip install {_SERIAL_BACKENDS[0][1]}",
+    )
 
 
 def _check_optional_deps() -> list[Check]:
     out: list[Check] = []
-    for module, unlocks, pip_name in _OPTIONAL_DEPS:
-        try:
-            present = importlib.util.find_spec(module) is not None
-        except (ImportError, ValueError):
-            present = False
+    for module, unlocks, pip_name, implemented in _OPTIONAL_DEPS:
+        present = _module_present(module)
+
+        if not implemented:
+            out.append(
+                Check(
+                    f"dependency: {module}",
+                    "skip",
+                    f"{unlocks} is not implemented yet, so this package is not "
+                    f"needed (installed: {'yes' if present else 'no'})",
+                    "",
+                )
+            )
+            continue
+
         if present:
             out.append(Check(f"dependency: {module}", "ok", f"installed -- unlocks {unlocks}", ""))
         else:
@@ -118,6 +163,7 @@ def _check_optional_deps() -> list[Check]:
                     f"pip install {pip_name}",
                 )
             )
+    out.append(_check_serial_backend())
     return out
 
 
