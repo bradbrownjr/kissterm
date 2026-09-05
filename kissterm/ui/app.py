@@ -75,6 +75,7 @@ from ..hotplug import PortEvent, SerialPortWatcher
 from ..monitor import MonitorFilter, format_frame
 from ..transport.base import SessionState, TransportError
 from .aprs_pane import AprsPane
+from . import themes
 from ..nodes import CommandReference
 from ..nodes.reference import identify_family
 from .dialogs import CallsignScreen, CommandReferenceScreen, ConnectScreen
@@ -148,6 +149,10 @@ class KissTermApp(App):
     def __init__(self, config, station: AX25Station | None = None, **kwargs) -> None:
         super().__init__(**kwargs)
         self.config = config
+        # Applied before the rest of __init__ so the very first frame paints
+        # in the configured theme rather than Textual's own default and then
+        # visibly flashing over to the right one a moment later.
+        self.apply_theme()
         self.station = station
         self.heard = HeardTable()
         self.monitor_filter = MonitorFilter()
@@ -186,6 +191,25 @@ class KissTermApp(App):
         with Vertical(id="bottom-bar"):
             yield Footer()
             yield Static(id="status-bar")
+
+    def apply_theme(self) -> None:
+        """Resolve and activate `self.config.theme`.
+
+        Called from `__init__` (so the first paint is already correct), and
+        again whenever a theme change might have happened after that --
+        saving Settings, or reloading config.toml from disk. Re-registering
+        `"custom"` every time is cheap and means an edited `[custom_theme]`
+        table takes effect on the next save/reload without a restart.
+        """
+        if self.config.theme == "custom":
+            custom = self.config.custom_theme
+            colors = {f: getattr(custom, f) for f in themes.CUSTOM_THEME_FIELDS}
+            self.register_theme(themes.build_custom_theme(colors, dark=custom.dark))
+
+        resolved, warning = themes.resolve_theme_id(self.config.theme)
+        if warning:
+            log.warning(warning)
+        self.theme = resolved
 
     def on_mount(self) -> None:
         self.query_one(SettingsPane).render_settings(self.config)

@@ -15,6 +15,7 @@ Read this file plus the one pane you are changing.
 | `monitor_pane.py` | Channel log + filter bar |
 | `heard_pane.py` | Heard `DataTable` |
 | `aprs_pane.py` | Placeholder; the real pane is roadmap P4 |
+| `themes.py` | Theme catalog: curated ids, custom-hex builder |
 | `settings_schema.py` | **Declarative** list of every editable setting |
 | `settings_pane.py` | The settings form, generated from that schema |
 | `dialogs.py` | `ConnectScreen` and future modals |
@@ -111,7 +112,15 @@ Read this file plus the one pane you are changing.
     private `_renderable` is exactly the internals-coupling that breaks on
     the next Textual upgrade. In tests, read `widget.render_lines(region)`
     instead -- the same strips the terminal itself would draw.
-22. No emoji anywhere.
+22. **Never invent a palette.** Every `THEME_CATALOG` entry in `themes.py`
+    must be a real `textual.theme.BUILTIN_THEMES` key, checked by test. A
+    family with no upstream light (or dark) variant simply does not offer
+    one -- point at `SUGGESTED_LIGHT_ALTERNATIVES` instead of guessing hexes.
+23. **A `Select` widget raises if set to a value outside its own options.**
+    Any config-file value reaching a "choice" field in the Settings pane goes
+    through `_set_select_value`, which falls back instead of crashing. This
+    already broke once on a stale `theme` value.
+24. No emoji anywhere.
 
 ## Testing
 

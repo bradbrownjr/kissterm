@@ -53,6 +53,7 @@ import contextlib
 import dataclasses
 import logging
 import os
+import re
 import tempfile
 import tomllib
 from dataclasses import dataclass, field
@@ -94,6 +95,37 @@ class AprsConfig:
     #: N-paradigm" path that gets a beacon out one hop then two wide hops
     #: without flooding a whole region the way WIDE7-7 once did.
     path: str = "WIDE1-1,WIDE2-1"
+
+
+@dataclass
+class CustomThemeConfig:
+    """Exact hex colors for the `"custom"` theme (`kissterm.ui.themes`).
+
+    Field names match `textual.theme.Theme` one-for-one (see
+    `kissterm.ui.themes.CUSTOM_THEME_FIELDS`) so this table can be built
+    straight from a `Theme` object and read straight back into one, with no
+    renaming step to keep in sync by hand.
+
+    Defaults are Tokyo Night's OWN real values (`textual.theme.BUILTIN_THEMES
+    ["tokyo-night"]`), not invented placeholders -- selecting `theme =
+    "custom"` with an untouched `[custom_theme]` table looks identical to
+    Tokyo Night, which is a working example to edit from rather than a blank,
+    surprising theme.
+    """
+
+    primary: str = "#BB9AF7"
+    secondary: str = "#7AA2F7"
+    warning: str = "#E0AF68"
+    error: str = "#F7768E"
+    success: str = "#9ECE6A"
+    accent: str = "#FF9E64"
+    foreground: str = "#a9b1d6"
+    background: str = "#1A1B26"
+    surface: str = "#24283B"
+    panel: str = "#414868"
+    #: Whether Textual should treat this as a dark theme (affects default
+    #: contrast choices in a few built-in widgets). Not a color.
+    dark: bool = True
 
 
 @dataclass
@@ -164,7 +196,14 @@ class Config:
     monitor_filter: str = ""
     #: Empty means "use log_path()" -- see that function below.
     log_dir: str = ""
-    theme: str = "default"
+    #: A `kissterm.ui.themes.THEME_CATALOG` id, or `"custom"` to use
+    #: `custom_theme` below. An unrecognised value falls back to
+    #: `kissterm.ui.themes.DEFAULT_THEME` with a warning -- see
+    #: `themes.resolve_theme_id`, which is the actual validation; this
+    #: module does not duplicate Textual's theme registry to check against.
+    theme: str = "tokyo-night"
+    #: Only read when `theme == "custom"`. See `CustomThemeConfig`.
+    custom_theme: CustomThemeConfig = field(default_factory=CustomThemeConfig)
     #: Force plain ASCII box-drawing and no emoji/Unicode glyphs, for a
     #: terminal (an old TTY, a serial console, some SSH clients) that mangles
     #: anything past code page 437.
@@ -259,6 +298,7 @@ def load_config(path: Path | None = None) -> Config:
     cfg.monitor_filter = _load_str(raw, "monitor_filter", cfg.monitor_filter, warnings)
     cfg.log_dir = _load_str(raw, "log_dir", cfg.log_dir, warnings)
     cfg.theme = _load_str(raw, "theme", cfg.theme, warnings)
+    cfg.custom_theme = _load_custom_theme(raw.get("custom_theme"), warnings)
     cfg.ascii_safe = _load_bool(raw, "ascii_safe", cfg.ascii_safe, warnings)
     cfg.aprs = _load_aprs(raw.get("aprs", {}), warnings)
     cfg.autoconnect = _load_dict_list(raw.get("autoconnect", []), "autoconnect", warnings)
@@ -415,6 +455,45 @@ def _load_aprs(value: Any, warnings: list[str]) -> AprsConfig:
         aprs.longitude = clamped
 
     return aprs
+
+
+#: A Textual-acceptable hex color: 6 or 3 hex digits, always `#`-prefixed.
+_HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?$")
+
+
+def _load_hex_color(raw: dict[str, Any], key: str, default: str, warnings: list[str]) -> str:
+    """Validate one `[custom_theme]` field.
+
+    Permissive by the same rule as everything else in this module: a typo in
+    one hex value degrades to that one field's default rather than discarding
+    the whole custom theme, so an operator fixing a single color does not
+    silently lose the other nine.
+    """
+    value = raw.get(key, default)
+    if not isinstance(value, str) or not _HEX_COLOR_RE.match(value):
+        warnings.append(
+            f"custom_theme.{key} should be a hex color like '#1A1B26', got {value!r}; "
+            f"using default {default!r}"
+        )
+        return default
+    return value
+
+
+def _load_custom_theme(value: Any, warnings: list[str]) -> "CustomThemeConfig":
+    default = CustomThemeConfig()
+    if not isinstance(value, dict):
+        if value not in ({}, None):
+            warnings.append(f"'custom_theme' should be a table, got {value!r}; using defaults")
+        return default
+
+    custom = CustomThemeConfig()
+    for attr in (
+        "primary", "secondary", "warning", "error", "success",
+        "accent", "foreground", "background", "surface", "panel",
+    ):
+        setattr(custom, attr, _load_hex_color(value, attr, getattr(default, attr), warnings))
+    custom.dark = _load_bool(value, "dark", default.dark, warnings)
+    return custom
 
 
 # ---------------------------------------------------------------------------

@@ -136,6 +136,37 @@ def _prompt(question: str, default: str = "") -> str:
     return answer or default
 
 
+def _wizard_pick_theme(config) -> None:
+    """Offer the theme catalog. Enter alone keeps whatever `config` already
+    has -- `Config.theme`'s own default (Tokyo Night) on a fresh install, or
+    an existing choice if the wizard is being re-run with `--setup`.
+
+    This mirrors the Settings tab's dropdown (`kissterm.ui.settings_schema`)
+    exactly, from the same catalog (`kissterm.ui.themes`), so there is one
+    list of themes in the whole app, not a wizard-specific copy that could
+    drift out of sync with what Settings actually offers.
+    """
+    from .ui import themes
+
+    print()
+    print("Pick a theme (Enter to keep the current one):")
+    catalog = themes.choices()
+    current_index = next(
+        (i for i, (_label, tid) in enumerate(catalog) if tid == config.theme), None
+    )
+    for i, (label, _theme_id) in enumerate(catalog, 1):
+        marker = " (current)" if i - 1 == current_index else ""
+        print(f"  {i:2d}. {label}{marker}")
+    default = str(current_index + 1) if current_index is not None else ""
+    choice = _prompt("Theme number", default)
+    if not choice:
+        return
+    try:
+        config.theme = catalog[int(choice) - 1][1]
+    except (ValueError, IndexError):
+        print("  Not a listed number; keeping the current theme.")
+
+
 async def _run_wizard(config, no_network: bool) -> bool:
     """Interactive first-run setup. Returns False if the operator bailed out."""
     from .ax25.address import AX25Address, AX25AddressError
@@ -155,6 +186,8 @@ async def _run_wizard(config, no_network: bool) -> bool:
             continue
         config.mycall = call.upper()
         break
+
+    _wizard_pick_theme(config)
 
     devices = await _run_discovery(no_network)
     print()

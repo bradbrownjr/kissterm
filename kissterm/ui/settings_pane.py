@@ -132,13 +132,30 @@ class SettingsPane(VerticalScroll):
                 if spec.kind == "bool":
                     self.query_one(f"#{wid}", Switch).value = bool(value)
                 elif spec.kind == "choice":
-                    self.query_one(f"#{wid}", Select).value = value
+                    self._set_select_value(wid, spec, value)
                 else:
                     self.query_one(f"#{wid}", Input).value = format_value(spec, value)
                 self._set_error(wid, "")
 
         self._render_transports(config)
         self._render_banner(config)
+
+    def _set_select_value(self, wid: str, spec: Field, value) -> None:
+        """Set a Select's value, tolerating one that is not among its options.
+
+        This is what a stale or hand-edited `config.toml` produces: e.g.
+        `theme = "not-a-real-theme"` survives `load_config()` in the field
+        itself (an unknown theme name is not, by itself, a schema violation --
+        `themes.resolve_theme_id` is what actually falls back, at the point
+        the theme is *applied*, not at load time). Setting a Textual `Select`
+        to a value outside its options raises `InvalidSelectValueError`,
+        which would otherwise crash the whole app the instant the Settings
+        tab is opened -- turning a cosmetic config typo into total data loss
+        for the session. Falls back to the first offered choice instead.
+        """
+        select = self.query_one(f"#{wid}", Select)
+        valid = {v for _label, v in spec.choices}
+        select.value = value if value in valid else (spec.choices[0][1] if spec.choices else Select.BLANK)
 
     def _render_transports(self, config) -> None:
         select = self.query_one("#set-active-transport", Select)
@@ -249,6 +266,12 @@ class SettingsPane(VerticalScroll):
         up, which is what `Field.apply == "connect"` promises.
         """
         app = self.app
+        if hasattr(app, "apply_theme"):
+            # Independent of whether a station/transport is configured at
+            # all -- a theme change must not be silently skipped just because
+            # nothing is connected yet.
+            app.apply_theme()  # type: ignore[attr-defined]
+
         station = getattr(app, "station", None)
         if station is None:
             return
@@ -286,6 +309,8 @@ class SettingsPane(VerticalScroll):
             self.app.notify("Could not read config.toml.", severity="error")
             return
         self.app.config = fresh  # type: ignore[attr-defined]
+        if hasattr(self.app, "apply_theme"):
+            self.app.apply_theme()  # type: ignore[attr-defined]
         self.render_settings(fresh)
         self.query_one("#settings-footer", Static).update("Reloaded from config.toml.")
 

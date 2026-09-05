@@ -129,6 +129,7 @@ conversation, and swapping it mid-session would kill the link by timeout.
 | `F1`..`F4` | Switch tabs (shown as the key right in each tab's label) |
 | `Ctrl+K` | Change your callsign |
 | `F5` | Command reference for the detected node |
+| `Ctrl+5` | Settings -- includes the theme picker |
 | `Ctrl+L` | Clear the active log |
 | `Ctrl+Q` | Quit |
 
@@ -145,6 +146,33 @@ kissterm --setup             re-run the first-run wizard
 kissterm --transport NAME    open a specific configured transport
 kissterm --connect WS1EC-7   connect once the app is up
 ```
+
+## Themes
+
+Every color in kissterm is a theme variable, so switching repaints the whole
+app instantly -- nothing to restart. Pick one in Settings (`Ctrl+5`), set
+`theme = "..."` in `config.toml`, or answer the wizard's theme prompt on first
+run. Default is **Tokyo Night**.
+
+Twenty-one built-in options across Tokyo Night, Catppuccin (Latte/Frappe/
+Macchiato/Mocha), Nord, Gruvbox, Dracula, Monokai, Solarized, Rose Pine, Atom
+One, Textual's own light/dark, and `ansi-dark`/`ansi-light` -- the last two
+render using your **terminal emulator's own** 16-color palette, which is the
+truest way to sync with an external terminal theme: there is no separate
+palette to keep matched by hand.
+
+Some well-known dark themes (Tokyo Night, Nord, Gruvbox, Dracula, Monokai)
+have no official light counterpart upstream, so kissterm does not invent one.
+`catppuccin-latte`, `rose-pine-dawn`, or `ansi-light` are close relatives if
+you want a light mode.
+
+For an exact hex match to a theme kissterm doesn't ship, `theme = "custom"`
+reads a `[custom_theme]` table from `config.toml` -- one hex value per color,
+meant for an external theme-sync tool or values copied out of a terminal
+emulator's own color-scheme file. See `config.toml.example`.
+
+A theme name that no longer resolves falls back to Tokyo Night with a logged
+warning rather than leaving the app unstyled or refusing to start.
 
 ## Safety notes
 

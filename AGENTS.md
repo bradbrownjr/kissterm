@@ -428,6 +428,36 @@ Gotchas that already cost time:
   ships. New capabilities go under "New Features"; "Improvements" is only for
   making existing things better. Remove a roadmap item the moment it ships.
 
+## 7a. Theming
+
+`kissterm/ui/themes.py` curates a set of Textual's own `BUILTIN_THEMES`
+(Tokyo Night, Catppuccin's four flavors, Nord, Gruvbox, Dracula, Monokai,
+Solarized, Rose Pine, Atom One, Textual's own, `ansi-dark`/`ansi-light`) plus
+a `"custom"` escape hatch built from `Config.custom_theme`'s hex fields.
+`KissTermApp.apply_theme()` resolves `Config.theme` and sets `self.theme`;
+called from `__init__` (so the first frame paints correctly, no flash) and
+again after a Settings save or a config reload.
+
+- **Never invent a palette for a family that does not have one upstream.**
+  Tokyo Night, Nord, Gruvbox, Dracula and Monokai ship dark-only; there is no
+  real "Tokyo Night Light" to point at, and guessing hex values to fake one
+  would be presenting a fabricated palette as the real thing. Point at
+  `SUGGESTED_LIGHT_ALTERNATIVES` instead.
+- **A bad theme name must never crash the app or leave it unstyled.**
+  `themes.resolve_theme_id` always returns something valid; `DEFAULT_THEME`
+  ("tokyo-night") is the fallback. This bit twice in testing: once because a
+  `Select` widget raises if set to a value outside its own options (fixed in
+  `settings_pane._set_select_value`), and once in the config loader's hex
+  validation (`_load_hex_color`), which degrades one bad `[custom_theme]`
+  field at a time rather than discarding the whole table.
+- **`ansi-dark`/`ansi-light` are the actual "sync with my terminal" feature.**
+  They render using the terminal emulator's own ANSI palette, not a copied
+  one -- nothing to keep in sync by hand. Mention these first when anyone asks
+  how to match kissterm to their terminal theme.
+- Add a new theme family by adding a `ThemeFamily` to `THEME_CATALOG` --
+  verified by test against `textual.theme.BUILTIN_THEMES`, never by typing
+  hex values in by hand.
+
 ## 8. Known caveats / open items
 
 - **APRS Mic-E is decoded but not validated against real off-air traffic.**

@@ -112,7 +112,74 @@ monitor_filter = ""
 # station's log-keeping.
 log_dir = ""
 
-theme = "default"
+# Every color in kissterm is a Textual theme variable, so this repaints the
+# whole app instantly -- nothing to restart, and no CSS to touch. Pick one of
+# the built-in ids below, or "custom" for the [custom_theme] table further
+# down. The Settings tab (Ctrl+5) has the same list as a dropdown if you
+# would rather pick visually than edit this file. Default: "tokyo-night".
+#
+#   Tokyo Night     tokyo-night                                    (dark only)
+#   Catppuccin      catppuccin-latte                                (light)
+#                   catppuccin-frappe / catppuccin-macchiato        (dark)
+#                   catppuccin-mocha                                (dark, highest contrast --
+#                                                                     Catppuccin's own darkest
+#                                                                     flavor, not a separate family)
+#   Nord            nord                                            (dark only)
+#   Gruvbox         gruvbox                                         (dark only)
+#   Dracula         dracula                                         (dark only)
+#   Monokai         monokai                                         (dark only)
+#   Solarized       solarized-dark / solarized-light
+#   Rose Pine       rose-pine / rose-pine-moon                      (dark)
+#                   rose-pine-dawn                                  (light)
+#   Atom One        atom-one-dark / atom-one-light
+#   Textual         textual-dark / textual-light      (kissterm's original default)
+#   Terminal (ANSI) ansi-dark / ansi-light
+#   Custom          custom               (uses [custom_theme] below)
+#
+# A handful of well-known dark themes (Tokyo Night, Nord, Gruvbox, Dracula,
+# Monokai) do not have an official light counterpart upstream, so none is
+# offered here -- kissterm will not invent a fake one. If you want a light
+# mode with a similar low-saturation feel, "catppuccin-latte" or
+# "rose-pine-dawn" are close relatives, and "ansi-light" tracks whatever your
+# terminal's own light scheme already is.
+#
+# "ansi-dark"/"ansi-light" do not carry a palette of their own at all -- they
+# render using your TERMINAL EMULATOR's own 16-color ANSI palette. This is
+# the truest way to sync with an external terminal theme, since there is
+# nothing to copy or keep in sync by hand: change your terminal's theme, and
+# kissterm's changes with it.
+#
+# A theme name that is misspelled or no longer exists falls back to
+# "tokyo-night" with a warning in the log, rather than leaving the app
+# unstyled or refusing to start.
+theme = "tokyo-night"
+
+# Only read when theme = "custom" above. Exact hex values, one per Textual
+# theme field -- this is the field for an external theme-sync tool, or for
+# copying color values by hand out of a terminal emulator's own color-scheme
+# file. Every field below is optional; anything missing or invalid (not a
+# "#rrggbb" or "#rgb" hex string) falls back to that one field's own default
+# without discarding the rest of the table. Defaults shown here ARE Tokyo
+# Night's real values, so leaving this whole table untouched while
+# `theme = "custom"` looks identical to Tokyo Night -- a working starting
+# point to edit from, not a blank surprise.
+#
+# Not yet editable field-by-field in the Settings UI (eleven hex-input
+# widgets is a lot to ship half-finished) -- see docs/ROADMAP.md P6.
+[custom_theme]
+primary    = "#BB9AF7"
+secondary  = "#7AA2F7"
+warning    = "#E0AF68"
+error      = "#F7768E"
+success    = "#9ECE6A"
+accent     = "#FF9E64"
+foreground = "#a9b1d6"
+background = "#1A1B26"
+surface    = "#24283B"
+panel      = "#414868"
+# Whether Textual should treat this as a dark theme (affects a few widgets'
+# default contrast choices). Not a color.
+dark = true
 
 # Force plain ASCII box-drawing characters and no Unicode/emoji glyphs
 # anywhere in the UI. Turn this on if your terminal is an old TTY, a serial

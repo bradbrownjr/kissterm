@@ -3,6 +3,70 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Theming: 21 built-in themes, config file and Settings UI
+
+Requested directly: full control over the app's colors, from both a config
+file (to sync with an external theme-sync tool or dotfiles) and the Settings
+UI, with a curated set of popular themes and a default of Tokyo Night.
+
+### New Features
+- **`kissterm/ui/themes.py`** curates Textual's own `BUILTIN_THEMES` into
+  families: Tokyo Night, Catppuccin (Latte/Frappe/Macchiato/Mocha -- Mocha is
+  Catppuccin's own darkest flavor, not a separate family, and is grouped
+  accordingly), Nord, Gruvbox, Dracula, Monokai, Solarized, Rose Pine, Atom
+  One, Textual's own light/dark, and `ansi-dark`/`ansi-light`. Every entry is
+  verified against `textual.theme.BUILTIN_THEMES` by test -- no hex value in
+  the catalog was typed in from memory.
+- **`ansi-dark`/`ansi-light` render using the terminal emulator's own 16-color
+  palette**, not a copied one. This is the actual "sync with my terminal
+  theme" feature: there is nothing to keep matched by hand, because it isn't
+  a separate palette at all.
+- **`theme = "custom"`** reads an exact hex palette from a new
+  `[custom_theme]` table in `config.toml` (`Config.custom_theme`, one field
+  per `textual.theme.Theme` color). This is the field an external theme-sync
+  tool, or values copied by hand from a terminal emulator's own color-scheme
+  file, writes into. Defaults to Tokyo Night's own real values, so an
+  untouched `[custom_theme]` table looks identical to Tokyo Night rather than
+  a jarring default. Not yet editable field-by-field in Settings (roadmap
+  P6) -- eleven raw hex inputs was more than this pass wanted to ship
+  half-finished.
+- **Settings -> Appearance -> Theme**, a dropdown over the same catalog,
+  applying live with no restart -- every color in the app was already a
+  Textual theme variable (`$primary`, `$accent`, `$background`, ...), which is
+  what made this possible without touching a single rule in `styles.py`.
+- **The setup wizard offers the same list** after the callsign prompt, Enter
+  to keep the default, from the identical catalog Settings uses -- one theme
+  list in the app, not two that could drift apart.
+- **Default is Tokyo Night** -- the operator's own stated preference, not an
+  arbitrary pick.
+
+### Deliberately not done
+No fabricated light variant for Tokyo Night, Nord, Gruvbox, Dracula or
+Monokai: none of them ship one upstream, and guessing which hexes to flip
+would be presenting an invented palette as if it were the real, recognized
+theme -- exactly what this project's `# UNVERIFIED:` convention exists to
+prevent. `catppuccin-latte`, `rose-pine-dawn`, and `ansi-light` are pointed to
+instead as honest light-mode relatives.
+
+### Fixed
+- **A stale or hand-typo'd `theme` value in `config.toml` crashed the app the
+  instant the Settings tab opened.** `Config.theme` loads any string without
+  validating it against the real theme registry (that would need importing
+  Textual into the config layer, which stays UI-independent on purpose);
+  validation happens later, when the theme is actually applied
+  (`themes.resolve_theme_id`, which falls back safely). But `render_settings`
+  was setting the Settings dropdown's `Select.value` directly to that
+  possibly-invalid string, and Textual's `Select` raises
+  `InvalidSelectValueError` for a value outside its own options -- turning a
+  cosmetic typo into a crash that took the whole session down. Fixed with
+  `_set_select_value`, which falls back to the first offered choice instead;
+  this protects every "choice" field in the schema, not just theme.
+
+**Files:** `kissterm/ui/{themes,app,settings_pane,settings_schema}.py`,
+`kissterm/config.py`, `kissterm/__main__.py`, `config.toml.example`,
+`tests/unit/test_themes.py`, `tests/pilot/test_theming.py`, `README.md`,
+`AGENTS.md`, `kissterm/ui/AGENTS.md`, `docs/ROADMAP.md`, `assets/*.png`.
+
 ## [2026-09-05] — Status bar: black to match the tab row, spread across the width
 
 ### Changed

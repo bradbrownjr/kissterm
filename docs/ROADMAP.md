@@ -170,9 +170,13 @@ transports and framing that already exist, not a new transport.
 
 ## P6 — UX
 
-- [ ] **Themes.** Textual's native theme support (`App.register_theme` +
-  command-palette picker) — a curated set plus a settings selector. Mostly
-  wiring once settings/config exists.
+- [ ] **Hex color pickers for the `custom` theme.** `kissterm/ui/themes.py`
+      and `Config.custom_theme` already support an exact hex palette read from
+      `config.toml`, and the Settings dropdown already offers `"custom"` as a
+      choice, but the eleven colors themselves are config-file-only for now
+      -- editing them means hand-editing `[custom_theme]`, not a Settings
+      field. Small once the pattern for a color-swatch input exists.
+
 - [ ] **ASCII-safe mode.** For terminals that mangle Unicode box-drawing and
   symbols (a real concern for anyone connecting in over a low-bandwidth
   remote session to run kissterm itself) — an option that restricts all of

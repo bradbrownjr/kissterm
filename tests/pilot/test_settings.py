@@ -59,7 +59,13 @@ NOT_IN_SCHEMA = {
     "autoconnect",
     "warnings",
     "aprs",
-    "theme",
+    # custom_theme is a nested dataclass of eleven hex/bool fields, read only
+    # when theme == "custom". Deliberately not exposed field-by-field in the
+    # Settings UI yet (that is eleven raw hex-input widgets) -- see
+    # kissterm/ui/themes.py's docstring and docs/ROADMAP.md P6. "theme"
+    # itself IS in the schema as a dropdown; only its custom-color escape
+    # hatch is config-file-only for now.
+    "custom_theme",
 }
 
 

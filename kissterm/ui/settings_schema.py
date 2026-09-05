@@ -31,6 +31,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .themes import choices as _theme_choices
+
 
 @dataclass(frozen=True, slots=True)
 class Field:
@@ -249,6 +251,25 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "Sent to whoever connects. BPQ32 calls this CTEXT. Use \\r "
                 "for a line break -- packet is carriage-return oriented.",
                 apply="live",
+            ),
+        ),
+    ),
+    Section(
+        "Appearance",
+        "Every color in kissterm is a theme variable, so switching here "
+        "repaints instantly -- nothing to restart.",
+        (
+            Field(
+                "theme",
+                "Theme",
+                "choice",
+                "'Terminal ANSI' uses your terminal emulator's own 16-color "
+                "palette directly, which is the closest thing to automatic "
+                "syncing with an external terminal theme. 'Custom' reads "
+                "exact hex values from config.toml's [custom_theme] table -- "
+                "not yet editable here, see docs/ROADMAP.md.",
+                apply="live",
+                choices=_theme_choices(),
             ),
         ),
     ),
