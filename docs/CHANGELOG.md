@@ -3,6 +3,63 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Roadmap: beacons, mail-for, and a served file area
+
+Requested: beacons with beacon text and "MAIL FOR", plus a place other
+stations can download from, with a warning that uploaded content is unvetted.
+Roadmapped rather than built, with the parts that are easy to get wrong
+written down while they are cheap to change.
+
+### P9 — beacons
+- **Beacon text (`BTEXT`) as unproto UI frames** -- the convention for telling
+  a channel you exist. Explicitly **distinct from APRS beaconing (P4)**: same
+  UI-frame machinery, different destination and payload, and the two must not
+  be conflated in config or UI. Off by default (unattended transmission), with
+  a minimum interval enforced in code and the airtime estimator used to show
+  what a chosen interval costs the channel.
+- **"MAIL FOR" beacons** (the W0RLI/FBB convention). Generated at send time
+  from the mailbox, never cached -- a beacon advertising already-collected
+  mail sends people on a pointless connect. Never beacon an empty list; cap
+  the callsign list because it is real airtime at 1200 baud; and back off per
+  callsign so a station that never collects is not advertised forever.
+
+### P10 — serving files, and the sharper point under the virus warning
+The requested warning is in, and so is the thing underneath it:
+
+**A callsign in AX.25 is a claim, not an identity.** The protocol authenticates
+nothing -- any station can transmit any callsign -- so "uploaded by W1AW" is
+not evidence, and a per-callsign allowlist is a convenience, never a security
+control. Re-serving what other stations uploaded therefore turns the station
+into an unwitting distribution point under its own callsign and licence.
+
+- The **curated** area (files the operator deliberately placed) and the
+  **received** area (files that arrived over the air) are separate, and only
+  the curated one is served by default. Serving uploads is an explicit
+  off-by-default opt-in, and is to be built second.
+- If opted in, the warning appears at every point content moves: the Files
+  tab, the listing served to a remote station, and the transfer itself --
+  unvetted, unauthenticated source, scan anything executable, callsign
+  unverified.
+- Provenance shown without implying verification (claimed callsign, time,
+  size, hash).
+- **Filename display must defeat spoofing** -- `readme.txt.exe`,
+  right-to-left override characters, lookalike Unicode. Names are already
+  sanitized on receipt; the display needs the same care.
+- Never execute, never auto-open, never preview by extension alone.
+
+### Recorded as a cross-cutting rule
+`AGENTS.md` and `DESIGN.md` now carry "a callsign is a claim, not an
+identity", because it already applies today -- the heard list, the monitor
+pane, APRS positions and incoming connections all show asserted callsigns.
+The wording rule: observations may name a callsign plainly; anything that
+reads as *attribution* says "claimed".
+
+### Also
+P9's preamble still described the answer-then-silence defect that shipped
+fixed in `[2026-09-04]`; corrected, and the two completed items removed.
+
+**Files:** `docs/ROADMAP.md`, `AGENTS.md`, `DESIGN.md`.
+
 ## [2026-09-05] — Launcher fix, and diagnostics that stop crying wolf
 
 ### Fixed

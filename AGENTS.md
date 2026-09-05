@@ -399,6 +399,21 @@ Gotchas that already cost time:
 - **ALWAYS** keep `paclen` and window configurable per link. HF wants short
   frames; a fast local link wants the opposite.
 
+### A callsign is a claim, not an identity
+- **AX.25 has no authentication of any kind.** Any station can transmit any
+  callsign. Everything kissterm displays -- the heard list, the monitor pane,
+  APRS positions, an incoming connection's source, and eventually a file's
+  uploader or a message's sender -- is a callsign the sender *asserted*, and
+  nothing more.
+- **Never present a callsign as proof.** Not in wording ("uploaded by W1AW"
+  implies verification that does not exist -- "claimed W1AW" does not), and
+  not in behaviour: a per-callsign allowlist is a convenience for the
+  operator, never a security control, and must never be the only thing
+  standing between a remote station and a destructive action.
+- This is why serving back files that arrived over the air is opt-in and
+  loudly labelled (docs/ROADMAP.md P10), and why any future auto-action keyed
+  on "who" is suspect by construction.
+
 ### Untrusted input
 - **ALWAYS** put remote-supplied bytes through `monitor.sanitize()` before they
   reach a widget or a log. Every byte in an information field was put there by

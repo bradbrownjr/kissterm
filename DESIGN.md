@@ -189,6 +189,11 @@ tab existed to expect it.
   where the ambiguity exists.
 - **Remote text is never trusted.** Everything from the air goes through
   `monitor.sanitize()` before it reaches a widget. See `AGENTS.md`.
+- **Never word a callsign as if it were verified.** AX.25 authenticates
+  nothing, so every callsign on screen is asserted by whoever transmitted it.
+  "from W1AW" reads as fact; where it matters -- a file's uploader, a
+  message's sender -- say "claimed". The heard list and monitor are read as
+  observations, which is honest; anything that looks like attribution is not.
 
 ---
 

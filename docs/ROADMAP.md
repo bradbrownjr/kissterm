@@ -288,10 +288,13 @@ estimator. Still open:
 
 ## P9 — Unattended operation: mailbox, file drop, and alerts
 
-**kissterm already answers incoming connections and then says nothing.**
-`AX25Station.accept_incoming` defaults to True, so it sends a UA and leaves the
-caller staring at silence. That is worse than refusing. Fixing it is the entry
-point to this whole phase, and the first item below is not optional.
+The answering half of this phase shipped in `[2026-09-04]` (see CHANGELOG):
+`Config.accept_incoming` is opt-in and off by default, a refused call gets a
+DM rather than silence, an accepted one gets a configurable connect banner,
+and the status bar shows `ANSWERING` whenever the station will transmit with
+nobody present. What is still open is everything the caller would *do* once
+connected -- a mailbox, a file area -- plus the beacons that tell them there
+is a reason to call at all.
 
 ### Regulatory constraint -- read before building any of this
 Auto-answering means **transmitting unattended under the operator's callsign**,
@@ -312,13 +315,37 @@ What follows from it for the design is not in doubt, though:
   smaller regulatory question than a forwarding BBS.
 
 ### Items
-- [ ] **Send something on incoming connect.** A configurable connect banner
-      (BPQ32 calls it `CTEXT`) plus a prompt. Smallest possible fix for the
-      defect above, and it should land before anything else here. Small.
-- [ ] **`accept_incoming` as a real setting**, defaulting to refuse until the
-      operator opts in, with a DM sent on refusal so the caller stops retrying
-      rather than burning N2 attempts. One `settings_schema.py` entry plus
-      wiring. Small.
+- [ ] **Beacon text (`BTEXT`), sent as unproto UI frames.** The long-standing
+      convention for telling a channel you exist: a short periodic
+      transmission to an unconnected destination (`BEACON`, `ID`, or `CQ`)
+      with a digipeater path. **Distinct from APRS beaconing (P4)** -- that
+      sends position in APRS payload format to `APRS`; this sends free text on
+      a packet channel. Same `AX25Frame.u_frame(..., UType.UI)` machinery,
+      different destination and payload, and the two must not be conflated in
+      the config or the UI.
+      Constraints, all of which follow from this phase's regulatory note:
+      **off by default** (it is unattended transmission under the operator's
+      callsign); a minimum interval enforced in code, not just suggested, and
+      the airtime estimator (`nodes.airtime_seconds`) used to show what the
+      chosen interval actually costs the channel; and never transmit an empty
+      or unchanged-but-pointless beacon. Mid.
+- [ ] **"MAIL FOR" beacons** -- the W0RLI/FBB convention: a station with mail
+      waiting beacons the list of callsigns it is holding for, so users know
+      there is a reason to connect. Content is **generated at send time from
+      the mailbox**, never cached -- a beacon advertising mail that was
+      already collected wastes airtime and sends people on a pointless
+      connect.
+      The parts that are easy to get wrong and expensive on a shared channel:
+      - **Never beacon an empty list.** "MAIL FOR:" with nothing after it is
+        pure channel occupancy. No mail, no beacon.
+      - **Cap the list.** A long callsign list is real airtime at 1200 baud;
+        truncate with a count ("...and 6 more") rather than transmitting the
+        lot.
+      - **Back off per callsign.** A station that never collects should not
+        have its callsign beaconed every interval forever. Decay the
+        repetition, and stop after some age.
+      - Depends on the mailbox below existing first. Mid.
+
 - [ ] **A personal mailbox on an alternate SSID** -- the `-1` convention, which
       `Config.mycall_aliases` and `AX25Station.aliases` already support at the
       protocol level. Minimal command set in the EasyTerm//W0RLI tradition:
@@ -395,6 +422,49 @@ tab.
       `WX`) and typically carries a lifetime after which it should stop being
       shown or forwarded. Model the category and expiry from the start rather
       than reusing the mail schema unchanged. Large.
+### Serving files to other stations -- read before building the download area
+
+A public download area is the natural companion to the drop box, and it is
+the feature with the sharpest edge in this whole roadmap.
+
+**A callsign in AX.25 is a claim, not an identity.** There is no
+authentication anywhere in the protocol: any station can transmit any
+callsign. So "uploaded by W1AW" is not evidence that W1AW uploaded it, and a
+per-callsign allowlist is a convenience, never a security control. Nothing in
+the design may treat a callsign as proof of anything.
+
+It follows that **re-serving what other stations uploaded turns this station
+into an unwitting distribution point** for content nobody vetted, under the
+operator's own callsign and licence. So:
+
+- **The curated area and the received area are separate, and only the curated
+  one is served by default.** Files the operator deliberately placed there are
+  a different category from files that arrived over the air, and collapsing
+  the two is the mistake to avoid. Serving the received area at all is an
+  explicit, off-by-default opt-in.
+- **If the operator does opt in, say so at every point content moves**: in
+  the Files tab, in the listing served to a remote station, and again at
+  transfer. The wording should be plain -- these files arrived from an
+  unauthenticated source, nobody has checked them, scan anything executable
+  before running it, and the callsign attached is unverified.
+- **Show provenance without implying it is verified**: heard callsign, time,
+  size, and a hash so a file can at least be compared against a copy from
+  elsewhere. Label the callsign as claimed.
+- **Filename display must defeat spoofing.** `readme.txt.exe`, right-to-left
+  override characters, and lookalike Unicode all exist to make a file look
+  like something it is not. The names are already sanitized on receipt (P9);
+  the *display* needs the same care, and should show the real extension.
+- **Never execute, never auto-open, never preview by extension alone.**
+
+- [ ] **A curated public download area** the operator puts files into
+      deliberately -- net documents, forms, a club roster. Served read-only.
+      This is the safe default and should be built first, on its own. Mid.
+- [ ] **Optionally serving the received/uploads area**, off by default, with
+      the warnings above wired into the listing, the tab, and the transfer.
+      Do not build this before the curated area works. Mid.
+- [ ] **A hash and a claimed-source line per file**, shown locally and in the
+      remote listing. Small once the areas exist.
+
 - [ ] **Files tab (F8)** -- sub-views for Downloads (files this station
       fetched), Received (files other stations sent us, which is the P9 drop
       box and carries all of its security requirements: a resolved jail
