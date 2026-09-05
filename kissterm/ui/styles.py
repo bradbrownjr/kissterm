@@ -106,6 +106,11 @@ ConnectScreen { align: center middle; }
 }
 #connect-buttons { height: auto; align: right middle; margin-top: 1; }
 #connect-buttons Button { margin-left: 1; }
+/* The address book. `max-height` rather than a fixed height so a first run
+   with no history does not reserve a blank hole in the middle of the box,
+   and a long list scrolls instead of pushing the buttons off screen. */
+#connect-history { max-height: 8; margin-top: 1; border: none; background: $surface; }
+#connect-hint { color: $text-muted; }
 
 .placeholder { padding: 1 2; color: $text-muted; }
 

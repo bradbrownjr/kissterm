@@ -88,6 +88,7 @@ from textual.containers import Vertical
 from textual.widgets import Footer, Static, TabbedContent, TabPane
 
 from .. import __version__
+from ..addressbook import AddressBook
 from ..ax25 import AX25Station, parse_path
 from ..beacon import Beaconer
 from ..config import BeaconConfig
@@ -96,7 +97,7 @@ from ..heard import HeardTable
 from ..hotplug import PortEvent, SerialPortWatcher
 from ..monitor import MonitorFilter, format_frame, sanitize
 from ..session_log import SessionLog
-from ..transport.base import SessionState, TransportError
+from ..transport.base import SessionState, TransportError, TransportState
 from ..tx import DISABLED_MESSAGE, TransmitGate
 from .aprs_pane import AprsPane
 from . import themes
@@ -221,6 +222,12 @@ class KissTermApp(App):
         #: than tracking their own copy -- see this module's docstring.
         self.link = None
         self._status = "starting"
+        #: Stations already tried, offered in the connect dialog. Owned here
+        #: rather than by the dialog so a successful connect can be recorded
+        #: after the dialog has closed, and so the file is read once at
+        #: startup instead of on every Ctrl+N.
+        self.addressbook = AddressBook()
+        self.addressbook.load()
         #: Watches local serial ports only. The network is never scanned on a
         #: timer -- see kissterm/hotplug.py for the cost argument.
         self.port_watcher = SerialPortWatcher()
@@ -726,10 +733,30 @@ class KissTermApp(App):
         if self.station is None:
             self.notify("No transport is open.", severity="error")
             return
-        target = await self.push_screen_wait(ConnectScreen())
+        target = await self.push_screen_wait(ConnectScreen(self.addressbook))
         if not target:
             return
         path = parse_path(target)
+        # The TNC link, before the RF link. Sending six SABMs into a socket
+        # that is down produces "no answer from WS1EC-15" -- a diagnosis
+        # pointing at the antenna when the fault is in the room. Unlike a
+        # closed transmit gate this is not something a keystroke can fix, so
+        # it is worth saying before spending the attempt.
+        state = self.station.transport.state
+        if state is not TransportState.OPEN:
+            where = self.station.transport.info.detail
+            self._to_terminal(
+                "log",
+                f"\n*** Not connecting: the link to the TNC at {where} is "
+                f"{state.value}, so nothing would reach the air. This is not "
+                f"an RF problem -- check the TNC, then Settings (F5) > Test "
+                f"selected.\n",
+            )
+            self.notify(
+                f"TNC link is {state.value} -- nothing would be transmitted.",
+                severity="error",
+            )
+            return
         # A confirmed connect request ARMS the gate rather than being refused
         # by it. See `_arm_for` -- naming a station and confirming the dialog
         # is the operator asking to transmit, and refusing it here left them
@@ -759,10 +786,26 @@ class KissTermApp(App):
                     f"*** {attempts} attempt(s) sent. Check the Monitor tab (F2) "
                     "for what went out and what came back.\n",
                 )
+            # It was up when we started or we would not be here, so a
+            # transport that is down NOW dropped during the attempt -- and
+            # some of those SABMs never left the process. Say so, or the
+            # operator spends the evening on an antenna that is fine.
+            if self.station.transport.state is not TransportState.OPEN:
+                self._to_terminal(
+                    "log",
+                    "*** The link to the TNC dropped during this attempt, so "
+                    "some of those frames never reached the radio. Fix that "
+                    "first -- this is not an RF failure.\n",
+                )
             self.notify(
                 f"Could not connect to {path.destination}{detail}", severity="warning"
             )
             return
+        # Separate from the attempt the dialog already recorded: "tried ten
+        # times, never got in" is a different fact from "this one works", and
+        # flattening them would hide exactly the pattern an operator wants to
+        # see next to a callsign on a marginal path.
+        self.addressbook.record_connect(target)
         self._bind_link(link)
         self.query_one(TerminalPane).focus_input()
 
@@ -849,8 +892,32 @@ class KissTermApp(App):
     # ------------------------------------------------------------------
     # Periodic UI refresh
     # ------------------------------------------------------------------
+    def _transport_status(self) -> str:
+        """The transport field of the status bar, from LIVE state.
+
+        This used to be a string captured once at mount, which meant the
+        status bar happily showed a healthy TNC address while the socket
+        underneath it was gone. On the first real on-air test the connection
+        to the TNC dropped mid-connect, every SABM after that was refused by
+        the transport, and the only thing on screen was "no answer from
+        WS1EC-15" -- which reads as a dead RF path when it was actually a
+        dead TCP socket. A transport that is not carrying frames has to say
+        so where the operator is already looking.
+        """
+        if self.station is None:
+            return self._status
+        state = self.station.transport.state
+        detail = self.station.transport.info.detail
+        if state is TransportState.OPEN:
+            return detail
+        if state is TransportState.OPENING:
+            return f"{detail} RECONNECTING"
+        if state is TransportState.ERROR:
+            return f"{detail} DOWN"
+        return f"{detail} {state.value}"
+
     def _refresh_status(self) -> None:
-        parts = [f"kissterm {__version__}", self._status]
+        parts = [f"kissterm {__version__}", self._transport_status()]
         if not self.gate.enabled:
             # First after the version, and always present while it is true.
             # "Why is nothing happening?" must be answerable without opening

@@ -415,6 +415,19 @@ Gotchas that already cost time:
   interlock nobody can reach is just a broken program. `KissTermApp.__init__`
   installs the closed one, and `tests/pilot/test_transmit_gate.py` asserts a
   freshly mounted app cannot transmit.
+- **Never log a frame as transmitted before the backend accepted it.**
+  `Transport.send_frame` logs `TX port N` *after* `_send_frame` returns, and
+  logs `TX FAILED` with the reason if it raises. The first version logged
+  first: a real on-air test produced a log showing four SABMs sent when the
+  fourth never left the process, because the TCP socket to the TNC had gone
+  away -- and the operator read a dead socket as a dead RF path. `on_sent`
+  (which feeds the monitor pane) must not fire for a refused frame either.
+- **A transport that is not carrying frames has to say so where the operator
+  is already looking.** `KissTermApp._transport_status` reads LIVE transport
+  state into the status bar (`RECONNECTING`, `DOWN`), and `action_connect`
+  refuses -- with a message that says it is not an RF problem -- rather than
+  spending six SABMs on a socket that is down. A status string captured once
+  at mount is how a dead TNC link masqueraded as a dead antenna.
 - **Never report a suppressed transmission as a sent one.**
   `Beaconer.problem()` treats a closed gate as a reason not to beacon
   precisely so `send_once` cannot log "Beacon sent" for a frame the gate

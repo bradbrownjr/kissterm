@@ -16,15 +16,37 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label
+from textual.widgets import Button, Input, Label, OptionList
+from textual.widgets.option_list import Option
 
+from ..addressbook import AddressBook
 from ..ax25 import parse_path
 
 
 class ConnectScreen(ModalScreen[str | None]):
-    """Ask for a connect target. Accepts ``CALL-SSID [via DIGI,DIGI]``."""
+    """Ask for a connect target. Accepts ``CALL-SSID [via DIGI,DIGI]``.
 
-    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+    Carries an address book of stations already tried, because `WS1EC-15` and
+    `WS1EC-7` are different services on one machine and a mistyped SSID fails
+    in a way that looks exactly like a bad RF path. Typing filters the list;
+    Down moves into it; Enter on a row connects; Delete forgets the row. The
+    book is loaded here rather than passed in so the dialog works in a test
+    with no app around it, and it is optional: pass `book=AddressBook(path)`
+    to point it somewhere else.
+    """
+
+    BINDINGS = [
+        Binding("escape", "dismiss(None)", "Cancel"),
+        Binding("down", "into_list", "History", show=False),
+        Binding("delete", "forget", "Forget", show=False),
+    ]
+
+    def __init__(self, book: AddressBook | None = None) -> None:
+        super().__init__()
+        if book is None:
+            book = AddressBook()
+            book.load()
+        self.book = book
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
@@ -34,13 +56,75 @@ class ConnectScreen(ModalScreen[str | None]):
                 id="connect-target",
             )
             yield Label("", id="connect-error")
+            yield OptionList(id="connect-history")
+            yield Label(
+                "Down for previous stations - Enter connects - Delete forgets",
+                id="connect-hint",
+            )
             with Horizontal(id="connect-buttons"):
                 yield Button("Connect", variant="primary", id="connect-go")
                 yield Button("Cancel", id="connect-cancel")
 
     def on_mount(self) -> None:
+        self._render_history()
         self.query_one("#connect-target", Input).focus()
 
+    # -- the address book -------------------------------------------------
+    def _render_history(self, filter_text: str = "") -> None:
+        """Repaint the list, narrowed to entries matching `filter_text`.
+
+        The filter is a plain case-insensitive substring on the whole typed
+        target, so "ws1" narrows to one machine's services and "via" finds
+        the paths that need a digipeater.
+        """
+        needle = filter_text.strip().upper()
+        matches = [e for e in self.book.entries if needle in e.target.upper()]
+        options = [
+            Option(
+                f"{e.target}{'  --  ' + e.summary if e.summary else ''}",
+                id=e.target,
+            )
+            for e in matches
+        ]
+        history = self.query_one("#connect-history", OptionList)
+        history.clear_options()
+        history.add_options(options)
+        history.display = bool(options)
+        self.query_one("#connect-hint", Label).display = bool(options)
+
+    def action_into_list(self) -> None:
+        history = self.query_one("#connect-history", OptionList)
+        if not (history.display and history.option_count):
+            return
+        history.focus()
+        if history.highlighted is None:
+            # Focus alone leaves nothing highlighted, so the first Delete or
+            # Enter after arrowing down would do nothing at all -- the key
+            # appears dead rather than doing something the operator can see.
+            history.highlighted = 0
+
+    def action_forget(self) -> None:
+        """Delete the highlighted row. Only meaningful with the list focused,
+        so a Delete keypress while editing the target text still edits text."""
+        history = self.query_one("#connect-history", OptionList)
+        if not history.has_focus or history.highlighted is None:
+            return
+        option = history.get_option_at_index(history.highlighted)
+        if option.id and self.book.forget(option.id):
+            self._render_history(self.query_one("#connect-target", Input).value)
+            if not self.book.entries:
+                self.query_one("#connect-target", Input).focus()
+
+    @on(OptionList.OptionSelected, "#connect-history")
+    def _pick(self, event: OptionList.OptionSelected) -> None:
+        if event.option.id:
+            self._submit(event.option.id)
+
+    @on(Input.Changed, "#connect-target")
+    def _filter(self, event: Input.Changed) -> None:
+        self._render_history(event.value)
+
+    # -- connect / cancel -------------------------------------------------
     @on(Button.Pressed, "#connect-cancel")
     def _cancel(self) -> None:
         self.dismiss(None)
@@ -48,7 +132,10 @@ class ConnectScreen(ModalScreen[str | None]):
     @on(Button.Pressed, "#connect-go")
     @on(Input.Submitted, "#connect-target")
     def _go(self) -> None:
-        text = self.query_one("#connect-target", Input).value.strip()
+        self._submit(self.query_one("#connect-target", Input).value)
+
+    def _submit(self, text: str) -> None:
+        text = text.strip()
         if not text:
             return
         try:
@@ -56,6 +143,10 @@ class ConnectScreen(ModalScreen[str | None]):
         except Exception as exc:
             self.query_one("#connect-error", Label).update(f"[red]{exc}[/red]")
             return
+        # Recorded on the ATTEMPT, not on success: a connect that failed is
+        # the one about to be retried, and withholding it until a UA arrives
+        # would keep it out of the list at exactly the moment it is wanted.
+        self.book.record_attempt(text)
         self.dismiss(text)
 
 

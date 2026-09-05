@@ -3,6 +3,52 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — A dead TNC socket stops looking like a dead antenna
+
+From the first real on-air attempt. The log said four SABMs went to WS1EC-15
+and the operator saw "no connection" -- so the obvious reading was a marginal
+RF path. It was not. The TCP socket to the TNC had gone away mid-attempt, the
+fourth SABM never left the process, and nothing anywhere said so. Probing the
+configured hosts afterwards found that three of the four were web servers
+that a port-number-only scan had written into `config.toml`.
+
+### New Features
+- **An address book in the connect dialog.** Every confirmed target is
+  remembered; typing narrows the list, Down moves into it, Enter connects,
+  Delete forgets a row. Recorded on the ATTEMPT, not on success -- the
+  connect that got no answer is the one about to be retried. Attempts and
+  connects are counted separately, so "five attempts, never connected" stays
+  visible. Stored as `addressbook.json` in the data directory rather than in
+  `config.toml`: it is history, not settings, and a file the program rewrites
+  on every connect is a bad place for hand-edited configuration.
+
+### Fixes
+- **A frame the transport refused is no longer logged as transmitted.**
+  `send_frame` logged `TX port 0` before calling the backend, so a frame that
+  raised `TransportError: not connected` appeared in the log as one that went
+  on the air. It now logs after the backend accepts it, logs `TX FAILED` with
+  the reason when it does not, and does not fire `on_sent` -- so a refused
+  frame never reaches the monitor pane either.
+- **Losing the connection to the TNC is now in the log.** `TcpKissTransport`
+  recorded the reason in `self._error` and told no one. It now logs the loss,
+  each reconnect, and every failed reconnect attempt.
+- **The status bar shows live transport state.** It was a string captured
+  once at mount, so it happily displayed a healthy TNC address while the
+  socket underneath was gone. `RECONNECTING` and `DOWN` now appear there.
+- **`Ctrl+N` refuses when the TNC link is down**, and says explicitly that
+  this is not an RF problem, rather than spending six SABMs on a socket that
+  cannot carry them. If the link drops mid-attempt the failure message says
+  that too.
+- Moving into the connect history with Down now highlights the first row, so
+  the next Enter or Delete acts on something instead of appearing dead.
+
+**Files:** `kissterm/addressbook.py` (new), `kissterm/ui/dialogs.py`,
+`kissterm/ui/app.py`, `kissterm/ui/styles.py`, `kissterm/transport/base.py`,
+`kissterm/transport/tcp_kiss.py`, `tests/unit/test_addressbook.py`,
+`tests/unit/test_transport_failure_is_visible.py`,
+`tests/pilot/test_app_mounts.py`, `tests/pilot/test_transmit_gate.py`,
+`README.md`, `AGENTS.md`
+
 ## [2026-09-05] — The scan can now tell a TNC from a web app
 
 Reported after a rescan: it found AGWPE but not the KISS port on one host,

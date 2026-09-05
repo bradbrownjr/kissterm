@@ -189,13 +189,25 @@ conversation, and swapping it mid-session would kill the link by timeout.
 | `F6` | Command reference for the detected node |
 | `Ctrl+T` | Enable / disable transmit -- the master switch |
 | `Ctrl+Shift+B` | Send one beacon now (see the tmux note below) |
-| `Ctrl+N` | Connect to a station |
+| `Ctrl+N` | Connect to a station (with a list of stations already tried) |
 | `Ctrl+D` | Disconnect |
 | `Ctrl+K` | Change your callsign |
 | `Ctrl+L` | Clear the active log |
 | `Ctrl+Q` | Quit |
 
 Connect targets accept a digipeater path: `WS1EC-7 via W1AW-1,W1XYZ`.
+
+**The connect dialog remembers where you have been.** `WS1EC-15` and `WS1EC-7`
+are different services on one machine, and a mistyped SSID fails in a way that
+looks exactly like a bad RF path -- so every target you confirm is kept.
+Typing narrows the list, Down moves into it, Enter connects, and Delete
+forgets a row for good. Stations are recorded on the *attempt*, not on
+success: the connect that got no answer is the one you are about to try
+again. Each row shows whether it has ever actually come up, so "five attempts,
+never connected" stays visible instead of being flattened into a bare list.
+The list lives in `addressbook.json` in your data directory, not in
+`config.toml` -- it is history, not settings, and nothing should rewrite a
+file you hand-edit.
 
 **Running under tmux or screen?** The beacon is `Ctrl+Shift+B` rather than
 `Ctrl+B` because `Ctrl+B` is tmux's default prefix -- the multiplexer eats it

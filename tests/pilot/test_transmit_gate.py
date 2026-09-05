@@ -249,3 +249,39 @@ async def test_an_unattended_station_can_arm_at_startup():
         assert app.gate.enabled is True
         assert "TX OFF" not in _plain(app.query_one("#status-bar"))
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_dead_tnc_link_is_not_reported_as_a_dead_rf_path():
+    """From a real on-air attempt: the socket to the TNC dropped mid-connect,
+    every SABM after that was refused by the transport, and all the operator
+    saw was "no connection to WS1EC-15" -- a message pointing at the antenna
+    when the fault was a TCP socket in the next room."""
+    from kissterm.transport.base import TransportState
+
+    app, station, ta = await _app(tx_armed_at_start=True)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        ta.state = TransportState.OPENING  # what a reconnecting socket looks like
+        app._refresh_status()
+        await pilot.pause()
+
+        status = _plain(app.query_one("#status-bar"))
+        assert "RECONNECTING" in status, (
+            f"the status bar still showed a healthy transport: {status!r}"
+        )
+
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        for key in "WS1EC-7":
+            await pilot.press(key if key != "-" else "minus")
+        await pilot.press("enter")
+        await pilot.pause()
+        await asyncio.sleep(0.3)
+
+        log = app.query_one(TerminalPane).query_one("#session-log")
+        text = "\n".join(str(line) for line in log.lines)
+        assert "not an RF problem" in text, text
+        assert ta.sent == [], "SABMs were sent into a transport that was down"
+    station.close()

@@ -23,7 +23,10 @@ from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
 from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
+from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.ui.dialogs import CallsignScreen, ConnectScreen  # noqa: E402
+from textual.widgets import OptionList  # noqa: E402
+
 from kissterm.ui.heard_pane import HeardPane  # noqa: E402
 from kissterm.ui.monitor_pane import MonitorPane  # noqa: E402
 from kissterm.ui.settings_pane import SettingsPane  # noqa: E402
@@ -485,3 +488,135 @@ async def test_clicking_the_header_does_not_reshuffle_the_layout():
             f"the header icon no longer opens the palette (got {type(app.screen).__name__})"
         )
     station.close()
+
+
+# ---------------------------------------------------------------------------
+# The connect dialog's address book
+# ---------------------------------------------------------------------------
+
+
+def _fresh_book(app, tmp_path):
+    """Point the app's address book at a per-test file.
+
+    `isolate()` redirects platformdirs once for the whole session, so every
+    test otherwise shares one `addressbook.json` and reads rows another test
+    wrote -- which is how these first went green in isolation and red in a
+    full run.
+    """
+    app.addressbook = AddressBook(tmp_path / "addressbook.json")
+    return app.addressbook
+
+
+async def _open_connect(app, pilot):
+    await pilot.press("ctrl+n")
+    await pilot.pause()
+    await asyncio.sleep(0.15)
+    await pilot.pause()
+    assert isinstance(app.screen, ConnectScreen), f"got {type(app.screen).__name__}"
+    return app.screen
+
+
+@pytest.mark.asyncio
+async def test_the_connect_dialog_offers_stations_already_tried(tmp_path):
+    """`WS1EC-15` and `WS1EC-7` are different services on one machine, and a
+    mistyped SSID fails in a way that looks exactly like a bad RF path."""
+    app, ta, tb, station = await _app()
+    _fresh_book(app, tmp_path)
+    app.addressbook.record_attempt("WS1EC-15")
+    app.addressbook.record_connect("W1AW-1")
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open_connect(app, pilot)
+        history = screen.query_one("#connect-history", OptionList)
+        assert history.display, "the history list was not shown"
+        shown = [history.get_option_at_index(i).id for i in range(history.option_count)]
+        assert shown == ["W1AW-1", "WS1EC-15"], shown
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_typing_narrows_the_list(tmp_path):
+    app, ta, tb, station = await _app()
+    _fresh_book(app, tmp_path)
+    for target in ("WS1EC-15", "WS1EC-7", "W1AW-1"):
+        app.addressbook.record_attempt(target)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open_connect(app, pilot)
+        for key in "ws":
+            await pilot.press(key)
+        await pilot.pause()
+        history = screen.query_one("#connect-history", OptionList)
+        shown = [history.get_option_at_index(i).id for i in range(history.option_count)]
+        assert shown == ["WS1EC-7", "WS1EC-15"], shown
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_delete_forgets_a_row_and_it_stays_forgotten(tmp_path):
+    """The explicit ask: rows you can delete."""
+    app, ta, tb, station = await _app()
+    _fresh_book(app, tmp_path)
+    app.addressbook.record_attempt("WS1EC-15")
+    app.addressbook.record_attempt("W1AW-1")
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open_connect(app, pilot)
+        await pilot.press("down")
+        await pilot.pause()
+        history = screen.query_one("#connect-history", OptionList)
+        assert history.has_focus, "Down did not move into the history list"
+        await pilot.press("delete")
+        await pilot.pause()
+        shown = [history.get_option_at_index(i).id for i in range(history.option_count)]
+        assert shown == ["WS1EC-15"], shown
+        assert [e.target for e in app.addressbook.entries] == ["WS1EC-15"]
+
+        reloaded = AddressBook(app.addressbook.file)
+        reloaded.load()
+        assert [e.target for e in reloaded.entries] == ["WS1EC-15"], (
+            "the deletion was not persisted"
+        )
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_delete_while_typing_edits_text_instead_of_forgetting(tmp_path):
+    """Delete is a text-editing key first. Losing a saved station because the
+    cursor was in the input would be a nasty surprise."""
+    app, ta, tb, station = await _app()
+    _fresh_book(app, tmp_path)
+    app.addressbook.record_attempt("WS1EC-15")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _open_connect(app, pilot)
+        await pilot.press("delete")
+        await pilot.pause()
+        assert [e.target for e in app.addressbook.entries] == ["WS1EC-15"]
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_first_run_shows_no_empty_list(tmp_path):
+    """With nothing remembered the dialog must look exactly as it did before
+    this feature -- not a blank hole where a list will one day be."""
+    app, ta, tb, station = await _app()
+    _fresh_book(app, tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open_connect(app, pilot)
+        assert not screen.query_one("#connect-history", OptionList).display
+        assert not screen.query_one("#connect-hint").display
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_confirmed_target_is_remembered_even_when_it_fails(tmp_path):
+    app, ta, tb, station = await _app()
+    _fresh_book(app, tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _open_connect(app, pilot)
+        for key in "WS1EC-7":
+            await pilot.press(key if key != "-" else "minus")
+        await pilot.press("enter")
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        assert [e.target for e in app.addressbook.entries] == ["WS1EC-7"]
+        assert app.addressbook.entries[0].attempts == 1
+    station.close()
+

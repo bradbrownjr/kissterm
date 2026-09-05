@@ -183,8 +183,20 @@ class FrameTransport(Transport):
         if not self.gate.allow():
             log.debug("TX BLOCKED port %d: %s", port, frame.summary())
             return
+        # Logged AFTER the backend accepted it, never before. The first
+        # version logged "TX port 0: SABM" and then let `_send_frame` raise
+        # `TransportError: not connected` -- so a real on-air test produced a
+        # log showing four SABMs transmitted when the fourth never left the
+        # process, and the operator read a dead TCP socket as a dead RF path.
+        # A frame the transport refused is a FAILED transmission and has to
+        # read as one, the same rule that stops a gated frame being reported
+        # as sent.
+        try:
+            await self._send_frame(frame, port)
+        except Exception as exc:
+            log.warning("TX FAILED port %d: %s -- %s", port, frame.summary(), exc)
+            raise
         log.debug("TX port %d: %s", port, frame.summary())
-        await self._send_frame(frame, port)
         for callback in list(self.on_sent):
             try:
                 callback(frame, port)

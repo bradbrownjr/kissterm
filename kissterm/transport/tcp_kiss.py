@@ -25,11 +25,19 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 
 from ..ax25.address import AX25AddressError
 from ..ax25.frame import AX25Frame, AX25FrameError
 from .base import FrameTransport, TransportError, TransportInfo, TransportState
 from .kiss import KissCommand, KissDecoder, encode
+
+#: The socket to the TNC dying mid-session is the single most misleading
+#: failure this program has: the AX.25 state machine keeps retransmitting
+#: into a transport that is not there, and the operator reads "no answer from
+#: WS1EC-15" as a dead RF path. It happened on the first real on-air test.
+#: These lines are what turn that into a two-second diagnosis.
+log = logging.getLogger(__name__)
 
 #: Reconnect backoff: start fast (a restarting Direwolf is often back in under
 #: a second) and double up to a ceiling that keeps retries from becoming a
@@ -99,6 +107,7 @@ class TcpKissTransport(FrameTransport):
                 )
             except OSError as exc:
                 self._error = f"connect to {self.host}:{self.port} failed: {exc}"
+                log.warning("%s", self._error)
                 if first:
                     self.state = TransportState.ERROR
                     self._first_attempt.set()
@@ -113,8 +122,13 @@ class TcpKissTransport(FrameTransport):
             if first:
                 first = False
                 self._first_attempt.set()
+                log.info("connected to %s:%d", self.host, self.port)
             else:
                 self.reconnects += 1
+                log.warning(
+                    "reconnected to %s:%d (reconnect %d)",
+                    self.host, self.port, self.reconnects,
+                )
             connected_at = asyncio.get_running_loop().time()
 
             try:
@@ -124,6 +138,10 @@ class TcpKissTransport(FrameTransport):
             except Exception as exc:  # noqa: BLE001 -- keep the loop alive
                 self._error = str(exc)
 
+            log.warning(
+                "lost connection to %s:%d: %s",
+                self.host, self.port, self._error or "closed",
+            )
             self._decoder.reset()
             await self._close_socket()
             if self._closing:
