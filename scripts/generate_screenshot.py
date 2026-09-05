@@ -145,7 +145,14 @@ async def main() -> int:
         app._status = "192.168.1.40:8001"
 
         for src, dest, via, info in MONITOR:
-            await tb.send_frame(_frame(src, dest, via, info))
+            frame = _frame(src, dest, via, info)
+            if src == str(MYCALL):
+                # Our own transmission. Sending it from the far end would put
+                # it in the monitor with an incoming marker, and the picture
+                # would be teaching that we heard ourselves on the air.
+                await ta.send_frame(frame)
+            else:
+                await tb.send_frame(frame)
         for call in HEARD:
             app.heard.record(_frame(call, "APRS", (), b"x"), 0)
         app._refresh_status()  # repaint after populating, not before

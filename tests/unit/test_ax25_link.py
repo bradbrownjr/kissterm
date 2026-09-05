@@ -257,3 +257,42 @@ async def test_modulo_128_link():
     assert await asyncio.wait_for(_drain(link_b, 3.0, expect=len(payload)), timeout=10) == payload
     a.close()
     b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_refused_connect_and_an_unanswered_one_do_not_look_alike():
+    """The whole diagnosis of a failed connection is which of these it was.
+
+    A DM means the far end heard us and said no -- a configuration problem at
+    one end or the other. Silence after N2 tries means the path did not carry
+    -- an antenna, power or propagation problem. Reporting both as "no
+    connection" sends the operator to check the wrong end of the station, so
+    the reason is kept on the link for the UI to read back.
+    """
+    a, b, ta, tb = await _pair(params_a=_params(retries=2))
+
+    b.accept_incoming = False
+    refused = await a.connect(AX25Path(CALL_B, CALL_A))
+    assert refused is None
+    link = a.link_to(CALL_B)
+    assert link is not None
+    assert "refused" in link.last_error.lower(), link.last_error
+
+    # Now the same connect with nothing at the far end at all.
+    a2 = AX25Station(AX25Address.parse("N1ABC-2"), ta, _params(retries=2))
+    tb.loss = 1.0  # nothing we transmit is ever heard
+    silent = await a2.connect(AX25Path(AX25Address.parse("W1XYZ-9"), CALL_A))
+    assert silent is None
+    dead = a2.link_to(AX25Address.parse("W1XYZ-9"))
+    assert dead is not None
+    assert "no answer" in dead.last_error.lower(), dead.last_error
+    assert dead.rc > 1, "gave up without using the retry budget"
+
+
+@pytest.mark.asyncio
+async def test_a_healthy_link_reports_no_error():
+    a, b, *_ = await _pair()
+    link = await a.connect(AX25Path(CALL_B, CALL_A))
+    assert link is not None
+    assert link.last_error == ""
+    await link.disconnect()

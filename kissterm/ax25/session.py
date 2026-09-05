@@ -170,6 +170,9 @@ class AX25Link:
         # every comparison in it is a modular walk rather than a magnitude test.
         self._win = SlidingWindow(modulo=self.params.modulo, k=self.params.window)
         self.rc = 0  # retry count
+        #: Why the link last failed, in operator-readable words. Empty until
+        #: something goes wrong.
+        self.last_error: str = ""
 
         self.peer_busy = False  # peer sent RNR
         self.own_busy = False  # we sent RNR
@@ -244,11 +247,18 @@ class AX25Link:
             command=True,
         )
         self._start_t1()
-        deadline = timeout or (self.params.t1 * (self.params.retries + 1))
+        # One extra T1 of slack. N2 exhaustion happens at exactly
+        # ``t1 * (retries + 1)``, so a deadline of the same length is a tie --
+        # and when this guard won it replaced the state machine's own verdict
+        # ("no answer from WS1EC-15 after 11 tries") with a bare "connect
+        # timed out", losing the peer and the attempt count from the one line
+        # the operator reads. This is a backstop for a link that never settles
+        # at all, not a competitor to the retry budget.
+        deadline = timeout or (self.params.t1 * (self.params.retries + 2))
         try:
             return await asyncio.wait_for(asyncio.shield(self._connect_result), deadline)
         except (asyncio.TimeoutError, asyncio.CancelledError):
-            self._fail("connect timed out")
+            self._fail(f"no answer from {self.peer}; connect timed out")
             return False
 
     async def disconnect(self) -> None:
@@ -579,6 +589,13 @@ class AX25Link:
 
     async def _on_t1(self) -> None:
         self.stats.t1_expiries += 1
+        log.debug(
+            "T1 expiry %d in %s, rc=%d of %d",
+            self.stats.t1_expiries,
+            self.state.value,
+            self.rc,
+            self.params.retries,
+        )
 
         if self.state is SessionState.CONNECTING:
             self.rc += 1
@@ -683,6 +700,13 @@ class AX25Link:
         self._start_t3()
 
     def _fail(self, reason: str) -> None:
+        # Kept on the link, not only handed to `on_error`: `AX25Station.connect`
+        # creates the link itself, so the UI has no way to register a callback
+        # before the SABM goes out and would otherwise be left saying only
+        # "no connection" -- which reads the same whether the node refused us
+        # (DM) or never heard us at all. Those need different actions from the
+        # operator, so they must not look identical on screen.
+        self.last_error = reason
         self._stop_all_timers()
         self.state = SessionState.FAILED
         self._emit_state()
@@ -692,6 +716,11 @@ class AX25Link:
             self._connect_result.set_result(False)
 
     def _emit_state(self) -> None:
+        # `__repr__` carries V(S)/V(R)/V(A) and the retry count, which is the
+        # whole diagnosis of a stalled or retrying link. Logging it on every
+        # transition gives a debug log that reads as the link's own history
+        # rather than a pile of frames to reconstruct one from.
+        log.debug("state -> %r", self)
         for cb in list(self.on_state):
             cb(self.state)
 

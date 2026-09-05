@@ -49,14 +49,20 @@ plus `dialogs.py` for modals and `styles.py` for the CSS), so that adding or
 editing one pane means opening one file -- see `kissterm/ui/AGENTS.md`. What
 stays here is only what genuinely has to be singular:
 
-**One shared frame fan-out.** The station, the monitor pane, and the heard
-table all end up fed from the same two subscriptions --
-`station.on_unhandled` and `station.on_incoming` -- registered exactly once,
-in this class's `on_mount`. A frame is decoded once. Adding a second decode
-path for a new pane, anywhere, is the wrong instinct -- add a subscriber to
-the existing fan-out instead. `KissTermApp` is deliberately the *only* place
-that touches `self.station` for this reason: a pane that subscribed to the
-station on its own would be a second fan-out.
+**One shared frame fan-out.** The monitor pane and the heard table are fed
+from three subscriptions -- `transport.subscribe` (every frame received),
+`transport.on_sent` (every frame transmitted), and `station.on_incoming` --
+registered exactly once, in this class's `on_mount`. A frame is decoded once.
+Adding a second decode path for a new pane, anywhere, is the wrong instinct --
+add a subscriber to the existing fan-out instead. `KissTermApp` is
+deliberately the *only* place that touches `self.station` for this reason: a
+pane that subscribed to the station on its own would be a second fan-out.
+
+The receive side hangs off the *transport*, not off `station.on_unhandled`:
+the station routes a frame belonging to an open link straight to that link, so
+`on_unhandled` never sees the UA that answers our SABM, nor any of the traffic
+of a live conversation. A monitor fed from there goes quiet during the one
+event an operator most wants to watch.
 
 **Nothing in the UI knows which transport tier it is on.** Panes talk to
 `Session`/link objects handed to them via `self.link`, a documented attribute
@@ -187,6 +193,10 @@ class KissTermApp(App):
         self.gate.on_change.append(self._on_transmit_change)
         self.heard = HeardTable()
         self.monitor_filter = MonitorFilter()
+        #: Drops the monitor's receive subscription on unmount. Set in
+        #: `on_mount`; a no-op until then so shutdown never has to ask
+        #: whether mount happened.
+        self._unsubscribe_monitor = lambda: None
         #: The one active link, if any. Panes read this off `self.app` rather
         #: than tracking their own copy -- see this module's docstring.
         self.link = None
@@ -265,7 +275,16 @@ class KissTermApp(App):
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(2.0, self._refresh_heard)
         if self.station is not None:
-            self.station.on_unhandled.append(self._on_monitor_frame)
+            # Straight off the transport, not off `station.on_unhandled`: a
+            # frame belonging to an open link never reaches `on_unhandled`,
+            # so a monitor fed from there goes silent at exactly the moment
+            # the operator most needs it -- during the connection they are
+            # trying to diagnose. The monitor is a channel monitor or it is
+            # nothing.
+            self._unsubscribe_monitor = self.station.transport.subscribe(
+                self._on_received_frame
+            )
+            self.station.transport.on_sent.append(self._on_sent_frame)
             self.station.on_incoming.append(self._on_incoming_link)
             self._status = f"{self.station.transport.info.detail}"
         self.query_one(TerminalPane).log(
@@ -323,6 +342,7 @@ class KissTermApp(App):
         screen to show it -- and nowhere to show it.
         """
         self.beaconer.cancel()
+        self._unsubscribe_monitor()
         self._close_transcript()
 
     # ------------------------------------------------------------------
@@ -379,13 +399,28 @@ class KissTermApp(App):
     # ------------------------------------------------------------------
     # Frame fan-out
     # ------------------------------------------------------------------
-    def _on_monitor_frame(self, frame: AX25Frame, port: int = 0) -> None:
-        """Every frame not belonging to a link. Feeds monitor and heard list."""
+    def _on_received_frame(self, frame: AX25Frame, port: int = 0) -> None:
+        """Every frame off the air, link-owned or not.
+
+        Feeds the heard list and the monitor pane. Deliberately every frame:
+        the peer we are linked to is a station we have heard, and its UA is
+        the single most interesting frame of a connection attempt.
+        """
         self.heard.record(frame, port)
-        if self.monitor_filter.allows(frame, port):
-            line = format_frame(frame, port)
-            for pane in self._base_query(MonitorPane):
-                pane.write_line(line.as_text())
+        self._monitor(frame, port, outgoing=False)
+
+    def _on_sent_frame(self, frame: AX25Frame, port: int = 0) -> None:
+        """Every frame that got past the transmit gate. Monitor only --
+        hearing ourselves is not the same as hearing another station, and
+        putting our own callsign in the heard list would be a lie."""
+        self._monitor(frame, port, outgoing=True)
+
+    def _monitor(self, frame: AX25Frame, port: int, outgoing: bool) -> None:
+        if not self.monitor_filter.allows(frame, port):
+            return
+        line = format_frame(frame, port, outgoing=outgoing)
+        for pane in self._base_query(MonitorPane):
+            pane.write_line(line.as_text())
 
     def _on_incoming_link(self, link) -> None:
         self._to_terminal("log", f"\n*** Incoming connection from {link.peer}\n")
@@ -657,8 +692,26 @@ class KissTermApp(App):
             self.notify(str(exc), severity="error")
             return
         if link is None:
-            self.query_one(TerminalPane).log(f"*** No connection to {path.destination}\n")
-            self.notify(f"Could not connect to {path.destination}", severity="warning")
+            # Say WHY. "No connection" alone cannot be acted on: a DM means
+            # the node heard us and refused, which is a configuration problem
+            # at one end or the other; silence after N2 tries means the path
+            # did not carry, which is an antenna, power or propagation
+            # problem. On a marginal path that distinction is the whole
+            # diagnosis, and it is already known here.
+            failed = self.station.link_to(path.destination)
+            reason = getattr(failed, "last_error", "") if failed else ""
+            attempts = getattr(failed, "rc", 0) if failed else 0
+            detail = f" -- {reason}" if reason else ""
+            self._to_terminal("log", f"*** No connection to {path.destination}{detail}\n")
+            if attempts:
+                self._to_terminal(
+                    "log",
+                    f"*** {attempts} attempt(s) sent. Check the Monitor tab (F2) "
+                    "for what went out and what came back.\n",
+                )
+            self.notify(
+                f"Could not connect to {path.destination}{detail}", severity="warning"
+            )
             return
         self._bind_link(link)
         self.query_one(TerminalPane).focus_input()

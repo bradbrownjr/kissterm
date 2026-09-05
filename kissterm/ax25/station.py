@@ -100,6 +100,17 @@ class AX25Station:
         ok = await link.connect(timeout=timeout)
         return link if ok else None
 
+    def link_to(self, peer: AX25Address, port: int = 0) -> AX25Link | None:
+        """The link object for ``peer``, connected or not.
+
+        `connect` returns None on failure but keeps the link, because the
+        interesting part of a failed connection attempt -- how many SABMs went
+        out, and whether the far end refused or simply never answered -- lives
+        on that object. This is how the UI reaches it without indexing the
+        private key format.
+        """
+        return self.links.get(_key(peer, port))
+
     async def disconnect_all(self) -> None:
         await asyncio.gather(
             *(link.disconnect() for link in list(self.links.values())),

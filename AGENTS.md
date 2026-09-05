@@ -80,8 +80,15 @@ new pane is the wrong instinct — add a subscriber.**
 
 `AX25Station` (`ax25/station.py`) is the demultiplexer: it decides whether an
 inbound frame belongs to an existing link, starts a new one (incoming SABM),
-or belongs to nobody and goes to `on_unhandled` — which is the entire input to
-the monitor pane, the heard list, and APRS.
+or belongs to nobody and goes to `on_unhandled` — which is the input to APRS.
+
+**The monitor pane subscribes to the transport, not to `station.on_unhandled`.**
+A frame belonging to an open link is routed straight to that link and never
+reaches `on_unhandled`, so a monitor fed from there cannot show the UA that
+answers your SABM, nor any traffic of a live conversation — it goes quiet at
+the one moment worth watching. `FrameTransport.on_sent` is the matching
+fan-out for the transmit side; without it "the node never answered" and "we
+never actually keyed up" look identical on screen.
 
 ### 2c. Layering
 
@@ -499,6 +506,21 @@ Gotchas that already cost time:
   loudly labelled (docs/ROADMAP.md P10), and why any future auto-action keyed
   on "who" is suspect by construction.
 
+### A failure the operator cannot diagnose is a bug
+- **Both directions of every frame are recorded.** `send_frame` and `dispatch`
+  are the two points every frame passes through, and both log at DEBUG, so a
+  new backend inherits the record instead of having to remember it. Never add
+  a send path that bypasses `send_frame`.
+- **A gate-blocked frame is logged as `TX BLOCKED`, never as sent**, and does
+  not fire `on_sent`. Same rule as the beacon: never report a suppressed
+  transmission as a sent one.
+- **`--log-level debug` raises the level of the `kissterm` tree only.** The
+  root stays at WARNING. Letting it also uncork asyncio and Textual buries the
+  twenty frames that matter under thousands of lines about selector events.
+- **Never report two different failures with the same words.** "No connection"
+  covering both a DM refusal and N2 silence sends the operator to check the
+  wrong end of their station.
+
 ### Untrusted input
 - **ALWAYS** put remote-supplied bytes through one of the two filters before
   they reach a widget or a log. `monitor.sanitize()` removes every escape
@@ -661,7 +683,15 @@ again after a Settings save or a config reload.
   whether `peer_busy` got stuck. Turn on `--log-level debug` and read
   `V(S)/V(R)/V(A)/rc` — `AX25Link.__repr__` prints all four.
 - **Debug "nothing in the monitor pane":** the frame never reached
-  `on_unhandled`. Check the transport's decode-error counter, then whether the
-  frame was addressed to us and consumed by a link instead.
+  `Transport.dispatch`. Check the transport's decode-error counter first, then
+  `MonitorFilter` (supervisory frames are hidden by default). Run with
+  `--log-level debug`: every frame is logged in both directions from
+  `send_frame` and `dispatch`, so the log settles whether the frame arrived at
+  all before you go looking in the UI.
+- **Debug "the connect failed":** read `link.last_error` via
+  `AX25Station.link_to()`, and the Monitor tab. A DM means the far end heard
+  us and refused — a configuration problem. N2 silence means the path did not
+  carry — an antenna, power or propagation problem. These need opposite
+  actions from the operator and must never be reported with the same words.
 - **Ship something:** update `docs/CHANGELOG.md` with a dated section and a
   `**Files:**` line, and delete the item from `docs/ROADMAP.md`.

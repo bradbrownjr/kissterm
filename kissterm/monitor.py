@@ -110,14 +110,24 @@ class MonitorLine:
     header: str
     payload: str
     kind: str
+    #: True for a frame this station transmitted. The monitor is worth far
+    #: less without it: "no answer from the node" and "we never keyed up" look
+    #: identical in a log that only records one direction.
+    outgoing: bool = False
 
     def as_text(self, show_time: bool = True) -> str:
         stamp = time.strftime("%H:%M:%S", time.localtime(self.timestamp)) if show_time else ""
-        head = f"{stamp} [{self.port}] {self.header}".strip()
+        arrow = ">" if self.outgoing else "<"
+        head = f"{stamp} {arrow} [{self.port}] {self.header}".strip()
         return f"{head}\n{self.payload}" if self.payload else head
 
 
-def format_frame(frame: AX25Frame, port: int = 0, when: float | None = None) -> MonitorLine:
+def format_frame(
+    frame: AX25Frame,
+    port: int = 0,
+    when: float | None = None,
+    outgoing: bool = False,
+) -> MonitorLine:
     """Render one frame the way a packet operator expects to read it.
 
     The header follows the long-standing `listen`/BPQ convention -- source to
@@ -137,4 +147,5 @@ def format_frame(frame: AX25Frame, port: int = 0, when: float | None = None) -> 
         header=header,
         payload=payload,
         kind=frame.control_name,
+        outgoing=outgoing,
     )

@@ -3,6 +3,58 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Diagnostics for a link that does not come up
+
+Prompted by a real question before a first on-air test over a marginal path:
+"is there adequate logging to determine what is successful, what frames are
+sent and received?" The honest answer was no, so this closes the gap.
+
+### New Features
+- **The monitor pane shows both directions.** `FrameTransport` gained an
+  `on_sent` fan-out, fired for every frame that gets past the transmit gate,
+  and monitor lines now carry a `>` / `<` direction marker. Until now nothing
+  kissterm transmitted appeared anywhere on screen, so "the node never
+  answered" and "we never actually keyed up" looked identical.
+- **The monitor is fed from the transport, not from `station.on_unhandled`.**
+  `AX25Station` routes a frame belonging to an open link straight to that
+  link, so the UA answering our SABM -- and every frame of a live conversation
+  -- never reached the monitor. The pane went quiet at exactly the moment an
+  operator most wants to watch it.
+- **Every frame is logged in both directions** at DEBUG, from the two choke
+  points every frame must pass through (`send_frame` and `dispatch`), so a new
+  backend inherits the log rather than having to remember it. A gate-blocked
+  frame is logged as `TX BLOCKED`, never as sent. `--log-level debug` now
+  writes a usable on-air record to
+  `~/.local/state/kissterm/logs/kissterm.log`.
+- **A failed connect says why.** A DM refusal ("the node heard us and said
+  no") and N2 silence ("the path did not carry") are different problems at
+  different ends of the station, and both used to print `*** No connection to
+  <call>`. The reason and the attempt count are now shown in the terminal
+  pane and in the toast, with a pointer to the Monitor tab.
+
+### Improvements
+- **`--log-level debug` no longer uncorks asyncio and Textual.** Only the
+  `kissterm` logger tree takes the requested level; the root stays at
+  WARNING. Otherwise the twenty frames that matter are buried under thousands
+  of lines about selector events, which is the difference between a log an
+  operator will read and one they will not.
+- **The log opens with a header line** naming the version, callsign and
+  transport, so a file mailed in is reconstructible.
+- **`AX25Link.connect`'s outer timeout is a backstop again, not a
+  competitor.** It fired at exactly the same moment as N2 exhaustion, so it
+  sometimes replaced the state machine's own verdict ("no answer from
+  WS1EC-15 after 11 tries") with a bare "connect timed out". It now allows one
+  extra T1 of slack.
+- `AX25Link.last_error` records why a link failed, and
+  `AX25Station.link_to()` reaches a link after a failed `connect` returned
+  None -- the UI can no longer only be told that something went wrong.
+
+**Files:** `kissterm/transport/base.py`, `kissterm/monitor.py`,
+`kissterm/ui/app.py`, `kissterm/ax25/session.py`, `kissterm/ax25/station.py`,
+`kissterm/__main__.py`, `tests/unit/test_frame_logging.py` (new),
+`tests/pilot/test_monitor_sees_both_directions.py` (new),
+`tests/unit/test_ax25_link.py`, `AGENTS.md`, `README.md`
+
 ## [2026-09-06] — Fix: the first run could not open the transport it just wrote
 
 Reported from a real first run on 0.1.16. The wizard found the TNC, wrote a

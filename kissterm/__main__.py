@@ -85,11 +85,18 @@ def _setup_logging(level: str) -> None:
         # reports the directory as unwritable, which is true but baffling.
         directory = log_path()
         directory.mkdir(parents=True, exist_ok=True)
+        # Root stays at WARNING and only the `kissterm` tree gets the
+        # requested level. `--log-level debug` is a request to see what THIS
+        # program did on the air; letting it also uncork asyncio's and
+        # Textual's debug streams buries the twenty frames that matter under
+        # thousands of lines about selector events, which is the difference
+        # between a log an operator will read and one they will not.
         logging.basicConfig(
             filename=str(directory / "kissterm.log"),
-            level=getattr(logging, level.upper()),
+            level=logging.WARNING,
             format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
         )
+        logging.getLogger("kissterm").setLevel(getattr(logging, level.upper()))
     except OSError:
         # An unwritable log directory must never stop the app from running --
         # the operator can still use the radio without a log file.
@@ -350,6 +357,15 @@ async def _amain(args) -> int:
             accept_incoming=config.accept_incoming,
         )
 
+    # A log that does not say what it is a log OF is guesswork later. This
+    # one line is what makes a file the operator mails in reconstructible:
+    # which build, which radio path, whose callsign.
+    logging.getLogger("kissterm").info(
+        "kissterm %s starting: mycall=%s transport=%s",
+        __version__,
+        getattr(config, "mycall", "") or "(unset)",
+        transport.info.detail or transport.info.kind,
+    )
     app = KissTermApp(config, station)
     try:
         await app.run_async()

@@ -186,7 +186,48 @@ kissterm --callsign W1AW-1   set your callsign and exit (no wizard)
 kissterm --setup             re-run the first-run wizard
 kissterm --transport NAME    open a specific configured transport
 kissterm --connect WS1EC-7   connect once the app is up
+kissterm --log-level debug   record every frame, both directions, to a file
 ```
+
+## When a connection does not come up
+
+Packet links fail for two completely different reasons and they need opposite
+responses, so kissterm never reports them with the same words:
+
+- **`connection refused (DM)`** -- the far end heard you and said no. Your
+  signal is getting there. Check the callsign and SSID, and whether that node
+  accepts connections from you.
+- **`no answer from <call> after N tries`** -- nothing came back at all. That
+  is an antenna, power, squelch or propagation problem, not a configuration
+  one.
+
+The **Monitor tab (F2)** is the real instrument. It shows every frame in both
+directions, `>` for what you transmitted and `<` for what was heard, so you
+can see your SABM leave and watch for a reply. Supervisory frames (RR, RNR,
+REJ) are hidden by default because they are most of the traffic on a busy
+link and almost none of the information -- press **Supervisory** in the filter
+bar to show them when you are diagnosing retries.
+
+For a record you can read afterwards or send to someone else:
+
+```
+kissterm --log-level debug
+```
+
+writes every frame, every T1 expiry with its retry count, and every link state
+transition to `~/.local/state/kissterm/logs/kissterm.log` (macOS:
+`~/Library/Application Support/kissterm/logs/`). It looks like this:
+
+```
+TX port 0: KC1JMH>WS1EC-15 SABM P cmd
+T1 expiry 1 in connecting, rc=0 of 10
+TX port 0: KC1JMH>WS1EC-15 SABM P cmd
+state -> <AX25Link KC1JMH>WS1EC-15 failed V(S)=0 V(R)=0 V(A)=0>
+```
+
+A frame the transmit gate suppressed is logged as `TX BLOCKED` and never as
+sent -- if `TX OFF` is showing in the status bar, the log says so rather than
+claiming you transmitted.
 
 ## Clock
 

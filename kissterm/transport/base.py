@@ -24,6 +24,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import enum
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -42,6 +43,16 @@ if TYPE_CHECKING:
     # import of kissterm.ax25 is actually needed in this module.
     from ..ax25.address import AX25Path
     from ..ax25.frame import AX25Frame
+
+
+#: One logger for both directions of every frame. At DEBUG this is a complete
+#: on-air record -- what went out, what came back, in order, with timestamps --
+#: which is the only thing that answers "did my SABM actually leave, and did
+#: anything reply?" after a link fails over a marginal path. It lives here
+#: rather than in each backend because `send_frame` and `dispatch` are the two
+#: points every frame must pass through, so a new transport inherits the log
+#: instead of having to remember it.
+log = logging.getLogger(__name__)
 
 
 class TransportState(enum.Enum):
@@ -97,6 +108,11 @@ class Transport(abc.ABC):
         #: `KissTermApp` replaces this with a closed one from
         #: `Config.tx_armed_at_start`. See kissterm/tx.py.
         self.gate = TransmitGate(enabled=True)
+        #: Fired for every frame that actually reaches `_send_frame`. The
+        #: receive side already has `subscribe`; without this the monitor pane
+        #: could only ever show half a conversation, and "the node never
+        #: answered" would be indistinguishable from "we never asked".
+        self.on_sent: list[Callable[[AX25Frame, int], None]] = []
 
     @property
     def error(self) -> str:
@@ -147,6 +163,7 @@ class FrameTransport(Transport):
         return _remove
 
     async def dispatch(self, frame: AX25Frame, port: int = 0) -> None:
+        log.debug("RX port %d: %s", port, frame.summary())
         for handler in list(self._handlers):
             result = handler(frame, port)
             if asyncio.iscoroutine(result):
@@ -164,8 +181,18 @@ class FrameTransport(Transport):
         exception.
         """
         if not self.gate.allow():
+            log.debug("TX BLOCKED port %d: %s", port, frame.summary())
             return
+        log.debug("TX port %d: %s", port, frame.summary())
         await self._send_frame(frame, port)
+        for callback in list(self.on_sent):
+            try:
+                callback(frame, port)
+            except Exception:
+                # A monitor pane that raises must not take the link down with
+                # it: the frame is already on the air and the state machine is
+                # entitled to believe it was sent.
+                log.exception("on_sent callback failed")
 
     @abc.abstractmethod
     async def _send_frame(self, frame: AX25Frame, port: int = 0) -> None:
