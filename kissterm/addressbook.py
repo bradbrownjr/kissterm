@@ -58,6 +58,14 @@ class Entry:
     attempts: int = 0
     connects: int = 0
     note: str = ""
+    #: An auto-login script for this station: lines sent, one at a time,
+    #: right after a connect to it comes up (see `KissTermApp._run_connect_
+    #: script`). Empty means "connect only, send nothing automatically",
+    #: which is the default for every entry -- a script only exists here
+    #: because an operator typed one into the Connect dialog for this exact
+    #: station and it got saved alongside the target, the same way a typed
+    #: digipeater path does.
+    script: str = ""
 
     @property
     def summary(self) -> str:
@@ -114,6 +122,7 @@ class AddressBook:
                     attempts=int(item.get("attempts", 0) or 0),
                     connects=int(item.get("connects", 0) or 0),
                     note=str(item.get("note", "")),
+                    script=str(item.get("script", "")),
                 )
             )
         self.entries = entries[:MAX_ENTRIES]
@@ -136,10 +145,19 @@ class AddressBook:
             log.warning("could not save address book to %s: %s", self.file, exc)
 
     # -- the list ---------------------------------------------------------
-    def record_attempt(self, target: str) -> Entry:
-        """Note that the operator asked to connect to `target`, and save."""
+    def record_attempt(self, target: str, script: str = "") -> Entry:
+        """Note that the operator asked to connect to `target`, and save.
+
+        `script` is whatever the Connect dialog's script field held at
+        submit time, including empty -- that field is the one place a
+        script can be entered or cleared, so what it held is written back
+        unconditionally rather than only when non-empty. A deliberate blank
+        removes a script the operator no longer wants exactly the same way
+        typing over the target field changes it.
+        """
         entry = self._touch(target)
         entry.attempts += 1
+        entry.script = script
         self.save()
         return entry
 

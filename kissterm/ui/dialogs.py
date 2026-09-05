@@ -11,19 +11,31 @@ modals here.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, OptionList
+from textual.widgets import Button, Input, Label, OptionList, TextArea
 from textual.widgets.option_list import Option
 
 from ..addressbook import AddressBook
 from ..ax25 import parse_path
 
 
-class ConnectScreen(ModalScreen[str | None]):
+@dataclass(frozen=True)
+class ConnectRequest:
+    """What the Connect dialog hands back: where to connect, and what to
+    say once it comes up. `script` is almost always empty -- see
+    `KissTermApp._run_connect_script` for what a non-empty one does."""
+
+    target: str
+    script: str = ""
+
+
+class ConnectScreen(ModalScreen[ConnectRequest | None]):
     """Ask for a connect target. Accepts ``CALL-SSID [via DIGI,DIGI]``.
 
     Carries an address book of stations already tried, because `WS1EC-15` and
@@ -33,6 +45,11 @@ class ConnectScreen(ModalScreen[str | None]):
     book is loaded here rather than passed in so the dialog works in a test
     with no app around it, and it is optional: pass `book=AddressBook(path)`
     to point it somewhere else.
+
+    Also carries an optional auto-login script per station -- arrowing
+    through the history previews the script saved for that entry, and
+    whatever is in the box when Connect fires travels back with the target
+    and gets saved, blank or not.
     """
 
     BINDINGS = [
@@ -62,6 +79,11 @@ class ConnectScreen(ModalScreen[str | None]):
                 "Down for previous stations - Enter connects - Delete forgets",
                 id="connect-hint",
             )
+            yield Label(
+                "Auto-login script (optional) -- sent a line at a time once connected",
+                id="connect-script-title",
+            )
+            yield TextArea(id="connect-script", tab_behavior="focus")
             with Horizontal(id="connect-buttons"):
                 yield Button("Connect", variant="primary", id="connect-go")
                 yield Button("Cancel", id="connect-cancel")
@@ -122,6 +144,21 @@ class ConnectScreen(ModalScreen[str | None]):
         if event.option.id:
             self._submit(event.option.id)
 
+    @on(OptionList.OptionHighlighted, "#connect-history")
+    def _preview_script(self, event: OptionList.OptionHighlighted) -> None:
+        """Arrowing through history previews that entry's saved script.
+
+        So picking a station also picks up its login sequence without
+        having to remember it lives there and go looking -- the box already
+        shows what would fire, and it is still editable before Connect.
+        """
+        entry = None
+        if event.option.id:
+            entry = next(
+                (e for e in self.book.entries if e.target == event.option.id), None
+            )
+        self.query_one("#connect-script", TextArea).text = entry.script if entry else ""
+
     @on(Input.Changed, "#connect-target")
     def _filter(self, event: Input.Changed) -> None:
         self._render_history(event.value)
@@ -145,11 +182,14 @@ class ConnectScreen(ModalScreen[str | None]):
         except Exception as exc:
             self.query_one("#connect-error", Label).update(f"[red]{exc}[/red]")
             return
+        script = self.query_one("#connect-script", TextArea).text
         # Recorded on the ATTEMPT, not on success: a connect that failed is
         # the one about to be retried, and withholding it until a UA arrives
         # would keep it out of the list at exactly the moment it is wanted.
-        self.book.record_attempt(text)
-        self.dismiss(text)
+        # The script travels the same way, blank or not -- a deliberate
+        # blank clears one the operator no longer wants.
+        self.book.record_attempt(text, script)
+        self.dismiss(ConnectRequest(text, script))
 
 
 class CallsignScreen(ModalScreen[str | None]):

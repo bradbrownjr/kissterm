@@ -180,7 +180,11 @@ transports and framing that already exist, not a new transport.
   "on connect", "on line received", "on line typed") that lets a user write
   a normal `.py` file instead of learning a bespoke macro DSL. Medium-large,
   needs a real security think-through before plugins can touch anything
-  sensitive.
+  sensitive. Not to be confused with the much smaller per-station auto-login
+  script already shipped (`AddressBook.Entry.script`, sent by
+  `KissTermApp._run_connect_script`) -- that is a fixed line-at-a-time text
+  sequence with no logic, triggered only by "on connect". This item is the
+  general-purpose, arbitrary-hook version of the same idea.
 - [ ] **Command palette actions.** Expose connect/disconnect/monitor-toggle/
   transport-switch etc. through Textual's command palette, not just
   keybindings. Small once the actions themselves exist.

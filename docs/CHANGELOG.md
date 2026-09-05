@@ -3,6 +3,76 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Per-station login scripts, and Settings stops being one long scroll
+
+More feedback from the same on-air test session. Five separate reports, all
+fixed here:
+
+### New Features
+- **Per-station auto-login scripts.** Every address-book entry can carry a
+  short script -- lines sent one at a time, a little over half a second
+  apart, once the connect to that station actually comes up. Arrowing
+  through the Connect dialog's history previews the script saved for each
+  row; whatever is in the box when Connect fires travels with the target and
+  is saved back, blank or not. It rides the same armed, confirmed request the
+  connect itself already got -- nothing extra to opt into -- and every line
+  is echoed into the terminal log and the transcript exactly as if typed, and
+  stops rather than silently drops a line if the gate closes or the link
+  drops mid-script. See `AddressBook.Entry.script` and
+  `KissTermApp._run_connect_script`.
+
+### Fixes
+- **Settings is a tabbed form now, not one long scrolling page.** One tab per
+  section (Station, Transports, Link, ...), with Save and Reload in a bar
+  below the tabs that never scrolls -- reaching Save used to mean scrolling
+  past everything else first, every time, on a page that ran to several
+  screens once Beacon and APRS were both on it. A validation failure now
+  jumps to the first tab with a bad field and names every tab that has one,
+  since the field is not necessarily on the tab currently open.
+- **The Save toast is one short sentence.** Cross-check warnings used to be
+  appended to the same toast notification, which then read as an unreadable
+  paragraph gone before it could be read. That detail still goes somewhere
+  durable -- the footer bar, which does not disappear -- just not into a
+  toast with a few seconds on the clock.
+- **Switching the active transport in Settings actually switches it.**
+  Picking a different entry from Active and hitting Save changed
+  `config.active_transport` and nothing else; the live station kept talking
+  to its original transport object, so the status bar kept reporting the old
+  TNC no matter how many times the operator saved. `AX25Station.
+  rebind_transport` now does the other half: build the new transport, open
+  it, and swap it in -- refusing if a link is still connected, since that
+  would silently misroute a live conversation's frames onto unrelated
+  hardware. Fixing this exposed a second bug: `kissterm/__main__.py`'s
+  shutdown closed the transport it originally built rather than whatever
+  `station.transport` currently was, leaking the newly-opened one (a live
+  socket or serial handle) every time an operator switched transports and
+  then quit. Both are fixed together.
+- **A new connect clears the terminal pane.** Without this, a fresh
+  connection's output scrolled in below whatever the last, unrelated station
+  sent, reading as one continuous conversation when it was two.
+- **The manual Clear key (Ctrl+L) is shown in the footer.** It already
+  existed but was marked `show=False` under the same reasoning that hides
+  the tab-switching keys (the tab bar already shows those) -- Clear has no
+  such twin on screen anywhere, so hiding it just made it undiscoverable.
+
+### Answered, no change needed
+- **Connecting via a digipeater is already supported**: `CALL via DIGI1,DIGI2`
+  in the Connect dialog or address book (`kissterm.ax25.parse_path`) builds
+  an `AX25Path` with the repeaters in it, threaded through unchanged from
+  `AX25Station._path_to` into every frame `AX25Link` sends. kissterm does not
+  act as a digipeater itself (out of scope -- see AGENTS.md's scope
+  boundary) and does not need to: any real digipeater on frequency does the
+  repeating, the same as it would for a hardware TNC. Unverified against a
+  real physical digipeater, same caveat as modulo-128 -- worth confirming on
+  the next on-air test.
+
+**Files:** `kissterm/addressbook.py`, `kissterm/ax25/station.py`,
+`kissterm/ui/app.py`, `kissterm/ui/dialogs.py`, `kissterm/ui/settings_pane.py`,
+`kissterm/ui/styles.py`, `kissterm/__main__.py`, `AGENTS.md`,
+`docs/ROADMAP.md`, `tests/unit/test_addressbook.py`,
+`tests/unit/test_station_rebind_transport.py`, `tests/pilot/test_app_mounts.py`,
+`tests/pilot/test_settings.py`
+
 ## [2026-09-05] — Ctrl+D can now stop a stuck connect
 
 From the same on-air test session, after the subnet fix below. Mistyped the

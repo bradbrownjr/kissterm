@@ -25,7 +25,7 @@ from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.ui.dialogs import CallsignScreen, ConnectScreen  # noqa: E402
-from textual.widgets import OptionList  # noqa: E402
+from textual.widgets import OptionList, TextArea  # noqa: E402
 
 from kissterm.ui.heard_pane import HeardPane  # noqa: E402
 from kissterm.ui.monitor_pane import MonitorPane  # noqa: E402
@@ -618,5 +618,55 @@ async def test_a_confirmed_target_is_remembered_even_when_it_fails(tmp_path):
         await asyncio.sleep(0.2)
         assert [e.target for e in app.addressbook.entries] == ["WS1EC-7"]
         assert app.addressbook.entries[0].attempts == 1
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_browsing_history_previews_that_stations_script(tmp_path):
+    """Arrowing onto a row loads its saved script into the box -- that is how
+    an operator finds out one is even there, short of remembering it."""
+    app, ta, tb, station = await _app()
+    book = _fresh_book(app, tmp_path)
+    book.record_attempt("WS1EC-7", script="CLYDE\nMYPASS")
+    book.record_attempt("W1AW-1")  # no script -- the preview must clear too
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open_connect(app, pilot)
+        screen.action_into_list()  # highlights the first (most recent) row: W1AW-1
+        await pilot.pause()
+        assert screen.query_one("#connect-script", TextArea).text == ""
+
+        await pilot.press("down")  # onto WS1EC-7
+        await pilot.pause()
+        assert screen.query_one("#connect-script", TextArea).text == "CLYDE\nMYPASS"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_saved_script_is_sent_after_the_connect_comes_up(tmp_path):
+    """The point of the feature: log in without retyping it, but not
+    invisibly -- every line has to land in the terminal log exactly as if
+    the operator had typed and sent it, and actually reach the peer."""
+    app, ta, tb, station = await _app()
+    book = _fresh_book(app, tmp_path)
+    book.record_attempt("WS1EC-7", script="CLYDE\nMYPASS")
+    peer_station = AX25Station(PEER, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open_connect(app, pilot)
+        screen.action_into_list()
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        await asyncio.sleep(2.0)  # connect, then two lines ~0.75s apart
+        await pilot.pause()
+
+        log = app.query_one(TerminalPane).query_one("#session-log")
+        text = "\n".join(str(line) for line in log.lines)
+        assert "Auto-login: sending 2 line(s)" in text, text
+        assert "CLYDE" in text and "MYPASS" in text, text
+
+        peer_link = peer_station.link_to(MYCALL)
+        assert peer_link is not None, "the connect never reached the peer"
+        assert peer_link.read_nowait() == b"CLYDE\rMYPASS\r"
+    peer_station.close()
     station.close()
 

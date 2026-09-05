@@ -374,7 +374,17 @@ async def _amain(args) -> int:
         if station is not None:
             await station.disconnect_all()
             station.close()
-        await transport.close()
+            # `station.transport`, not the `transport` this function built:
+            # the Settings pane can rebind the station onto a different,
+            # separately-opened transport mid-session (switching the active
+            # TNC), and closing the ORIGINAL one after that would leave the
+            # one actually in use unclosed -- a leaked socket or serial
+            # handle every time an operator changes transports and quits.
+            # `station.close()` does not touch `.transport`, so it is still
+            # there to read after the call.
+            await station.transport.close()
+        else:
+            await transport.close()
     return 0
 
 

@@ -16,6 +16,7 @@ import asyncio  # noqa: E402
 import dataclasses  # noqa: E402
 
 import pytest  # noqa: E402
+from textual.widgets import Select, TabbedContent  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
@@ -501,5 +502,118 @@ async def test_test_button_does_not_call_a_silent_tnc_broken():
             assert "silent" in detail.lower(), detail
     finally:
         station.close()
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_switching_the_active_transport_and_saving_reopens_it():
+    """The bug: picking a different entry from Active and hitting Save
+    changed `config.active_transport` and nothing else. The station kept
+    talking to its original transport object, so the status bar kept
+    reporting the OLD TNC no matter how many times the operator saved."""
+
+    async def handler(reader, writer):
+        await reader.read(64)
+        await asyncio.sleep(5.0)
+
+    server_a = await asyncio.start_server(handler, "127.0.0.1", 0)
+    server_b = await asyncio.start_server(handler, "127.0.0.1", 0)
+    host, port_a = server_a.sockets[0].getsockname()[:2]
+    _, port_b = server_b.sockets[0].getsockname()[:2]
+
+    config = Config(mycall=str(MYCALL))
+    config.transports = [
+        {"kind": "tcp", "name": "first", "host": host, "port": port_a},
+        {"kind": "tcp", "name": "second", "host": host, "port": port_b},
+    ]
+    config.active_transport = "first"
+    app, station = await _app(config)
+    try:
+        async with app.run_test(size=(120, 44)) as pilot:
+            await _settings_tab(app, pilot)
+            app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-transports"
+            await pilot.pause()
+
+            app.query_one("#set-active-transport", Select).value = "second"
+            await pilot.pause()
+
+            app.query_one(SettingsPane)._save()
+            await pilot.pause()
+            await asyncio.sleep(0.3)
+            await pilot.pause()
+
+            assert app.station.transport.info.detail == f"{host}:{port_b}", (
+                app.station.transport.info.detail
+            )
+            status = _plain(app.query_one("#status-bar"))
+            assert f"{host}:{port_b}" in status, status
+    finally:
+        station.close()
+        # The rebind leaves a SECOND live transport behind (`station.
+        # transport`, now "second") on top of the original loopback --
+        # `station.close()` never touches `.transport` (see its docstring),
+        # so this is the caller's job, same fix as `__main__.py`'s shutdown.
+        await station.transport.close()
+        server_a.close()
+        server_b.close()
+        await server_a.wait_closed()
+        await server_b.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_switching_transport_while_connected_is_refused_not_silent():
+    """The other half of the guarantee: Settings already tells the operator to
+    disconnect first. This is what makes that true rather than aspirational --
+    without the refusal in `AX25Station.rebind_transport`, saving a new Active
+    selection mid-conversation would silently reroute a live link's frames
+    onto hardware that has never heard of it."""
+
+    async def handler(reader, writer):
+        await reader.read(64)
+        await asyncio.sleep(5.0)
+
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    host, port = server.sockets[0].getsockname()[:2]
+
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    peer = AX25Station(
+        AX25Address.parse("W1AW-7"), tb, LinkParams(t1=0.2, t2=0.05, t3=5.0)
+    )
+
+    config = Config(mycall=str(MYCALL))
+    config.tx_armed_at_start = True
+    config.transports = [{"kind": "tcp", "name": "other", "host": host, "port": port}]
+    config.active_transport = ""
+    station = AX25Station(MYCALL, ta, LinkParams(t1=0.2, t2=0.05, t3=5.0))
+    app = KissTermApp(config, station)
+    try:
+        async with app.run_test(size=(120, 44)) as pilot:
+            await pilot.press("ctrl+n")
+            await pilot.pause()
+            await asyncio.sleep(0.1)
+            for key in "W1AW-7":
+                await pilot.press(key if key != "-" else "minus")
+            await pilot.press("enter")
+            await pilot.pause()
+            await asyncio.sleep(0.3)
+            assert app.link is not None and app.link.connected, "setup: link never came up"
+
+            await _settings_tab(app, pilot)
+            app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-transports"
+            await pilot.pause()
+            app.query_one("#set-active-transport", Select).value = "other"
+            await pilot.pause()
+
+            app.query_one(SettingsPane)._save()
+            await pilot.pause()
+            await asyncio.sleep(0.2)
+
+            assert app.station.transport is ta, "the transport changed while a link was up"
+    finally:
+        station.close()
+        peer.close()
         server.close()
         await server.wait_closed()

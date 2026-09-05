@@ -18,6 +18,21 @@ def book(tmp_path):
     return AddressBook(tmp_path / "addressbook.json")
 
 
+def test_a_script_is_saved_alongside_the_attempt(book):
+    book.record_attempt("WS1EC-7", script="C WS1EC-7\nCLYDE\nMYPASS")
+    assert book.entries[0].script == "C WS1EC-7\nCLYDE\nMYPASS"
+
+
+def test_a_blank_script_clears_a_previously_saved_one(book):
+    """The Connect dialog's script field is the one place a script can be
+    entered or removed -- reconnecting with it left blank has to actually
+    clear a script the operator no longer wants, not silently keep the old
+    one because nothing new was typed."""
+    book.record_attempt("WS1EC-7", script="C WS1EC-7")
+    book.record_attempt("WS1EC-7", script="")
+    assert book.entries[0].script == ""
+
+
 def test_an_attempt_is_remembered_even_though_it_failed(book):
     """The case this was built for: a connect that got no answer is the one
     you are about to try again. Waiting for a UA to record it would withhold
@@ -79,13 +94,14 @@ def test_the_list_is_capped(book):
 
 def test_it_survives_a_round_trip(tmp_path):
     first = AddressBook(tmp_path / "addressbook.json")
-    first.record_attempt("WS1EC-15")
+    first.record_attempt("WS1EC-15", script="C WS1EC-15\nCLYDE")
     first.record_connect("W1AW-1")
 
     second = AddressBook(tmp_path / "addressbook.json")
     second.load()
     assert [e.target for e in second.entries] == ["W1AW-1", "WS1EC-15"]
     assert second.entries[0].connects == 1
+    assert second.entries[1].script == "C WS1EC-15\nCLYDE"
 
 
 def test_a_missing_file_is_not_an_error(tmp_path):

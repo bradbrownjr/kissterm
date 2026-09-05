@@ -447,6 +447,16 @@ Gotchas that already cost time:
   (`ANSWERING`, `BEACON`) for as long as they are armed, and both write every
   transmission into the terminal pane. A station that transmits without the
   operator being able to see that it did is what the opt-in exists to prevent.
+- **A per-station auto-login script (`KissTermApp._run_connect_script`) is a
+  third case, not a loophole in the first one.** It only fires after a
+  connect the operator just named and confirmed in the Connect dialog --
+  `_arm_for` already armed transmit for that exact request, and this rides
+  it rather than arming or confirming anything of its own. It still has to
+  behave like the other two: every line echoed into the terminal log and the
+  transcript as it goes out, and it stops rather than silently drops a line
+  if the gate closes or the link drops mid-script. A script is empty by
+  default on every address-book entry; one only exists because the operator
+  typed it into the Connect dialog for that exact station.
 - **A beacon is not APRS beaconing, and the code must keep saying so.**
   `kissterm/beacon.py` sends free text to `BEACON`; `kissterm/aprs/` sends a
   position in APRS format to `APRS`. Separate config tables, separate Settings
@@ -502,6 +512,21 @@ Gotchas that already cost time:
 - `tests/unit/test_transport_factory.py` guards all of the above, including a
   static check that every key discovery writes is either stripped or accepted
   by that kind's `__init__`.
+- **Switching the active transport mid-session goes through
+  `AX25Station.rebind_transport`, never a bare `station.transport = ...`.**
+  It refuses while any link is connected (swapping the wire under a live
+  conversation would silently misroute its frames onto unrelated hardware)
+  and moves the frame subscription, not just the attribute -- forgetting
+  that half leaves the station bound to a transport that never calls it.
+  It hands back the OLD transport rather than closing it, because closing
+  is I/O and this call is deliberately synchronous; the caller (currently
+  only `SettingsPane._reopen_transport`) awaits `old.close()` itself.
+  **Whoever closes the CURRENT transport at shutdown must read it from
+  `station.transport`, not from whatever local variable originally built
+  it** -- `kissterm/__main__.py`'s `finally` block did exactly the wrong
+  one until this was added, which leaked the newly-opened transport (socket
+  or serial handle, still open) every time an operator switched transports
+  in Settings and then quit.
 
 ### Discovery and scanning
 - **A sweep must cover the subnet or say that it did not.** `ScanCoverage`

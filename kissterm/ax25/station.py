@@ -124,6 +124,35 @@ class AX25Station:
             link.close()
         self.links.clear()
 
+    def rebind_transport(self, transport: FrameTransport) -> FrameTransport:
+        """Swap the frame transport this station sends and listens on.
+
+        Exists for the Settings pane: picking a different configured TNC and
+        saving used to change `Config.active_transport` and nothing else --
+        the station kept talking to the old transport object, so the status
+        bar kept showing the old TNC no matter how many times the operator
+        saved. This is the other half: build the new transport, open it, then
+        call this to make it the one the station actually uses.
+
+        Refuses while any link is connected, rather than silently rerouting a
+        live conversation's frames onto unrelated hardware -- the Settings
+        pane already tells the operator to disconnect first; this is the
+        guarantee behind that instruction, not just the wording of it.
+
+        Returns the OLD transport so the caller can close it. Closing is I/O
+        and this method is deliberately synchronous, so it cannot do that
+        part itself.
+        """
+        if any(link.connected for link in self.links.values()):
+            raise RuntimeError(
+                "Disconnect the active link before changing transports."
+            )
+        old = self.transport
+        self._unsubscribe()
+        self.transport = transport
+        self._unsubscribe = transport.subscribe(self._on_frame)
+        return old
+
     # ------------------------------------------------------------------
     async def _on_frame(self, frame: AX25Frame, port: int = 0) -> None:
         if not self._is_mine(frame.path.destination):

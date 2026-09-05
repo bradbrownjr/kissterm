@@ -77,6 +77,7 @@ operator will hit at the worst moment.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
@@ -143,6 +144,12 @@ def _status_row(parts: list[str]) -> Table:
 #: answer" / "check the Monitor tab" wording meant for a genuine timeout.
 CANCELLED_REASON = "cancelled by operator"
 
+#: Pause between auto-login lines (`KissTermApp._run_connect_script`). A
+#: login sequence is normally two or three short commands, not a burst --
+#: pacing them gives a BBS's own line handling a moment to catch up rather
+#: than racing several commands in before it has processed the first.
+CONNECT_SCRIPT_LINE_DELAY = 0.75
+
 
 class KissTermApp(App):
     """The application.
@@ -199,7 +206,7 @@ class KissTermApp(App):
         Binding("ctrl+d", "disconnect", "Disconnect"),
         Binding("ctrl+k", "set_callsign", "Callsign"),
         Binding("ctrl+r", "command_reference", "Commands"),
-        Binding("ctrl+l", "clear_log", "Clear", show=False),
+        Binding("ctrl+l", "clear_log", "Clear"),
     ]
 
     def __init__(self, config, station: AX25Station | None = None, **kwargs) -> None:
@@ -747,9 +754,10 @@ class KissTermApp(App):
         if self.station is None:
             self.notify("No transport is open.", severity="error")
             return
-        target = await self.push_screen_wait(ConnectScreen(self.addressbook))
-        if not target:
+        request = await self.push_screen_wait(ConnectScreen(self.addressbook))
+        if not request:
             return
+        target = request.target
         path = parse_path(target)
         # The TNC link, before the RF link. Sending six SABMs into a socket
         # that is down produces "no answer from WS1EC-15" -- a diagnosis
@@ -776,6 +784,11 @@ class KissTermApp(App):
         # is the operator asking to transmit, and refusing it here left them
         # with a dead end that only reads as "the far station is not there".
         self._arm_for(f"connect to {path.destination}")
+        # A fresh screen for a fresh session. Without this, the top of the
+        # scrollback is whatever the LAST station sent -- a new connect
+        # attempt scrolling in below an old, unrelated conversation reads as
+        # one continuous session when it is not.
+        self.query_one(TerminalPane).clear()
         self.query_one(TerminalPane).log(f"\n*** Connecting to {path.destination}...\n")
         # Set before the await, not after: `AX25Station.connect` registers the
         # link synchronously before it awaits anything, so by the time this
@@ -832,6 +845,43 @@ class KissTermApp(App):
         self.addressbook.record_connect(target)
         self._bind_link(link)
         self.query_one(TerminalPane).focus_input()
+        if request.script.strip():
+            self._run_connect_script(link, request.script)
+
+    @work
+    async def _run_connect_script(self, link, script: str) -> None:
+        """Send a station's saved auto-login script, one line at a time.
+
+        Runs only right after a connect the operator just named and
+        confirmed in the Connect dialog -- see `_arm_for` above, which is
+        what actually armed transmit for this attempt. This does not arm or
+        re-confirm anything itself; it rides the one the connect already
+        got, the same way answering a poll rides an established link's own
+        authorization rather than asking again per frame.
+
+        Every line is echoed into the terminal log and the session
+        transcript exactly the way `TerminalPane.send_line` echoes a typed
+        one -- automation the operator cannot see on screen is exactly what
+        the transmit-gate rules exist to prevent. A closed gate or a link
+        that has dropped stops the script rather than losing lines
+        silently: reporting a suppressed line as sent would be the one lie
+        a transmit indicator must not tell.
+        """
+        lines = [ln for ln in script.splitlines() if ln.strip()]
+        if not lines:
+            return
+        self._to_terminal("log", f"\n*** Auto-login: sending {len(lines)} line(s)...\n")
+        for line in lines:
+            if not link.connected:
+                self._to_terminal("log", "*** Auto-login stopped: no longer connected.\n")
+                return
+            if not self.gate.enabled:
+                self._to_terminal("log", "*** Auto-login stopped: transmit is off.\n")
+                return
+            await link.send(line.encode("latin-1", "replace") + b"\r")
+            self._to_terminal("log", line + "\n")
+            self.log_sent(line)
+            await asyncio.sleep(CONNECT_SCRIPT_LINE_DELAY)
 
     @work
     async def action_set_callsign(self) -> None:

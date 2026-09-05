@@ -118,6 +118,11 @@ ConnectScreen { align: center middle; }
    edge -- a `Label`'s default auto width sizes to fit the text on one line,
    which is longer than the dialog and was reading as cut off mid-sentence. */
 #connect-hint { color: $text-muted; width: 100%; height: auto; }
+#connect-script-title { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
+/* Fixed and short on purpose -- a login script is a handful of lines
+   (callsign, password, maybe a mailbox command), not a document, and a
+   box that grew with its content would push Connect/Cancel around. */
+#connect-script { height: 4; border: round $primary; }
 
 .placeholder { padding: 1 2; color: $text-muted; }
 
@@ -150,19 +155,20 @@ ConnectScreen { align: center middle; }
    line running the full width of an ultrawide terminal is technically
    readable and practically not -- the eye loses the line start on the way
    back. The form column itself is ~92 wide, so the two agree. */
-SettingsPane { padding: 0 2; }
+/* Settings is now a TabbedContent (one tab per schema section) over a bar
+   that never scrolls. `#settings-tabs` takes all the vertical space the tab
+   content is given; `#settings-bar` is sized to its own content so Save
+   stays reachable in one click regardless of which tab is open or how far
+   down its list the operator has scrolled -- the single long page this
+   replaced put Save at the bottom of several screens' worth of fields. */
+SettingsPane { layout: vertical; }
+#settings-tabs { height: 1fr; }
+.settings-tab-scroll { padding: 0 2; }
+#settings-bar { height: auto; padding: 1 2 0 2; border-top: solid $panel; }
 .settings-banner {
-    padding: 1 2; margin: 1 0;
+    padding: 1 2; margin: 0 0 1 0;
     background: $warning-darken-2; color: $text;
     max-width: 92;
-}
-/* A rule under each heading gives the page structure at a glance -- with only
-   bold accent text, sections blur together while scrolling. */
-.settings-section {
-    margin: 2 0 0 0; padding: 0 1;
-    text-style: bold; color: $accent;
-    width: 92;
-    border-bottom: solid $panel;
 }
 .settings-note { padding: 0 1 1 1; color: $text-muted; max-width: 92; }
 .settings-row { height: auto; padding: 0 1; margin-top: 1; }
@@ -175,7 +181,7 @@ SettingsPane { padding: 0 2; }
 .settings-row Input { width: 46; }
 .settings-row Select { width: 46; }
 .settings-row Button { margin-right: 1; }
-/* The Save/Reload row has no label column, so indent it to the control
-   column and let it breathe away from the last field. */
-.settings-actions { margin-top: 2; padding-left: 27; }
+/* Its own bar now, not the last row of a field column -- no label-column
+   indent to match, just enough top margin to separate it from the banner. */
+.settings-actions { margin-top: 1; }
 """

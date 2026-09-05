@@ -26,12 +26,22 @@ into the UI. See `settings_schema`'s docstring.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 
 from textual import on, work
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
-from textual.widgets import Button, Input, Label, Select, Static, Switch
+from textual.widgets import (
+    Button,
+    Input,
+    Label,
+    Select,
+    Static,
+    Switch,
+    TabbedContent,
+    TabPane,
+)
 
 from .settings_schema import (
     SETTINGS_SCHEMA,
@@ -64,6 +74,11 @@ def _widget_id(path: str) -> str:
     return "set-" + path.replace(".", "-")
 
 
+def _tab_id(title: str) -> str:
+    """A DOM-safe id for a section's `TabPane` (`"Link"` -> `settings-tab-link`)."""
+    return "settings-tab-" + title.lower().replace(" ", "-")
+
+
 #: What "Test selected" prints for each `discovery.Identity.verdict`. An
 #: operator pressing this button wants OK or FAILED, not the paragraph
 #: `identity.summary` carries for the scan results list -- that wording stays
@@ -94,37 +109,48 @@ def _test_result_line(host: str, port: int, identity) -> str:
     return f"{host}:{port}  {label}  --  {reason}"
 
 
-class SettingsPane(VerticalScroll):
-    """Scrollable form over the whole schema, plus transport management."""
+class SettingsPane(Vertical):
+    """A tabbed form over the whole schema, plus transport management.
+
+    One `TabPane` per schema section rather than one long scrolling page.
+    The single-scroll version put Save at the bottom of a page that could run
+    to several screens once Beacon, APRS and Link params were all on it --
+    reaching it meant scrolling past everything else first, every time. Save
+    and Reload now live in a bar below the tabs that never scrolls, so they
+    are always one click away regardless of which section is open or how far
+    down it the operator has scrolled.
+    """
 
     def compose(self) -> ComposeResult:
-        yield Static("", id="settings-banner", classes="settings-banner")
-
-        # Schema order decides the page order, with one exception: the
-        # hand-built Transports block is emitted straight after whichever
+        # Schema order decides the tab order, with one exception: the
+        # hand-built Transports tab is inserted straight after whichever
         # section is named below. Who you are on the air (Station: callsign,
-        # aliases) belongs at the very top -- it is the first thing a new
-        # operator sets and the thing most often changed later -- and the
-        # hardware you talk through belongs immediately under it. Everything
-        # after that is tuning.
-        for section in SETTINGS_SCHEMA:
-            yield Label(section.title, classes="settings-section")
-            yield Static(section.note, classes="settings-note")
-            for spec in section.fields:
-                yield from self._compose_field(spec)
-            if section.title == TRANSPORTS_AFTER_SECTION:
-                yield from self._compose_transports()
+        # aliases) belongs first -- it is the first thing a new operator sets
+        # and the thing most often changed later -- and the hardware you talk
+        # through belongs immediately after it. Everything else is tuning.
+        with TabbedContent(id="settings-tabs"):
+            for section in SETTINGS_SCHEMA:
+                with TabPane(section.title, id=_tab_id(section.title)):
+                    with VerticalScroll(classes="settings-tab-scroll"):
+                        yield Static(section.note, classes="settings-note")
+                        for spec in section.fields:
+                            yield from self._compose_field(spec)
+                if section.title == TRANSPORTS_AFTER_SECTION:
+                    with TabPane("Transports", id=_tab_id("Transports")):
+                        with VerticalScroll(classes="settings-tab-scroll"):
+                            yield from self._compose_transports()
 
-        with Horizontal(classes="settings-row settings-actions"):
-            yield Button("Save", variant="primary", id="settings-save")
-            yield Button("Reload from file", id="settings-reload")
-        yield Static("", id="settings-footer", classes="settings-note")
+        with Vertical(id="settings-bar"):
+            yield Static("", id="settings-banner", classes="settings-banner")
+            with Horizontal(classes="settings-row settings-actions"):
+                yield Button("Save", variant="primary", id="settings-save")
+                yield Button("Reload from file", id="settings-reload")
+            yield Static("", id="settings-footer", classes="settings-note")
 
     def _compose_transports(self) -> ComposeResult:
-        """The one hand-built section -- see the module docstring for why
+        """The one hand-built tab -- see the module docstring for why
         transports cannot be schema fields (a list of dicts with
         kind-specific keys, not scalars)."""
-        yield Label("Transports", classes="settings-section")
         yield Static(
             "Which TNC or modem kissterm talks to. Changing this reopens the "
             "connection, so disconnect first. USB and serial TNCs are noticed "
@@ -261,8 +287,10 @@ class SettingsPane(VerticalScroll):
     @on(Button.Pressed, "#settings-save")
     def _save(self) -> None:
         config = self.app.config  # type: ignore[attr-defined]
+        previous_active = config.active_transport
         pending: dict[str, object] = {}
         failed = False
+        failed_sections: set[str] = set()
 
         for section in SETTINGS_SCHEMA:
             for spec in section.fields:
@@ -279,12 +307,19 @@ class SettingsPane(VerticalScroll):
                 except ValidationError as exc:
                     self._set_error(wid, str(exc))
                     failed = True
+                    failed_sections.add(section.title)
 
         if failed:
             # Nothing is written. A partial save leaves the operator unable to
-            # tell which values took -- worse than refusing outright.
+            # tell which values took -- worse than refusing outright. Naming
+            # the tabs matters now that a bad field is not necessarily on the
+            # one currently open, and jumping to the first one means the
+            # operator does not have to go hunting for it themselves.
+            self.query_one("#settings-tabs", TabbedContent).active = _tab_id(
+                sorted(failed_sections)[0]
+            )
             self.query_one("#settings-footer", Static).update(
-                "Not saved -- fix the fields marked above."
+                "Not saved -- fix the fields in: " + ", ".join(sorted(failed_sections))
             )
             self.app.notify("Settings not saved: some values are invalid.", severity="error")
             return
@@ -300,11 +335,24 @@ class SettingsPane(VerticalScroll):
         saved = self.app._save_config()  # type: ignore[attr-defined]
         self._apply_live(config)
 
+        # The toast and the footer say different amounts on purpose. The
+        # toast disappears in a few seconds, so a long paragraph of
+        # cross-check notes there is unreadable before it goes -- it showed
+        # up looking like noise. The footer does not disappear, so the detail
+        # belongs there instead.
         message = "Settings saved." if saved else "Applied for this session (could not write config)."
+        detail = message
         if notes:
-            message += " " + " ".join(notes)
-        self.query_one("#settings-footer", Static).update(message)
+            detail += " " + " ".join(notes)
+        self.query_one("#settings-footer", Static).update(detail)
         self.app.notify(message, severity="information" if saved else "warning")
+
+        if config.active_transport and config.active_transport != previous_active:
+            # Picking a different entry from Active used to change this one
+            # string and nothing else -- the station kept talking to the OLD
+            # transport object, so the status bar kept showing the old TNC no
+            # matter how many times this ran. See `_reopen_transport`.
+            self._reopen_transport(config)
 
     def _apply_live(self, config) -> None:
         """Push the settings that can change under a running app.
@@ -497,3 +545,67 @@ class SettingsPane(VerticalScroll):
     @on(Button.Pressed, "#settings-test")
     def _test_pressed(self) -> None:
         self._test_transport()
+
+    @work
+    async def _reopen_transport(self, config) -> None:
+        """Actually open the newly-selected transport.
+
+        Without this, choosing a different entry from Active and hitting Save
+        changed `Config.active_transport` and nothing else -- the live
+        station kept its old `FrameTransport` object, so the status bar kept
+        reporting the old TNC no matter how many times the operator saved.
+        This builds and opens the new one and hands it to the station in
+        place of the old one, via `AX25Station.rebind_transport`.
+        """
+        app = self.app
+        station = getattr(app, "station", None)
+        if station is None:
+            return
+        entry = next(
+            (t for t in config.transports if t.get("name") == config.active_transport),
+            None,
+        )
+        if entry is None:
+            return
+
+        from .. import transport as transport_mod
+        from ..transport.base import FrameTransport
+
+        try:
+            new_transport = transport_mod.build_transport(entry)
+            await new_transport.open()
+        except Exception as exc:
+            log.exception("could not open %s", entry.get("name"))
+            app.notify(f"Could not open {entry.get('name', '?')}: {exc}", severity="error")  # type: ignore[attr-defined]
+            return
+
+        if not isinstance(new_transport, FrameTransport):
+            # A session transport (VARA, Mercury, the kernel stack) hands
+            # back an already-connected byte stream rather than frames the
+            # station's state machine can run on -- swapping one in here
+            # would need a different app entirely, not a different transport
+            # object. Restarting kissterm with it selected is the supported
+            # path; see `__main__.py`.
+            app.notify(  # type: ignore[attr-defined]
+                f"{entry.get('name')} is a session transport; switching to it "
+                "live is not supported. Restart kissterm with it selected.",
+                severity="warning",
+            )
+            with contextlib.suppress(Exception):
+                await new_transport.close()
+            return
+
+        try:
+            old_transport = station.rebind_transport(new_transport)
+        except RuntimeError as exc:
+            app.notify(str(exc), severity="warning")  # type: ignore[attr-defined]
+            with contextlib.suppress(Exception):
+                await new_transport.close()
+            return
+
+        with contextlib.suppress(Exception):
+            await old_transport.close()
+
+        if hasattr(app, "_refresh_status"):
+            app._refresh_status()  # type: ignore[attr-defined]
+        app.notify(f"Now using {entry.get('name')}.")  # type: ignore[attr-defined]
