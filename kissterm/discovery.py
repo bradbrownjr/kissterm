@@ -233,14 +233,28 @@ async def probe_kiss_serial(device: str, baud: int = _DEFAULT_BAUD, timeout: flo
 # ---------------------------------------------------------------------------
 
 #: Well-known KISS/AGW/VARA TCP ports, in the order worth trying first.
-_WELL_KNOWN_PORTS: dict[int, str] = {
-    8001: "Direwolf KISS",
-    8000: "AGWPE",
-    8100: "KISS-over-TCP",
-    8300: "VARA HF (command)",
-    8301: "VARA HF (data)",
-    8400: "VARA FM (command)",
-    8401: "VARA FM (data)",
+#: port -> (service label, transport kind, is this port's config complete?)
+#:
+#: The `kind` matters more than the label. An earlier version reported the
+#: service name correctly and then wrote ``kind = "tcp"`` for every port,
+#: so accepting the AGWPE entry the scan offered configured a *raw KISS*
+#: transport pointed at an AGWPE engine -- two different framings on one
+#: socket, which decodes as garbage rather than failing cleanly.
+#:
+#: The third field is whether discovery can write a *usable* entry from a
+#: probe alone. VARA cannot: `VaraTransport` needs `mycall`, which a port
+#: scan does not know, and it uses two ports at once -- so its command port
+#: is reported as found and left for the operator to configure, and its data
+#: port is not offered as a device of its own at all, because it is the other
+#: half of the same modem rather than a second thing to connect to.
+_WELL_KNOWN_PORTS: dict[int, tuple[str, str | None, bool]] = {
+    8001: ("Direwolf KISS", "tcp", True),
+    8000: ("AGWPE", "agwpe", True),
+    8100: ("KISS-over-TCP", "tcp", True),
+    8300: ("VARA HF (command)", "vara", False),
+    8301: ("VARA HF (data)", None, False),
+    8400: ("VARA FM (command)", "varafm", False),
+    8401: ("VARA FM (data)", None, False),
 }
 
 #: Cap on simultaneous connection attempts. A /24 sweep across every
@@ -334,15 +348,37 @@ async def discover_network(subnet: str | None = None, timeout: float = 3.0) -> l
                 with contextlib.suppress(Exception):
                     await writer.wait_closed()
 
-            service = _WELL_KNOWN_PORTS.get(port, f"TCP {port}")
+            service, kind, complete = _WELL_KNOWN_PORTS.get(
+                port, (f"TCP {port}", "tcp", True)
+            )
+            if kind is None:
+                # The data half of a two-port modem. Reporting it as its own
+                # device would offer the operator a second thing to connect
+                # to that is really the same radio.
+                return
+
+            label = f"{host}:{port}"
+            note = _describe_banner(banner)
+            if complete:
+                config = {"kind": kind, "name": label, "host": host, "port": port}
+            else:
+                # Found, but not configurable from a probe -- see
+                # _WELL_KNOWN_PORTS. Say so rather than writing an entry that
+                # is the wrong kind or missing a required field.
+                config = {}
+                note = (
+                    f"{note + '; ' if note else ''}needs your callsign and both "
+                    f"ports -- add a [[transports]] entry by hand"
+                ).strip()
+
             results.append(
                 DiscoveredDevice(
-                    kind="tcp",
-                    label=f"{host}:{port}",
+                    kind=kind,
+                    label=label,
                     detail=f"{service} at {host}:{port}",
                     confidence=0.7,
-                    config={"kind": "tcp", "name": f"{host}:{port}", "host": host, "port": port},
-                    note=_describe_banner(banner),
+                    config=config,
+                    note=note,
                 )
             )
 

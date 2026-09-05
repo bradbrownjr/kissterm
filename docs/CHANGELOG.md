@@ -3,6 +3,58 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-06] — Fix: the first run could not open the transport it just wrote
+
+Reported from a real first run on 0.1.16. The wizard found the TNC, wrote a
+correct-looking config, and then:
+
+    Could not open transport '10.6.26.5:8001':
+    TcpKissTransport.__init__() got an unexpected keyword argument 'name'
+
+### Fixed
+- **`build_transport` forwarded the config entry's `name` into the
+  constructor.** `name` is the operator's label for the entry -- what
+  `active_transport` matches on and what the status bar shows -- and no
+  transport's `__init__` takes it. Every entry discovery writes carries it, so
+  **no wizard-configured transport of any kind could be opened**: not serial,
+  not TCP, not Bluetooth. `_ENTRY_ONLY_KEYS` now names the entry-level keys
+  that get stripped; everything else is still forwarded, so a typo in a real
+  setting still fails loudly rather than being silently ignored. The entry's
+  `name` now also wins over the class-derived one, so the config and the
+  status bar cannot disagree about which transport is in use.
+- **`--doctor` had its own dispatch table, and that is why this shipped.** It
+  picked constructor arguments by hand, so it exercised a path the app never
+  took and reported the broken config perfectly healthy. It now delegates to
+  `build_transport`. A diagnostic that does not exercise the real path is
+  worse than no diagnostic, because it is believed.
+- **The setup wizard now builds the transport it is about to save**, and
+  refuses to print "Saved" if that fails. It is the last point where the
+  operator is still sitting there to be told something is wrong.
+- **Discovery reported the right service and then wrote the wrong kind.**
+  Every TCP find became `kind = "tcp"`, so accepting the AGWPE entry the scan
+  offered would have configured a *raw KISS* transport pointed at an AGWPE
+  engine -- two framings on one socket, which decodes as garbage rather than
+  failing cleanly. Port 8000 now maps to `agwpe`.
+- **VARA ports are no longer offered as configurable finds.** `VaraTransport`
+  needs a callsign and two ports, neither of which a port scan knows, so a
+  VARA command port is reported as found with a note to configure it by hand,
+  and a VARA *data* port is no longer listed as a device of its own -- it is
+  the other half of the same modem, not a second thing to connect to.
+
+### Why no test caught it
+Nothing exercised `build_transport` against an entry the wizard actually
+produces. `tests/unit/test_transport_factory.py` now does, for every kind,
+plus a static check that walks `discovery.py` and asserts every key it writes
+is either an entry-level key `build_transport` strips or a real parameter of
+that kind's `__init__`. Reintroducing the original one-word bug fails 17 of
+its tests.
+
+**Files:** new `tests/unit/test_transport_factory.py`; changed
+`kissterm/transport/__init__.py`, `kissterm/doctor.py`,
+`kissterm/discovery.py`, `kissterm/__main__.py`, `AGENTS.md`.
+
+---
+
 ## [2026-09-05] — A master transmit switch, and a manual beacon key
 
 Requested: handle the "does not transmit at startup" problem the way other

@@ -167,6 +167,50 @@ def _wizard_pick_theme(config) -> None:
         print("  Not a listed number; keeping the current theme.")
 
 
+def _wizard_save_transport(config, dev) -> None:
+    """Write a discovered device into the config -- but prove it first.
+
+    The wizard used to write whatever `dev.config` held and print "Saved".
+    That is how kissterm shipped a release whose very first run wrote a
+    valid-looking config file and then failed to open it, with a TypeError
+    out of a constructor, every time and for every transport kind. The wizard
+    is the last point where the operator is still sitting there and can be
+    told something is wrong, so it now builds the transport it is about to
+    save and refuses to claim success if that fails.
+
+    Construction only -- nothing is opened. Opening needs the hardware
+    powered on and reachable, which does not belong in the middle of a setup
+    prompt; that is what `--doctor` is for.
+    """
+    if not dev.config.get("kind"):
+        # Discovery found it but cannot configure it from a probe -- a VARA
+        # modem, whose entry needs a callsign and two ports. See
+        # discovery._WELL_KNOWN_PORTS.
+        print(f"  {dev.label} cannot be set up automatically.")
+        if dev.note:
+            print(f"  {dev.note}")
+        print("  See config.toml.example for a worked [[transports]] entry.")
+        return
+
+    entry = dict(dev.config)
+    entry.setdefault("name", dev.label)
+
+    from .transport import build_transport
+
+    try:
+        build_transport(entry)
+    except Exception as exc:  # noqa: BLE001 -- reporting this IS the feature
+        print(f"  Could not use {dev.label}: {exc}")
+        print("  Nothing was saved. Please report this -- a discovered device")
+        print("  should always produce a usable config entry.")
+        return
+
+    config.transports = [t for t in config.transports if t.get("name") != entry["name"]]
+    config.transports.append(entry)
+    config.active_transport = entry["name"]
+    print(f"  Saved transport '{entry['name']}'.")
+
+
 async def _run_wizard(config, no_network: bool) -> bool:
     """Interactive first-run setup. Returns False if the operator bailed out."""
     from .ax25.address import AX25Address, AX25AddressError
@@ -202,14 +246,7 @@ async def _run_wizard(config, no_network: bool) -> bool:
             except (ValueError, IndexError):
                 print("  Not a listed number; skipping transport setup.")
             else:
-                entry = dict(dev.config)
-                entry.setdefault("name", dev.label)
-                config.transports = [
-                    t for t in config.transports if t.get("name") != entry["name"]
-                ]
-                config.transports.append(entry)
-                config.active_transport = entry["name"]
-                print(f"  Saved transport '{entry['name']}'.")
+                _wizard_save_transport(config, dev)
     else:
         _print_devices(devices)
 

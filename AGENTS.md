@@ -426,6 +426,32 @@ Gotchas that already cost time:
   that is true. The status bar's `ANSWERING` marker is the honest counterpart
   to the opt-in.
 
+### One way to build a transport
+- **`transport.build_transport()` is the ONLY way a `Transport` is constructed
+  from config.** The app, the setup wizard and `--doctor` all go through it. A
+  second dispatch table looks harmless and is not: `--doctor` had one, picked
+  constructor arguments by hand, and so reported every transport healthy while
+  the app could not open a single one. A diagnostic that does not exercise the
+  real path is worse than no diagnostic, because it is believed.
+- **Config-entry keys are not constructor arguments.** `name` is the
+  operator's label -- what `active_transport` matches on and what the status
+  bar shows -- and no transport's `__init__` takes it. `_ENTRY_ONLY_KEYS` is
+  the list that gets stripped; everything else is still forwarded, so a typo
+  in a real setting still fails loudly instead of being silently dropped.
+  Forwarding `name` blindly is what made 0.1.16's first run write a
+  valid-looking config and then fail to open it, for every transport kind.
+- **Discovery must only emit a config it can actually complete.** A probe
+  cannot know a VARA modem's callsign or that it needs two ports, so those
+  entries carry no `kind` and the wizard says so rather than writing a wrong
+  one. And the port decides the *kind*, not just the label: an AGWPE engine
+  spoken to as raw KISS decodes as garbage instead of failing cleanly.
+- **The wizard builds what it is about to save**, and refuses to print
+  "Saved" if that fails. It is the last moment the operator is still present
+  to be told something is wrong.
+- `tests/unit/test_transport_factory.py` guards all of the above, including a
+  static check that every key discovery writes is either stripped or accepted
+  by that kind's `__init__`.
+
 ### Discovery and scanning
 - **NEVER scan the network on a timer.** A sweep is 254 hosts times six
   ports -- about **1,500 TCP connection attempts**. Automatic, that is

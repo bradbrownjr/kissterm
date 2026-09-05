@@ -38,6 +38,7 @@ from typing import Any
 
 from .ax25.address import AX25Address, AX25AddressError
 from .config import Config, config_path, log_path
+from .transport import build_transport
 
 logger = logging.getLogger(__name__)
 
@@ -231,23 +232,29 @@ async def _check_transports(config: Config) -> list[Check]:
     return [await _check_one_transport(entry) for entry in config.transports]
 
 
+#: Kinds whose *connectivity* check is not meaningful yet. Construction is
+#: still checked for these -- a config entry that cannot even be built is a
+#: real finding -- but nothing is opened, because there is no honest result to
+#: report. `mercury` raises from `open()` by design (its wire protocol is
+#: unresearched, see kissterm/transport/mercury.py) and reporting that as a
+#: FAIL would blame the operator's config for a gap in this program.
+_NO_CONNECTIVITY_CHECK = frozenset({"mercury"})
+
+
 def _build_transport(entry: dict[str, Any]) -> Any:
-    """Construct a `Transport` for a doctor connectivity check, or `None`
-    for a `kind` this build does not have a transport implementation for
-    yet (agwpe, bluetooth, kernel, vara) -- those are reported as skipped,
-    not failed, since "unimplemented" is not the same problem as "broken."
+    """Construct a `Transport` for a doctor check, exactly as the app does.
+
+    **This delegates to `transport.build_transport` and must keep doing so.**
+    It used to be a second, hand-written dispatch table that picked
+    constructor arguments itself, and the cost of that was precisely the
+    failure a diagnostic exists to prevent: `build_transport` was forwarding
+    the config entry's `name` key into every constructor, so the app could not
+    open a single wizard-written transport -- while `--doctor`, taking its own
+    path, reported every one of them healthy. A diagnostic that does not
+    exercise the real path is worse than no diagnostic, because it is
+    believed.
     """
-    kind = entry.get("kind")
-    if kind == "serial":
-        from .transport.serial_kiss import SerialKissTransport
-
-        device = entry["device"]
-        return SerialKissTransport(device, baud=int(entry.get("baud", 9600)))
-    if kind == "tcp":
-        from .transport.tcp_kiss import TcpKissTransport
-
-        return TcpKissTransport(entry["host"], port=int(entry.get("port", 8001)))
-    return None
+    return build_transport(entry)
 
 
 async def _check_one_transport(entry: dict[str, Any]) -> Check:
@@ -264,11 +271,13 @@ async def _check_one_transport(entry: dict[str, Any]) -> Check:
             f"check the [[transports]] entry named {name!r} in config.toml",
         )
 
-    if transport is None:
+    if kind in _NO_CONNECTIVITY_CHECK:
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(transport.close(), timeout=5.0)
         return Check(
             f"transport: {name}",
             "skip",
-            f"kind {kind!r} has no connectivity check in this build yet",
+            f"kind {kind!r} builds from config, but has no connectivity check yet",
             "",
         )
 
