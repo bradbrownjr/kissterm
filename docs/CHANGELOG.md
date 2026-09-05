@@ -3,6 +3,33 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — UI consistency: no duplicate labels, one button style
+
+### Fixed
+- **F1-F4 were named twice on screen.** The tab bar already reads `Terminal
+  Monitor Heard APRS Settings`; the Footer printed `f1 Terminal f2 Monitor f3
+  Heard f4 APRS` directly below it -- the same four words in two different
+  corners. The F-key hint now lives IN the tab label (`Terminal (F1)`, ...);
+  the `Binding`s stay registered with `show=False` so the keys still work.
+  `Settings` has no F-key (F5 is the command reference, which is not a tab and
+  correctly keeps its own Footer entry, since it has nothing else to
+  duplicate). A test asserts f1-f4 are absent from `App.active_bindings`
+  while f5 is present, and that every tab label carries its hint.
+- **The Send button looked like it belonged to a different app.** Textual's
+  default `Button` has a two-tone "tall" border that reads as a raised 3D
+  bezel, and `variant="primary"` filled it with a bright solid block --
+  visually nothing like the flat, rounded, outlined panels used everywhere
+  else (`#session-log`, `#session-input`, `#connect-box`, `#ref-box`). One
+  `Button` rule now applies app-wide: a flat rounded border, no fill. Variant
+  classes (`-primary`/`-error`/...) still change the border and text color, so
+  Save and a destructive action still read as different -- they just no
+  longer become a different *kind* of widget to do it. This reaches every
+  button in the app: Connect, Cancel, Save, Reload, Scan for hardware, Forget
+  selected, Close, Send.
+
+**Files:** `kissterm/ui/{app,styles}.py`, `tests/pilot/test_app_mounts.py`,
+`README.md`, `AGENTS.md`, `kissterm/ui/AGENTS.md`, `assets/*.png`.
+
 ## [2026-09-04] — Shipped command references, and a read-only terminal
 
 ### New Features

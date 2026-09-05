@@ -16,6 +16,35 @@ from __future__ import annotations
 APP_CSS = """
 Screen { layout: vertical; }
 
+/* One flat button style for the whole app -- Connect, Cancel, Save, Reload,
+   Scan for hardware, Forget selected, Close, Send, all of it. Textual's
+   default Button has a two-tone "tall" border that reads as a raised, chunky
+   3D bezel; combined with the bright solid fill `variant="primary"` applies,
+   it looked like it belonged to a different, more skeuomorphic app than the
+   rounded, outlined panels everywhere else (`#session-log`, `#session-input`,
+   `#connect-box`, `#ref-box`). A rounded single-color border with no fill
+   makes a button read as "the same kind of box" as an Input or a RichLog,
+   which is the whole visual language this app otherwise uses. Variant classes
+   (`-primary`, `-error`, ...) still change ONLY the border/text color, never
+   the shape or the fill, so a Save button and a destructive action still read
+   as different without either one becoming a different kind of widget. */
+Button {
+    border: round $primary;
+    background: $surface;
+    color: $text;
+    text-style: bold;
+    height: 3;
+    min-width: 10;
+}
+Button:hover { background: $primary 15%; }
+Button:focus { background: $primary 25%; }
+Button.-primary { border: round $primary; color: $primary; }
+Button.-primary:hover { background: $primary 20%; }
+Button.-success { border: round $success; color: $success; }
+Button.-warning { border: round $warning; color: $warning; }
+Button.-error { border: round $error; color: $error; }
+Button.-error:hover { background: $error 20%; }
+
 /* The status bar and the Footer live inside ONE bottom-docked container.
    Docking each of them separately lands both in the same region -- the Footer
    paints over the status bar and it is invisible, in either yield order. That
@@ -33,7 +62,7 @@ TerminalPane { layout: vertical; }
 #session-log { border: round $primary; height: 1fr; }
 #session-send-row { height: auto; }
 #session-input { border: round $accent; width: 1fr; }
-#session-send { margin-left: 1; height: 3; min-width: 10; }
+#session-send { margin-left: 1; }  /* shape comes from the base Button rule above */
 
 /* Monitor pane */
 MonitorPane { layout: vertical; }

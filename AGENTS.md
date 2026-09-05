@@ -307,6 +307,18 @@ Gotchas that already cost time:
   recalled / learned) and show it. A reference that silently mixes documented
   fact with half-remembered syntax is worse than none.
 
+### One visual language, one place for each fact
+- **A tab-switching key is shown in the tab label, never in the footer too.**
+  `Terminal (F1)` etc. Textual's `Footer` would otherwise print the same word
+  the tab bar already shows, in a different corner of the screen -- exactly
+  the duplication a user flagged from a real screenshot. The `Binding`s stay
+  registered with `show=False`; only the on-screen label moved.
+- **Every `Button` shares one flat, rounded style** (`styles.py`). Textual's
+  default is a two-tone "tall" border reading as a raised 3D bezel; a `Send`
+  button styled with `variant="primary"` and everything else left default
+  looked like it belonged to a different app. Variant classes change color
+  only, never the shape.
+
 ### The terminal transmits only on a deliberate commit
 - **`TerminalPane.send_line` is the single transmit path** out of the terminal
   pane. Enter and the Send button both route through it, so "what can key the

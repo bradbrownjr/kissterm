@@ -4,13 +4,23 @@ Layout follows the shape a packet operator already has in their head from
 BPQTerminal and EasyTerm, because the goal is a familiar tool that happens to
 be modern, not a novel one they have to relearn:
 
-    Terminal  Monitor  Heard  APRS  Settings          <- Ctrl+1..5 / F1..F4
+    Terminal F1  Monitor F2  Heard F3  APRS F4  Settings
     +--------------------------------------------+
     | session output (scrollback, selectable)     |
     +--------------------------------------------+
-    | > type here                                 |
+    | > type here                          [Send] |
     +--------------------------------------------+
       status: transport - link state - queue depth
+
+The F-key for each tab is printed IN THE TAB LABEL, not in the footer. Textual's
+`Footer` widget would otherwise show `f1 Terminal  f2 Monitor  f3 Heard  f4
+APRS` right below a tab bar already showing `Terminal Monitor Heard APRS` --
+the same four words twice, in two different corners of the screen. The four
+`Binding`s stay registered (`show=False`) so the keys still work; only the
+redundant on-screen label moves. `Ctrl+1..5` remain as unlabelled fallback
+aliases for terminals that intercept function keys. `Settings` has no F-key
+(F5 is the command reference, `F5`, which is not a tab and does not have this
+duplication problem, so it keeps its own footer entry).
 
 Each pane's `compose()` fragment and widget handlers used to live inline in
 this file. They now live one module per pane (`terminal_pane.py`,
@@ -127,15 +137,15 @@ class KissTermApp(App):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         with TabbedContent(initial="terminal", id="main-tabs"):
-            with TabPane("Terminal", id="terminal"):
+            with TabPane("Terminal (F1)", id="terminal"):
                 yield TerminalPane()
-            with TabPane("Monitor", id="monitor"):
+            with TabPane("Monitor (F2)", id="monitor"):
                 yield MonitorPane()
-            with TabPane("Heard", id="heard"):
+            with TabPane("Heard (F3)", id="heard"):
                 yield HeardPane()
-            with TabPane("APRS", id="aprs"):
+            with TabPane("APRS (F4)", id="aprs"):
                 yield AprsPane()
-            with TabPane("Settings", id="settings"):
+            with TabPane("Settings", id="settings"):  # no F-key: see above
                 yield SettingsPane()
         # Status bar and Footer share one bottom-docked container. Docking
         # them both individually puts them in the SAME region -- the Footer

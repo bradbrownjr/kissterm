@@ -79,7 +79,18 @@ Read this file plus the one pane you are changing.
 15. **Never spend airtime to populate the UI.** Command references ship as
     data (`kissterm/nodes/data/`); asking a node costs ~19 s per 2 KB at 1200
     baud. Node detection is passive -- read the banner, ask nothing.
-16. No emoji anywhere.
+16. **The tab bar is the ONLY place a tab-switching key is shown.** F1-F4
+    are named in the tab label itself (`Terminal (F1)`); `Binding(..., show=
+    False)` keeps them registered without the Footer repeating the same word
+    that is already in the tab strip above it. Only add a Footer-visible
+    binding for something that is NOT a tab (the command reference, F5, is
+    the existing example).
+17. **One `Button` style for the whole app** (`styles.py`, top of `APP_CSS`):
+    a flat rounded border, no filled 3D bevel. Variant classes
+    (`-primary`/`-error`/...) change only the border and text color, never the
+    shape. A Connect, Save or Send button styled differently from the rest is
+    the thing this rule exists to prevent -- it happened once already.
+18. No emoji anywhere.
 
 ## Testing
 

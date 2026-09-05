@@ -301,3 +301,47 @@ async def test_unplugging_the_active_transport_is_reported():
         after = "\n".join(str(line) for line in app.query_one("#session-log").lines)
         assert after == before, "an unrelated port produced a warning"
     station.close()
+
+
+# ---------------------------------------------------------------------------
+# The footer must not repeat what the tab bar already says. F1-F4 switch tabs
+# and are named IN the tab label; showing them again in the footer put the
+# same four words on screen twice, in two different corners.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_tab_switching_keys_are_not_duplicated_in_the_footer():
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        # Check the Footer's own binding source directly, so this does not
+        # depend on rendering or terminal width.
+        shown = {
+            key: active.binding.description
+            for key, active in app.active_bindings.items()
+            if active.binding.show
+        }
+        for key in ("f1", "f2", "f3", "f4"):
+            assert key not in shown, (
+                f"{key} is shown in the footer, duplicating its tab label"
+            )
+        # F5 is not a tab -- it opens the command reference -- so it is
+        # correctly the one function key the footer still shows.
+        assert "f5" in shown
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_tab_labels_carry_the_function_key_hint():
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        tabs = app.query_one("#main-tabs")
+        labels = {str(tab.label) for tab in tabs.query("Tab")}
+        for hint in ("Terminal (F1)", "Monitor (F2)", "Heard (F3)", "APRS (F4)"):
+            assert hint in labels, f"missing {hint!r} in tab labels: {labels}"
+        # Settings has no F-key (F5 is taken by the command reference) and
+        # must not claim one it does not have.
+        assert "Settings" in labels
+    station.close()
