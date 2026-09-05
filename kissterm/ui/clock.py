@@ -138,13 +138,33 @@ class KissTermClock(HeaderClock):
 
 
 class KissTermHeader(Header):
-    """`Header`, but with kissterm's configurable clock.
+    """`Header`, but with kissterm's configurable clock and no click-to-expand.
 
-    Only `compose` differs from the base class: the icon and title are
-    Textual's own. Kept as a subclass rather than a from-scratch header so
-    title/subtitle behaviour, the tall-header click toggle, and the command
-    palette icon all keep working without being reimplemented.
+    Only `compose` and `_on_click` differ from the base class: the icon and
+    title are Textual's own. Kept as a subclass rather than a from-scratch
+    header so title/subtitle behaviour and the command palette icon keep
+    working without being reimplemented.
+
+    **The tall-header toggle is removed on purpose.** Textual's `Header`
+    grows from one line to three when clicked, to show a title and subtitle.
+    kissterm has neither -- the status bar carries the station identity -- so
+    the extra two rows show nothing, and every widget below shifts down by
+    two: the tab bar, the panes, the scrollback. Doing that to a live session
+    because a mouse click landed on the top row is a jump the operator did not
+    ask for and cannot undo except by finding the same row and clicking again.
+    A layout change with no content behind it is not a feature.
     """
+
+    def _on_click(self, event) -> None:
+        # `prevent_default`, not merely overriding `_on_click`: Textual
+        # dispatches an event to EVERY matching handler up the MRO, so a
+        # subclass method does not replace `Header._on_click` -- both run, and
+        # the base one still toggles. `prevent_default` is what breaks that
+        # walk (`MessagePump._get_dispatch_methods` stops on
+        # `_no_default_action`), and it is checked between classes, so this
+        # handler running first is enough. The click is not `stop`ped: it
+        # still bubbles, so nothing else that wants to know about it breaks.
+        event.prevent_default()
 
     def compose(self) -> ComposeResult:
         yield HeaderIcon().data_bind(Header.icon)

@@ -3,6 +3,40 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Asking to connect is asking to transmit
+
+Three things found while getting ready for the first on-air test.
+
+### Improvements
+- **`Ctrl+N` now opens the transmit gate instead of being refused by it.**
+  Reported directly: "^n request connection, but it gives me an error that
+  transmit is disabled. One would assume that if I'm asking to make a
+  connection, transmit would automatically be enabled." That is right, and the
+  old behaviour was a dead end -- the one thing the operator wanted was the one
+  thing the message would not do. The rule now: the gate stops transmissions
+  the operator did NOT initiate (a timer, an incoming call); a **confirmed,
+  targeted** request arms it. `Ctrl+D` too, because a DISC we refuse to send
+  leaves the far station holding a session open until its own timers give up.
+  A bare keystroke with no confirmation and no target still does not arm --
+  the manual beacon is unchanged. Arming is never silent: a notification, a
+  line in the terminal log, and the status bar.
+- **Manual beacon moves to `Ctrl+Shift+B`.** `Ctrl+B` is tmux's default
+  prefix, so under a multiplexer -- how a station PC in another room is
+  normally reached -- the key never reached the app. Shown in the footer as
+  `^B`, the same shape as `^t`/`^n`/`^d`; plain `Ctrl+B` stays bound but
+  hidden, since a terminal without the enhanced keyboard protocol sends the
+  same byte for both and there is no slash command for the beacon.
+- **Clicking the header no longer expands it to three lines.** Textual's
+  `Header` grows on click to reveal a title and subtitle; kissterm has
+  neither, so the two extra rows showed nothing while pushing the tab bar,
+  the panes and the scrollback down by two -- mid-session, because a click
+  landed on the top row. Suppressed with `prevent_default`, not by stopping
+  the event, so the command palette icon still works (asserted in the test).
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/clock.py`,
+`tests/pilot/test_transmit_gate.py`, `tests/pilot/test_app_mounts.py`,
+`README.md`, `AGENTS.md`
+
 ## [2026-09-05] — A connect gives up sooner than a live link does
 
 Asked directly: "How many times will the application retry a connection

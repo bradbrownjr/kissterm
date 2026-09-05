@@ -379,6 +379,26 @@ Gotchas that already cost time:
   it starts. Modelled on WSJT-X's "Enable Tx" because that is the convention
   an operator already knows. With it closed, nothing keys the radio -- not a
   beacon, not answering, not connecting, not the terminal send line.
+- **A confirmed, targeted request ARMS the gate; it is not refused by it.**
+  `KissTermApp._arm_for` is the only way this happens, and `Ctrl+N` (after
+  the operator names a station and confirms the dialog) and `Ctrl+D` are its
+  only callers. The gate exists to stop transmissions the operator did not
+  initiate -- a timer, an incoming call -- and it was never meant to veto one
+  they just asked for by name. Refusing a connect with "transmit is disabled"
+  is a dead end: the only thing the operator wanted is the only thing the
+  message will not do, and on a marginal path it reads like the far station
+  is missing. `Ctrl+D` matters for the channel too -- a DISC we refuse to
+  send leaves the far station holding a session open until its own timers
+  give up.
+- **A bare keystroke never arms it.** The manual beacon (`Ctrl+Shift+B`) has
+  no confirmation step and no target, which is exactly the shape of an
+  accidental transmission; it still reports the closed gate and sends
+  nothing. The rule is *confirmed and targeted*, not *the operator pressed
+  something*.
+- **Arming is never silent.** `_arm_for` writes a line into the terminal log,
+  raises a notification, and refreshes the status bar. "Did this thing start
+  transmitting behind my back?" has to stay answerable from the screen, or
+  the auto-arm is not defensible at all.
 - **It is enforced at the transport, not in the UI.**
   `FrameTransport.send_frame` is CONCRETE and calls the abstract
   `_send_frame`; `Session.send` gates the session tier so VARA and Mercury are
@@ -400,9 +420,13 @@ Gotchas that already cost time:
   precisely so `send_once` cannot log "Beacon sent" for a frame the gate
   dropped. Telling an operator something went on the air when nothing did is
   the one lie a transmit indicator must not tell.
-- **`Ctrl+B` is a manual beacon and waives exactly one check** -- whether the
+- **`Ctrl+Shift+B` is a manual beacon and waives exactly one check** -- whether the
   *timer* is enabled, because a manual beacon is not the timer. It does not
-  waive the gate, empty text, or a bad destination.
+  waive the gate, empty text, or a bad destination. It is `Ctrl+Shift+B`, not
+  `Ctrl+B`, because `Ctrl+B` is tmux's prefix and a station PC in another room
+  is usually reached through a multiplexer -- a transmit key the operator
+  cannot press is not a transmit key. Plain `Ctrl+B` stays bound but hidden,
+  for terminals whose keyboard protocol collapses the two into one byte.
 
 ### Unattended transmission
 - **Two things can transmit with nobody present: answering a call, and

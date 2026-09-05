@@ -166,7 +166,27 @@ class KissTermApp(App):
         Binding("f5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+t", "toggle_transmit", "TX"),
-        Binding("ctrl+b", "beacon_now", "Beacon"),
+        # Ctrl+SHIFT+B, not Ctrl+B: Ctrl+B is tmux's default prefix (and
+        # screen's, once remapped), so under a multiplexer -- which is how a
+        # station PC in another room is usually reached -- the beacon key was
+        # simply unreachable, eaten one layer up. Ctrl+Shift+B needs the
+        # terminal's enhanced keyboard protocol to be distinguishable at all;
+        # where it is not, the terminal collapses it to the same byte as
+        # Ctrl+B, which is why the plain binding stays below.
+        # `key_display` because Textual abbreviates `ctrl+x` to `^x` on its
+        # own but has no such rule for `ctrl+shift+x`, so this one binding
+        # would print the literal "ctrl+shift+b" -- five times the width of
+        # every neighbour, in a footer that already truncates its rightmost
+        # binding at 80 columns. `^B` is the same shape as `^t`/`^n`/`^d`
+        # beside it, and the capital IS the shift.
+        Binding("ctrl+shift+b", "beacon_now", "Beacon", key_display="^B"),
+        # Legacy fallback, deliberately hidden. In a terminal that does not
+        # speak the kitty/CSI-u keyboard protocol, Ctrl+Shift+B *is* 0x02 and
+        # arrives here as "ctrl+b"; without this the beacon would have no key
+        # at all on such a terminal, and there is no slash command for it.
+        # This costs nothing under a multiplexer, which consumes Ctrl+B before
+        # the app ever sees it.
+        Binding("ctrl+b", "beacon_now", "Beacon", show=False),
         Binding("ctrl+n", "connect", "Connect"),
         Binding("ctrl+d", "disconnect", "Disconnect"),
         Binding("ctrl+k", "set_callsign", "Callsign"),
@@ -635,9 +655,40 @@ class KissTermApp(App):
             self._to_terminal("log", "\n*** Transmit disabled\n")
         self._refresh_status()
 
+    def _arm_for(self, what: str) -> None:
+        """Open the transmit gate because the operator just asked for
+        something that cannot happen without transmitting.
+
+        **The rule this implements.** The gate exists to stop transmissions
+        the operator did not initiate -- the timed beacon, auto-answer,
+        anything on a timer. It was never meant to veto a transmission they
+        just asked for by name. `Ctrl+N` names a station and confirms it in a
+        dialog; that IS the request to key the radio, and answering it with
+        "transmit is disabled" is a dead end, because the one thing the
+        operator wanted is the one thing the message will not do.
+
+        So arming needs a CONFIRMED, TARGETED action -- a destination the
+        operator typed and accepted. A single keystroke with no confirmation
+        step (the manual beacon on `Ctrl+Shift+B`) still does not arm: that is
+        exactly the shape of an accidental transmission, and there is no
+        target to make the intent unambiguous.
+
+        Arming is never silent. It is a notification, a line in the terminal
+        log and a status-bar change, because "did this thing start
+        transmitting behind my back?" must stay answerable from the screen.
+        """
+        if self.gate.enabled:
+            return
+        self.gate.set(True)
+        self._to_terminal(
+            "log", f"\n*** Transmit enabled automatically for: {what}\n"
+        )
+        self.notify(f"Transmit ENABLED for {what}. Ctrl+T turns it back off.")
+        self._refresh_status()
+
     @work
     async def action_beacon_now(self) -> None:
-        """Ctrl+B -- send one beacon immediately.
+        """Ctrl+Shift+B -- send one beacon immediately.
 
         The timed beacon deliberately waits a full interval before its first
         transmission, because launching the app is not a request to key the
@@ -675,16 +726,15 @@ class KissTermApp(App):
         if self.station is None:
             self.notify("No transport is open.", severity="error")
             return
-        if not self.gate.enabled:
-            # Connecting sends a SABM. Without this the operator types a
-            # callsign, waits out the full retry budget, and gets "failed" --
-            # which looks like the far station is not there.
-            self.notify(DISABLED_MESSAGE, severity="warning")
-            return
         target = await self.push_screen_wait(ConnectScreen())
         if not target:
             return
         path = parse_path(target)
+        # A confirmed connect request ARMS the gate rather than being refused
+        # by it. See `_arm_for` -- naming a station and confirming the dialog
+        # is the operator asking to transmit, and refusing it here left them
+        # with a dead end that only reads as "the far station is not there".
+        self._arm_for(f"connect to {path.destination}")
         self.query_one(TerminalPane).log(f"\n*** Connecting to {path.destination}...\n")
         try:
             link = await self.station.connect(path)
@@ -788,6 +838,11 @@ class KissTermApp(App):
         if self.link is None or not self.link.connected:
             self.notify("Not connected.", severity="warning")
             return
+        # Same reasoning as connect, and more so: a DISC is how a link is
+        # ended politely. Refusing to send it leaves the far station holding
+        # a session open until ITS timers give up, which is a worse outcome
+        # for the channel than the transmission we would be avoiding.
+        self._arm_for(f"disconnect from {self.link.peer}")
         self.query_one(TerminalPane).log("\n*** Disconnecting...\n")
         await self.link.disconnect()
 

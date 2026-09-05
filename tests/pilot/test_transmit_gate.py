@@ -90,20 +90,68 @@ async def test_ctrl_t_toggles_and_the_send_line_follows_it():
 
 
 @pytest.mark.asyncio
-async def test_connecting_is_refused_up_front_not_after_a_timeout():
-    """Otherwise the operator types a callsign, waits out the retry budget,
-    and concludes the far station is not there."""
+async def test_a_confirmed_connect_arms_the_gate_instead_of_refusing():
+    """The gate stops transmissions the operator did NOT ask for. Naming a
+    station in the connect dialog and confirming it is asking, in the most
+    explicit form the UI has -- and refusing it was a dead end, since the one
+    thing the operator wanted was the one thing the refusal would not do."""
+    app, station, ta = await _app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        assert app.gate.enabled is False
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+        from kissterm.ui.dialogs import ConnectScreen
+
+        assert isinstance(app.screen, ConnectScreen), (
+            "the connect dialog did not open"
+        )
+        for key in "WS1EC-7":
+            await pilot.press(key if key != "-" else "minus")
+        await pilot.press("enter")
+        await pilot.pause()
+        await asyncio.sleep(0.3)
+        assert app.gate.enabled is True, "a confirmed connect did not arm the gate"
+        assert ta.sent, "the SABM never went out"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_arming_for_a_connect_is_never_silent():
+    """Auto-arming is only defensible while it stays visible: "did this thing
+    start transmitting behind my back?" has to be answerable from the screen."""
+    app, station, ta = await _app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        app._arm_for("connect to WS1EC-7")
+        await pilot.pause()
+        log = app.query_one(TerminalPane).query_one("#session-log")
+        text = "\n".join(str(line) for line in log.lines)
+        assert "Transmit enabled automatically" in text, (
+            "the gate opened with nothing said about it in the log"
+        )
+        assert "TX OFF" not in _plain(app.query_one("#status-bar")), (
+            "the status bar still claims transmit is off"
+        )
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_cancelling_the_connect_dialog_leaves_the_gate_shut():
+    """Arming follows the CONFIRMATION, not the keystroke that opens the box.
+    Escaping out of the dialog is the operator changing their mind."""
     app, station, ta = await _app()
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         await pilot.press("ctrl+n")
         await pilot.pause()
         await asyncio.sleep(0.1)
-        from kissterm.ui.dialogs import ConnectScreen
-
-        assert not isinstance(app.screen, ConnectScreen), (
-            "the connect dialog opened with transmit disabled"
-        )
+        await pilot.press("escape")
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        assert app.gate.enabled is False, "cancelling the dialog armed the gate"
         assert ta.sent == []
     station.close()
 
@@ -142,7 +190,7 @@ async def test_beacon_now_reports_honestly_when_transmit_is_off():
 
 
 @pytest.mark.asyncio
-async def test_ctrl_b_sends_one_beacon_even_with_the_timer_off():
+async def test_ctrl_shift_b_sends_one_beacon_even_with_the_timer_off():
     """A manual beacon is not the timer. Refusing one because the periodic
     beacon is switched off would answer a question nobody asked."""
     app, station, ta = await _app(tx_armed_at_start=True)
@@ -151,21 +199,42 @@ async def test_ctrl_b_sends_one_beacon_even_with_the_timer_off():
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         assert not app.beaconer.running
-        await pilot.press("ctrl+b")
+        await pilot.press("ctrl+shift+b")
         await pilot.pause()
         await asyncio.sleep(0.2)
-        assert len(ta.sent) == 1, "Ctrl+B did not send a beacon"
-        assert not app.beaconer.running, "Ctrl+B must not start the timer"
+        assert len(ta.sent) == 1, "Ctrl+Shift+B did not send a beacon"
+        assert not app.beaconer.running, "Ctrl+Shift+B must not start the timer"
     station.close()
 
 
 @pytest.mark.asyncio
-async def test_ctrl_b_still_refuses_with_no_text():
+async def test_plain_ctrl_b_still_beacons_on_a_legacy_terminal():
+    """The beacon moved to Ctrl+Shift+B to stop tmux (prefix Ctrl+B) from
+    eating it, but a terminal without the enhanced keyboard protocol cannot
+    tell the two apart -- it sends 0x02 for both. Dropping the plain binding
+    would leave those terminals with no way to beacon at all, since there is
+    no slash command for it. Under a multiplexer this binding is unreachable
+    anyway, which is the whole point.
+    """
+    app, station, ta = await _app(tx_armed_at_start=True)
+    app.config.beacon.enabled = False
+    app.config.beacon.text = "N1ABC test"
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+b")
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        assert len(ta.sent) == 1, "the legacy Ctrl+B fallback did not beacon"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_shift_b_still_refuses_with_no_text():
     app, station, ta = await _app(tx_armed_at_start=True)
     app.config.beacon.text = ""
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        await pilot.press("ctrl+b")
+        await pilot.press("ctrl+shift+b")
         await pilot.pause()
         await asyncio.sleep(0.15)
         assert ta.sent == []

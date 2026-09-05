@@ -448,3 +448,40 @@ async def test_status_fields_spread_across_the_full_width_not_bunched_left():
             f"status content ends at column {last_content_col} of {region.width}"
         )
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_clicking_the_header_does_not_reshuffle_the_layout():
+    """Textual's Header grows to three lines when clicked, to reveal a title
+    and subtitle. kissterm has neither -- the status bar carries the station
+    identity -- so the two extra rows show nothing while pushing the tab bar,
+    the panes and the scrollback down by two, mid-session, because a mouse
+    click landed on the top row."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        header = app.query_one("Header")
+        before = header.size.height
+        # The TITLE, not the Header origin: the origin is HeaderIcon,
+        # which handles its own click (command palette) and stops it
+        # before the toggle ever sees it. Clicking there proves nothing.
+        await pilot.click("HeaderTitle")
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+        assert header.size.height == before, (
+            f"the header changed height on click: {before} -> {header.size.height}"
+        )
+        assert not header.has_class("-tall")
+
+        # ...and the one click the header IS supposed to answer still works.
+        # The toggle is suppressed with `prevent_default`, which stops
+        # Textual's MRO walk -- if that had been done by stopping the event
+        # instead, the command palette icon would have gone with it.
+        await pilot.click("HeaderIcon")
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        assert type(app.screen).__name__ == "CommandPalette", (
+            f"the header icon no longer opens the palette (got {type(app.screen).__name__})"
+        )
+    station.close()

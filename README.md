@@ -98,17 +98,22 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   disturb the link.
 - **A transmit switch you can see, like every other ham program.** `Ctrl+T`
   is the master gate, in the same sense as WSJT-X's Enable Tx: with it off,
-  nothing keys the radio -- not a beacon, not answering a call, not
-  connecting, not the send line. It starts **off**, so a fresh launch cannot
-  transmit until you say so, and the status bar reads `TX OFF` for as long as
-  that is true. A station meant to run unattended sets `tx_armed_at_start`.
+  nothing keys the radio -- not a beacon, not answering a call, not the send
+  line. It starts **off**, so a fresh launch cannot transmit until you say so,
+  and the status bar reads `TX OFF` for as long as that is true. A station
+  meant to run unattended sets `tx_armed_at_start`. Asking to connect to a
+  named station (`Ctrl+N`) or to disconnect (`Ctrl+D`) **turns it on** rather
+  than being refused -- naming a station and confirming it is the clearest
+  way an operator can ask to transmit, and the switch exists to stop the
+  transmissions you did *not* ask for. It says so when it does: a
+  notification, a line in the log, and the status bar.
 - **Beacons.** A short text on a timer telling the channel you are there --
   the `BTEXT` convention, sent as unproto UI frames, separate from APRS
   beaconing. Off until you turn it on, silent while the text is empty, and a
   ten-minute floor that is enforced rather than suggested. Settings shows what
   your chosen interval actually costs the channel, in seconds and as a
   percentage of the frequency. The timer waits a full interval before its
-  first transmission -- **`Ctrl+B` sends one right now**, the way JS8Call's
+  first transmission -- **`Ctrl+Shift+B` sends one right now**, the way JS8Call's
   heartbeat button does, without turning the timer on.
 - **`kissterm --doctor`.** Diagnoses the things that actually go wrong: serial
   permissions, missing dependencies, an unreachable TNC host, a bad callsign.
@@ -172,7 +177,7 @@ conversation, and swapping it mid-session would kill the link by timeout.
 | `F1`..`F5` | Terminal / Monitor / Heard / APRS / Settings -- shown as the key right in each tab's label (also `Ctrl+1`..`Ctrl+5`, for a terminal that intercepts function keys) |
 | `F6` | Command reference for the detected node |
 | `Ctrl+T` | Enable / disable transmit -- the master switch |
-| `Ctrl+B` | Send one beacon now |
+| `Ctrl+Shift+B` | Send one beacon now (see the tmux note below) |
 | `Ctrl+N` | Connect to a station |
 | `Ctrl+D` | Disconnect |
 | `Ctrl+K` | Change your callsign |
@@ -180,6 +185,20 @@ conversation, and swapping it mid-session would kill the link by timeout.
 | `Ctrl+Q` | Quit |
 
 Connect targets accept a digipeater path: `WS1EC-7 via W1AW-1,W1XYZ`.
+
+**Running under tmux or screen?** The beacon is `Ctrl+Shift+B` rather than
+`Ctrl+B` because `Ctrl+B` is tmux's default prefix -- the multiplexer eats it
+and kissterm never sees the keypress. Telling the two apart requires the
+terminal's enhanced keyboard protocol; if `Ctrl+Shift+B` does nothing inside
+tmux, add this to `~/.tmux.conf` and start a fresh server:
+
+```
+set -s extended-keys on
+set -as terminal-features 'xterm*:extkeys'
+```
+
+Outside a multiplexer, plain `Ctrl+B` still beacons, so a terminal that cannot
+distinguish the two keys at all is not left without the shortcut.
 
 ## Command line
 
@@ -290,6 +309,15 @@ background timer, and any backend written later; the checks in the panes exist
 only to tell you *why* nothing happened. A blocked transmission is counted, not
 raised, because AX.25 retransmission runs on timer callbacks where an exception
 has nowhere to go.
+
+Two keys are exempt, and only these two: `Ctrl+N` and `Ctrl+D`. Naming a
+station in the connect dialog and confirming it is an unambiguous request to
+key the radio, so it opens the gate instead of hitting a refusal that cannot
+be acted on. Disconnecting is the same, and skipping the DISC would leave the
+far station holding a session open until its own timers expire. Both announce
+it. Nothing that lacks a confirmation step and a named target does this --
+the manual beacon on `Ctrl+Shift+B` still reports the closed gate and sends
+nothing.
 
 The two things that can transmit without you at the keyboard -- answering a
 call, and beaconing -- are additionally off on a fresh install, both say so in
