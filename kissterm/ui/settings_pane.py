@@ -110,6 +110,7 @@ class SettingsPane(VerticalScroll):
         with Horizontal(classes="settings-row"):
             yield Label("", classes="settings-label")
             yield Button("Scan for hardware", id="settings-scan")
+            yield Button("Test selected", id="settings-test")
             yield Button("Forget selected", id="settings-forget")
         yield Static("", id="settings-transport-detail", classes="settings-help")
 
@@ -398,3 +399,61 @@ class SettingsPane(VerticalScroll):
     @on(Button.Pressed, "#settings-scan")
     def _scan_pressed(self) -> None:
         self._scan()
+
+    @work
+    async def _test_transport(self) -> None:
+        """Ask the selected transport whether anything real is on the far end.
+
+        Deliberately NOT a connect attempt to another station: this answers
+        "is my TNC there and is it what the config says it is", which is the
+        question that has to be answered first and the one an operator
+        otherwise answers by trying to connect to a node and misreading the
+        silence as a dead path. Nothing here transmits -- see
+        `discovery.identify_tcp` for exactly what goes out on the socket.
+        """
+        config = self.app.config  # type: ignore[attr-defined]
+        detail = self.query_one("#settings-transport-detail", Static)
+        name = self.query_one("#set-active-transport", Select).value
+        entry = next((t for t in config.transports if t.get("name") == name), None)
+        if entry is None:
+            detail.update("Select a transport first.")
+            return
+
+        kind = entry.get("kind", "")
+        if kind in ("serial", "bluetooth", "kernel"):
+            # A serial probe opens the port exclusively, so running one while
+            # the app holds it open would report a failure it caused itself.
+            detail.update(
+                f"Testing {kind} transports from here is not wired up yet -- "
+                "'kissterm --doctor' checks the device, permissions and "
+                "dependencies for those."
+            )
+            return
+
+        host, port = entry.get("host", ""), entry.get("port", 0)
+        if not host or not port:
+            detail.update(f"{name} has no host and port to test.")
+            return
+
+        detail.update(f"Testing {host}:{port}...")
+        try:
+            from .. import discovery
+
+            identity = await discovery.identify_tcp(host, int(port), kind=kind)
+        except Exception:
+            log.exception("transport test failed")
+            detail.update("The test itself failed. 'kissterm --doctor' may say why.")
+            return
+
+        evidence = f"  ({identity.detail})" if identity.detail else ""
+        detail.update(f"{host}:{port} -- {identity.summary}{evidence}")
+        severity = (
+            "information" if identity.is_tnc
+            else "error" if identity.verdict in ("not-a-tnc", "unreachable")
+            else "warning"
+        )
+        self.app.notify(identity.summary, severity=severity)
+
+    @on(Button.Pressed, "#settings-test")
+    def _test_pressed(self) -> None:
+        self._test_transport()

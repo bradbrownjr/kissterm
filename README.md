@@ -158,7 +158,18 @@ edits your callsign, which TNC or modem to use, AX.25 timing (paclen, window,
 T1/T2/T3, retries) and APRS beaconing -- with validation, and a note on each
 field saying whether it takes effect now, on the next connection, or at
 restart. "Scan for hardware" re-runs discovery from inside the app, so moving
-your Direwolf host to a new IP does not mean editing a TOML file. Link
+your Direwolf host to a new IP does not mean editing a TOML file.
+
+**"Test selected" asks a configured host what it actually is.** Port 8000 and
+8001 are as popular with self-hosted web apps as with packet software, so a
+scan that matched on port number alone would offer you a media server as a
+TNC. The test settles it: an AGWPE engine is confirmed outright by its version
+reply, a KISS TNC is confirmed the moment a frame arrives, and anything that
+answers with an HTTP status line, an SSH banner, or a hang-up is reported as
+what it is and is no longer offered by the scan at all. A port that is open
+and silent stays "unconfirmed" rather than "broken" -- that is exactly what a
+working KISS TNC looks like on a quiet channel, since KISS has no version
+query and never greets you. Link
 parameters deliberately do not change under an established link; they were
 negotiated when it came up.
 
@@ -331,8 +342,14 @@ on its own. With it off, a station calling you gets a polite refusal (a DM) and
 stops retrying rather than transmitting into silence. With it on, the status
 bar says `ANSWERING` for as long as that is true, and callers get a banner you
 configure. Automatic-control rules differ by country and band; check what your
-licence allows before enabling it. Discovery and probing
-listen only — nothing in the scan will key your rig.
+licence allows before enabling it.
+
+**Nothing in discovery or the connection test can key your rig.** All either
+writes to a socket is two bare `FEND` bytes -- a KISS frame with no type byte,
+so there is no command for a TNC to act on -- or an AGWPE version query, which
+asks the software a question. VARA's ports are never spoken to at all, because
+its command channel takes line commands that could start a session. The exact
+bytes are asserted on the wire in `tests/unit/test_identify_tcp.py`.
 
 A beacon is unattended transmission under your callsign onto a channel
 everybody shares, so the interval floor is a clamp in code rather than advice

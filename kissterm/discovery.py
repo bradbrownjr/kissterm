@@ -28,6 +28,24 @@ description substrings, well-known port numbers) are best-effort pattern
 matching against hardware this author has seen or read about -- they will
 misjudge devices they have never encountered, and they are written to fail
 toward "list it with a lower score" rather than "hide it."
+
+**Except when it is not a heuristic.** `identify_tcp` asks a port what it is
+and can come back with a *disproof*: an HTTP status line, an SSH banner, a
+hang-up. Those results are not uncertain -- no KISS or AGWPE endpoint can
+produce them -- so a disproved port is dropped from the sweep rather than
+listed with a low score. This matters because a `DiscoveredDevice` is
+written straight into `config.transports`: port 8000 and 8001 are as popular
+with self-hosted web apps as with packet software, and the old
+port-number-only match put those web apps in the transport list, where the
+next symptom is an operator hunting for a TNC that was never there.
+
+Note which direction is strong. Proving a port is NOT a TNC takes one reply.
+Proving it IS a raw KISS TNC takes a frame, and KISS has no version query,
+no capability exchange and no greeting -- an idle TNC on a quiet channel is
+silent, and that silence is indistinguishable from a silent web server. So
+`"unknown"` is a real and common answer, and the UI must never render it as
+a fault. AGWPE is the exception: it has a version query that asks the
+software a question, which is why its port can be confirmed outright.
 """
 
 from __future__ import annotations
@@ -36,6 +54,7 @@ import asyncio
 import contextlib
 import logging
 import socket
+import struct
 import subprocess
 from dataclasses import dataclass, field
 from typing import Any
@@ -247,6 +266,11 @@ async def probe_kiss_serial(device: str, baud: int = _DEFAULT_BAUD, timeout: flo
 #: is reported as found and left for the operator to configure, and its data
 #: port is not offered as a device of its own at all, because it is the other
 #: half of the same modem rather than a second thing to connect to.
+#: The AGWPE engine port, named because `identify_tcp` keys its probe off it:
+#: AGWPE is the only one of these protocols with a question that can be asked
+#: and answered without touching the radio.
+_AGWPE_PORT = 8000
+
 _WELL_KNOWN_PORTS: dict[int, tuple[str, str | None, bool]] = {
     8001: ("Direwolf KISS", "tcp", True),
     8000: ("AGWPE", "agwpe", True),
@@ -299,6 +323,217 @@ def _describe_banner(banner: bytes) -> str:
     return "open, no traffic seen yet"
 
 
+#: Opening bytes that identify a service as something other than a TNC. Each
+#: is a protocol greeting or error response no KISS or AGWPE endpoint can
+#: produce, which is what makes a match here a *disproof* rather than another
+#: heuristic: KISS carries no ASCII protocol layer at all, and AGWPE answers
+#: only in 36-byte binary headers.
+_NOT_A_TNC_SIGNATURES: tuple[tuple[bytes, str], ...] = (
+    (b"HTTP/", "a web server (answered with an HTTP status line)"),
+    (b"<!DOCTYPE", "a web server (answered with HTML)"),
+    (b"<html", "a web server (answered with HTML)"),
+    (b"SSH-", "an SSH server"),
+    (b"220 ", "an SMTP or FTP server"),
+    (b"* OK", "an IMAP server"),
+    (b"+OK", "a POP3 server"),
+    (b"RFB ", "a VNC server"),
+    (b"\x15\x03", "a TLS service (answered with a TLS alert)"),
+    (b"\x16\x03", "a TLS service (answered with a TLS handshake)"),
+)
+
+
+@dataclass(slots=True)
+class Identity:
+    """What an active probe could establish about one TCP port.
+
+    `verdict` is one of:
+
+    * ``"agwpe"`` -- confirmed. The port answered an AGWPE version query in
+      AGWPE's own binary framing.
+    * ``"kiss"`` -- confirmed. A complete, well-formed KISS frame arrived.
+    * ``"not-a-tnc"`` -- confirmed negative. It spoke a protocol no TNC
+      speaks, or hung up on a probe a TNC ignores.
+    * ``"unknown"`` -- open, silent, still connected. **This is the normal
+      state of a healthy KISS TNC on a quiet channel** and must never be
+      shown as a failure.
+    * ``"unreachable"`` -- nothing accepted a connection.
+
+    Note the asymmetry, because it decides how the UI has to word this: the
+    negative is strong and the positive is weak. Proving a port is *not* a
+    TNC takes one reply. Proving it *is* a raw KISS TNC takes a frame, and a
+    KISS TNC on an idle channel has nothing to send -- KISS has no version
+    query, no capability exchange, no greeting. AGWPE is the exception, and
+    that is the whole reason its port can be confirmed outright.
+    """
+
+    verdict: str
+    summary: str
+    detail: str = ""
+
+    @property
+    def is_tnc(self) -> bool:
+        return self.verdict in ("kiss", "agwpe")
+
+    @property
+    def is_disproved(self) -> bool:
+        return self.verdict == "not-a-tnc"
+
+
+def _classify_reply(data: bytes) -> Identity | None:
+    """A verdict from the bytes a port sent back, or `None` for "no idea"."""
+    if not data:
+        return None
+    for signature, description in _NOT_A_TNC_SIGNATURES:
+        if data.startswith(signature):
+            text = data[:60].decode("ascii", "replace").strip()
+            return Identity(
+                "not-a-tnc",
+                f"Not a TNC -- this is {description}.",
+                f"replied {text!r}",
+            )
+    decoder = KissDecoder()
+    for _frame in decoder.feed(data):
+        return Identity(
+            "kiss",
+            "Confirmed: a KISS TNC. A complete KISS frame arrived.",
+            f"{len(data)} bytes, decoded as a KISS frame",
+        )
+    # Printable text that matched no known greeting is still not KISS: a KISS
+    # stream begins with FEND (0xC0), which is not printable ASCII.
+    if data[:1] != bytes([FEND]) and all(32 <= b < 127 or b in (9, 10, 13) for b in data):
+        text = data[:60].decode("ascii", "replace").strip()
+        return Identity(
+            "not-a-tnc",
+            "Not a TNC -- it answered with text. KISS is a binary framing "
+            "and never greets you.",
+            f"replied {text!r}",
+        )
+    return None
+
+
+async def identify_tcp(
+    host: str, port: int, kind: str | None = None, timeout: float = 2.0
+) -> Identity:
+    """Ask one TCP port what it is, without transmitting anything on the air.
+
+    **What this writes, and why it cannot key a radio.** For an AGWPE port,
+    one DataKind ``'R'`` version request -- a question for the *software*,
+    which has no on-air meaning. For anything else, two bare ``FEND`` bytes:
+    the same probe `probe_kiss_serial` already uses and for the same reason.
+    A KISS frame is ``FEND type payload FEND``; two FENDs carry no type byte,
+    so there is no command for a TNC to act on and nothing that can become a
+    transmission. VARA's ports are never probed at all -- its command channel
+    takes line-oriented commands that could start a session, so it is left
+    alone and reported as untested.
+
+    **The strong result is the negative.** A web service answers a KISS probe
+    with an HTTP error line, or hangs up; either is proof it is not a TNC,
+    which is exactly the false positive a port-number-based scan produces. A
+    silent port stays ``"unknown"``, because that is genuinely what an idle
+    KISS TNC looks like -- see `Identity`.
+    """
+    if kind in ("vara", "varafm"):
+        return Identity(
+            "unknown",
+            "Not probed: VARA's command port takes line commands that can "
+            "start a session, so kissterm does not speak to it uninvited.",
+        )
+
+    try:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port), timeout=timeout
+        )
+    except (OSError, asyncio.TimeoutError) as exc:
+        return Identity(
+            "unreachable", f"Nothing is listening on {host}:{port}.", str(exc)
+        )
+
+    try:
+        # Anything it says before being spoken to is free evidence.
+        with contextlib.suppress(asyncio.TimeoutError, OSError):
+            greeting = await asyncio.wait_for(reader.read(256), timeout=_BANNER_READ_TIMEOUT)
+            verdict = _classify_reply(greeting)
+            if verdict is not None:
+                return verdict
+
+        if kind == "agwpe" or port == _AGWPE_PORT:
+            from .transport.agwpe import HEADER_LEN, KIND_VERSION, build_request, parse_header
+
+            writer.write(build_request(KIND_VERSION))
+            await writer.drain()
+            try:
+                header = await asyncio.wait_for(
+                    reader.readexactly(HEADER_LEN), timeout=timeout
+                )
+            except (asyncio.IncompleteReadError, asyncio.TimeoutError, OSError):
+                return Identity(
+                    "unknown",
+                    "Open, but it did not answer an AGWPE version query. "
+                    "Not an AGWPE engine, or not one that answers 'R'.",
+                )
+            verdict = _classify_reply(header)
+            if verdict is not None and verdict.is_disproved:
+                return verdict
+            try:
+                _port, reply_kind, data_len = parse_header(header)
+            except ValueError:
+                return Identity("unknown", "Open, but its reply was not an AGWPE header.")
+            payload = b""
+            if data_len:
+                with contextlib.suppress(Exception):
+                    payload = await asyncio.wait_for(
+                        reader.readexactly(min(data_len, 512)), timeout=timeout
+                    )
+            version = _agw_version(payload)
+            return Identity(
+                "agwpe",
+                f"Confirmed: an AGWPE engine{version}.",
+                f"answered DataKind {reply_kind.decode('ascii', 'replace')!r}",
+            )
+
+        writer.write(bytes([FEND, FEND]))
+        await writer.drain()
+        try:
+            reply = await asyncio.wait_for(reader.read(1024), timeout=timeout)
+        except (asyncio.TimeoutError, OSError):
+            return Identity(
+                "unknown",
+                "Open and silent, connection still up -- which is exactly how "
+                "a working KISS TNC looks on a quiet channel. Connect and "
+                "watch the Monitor tab to be sure.",
+            )
+        if reply == b"":
+            # EOF. A KISS endpoint ignores stray FENDs and holds the socket;
+            # hanging up on two bytes is what a service that wanted a request
+            # it could parse does.
+            return Identity(
+                "not-a-tnc",
+                "Not a TNC -- it closed the connection when spoken to. A KISS "
+                "TNC ignores stray framing bytes and stays connected.",
+            )
+        verdict = _classify_reply(reply)
+        if verdict is not None:
+            return verdict
+        return Identity(
+            "unknown",
+            "Open, and it sent bytes that are neither a KISS frame nor any "
+            "protocol kissterm recognises.",
+            f"{len(reply)} bytes, first: {reply[:16]!r}",
+        )
+    finally:
+        writer.close()
+        with contextlib.suppress(Exception):
+            await writer.wait_closed()
+
+
+def _agw_version(payload: bytes) -> str:
+    """`" version 1.2"` from an AGWPE 'R' reply, or `""` if it did not say."""
+    if len(payload) >= 8:
+        major, minor = struct.unpack("<II", payload[:8])
+        return f" version {major}.{minor}"
+    return ""
+
+
 async def discover_network(subnet: str | None = None, timeout: float = 3.0) -> list[DiscoveredDevice]:
     """Scan a local /24 for well-known KISS/AGW/VARA TCP ports.
 
@@ -307,12 +542,16 @@ async def discover_network(subnet: str | None = None, timeout: float = 3.0) -> l
     `_guess_local_subnet`. Every connection attempt is bounded by a
     per-attempt timeout and the whole sweep by `timeout` overall, with at
     most `_MAX_CONCURRENT_PROBES` connections in flight -- see that
-    constant's docstring for why. Identification is by port number and, at
-    most, a passive read of whatever the service says first: this function
-    never writes a byte to a discovered socket, because unlike a serial
-    port, some of these services (VARA in particular) could interpret
-    unsolicited bytes as something to act on, and "probing for a TNC" must
-    never be the thing that keys a transmitter.
+    constant's docstring for why.
+
+    A candidate is then handed to `identify_tcp`, which asks it what it is.
+    VARA's ports are exempt and never spoken to: its command channel takes
+    line-oriented commands that could start a session, and "probing for a
+    TNC" must never be the thing that keys a transmitter. What goes to the
+    others is two bare FEND bytes or one AGWPE version query -- neither can
+    become a transmission, for the reasons set out on `identify_tcp` and
+    `probe_kiss_serial`. Ports that answer with a protocol no TNC speaks are
+    dropped rather than offered.
     """
     if subnet is None:
         subnet = await asyncio.to_thread(_guess_local_subnet)
@@ -359,6 +598,28 @@ async def discover_network(subnet: str | None = None, timeout: float = 3.0) -> l
 
             label = f"{host}:{port}"
             note = _describe_banner(banner)
+
+            # Port number alone is a guess, and on a LAN full of self-hosted
+            # services it is a bad one: 8000 and 8001 are as popular with web
+            # apps as with packet software. So every candidate that is not
+            # VARA gets asked what it actually is. A DISPROVED port is
+            # dropped outright rather than listed with a low score -- the
+            # module's usual "fail toward listing it" rule is about
+            # heuristics being uncertain, and this is not a heuristic: an
+            # HTTP status line is proof. Listing it anyway would put a web
+            # app into `config.transports`, which is what the scan did
+            # before and what sent an operator hunting for a TNC that was
+            # never there.
+            identity = await identify_tcp(host, port, kind=kind, timeout=1.0)
+            if identity.is_disproved:
+                logger.debug("discover_network: %s ruled out -- %s", label, identity.summary)
+                return
+            confidence = 0.95 if identity.is_tnc else 0.5
+            if identity.verdict != "unknown":
+                note = identity.summary
+            elif not banner:
+                note = "open, identity unconfirmed -- nothing said either way"
+
             if complete:
                 config = {"kind": kind, "name": label, "host": host, "port": port}
             else:
@@ -376,7 +637,7 @@ async def discover_network(subnet: str | None = None, timeout: float = 3.0) -> l
                     kind=kind,
                     label=label,
                     detail=f"{service} at {host}:{port}",
-                    confidence=0.7,
+                    confidence=confidence,
                     config=config,
                     note=note,
                 )

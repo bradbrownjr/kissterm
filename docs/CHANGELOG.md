@@ -3,6 +3,50 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — The scan can now tell a TNC from a web app
+
+Reported after a rescan: it found AGWPE but not the KISS port on one host,
+"and it also found other self-hosted apps on other IPs using those ports. Is
+there a way to validate that they are in fact KISS TNC ports vs web services?"
+There was not -- identification was the port number and nothing else, and
+every match was written straight into `config.transports`.
+
+### New Features
+- **`discovery.identify_tcp` asks a port what it is.** For AGWPE, a DataKind
+  `'R'` version query -- a question for the software, with no on-air meaning
+  -- which confirms the engine outright and reports its version. For anything
+  else, two bare `FEND` bytes: the same probe `probe_kiss_serial` already
+  used, and a KISS frame with no type byte, so there is no command for a TNC
+  to act on. VARA's ports are never spoken to at all; its command channel
+  takes line commands that could start a session.
+- **"Test selected" in Settings (F5).** Runs that probe against a configured
+  transport and says what answered. It is deliberately not a connect attempt
+  to another station: "is my TNC there, and is it what the config says" is
+  the question that has to be answered first, and the one an operator
+  otherwise answers by connecting to a node and misreading the silence as a
+  dead RF path.
+- **The sweep drops ports it has disproved.** An HTTP status line, an SSH
+  banner or a hang-up is not a low confidence score, it is proof -- no KISS
+  or AGWPE endpoint can produce one. Those ports are no longer offered, so
+  they stop being written into the transport list.
+
+### Improvements
+- Confidence for a network find is now earned: 0.95 for a confirmed TNC, 0.5
+  for open-but-unconfirmed, instead of a flat 0.7 for every open port.
+- `AgwpeTransport` gained public `build_request`/`parse_header` helpers and
+  uses `parse_header` in its own read loop, so the 36-byte wire format has
+  exactly one definition rather than a second copy in `discovery.py`.
+
+**Note on what the probe can and cannot prove.** The negative is strong and
+the positive is weak. Proving a port is *not* a TNC takes one reply. Proving
+it *is* a raw KISS TNC takes a frame off the air, and KISS has no version
+query, no capability exchange and no greeting -- so an idle TNC on a quiet
+channel stays "unconfirmed", and the UI must never render that as a fault.
+
+**Files:** `kissterm/discovery.py`, `kissterm/transport/agwpe.py`,
+`kissterm/ui/settings_pane.py`, `tests/unit/test_identify_tcp.py`,
+`tests/pilot/test_settings.py`, `README.md`, `AGENTS.md`
+
 ## [2026-09-05] — Asking to connect is asking to transmit
 
 Three things found while getting ready for the first on-air test.

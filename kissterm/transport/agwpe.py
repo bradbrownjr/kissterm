@@ -75,6 +75,37 @@ _KIND_RAW_FRAME = b"K"  # 'K': one raw AX.25 frame, port-byte prefixed
 _UNUSED_CONNECTED_KINDS = (b"C", b"D", b"d", b"X", b"x")
 
 
+#: 'R': ask the engine its version. A pure query -- it asks the SOFTWARE a
+#: question and cannot key a transmitter -- which is what makes it usable as
+#: an identity probe from `kissterm.discovery`. Not sent by the transport
+#: itself, which has no use for the answer.
+KIND_VERSION = b"R"
+
+
+def build_request(data_kind: bytes, port: int = 0) -> bytes:
+    """One header-only AGWPE request, for a DataKind that carries no payload.
+
+    Public because `kissterm.discovery` needs to ask an unidentified TCP port
+    whether it is an AGWPE engine, and the wire format must have exactly one
+    definition. A second copy of a 36-byte little-endian struct in another
+    module is the kind of duplication that silently rots -- this protocol has
+    no version negotiation to catch a drift.
+    """
+    return _build_header(port, data_kind)
+
+
+def parse_header(data: bytes) -> tuple[int, bytes, int]:
+    """``(port, data_kind, payload_length)`` from one 36-byte AGWPE header.
+
+    Raises `ValueError` if `data` is not header-length, which for a probe is
+    the useful answer: whatever is on that socket is not speaking AGWPE.
+    """
+    if len(data) != HEADER_LEN:
+        raise ValueError(f"AGWPE header is {HEADER_LEN} bytes, got {len(data)}")
+    port, _r1, kind_byte, _r2, _pid, _r3, _from, _to, data_len, _user = _HEADER.unpack(data)
+    return port, bytes([kind_byte]), data_len
+
+
 def _build_header(
     port: int, data_kind: bytes, call_from: str = "", call_to: str = "", data_len: int = 0
 ) -> bytes:
@@ -145,13 +176,11 @@ class AgwpeTransport(FrameTransport):
         try:
             while True:
                 header = await self._reader.readexactly(HEADER_LEN)
-                port, _r1, kind_byte, _r2, _pid, _r3, _from, _to, data_len, _user = (
-                    _HEADER.unpack(header)
-                )
+                port, kind, data_len = parse_header(header)
                 payload = (
                     await self._reader.readexactly(data_len) if data_len else b""
                 )
-                await self._handle_message(port, bytes([kind_byte]), payload)
+                await self._handle_message(port, kind, payload)
         except asyncio.IncompleteReadError:
             self.state = TransportState.ERROR
             self._error = "AGWPE connection closed by peer"

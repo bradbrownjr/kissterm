@@ -512,11 +512,27 @@ Gotchas that already cost time:
 - **NEVER** send anything to a transport that the operator did not ask for.
   Every transmission is on a shared channel, keys a transmitter, and is
   attributable to a licensed callsign.
-- **NEVER** transmit during discovery or probing. `probe_kiss_serial` listens;
-  the network sweep reads banners passively. Nothing in discovery may key a rig.
-- **ALWAYS** treat a negative probe as inconclusive. A silent KISS TNC is
-  indistinguishable from a wrong serial port until a frame arrives off the air.
-  The UI says "no traffic seen yet", **never** "not a TNC".
+- **NEVER** transmit during discovery or probing. What discovery may write to
+  a socket is exhaustively: two bare `FEND` bytes, or one AGWPE version query
+  (`'R'`). Two FENDs are a KISS frame with no type byte, so there is no
+  command for a TNC to act on; the AGWPE query asks the *software* its
+  version. `tests/unit/test_identify_tcp.py` asserts the exact bytes on the
+  wire and that they do not decode as a KISS frame. Anything else -- a KISS
+  DATA frame, a parameter command, `exit_kiss()`, a VARA line command -- is
+  out of bounds, and **VARA's ports are never spoken to at all** because its
+  command channel can start a session.
+- **ALWAYS** treat a SILENT probe as inconclusive. A KISS TNC on a quiet
+  channel is indistinguishable from a wrong port until a frame arrives off the
+  air, and silence is what a *working* station looks like. The UI says "open,
+  identity unconfirmed", **never** "not a TNC".
+- **A protocol reply is a different thing from silence, and may be conclusive.**
+  If a port answers with an HTTP status line, an SSH banner, or a hang-up, it
+  is not a TNC -- no KISS or AGWPE endpoint can produce those. `identify_tcp`
+  returns `"not-a-tnc"` and `discover_network` drops the port instead of
+  scoring it low, because a `DiscoveredDevice` is written straight into
+  `config.transports` and a web app in that list costs an operator an evening.
+  Do not weaken this into another confidence score: the previous
+  port-number-only match is what put self-hosted web apps in the list.
 - **ALWAYS** answer a poll (`P` bit) with a response carrying `F=1`, even when
   busy. A peer waiting on a poll is blocked.
 - **ALWAYS** keep `paclen` and window configurable per link. HF wants short

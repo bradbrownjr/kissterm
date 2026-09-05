@@ -412,3 +412,94 @@ async def test_status_bar_says_when_the_station_will_answer_unattended():
         await pilot.pause()
         assert "ANSWERING" not in _plain(app2.query_one("#status-bar"))
     station2.close()
+
+
+# ---------------------------------------------------------------------------
+# "Test selected" -- is my TNC actually there, and is it what the config says?
+# ---------------------------------------------------------------------------
+
+
+def _detail_text(app) -> str:
+    """The full text of the transport-detail line.
+
+    Not `_plain`: that renders only what fits the widget's current width, and
+    a verdict sentence wraps -- clipping the very words the assertion is
+    about. `Static.renderable` is what the pane was actually told to say.
+    """
+    return str(app.query_one("#settings-transport-detail").content)
+
+
+async def _settings_tab(app, pilot):
+    app.action_show_tab("settings")
+    await pilot.pause()
+    await asyncio.sleep(0.1)
+    await pilot.pause()
+
+
+@pytest.mark.asyncio
+async def test_test_button_names_a_web_service_for_what_it_is():
+    """The whole point of the button: a scan that matched on port number
+    alone put a self-hosted web app in the transport list, and the operator
+    had no way to find that out except by trying to connect to a station and
+    misreading the silence as a dead RF path."""
+
+    async def handler(reader, writer):
+        await reader.read(64)
+        writer.write(b"HTTP/1.1 400 Bad Request\r\n\r\n")
+        await writer.drain()
+        writer.close()
+
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    host, port = server.sockets[0].getsockname()[:2]
+
+    config = Config(mycall=str(MYCALL))
+    config.transports = [{"kind": "tcp", "name": "suspect", "host": host, "port": port}]
+    config.active_transport = "suspect"
+    app, station = await _app(config)
+    try:
+        async with app.run_test(size=(120, 44)) as pilot:
+            await _settings_tab(app, pilot)
+            app.query_one(SettingsPane)._test_transport()
+            await pilot.pause()
+            await asyncio.sleep(0.8)
+            await pilot.pause()
+            detail = _detail_text(app)
+            assert "Not a TNC" in detail, detail
+            assert "web server" in detail, detail
+    finally:
+        station.close()
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_test_button_does_not_call_a_silent_tnc_broken():
+    """An idle KISS TNC on a quiet channel says nothing, which is what a
+    working station looks like. Reporting that as a failure would send an
+    operator chasing a fault that is not there."""
+
+    async def handler(reader, writer):
+        await reader.read(64)
+        await asyncio.sleep(3.0)
+
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    host, port = server.sockets[0].getsockname()[:2]
+
+    config = Config(mycall=str(MYCALL))
+    config.transports = [{"kind": "tcp", "name": "quiet", "host": host, "port": port}]
+    config.active_transport = "quiet"
+    app, station = await _app(config)
+    try:
+        async with app.run_test(size=(120, 44)) as pilot:
+            await _settings_tab(app, pilot)
+            app.query_one(SettingsPane)._test_transport()
+            await pilot.pause()
+            await asyncio.sleep(2.6)
+            await pilot.pause()
+            detail = _detail_text(app)
+            assert "Not a TNC" not in detail, detail
+            assert "silent" in detail.lower(), detail
+    finally:
+        station.close()
+        server.close()
+        await server.wait_closed()
