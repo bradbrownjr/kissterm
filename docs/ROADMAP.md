@@ -50,26 +50,19 @@ What P1 deliberately did **not** settle, and is now the top of the queue:
   since they read from the transport, not from any one session. Touches
   `kissterm/app.py` (tab management) and probably a `SessionManager` to keep
   `ax25/session.py` from needing to know about the UI. Medium-large.
-- [ ] **Per-session logging and transcript export.** Plain-text and/or
-  timestamped log per connection, written under `platformdirs.user_log_dir`,
-  exportable on demand. Small.
 - [ ] **Scrollback search.** In-pane find, forward/backward, on the terminal
   buffer Textual already retains. Small.
-- [ ] **ANSI-from-remote sanitization.** A remote BBS or node's output is
-  untrusted input and must never be able to drive the *local* terminal —
-  reposition the cursor outside its own pane, resize anything, trigger a
-  paste-back, or otherwise reach outside the sandbox Textual gives a widget.
-  Needs an explicit allow-list of safe SGR (color/bold) sequences and a
-  filter that strips or neutralizes everything else before render, not a
-  denylist. This is a real security boundary, not cosmetic — treat it with
-  the seriousness of terminal-emulator CVEs (OSC/DCS injection, cursor
-  escapes) that this exact class of bug has produced in real terminals.
-  Medium effort, high care.
 - [ ] **Paste protection.** A bracketed-paste-style guard so a large or
   binary paste into a connected session doesn't get sent a keystroke at a
   time in a way that floods a slow RF link or triggers a remote command
-  injection via embedded control characters. Small once ANSI sanitization's
-  filtering primitives exist — they share code.
+  injection via embedded control characters. Small: the filtering primitives
+  it shares now exist in `kissterm/ansi.py`, but note the direction is the
+  opposite one -- that module protects the *local* terminal from remote
+  bytes, and this protects the *channel* from a local paste.
+- [ ] **Transcript export and search.** `kissterm/session_log.py` writes one
+  plain-text file per session already. What is missing is finding them from
+  inside the app: a list of past sessions with a peer, and a way to open or
+  export one without going to a shell. Small.
 - [ ] **Configurable paclen/window per link.** `DEFAULT_PACLEN` and
   `DEFAULT_WINDOW` in `kissterm/ax25/frame.py` are link-wide constants today;
   make them per-connection settings the state machine reads instead, so a
@@ -293,8 +286,8 @@ The answering half of this phase shipped in `[2026-09-04]` (see CHANGELOG):
 DM rather than silence, an accepted one gets a configurable connect banner,
 and the status bar shows `ANSWERING` whenever the station will transmit with
 nobody present. What is still open is everything the caller would *do* once
-connected -- a mailbox, a file area -- plus the beacons that tell them there
-is a reason to call at all.
+connected -- a mailbox, a file area. Plain beacons shipped in `[2026-09-05]`;
+the beacon that says there is *mail waiting* still needs a mailbox behind it.
 
 ### Regulatory constraint -- read before building any of this
 Auto-answering means **transmitting unattended under the operator's callsign**,
@@ -315,20 +308,9 @@ What follows from it for the design is not in doubt, though:
   smaller regulatory question than a forwarding BBS.
 
 ### Items
-- [ ] **Beacon text (`BTEXT`), sent as unproto UI frames.** The long-standing
-      convention for telling a channel you exist: a short periodic
-      transmission to an unconnected destination (`BEACON`, `ID`, or `CQ`)
-      with a digipeater path. **Distinct from APRS beaconing (P4)** -- that
-      sends position in APRS payload format to `APRS`; this sends free text on
-      a packet channel. Same `AX25Frame.u_frame(..., UType.UI)` machinery,
-      different destination and payload, and the two must not be conflated in
-      the config or the UI.
-      Constraints, all of which follow from this phase's regulatory note:
-      **off by default** (it is unattended transmission under the operator's
-      callsign); a minimum interval enforced in code, not just suggested, and
-      the airtime estimator (`nodes.airtime_seconds`) used to show what the
-      chosen interval actually costs the channel; and never transmit an empty
-      or unchanged-but-pointless beacon. Mid.
+Beacon text (`BTEXT`) shipped in `[2026-09-05]` -- see CHANGELOG. What remains
+of the beacon work is the half that needs a mailbox behind it:
+
 - [ ] **"MAIL FOR" beacons** -- the W0RLI/FBB convention: a station with mail
       waiting beacons the list of callsigns it is holding for, so users know
       there is a reason to connect. Content is **generated at send time from
@@ -344,7 +326,12 @@ What follows from it for the design is not in doubt, though:
       - **Back off per callsign.** A station that never collects should not
         have its callsign beaconed every interval forever. Decay the
         repetition, and stop after some age.
-      - Depends on the mailbox below existing first. Mid.
+      - Depends on the mailbox below existing first. The transmit side is
+        already done: `kissterm/beacon.py` owns the timer, the enforced
+        interval floor, the never-send-empty rule and the airtime estimate.
+        This item is the *content* -- generating the callsign list, capping
+        it, and the per-callsign back-off -- not another beacon. **Do not
+        build a second beaconer beside the first.** Mid.
 
 - [ ] **A personal mailbox on an alternate SSID** -- the `-1` convention, which
       `Config.mycall_aliases` and `AX25Station.aliases` already support at the
@@ -389,9 +376,6 @@ What follows from it for the design is not in doubt, though:
       where no notifier exists. Mid effort.
 - [ ] **Notify on incoming connection and on new mail**, same rate-limiting
       machinery. Small once the above exists.
-- [ ] **An "unattended" status indicator** in the status bar whenever the
-      station will answer without a human present. Small, and it is the honest
-      counterpart to the opt-in.
 
 ## P10 — Application tabs: Mail, Bulletins, Files
 

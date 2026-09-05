@@ -16,6 +16,9 @@ only files under pytest's `tmp_path`.
 from __future__ import annotations
 
 import asyncio
+import dataclasses
+import tomllib
+from pathlib import Path
 
 import pytest
 
@@ -445,3 +448,49 @@ def test_unimplemented_optional_deps_are_skipped_not_warned():
     bleak = checks["dependency: bleak"]
     assert bleak.status == "skip"
     assert not bleak.remedy, "a skipped check must not tell the user to install it"
+
+
+# ---------------------------------------------------------------------------
+# config.toml.example is documentation that has to actually work
+# ---------------------------------------------------------------------------
+
+
+def test_example_config_loads_with_no_warnings():
+    """The file we tell people to copy must be a valid config.
+
+    `load_config` never raises, so a broken example would otherwise fail
+    silently -- which is exactly what happened: five settings documented
+    after the [custom_theme] header were read as custom-theme keys and
+    discarded, and nothing anywhere said so.
+    """
+    example = Path(__file__).resolve().parents[2] / "config.toml.example"
+    cfg = kconfig.load_config(example)
+    assert cfg.warnings == [], cfg.warnings
+
+
+def test_every_top_level_setting_in_the_example_is_actually_top_level():
+    """TOML puts a bare key under the last [table] header above it.
+
+    Any top-level `Config` field documented below the first table header is
+    silently swallowed by that table. This test compares what the example
+    file parses to as top-level against what it appears to document.
+    """
+    example = Path(__file__).resolve().parents[2] / "config.toml.example"
+    text = example.read_text()
+    with example.open("rb") as fh:
+        parsed = tomllib.load(fh)
+
+    documented = {
+        line.split("=", 1)[0].strip()
+        for line in text.splitlines()
+        if "=" in line and not line.lstrip().startswith("#")
+    }
+    top_level_fields = {f.name for f in dataclasses.fields(kconfig.Config)}
+    nested = {"warnings"}
+
+    for name in sorted(documented & top_level_fields - nested):
+        assert name in parsed, (
+            f"{name!r} is documented in config.toml.example but parses as a "
+            f"key of some [table] instead of top-level -- move it above the "
+            f"first table header."
+        )

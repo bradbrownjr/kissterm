@@ -72,6 +72,7 @@ operator will hit at the worst moment.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from rich.table import Table
 from textual import on, work
@@ -82,10 +83,13 @@ from textual.widgets import Footer, Static, TabbedContent, TabPane
 
 from .. import __version__
 from ..ax25 import AX25Station, parse_path
+from ..beacon import Beaconer
+from ..config import BeaconConfig
 from ..ax25.frame import AX25Frame
 from ..heard import HeardTable
 from ..hotplug import PortEvent, SerialPortWatcher
-from ..monitor import MonitorFilter, format_frame
+from ..monitor import MonitorFilter, format_frame, sanitize
+from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError
 from .aprs_pane import AprsPane
 from . import themes
@@ -183,6 +187,18 @@ class KissTermApp(App):
         #: costs real airtime (see kissterm/nodes/__init__.py).
         self.reference = CommandReference()
         self._detect_buffer = ""
+        #: Transcript for the current session, or None. Owned here rather
+        #: than by the pane: it records what crossed the *link*, and the pane
+        #: is only one of the things watching that.
+        self.transcript: SessionLog | None = None
+        #: Plain-text beacon. Constructed unconditionally so there is one
+        #: object to ask "is this station transmitting on a timer?"; it does
+        #: nothing at all until `start()` succeeds, and `start()` refuses
+        #: unless the operator opted in AND set some text.
+        self.beaconer = Beaconer(
+            station, getattr(config, "beacon", None) or BeaconConfig(),
+            on_sent=self._on_beacon_sent,
+        )
 
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -243,6 +259,57 @@ class KissTermApp(App):
         self.query_one(TerminalPane).log(
             f"kissterm {__version__} -- Ctrl+N to connect, Ctrl+H for help.\n"
         )
+        self.apply_runtime_settings()
+
+    # ------------------------------------------------------------------
+    # Settings that need something done, not just stored
+    # ------------------------------------------------------------------
+    def apply_runtime_settings(self) -> None:
+        """Reconcile the running app with `self.config` after a change.
+
+        Called on mount and after every Settings save. Everything here is
+        idempotent, because "save" gets pressed repeatedly and the second
+        press must not, for instance, leave two beacon timers running.
+        """
+        for pane in self._base_query(TerminalPane):
+            pane.remote_color = getattr(self.config, "remote_color", True)
+        self._restart_beacon()
+
+    @work
+    async def _restart_beacon(self) -> None:
+        """Stop then start, rather than mutating a running beaconer.
+
+        A live edit would leave a window where the interval and the text
+        disagree about what is going out -- and what goes out is transmitted
+        under the operator's callsign, so "probably fine" is not the standard.
+        """
+        await self.beaconer.stop()
+        self.beaconer.station = self.station
+        self.beaconer.config = getattr(self.config, "beacon", None) or BeaconConfig()
+        why = self.beaconer.start()
+        if why and self.beaconer.config.enabled:
+            # Only worth saying when the operator asked for a beacon and did
+            # not get one. "beaconing is off" is not news.
+            self.notify(f"Beacon not started: {why}", severity="warning")
+
+    def _on_beacon_sent(self, frame: AX25Frame) -> None:
+        """Every beacon is visible in the terminal pane, without exception.
+
+        A station that transmits without the operator being able to see that
+        it did is exactly what the opt-in exists to prevent. This is the
+        record of it, not a debug aid.
+        """
+        self._to_terminal("log", f"\n*** Beacon sent to {frame.path.destination}\n")
+
+    def on_unmount(self) -> None:
+        """Disarm the beacon as the app goes away.
+
+        Not merely tidy: a beacon task still armed while the UI is being torn
+        down would transmit under the operator's callsign with nothing on
+        screen to show it -- and nowhere to show it.
+        """
+        self.beaconer.cancel()
+        self._close_transcript()
 
     # ------------------------------------------------------------------
     # Hardware hotplug (serial only -- never the network)
@@ -341,10 +408,56 @@ class KissTermApp(App):
         self.reference = CommandReference()
         self._detect_buffer = ""
         self.link = link
+        self._start_transcript(link)
         link.on_data.append(self._on_link_data)
         link.on_state.append(self._on_link_state)
-        link.on_error.append(lambda why: self._to_terminal("log", f"\n*** {why}\n"))
+        link.on_error.append(lambda why: self._note(f"\n*** {why}\n"))
         self._to_terminal("set_placeholder", f"connected to {link.peer}")
+
+    # ------------------------------------------------------------------
+    # Transcript
+    # ------------------------------------------------------------------
+    def _start_transcript(self, link) -> None:
+        """Open a transcript for this session, and say where it is.
+
+        The path goes on screen because a file appearing on disk without the
+        operator being told is a surprise, and this is on by default. A
+        transcript that cannot be opened is reported once and then forgotten
+        about -- see `session_log.py` on why a failed log must never be
+        allowed to disturb a live link.
+        """
+        self._close_transcript()
+        if not getattr(self.config, "log_sessions", True):
+            return
+        from ..config import log_path
+
+        directory = Path(self.config.log_dir) if self.config.log_dir else log_path()
+        mycall = str(self.station.mycall) if self.station is not None else ""
+        transcript = SessionLog(directory, mycall, str(link.peer))
+        if not transcript.open():
+            self._to_terminal("log", f"\n*** No transcript: {transcript.failed}\n")
+            return
+        self.transcript = transcript
+        self._to_terminal("log", f"\n*** Transcript: {transcript.path}\n")
+
+    def _close_transcript(self) -> None:
+        if self.transcript is not None:
+            self.transcript.close()
+            self.transcript = None
+
+    def _note(self, text: str) -> None:
+        """A local note: to the terminal pane, and to the transcript."""
+        self._to_terminal("log", text)
+        if self.transcript is not None:
+            self.transcript.note(text.strip().lstrip("* "))
+
+    def log_sent(self, text: str) -> None:
+        """Record a line the operator transmitted. Called from `send_line`.
+
+        The pane echoes it to the scrollback itself; this is the durable half.
+        """
+        if self.transcript is not None:
+            self.transcript.sent(text)
 
     def _base_query(self, selector):
         """Query the app's own screen, not whatever modal is on top of it.
@@ -384,6 +497,12 @@ class KissTermApp(App):
 
     def _on_link_data(self, data: bytes) -> None:
         self._to_terminal("write_incoming", data)
+        if self.transcript is not None:
+            # Sanitized, never raw. A transcript is read later by a person in
+            # a terminal, so wire bytes with escape sequences in them would
+            # reintroduce exactly the problem the pane's filter solves --
+            # `cat` on the file would run them.
+            self.transcript.received(sanitize(data))
         self._sniff_node(data)
 
     def _sniff_node(self, data: bytes) -> None:
@@ -412,9 +531,10 @@ class KissTermApp(App):
         )
 
     def _on_link_state(self, state: SessionState) -> None:
-        self._to_terminal("log", f"\n*** {state.value}\n")
+        self._note(f"\n*** {state.value}\n")
         if state is SessionState.DISCONNECTED:
             self._to_terminal("set_placeholder", "not connected -- Ctrl+N")
+            self._close_transcript()
 
     # ------------------------------------------------------------------
     # Actions
@@ -543,6 +663,11 @@ class KissTermApp(App):
             # The honest counterpart to the opt-in: if this station will
             # transmit with nobody present, that fact is always on screen.
             parts.append("ANSWERING")
+        if self.beaconer.running:
+            # Same rule. A beacon is unattended transmission on a timer, so
+            # it is on screen for as long as it is armed -- not only when it
+            # happens to fire.
+            parts.append("BEACON")
         parts.append(f"heard {len(self.heard)}")
         renderable = _status_row(parts)
         for bar in self._base_query("#status-bar"):

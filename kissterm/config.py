@@ -97,6 +97,46 @@ class AprsConfig:
     path: str = "WIDE1-1,WIDE2-1"
 
 
+#: Floor on the beacon interval, in minutes, enforced here and again in
+#: `kissterm.beacon.Beaconer.interval_seconds`. A beacon is transmitted under
+#: the operator's callsign onto a channel everyone else shares; the floor is
+#: a courtesy to them, not a preference of the operator's, so it is a clamp
+#: rather than a warning. Ten minutes is the conventional BTEXT interval on a
+#: busy VHF channel and is not short.
+MIN_BEACON_INTERVAL_MINUTES = 10
+
+
+@dataclass
+class BeaconConfig:
+    """Plain-text beacon (BTEXT) -- a periodic unproto UI frame.
+
+    NOT APRS beaconing, which lives in `AprsConfig` and sends a position in
+    APRS format to the `APRS` destination. This sends free text to `BEACON`.
+    They share the UI-frame machinery and nothing else; see
+    `kissterm/beacon.py` for why conflating them would be a transmitting bug
+    rather than a cosmetic one.
+
+    `enabled = false` by default because this is unattended transmission
+    under the operator's callsign, and `text = ""` by default because there
+    is no sensible thing to say on somebody's behalf.
+    """
+
+    enabled: bool = False
+    #: What goes on the air. Empty means nothing is transmitted, whatever
+    #: `enabled` says -- an empty beacon is pure channel occupancy.
+    text: str = ""
+    interval_minutes: int = 30
+    #: Unproto destination. BEACON is the long-standing convention; ID and CQ
+    #: are the other two an operator might reasonably pick.
+    destination: str = "BEACON"
+    #: Digipeater path, e.g. "WIDE1-1". Empty means direct, which is the
+    #: right default: a beacon that floods repeaters is the reason beacons
+    #: have a bad name.
+    path: str = ""
+    #: KISS/AGW port for a multi-port TNC.
+    port: int = 0
+
+
 @dataclass
 class CustomThemeConfig:
     """Exact hex colors for the `"custom"` theme (`kissterm.ui.themes`).
@@ -194,6 +234,13 @@ class Config:
         "There is no mailbox here yet. 73\r"
     )
     monitor_filter: str = ""
+    #: Write a plain-text transcript of every connected session. On by
+    #: default: the operator can already read the same text in the scrollback,
+    #: so this changes how long it survives, not who can see it, and a station
+    #: log is ordinary amateur practice. The path is shown in the terminal
+    #: pane when a session starts, so it is never a surprise. Local only --
+    #: nothing about this reaches the air.
+    log_sessions: bool = True
     #: Empty means "use log_path()" -- see that function below.
     log_dir: str = ""
     #: A `kissterm.ui.themes.THEME_CATALOG` id, or `"custom"` to use
@@ -222,7 +269,16 @@ class Config:
     #: terminal (an old TTY, a serial console, some SSH clients) that mangles
     #: anything past code page 437.
     ascii_safe: bool = False
+    #: Let a remote station's ANSI colour through to the Terminal pane.
+    #: Only SGR (colour, bold, underline) survives, and only via the
+    #: allowlist in `kissterm.ansi` -- cursor movement, screen erase, window
+    #: title and clipboard sequences are removed whatever this is set to.
+    #: On by default because a packet BBS's menu colour is information its
+    #: sysop put there on purpose; turn it off for a terminal that renders
+    #: colour badly, or to see exactly the bytes a node sent.
+    remote_color: bool = True
     aprs: AprsConfig = field(default_factory=AprsConfig)
+    beacon: BeaconConfig = field(default_factory=BeaconConfig)
     #: Saved connect targets: dicts with at least a "target" callsign and
     #: optionally a "path" (digipeater route) and a "transport" name.
     autoconnect: list[dict[str, Any]] = field(default_factory=list)
@@ -310,6 +366,7 @@ def load_config(path: Path | None = None) -> Config:
     cfg.accept_incoming = _load_bool(raw, "accept_incoming", cfg.accept_incoming, warnings)
     cfg.connect_banner = _load_str(raw, "connect_banner", cfg.connect_banner, warnings)
     cfg.monitor_filter = _load_str(raw, "monitor_filter", cfg.monitor_filter, warnings)
+    cfg.log_sessions = _load_bool(raw, "log_sessions", cfg.log_sessions, warnings)
     cfg.log_dir = _load_str(raw, "log_dir", cfg.log_dir, warnings)
     cfg.theme = _load_str(raw, "theme", cfg.theme, warnings)
     cfg.custom_theme = _load_custom_theme(raw.get("custom_theme"), warnings)
@@ -317,7 +374,9 @@ def load_config(path: Path | None = None) -> Config:
     cfg.clock_24h = _load_bool(raw, "clock_24h", cfg.clock_24h, warnings)
     cfg.show_date = _load_bool(raw, "show_date", cfg.show_date, warnings)
     cfg.ascii_safe = _load_bool(raw, "ascii_safe", cfg.ascii_safe, warnings)
+    cfg.remote_color = _load_bool(raw, "remote_color", cfg.remote_color, warnings)
     cfg.aprs = _load_aprs(raw.get("aprs", {}), warnings)
+    cfg.beacon = _load_beacon(raw.get("beacon", {}), warnings)
     cfg.autoconnect = _load_dict_list(raw.get("autoconnect", []), "autoconnect", warnings)
 
     cfg.warnings = warnings
@@ -517,6 +576,48 @@ def _load_aprs(value: Any, warnings: list[str]) -> AprsConfig:
         aprs.longitude = clamped
 
     return aprs
+
+
+def _load_beacon(value: Any, warnings: list[str]) -> BeaconConfig:
+    """Load `[beacon]`, clamping the interval up to the floor.
+
+    The clamp is the point of this function existing rather than a generic
+    table loader: `interval_minutes = 1` in a hand-edited config would
+    otherwise put the operator's callsign on the channel sixty times an hour.
+    It is corrected with a warning rather than refused, because refusing
+    would mean falling back to `enabled` with some other interval, and the
+    operator asked to beacon -- just not that often.
+    """
+    default = BeaconConfig()
+    if not isinstance(value, dict):
+        if value not in ({}, None):
+            warnings.append(f"'beacon' should be a table, got {value!r}; using defaults")
+        return default
+
+    beacon = BeaconConfig()
+    beacon.enabled = _load_bool(value, "enabled", default.enabled, warnings)
+    beacon.text = _load_str(value, "text", default.text, warnings)
+    beacon.destination = _load_str(value, "destination", default.destination, warnings)
+    beacon.path = _load_str(value, "path", default.path, warnings)
+    beacon.port = _load_int(value, "port", default.port, warnings)
+    beacon.interval_minutes = _load_int(
+        value, "interval_minutes", default.interval_minutes, warnings
+    )
+    if beacon.interval_minutes < MIN_BEACON_INTERVAL_MINUTES:
+        warnings.append(
+            f"beacon.interval_minutes {beacon.interval_minutes} is below the "
+            f"{MIN_BEACON_INTERVAL_MINUTES}-minute minimum; using "
+            f"{MIN_BEACON_INTERVAL_MINUTES}. A beacon occupies a channel "
+            f"everyone else shares."
+        )
+        beacon.interval_minutes = MIN_BEACON_INTERVAL_MINUTES
+
+    if beacon.enabled and not beacon.text.strip():
+        warnings.append(
+            "beacon.enabled is true but beacon.text is empty; nothing will be "
+            "transmitted. An empty beacon is pure channel occupancy."
+        )
+    return beacon
 
 
 #: A Textual-acceptable hex color: 6 or 3 hex digits, always `#`-prefixed.

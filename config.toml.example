@@ -154,33 +154,6 @@ log_dir = ""
 # unstyled or refusing to start.
 theme = "tokyo-night"
 
-# Only read when theme = "custom" above. Exact hex values, one per Textual
-# theme field -- this is the field for an external theme-sync tool, or for
-# copying color values by hand out of a terminal emulator's own color-scheme
-# file. Every field below is optional; anything missing or invalid (not a
-# "#rrggbb" or "#rgb" hex string) falls back to that one field's own default
-# without discarding the rest of the table. Defaults shown here ARE Tokyo
-# Night's real values, so leaving this whole table untouched while
-# `theme = "custom"` looks identical to Tokyo Night -- a working starting
-# point to edit from, not a blank surprise.
-#
-# Not yet editable field-by-field in the Settings UI (eleven hex-input
-# widgets is a lot to ship half-finished) -- see docs/ROADMAP.md P6.
-[custom_theme]
-primary    = "#BB9AF7"
-secondary  = "#7AA2F7"
-warning    = "#E0AF68"
-error      = "#F7768E"
-success    = "#9ECE6A"
-accent     = "#FF9E64"
-foreground = "#a9b1d6"
-background = "#1A1B26"
-surface    = "#24283B"
-panel      = "#414868"
-# Whether Textual should treat this as a dark theme (affects a few widgets'
-# default contrast choices). Not a color.
-dark = true
-
 # --- Clock (title bar) ----------------------------------------------------
 #
 # Local time, UTC time and the date are three INDEPENDENT toggles. Turn on
@@ -217,6 +190,90 @@ show_date = false
 # `kissterm --doctor` will suggest this automatically if it detects a
 # non-UTF-8 terminal.
 ascii_safe = false
+
+# Let a remote BBS's own ANSI colour reach the Terminal pane. Only colour,
+# bold and underline survive; cursor movement, screen erase, window title and
+# clipboard sequences are removed whatever this is set to, so this is a
+# readability choice and not a safety one. Turn it off on a terminal that
+# renders colour badly, or to see exactly what a node sent.
+remote_color = true
+
+# Write a plain-text transcript of every connected session into the log
+# directory: everything sent, everything received, every link state change.
+# One file per session, named for the time and the two callsigns. The
+# scrollback already holds the same text -- this is what makes it survive
+# closing the app.
+log_sessions = true
+# NOTE ON ORDERING: every bare `key = value` below this point belongs to
+# whichever [table] header precedes it, not to the top level. That is TOML,
+# not a kissterm rule, and it bit this file once already -- the clock and
+# ascii_safe settings were documented AFTER [custom_theme] and were
+# therefore silently read as custom-theme keys and ignored. Every top-level
+# setting is above the first [table] header; keep it that way. There is a
+# regression test for it in tests/unit/test_config.py.
+
+
+# Only read when theme = "custom" above. Exact hex values, one per Textual
+# theme field -- this is the field for an external theme-sync tool, or for
+# copying color values by hand out of a terminal emulator's own color-scheme
+# file. Every field below is optional; anything missing or invalid (not a
+# "#rrggbb" or "#rgb" hex string) falls back to that one field's own default
+# without discarding the rest of the table. Defaults shown here ARE Tokyo
+# Night's real values, so leaving this whole table untouched while
+# `theme = "custom"` looks identical to Tokyo Night -- a working starting
+# point to edit from, not a blank surprise.
+#
+# Not yet editable field-by-field in the Settings UI (eleven hex-input
+# widgets is a lot to ship half-finished) -- see docs/ROADMAP.md P6.
+[custom_theme]
+primary    = "#BB9AF7"
+secondary  = "#7AA2F7"
+warning    = "#E0AF68"
+error      = "#F7768E"
+success    = "#9ECE6A"
+accent     = "#FF9E64"
+foreground = "#a9b1d6"
+background = "#1A1B26"
+surface    = "#24283B"
+panel      = "#414868"
+# Whether Textual should treat this as a dark theme (affects a few widgets'
+# default contrast choices). Not a color.
+dark = true
+
+
+# --- Plain-text beacon (BTEXT) --------------------------------------------
+# NOT the same thing as the APRS beaconing below. This transmits free text to
+# an unconnected destination on a timer; APRS transmits your position in APRS
+# format to the APRS destination. Enabling one does not enable the other, and
+# they do not share an interval.
+#
+# A beacon is UNATTENDED TRANSMISSION under your callsign. It is off until
+# you turn it on, nothing is sent while `text` is empty, the first
+# transmission happens one full interval after you enable it (never at
+# startup), and intervals below 10 minutes are clamped up to 10 -- your
+# beacon is time nobody else on the frequency can transmit.
+[beacon]
+enabled = false
+
+# What goes on the air: who and where you are, and what you offer. Use \r for
+# a line break. Truncated at 256 bytes -- a beacon is not a bulletin.
+text = ""
+
+# Minutes between beacons. 10 is the enforced floor; 30 or 60 is normal for a
+# fixed station.
+interval_minutes = 30
+
+# Unproto destination. BEACON is the long-standing convention; ID and CQ are
+# the other two you will see. Nobody answers it -- the frame is unconnected.
+destination = "BEACON"
+
+# Digipeater path. Empty means direct, which is the right answer for a fixed
+# station that can be heard -- a beacon sent through wide digipeaters is the
+# reason beacons have a bad name.
+path = ""
+
+# KISS/AGW port, for a multi-port TNC.
+port = 0
 
 # --- APRS beaconing -------------------------------------------------------
 # Entirely optional. Leave enabled = false if you only want connected-mode

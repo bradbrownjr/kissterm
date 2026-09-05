@@ -79,6 +79,25 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   read-only: scroll it, select and copy from it, click a URL in it. The input
   line at the bottom is the only thing that ever transmits, and only when you
   press Enter or click Send. Suggestions fill the input; they never send it.
+- **A BBS's own colour, without its escape sequences.** Remote ANSI is passed
+  through an allowlist: colour, bold and underline survive, so a board that
+  has painted its menus since 1988 still reads the way its sysop meant it to.
+  Cursor movement, screen erase, window-title and clipboard sequences do not
+  survive, whatever the setting -- an allowlist, not a denylist, because the
+  set of sequences a terminal understands is undocumented in practice and the
+  set that can only recolour a glyph is small enough to enumerate.
+- **Session transcripts.** One plain-text file per connection: everything
+  sent, everything received, every link-state change, timestamped. The
+  scrollback already holds it; this is what makes it survive closing the app.
+  A log that cannot be written is reported once and then never allowed to
+  disturb the link.
+- **Beacons.** A short text on a timer telling the channel you are there --
+  the `BTEXT` convention, sent as unproto UI frames, separate from APRS
+  beaconing. Off until you turn it on, silent while the text is empty, first
+  transmission one full interval after you enable it rather than the moment
+  you press Save, and a ten-minute floor that is enforced rather than
+  suggested. Settings shows what your chosen interval actually costs the
+  channel, in seconds and as a percentage of the frequency.
 - **`kissterm --doctor`.** Diagnoses the things that actually go wrong: serial
   permissions, missing dependencies, an unreachable TNC host, a bad callsign.
 
@@ -207,8 +226,13 @@ warning rather than leaving the app unstyled or refusing to start.
 
 ## Safety notes
 
-kissterm never transmits anything you did not ask it to. **It does not answer
-calls from other stations unless you turn that on** -- answering is unattended
+kissterm never transmits anything you did not ask it to. The two things that
+can transmit without you at the keyboard -- answering a call, and beaconing --
+are both off on a fresh install, both say so in the status bar (`ANSWERING`,
+`BEACON`) for as long as they are armed, and both write every transmission
+into the terminal pane where you can see it happened.
+
+**It does not answer calls from other stations unless you turn that on** -- answering is unattended
 transmission under your callsign, and a fresh install must not start doing that
 on its own. With it off, a station calling you gets a polite refusal (a DM) and
 stops retrying rather than transmitting into silence. With it on, the status
@@ -217,15 +241,25 @@ configure. Automatic-control rules differ by country and band; check what your
 licence allows before enabling it. Discovery and probing
 listen only — nothing in the scan will key your rig.
 
-Text arriving from a remote node is treated as untrusted and stripped of
-terminal escape sequences before it is displayed. A corrupt frame off a noisy
-channel produces the same bytes as a malicious one, and neither should be able
-to repaint your screen in the middle of a net.
+A beacon is unattended transmission under your callsign onto a channel
+everybody shares, so the interval floor is a clamp in code rather than advice
+in a help string, and an empty beacon is never sent -- `MAIL FOR:` with
+nothing after it is pure channel occupancy.
+
+Text arriving from a remote node is treated as untrusted. Colour, bold and
+underline may survive (turn that off with `remote_color = false`); everything
+else -- cursor movement, screen erase, scroll regions, window title, clipboard
+writes, terminal hyperlinks, DCS, and the query sequences whose replies a
+shell later reads as keystrokes -- is removed, and is removed whatever that
+setting says. A corrupt frame off a noisy channel produces the same bytes as a
+malicious one, and neither should be able to repaint your screen in the middle
+of a net. Transcripts get the fully stripped text, because `cat` on a log file
+would run whatever escapes it contained.
 
 ## Status
 
-Version 0.1. The AX.25 stack, the KISS transports, the monitor, the heard list
-and APRS decoding are implemented and tested. VARA, Mercury and BLE TNCs are
+Version 0.1. The AX.25 stack, the KISS transports, the monitor, the heard list,
+APRS decoding, beacons and session transcripts are implemented and tested. VARA, Mercury and BLE TNCs are
 not yet verified against hardware. See [docs/ROADMAP.md](docs/ROADMAP.md) for
 what is open and [docs/CHANGELOG.md](docs/CHANGELOG.md) for what has changed.
 

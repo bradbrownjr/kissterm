@@ -255,6 +255,78 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         ),
     ),
     Section(
+        "Beacon",
+        "A short text transmitted on a timer to say you are here. This is "
+        "NOT APRS beaconing above -- that sends your position in APRS "
+        "format; this sends free text. Both key the radio with nobody "
+        "present, and both are off until you turn them on.",
+        (
+            Field(
+                "beacon.enabled",
+                "Beacon on a timer",
+                "bool",
+                "Transmits the text below every interval, unattended, under "
+                "your callsign. Nothing is sent while the text is empty, "
+                "whatever this is set to -- an empty beacon is pure channel "
+                "occupancy. The first one goes out one full interval after "
+                "you enable it, never the moment you press Save.",
+                apply="live",
+            ),
+            Field(
+                "beacon.text",
+                "Beacon text",
+                "text",
+                "Who and where you are, and what you offer -- a node, a "
+                "mailbox, a talkgroup. Use \\r for a line break. Truncated "
+                "at 256 bytes: a beacon is not a bulletin.",
+                apply="live",
+                placeholder="W1AW Newington CT -- kissterm, mailbox on -1",
+            ),
+            Field(
+                "beacon.interval_minutes",
+                "Beacon every (min)",
+                "int",
+                "Ten minutes is the floor and it is enforced, not suggested: "
+                "at 1200 baud your beacon is time nobody else on the "
+                "frequency can transmit. Thirty or sixty is normal for a "
+                "fixed station.",
+                minimum=10,
+                maximum=1440,
+                apply="live",
+            ),
+            Field(
+                "beacon.destination",
+                "Unproto destination",
+                "text",
+                "Who the beacon is addressed to. BEACON is the long-standing "
+                "convention; ID and CQ are the other two you will see. "
+                "Nobody answers it -- the frame is unconnected.",
+                apply="live",
+                placeholder="BEACON",
+            ),
+            Field(
+                "beacon.path",
+                "Digipeater path",
+                "text",
+                "Empty means direct, which is the right answer for a fixed "
+                "station that can be heard. A beacon sent through wide "
+                "digipeaters is the reason beacons have a bad name.",
+                apply="live",
+                placeholder="(direct)",
+            ),
+            Field(
+                "beacon.port",
+                "TNC port",
+                "int",
+                "KISS/AGW port number, for a multi-port TNC. 0 unless you "
+                "know otherwise.",
+                minimum=0,
+                maximum=15,
+                apply="live",
+            ),
+        ),
+    ),
+    Section(
         "Appearance",
         "Every color in kissterm is a theme variable, so switching here "
         "repaints instantly -- nothing to restart.",
@@ -328,12 +400,33 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 apply="live",
             ),
             Field(
+                "remote_color",
+                "Allow remote colour",
+                "bool",
+                "Let a BBS's own ANSI colour through. Only colour, bold and "
+                "underline survive -- cursor movement, screen erase, window "
+                "title and clipboard sequences are removed either way, so "
+                "this is a readability choice, not a safety one. Turn it off "
+                "on a terminal that renders colour badly.",
+                apply="live",
+            ),
+            Field(
                 "ascii_safe",
                 "ASCII-safe mode",
                 "bool",
                 "Plain ASCII instead of Unicode box-drawing, for a terminal "
                 "that mangles anything past code page 437.",
                 apply="restart",
+            ),
+            Field(
+                "log_sessions",
+                "Save session transcripts",
+                "bool",
+                "One plain-text file per connection, in the log directory "
+                "below: everything sent, everything received, and every link "
+                "state change. The scrollback already holds the same text -- "
+                "this is what makes it survive closing the app.",
+                apply="connect",
             ),
             Field(
                 "log_dir",

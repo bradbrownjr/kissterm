@@ -290,6 +290,14 @@ class SettingsPane(VerticalScroll):
             # nothing is connected yet.
             app.apply_theme()  # type: ignore[attr-defined]
 
+        if hasattr(app, "apply_runtime_settings"):
+            # One generic hook rather than a growing list of feature-specific
+            # calls here. Anything the app has to reconfigure after a save --
+            # the beacon, remote colour -- belongs behind it, so adding a
+            # setting stays "one entry in the schema" and this pane keeps
+            # knowing nothing about what the settings mean.
+            app.apply_runtime_settings()  # type: ignore[attr-defined]
+
         station = getattr(app, "station", None)
         if station is None:
             return

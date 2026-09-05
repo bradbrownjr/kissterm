@@ -129,7 +129,32 @@ Read this file plus the one pane you are changing.
     Any config-file value reaching a "choice" field in the Settings pane goes
     through `_set_select_value`, which falls back instead of crashing. This
     already broke once on a stale `theme` value.
-24. No emoji anywhere.
+24. **`write_incoming` has two filters and neither one is optional.**
+    `remote_color` chooses between `ansi.to_text` (keeps allowlisted SGR) and
+    `sanitize` (keeps nothing). It does NOT choose whether filtering happens.
+    Both remove cursor movement, erase, OSC and DCS unconditionally. A future
+    "just show the raw bytes" option is not a setting, it is a defect.
+25. **`linkify` takes a `Text` as well as a `str`**, and applies the link
+    style as a span so it does not flatten the colours underneath. The target
+    is always the matched substring of `Text.plain` itself -- displayed text
+    and destination cannot differ by construction. Never parse a link out of
+    remote markup; OSC 8, the terminal hyperlink sequence, is exactly the
+    "display one address, open another" attack and is stripped with the rest
+    of OSC.
+26. **`app.apply_runtime_settings()` is the one hook the Settings pane calls
+    after a save.** Anything that needs *doing* rather than storing --
+    restarting the beacon, pushing `remote_color` to the pane -- goes behind
+    it. Do not add a second feature-specific call in `settings_pane.py`; that
+    is how the pane starts knowing what the settings mean.
+27. **Restart the beacon, never mutate a running one.** A live edit leaves a
+    window where the interval and the text disagree about what goes out, and
+    what goes out is transmitted under the operator's callsign.
+28. **The transcript is owned by the app, not the pane.** It records what
+    crossed the *link*; the pane is one of the things watching that. The
+    terminal pane's only involvement is calling `app.log_sent` after
+    `link.send` -- which is not a second transmit path, and rule 14 still
+    holds.
+29. No emoji anywhere.
 
 ## Testing
 

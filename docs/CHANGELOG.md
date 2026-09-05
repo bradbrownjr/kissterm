@@ -3,6 +3,138 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Beacons, session transcripts, and remote colour
+
+Three roadmap items built and tested: P9's beacon text, P2's per-session
+transcripts, and P2's ANSI-from-remote allowlist. Nothing here has touched a
+radio -- P1's hardware verification still outranks everything.
+
+### New Features
+
+**Plain-text beacons (BTEXT)** -- `kissterm/beacon.py`. A short text
+transmitted on a timer to an unconnected destination, the oldest convention in
+packet for telling a channel you exist.
+
+It is **not** APRS beaconing, and the code, the config and the Settings pane
+all say so out loud, because conflating them would put a transmission on the
+air the operator did not intend, under their own callsign. Separate
+`[beacon]` table, separate section in Settings whose note begins "NOT APRS",
+and a test asserting the two enable switches cannot end up sharing a label.
+
+Everything about it follows from "this is unattended transmission":
+
+- Off by default, and silent while `text` is empty whatever `enabled` says --
+  an empty beacon is pure channel occupancy.
+- **The 10-minute interval floor is enforced in code, twice**: the config
+  loader clamps it with a warning, and `Beaconer.interval_seconds` clamps it
+  again, because a `Config` built in code bypasses the loader and the floor
+  is a courtesy to everyone else on the frequency rather than a preference of
+  the operator's.
+- The first transmission is one full interval after start, **never at
+  startup**. An operator who opens kissterm to check something and quits must
+  not have keyed the radio.
+- `problem()` is re-checked at send time, not only at start, so text deleted
+  under a running beaconer stops going out.
+- Every beacon is written into the terminal pane, and `BEACON` sits in the
+  status bar for as long as one is armed -- the same honesty rule as
+  `ANSWERING`.
+- Settings shows what the chosen interval actually costs: "about 2 seconds of
+  channel every 10 minutes -- 0.4% of the frequency", from the existing
+  airtime estimator.
+
+**Session transcripts** -- `kissterm/session_log.py`, on by default. One
+plain-text file per connection under the log directory: everything sent,
+everything received, and every link-state change, timestamped, with `>`/`<`/`*`
+direction markers so a bare file is readable years later without the code.
+The path is printed into the terminal pane when a session starts, because a
+file appearing on disk unannounced is a surprise.
+
+A transcript is a convenience and a live link is not, so every write catches
+`OSError` and degrades to a silent no-op with the reason kept in `failed`. A
+pilot test connects with the log directory deliberately unusable and asserts
+the link keeps working. Filenames are *constructed* -- both callsigns are
+reduced to `[A-Za-z0-9-]`, capped at 12 characters, `UNKNOWN` if empty --
+because `peer` is a callsign asserted by a remote station and a callsign is a
+claim, not an identity. Transcripts get fully stripped text, not the coloured
+form: `cat` on a log file would run whatever escapes it contained.
+
+**Remote ANSI colour, through an allowlist** -- `kissterm/ansi.py`. A packet
+BBS that has painted its menus in colour since 1988 rendered as flat grey,
+because `monitor.sanitize` removes every escape sequence. It still does
+everywhere text is matched, filtered or logged; the terminal pane now has a
+second filter that keeps SGR and nothing else.
+
+Written as an allowlist, not a denylist: the set of sequences a terminal
+understands is large and undocumented in practice, and the set that can only
+change how a glyph is painted is small enough to enumerate. So colour, bold,
+dim, italic, underline, reverse, strikethrough and the 256-colour/truecolour
+forms survive; cursor movement, erase, scroll regions, OSC (window title,
+clipboard, and OSC 8 hyperlinks -- which are precisely a way to display one
+address and open another), DCS, APC, PM, SOS, charset selection and the
+terminal *query* sequences whose replies a shell later reads as keystrokes do
+not. Anything unrecognised is removed by construction rather than by having
+been thought of, which is the property a denylist cannot have.
+
+Three details that are the difference between this working and looking like
+it works:
+
+- **A dropped sequence is consumed whole.** Removing the ESC and leaving
+  `[2J` behind as literal text is how this class of filter usually fails.
+- **An SGR whose every parameter was rejected vanishes**, rather than becoming
+  `CSI m` -- which is a reset the sender never asked for.
+- **Blink (5, 6) and conceal (8) are not allowlisted.** Photosensitivity is a
+  real accessibility hazard and no remote station gets to impose it; text that
+  renders invisible is a spoofing primitive, not a formatting choice.
+
+`remote_color = true` by default, and turning it off changes readability, not
+safety -- the dangerous sequences are removed on both paths.
+
+### Improvements
+- The status bar shows `BEACON` alongside `ANSWERING`.
+- `apply_runtime_settings()` on the app is one generic hook the Settings pane
+  calls after a save, so adding a setting that needs *doing* rather than
+  storing stays "one entry in the schema".
+
+### Fixed
+- **`config.toml.example` silently discarded five settings.** Everything
+  documented after the `[custom_theme]` header -- `show_local_time`,
+  `show_utc_time`, `clock_24h`, `show_date`, `ascii_safe` -- was being parsed
+  as a *custom-theme key*, because in TOML a bare key belongs to the last
+  table header above it. Anyone who copied the example got a config where
+  none of the clock settings applied, and `load_config` is deliberately
+  forgiving so nothing said so. The table moved below the top-level scalars,
+  and two tests now guard it: the example must load with zero warnings, and
+  every top-level `Config` field documented in it must actually parse as
+  top-level.
+- **`tests/conftest.py` documented an `asyncio_mode = "auto"` that is not
+  configured.** Believing it makes a whole test file report "async def
+  functions are not natively supported", which reads like a missing
+  dependency rather than a missing `@pytest.mark.asyncio`.
+- `SessionLog.open()` called twice would leak the first handle and write a
+  second header into a live transcript.
+
+### Roadmap hygiene
+- Removed the "unattended status indicator" item from P9: the `ANSWERING`
+  marker shipped in `[2026-09-04]` and the entry was stale.
+- P9's "MAIL FOR" item now says explicitly that the transmit half is done and
+  the remaining work is the *content*, so nobody builds a second beaconer
+  beside the first.
+
+**Files:** new `kissterm/ansi.py`, `kissterm/beacon.py`,
+`kissterm/session_log.py`, `tests/unit/test_ansi.py`,
+`tests/unit/test_beacon.py`, `tests/unit/test_session_log.py`,
+`tests/pilot/test_transcript_and_color.py`,
+`tests/pilot/test_beacon_wiring.py`; changed `kissterm/config.py`,
+`kissterm/ui/app.py`, `kissterm/ui/terminal_pane.py`,
+`kissterm/ui/settings_pane.py`, `kissterm/ui/settings_schema.py`,
+`config.toml.example`, `tests/conftest.py`, `tests/unit/test_config.py`,
+`tests/pilot/test_settings.py`, `README.md`, `AGENTS.md`,
+`kissterm/ui/AGENTS.md`, `docs/ROADMAP.md`.
+
+**Tests:** 350 passing (was 216).
+
+---
+
 ## [2026-09-05] — Roadmap: beacons, mail-for, and a served file area
 
 Requested: beacons with beacon text and "MAIL FOR", plus a place other

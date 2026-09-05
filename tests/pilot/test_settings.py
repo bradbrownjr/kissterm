@@ -59,6 +59,10 @@ NOT_IN_SCHEMA = {
     "autoconnect",
     "warnings",
     "aprs",
+    # Nested dataclasses. Their fields ARE in the schema, as dotted paths --
+    # covered field-by-field by the two nested tests below, which is stricter
+    # than this top-level check, not an exemption from it.
+    "beacon",
     # custom_theme is a nested dataclass of eleven hex/bool fields, read only
     # when theme == "custom". Deliberately not exposed field-by-field in the
     # Settings UI yet (that is eleven raw hex-input widgets) -- see
@@ -99,6 +103,38 @@ def test_every_nested_aprs_field_is_editable():
     paths = {f.path for s in SETTINGS_SCHEMA for f in s.fields}
     for f in dataclasses.fields(AprsConfig):
         assert f"aprs.{f.name}" in paths, f"aprs.{f.name} has no Settings UI"
+
+
+def test_every_nested_beacon_field_is_editable():
+    from kissterm.config import BeaconConfig
+
+    paths = {f.path for s in SETTINGS_SCHEMA for f in s.fields}
+    for f in dataclasses.fields(BeaconConfig):
+        assert f"beacon.{f.name}" in paths, f"beacon.{f.name} has no Settings UI"
+
+
+def test_beacon_and_aprs_are_not_presented_as_the_same_feature():
+    """The two beacons must never read as one setting with two spellings.
+
+    They share the UI-frame machinery and nothing else: one sends a position
+    in APRS format to APRS, the other free text to BEACON. An operator who
+    enables one expecting the other is transmitting something they did not
+    intend, under their own callsign.
+    """
+    sections = {s.title: s for s in SETTINGS_SCHEMA}
+    assert "Beacon" in sections and "APRS" in sections
+    assert "NOT APRS" in sections["Beacon"].note
+    for section in (sections["Beacon"], sections["APRS"]):
+        labels = [f.label for f in section.fields]
+        assert len(labels) == len(set(labels)), "duplicate label within a section"
+    # The two enable switches must not carry the same label either.
+    enable = {
+        f.path: f.label
+        for s in SETTINGS_SCHEMA
+        for f in s.fields
+        if f.path in ("aprs.enabled", "beacon.enabled")
+    }
+    assert len(set(enable.values())) == 2, enable
 
 
 def test_everything_the_setup_wizard_asks_for_is_changeable_in_app():

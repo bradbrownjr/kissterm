@@ -170,6 +170,9 @@ kissterm/
 │   ├── hotplug.py           # serial-only hotplug watch (never the network)
 │   ├── doctor.py            # `--doctor` diagnostics
 │   ├── monitor.py           # frame -> monitor line, and sanitize()
+│   ├── ansi.py              # SGR ALLOWLIST for the terminal pane only
+│   ├── beacon.py            # BTEXT: unproto UI frames on a timer (NOT APRS)
+│   ├── session_log.py       # per-session plain-text transcript
 │   ├── heard.py             # MHEARD table
 │   ├── nodes/               # SHIPPED command references (data/*.toml)
 │   ├── ax25/            # + its own AGENTS.md (local contract)
@@ -356,6 +359,30 @@ Gotchas that already cost time:
   and destination cannot differ.
 
 ### Unattended transmission
+- **Two things can transmit with nobody present: answering a call, and
+  beaconing.** Both are off by default, both show a status-bar marker
+  (`ANSWERING`, `BEACON`) for as long as they are armed, and both write every
+  transmission into the terminal pane. A station that transmits without the
+  operator being able to see that it did is what the opt-in exists to prevent.
+- **A beacon is not APRS beaconing, and the code must keep saying so.**
+  `kissterm/beacon.py` sends free text to `BEACON`; `kissterm/aprs/` sends a
+  position in APRS format to `APRS`. Separate config tables, separate Settings
+  sections, separate intervals. An operator who enables one expecting the
+  other is transmitting something they did not intend, under their own
+  callsign -- so this is a transmitting bug, not a cosmetic one, and
+  `tests/pilot/test_settings.py` guards the labelling.
+- **The beacon interval floor is a clamp, not advice.** Ten minutes, enforced
+  in `config.py`'s loader AND again in `Beaconer.interval_seconds`, because a
+  `Config` built in code bypasses the loader. It is a courtesy to everyone
+  else on the frequency, not a preference of the operator's to be talked out
+  of.
+- **Nothing transmits at startup.** The beacon sleeps a full interval first.
+  Opening the app is not a request to key the radio.
+- **Never send an empty beacon.** No text, no transmission, whatever
+  `enabled` says. `MAIL FOR:` with nothing after it is pure channel occupancy.
+- **Re-check at the moment of transmission, not only where the decision was
+  made.** `Beaconer.send_once` re-runs `problem()`; the failure mode of not
+  doing so is transmitting text the operator already deleted.
 - **Answering incoming calls is OFF by default and must stay that way.** It is
   unattended transmission under the operator's callsign. Anything that
   transmits checks the opt-in at the moment it transmits, not only where the
@@ -415,11 +442,31 @@ Gotchas that already cost time:
   on "who" is suspect by construction.
 
 ### Untrusted input
-- **ALWAYS** put remote-supplied bytes through `monitor.sanitize()` before they
-  reach a widget or a log. Every byte in an information field was put there by
-  someone else's transmitter and can carry ANSI escapes that repaint the screen,
-  set the window title, or inject a terminal response. A corrupt frame off a
-  noisy channel produces the same bytes by accident.
+- **ALWAYS** put remote-supplied bytes through one of the two filters before
+  they reach a widget or a log. `monitor.sanitize()` removes every escape
+  sequence and is the default everywhere -- matching, filtering, logging,
+  transcripts. `ansi.to_text()` additionally keeps allowlisted SGR, and is
+  used in exactly one place, the terminal pane, where a BBS's colour is the
+  point. Every byte in an information field was put there by someone else's
+  transmitter; a corrupt frame off a noisy channel produces the same bytes by
+  accident.
+- **`kissterm/ansi.py` is an ALLOWLIST and must stay one.** The set of escape
+  sequences a terminal understands is large and undocumented in practice; the
+  set that can only recolour a glyph is enumerable. Anything unrecognised is
+  removed *by construction* rather than by having been thought of, which is
+  the property a denylist cannot have. Three invariants there are load-
+  bearing, each with a test: a dropped sequence is consumed **whole** (leaving
+  `[2J` behind as text is how this filter usually fails); an SGR with nothing
+  allowlisted left **vanishes** rather than becoming `CSI m`, which is a reset
+  the sender never asked for; and blink (5, 6) and conceal (8) are **not**
+  allowlisted -- photosensitivity is an accessibility hazard and invisible
+  text is a spoofing primitive.
+- **A transcript gets fully stripped text, never the coloured form.** `cat` on
+  a log file runs whatever escapes it contains.
+- **A log that cannot be written must never disturb a live link.**
+  `session_log.py` catches `OSError` everywhere and degrades to a no-op. A
+  full disk taking a station off the air mid-net is a regression an operator
+  will not forgive.
 - **ALWAYS** decode payload text as `latin-1`, never UTF-8. Packet is a
   byte-oriented, mostly-ASCII medium; a decoder that raises or inserts
   replacement characters on a corrupt frame loses the readable part with the
@@ -507,11 +554,11 @@ again after a Settings save or a config reload.
 - **BLE TNCs are not supported.** Mobilinkd TNC4-class devices need GATT
   characteristic handling and a `bleak` dependency. `BleKissTransport` is a
   marked stub.
-- **Themes are the one setting with no UI**, because there is no theme system
-  yet (roadmap P6). `Config.theme` is read and written but does nothing.
-  Everything else in `Config` is editable in the Settings tab; the coverage
-  test in `tests/pilot/test_settings.py` fails if a new config field is added
-  without one, so that gap cannot silently reopen.
+- **`config.toml.example` had five settings silently discarded** because they
+  were documented after the `[custom_theme]` header and TOML puts a bare key
+  under the last table above it. Fixed, and guarded by two tests in
+  `tests/unit/test_config.py`. **Every top-level setting must stay above the
+  first `[table]` header in that file.**
 - **Answering is opt-in and there is still no mailbox behind it.**
   `Config.accept_incoming` defaults to False; a caller gets a DM refusal.
   Turned on, kissterm answers, sends `Config.connect_banner`, and shows
