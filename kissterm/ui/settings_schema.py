@@ -123,7 +123,20 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "retries",
                 "Retries (N2)",
                 "int",
-                "How many times to retry before declaring the link dead.",
+                "How many times to retry on an ESTABLISHED link before "
+                "declaring it dead. The spec default is 10, and low values "
+                "drop a working session over a momentary fade.",
+                minimum=1,
+                maximum=100,
+            ),
+            Field(
+                "connect_retries",
+                "Connect retries",
+                "int",
+                "How many times to resend the connect request (SABM) before "
+                "giving up. Kept lower than N2 on purpose: retrying a connect "
+                "costs one keystroke, while each unanswered attempt is another "
+                "transmission on the channel.",
                 minimum=1,
                 maximum=100,
             ),

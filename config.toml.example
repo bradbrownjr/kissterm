@@ -65,8 +65,18 @@ modulo = 8
 window = 4
 
 # How many times to retransmit an unacknowledged frame (T1 expiries) before
-# giving up on the link.
+# giving up on an ESTABLISHED link. 10 is the AX.25 2.2 default. Lower values
+# drop a working session over a momentary fade -- a car passing between two
+# antennas -- so this is the number to leave alone unless you have a reason.
 retries = 10
+
+# How many times to resend the connect request (SABM) before giving up.
+# Deliberately lower than N2 above, because the two are different trades:
+# retrying a connect costs one keystroke (Ctrl+N again), while every
+# unanswered attempt is another transmission on a shared channel aimed at a
+# station that is evidently not listening. At the default t1 below, 5 gives up
+# after about 18 seconds instead of 33.
+connect_retries = 5
 
 # Link timers, all in seconds:
 #   t1 - how long to wait for an acknowledgement before retransmitting.

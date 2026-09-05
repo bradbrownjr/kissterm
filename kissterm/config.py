@@ -213,6 +213,11 @@ class Config:
     #: actually lives.
     window: int = 4
     retries: int = 10
+    #: N2 for the SABM phase only, deliberately lower than `retries`. Giving up
+    #: early on a connect costs one keystroke; giving up early on an
+    #: established link throws away a real conversation. See
+    #: `ax25/session.py::DEFAULT_CONNECT_RETRIES`.
+    connect_retries: int = 5
     #: T1: how long to wait for an ack before retransmitting (seconds).
     t1: float = 3.0
     #: T2: how long to delay an ack in case an outgoing I-frame can piggyback
@@ -368,6 +373,9 @@ def load_config(path: Path | None = None) -> Config:
     cfg.modulo = _load_modulo(raw.get("modulo", cfg.modulo), warnings)
     cfg.window = _load_window(raw.get("window", cfg.window), warnings, cfg.modulo)
     cfg.retries = _load_int(raw, "retries", cfg.retries, warnings)
+    cfg.connect_retries = _load_int(
+        raw, "connect_retries", cfg.connect_retries, warnings
+    )
     cfg.t1 = _load_float(raw, "t1", cfg.t1, warnings)
     cfg.t2 = _load_float(raw, "t2", cfg.t2, warnings)
     cfg.t3 = _load_float(raw, "t3", cfg.t3, warnings)

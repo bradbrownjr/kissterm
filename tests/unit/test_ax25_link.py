@@ -93,7 +93,8 @@ async def test_no_answer_gives_up_after_n2():
     ta, tb = loopback_pair()
     await ta.open()
     ta.peer = None  # nothing on the far end at all
-    a = AX25Station(CALL_A, ta, _params(retries=2))  # N2=2: give up fast
+    # The SABM phase is bounded by `connect_retries`, not by N2.
+    a = AX25Station(CALL_A, ta, _params(connect_retries=2))
     errors: list[str] = []
     link = None
 
@@ -296,3 +297,48 @@ async def test_a_healthy_link_reports_no_error():
     assert link is not None
     assert link.last_error == ""
     await link.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_connect_retries_and_n2_are_separate_budgets():
+    """The connect phase gives up sooner than an established link does.
+
+    Retrying a connect costs one keystroke; giving up on a live session
+    throws away a real conversation. One number for both is what made the
+    spec default feel wrong on a connect attempt, so they are two.
+    """
+    ta, _ = loopback_pair()
+    await ta.open()
+    ta.peer = None
+    a = AX25Station(CALL_A, ta, _params(retries=20, connect_retries=2))
+
+    assert await a.connect(AX25Path(CALL_B, CALL_A)) is None
+    # SABM plus one per retry. The generous N2 must not have been used.
+    assert len(ta.sent) <= 4, f"connect used the N2 budget: {len(ta.sent)} frames"
+    link = a.link_to(CALL_B)
+    assert link is not None
+    assert "after 3 tries" in link.last_error, link.last_error
+    a.close()
+
+
+@pytest.mark.asyncio
+async def test_an_established_link_still_gets_the_full_n2_budget():
+    """Lowering the connect budget must not make live sessions fragile."""
+    a, b, ta, tb = await _pair(
+        params_a=_params(retries=8, connect_retries=2, t1=0.15)
+    )
+    link = await a.connect(AX25Path(CALL_B, CALL_A))
+    assert link is not None
+
+    # The far end goes deaf mid-session. The link must spend its own N2, not
+    # the much smaller connect budget, before declaring failure.
+    tb.peer = None
+    ta.peer = None
+    await link.send(b"still there?")
+    await asyncio.sleep(0.15 * 12)
+    assert link.rc > 2, (
+        f"an established link gave up after {link.rc} tries, "
+        "which is the connect budget, not N2"
+    )
+    a.close()
+    b.close()

@@ -147,6 +147,13 @@ docstring; it is long on purpose. The points that cost time if forgotten:
   selects it and the window ceiling scales with it (k < modulo).
 - **Answer DM to traffic for a link you do not have.** A silent drop makes the
   caller retry N2 times and waste a minute of channel time.
+- **Connect retries and N2 are separate budgets, on purpose.**
+  `LinkParams.connect_retries` (default 5) bounds the SABM phase;
+  `retries` (default 10, the spec value) bounds an established link. They are
+  different trades: giving up early on a connect costs one keystroke, while
+  giving up early on a live session throws away a real conversation over what
+  may be one car passing between two antennas. Collapsing them back into one
+  number makes one of the two wrong whichever value is picked.
 - **Single-threaded per link, no locks.** `AX25Link` schedules `call_later`
   timers on the running loop. Calling into one from a thread destroys the
   invariant the whole state machine rests on.

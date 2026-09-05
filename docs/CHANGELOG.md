@@ -3,6 +3,32 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — A connect gives up sooner than a live link does
+
+Asked directly: "How many times will the application retry a connection
+attempt? EasyTerm does 10, but that seems high." It was 10 here too -- the
+AX.25 2.2 default -- and applied to both cases.
+
+### New Features
+- **`connect_retries` (default 5), separate from `retries` (N2, still 10).**
+  One number for both is what makes the spec default feel wrong on a connect.
+  Giving up early on an ESTABLISHED link throws away a real conversation over
+  what may be one car passing between two antennas, so N2=10 earns its keep
+  there. Giving up early on a CONNECT costs one keystroke, while each
+  unanswered SABM is another transmission on a shared channel aimed at a
+  station that is evidently not listening. At the default T1 of 3 s a failed
+  connect is now 6 attempts over ~18 seconds instead of 11 over ~33.
+  Editable in Settings (F5) and in `config.toml`.
+
+### Improvements
+- The debug log's T1 line now names which budget it is counting against, so
+  `rc=3 of 5` during a connect is not read as `rc=3 of 10`.
+
+**Files:** `kissterm/ax25/session.py`, `kissterm/config.py`,
+`kissterm/__main__.py`, `kissterm/ui/settings_schema.py`,
+`config.toml.example`, `tests/unit/test_ax25_link.py`, `AGENTS.md`,
+`README.md`
+
 ## [2026-09-05] — Diagnostics for a link that does not come up
 
 Prompted by a real question before a first on-air test over a marginal path:

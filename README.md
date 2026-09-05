@@ -47,6 +47,11 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   retransmission and timer recovery, so a marginal path recovers instead of
   dropping you. Modulo 128 (extended sequence numbers) is supported; modulo 8
   is the default because it is what everything on the air actually speaks.
+  A connect gives up after 5 attempts rather than the spec's 10 -- retrying is
+  one keystroke, while every unanswered SABM is another transmission on a
+  shared channel -- but an *established* link keeps the full N2, because
+  dropping a live session over a momentary fade is the expensive mistake.
+  Both are settings.
 - **Every transport.** KISS over serial, over TCP/IP, and over Bluetooth;
   AGWPE (Direwolf, UZ7HO SoundModem); the Linux kernel AX.25 stack if you
   already have one. VARA HF/FM and Mercury are implemented but not yet verified
@@ -199,7 +204,8 @@ responses, so kissterm never reports them with the same words:
   accepts connections from you.
 - **`no answer from <call> after N tries`** -- nothing came back at all. That
   is an antenna, power, squelch or propagation problem, not a configuration
-  one.
+  one. kissterm sends 6 SABMs over about 18 seconds before saying this;
+  `connect_retries` in Settings (F5) changes that.
 
 The **Monitor tab (F2)** is the real instrument. It shows every frame in both
 directions, `>` for what you transmitted and `<` for what was heard, so you

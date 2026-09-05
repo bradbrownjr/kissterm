@@ -91,6 +91,22 @@ log = logging.getLogger(__name__)
 #: Spec default retry count (N2). Beyond this the link is declared failed.
 DEFAULT_RETRIES = 10
 
+#: Retries for the SABM phase only, and deliberately lower than N2.
+#:
+#: The two cases are not the same trade, and one number for both is what makes
+#: the spec default feel wrong on a connect. Giving up early on an ESTABLISHED
+#: link throws away a real conversation -- a BBS session, a message half
+#: written -- over what may be one car passing between two antennas, so N2=10
+#: earns its keep there. Giving up early on a CONNECT costs one keystroke:
+#: press Ctrl+N again. Meanwhile each unanswered SABM is a transmission on a
+#: shared channel aimed at a station that, on the evidence so far, is not
+#: listening -- eleven of them is 33 seconds at the default T1, most of a
+#: minute at an HF T1, and the operator watching a screen that says nothing.
+#:
+#: Five is enough to ride out a fade without turning a dead path into a
+#: monologue.
+DEFAULT_CONNECT_RETRIES = 5
+
 FrameSender = Callable[[AX25Frame], Awaitable[None]]
 
 
@@ -108,6 +124,9 @@ class LinkParams:
     paclen: int = DEFAULT_PACLEN
     window: int = DEFAULT_WINDOW
     retries: int = DEFAULT_RETRIES
+    #: N2 for the SABM phase only. See `DEFAULT_CONNECT_RETRIES` for why this
+    #: is a separate number rather than a smaller `retries`.
+    connect_retries: int = DEFAULT_CONNECT_RETRIES
     t1: float = 8.0
     t2: float = 1.0
     t3: float = 180.0
@@ -119,6 +138,7 @@ class LinkParams:
         self.window = max(1, min(self.window, limit))
         self.paclen = max(1, min(self.paclen, 256))
         self.retries = max(1, self.retries)
+        self.connect_retries = max(1, self.connect_retries)
 
 
 @dataclass(slots=True)
@@ -254,7 +274,7 @@ class AX25Link:
         # timed out", losing the peer and the attempt count from the one line
         # the operator reads. This is a backstop for a link that never settles
         # at all, not a competitor to the retry budget.
-        deadline = timeout or (self.params.t1 * (self.params.retries + 2))
+        deadline = timeout or (self.params.t1 * (self.params.connect_retries + 2))
         try:
             return await asyncio.wait_for(asyncio.shield(self._connect_result), deadline)
         except (asyncio.TimeoutError, asyncio.CancelledError):
@@ -589,17 +609,22 @@ class AX25Link:
 
     async def _on_t1(self) -> None:
         self.stats.t1_expiries += 1
+        budget = (
+            self.params.connect_retries
+            if self.state is SessionState.CONNECTING
+            else self.params.retries
+        )
         log.debug(
             "T1 expiry %d in %s, rc=%d of %d",
             self.stats.t1_expiries,
             self.state.value,
             self.rc,
-            self.params.retries,
+            budget,
         )
 
         if self.state is SessionState.CONNECTING:
             self.rc += 1
-            if self.rc > self.params.retries:
+            if self.rc > self.params.connect_retries:
                 self._fail(f"no answer from {self.peer} after {self.rc} tries")
                 return
             await self._send_u(

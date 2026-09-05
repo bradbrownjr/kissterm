@@ -349,6 +349,7 @@ async def _amain(args) -> int:
                 window=config.window,
                 modulo=config.modulo,
                 retries=config.retries,
+                connect_retries=config.connect_retries,
                 t1=config.t1,
                 t2=config.t2,
                 t3=config.t3,
