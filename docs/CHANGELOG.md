@@ -3,6 +3,62 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-05] — Node-to-node connect chains, and saved credentials
+
+Follow-up to the same day's "per-station login scripts" entry below, after it
+turned out that was answering a different question than the one asked: not a
+login macro, but a Winlink/BPQ-style connect script -- reach a station that
+has no digipeater path by connecting to one node at a time, waiting for each
+one's own CONNECTED reply, the way `bpq-apps`' node-map crawler already does
+against real BPQ nodes.
+
+### New Features
+- **Node-to-node hop chains.** An address-book entry can now carry an ordered
+  list of intermediate nodes (`AddressBook.Entry.hops`). kissterm connects
+  (via its own AX.25 SABM) to the first one, then sends "C <node>" over that
+  one link for each remaining hop in turn -- including the actual target,
+  which is just the last hop -- waiting for a CONNECTED reply before sending
+  the next. An explicit BUSY/FAILED/DISCONNECTED/TIMEOUT reply stops the
+  chain immediately and is reported differently from a hop that just stays
+  silent past the timeout, same reasoning as a DM versus an N2 timeout one
+  layer down. A stalled chain leaves the operator connected to whichever
+  node was last reached rather than tearing anything down. See
+  `KissTermApp._hop_through`/`_hop_to` in `kissterm/ui/app.py`.
+- **Saved credentials.** Settings has a new Credentials tab: named,
+  free-text login snippets (`Config.credentials`), because packet BBS logins
+  do not agree on a shape -- some want a bare password, some want a name and
+  a password, some want more. An address-book entry can reference one by
+  name instead of storing its own copy of the text; the name is looked up
+  fresh at connect time, so changing a password once in Settings updates
+  every station that points at it on its next connect, with no per-entry
+  re-save. The Connect dialog's script box is disabled (never cleared or
+  overwritten) while a saved credential is selected, so toggling the
+  dropdown back and forth can never leak one credential's text into another
+  station's literal script.
+- The Connect dialog gained a "Path (node hops)" field and a "Send once
+  connected" credential dropdown alongside the existing script box; a
+  digipeater path (`via`) and node hops are refused together, since they do
+  not compose -- one repeats a single frame at the link layer, the other is
+  a sequence of independent connects made minutes apart.
+
+### Fixes
+- **`Select.NULL`, not `Select.BLANK`, is this Textual version's "nothing
+  selected" sentinel** -- `Select.BLANK` is a stale alias equal to the bool
+  `False`. Assigning it crashes; comparing against it does not, but is
+  silently always true, which is worse. Found while wiring the credentials
+  dropdown, and it was already latent in `SettingsPane`: saving with no
+  transport selected wrote the literal string `"Select.NULL"` into
+  `config.active_transport`, and "Forget selected" with nothing chosen fell
+  through instead of returning early. Fixed everywhere in `settings_pane.py`
+  and guarded by two new regression tests.
+
+**Files:** `kissterm/config.py`, `kissterm/addressbook.py`,
+`kissterm/ui/app.py`, `kissterm/ui/dialogs.py`, `kissterm/ui/settings_pane.py`,
+`kissterm/ui/styles.py`, `config.toml.example`, `AGENTS.md`, `docs/ROADMAP.md`,
+`tests/unit/test_addressbook.py`, `tests/unit/test_config.py`,
+`tests/pilot/test_app_mounts.py`, `tests/pilot/test_settings.py`,
+`tests/pilot/test_connect_scripts.py` (new)
+
 ## [2026-09-05] — Per-station login scripts, and Settings stops being one long scroll
 
 More feedback from the same on-air test session. Five separate reports, all

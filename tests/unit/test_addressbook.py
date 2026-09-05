@@ -33,6 +33,16 @@ def test_a_blank_script_clears_a_previously_saved_one(book):
     assert book.entries[0].script == ""
 
 
+def test_a_hop_chain_and_credential_are_saved_alongside_the_attempt(book):
+    """Node-to-node connect entries: an ordered list of intermediate nodes,
+    and a live reference to a saved credential rather than typed text."""
+    book.record_attempt("W1LH-6", hops="N1QFY, AB1KI-15", credential="Personal BBS login")
+    entry = book.entries[0]
+    assert entry.hops == "N1QFY, AB1KI-15"
+    assert entry.credential == "Personal BBS login"
+    assert entry.script == ""  # a credential reference, not literal text
+
+
 def test_an_attempt_is_remembered_even_though_it_failed(book):
     """The case this was built for: a connect that got no answer is the one
     you are about to try again. Waiting for a UA to record it would withhold
@@ -95,13 +105,16 @@ def test_the_list_is_capped(book):
 def test_it_survives_a_round_trip(tmp_path):
     first = AddressBook(tmp_path / "addressbook.json")
     first.record_attempt("WS1EC-15", script="C WS1EC-15\nCLYDE")
+    first.record_attempt("W1LH-6", hops="N1QFY, AB1KI-15", credential="Personal BBS login")
     first.record_connect("W1AW-1")
 
     second = AddressBook(tmp_path / "addressbook.json")
     second.load()
-    assert [e.target for e in second.entries] == ["W1AW-1", "WS1EC-15"]
+    assert [e.target for e in second.entries] == ["W1AW-1", "W1LH-6", "WS1EC-15"]
     assert second.entries[0].connects == 1
-    assert second.entries[1].script == "C WS1EC-15\nCLYDE"
+    assert second.entries[1].hops == "N1QFY, AB1KI-15"
+    assert second.entries[1].credential == "Personal BBS login"
+    assert second.entries[2].script == "C WS1EC-15\nCLYDE"
 
 
 def test_a_missing_file_is_not_an_error(tmp_path):

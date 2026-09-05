@@ -139,6 +139,9 @@ class SettingsPane(Vertical):
                     with TabPane("Transports", id=_tab_id("Transports")):
                         with VerticalScroll(classes="settings-tab-scroll"):
                             yield from self._compose_transports()
+                    with TabPane("Credentials", id=_tab_id("Credentials")):
+                        with VerticalScroll(classes="settings-tab-scroll"):
+                            yield from self._compose_credentials()
 
         with Vertical(id="settings-bar"):
             yield Static("", id="settings-banner", classes="settings-banner")
@@ -169,6 +172,32 @@ class SettingsPane(Vertical):
             yield Button("Test selected", id="settings-test")
             yield Button("Forget selected", id="settings-forget")
         yield Static("", id="settings-transport-detail", classes="settings-help")
+
+    def _compose_credentials(self) -> ComposeResult:
+        """Saved logins, referenced by name from a station's Connect entry.
+
+        A list of `{"name", "text"}` dicts for the same reason `transports`
+        is a list of dicts and not schema fields: `Config.credentials` has
+        no fixed shape a scalar form field could bind to, and Add/Edit here
+        open `CredentialScreen` rather than being generated.
+        """
+        yield Static(
+            "Reusable logins a station's Connect entry can point at by name "
+            "instead of storing its own copy -- change one here and every "
+            "entry that names it uses the new text on its next connect. "
+            "Nothing here is sent until a Connect entry actually references it.",
+            classes="settings-note",
+        )
+        with Horizontal(classes="settings-row"):
+            yield Label("Saved", classes="settings-label")
+            yield Select([], id="set-credential", allow_blank=True)
+            yield Label("", classes="settings-apply")
+        with Horizontal(classes="settings-row"):
+            yield Label("", classes="settings-label")
+            yield Button("New", id="credential-new")
+            yield Button("Edit selected", id="credential-edit")
+            yield Button("Forget selected", id="credential-forget")
+        yield Static("", id="settings-credential-detail", classes="settings-help")
 
     def _compose_field(self, spec: Field) -> ComposeResult:
         wid = _widget_id(spec.path)
@@ -213,6 +242,7 @@ class SettingsPane(Vertical):
                 self._set_error(wid, "")
 
         self._render_transports(config)
+        self._render_credentials(config)
         self._render_banner(config)
 
     def _set_select_value(self, wid: str, spec: Field, value) -> None:
@@ -230,7 +260,7 @@ class SettingsPane(Vertical):
         """
         select = self.query_one(f"#{wid}", Select)
         valid = {v for _label, v in spec.choices}
-        select.value = value if value in valid else (spec.choices[0][1] if spec.choices else Select.BLANK)
+        select.value = value if value in valid else (spec.choices[0][1] if spec.choices else Select.NULL)
 
     def _render_transports(self, config) -> None:
         select = self.query_one("#set-active-transport", Select)
@@ -263,6 +293,28 @@ class SettingsPane(Vertical):
             f"{k} = {v}" for k, v in sorted(entry.items()) if k not in ("name",)
         )
         detail.update(keys or "(no settings)")
+
+    def _render_credentials(self, config) -> None:
+        select = self.query_one("#set-credential", Select)
+        names = [c.get("name", "") for c in config.credentials if c.get("name")]
+        select.set_options((name, name) for name in names)
+        if select.value not in names:
+            select.value = Select.NULL
+        self._render_credential_detail(config)
+
+    def _render_credential_detail(self, config) -> None:
+        name = self.query_one("#set-credential", Select).value
+        entry = next((c for c in config.credentials if c.get("name") == name), None)
+        detail = self.query_one("#settings-credential-detail", Static)
+        if entry is None:
+            detail.update(
+                "No credentials saved yet. 'New' adds one; a station's "
+                "Connect entry can then pick it from a dropdown instead of "
+                "storing its own copy of the text."
+            )
+            return
+        lines = str(entry.get("text", "")).count("\n") + 1 if entry.get("text") else 0
+        detail.update(f"{lines} line(s) saved." if lines else "(empty)")
 
     def _render_banner(self, config) -> None:
         warnings = list(getattr(config, "warnings", ()) or ())
@@ -328,7 +380,7 @@ class SettingsPane(Vertical):
             set_value(config, path, value)
 
         selected = self.query_one("#set-active-transport", Select).value
-        if selected and selected != Select.BLANK:
+        if selected and selected != Select.NULL:
             config.active_transport = str(selected)
 
         notes = cross_check(config)
@@ -427,7 +479,7 @@ class SettingsPane(Vertical):
     def _forget(self) -> None:
         config = self.app.config  # type: ignore[attr-defined]
         name = self.query_one("#set-active-transport", Select).value
-        if not name or name == Select.BLANK:
+        if not name or name == Select.NULL:
             return
         config.transports = [t for t in config.transports if t.get("name") != name]
         if config.active_transport == name:
@@ -437,6 +489,74 @@ class SettingsPane(Vertical):
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_transports(config)
         self.app.notify(f"Forgot transport {name}.")
+
+    @on(Select.Changed, "#set-credential")
+    def _credential_changed(self) -> None:
+        self._render_credential_detail(self.app.config)  # type: ignore[attr-defined]
+
+    @work
+    async def _new_credential(self) -> None:
+        from .dialogs import CredentialScreen
+
+        result = await self.app.push_screen_wait(CredentialScreen())
+        if result is None:
+            return
+        config = self.app.config  # type: ignore[attr-defined]
+        config.credentials = [c for c in config.credentials if c.get("name") != result.name]
+        config.credentials.append({"name": result.name, "text": result.text})
+        self.app._save_config()  # type: ignore[attr-defined]
+        self._render_credentials(config)
+        self.query_one("#set-credential", Select).value = result.name
+        self._render_credential_detail(config)
+        self.app.notify(f"Saved credential {result.name!r}.")  # type: ignore[attr-defined]
+
+    @on(Button.Pressed, "#credential-new")
+    def _new_credential_pressed(self) -> None:
+        self._new_credential()
+
+    @work
+    async def _edit_credential(self) -> None:
+        from .dialogs import CredentialScreen
+
+        config = self.app.config  # type: ignore[attr-defined]
+        name = self.query_one("#set-credential", Select).value
+        entry = next((c for c in config.credentials if c.get("name") == name), None)
+        if entry is None:
+            self.app.notify("Select a credential first.", severity="warning")  # type: ignore[attr-defined]
+            return
+        result = await self.app.push_screen_wait(
+            CredentialScreen(entry.get("name", ""), entry.get("text", ""))
+        )
+        if result is None:
+            return
+        # Drop both the old name and the new one (a rename could collide
+        # with an existing entry) before re-adding, so a rename replaces
+        # the old entry in place rather than leaving a stale duplicate a
+        # station could still resolve to.
+        config.credentials = [
+            c for c in config.credentials if c.get("name") not in (name, result.name)
+        ]
+        config.credentials.append({"name": result.name, "text": result.text})
+        self.app._save_config()  # type: ignore[attr-defined]
+        self._render_credentials(config)
+        self.query_one("#set-credential", Select).value = result.name
+        self._render_credential_detail(config)
+        self.app.notify(f"Saved credential {result.name!r}.")  # type: ignore[attr-defined]
+
+    @on(Button.Pressed, "#credential-edit")
+    def _edit_credential_pressed(self) -> None:
+        self._edit_credential()
+
+    @on(Button.Pressed, "#credential-forget")
+    def _forget_credential(self) -> None:
+        config = self.app.config  # type: ignore[attr-defined]
+        name = self.query_one("#set-credential", Select).value
+        if not name or name == Select.NULL:
+            return
+        config.credentials = [c for c in config.credentials if c.get("name") != name]
+        self.app._save_config()  # type: ignore[attr-defined]
+        self._render_credentials(config)
+        self.app.notify(f"Forgot credential {name!r}.")  # type: ignore[attr-defined]
 
     @work
     async def _scan(self) -> None:

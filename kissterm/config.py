@@ -194,6 +194,13 @@ class Config:
     #: `name` of the transport in `transports` that should be opened on
     #: startup. Empty means "ask" (or use whatever discovery finds).
     active_transport: str = ""
+    #: Reusable named login snippets (`{"name": ..., "text": ...}`), managed
+    #: in Settings and referenced by name from an address-book entry's
+    #: `credential` field -- see `kissterm/addressbook.py`. A live reference,
+    #: not a copy: change a password here once and every entry that names it
+    #: picks up the change on its next connect, which is the entire point of
+    #: keeping logins here instead of retyped into each station's script.
+    credentials: list[dict[str, Any]] = field(default_factory=list)
     #: Max AX.25 info-field size in bytes. 256 is the traditional default;
     #: dropping to 128 or even 64 on a noisy HF path trades throughput for a
     #: much lower chance any given frame needs a retransmit, since a shorter
@@ -329,6 +336,23 @@ def state_path() -> Path:
     return _DATA_DIR
 
 
+def find_credential(config: Config, name: str) -> str:
+    """The current text of the saved credential named `name`, or `""`.
+
+    A live lookup, not a cached copy -- see `Config.credentials`'s
+    docstring for why. Returns `""` for a name that no longer exists (the
+    credential was deleted in Settings after an address-book entry was
+    saved pointing at it) rather than raising: a connect script sending
+    nothing is a much smaller problem than a connect that crashes the app.
+    """
+    if not name:
+        return ""
+    for entry in config.credentials:
+        if entry.get("name") == name:
+            return str(entry.get("text", ""))
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Loading -- defensive by construction, see module docstring
 # ---------------------------------------------------------------------------
@@ -369,6 +393,7 @@ def load_config(path: Path | None = None) -> Config:
     cfg.mycall_aliases = _load_callsign_list(raw.get("mycall_aliases", []), warnings)
     cfg.transports = _load_dict_list(raw.get("transports", []), "transports", warnings)
     cfg.active_transport = _load_str(raw, "active_transport", cfg.active_transport, warnings)
+    cfg.credentials = _load_dict_list(raw.get("credentials", []), "credentials", warnings)
     cfg.paclen = _load_int(raw, "paclen", cfg.paclen, warnings)
     cfg.modulo = _load_modulo(raw.get("modulo", cfg.modulo), warnings)
     cfg.window = _load_window(raw.get("window", cfg.window), warnings, cfg.modulo)

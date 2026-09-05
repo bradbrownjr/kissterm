@@ -78,6 +78,7 @@ operator will hit at the worst moment.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from pathlib import Path
 
@@ -92,7 +93,7 @@ from .. import __version__
 from ..addressbook import AddressBook
 from ..ax25 import AX25Station, parse_path
 from ..beacon import Beaconer
-from ..config import BeaconConfig
+from ..config import BeaconConfig, find_credential
 from ..ax25.frame import AX25Frame
 from ..heard import HeardTable
 from ..hotplug import PortEvent, SerialPortWatcher
@@ -149,6 +150,22 @@ CANCELLED_REASON = "cancelled by operator"
 #: pacing them gives a BBS's own line handling a moment to catch up rather
 #: than racing several commands in before it has processed the first.
 CONNECT_SCRIPT_LINE_DELAY = 0.75
+
+#: How long to wait for one intermediate node's own CONNECTED reply
+#: (`KissTermApp._hop_to`) before giving up on that hop. Fixed rather than
+#: scaled to the remaining chain length (unlike the bpq-apps node-map
+#: crawler this is modelled on) -- that crawler walks up to ten
+#: auto-discovered hops, this walks a short chain the operator typed by
+#: hand, so a flat, generous timeout is simpler and does the job.
+HOP_TIMEOUT = 20.0
+
+#: A hop that answers with any of these has explicitly refused or dropped,
+#: which is a different diagnosis from silence and must be reported
+#: differently -- see `AX25Station.connect`'s DM-vs-timeout distinction for
+#: the same reasoning one layer down. Matched case-insensitively as a
+#: substring against everything received since the "C <node>" command went
+#: out, the same heuristic bpq-apps' crawler uses against real BPQ nodes.
+HOP_FAIL_WORDS = ("BUSY", "FAILED", "DISCONNECTED", "TIMEOUT")
 
 
 class KissTermApp(App):
@@ -754,11 +771,22 @@ class KissTermApp(App):
         if self.station is None:
             self.notify("No transport is open.", severity="error")
             return
-        request = await self.push_screen_wait(ConnectScreen(self.addressbook))
+        request = await self.push_screen_wait(
+            ConnectScreen(self.addressbook, self.config.credentials)
+        )
         if not request:
             return
         target = request.target
-        path = parse_path(target)
+        # Node hops replace the "via DIGI" path entirely rather than
+        # combining with it -- see `ConnectScreen._submit`, which already
+        # refuses that combination, so `parse_path(target)` here is always
+        # either a plain callsign (hops in use) or a full digipeater path
+        # (hops empty). Either way the actual AX.25 SABM goes to the first
+        # node of the chain, which is `path.destination` in both cases: the
+        # chain's first hop when hops are given, the final target otherwise.
+        hop_names = [h.strip() for h in request.hops.split(",") if h.strip()]
+        chain = hop_names + [target] if hop_names else [target]
+        path = parse_path(chain[0])
         # The TNC link, before the RF link. Sending six SABMs into a socket
         # that is down produces "no answer from WS1EC-15" -- a diagnosis
         # pointing at the antenna when the fault is in the room. Unlike a
@@ -838,15 +866,116 @@ class KissTermApp(App):
                 f"Could not connect to {path.destination}{detail}", severity="warning"
             )
             return
+        self._bind_link(link)
+        self.query_one(TerminalPane).focus_input()
+        reached_target = True
+        if len(chain) > 1:
+            # The AX.25 link is only to the FIRST node -- everything past
+            # it is that node's own onward routing, invisible to kissterm's
+            # state machine and driven purely by watching what comes back
+            # over this one link. See `_hop_through`.
+            reached_target = await self._hop_through(link, chain[1:])
+        if not reached_target:
+            # Left connected to whichever node was last reached -- the
+            # operator can continue by hand from there, or Ctrl+D. Neither
+            # the address book nor a login script should treat a chain that
+            # stalled partway as having reached `target`.
+            return
         # Separate from the attempt the dialog already recorded: "tried ten
         # times, never got in" is a different fact from "this one works", and
         # flattening them would hide exactly the pattern an operator wants to
         # see next to a callsign on a marginal path.
         self.addressbook.record_connect(target)
-        self._bind_link(link)
-        self.query_one(TerminalPane).focus_input()
-        if request.script.strip():
-            self._run_connect_script(link, request.script)
+        login_text = (
+            find_credential(self.config, request.credential)
+            if request.credential
+            else request.script
+        )
+        if login_text.strip():
+            self._run_connect_script(link, login_text)
+
+    async def _hop_through(self, link, nodes: list[str]) -> bool:
+        """Walk a chain of node-to-node hops over an already-open link.
+
+        For a station reached only by connecting through intermediate
+        BPQ/NET-ROM nodes in turn -- no digipeater path exists, so this is
+        done at the application level: send "C <node>", wait for that
+        node's own CONNECTED reply, then the next, in order. Modelled on
+        the send/wait-for-CONNECTED-or-BUSY/FAILED loop the sibling
+        `bpq-apps` project's node-map crawler uses against real BPQ nodes,
+        simplified to a flat per-hop timeout (`HOP_TIMEOUT`) since this
+        walks a short chain the operator typed by hand, not an open-ended
+        auto-discovery crawl.
+
+        Stops and reports on the first hop that does not come up, leaving
+        the link connected to whichever node was last reached rather than
+        tearing anything down -- the operator can continue by hand from
+        there. Never sends the next hop's command after a failure: that
+        would be transmitting into a link nothing has confirmed is ready
+        for it.
+        """
+        for node in nodes:
+            if not link.connected:
+                self._to_terminal("log", "*** Hop chain stopped: no longer connected.\n")
+                return False
+            if not self.gate.enabled:
+                self._to_terminal("log", "*** Hop chain stopped: transmit is off.\n")
+                return False
+            ok, detail = await self._hop_to(link, node)
+            if not ok:
+                extra = f" -- {detail}" if detail else ""
+                self._to_terminal("log", f"*** No connection to {node}{extra}\n")
+                self.notify(f"Hop to {node} did not connect{extra}", severity="warning")
+                return False
+        return True
+
+    async def _hop_to(self, link, node: str) -> tuple[bool, str]:
+        """Send ``C <node>`` and wait for that node's own CONNECTED reply.
+
+        Watches everything the link receives from the moment the command
+        goes out, via a temporary `link.on_data` subscriber -- non-
+        destructively: the terminal pane has its own separate subscriber
+        from `_bind_link` and keeps displaying the same bytes normally, the
+        same one-fan-out-many-subscribers shape as the frame transport's own
+        `subscribe()`. Removed again before returning either way, so it
+        cannot keep matching against a later, unrelated hop's traffic.
+
+        Returns ``(True, "")`` on a CONNECTED reply, or ``(False, detail)``
+        on an explicit BUSY/FAILED/DISCONNECTED/TIMEOUT reply (a refusal --
+        `detail` names which word) or on plain silence past `HOP_TIMEOUT`
+        (`detail` says so) -- two different diagnoses that must not be
+        reported with the same words, same reasoning as a DM versus an N2
+        timeout one layer down in `AX25Station.connect`.
+        """
+        seen = bytearray()
+        result: asyncio.Future[tuple[bool, str]] = asyncio.get_event_loop().create_future()
+
+        def _watch(data: bytes) -> None:
+            seen.extend(data)
+            text = seen.decode("latin-1", "replace").upper()
+            if "CONNECTED" in text:
+                if not result.done():
+                    result.set_result((True, ""))
+                return
+            for word in HOP_FAIL_WORDS:
+                if word in text:
+                    if not result.done():
+                        result.set_result((False, f"{node} answered {word}"))
+                    return
+
+        link.on_data.append(_watch)
+        try:
+            cmd = f"C {node}"
+            await link.send(cmd.encode("latin-1", "replace") + b"\r")
+            self._to_terminal("log", cmd + "\n")
+            self.log_sent(cmd)
+            try:
+                return await asyncio.wait_for(result, timeout=HOP_TIMEOUT)
+            except asyncio.TimeoutError:
+                return False, f"no response within {HOP_TIMEOUT:.0f}s"
+        finally:
+            with contextlib.suppress(ValueError):
+                link.on_data.remove(_watch)
 
     @work
     async def _run_connect_script(self, link, script: str) -> None:

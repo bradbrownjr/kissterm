@@ -25,7 +25,7 @@ from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.ui.dialogs import CallsignScreen, ConnectScreen  # noqa: E402
-from textual.widgets import OptionList, TextArea  # noqa: E402
+from textual.widgets import Input, OptionList, Select, TextArea  # noqa: E402
 
 from kissterm.ui.heard_pane import HeardPane  # noqa: E402
 from kissterm.ui.monitor_pane import MonitorPane  # noqa: E402
@@ -668,5 +668,54 @@ async def test_a_saved_script_is_sent_after_the_connect_comes_up(tmp_path):
         assert peer_link is not None, "the connect never reached the peer"
         assert peer_link.read_nowait() == b"CLYDE\rMYPASS\r"
     peer_station.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_digipeater_path_and_node_hops_together_is_refused(tmp_path):
+    """The two do not compose -- a digipeater path repeats ONE frame at the
+    link layer, node hops are a sequence of independent connects made
+    minutes apart. Silently picking one would be a worse outcome than
+    refusing outright."""
+    app, ta, tb, station = await _app()
+    _fresh_book(app, tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open_connect(app, pilot)
+        screen.query_one("#connect-target", Input).value = "W1LH-6 via W1XYZ"
+        screen.query_one("#connect-hops", Input).value = "WS1EC-7"
+        await pilot.pause()
+        await pilot.click("#connect-go")
+        await pilot.pause()
+        assert isinstance(app.screen, ConnectScreen), "dismissed despite the conflict"
+        error = str(screen.query_one("#connect-error").content)
+        assert "pick one" in error, error
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_selecting_a_saved_credential_disables_the_script_box(tmp_path):
+    """The script box is disabled, not cleared or overwritten, while a
+    credential is selected -- so toggling the dropdown back and forth can
+    never leak one credential's text into another station's saved script."""
+    app, ta, tb, station = await _app()
+    app.config.credentials = [{"name": "Personal BBS login", "text": "MYPASS"}]
+    _fresh_book(app, tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await asyncio.sleep(0.15)
+        screen = app.screen
+        area = screen.query_one("#connect-script", TextArea)
+        area.text = "something typed by hand"
+
+        screen.query_one("#connect-credential", Select).value = "Personal BBS login"
+        await pilot.pause()
+        assert area.disabled is True
+        assert area.text == "something typed by hand", "typed text was overwritten"
+
+        screen.query_one("#connect-credential", Select).value = Select.NULL
+        await pilot.pause()
+        assert area.disabled is False
+        assert area.text == "something typed by hand", "typed text was lost"
     station.close()
 

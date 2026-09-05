@@ -58,6 +58,10 @@ NOT_IN_SCHEMA = {
     "transports",
     "active_transport",
     "autoconnect",
+    # Its own hand-built tab, like transports -- a list of dicts, not a
+    # scalar or two, and Add/Edit/Forget need real widgets a schema entry
+    # cannot generate.
+    "credentials",
     "warnings",
     "aprs",
     # Nested dataclasses. Their fields ARE in the schema, as dotted paths --
@@ -313,6 +317,49 @@ async def test_forgetting_a_transport():
         names = [t["name"] for t in app.config.transports]
         assert names == ["USB TNC"]
         assert app.config.active_transport == "USB TNC", "active must not dangle"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_forgetting_with_nothing_selected_is_a_no_op():
+    """Regression: an unselected Select's value is `Select.NULL`, not
+    `Select.BLANK` (which this Textual version defines as plain `False` --
+    a different object `Select.NULL` never equals). Comparing against the
+    wrong one made `not name or name == Select.BLANK` fail to recognise a
+    blank selection at all, so this used to fall through and filter
+    `config.transports` against a `Select.NULL` sentinel instead of
+    returning early."""
+    cfg = Config(
+        mycall="N1ABC-1",
+        transports=[{"name": "Direwolf", "kind": "tcp", "host": "10.0.0.2", "port": 8001}],
+        active_transport="Direwolf",
+    )
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        app.query_one("#set-active-transport", Select).value = Select.NULL
+        app.query_one(SettingsPane)._forget()
+        await pilot.pause()
+        assert [t["name"] for t in app.config.transports] == ["Direwolf"]
+        assert app.config.active_transport == "Direwolf"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_saving_with_no_transport_selected_does_not_corrupt_active_transport():
+    """Same sentinel bug, the save side: `selected != Select.BLANK` was
+    always true (`Select.NULL != False`), so a blank Active dropdown wrote
+    `str(Select.NULL)` into `config.active_transport` on every save."""
+    cfg = Config(mycall="N1ABC-1")
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        assert app.query_one("#set-active-transport", Select).value is Select.NULL
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.active_transport == "", app.config.active_transport
     station.close()
 
 
@@ -617,3 +664,88 @@ async def test_switching_transport_while_connected_is_refused_not_silent():
         peer.close()
         server.close()
         await server.wait_closed()
+
+
+# ---------------------------------------------------------------------------
+# Credentials -- reusable logins, referenced by name from a Connect entry.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_new_credential_is_saved_and_selectable():
+    app, station = await _app(Config(mycall=str(MYCALL)))
+    async with app.run_test(size=(120, 44)) as pilot:
+        await _settings_tab(app, pilot)
+        app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-credentials"
+        await pilot.pause()
+
+        pane = app.query_one(SettingsPane)
+        pane._new_credential()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        from kissterm.ui.dialogs import Credential, CredentialScreen
+
+        assert isinstance(app.screen, CredentialScreen), type(app.screen).__name__
+        await app.screen.dismiss(Credential("Personal BBS login", "CLYDE\nMYPASS"))
+        await pilot.pause()
+
+        assert app.config.credentials == [
+            {"name": "Personal BBS login", "text": "CLYDE\nMYPASS"}
+        ]
+        assert app.query_one("#set-credential", Select).value == "Personal BBS login"
+        detail = _detail_text_of(app, "#settings-credential-detail")
+        assert "2 line" in detail, detail
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_editing_a_credential_renames_it_without_leaving_a_duplicate():
+    cfg = Config(mycall=str(MYCALL))
+    cfg.credentials = [{"name": "Old name", "text": "MYPASS"}]
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 44)) as pilot:
+        await _settings_tab(app, pilot)
+        app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-credentials"
+        await pilot.pause()
+        app.query_one("#set-credential", Select).value = "Old name"
+        await pilot.pause()
+
+        pane = app.query_one(SettingsPane)
+        pane._edit_credential()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        from kissterm.ui.dialogs import Credential
+
+        await app.screen.dismiss(Credential("New name", "NEWPASS"))
+        await pilot.pause()
+
+        assert app.config.credentials == [{"name": "New name", "text": "NEWPASS"}]
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_forgetting_a_credential():
+    cfg = Config(mycall=str(MYCALL))
+    cfg.credentials = [
+        {"name": "Keep me", "text": "A"},
+        {"name": "Drop me", "text": "B"},
+    ]
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 44)) as pilot:
+        await _settings_tab(app, pilot)
+        app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-credentials"
+        await pilot.pause()
+        app.query_one("#set-credential", Select).value = "Drop me"
+        await pilot.pause()
+
+        app.query_one(SettingsPane)._forget_credential()
+        await pilot.pause()
+
+        assert [c["name"] for c in app.config.credentials] == ["Keep me"]
+    station.close()
+
+
+def _detail_text_of(app, selector: str) -> str:
+    return str(app.query_one(selector).content)

@@ -101,9 +101,10 @@ HeardPane { layout: vertical; }
 /* Connect dialog */
 ConnectScreen { align: center middle; }
 #connect-box {
-    width: 66; height: auto; padding: 1 2;
+    width: 72; height: auto; padding: 1 2;
     border: thick $primary; background: $surface;
 }
+#connect-hops { margin-top: 1; }
 #connect-buttons { height: auto; align: right middle; margin-top: 1; }
 #connect-buttons Button { margin-left: 1; }
 /* The address book. A visible border and its own title, because "no border,
@@ -119,10 +120,12 @@ ConnectScreen { align: center middle; }
    which is longer than the dialog and was reading as cut off mid-sentence. */
 #connect-hint { color: $text-muted; width: 100%; height: auto; }
 #connect-script-title { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
+#connect-credential { width: 100%; }
 /* Fixed and short on purpose -- a login script is a handful of lines
    (callsign, password, maybe a mailbox command), not a document, and a
    box that grew with its content would push Connect/Cancel around. */
-#connect-script { height: 4; border: round $primary; }
+#connect-script { height: 4; border: round $primary; margin-top: 1; }
+#connect-script:disabled { border: round $panel; }
 
 .placeholder { padding: 1 2; color: $text-muted; }
 

@@ -59,13 +59,29 @@ class Entry:
     connects: int = 0
     note: str = ""
     #: An auto-login script for this station: lines sent, one at a time,
-    #: right after a connect to it comes up (see `KissTermApp._run_connect_
+    #: right after the connection comes up (see `KissTermApp._run_connect_
     #: script`). Empty means "connect only, send nothing automatically",
     #: which is the default for every entry -- a script only exists here
     #: because an operator typed one into the Connect dialog for this exact
     #: station and it got saved alongside the target, the same way a typed
-    #: digipeater path does.
+    #: digipeater path does. Ignored when `credential` names a saved one
+    #: instead -- see that field.
     script: str = ""
+    #: Comma-separated node callsigns to hop through BEFORE `target`, in
+    #: order, for stations reached only node-to-node -- no digipeater path
+    #: exists, so kissterm connects to the first node directly and then
+    #: sends "C <next node>" over that link, waiting for its own CONNECTED
+    #: reply, once per remaining hop, `target` included as the last one.
+    #: Empty (the default, and what almost every entry has) means a normal
+    #: direct connect to `target` -- nothing about existing entries changes.
+    #: See `KissTermApp.action_connect`'s hop-chain handling.
+    hops: str = ""
+    #: The NAME of a saved credential (`Config.credentials`) to send instead
+    #: of `script`, looked up fresh at connect time -- see that field's
+    #: docstring for why this is a name, not a copy. Empty means "use
+    #: `script` literally", which is what every entry has until an operator
+    #: picks a saved credential from the Connect dialog's dropdown.
+    credential: str = ""
 
     @property
     def summary(self) -> str:
@@ -123,6 +139,8 @@ class AddressBook:
                     connects=int(item.get("connects", 0) or 0),
                     note=str(item.get("note", "")),
                     script=str(item.get("script", "")),
+                    hops=str(item.get("hops", "")),
+                    credential=str(item.get("credential", "")),
                 )
             )
         self.entries = entries[:MAX_ENTRIES]
@@ -145,19 +163,24 @@ class AddressBook:
             log.warning("could not save address book to %s: %s", self.file, exc)
 
     # -- the list ---------------------------------------------------------
-    def record_attempt(self, target: str, script: str = "") -> Entry:
+    def record_attempt(
+        self, target: str, script: str = "", hops: str = "", credential: str = ""
+    ) -> Entry:
         """Note that the operator asked to connect to `target`, and save.
 
-        `script` is whatever the Connect dialog's script field held at
-        submit time, including empty -- that field is the one place a
-        script can be entered or cleared, so what it held is written back
-        unconditionally rather than only when non-empty. A deliberate blank
-        removes a script the operator no longer wants exactly the same way
-        typing over the target field changes it.
+        `script`, `hops` and `credential` are whatever the Connect dialog's
+        matching fields held at submit time, including empty -- those fields
+        are the one place each can be entered or cleared, so what they held
+        is written back unconditionally rather than only when non-empty. A
+        deliberate blank removes a script/hop-chain/credential the operator
+        no longer wants, exactly the same way typing over the target field
+        changes it.
         """
         entry = self._touch(target)
         entry.attempts += 1
         entry.script = script
+        entry.hops = hops
+        entry.credential = credential
         self.save()
         return entry
 

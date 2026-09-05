@@ -447,16 +447,22 @@ Gotchas that already cost time:
   (`ANSWERING`, `BEACON`) for as long as they are armed, and both write every
   transmission into the terminal pane. A station that transmits without the
   operator being able to see that it did is what the opt-in exists to prevent.
-- **A per-station auto-login script (`KissTermApp._run_connect_script`) is a
-  third case, not a loophole in the first one.** It only fires after a
-  connect the operator just named and confirmed in the Connect dialog --
-  `_arm_for` already armed transmit for that exact request, and this rides
-  it rather than arming or confirming anything of its own. It still has to
-  behave like the other two: every line echoed into the terminal log and the
-  transcript as it goes out, and it stops rather than silently drops a line
-  if the gate closes or the link drops mid-script. A script is empty by
-  default on every address-book entry; one only exists because the operator
-  typed it into the Connect dialog for that exact station.
+- **A per-station auto-login script (`KissTermApp._run_connect_script`) and a
+  node-hop chain (`_hop_through`/`_hop_to`) are a third case, not a loophole
+  in the first one.** Both only fire after a connect the operator just named
+  and confirmed in the Connect dialog -- `_arm_for` already armed transmit
+  for that exact request, and both ride it rather than arming or confirming
+  anything of their own. Both still have to behave like the other two: every
+  line (a login line, or a "C <node>" hop command) echoed into the terminal
+  log and the transcript as it goes out, and both stop rather than silently
+  drop something if the gate closes or the link drops mid-sequence. A script
+  is empty and a hop chain is empty by default on every address-book entry;
+  either only exists because the operator typed it into the Connect dialog
+  for that exact station. The hop chain additionally stops on the first hop
+  that answers BUSY/FAILED/DISCONNECTED/TIMEOUT or stays silent past
+  `HOP_TIMEOUT` -- it never sends the next hop's command into a link nothing
+  has confirmed is ready for it, and never runs the login step (script or
+  credential) unless the WHOLE chain, including the final target, came up.
 - **A beacon is not APRS beaconing, and the code must keep saying so.**
   `kissterm/beacon.py` sends free text to `BEACON`; `kissterm/aprs/` sends a
   position in APRS format to `APRS`. Separate config tables, separate Settings
@@ -670,6 +676,22 @@ Gotchas that already cost time:
 - **ALWAYS** update `docs/CHANGELOG.md` and `docs/ROADMAP.md` when something
   ships. New capabilities go under "New Features"; "Improvements" is only for
   making existing things better. Remove a roadmap item the moment it ships.
+- **`Select.NULL` is the "nothing selected" sentinel in this installed
+  Textual version -- `Select.BLANK` is a stale alias that is literally the
+  bool `False`, and assigning it to `.value` raises `InvalidSelectValueError`
+  even on a `Select` built with `allow_blank=True`.** Comparing against it
+  (`selected != Select.BLANK`) does not crash, but is silently always true
+  (`Select.NULL != False`), which is worse: it looks like a guard and is
+  not one. This shipped once already -- `SettingsPane._save`'s active-
+  transport check and `_forget`'s blank check both used `Select.BLANK` and
+  neither ever actually caught a blank selection, so saving with nothing
+  picked wrote the string `"Select.NULL"` into `config.active_transport`.
+  Fixed by switching every comparison and assignment to `Select.NULL`;
+  `tests/pilot/test_settings.py::test_saving_with_no_transport_selected_
+  does_not_corrupt_active_transport` and the matching `_forget` test guard
+  it. Check `Select.NULL` before trusting `Select.BLANK` in any future
+  Textual upgrade -- this is exactly the kind of rename that would silently
+  reintroduce the bug if the two ever swap meaning again.
 
 ## 7a. Theming
 

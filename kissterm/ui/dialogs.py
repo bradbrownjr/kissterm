@@ -18,7 +18,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, OptionList, TextArea
+from textual.widgets import Button, Input, Label, OptionList, Select, TextArea
 from textual.widgets.option_list import Option
 
 from ..addressbook import AddressBook
@@ -28,11 +28,21 @@ from ..ax25 import parse_path
 @dataclass(frozen=True)
 class ConnectRequest:
     """What the Connect dialog hands back: where to connect, and what to
-    say once it comes up. `script` is almost always empty -- see
-    `KissTermApp._run_connect_script` for what a non-empty one does."""
+    do once there.
+
+    `hops` is a comma-separated chain of intermediate nodes to reach
+    `target` node-to-node, for when no digipeater path does the job --
+    almost always empty. `script`/`credential` are the two mutually
+    exclusive ways to say what to send once the FULL chain (or the plain
+    direct connect, if `hops` is empty) comes up: literal text, or the name
+    of a saved credential looked up fresh at send time. See
+    `KissTermApp.action_connect` and `_run_connect_script`.
+    """
 
     target: str
     script: str = ""
+    hops: str = ""
+    credential: str = ""
 
 
 class ConnectScreen(ModalScreen[ConnectRequest | None]):
@@ -46,10 +56,13 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
     with no app around it, and it is optional: pass `book=AddressBook(path)`
     to point it somewhere else.
 
-    Also carries an optional auto-login script per station -- arrowing
-    through the history previews the script saved for that entry, and
-    whatever is in the box when Connect fires travels back with the target
-    and gets saved, blank or not.
+    Also carries an optional per-station node-hop chain and login (a literal
+    script or a saved credential) -- arrowing through the history previews
+    everything saved for that entry, and whatever the fields hold when
+    Connect fires travels back with the target and gets saved, blank or not.
+    `credentials` is the raw `Config.credentials` list of `{"name", "text"}`
+    dicts, for the "send once connected" dropdown; defaults to none, so the
+    dialog still works in a test or a script with no config around it.
     """
 
     BINDINGS = [
@@ -58,12 +71,17 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         Binding("delete", "forget", "Forget", show=False),
     ]
 
-    def __init__(self, book: AddressBook | None = None) -> None:
+    def __init__(
+        self,
+        book: AddressBook | None = None,
+        credentials: list[dict] | None = None,
+    ) -> None:
         super().__init__()
         if book is None:
             book = AddressBook()
             book.load()
         self.book = book
+        self.credentials = credentials or []
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
@@ -71,6 +89,10 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
             yield Input(
                 placeholder="WS1EC-7  or  WS1EC-7 via W1AW-1",
                 id="connect-target",
+            )
+            yield Input(
+                placeholder="N1QFY, AB1KI-15 (optional -- node hops, when no digipeater reaches it)",
+                id="connect-hops",
             )
             yield Label("", id="connect-error")
             yield Label("Recent stations", id="connect-history-title")
@@ -80,8 +102,14 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
                 id="connect-hint",
             )
             yield Label(
-                "Auto-login script (optional) -- sent a line at a time once connected",
+                "Send once connected (optional)",
                 id="connect-script-title",
+            )
+            yield Select(
+                [],
+                id="connect-credential",
+                allow_blank=True,
+                prompt="(type your own below)",
             )
             yield TextArea(id="connect-script", tab_behavior="focus")
             with Horizontal(id="connect-buttons"):
@@ -90,7 +118,22 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
 
     def on_mount(self) -> None:
         self._render_history()
+        self._render_credentials()
         self.query_one("#connect-target", Input).focus()
+
+    def _render_credentials(self) -> None:
+        select = self.query_one("#connect-credential", Select)
+        select.set_options(
+            (name, name)
+            for c in self.credentials
+            if (name := c.get("name"))
+        )
+
+    def _credential_text(self, name: str) -> str:
+        for c in self.credentials:
+            if c.get("name") == name:
+                return str(c.get("text", ""))
+        return ""
 
     # -- the address book -------------------------------------------------
     def _render_history(self, filter_text: str = "") -> None:
@@ -104,7 +147,9 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         matches = [e for e in self.book.entries if needle in e.target.upper()]
         options = [
             Option(
-                f"{e.target}{'  --  ' + e.summary if e.summary else ''}",
+                f"{e.target}"
+                f"{'  --  ' + e.summary if e.summary else ''}"
+                f"{'  [via nodes]' if e.hops else ''}",
                 id=e.target,
             )
             for e in matches
@@ -145,19 +190,45 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
             self._submit(event.option.id)
 
     @on(OptionList.OptionHighlighted, "#connect-history")
-    def _preview_script(self, event: OptionList.OptionHighlighted) -> None:
-        """Arrowing through history previews that entry's saved script.
+    def _preview_entry(self, event: OptionList.OptionHighlighted) -> None:
+        """Arrowing through history previews everything saved for that
+        station -- its node-hop chain and its login, script or credential.
 
-        So picking a station also picks up its login sequence without
-        having to remember it lives there and go looking -- the box already
-        shows what would fire, and it is still editable before Connect.
+        So picking a station also picks up how to reach it and what to say
+        once there, without having to remember any of it separately. Still
+        editable before Connect.
         """
         entry = None
         if event.option.id:
             entry = next(
                 (e for e in self.book.entries if e.target == event.option.id), None
             )
+        self.query_one("#connect-hops", Input).value = entry.hops if entry else ""
         self.query_one("#connect-script", TextArea).text = entry.script if entry else ""
+        valid = {c.get("name") for c in self.credentials}
+        credential = entry.credential if entry and entry.credential in valid else ""
+        self.query_one("#connect-credential", Select).value = credential or Select.NULL
+        self._apply_credential_state()
+
+    @on(Select.Changed, "#connect-credential")
+    def _credential_changed(self) -> None:
+        self._apply_credential_state()
+
+    def _apply_credential_state(self) -> None:
+        """Disable, but never touch the text of, the script box while a
+        saved credential is selected.
+
+        Deliberately does not clear or overwrite `.text`: doing so on every
+        dropdown change is how a credential's password ends up copied into
+        the box and then silently saved as another station's "custom"
+        script the next time the dropdown is reset to blank. Leaving the
+        text alone and merely disabling the box means the two mechanisms
+        cannot contaminate each other -- see `_submit`, which reads the box
+        only when no credential is selected.
+        """
+        select = self.query_one("#connect-credential", Select)
+        area = self.query_one("#connect-script", TextArea)
+        area.disabled = bool(select.value) and select.value is not Select.NULL
 
     @on(Input.Changed, "#connect-target")
     def _filter(self, event: Input.Changed) -> None:
@@ -178,18 +249,110 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         if not text:
             return
         try:
-            parse_path(text)
+            path = parse_path(text)
         except Exception as exc:
             self.query_one("#connect-error", Label).update(f"[red]{exc}[/red]")
             return
-        script = self.query_one("#connect-script", TextArea).text
+        hops = self.query_one("#connect-hops", Input).value.strip()
+        if hops and path.repeaters:
+            # Two different ways to reach a station that is not directly
+            # workable, and they do not compose: a digipeater path repeats
+            # ONE frame at the link layer; node hops are a sequence of
+            # separate, independent connects made minutes apart. Refusing
+            # here is better than silently picking one and ignoring the
+            # other.
+            self.query_one("#connect-error", Label).update(
+                "[red]Can't combine a digipeater path (via ...) with node "
+                "hops -- pick one.[/red]"
+            )
+            return
+        select_value = self.query_one("#connect-credential", Select).value
+        credential = (
+            str(select_value) if select_value and select_value is not Select.NULL else ""
+        )
+        # A credential, once selected, is authoritative -- the box next to
+        # it is disabled (see `_apply_credential_state`) specifically so
+        # its leftover text is never read here.
+        script = "" if credential else self.query_one("#connect-script", TextArea).text
         # Recorded on the ATTEMPT, not on success: a connect that failed is
         # the one about to be retried, and withholding it until a UA arrives
         # would keep it out of the list at exactly the moment it is wanted.
-        # The script travels the same way, blank or not -- a deliberate
-        # blank clears one the operator no longer wants.
-        self.book.record_attempt(text, script)
-        self.dismiss(ConnectRequest(text, script))
+        # Everything else travels the same way, blank or not -- a deliberate
+        # blank clears a script/hop-chain/credential the operator no longer
+        # wants.
+        self.book.record_attempt(text, script, hops, credential)
+        self.dismiss(ConnectRequest(text, script, hops, credential))
+
+
+@dataclass(frozen=True)
+class Credential:
+    """One saved login, as `CredentialScreen` hands it back."""
+
+    name: str
+    text: str
+
+
+class CredentialScreen(ModalScreen[Credential | None]):
+    """Add or edit one saved credential (Settings > Credentials).
+
+    Kept deliberately simple -- a name and a block of text, nothing
+    structured -- because packet BBS logins do not agree on a shape: some
+    want a bare password, some want a real name and a password, some want a
+    CBBS-style multi-field login. A named block of text sent one line at a
+    time covers all of them without guessing a schema that will not fit the
+    next BBS someone connects to.
+
+    Saving here does not touch `config.toml` itself -- the caller
+    (`SettingsPane`) folds the result into `Config.credentials` and saves
+    the whole config, same as every other Settings field.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, name: str = "", text: str = "") -> None:
+        super().__init__()
+        self._name = name
+        self._text = text
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("Saved credential", id="connect-title")
+            yield Input(
+                value=self._name,
+                placeholder="Personal BBS login",
+                id="credential-name",
+            )
+            yield Label("", id="credential-error")
+            yield Label(
+                "Text -- one or more lines, sent in order once referenced by a station",
+                id="connect-script-title",
+            )
+            yield TextArea(self._text, id="credential-text", tab_behavior="focus")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save", variant="primary", id="credential-save")
+                yield Button("Cancel", id="credential-cancel")
+
+    def on_mount(self) -> None:
+        field = self.query_one("#credential-name", Input)
+        field.focus()
+        field.action_end()
+
+    @on(Button.Pressed, "#credential-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#credential-save")
+    @on(Input.Submitted, "#credential-name")
+    def _save(self) -> None:
+        name = self.query_one("#credential-name", Input).value.strip()
+        if not name:
+            self.query_one("#credential-error", Label).update(
+                "[red]Name this credential something -- it is how a station's "
+                "Connect entry will find it.[/red]"
+            )
+            return
+        text = self.query_one("#credential-text", TextArea).text
+        self.dismiss(Credential(name, text))
 
 
 class CallsignScreen(ModalScreen[str | None]):

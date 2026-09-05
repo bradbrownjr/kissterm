@@ -408,3 +408,14 @@ data_port = 8301
 target = "W1AW-1"
 path = "WIDE1-1"
 transport = "direwolf-local"
+
+# --- Saved credentials ------------------------------------------------------
+# Reusable login snippets, managed from Settings > Credentials. An
+# address-book entry can reference one by NAME (its `credential` field)
+# instead of storing its own copy of the text -- change a password here once
+# and every entry that names it picks it up on its next connect. `text` can
+# be more than one line: whatever a BBS's login prompt actually wants,
+# sent one line at a time.
+[[credentials]]
+name = "Personal BBS login"
+text = "CLYDE\nMYPASS"

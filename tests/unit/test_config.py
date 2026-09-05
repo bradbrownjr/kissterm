@@ -158,6 +158,7 @@ def _fully_populated_config() -> kconfig.Config:
         path="WIDE2-1",
     )
     cfg.autoconnect = [{"target": "W1AW-1", "path": "WIDE1-1", "transport": "direwolf"}]
+    cfg.credentials = [{"name": "Personal BBS login", "text": "CLYDE\nMYPASS"}]
     return cfg
 
 
@@ -185,6 +186,7 @@ def test_save_load_round_trips_every_field(tmp_path):
     assert loaded.ascii_safe == original.ascii_safe
     assert loaded.aprs == original.aprs
     assert loaded.autoconnect == original.autoconnect
+    assert loaded.credentials == original.credentials
 
 
 def test_atomic_save_leaves_no_temp_file_behind(tmp_path):

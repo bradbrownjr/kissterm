@@ -145,7 +145,10 @@ transports and framing that already exist, not a new transport.
 - [ ] **NET/ROM awareness.** Recognize and display NET/ROM routing broadcasts
   and node lists (`PID_NETROM` in `kissterm/ax25/frame.py` already exists)
   so the UI can offer a "known nodes" picker instead of requiring every
-  destination to be typed by hand. Medium.
+  destination to be typed by hand. Would pair naturally with the node-hop
+  chain that already shipped (`AddressBook.Entry.hops`) -- this is what
+  would let an operator pick hops from a discovered list instead of typing
+  callsigns they already know. Medium.
 - [ ] **BBS session helpers** — mail read/send macros for the common
   packet-BBS command dialects (read commands, list-new, send-to-callsign),
   as scriptable macros (see P6) rather than hardcoded parsing, since BBS
@@ -180,11 +183,14 @@ transports and framing that already exist, not a new transport.
   "on connect", "on line received", "on line typed") that lets a user write
   a normal `.py` file instead of learning a bespoke macro DSL. Medium-large,
   needs a real security think-through before plugins can touch anything
-  sensitive. Not to be confused with the much smaller per-station auto-login
-  script already shipped (`AddressBook.Entry.script`, sent by
-  `KissTermApp._run_connect_script`) -- that is a fixed line-at-a-time text
-  sequence with no logic, triggered only by "on connect". This item is the
-  general-purpose, arbitrary-hook version of the same idea.
+  sensitive. Not to be confused with what already shipped: a per-station
+  auto-login (`AddressBook.Entry.script`/`.credential`, sent by
+  `KissTermApp._run_connect_script`) and a node-to-node hop chain
+  (`AddressBook.Entry.hops`, walked by `_hop_through`/`_hop_to`) -- both
+  fixed, no-logic sequences triggered only by "on connect", not a scripting
+  language. This item is the general-purpose, arbitrary-hook version of the
+  same idea (conditionals, reacting to arbitrary text, running on other
+  events besides connect).
 - [ ] **Command palette actions.** Expose connect/disconnect/monitor-toggle/
   transport-switch etc. through Textual's command palette, not just
   keybindings. Small once the actions themselves exist.
