@@ -168,6 +168,11 @@ SettingsPane { layout: vertical; }
 #settings-tabs { height: 1fr; }
 .settings-tab-scroll { padding: 0 2; }
 #settings-bar { height: auto; padding: 1 2 0 2; border-top: solid $panel; }
+/* Tall enough to show several stations without scrolling on an ordinary
+   terminal, short enough that the buttons and hint below it stay on
+   screen too -- fixed, not 1fr, since this tab's VerticalScroll wrapper
+   already handles anything longer than that. */
+#settings-addressbook-table { height: 14; margin-top: 1; }
 .settings-banner {
     padding: 1 2; margin: 0 0 1 0;
     background: $warning-darken-2; color: $text;

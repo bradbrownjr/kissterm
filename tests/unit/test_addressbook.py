@@ -87,6 +87,40 @@ def test_a_digipeater_path_is_kept_exactly_as_typed(book):
     assert book.entries[0].target == "WS1EC-7 via W1AW-1,W1XYZ"
 
 
+def test_upsert_creates_an_entry_with_no_attempts(book):
+    """Setting up a station in advance in Settings > Address Book is not an
+    attempt to reach it."""
+    book.upsert("WS1EC-7", script="CLYDE", hops="N1QFY")
+    entry = book.entries[0]
+    assert entry.target == "WS1EC-7"
+    assert entry.script == "CLYDE"
+    assert entry.hops == "N1QFY"
+    assert entry.attempts == 0
+    assert entry.connects == 0
+
+
+def test_upsert_edits_in_place_without_touching_counters(book):
+    book.record_attempt("WS1EC-7")
+    book.record_connect("WS1EC-7")
+    book.upsert("WS1EC-7", script="NEWSCRIPT", original_target="WS1EC-7")
+    entry = book.entries[0]
+    assert entry.script == "NEWSCRIPT"
+    assert entry.attempts == 1
+    assert entry.connects == 1
+
+
+def test_upsert_renaming_the_target_does_not_leave_a_stale_duplicate(book):
+    """`_touch` matches targets as whole strings, so a rename is a
+    different key to it -- upsert has to explicitly drop the old spelling
+    or it survives as a second, orphaned entry. The rename starts fresh
+    (a different string is a different entry everywhere else in this
+    class too), it just must not leave the old one behind as well."""
+    book.record_attempt("WS1EC-7")
+    book.record_connect("WS1EC-7")
+    book.upsert("WS1EC-7 via W1AW-1", original_target="WS1EC-7")
+    assert [e.target for e in book.entries] == ["WS1EC-7 via W1AW-1"]
+
+
 def test_forget_removes_a_row_and_reports_it(book):
     book.record_attempt("WS1EC-7")
     book.record_attempt("W1AW-1")

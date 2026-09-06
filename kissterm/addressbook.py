@@ -191,6 +191,46 @@ class AddressBook:
         self.save()
         return entry
 
+    def upsert(
+        self,
+        target: str,
+        *,
+        script: str = "",
+        hops: str = "",
+        credential: str = "",
+        original_target: str = "",
+    ) -> Entry:
+        """Create or hand-edit an entry directly -- Settings > Address Book,
+        not a connect attempt.
+
+        Deliberately does not touch `attempts`/`connects`: setting up a
+        station in advance, or fixing a typo in its saved hop chain, is not
+        an attempt to reach it and must not be counted as one. `_touch`
+        already preserves those counters for an existing entry and starts a
+        new one at zero, so this only needs to overwrite the fields the
+        editor actually offers.
+
+        `original_target`, when given, is what the entry was called before
+        this edit. `_touch` matches targets case-insensitively as whole
+        strings, so renaming (`"WS1EC-7"` to `"WS1EC-7 via W1AW-1"`) is a
+        DIFFERENT key to it and would otherwise leave the old spelling
+        behind as a stale duplicate rather than actually renaming anything.
+        The rename starts fresh at zero attempts/connects under the new
+        spelling, same as typing a new target ever does anywhere else in
+        this class -- "WS1EC-7" and "WS1EC-7 via W1AW-1" are different
+        strings, and inventing counter-carrying logic that runs only here
+        would make this the one place renaming means something subtly
+        different from creating a new entry under a new name.
+        """
+        if original_target and original_target.strip().upper() != target.strip().upper():
+            self.forget(original_target)
+        entry = self._touch(target)
+        entry.script = script
+        entry.hops = hops
+        entry.credential = credential
+        self.save()
+        return entry
+
     def forget(self, target: str) -> bool:
         """Drop `target`. Returns whether anything was removed."""
         before = len(self.entries)

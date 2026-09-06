@@ -3,6 +3,40 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-06] — A place to manage the address book
+
+Asked directly: "where do I manage, edit, etc the address book? does it have
+its own modal or tab?" It did not -- the only way to touch an entry was the
+Connect dialog's inline history (filter, arrow, Delete), with no way to view
+the whole list, add a station in advance, or fix a typo without attempting a
+live connect first.
+
+### New Features
+- **Settings > Address Book.** A table of every saved station (target, node
+  hops, login, attempts, connects) with New/Edit/Forget. Saves straight to
+  the address book's own JSON file, not `config.toml` -- it changes on every
+  connect attempt and does not wait for the Settings "Save" button.
+  Add/edit reuses the Connect dialog's hop-chain and credential/script rules
+  (`AddressBookEntryScreen`, sharing `_validate_target_and_hops` and
+  `_disable_while_credential_selected` with `ConnectScreen` rather than
+  duplicating them) and shares one address book with the Connect dialog's
+  history, so anything saved here shows up there and vice versa.
+- **Insert/F2/Delete/Enter** on the table match `syncterm`'s dialing
+  directory (Insert adds, F2 or Enter edits, Delete forgets) -- familiar
+  muscle memory for anyone who has used a classic BBS terminal's phone book.
+  Bound on the table widget itself, not the pane, so Delete still deletes a
+  character out of an Input on another Settings tab rather than forgetting
+  whatever row happened to be selected on a tab that was not even open.
+- `AddressBook.upsert()`: create or hand-edit an entry without touching
+  `attempts`/`connects` -- setting a station up in advance, or fixing a typo
+  in its hop chain, is not an attempt to reach it. Handles a renamed target
+  by dropping the old spelling first, since `_touch` matches whole strings
+  and would otherwise leave it behind as an orphaned duplicate.
+
+**Files:** `kissterm/addressbook.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/settings_pane.py`, `kissterm/ui/styles.py`,
+`tests/unit/test_addressbook.py`, `tests/pilot/test_settings.py`
+
 ## [2026-09-05] — Node-to-node connect chains, and saved credentials
 
 Follow-up to the same day's "per-station login scripts" entry below, after it

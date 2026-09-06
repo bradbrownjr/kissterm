@@ -45,6 +45,40 @@ class ConnectRequest:
     credential: str = ""
 
 
+def _validate_target_and_hops(text: str, hops: str) -> tuple[object | None, str]:
+    """Parse `text` as a connect target, refusing to combine it with node
+    hops. Returns `(path, "")` on success or `(None, message)` on failure --
+    shared by `ConnectScreen` and `AddressBookEntryScreen`, which both offer
+    the same two addressing mechanisms and must refuse the same conflict:
+    a digipeater path repeats ONE frame at the link layer, node hops are a
+    sequence of independent connects made minutes apart, and the two do not
+    compose.
+    """
+    try:
+        path = parse_path(text)
+    except Exception as exc:
+        return None, str(exc)
+    if hops and path.repeaters:
+        return None, "Can't combine a digipeater path (via ...) with node hops -- pick one."
+    return path, ""
+
+
+def _disable_while_credential_selected(select: Select, area: TextArea) -> None:
+    """Disable, but never touch the text of, a login script box while a
+    saved credential is selected next to it.
+
+    Shared by `ConnectScreen` and `AddressBookEntryScreen`. Deliberately
+    does not clear or overwrite `.text`: doing so on every dropdown change
+    is how a credential's password ends up copied into the box and then
+    silently saved as another station's "custom" script the next time the
+    dropdown is reset to blank. Leaving the text alone and merely disabling
+    the box means the two mechanisms cannot contaminate each other -- each
+    screen's submit handler reads the box only when no credential is
+    selected.
+    """
+    area.disabled = bool(select.value) and select.value is not Select.NULL
+
+
 class ConnectScreen(ModalScreen[ConnectRequest | None]):
     """Ask for a connect target. Accepts ``CALL-SSID [via DIGI,DIGI]``.
 
@@ -215,20 +249,10 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         self._apply_credential_state()
 
     def _apply_credential_state(self) -> None:
-        """Disable, but never touch the text of, the script box while a
-        saved credential is selected.
-
-        Deliberately does not clear or overwrite `.text`: doing so on every
-        dropdown change is how a credential's password ends up copied into
-        the box and then silently saved as another station's "custom"
-        script the next time the dropdown is reset to blank. Leaving the
-        text alone and merely disabling the box means the two mechanisms
-        cannot contaminate each other -- see `_submit`, which reads the box
-        only when no credential is selected.
-        """
-        select = self.query_one("#connect-credential", Select)
-        area = self.query_one("#connect-script", TextArea)
-        area.disabled = bool(select.value) and select.value is not Select.NULL
+        _disable_while_credential_selected(
+            self.query_one("#connect-credential", Select),
+            self.query_one("#connect-script", TextArea),
+        )
 
     @on(Input.Changed, "#connect-target")
     def _filter(self, event: Input.Changed) -> None:
@@ -248,23 +272,10 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         text = text.strip()
         if not text:
             return
-        try:
-            path = parse_path(text)
-        except Exception as exc:
-            self.query_one("#connect-error", Label).update(f"[red]{exc}[/red]")
-            return
         hops = self.query_one("#connect-hops", Input).value.strip()
-        if hops and path.repeaters:
-            # Two different ways to reach a station that is not directly
-            # workable, and they do not compose: a digipeater path repeats
-            # ONE frame at the link layer; node hops are a sequence of
-            # separate, independent connects made minutes apart. Refusing
-            # here is better than silently picking one and ignoring the
-            # other.
-            self.query_one("#connect-error", Label).update(
-                "[red]Can't combine a digipeater path (via ...) with node "
-                "hops -- pick one.[/red]"
-            )
+        _path, error = _validate_target_and_hops(text, hops)
+        if error:
+            self.query_one("#connect-error", Label).update(f"[red]{error}[/red]")
             return
         select_value = self.query_one("#connect-credential", Select).value
         credential = (
@@ -281,6 +292,105 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         # blank clears a script/hop-chain/credential the operator no longer
         # wants.
         self.book.record_attempt(text, script, hops, credential)
+        self.dismiss(ConnectRequest(text, script, hops, credential))
+
+
+class AddressBookEntryScreen(ModalScreen[ConnectRequest | None]):
+    """Add or hand-edit one address-book entry directly (Settings > Address
+    Book), without attempting a live connect.
+
+    Same fields and the same via/hops and credential/script rules as the
+    lower half of `ConnectScreen` -- a station reached node-to-node, or one
+    with a saved login, should be set up correctly once from Settings
+    rather than the operator having to attempt (and possibly fail) a real
+    connect just to create the entry. No history browsing here: the whole
+    point of this screen is that a caller already knows which entry it is
+    editing, or that it is a new one.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(
+        self,
+        target: str = "",
+        script: str = "",
+        hops: str = "",
+        credential: str = "",
+        credentials: list[dict] | None = None,
+    ) -> None:
+        super().__init__()
+        self._target = target
+        self._script = script
+        self._hops = hops
+        self._credential = credential
+        self.credentials = credentials or []
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("Address book entry", id="connect-title")
+            yield Input(
+                value=self._target,
+                placeholder="WS1EC-7  or  WS1EC-7 via W1AW-1",
+                id="connect-target",
+            )
+            yield Input(
+                value=self._hops,
+                placeholder="N1QFY, AB1KI-15 (optional -- node hops, when no digipeater reaches it)",
+                id="connect-hops",
+            )
+            yield Label("", id="connect-error")
+            yield Label("Send once connected (optional)", id="connect-script-title")
+            yield Select(
+                [],
+                id="connect-credential",
+                allow_blank=True,
+                prompt="(type your own below)",
+            )
+            yield TextArea(self._script, id="connect-script", tab_behavior="focus")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save", variant="primary", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        select = self.query_one("#connect-credential", Select)
+        select.set_options((name, name) for c in self.credentials if (name := c.get("name")))
+        valid = {c.get("name") for c in self.credentials}
+        select.value = self._credential if self._credential in valid else Select.NULL
+        self._apply_credential_state()
+        field = self.query_one("#connect-target", Input)
+        field.focus()
+        field.action_end()
+
+    @on(Select.Changed, "#connect-credential")
+    def _credential_changed(self) -> None:
+        self._apply_credential_state()
+
+    def _apply_credential_state(self) -> None:
+        _disable_while_credential_selected(
+            self.query_one("#connect-credential", Select),
+            self.query_one("#connect-script", TextArea),
+        )
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#connect-go")
+    @on(Input.Submitted, "#connect-target")
+    def _save(self) -> None:
+        text = self.query_one("#connect-target", Input).value.strip()
+        if not text:
+            return
+        hops = self.query_one("#connect-hops", Input).value.strip()
+        _path, error = _validate_target_and_hops(text, hops)
+        if error:
+            self.query_one("#connect-error", Label).update(f"[red]{error}[/red]")
+            return
+        select_value = self.query_one("#connect-credential", Select).value
+        credential = (
+            str(select_value) if select_value and select_value is not Select.NULL else ""
+        )
+        script = "" if credential else self.query_one("#connect-script", TextArea).text
         self.dismiss(ConnectRequest(text, script, hops, credential))
 
 
