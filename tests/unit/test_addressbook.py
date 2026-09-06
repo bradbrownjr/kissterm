@@ -88,15 +88,45 @@ def test_a_digipeater_path_is_kept_exactly_as_typed(book):
 
 
 def test_upsert_creates_an_entry_with_no_attempts(book):
-    """Setting up a station in advance in Settings > Address Book is not an
+    """Setting up a station in advance in the Address Book pane is not an
     attempt to reach it."""
-    book.upsert("WS1EC-7", script="CLYDE", hops="N1QFY")
+    book.upsert(
+        "WS1EC-7",
+        script="CLYDE",
+        hops="N1QFY",
+        frequency="146.520 MHz",
+        connection_type="1200 AFSK",
+    )
     entry = book.entries[0]
     assert entry.target == "WS1EC-7"
     assert entry.script == "CLYDE"
     assert entry.hops == "N1QFY"
+    assert entry.frequency == "146.520 MHz"
+    assert entry.connection_type == "1200 AFSK"
     assert entry.attempts == 0
     assert entry.connects == 0
+
+
+def test_record_attempt_never_touches_frequency_or_connection_type(book):
+    """Those two fields are only ever set from the Address Book editor
+    (`upsert`) -- the quick Connect dialog does not manage them, so
+    `record_attempt` must leave whatever was already there alone rather
+    than blanking it on every ordinary connect."""
+    book.upsert("WS1EC-7", frequency="146.520 MHz", connection_type="1200 AFSK")
+    book.record_attempt("WS1EC-7", script="CLYDE")
+    entry = book.entries[0]
+    assert entry.frequency == "146.520 MHz"
+    assert entry.connection_type == "1200 AFSK"
+
+
+def test_find_matches_case_insensitively_and_does_not_touch_the_entry(book):
+    book.record_attempt("ws1ec-7")
+    before = book.entries[0].last_used
+    found = book.find("WS1EC-7")
+    assert found is not None
+    assert found.target == "ws1ec-7"
+    assert book.entries[0].last_used == before, "find must not count as a use"
+    assert book.find("NOPE-1") is None
 
 
 def test_upsert_edits_in_place_without_touching_counters(book):

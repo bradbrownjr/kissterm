@@ -82,6 +82,17 @@ class Entry:
     #: `script` literally", which is what every entry has until an operator
     #: picks a saved credential from the Connect dialog's dropdown.
     credential: str = ""
+    #: Free text, e.g. ``"146.520 MHz"`` -- purely informational. kissterm
+    #: does not control a radio, so this cannot tune anything; it exists so
+    #: `KissTermApp.action_connect` can remind the operator what to set
+    #: before keying up, the same reason `connection_type` exists. Set only
+    #: from the Address Book editor (`AddressBookEntryScreen` /
+    #: `AddressBook.upsert`), never from the quick Connect dialog.
+    frequency: str = ""
+    #: Free text, e.g. ``"1200 AFSK"`` or ``"VARA HF"`` -- what the operator
+    #: needs running or tuned before this station will answer. Same
+    #: informational-only role as `frequency`, and the same reminder.
+    connection_type: str = ""
 
     @property
     def summary(self) -> str:
@@ -141,6 +152,8 @@ class AddressBook:
                     script=str(item.get("script", "")),
                     hops=str(item.get("hops", "")),
                     credential=str(item.get("credential", "")),
+                    frequency=str(item.get("frequency", "")),
+                    connection_type=str(item.get("connection_type", "")),
                 )
             )
         self.entries = entries[:MAX_ENTRIES]
@@ -198,9 +211,11 @@ class AddressBook:
         script: str = "",
         hops: str = "",
         credential: str = "",
+        frequency: str = "",
+        connection_type: str = "",
         original_target: str = "",
     ) -> Entry:
-        """Create or hand-edit an entry directly -- Settings > Address Book,
+        """Create or hand-edit an entry directly -- the Address Book pane,
         not a connect attempt.
 
         Deliberately does not touch `attempts`/`connects`: setting up a
@@ -228,8 +243,22 @@ class AddressBook:
         entry.script = script
         entry.hops = hops
         entry.credential = credential
+        entry.frequency = frequency
+        entry.connection_type = connection_type
         self.save()
         return entry
+
+    def find(self, target: str) -> Entry | None:
+        """The entry for `target`, matched the same case-insensitive whole-
+        string way as everything else in this class, or `None`.
+
+        Read-only and does not move the entry to the front or touch
+        `last_used` -- unlike `_touch`, this is for looking something up
+        (the frequency/connection-type reminder in `KissTermApp.action_
+        connect`, say), not for recording that it was used.
+        """
+        key = target.strip().upper()
+        return next((e for e in self.entries if e.target.upper() == key), None)
 
     def forget(self, target: str) -> bool:
         """Drop `target`. Returns whether anything was removed."""

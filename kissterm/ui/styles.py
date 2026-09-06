@@ -98,6 +98,14 @@ MonitorPane { layout: vertical; }
 HeardPane { layout: vertical; }
 #heard-table { height: 1fr; }
 
+/* Address Book pane */
+AddressBookPane { layout: vertical; padding: 0 2; }
+.addressbook-note { padding: 1 0; color: $text-muted; max-width: 100; }
+#addressbook-table { height: 1fr; }
+.addressbook-actions { height: auto; margin-top: 1; }
+.addressbook-actions Button { margin-right: 1; }
+.addressbook-hint { padding: 1 0; color: $text-muted; }
+
 /* Connect dialog */
 ConnectScreen { align: center middle; }
 #connect-box {
@@ -126,6 +134,15 @@ ConnectScreen { align: center middle; }
    box that grew with its content would push Connect/Cancel around. */
 #connect-script { height: 4; border: round $primary; margin-top: 1; }
 #connect-script:disabled { border: round $panel; }
+/* AddressBookEntryScreen's frequency/connection-type row -- two short
+   fields side by side rather than stacked, since both together are still
+   shorter than the target line above them. */
+#addressbook-radio-row { height: auto; margin-top: 1; }
+#addressbook-radio-row Input { width: 1fr; }
+#addressbook-radio-row Input:first-child { margin-right: 1; }
+/* RadioReminderScreen -- a checkpoint, not a form; sized to its short
+   fixed content rather than the wider #connect-box default. */
+#reminder-detail { color: $text; padding: 0 0 1 0; }
 
 .placeholder { padding: 1 2; color: $text-muted; }
 
@@ -168,11 +185,6 @@ SettingsPane { layout: vertical; }
 #settings-tabs { height: 1fr; }
 .settings-tab-scroll { padding: 0 2; }
 #settings-bar { height: auto; padding: 1 2 0 2; border-top: solid $panel; }
-/* Tall enough to show several stations without scrolling on an ordinary
-   terminal, short enough that the buttons and hint below it stay on
-   screen too -- fixed, not 1fr, since this tab's VerticalScroll wrapper
-   already handles anything longer than that. */
-#settings-addressbook-table { height: 14; margin-top: 1; }
 .settings-banner {
     padding: 1 2; margin: 0 0 1 0;
     background: $warning-darken-2; color: $text;

@@ -4,7 +4,7 @@ Layout follows the shape a packet operator already has in their head from
 BPQTerminal and EasyTerm, because the goal is a familiar tool that happens to
 be modern, not a novel one they have to relearn:
 
-    F1 Terminal  F2 Monitor  F3 Heard  F4 APRS  F5 Settings
+    F1 Terminal  F2 Monitor  F3 Heard  F4 APRS  F5 Address Book  F6 Settings
     +--------------------------------------------+
     | session output (scrollback, selectable)     |
     +--------------------------------------------+
@@ -16,24 +16,29 @@ be modern, not a novel one they have to relearn:
 The F-key for each tab is printed IN THE TAB LABEL (`F1 Terminal`, keyboard-
 shortcut-first, matching how a menu shows an accelerator), not in the footer.
 Textual's `Footer` widget would otherwise show `f1 Terminal  f2 Monitor  f3
-Heard  f4 APRS  f5 Settings` right below a tab bar already showing those same
-five names -- the same words twice, in two different corners of the screen.
-All five `Binding`s stay registered (`show=False`) so the keys still work;
-only the redundant on-screen label moves. `Ctrl+1..5` remain as unlabelled
-fallback aliases for terminals that intercept function keys.
+Heard  f4 APRS  f5 Address Book  f6 Settings` right below a tab bar already
+showing those same six names -- the same words twice, in two different
+corners of the screen. All six `Binding`s stay registered (`show=False`) so
+the keys still work; only the redundant on-screen label moves. `Ctrl+1..6`
+remain as unlabelled fallback aliases for terminals that intercept function
+keys.
 
 **Function keys are tabs. Ctrl sequences are actions and modals.** That is
-the whole rule, and it is why Settings is F5 (the fifth tab, left to right)
-rather than the command reference, and why the command reference -- a modal
-opened over whatever tab is active -- is `Ctrl+R`, not a function key. A
-non-tab action squatting on the next free F-number breaks the "F<n> is the
-n-th tab" pattern the moment an n-th tab exists to expect it, which already
-happened once here.
+the whole rule, and it is why Address Book is F5 and Settings F6 (left to
+right, in the order they were added) rather than either being the command
+reference, and why the command reference -- a modal opened over whatever tab
+is active -- is `Ctrl+R`, not a function key. A non-tab action squatting on
+the next free F-number breaks the "F<n> is the n-th tab" pattern the moment
+an n-th tab exists to expect it, which already happened once here. Address
+Book moved OUT of a Settings tab and onto its own F-key for the same
+reason it existed at all: it turned out to be used far more often than a
+one-time setup screen, closer to Terminal/Monitor in how often an operator
+reaches for it than to Settings.
 
 This also reserves the F-row for the tabs still to come (Mail, Bulletins,
 Files -- see docs/ROADMAP.md). Note the ceiling: F1..F8 are delivered
 reliably by essentially every terminal, F9+ are not, so **eight tabs is the
-practical maximum** for this scheme. Five exist and three are planned, which
+practical maximum** for this scheme. Six exist and two are planned, which
 lands exactly on it -- a ninth tab needs a different navigation scheme, not a
 ninth function key.
 
@@ -101,12 +106,19 @@ from ..monitor import MonitorFilter, format_frame, sanitize
 from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError, TransportState
 from ..tx import DISABLED_MESSAGE, TransmitGate
+from .addressbook_pane import AddressBookPane
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
 from ..nodes import CommandReference
 from ..nodes.reference import identify_family
-from .dialogs import CallsignScreen, CommandReferenceScreen, ConnectScreen
+from .dialogs import (
+    CallsignScreen,
+    CommandReferenceScreen,
+    ConnectRequest,
+    ConnectScreen,
+    RadioReminderScreen,
+)
 from .heard_pane import HeardPane
 from .monitor_pane import MonitorPane
 from .settings_pane import SettingsPane
@@ -195,8 +207,10 @@ class KissTermApp(App):
         Binding("ctrl+2", "show_tab('monitor')", "Monitor", show=False),
         Binding("ctrl+3", "show_tab('heard')", "Heard", show=False),
         Binding("ctrl+4", "show_tab('aprs')", "APRS", show=False),
-        Binding("f5", "show_tab('settings')", "Settings", show=False),
-        Binding("ctrl+5", "show_tab('settings')", "Settings", show=False),
+        Binding("f5", "show_tab('addressbook')", "Address Book", show=False),
+        Binding("ctrl+5", "show_tab('addressbook')", "Address Book", show=False),
+        Binding("f6", "show_tab('settings')", "Settings", show=False),
+        Binding("ctrl+6", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+t", "toggle_transmit", "TX"),
         # Ctrl+SHIFT+B, not Ctrl+B: Ctrl+B is tmux's default prefix (and
         # screen's, once remapped), so under a multiplexer -- which is how a
@@ -299,7 +313,9 @@ class KissTermApp(App):
                 yield HeardPane()
             with TabPane("F4 APRS", id="aprs"):
                 yield AprsPane()
-            with TabPane("F5 Settings", id="settings"):
+            with TabPane("F5 Address Book", id="addressbook"):
+                yield AddressBookPane()
+            with TabPane("F6 Settings", id="settings"):
                 yield SettingsPane()
         # Status bar and Footer share one bottom-docked container. Docking
         # them both individually puts them in the SAME region -- the Footer
@@ -767,15 +783,47 @@ class KissTermApp(App):
             self.query_one(TerminalPane).clear()
 
     @work
-    async def action_connect(self) -> None:
+    async def action_connect(self, prefill=None) -> None:
+        """Connect to a station, via the dialog or dialed directly.
+
+        `prefill` is an `addressbook.Entry`, passed by `AddressBookPane`
+        when the operator dials a saved station instead of typing one into
+        Ctrl+N -- everything past this point is the same flow either way:
+        the transmit gate, the transport check, the hop chain, the login.
+        Dialing is a faster way to reach this method, never a second,
+        lighter-weight path into it.
+        """
         if self.station is None:
             self.notify("No transport is open.", severity="error")
             return
-        request = await self.push_screen_wait(
-            ConnectScreen(self.addressbook, self.config.credentials)
-        )
-        if not request:
-            return
+        if prefill is not None:
+            request = ConnectRequest(
+                prefill.target, prefill.script, prefill.hops, prefill.credential
+            )
+            # A dial is an attempt like any other -- see AddressBook.record_
+            # attempt's docstring for why this is recorded on the attempt,
+            # not on success.
+            self.addressbook.record_attempt(
+                prefill.target, prefill.script, prefill.hops, prefill.credential
+            )
+        else:
+            request = await self.push_screen_wait(
+                ConnectScreen(self.addressbook, self.config.credentials)
+            )
+            if not request:
+                return
+        # A frequency or connection type on file is worth nothing if the
+        # operator only sees it after the SABMs already went out -- ask
+        # before arming anything. `find` is a read-only lookup (see its
+        # docstring); `prefill` already IS the entry when dialing, so this
+        # only does the lookup for the Ctrl+N path.
+        reminder = prefill or self.addressbook.find(request.target)
+        if reminder is not None and (reminder.frequency or reminder.connection_type):
+            proceed = await self.push_screen_wait(
+                RadioReminderScreen(reminder.frequency, reminder.connection_type)
+            )
+            if not proceed:
+                return
         target = request.target
         # Node hops replace the "via DIGI" path entirely rather than
         # combining with it -- see `ConnectScreen._submit`, which already
@@ -799,7 +847,7 @@ class KissTermApp(App):
                 "log",
                 f"\n*** Not connecting: the link to the TNC at {where} is "
                 f"{state.value}, so nothing would reach the air. This is not "
-                f"an RF problem -- check the TNC, then Settings (F5) > Test "
+                f"an RF problem -- check the TNC, then Settings (F6) > Test "
                 f"selected.\n",
             )
             self.notify(
@@ -1191,6 +1239,10 @@ class KissTermApp(App):
         """
         if event.pane.id == "heard":
             self._refresh_heard(force=True)
+        elif event.pane.id == "addressbook":
+            # Same rule: an attempt recorded from Ctrl+N since this pane was
+            # last open must show up the instant the operator switches to it.
+            self.query_one(AddressBookPane).refresh_from(self.addressbook)
         elif event.pane.id == "settings":
             # Same rule as the heard table: a pane must be correct the instant
             # it is visible. Re-rendering also discards half-typed edits the

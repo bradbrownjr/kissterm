@@ -101,6 +101,7 @@ async def _build():
         active_transport="Direwolf (LAN)",
         paclen=256,
         window=4,
+        credentials=[{"name": "Personal BBS login", "text": "CLYDE\nMYPASS"}],
     )
     # The screenshots show a live session, so transmit has to be armed --
     # otherwise the README shows a connected link above a "TX OFF" status
@@ -155,6 +156,22 @@ async def main() -> int:
                 await tb.send_frame(frame)
         for call in HEARD:
             app.heard.record(_frame(call, "APRS", (), b"x"), 0)
+
+        book = app.addressbook
+        book.record_attempt("W1AW-1")
+        book.record_connect("W1AW-1")
+        book.record_attempt("KB1QRP-15", script="CLYDE\nMYPASS")
+        book.record_connect("KB1QRP-15")
+        book.record_attempt("N1XYZ-2")
+        book.upsert(
+            "N1XYZ-2",
+            hops="KC1XYZ-9",
+            credential="Personal BBS login",
+            frequency="146.520 MHz",
+            connection_type="1200 AFSK",
+            original_target="N1XYZ-2",
+        )
+
         app._refresh_status()  # repaint after populating, not before
         await pilot.pause()
         await asyncio.sleep(0.2)
@@ -164,6 +181,7 @@ async def main() -> int:
             "terminal": "screenshot.svg",
             "monitor": "screenshot-monitor.svg",
             "heard": "screenshot-heard.svg",
+            "addressbook": "screenshot-addressbook.svg",
             "settings": "screenshot-settings.svg",
         }
         written = []

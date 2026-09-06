@@ -31,11 +31,9 @@ import logging
 
 from textual import on, work
 from textual.app import ComposeResult
-from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import (
     Button,
-    DataTable,
     Input,
     Label,
     Select,
@@ -111,35 +109,6 @@ def _test_result_line(host: str, port: int, identity) -> str:
     return f"{host}:{port}  {label}  --  {reason}"
 
 
-class _AddressBookTable(DataTable):
-    """The Address Book tab's table, with `syncterm`-style dialing-directory
-    keys: Insert adds, F2 edits, Delete forgets.
-
-    Bound on the table itself, not on `SettingsPane` -- Textual only offers
-    a binding to the App or a whole Screen otherwise, and a Delete bound
-    that broadly would also fire while an operator is backspacing in an
-    Input on the Station tab. Scoping it to this widget means the binding
-    is only even considered while THIS table is focused. Enter is not
-    rebound here: `DataTable` already binds it to `select_cursor`, which
-    this handles as "edit" via `SettingsPane`'s `DataTable.RowSelected`.
-    """
-
-    BINDINGS = [
-        Binding("insert", "new_entry", "New", show=False),
-        Binding("f2", "edit_entry", "Edit", show=False),
-        Binding("delete", "forget_entry", "Forget", show=False),
-    ]
-
-    def action_new_entry(self) -> None:
-        self.app.query_one(SettingsPane)._addressbook_new()  # type: ignore[attr-defined]
-
-    def action_edit_entry(self) -> None:
-        self.app.query_one(SettingsPane)._addressbook_edit_selected()  # type: ignore[attr-defined]
-
-    def action_forget_entry(self) -> None:
-        self.app.query_one(SettingsPane)._addressbook_forget_selected()  # type: ignore[attr-defined]
-
-
 class SettingsPane(Vertical):
     """A tabbed form over the whole schema, plus transport management.
 
@@ -173,9 +142,6 @@ class SettingsPane(Vertical):
                     with TabPane("Credentials", id=_tab_id("Credentials")):
                         with VerticalScroll(classes="settings-tab-scroll"):
                             yield from self._compose_credentials()
-                    with TabPane("Address Book", id=_tab_id("Address Book")):
-                        with VerticalScroll(classes="settings-tab-scroll"):
-                            yield from self._compose_addressbook()
 
         with Vertical(id="settings-bar"):
             yield Static("", id="settings-banner", classes="settings-banner")
@@ -233,37 +199,6 @@ class SettingsPane(Vertical):
             yield Button("Forget selected", id="credential-forget")
         yield Static("", id="settings-credential-detail", classes="settings-help")
 
-    def _compose_addressbook(self) -> ComposeResult:
-        """Every station the Connect dialog's history offers, editable
-        without having to attempt a live connect first.
-
-        A `DataTable` over `KissTermApp.addressbook`, not `Config` -- the
-        address book is its own JSON file (it changes on every connect
-        attempt; `config.toml` should not be rewritten that often, see
-        `addressbook.py`'s docstring), so Add/Edit/Forget here save straight
-        to it and do not wait for the Settings "Save" button. Insert/Delete
-        and Enter-to-edit are bound to match `syncterm`'s dialing directory
-        (and this app's own Connect dialog, which already binds Delete the
-        same way) -- familiar muscle memory for anyone who has used a
-        classic BBS terminal's phone book.
-        """
-        yield Static(
-            "Every station the Connect dialog's history offers. Add or fix "
-            "one here -- its node-hop chain, its login -- without having to "
-            "attempt a live connect just to create or correct the entry.",
-            classes="settings-note",
-        )
-        yield _AddressBookTable(id="settings-addressbook-table", cursor_type="row", zebra_stripes=True)
-        with Horizontal(classes="settings-row"):
-            yield Label("", classes="settings-label")
-            yield Button("New", id="addressbook-new")
-            yield Button("Edit selected", id="addressbook-edit")
-            yield Button("Forget selected", id="addressbook-forget")
-        yield Static(
-            "Insert: new -- Enter or F2: edit selected -- Delete: forget selected",
-            classes="settings-help",
-        )
-
     def _compose_field(self, spec: Field) -> ComposeResult:
         wid = _widget_id(spec.path)
         with Horizontal(classes="settings-row"):
@@ -308,7 +243,6 @@ class SettingsPane(Vertical):
 
         self._render_transports(config)
         self._render_credentials(config)
-        self._render_addressbook()
         self._render_banner(config)
 
     def _set_select_value(self, wid: str, spec: Field, value) -> None:
@@ -623,116 +557,6 @@ class SettingsPane(Vertical):
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_credentials(config)
         self.app.notify(f"Forgot credential {name!r}.")  # type: ignore[attr-defined]
-
-    # ------------------------------------------------------------------
-    # Address book -- KissTermApp.addressbook, not Config. Its own JSON
-    # file (see addressbook.py's docstring for why), so these save straight
-    # to it rather than going through the schema's validate-then-save flow.
-    # ------------------------------------------------------------------
-    def _render_addressbook(self) -> None:
-        book = getattr(self.app, "addressbook", None)
-        table = self.query_one("#settings-addressbook-table", DataTable)
-        table.clear(columns=True)
-        table.add_columns("Target", "Hops", "Send once connected", "Attempts", "Connects")
-        if book is None:
-            return
-        for entry in book.entries:
-            if entry.credential:
-                login = f"credential: {entry.credential}"
-            elif entry.script:
-                first_line = entry.script.splitlines()[0]
-                login = first_line + ("..." if "\n" in entry.script else "")
-            else:
-                login = ""
-            table.add_row(
-                entry.target,
-                entry.hops,
-                login,
-                str(entry.attempts),
-                str(entry.connects),
-                key=entry.target,
-            )
-
-    def _selected_addressbook_target(self) -> str | None:
-        table = self.query_one("#settings-addressbook-table", DataTable)
-        if table.row_count == 0 or table.cursor_coordinate is None:
-            return None
-        try:
-            row_key, _column_key = table.coordinate_to_cell_key(table.cursor_coordinate)
-        except Exception:
-            return None
-        return str(row_key.value) if row_key.value is not None else None
-
-    def _addressbook_new(self) -> None:
-        self._edit_addressbook_entry(None)
-
-    @on(Button.Pressed, "#addressbook-new")
-    def _addressbook_new_pressed(self) -> None:
-        self._addressbook_new()
-
-    def _addressbook_edit_selected(self) -> None:
-        target = self._selected_addressbook_target()
-        if target is None:
-            self.app.notify("Select a station first.", severity="warning")  # type: ignore[attr-defined]
-            return
-        self._edit_addressbook_entry(target)
-
-    @on(Button.Pressed, "#addressbook-edit")
-    def _addressbook_edit_pressed(self) -> None:
-        self._addressbook_edit_selected()
-
-    @on(DataTable.RowSelected, "#settings-addressbook-table")
-    def _addressbook_row_selected(self, event: DataTable.RowSelected) -> None:
-        # Enter on a row -- DataTable's own default binding fires this.
-        # Settings is not a place to launch a live connect (Ctrl+N already
-        # does that), so Enter here means "edit", matching syncterm's F2 --
-        # both are the "open this entry" gesture, just spelled differently
-        # per program.
-        target = str(event.row_key.value) if event.row_key.value is not None else None
-        if target is not None:
-            self._edit_addressbook_entry(target)
-
-    def _addressbook_forget_selected(self) -> None:
-        target = self._selected_addressbook_target()
-        if target is None:
-            return
-        book = self.app.addressbook  # type: ignore[attr-defined]
-        if book.forget(target):
-            self._render_addressbook()
-            self.app.notify(f"Forgot {target!r}.")  # type: ignore[attr-defined]
-
-    @on(Button.Pressed, "#addressbook-forget")
-    def _addressbook_forget_pressed(self) -> None:
-        self._addressbook_forget_selected()
-
-    @work
-    async def _edit_addressbook_entry(self, target: str | None) -> None:
-        from ..addressbook import AddressBook
-        from .dialogs import AddressBookEntryScreen
-
-        book: AddressBook = self.app.addressbook  # type: ignore[attr-defined]
-        entry = next((e for e in book.entries if e.target == target), None) if target else None
-        config = self.app.config  # type: ignore[attr-defined]
-        result = await self.app.push_screen_wait(  # type: ignore[attr-defined]
-            AddressBookEntryScreen(
-                target=entry.target if entry else "",
-                script=entry.script if entry else "",
-                hops=entry.hops if entry else "",
-                credential=entry.credential if entry else "",
-                credentials=config.credentials,
-            )
-        )
-        if result is None:
-            return
-        book.upsert(
-            result.target,
-            script=result.script,
-            hops=result.hops,
-            credential=result.credential,
-            original_target=target or "",
-        )
-        self._render_addressbook()
-        self.app.notify(f"Saved {result.target!r}.")  # type: ignore[attr-defined]
 
     @work
     async def _scan(self) -> None:

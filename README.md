@@ -13,6 +13,11 @@ has been active and whether you heard them directly:
 
 ![The heard list](assets/screenshot-heard.png)
 
+Every station you've connected to, or set up in advance -- dial one directly,
+with its node-hop chain, saved login and frequency reminder all still applying:
+
+![The address book pane](assets/screenshot-addressbook.png)
+
 Everything the first-run wizard asks for stays editable in the app -- callsign,
 transport, link timing, APRS:
 
@@ -83,8 +88,8 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   objects, weather and telemetry — APRS is just an AX.25 UI frame, so it comes
   almost free on top of the same stack.
 - **Command references built in.** kissterm ships the command sets for common
-  node software and TNCs and identifies the node from its banner, so `F6` shows
-  you what you can type before you have spent a byte. It does **not** ask the
+  node software and TNCs and identifies the node from its banner, so `Ctrl+R`
+  shows you what you can type before you have spent a byte. It does **not** ask the
   node for its own help text unless you tell it to: at 1200 baud half-duplex
   that is around 19 seconds of channel per 2 KB, and over a minute for a
   verbose node -- time nobody else on the frequency can transmit.
@@ -161,7 +166,7 @@ First run asks for your callsign and then goes looking for your TNC. See
 [SETUP.md](SETUP.md) for Direwolf, Bluetooth pairing, serial permissions, and
 the rest.
 
-**Nothing you answer at setup is locked in.** The Settings tab (`F5`)
+**Nothing you answer at setup is locked in.** The Settings tab (`F6`)
 edits your callsign, which TNC or modem to use, AX.25 timing (paclen, window,
 T1/T2/T3, retries) and APRS beaconing -- with validation, and a note on each
 field saying whether it takes effect now, on the next connection, or at
@@ -193,8 +198,8 @@ conversation, and swapping it mid-session would kill the link by timeout.
 
 | Key | Action |
 |-----|--------|
-| `F1`..`F5` | Terminal / Monitor / Heard / APRS / Settings -- shown as the key right in each tab's label (also `Ctrl+1`..`Ctrl+5`, for a terminal that intercepts function keys) |
-| `F6` | Command reference for the detected node |
+| `F1`..`F6` | Terminal / Monitor / Heard / APRS / Address Book / Settings -- shown as the key right in each tab's label (also `Ctrl+1`..`Ctrl+6`, for a terminal that intercepts function keys) |
+| `Ctrl+R` | Command reference for the detected node |
 | `Ctrl+T` | Enable / disable transmit -- the master switch |
 | `Ctrl+Shift+B` | Send one beacon now (see the tmux note below) |
 | `Ctrl+N` | Connect to a station (with a list of stations already tried) |
@@ -216,6 +221,23 @@ never connected" stays visible instead of being flattened into a bare list.
 The list lives in `addressbook.json` in your data directory, not in
 `config.toml` -- it is history, not settings, and nothing should rewrite a
 file you hand-edit.
+
+**The Address Book tab (`F5`) is the same list, with room to manage it.**
+A table of every saved station -- add one in advance, fix a typo in its
+hop chain, or dial it directly (Enter or the Connect button) without
+opening Ctrl+N first. Insert/F2/Delete match `syncterm`'s dialing directory.
+An entry can carry:
+- a **node-to-node hop chain**, for a station reached only by connecting
+  through intermediate BPQ/NET-ROM nodes in turn -- no digipeater path
+  exists, so kissterm connects to the first node and sends `C <node>` over
+  that link for each remaining hop, waiting for its own CONNECTED reply
+  before the next;
+- a **saved credential** (managed in Settings > Credentials) instead of its
+  own typed-out login, looked up fresh every connect so changing a password
+  once updates every station that points at it;
+- a **frequency and connection type**, purely informational -- kissterm
+  cannot tune a radio or start a modem for you, but it will ask you to
+  confirm both are set before a connect that has them on file goes out.
 
 **Running under tmux or screen?** The beacon is `Ctrl+Shift+B` rather than
 `Ctrl+B` because `Ctrl+B` is tmux's default prefix -- the multiplexer eats it
@@ -255,7 +277,7 @@ responses, so kissterm never reports them with the same words:
 - **`no answer from <call> after N tries`** -- nothing came back at all. That
   is an antenna, power, squelch or propagation problem, not a configuration
   one. kissterm sends 6 SABMs over about 18 seconds before saying this;
-  `connect_retries` in Settings (F5) changes that.
+  `connect_retries` in Settings (F6) changes that.
 
 The **Monitor tab (F2)** is the real instrument. It shows every frame in both
 directions, `>` for what you transmitted and `<` for what was heard, so you
@@ -300,13 +322,13 @@ operator and April 3rd to nearly everyone else, and packet is international.
 On the nights the local and UTC dates disagree, each reading carries its own
 date rather than one covering both.
 
-Set it in Settings (`F5`) under Clock, or in `config.toml`
+Set it in Settings (`F6`) under Clock, or in `config.toml`
 (`show_local_time`, `show_utc_time`, `clock_24h`, `show_date`).
 
 ## Themes
 
 Every color in kissterm is a theme variable, so switching repaints the whole
-app instantly -- nothing to restart. Pick one in Settings (`F5`), set
+app instantly -- nothing to restart. Pick one in Settings (`F6`), set
 `theme = "..."` in `config.toml`, or answer the wizard's theme prompt on first
 run. Default is **Tokyo Night**.
 

@@ -200,3 +200,100 @@ async def test_a_saved_credential_is_looked_up_live_at_connect_time(tmp_path):
         assert "OLDPASS" not in text, text
     peer.close()
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_radio_reminder_blocks_the_connect_until_acknowledged(tmp_path):
+    """kissterm cannot tune a radio or start a modem -- the reminder exists
+    precisely so the operator sees the frequency/connection type BEFORE
+    anything transmits, not after. Cancelling it must mean nothing goes
+    out at all."""
+    from kissterm.ui.dialogs import RadioReminderScreen
+
+    app, station, tb = await _app()
+    book = _fresh_book(app, tmp_path)
+    book.upsert("WS1EC-7", frequency="146.520 MHz", connection_type="1200 AFSK")
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _connect_via_history(app, pilot)
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+
+        assert isinstance(app.screen, RadioReminderScreen), type(app.screen).__name__
+
+        await app.screen.dismiss(False)  # Cancel
+        await pilot.pause()
+        await asyncio.sleep(0.3)
+
+        assert not station.transport.sent, "cancelling the reminder still transmitted"
+        assert app.link is None
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_acknowledging_the_radio_reminder_proceeds_with_the_connect(tmp_path):
+    from kissterm.ui.dialogs import RadioReminderScreen
+
+    app, station, tb = await _app()
+    book = _fresh_book(app, tmp_path)
+    book.upsert("WS1EC-7", frequency="146.520 MHz", connection_type="1200 AFSK")
+    peer = AX25Station(NODE, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _connect_via_history(app, pilot)
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+
+        assert isinstance(app.screen, RadioReminderScreen)
+        await app.screen.dismiss(True)  # Connect
+        await pilot.pause()
+        await asyncio.sleep(0.5)
+
+        assert station.transport.sent, "acknowledging the reminder never transmitted"
+        assert app.link is not None and app.link.connected
+    peer.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_no_reminder_when_neither_frequency_nor_connection_type_is_set(tmp_path):
+    from kissterm.ui.dialogs import RadioReminderScreen
+
+    app, station, tb = await _app()
+    book = _fresh_book(app, tmp_path)
+    book.record_attempt("WS1EC-7")
+    peer = AX25Station(NODE, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _connect_via_history(app, pilot)
+        await asyncio.sleep(0.5)
+        await pilot.pause()
+
+        assert not isinstance(app.screen, RadioReminderScreen)
+        assert app.link is not None and app.link.connected
+    peer.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_dialing_from_the_addressbook_pane_also_shows_the_reminder(tmp_path):
+    """The reminder is a property of the connect flow itself, not of the
+    Connect dialog -- dialing straight from the Address Book pane must not
+    be a way to skip it."""
+    from kissterm.ui.dialogs import RadioReminderScreen
+
+    app, station, tb = await _app()
+    book = _fresh_book(app, tmp_path)
+    book.upsert("WS1EC-7", frequency="146.520 MHz", connection_type="1200 AFSK")
+
+    async with app.run_test(size=(120, 40)):
+        entry = book.find("WS1EC-7")
+        app.action_connect(prefill=entry)
+        await asyncio.sleep(0.2)
+
+        assert isinstance(app.screen, RadioReminderScreen), type(app.screen).__name__
+        await app.screen.dismiss(False)
+        await asyncio.sleep(0.1)
+
+        assert not station.transport.sent
+    station.close()

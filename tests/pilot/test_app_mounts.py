@@ -349,7 +349,7 @@ async def test_tab_switching_keys_are_not_duplicated_in_the_footer():
             for key, active in app.active_bindings.items()
             if active.binding.show
         }
-        for key in ("f1", "f2", "f3", "f4", "f5"):
+        for key in ("f1", "f2", "f3", "f4", "f5", "f6"):
             assert key not in shown, (
                 f"{key} is shown in the footer, duplicating its tab label"
             )
@@ -371,7 +371,14 @@ async def test_tab_labels_carry_the_function_key_hint():
         await pilot.pause()
         tabs = app.query_one("#main-tabs")
         labels = {str(tab.label) for tab in tabs.query("Tab")}
-        for hint in ("F1 Terminal", "F2 Monitor", "F3 Heard", "F4 APRS", "F5 Settings"):
+        for hint in (
+            "F1 Terminal",
+            "F2 Monitor",
+            "F3 Heard",
+            "F4 APRS",
+            "F5 Address Book",
+            "F6 Settings",
+        ):
             assert hint in labels, f"missing {hint!r} in tab labels: {labels}"
     station.close()
 

@@ -394,23 +394,36 @@ front-end over machinery P9 builds (the mailbox and the file drop); this phase
 is the operator-facing half, and it is worth designing the navigation before
 any of it is written.
 
-### The F-key ceiling -- decide this before adding tabs
+### The F-key ceiling -- now BLOCKING, decide before adding any of these tabs
 Function keys are tabs; Ctrl sequences are actions and modals (see
 `kissterm/ui/app.py`'s module docstring). **F1..F8 are delivered reliably by
-essentially every terminal; F9+ are not.** Five tabs exist (F1 Terminal, F2
-Monitor, F3 Heard, F4 APRS, F5 Settings) and the three below would take F6,
-F7, F8 -- landing exactly on the ceiling with nothing to spare. A ninth tab
-needs a different scheme (a tab-cycle key, a menu, or collapsing two existing
-tabs), not a ninth function key. Do not spend F6-F8 on anything that is not a
-tab.
+essentially every terminal; F9+ are not.** Six tabs exist now (F1 Terminal,
+F2 Monitor, F3 Heard, F4 APRS, **F5 Address Book, F6 Settings**) -- Address
+Book shipped after this section was first written and took the F5 slot this
+section had assumed Settings would keep, bumping Settings to F6. That
+leaves only **F7 and F8: two free slots for the three tabs below.** This is
+no longer "decide before adding tabs", it is "one of these three needs a
+different plan before any of them ship":
 
-- [ ] **Mail tab (F6)** -- personal message store, sub-views for Inbox,
+- Merge Mail and Bulletins into one tab with an internal switcher (they are
+  already "the same four sub-views" per the Mail entry below, so the
+  precedent for sharing a widget already exists -- see the shared
+  message-list-widget item further down this file), freeing a slot for
+  Files. Probably the least disruptive option.
+- Or accept a non-function-key path for one of the three (a tab-cycle key,
+  a command-palette entry, a menu) rather than forcing all three onto
+  F-keys that are almost out.
+- Do not spend F7-F8 on anything that is not one of these tabs until this
+  is resolved -- the ceiling is real and close enough now that a single
+  unplanned tab added later has nowhere to go.
+
+- [ ] **Mail tab** -- personal message store, sub-views for Inbox,
       Outbox, Sent and Deleted. Reads the mailbox P9 builds; the tab is the
       view layer, not a second copy of the storage. Deleted should be a real
       recoverable folder rather than immediate destruction -- an operator who
       fat-fingers a delete on a message that arrived over a marginal HF path
       may have no way to get it re-sent. Large.
-- [ ] **Bulletins tab (F7)** -- same four sub-views, but bulletins are
+- [ ] **Bulletins tab** -- same four sub-views, but bulletins are
       broadcast-addressed rather than person-addressed, and that difference is
       not cosmetic: a bulletin is addressed to a category (`ALL`, `ARES`,
       `WX`) and typically carries a lifetime after which it should stop being
@@ -459,7 +472,7 @@ operator's own callsign and licence. So:
 - [ ] **A hash and a claimed-source line per file**, shown locally and in the
       remote listing. Small once the areas exist.
 
-- [ ] **Files tab (F8)** -- sub-views for Downloads (files this station
+- [ ] **Files tab** -- sub-views for Downloads (files this station
       fetched), Received (files other stations sent us, which is the P9 drop
       box and carries all of its security requirements: a resolved jail
       directory, allowlisted filenames, quotas enforced during transfer, never

@@ -18,7 +18,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, OptionList, Select, TextArea
+from textual.widgets import Button, Input, Label, OptionList, Select, Static, TextArea
 from textual.widgets.option_list import Option
 
 from ..addressbook import AddressBook
@@ -295,17 +295,34 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         self.dismiss(ConnectRequest(text, script, hops, credential))
 
 
-class AddressBookEntryScreen(ModalScreen[ConnectRequest | None]):
-    """Add or hand-edit one address-book entry directly (Settings > Address
-    Book), without attempting a live connect.
+@dataclass(frozen=True)
+class AddressBookEdit:
+    """What `AddressBookEntryScreen` hands back -- a full entry, not just a
+    connect request. `frequency`/`connection_type` only ever come from here;
+    the quick Connect dialog does not manage them, so `ConnectRequest` has
+    no equivalent fields and `AddressBook.record_attempt` never touches
+    them (see that method's docstring)."""
+
+    target: str
+    script: str = ""
+    hops: str = ""
+    credential: str = ""
+    frequency: str = ""
+    connection_type: str = ""
+
+
+class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
+    """Add or hand-edit one address-book entry directly, without
+    attempting a live connect.
 
     Same fields and the same via/hops and credential/script rules as the
-    lower half of `ConnectScreen` -- a station reached node-to-node, or one
-    with a saved login, should be set up correctly once from Settings
-    rather than the operator having to attempt (and possibly fail) a real
-    connect just to create the entry. No history browsing here: the whole
-    point of this screen is that a caller already knows which entry it is
-    editing, or that it is a new one.
+    lower half of `ConnectScreen`, plus frequency and connection type,
+    which exist only here -- a station reached node-to-node, or one with a
+    saved login, or one that needs a radio retuned first, should be set up
+    correctly once from the Address Book rather than the operator having to
+    attempt (and possibly fail) a real connect just to create the entry.
+    No history browsing here: the whole point of this screen is that a
+    caller already knows which entry it is editing, or that it is a new one.
     """
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
@@ -316,6 +333,8 @@ class AddressBookEntryScreen(ModalScreen[ConnectRequest | None]):
         script: str = "",
         hops: str = "",
         credential: str = "",
+        frequency: str = "",
+        connection_type: str = "",
         credentials: list[dict] | None = None,
     ) -> None:
         super().__init__()
@@ -323,6 +342,8 @@ class AddressBookEntryScreen(ModalScreen[ConnectRequest | None]):
         self._script = script
         self._hops = hops
         self._credential = credential
+        self._frequency = frequency
+        self._connection_type = connection_type
         self.credentials = credentials or []
 
     def compose(self) -> ComposeResult:
@@ -338,6 +359,17 @@ class AddressBookEntryScreen(ModalScreen[ConnectRequest | None]):
                 placeholder="N1QFY, AB1KI-15 (optional -- node hops, when no digipeater reaches it)",
                 id="connect-hops",
             )
+            with Horizontal(id="addressbook-radio-row"):
+                yield Input(
+                    value=self._frequency,
+                    placeholder="Frequency (optional) -- e.g. 146.520 MHz",
+                    id="addressbook-frequency",
+                )
+                yield Input(
+                    value=self._connection_type,
+                    placeholder="Connection type (optional) -- e.g. 1200 AFSK",
+                    id="addressbook-connection-type",
+                )
             yield Label("", id="connect-error")
             yield Label("Send once connected (optional)", id="connect-script-title")
             yield Select(
@@ -391,7 +423,60 @@ class AddressBookEntryScreen(ModalScreen[ConnectRequest | None]):
             str(select_value) if select_value and select_value is not Select.NULL else ""
         )
         script = "" if credential else self.query_one("#connect-script", TextArea).text
-        self.dismiss(ConnectRequest(text, script, hops, credential))
+        frequency = self.query_one("#addressbook-frequency", Input).value.strip()
+        connection_type = self.query_one("#addressbook-connection-type", Input).value.strip()
+        self.dismiss(AddressBookEdit(text, script, hops, credential, frequency, connection_type))
+
+
+class RadioReminderScreen(ModalScreen[bool]):
+    """A checkpoint before connecting to a station with a frequency or
+    connection type on file.
+
+    kissterm does not control a radio -- it cannot tune one or turn a modem
+    on -- so a saved frequency or connection type is worth nothing if the
+    operator only sees it after the SABMs have already gone out on
+    whatever the radio happened to be left on. This is a blocking Connect/
+    Cancel step, not a notification, for the same reason `_arm_for`
+    requires a confirmed, targeted action rather than firing on a bare
+    keystroke: a reminder nobody has to look at is not a reminder. Shown
+    only when the entry actually has something to remind about -- most
+    connects skip it entirely.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
+
+    def __init__(self, frequency: str = "", connection_type: str = "") -> None:
+        super().__init__()
+        self._frequency = frequency
+        self._connection_type = connection_type
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("Before connecting", id="connect-title")
+            lines = []
+            if self._frequency:
+                lines.append(f"Frequency: {self._frequency}")
+            if self._connection_type:
+                lines.append(f"Connection: {self._connection_type}")
+            yield Static("\n".join(lines), id="reminder-detail")
+            yield Label(
+                "Turn on or tune the radio/modem, then Connect.",
+                id="connect-hint",
+            )
+            with Horizontal(id="connect-buttons"):
+                yield Button("Connect", variant="primary", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#connect-go", Button).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#connect-go")
+    def _go(self) -> None:
+        self.dismiss(True)
 
 
 @dataclass(frozen=True)

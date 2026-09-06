@@ -463,6 +463,19 @@ Gotchas that already cost time:
   `HOP_TIMEOUT` -- it never sends the next hop's command into a link nothing
   has confirmed is ready for it, and never runs the login step (script or
   credential) unless the WHOLE chain, including the final target, came up.
+- **`RadioReminderScreen` is a checkpoint BEFORE the gate arms, not after.**
+  An address-book entry can carry a frequency and connection type, purely
+  informational -- kissterm cannot tune a radio or start a modem, so this
+  exists only to put that text in front of the operator at the one moment
+  it is useful. It is a blocking Connect/Cancel step in `action_connect`,
+  shown before `_arm_for` runs, for exactly the same reason a bare
+  keystroke never arms the gate: a reminder the operator can dismiss
+  without reading, or one shown after the SABMs already went out, is not a
+  reminder. Cancelling it must transmit nothing at all --
+  `tests/pilot/test_connect_scripts.py::test_a_radio_reminder_blocks_the_
+  connect_until_acknowledged` asserts the transport's sent list stays
+  empty. Dialing from the Address Book pane goes through the identical
+  check (`action_connect(prefill=...)`); it is not a way to skip it.
 - **A beacon is not APRS beaconing, and the code must keep saying so.**
   `kissterm/beacon.py` sends free text to `BEACON`; `kissterm/aprs/` sends a
   position in APRS format to `APRS`. Separate config tables, separate Settings

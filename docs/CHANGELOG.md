@@ -3,6 +3,51 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-06] — Address Book gets its own tab: F5, dial directly, frequency reminders
+
+Follow-up to the same day's "a place to manage the address book" entry below,
+after it turned out to be used far more often than a one-time setup screen --
+closer to Terminal/Monitor in how often an operator reaches for it than to
+Settings. **Breaking for muscle memory: Settings moved from F5 to F6.**
+
+### New Features
+- **Address Book is now its own main tab, at F5** (`kissterm/ui/
+  addressbook_pane.py`), pulled out of Settings entirely. Settings moved to
+  F6 to make room -- `Ctrl+5`/`Ctrl+6` follow. See `kissterm/ui/app.py`'s
+  module docstring for the numbering rule this keeps.
+- **Dial directly from the table.** Enter or the "Connect" button calls
+  `KissTermApp.action_connect(prefill=entry)` -- the exact same flow as
+  typing a target into Ctrl+N (transmit gate, transport check, hop chain,
+  login), never a second, lighter-weight path onto the air. Recorded as an
+  attempt like any other connect.
+- **Frequency and connection type** on an entry (`Entry.frequency`,
+  `Entry.connection_type`, set from the Address Book editor only -- purely
+  informational, kissterm cannot tune a radio or start a modem). When
+  either is set, connecting to that entry -- by dial or by typing its
+  target into Ctrl+N -- now shows a blocking "Before connecting" checkpoint
+  (`RadioReminderScreen`) before anything is armed. It exists precisely
+  because a reminder seen only after the SABMs went out is worthless;
+  cancelling it transmits nothing at all.
+
+### Fixes
+- **`docs/ROADMAP.md`'s F-key ceiling is now genuinely tight.** P10's three
+  planned tabs (Mail, Bulletins, Files) assumed Settings would keep F5,
+  leaving F6-F8. With Settings now at F6, only F7-F8 remain for three tabs.
+  Flagged explicitly in that section rather than left to surprise whoever
+  picks up P10 -- do not add another tab there without resolving it first
+  (merging Mail/Bulletins behind one tab is the leading option).
+- README, `scripts/generate_screenshot.py` and its screenshots regenerated
+  for the new numbering; corrected a stale README claim that the command
+  reference was `F6` (it has been `Ctrl+R` since before this session).
+
+**Files:** `kissterm/addressbook.py`, `kissterm/ui/app.py`,
+`kissterm/ui/addressbook_pane.py` (new), `kissterm/ui/dialogs.py`,
+`kissterm/ui/settings_pane.py`, `kissterm/ui/styles.py`, `README.md`,
+`docs/ROADMAP.md`, `scripts/generate_screenshot.py`, `assets/*`,
+`tests/unit/test_addressbook.py`, `tests/pilot/test_app_mounts.py`,
+`tests/pilot/test_settings.py`, `tests/pilot/test_connect_scripts.py`,
+`tests/pilot/test_addressbook_pane.py` (new)
+
 ## [2026-09-06] — A place to manage the address book
 
 Asked directly: "where do I manage, edit, etc the address book? does it have
