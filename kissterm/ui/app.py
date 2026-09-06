@@ -36,11 +36,16 @@ one-time setup screen, closer to Terminal/Monitor in how often an operator
 reaches for it than to Settings.
 
 This also reserves the F-row for the tabs still to come (Mail, Bulletins,
-Files -- see docs/ROADMAP.md). Note the ceiling: F1..F8 are delivered
-reliably by essentially every terminal, F9+ are not, so **eight tabs is the
-practical maximum** for this scheme. Six exist and two are planned, which
-lands exactly on it -- a ninth tab needs a different navigation scheme, not a
-ninth function key.
+Files -- see docs/ROADMAP.md). The ceiling was originally set at F8 (some
+terminals are unreliable past it), but KC1JMH reports F9/F10 work fine in
+practice on the terminals actually in use here, and Midnight Commander --
+about as widely deployed a terminal-UI precedent as exists -- has used
+F1-F10 for its whole menu row for decades without it being a practical
+problem. **F1..F10 is the working ceiling now, ten tabs the practical
+maximum.** F11 is out regardless: it is "toggle fullscreen" in enough
+terminal emulators and window managers that it rarely reaches the
+application at all. Six tabs exist and three more are planned, landing at
+F9 with F10 spare -- see docs/ROADMAP.md's P10 section for the assignment.
 
 The status bar sits BELOW the Footer's shortcut-key row, not above it -- the
 keys you might press come first, reading top to bottom, and the passive status

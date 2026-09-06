@@ -111,6 +111,44 @@ What P1 deliberately did **not** settle, and is now the top of the queue:
   1`); what's missing is UI to pick which port a new connection or the
   monitor pane uses when more than one is configured. Small, blocked on the
   app shell (P1) existing.
+- [ ] **Telnet and SSH — Internet-reachable nodes, new `SessionTransport`s.**
+  Asked directly: not supported yet. Both belong in the `SessionTransport`
+  tier alongside VARA/Mercury/kernel-AX25 -- there is no AX.25 framing on
+  the wire at all for either, and no SABM/UA either: the remote node's own
+  telnet or SSH server accepts the TCP/SSH connection and the byte stream
+  IS the session from the moment it opens, exactly like BPQ32's telnet
+  listener already works for anyone using SyncTERM or a plain `telnet`
+  client against it today. The concrete case this was asked about: WS1EC
+  offers `ssh packet@ws1ec.mainepacketradio.org -p 4122`, where the SSH
+  session's remote command is a local `telnet` into the actual node --
+  SSH is purely the transport security here, not a second protocol layer
+  kissterm needs to understand. Once authenticated, an SSH channel and a
+  raw telnet socket are the same thing to the terminal pane: bytes in,
+  bytes out.
+  - **Telnet**: plain `asyncio.open_connection`, no new dependency. Small.
+  - **SSH**: needs a client library kissterm does not currently depend on
+    (`asyncssh` is the natural choice -- asyncio-native, unlike `paramiko`
+    which is thread-based and would need a bridge like `serial_kiss.py`
+    already uses for pyserial). New optional dependency + extra in
+    `pyproject.toml`, same pattern as `ble`. Auth method(s) to support
+    (password, key file, `ssh-agent`) still need deciding with whoever
+    picks this up -- do not guess a default silently. Medium.
+  - Both need a config/wizard story: a hostname and port belong in
+    `config.toml.example` the same way `[[transports]]` entries do now,
+    but neither is discoverable by the existing LAN sweep (`discovery.py`
+    only ever probes the operator's own subnet) -- these are always
+    hand-entered.
+- [ ] **AX/IP — a different, lower-priority ask.** Carries actual AX.25
+  *frames* over UDP (BPQ32's convention for linking nodes to each other
+  over the Internet), so architecturally it is a `FrameTransport` like
+  `tcp_kiss.py`, not a `SessionTransport` like Telnet/SSH above -- kissterm
+  would run its own state machine over it exactly as it does over KISS.
+  Its real use is node-to-node backbone linking, not operator dial-in, so
+  it is unlikely to be what an operator actually wants kissterm itself to
+  speak; confirm there is a real use case (reaching a specific node whose
+  only path in is AX/IP, say) before building it. Medium, and needs the
+  wire format sourced from BPQ32's own documentation rather than guessed
+  -- mark anything inferred `# UNVERIFIED:` per this repo's rule.
 
 ## P4 — APRS
 
@@ -394,36 +432,32 @@ front-end over machinery P9 builds (the mailbox and the file drop); this phase
 is the operator-facing half, and it is worth designing the navigation before
 any of it is written.
 
-### The F-key ceiling -- now BLOCKING, decide before adding any of these tabs
+### The F-key ceiling -- raised to F10, but still finite
 Function keys are tabs; Ctrl sequences are actions and modals (see
-`kissterm/ui/app.py`'s module docstring). **F1..F8 are delivered reliably by
-essentially every terminal; F9+ are not.** Six tabs exist now (F1 Terminal,
-F2 Monitor, F3 Heard, F4 APRS, **F5 Address Book, F6 Settings**) -- Address
-Book shipped after this section was first written and took the F5 slot this
-section had assumed Settings would keep, bumping Settings to F6. That
-leaves only **F7 and F8: two free slots for the three tabs below.** This is
-no longer "decide before adding tabs", it is "one of these three needs a
-different plan before any of them ship":
+`kissterm/ui/app.py`'s module docstring). The ceiling was originally set at
+F8 (some terminals were assumed unreliable past it), but confirmed working
+in practice through F10 on the terminals actually in use here, matching
+Midnight Commander's long-standing F1-F10 convention. **F1..F10 is the
+working ceiling; ten tabs the practical maximum.** F11 stays off-limits --
+"toggle fullscreen" in enough terminal emulators and window managers that it
+rarely reaches the application at all.
 
-- Merge Mail and Bulletins into one tab with an internal switcher (they are
-  already "the same four sub-views" per the Mail entry below, so the
-  precedent for sharing a widget already exists -- see the shared
-  message-list-widget item further down this file), freeing a slot for
-  Files. Probably the least disruptive option.
-- Or accept a non-function-key path for one of the three (a tab-cycle key,
-  a command-palette entry, a menu) rather than forcing all three onto
-  F-keys that are almost out.
-- Do not spend F7-F8 on anything that is not one of these tabs until this
-  is resolved -- the ceiling is real and close enough now that a single
-  unplanned tab added later has nowhere to go.
+Six tabs exist now (F1 Terminal, F2 Monitor, F3 Heard, F4 APRS, F5 Address
+Book, F6 Settings -- Address Book shipped after this section was first
+written and took the F5 slot Settings originally had, bumping Settings to
+F6). The three below take **F7 Mail, F8 Bulletins, F9 Files**, landing with
+**F10 spare** for whatever needs a tab next -- no longer the "nothing to
+spare" situation the F8 ceiling produced, but still worth spending
+deliberately: do not put something on F10 that would rather be a
+command-palette entry or a modal.
 
-- [ ] **Mail tab** -- personal message store, sub-views for Inbox,
+- [ ] **Mail tab (F7)** -- personal message store, sub-views for Inbox,
       Outbox, Sent and Deleted. Reads the mailbox P9 builds; the tab is the
       view layer, not a second copy of the storage. Deleted should be a real
       recoverable folder rather than immediate destruction -- an operator who
       fat-fingers a delete on a message that arrived over a marginal HF path
       may have no way to get it re-sent. Large.
-- [ ] **Bulletins tab** -- same four sub-views, but bulletins are
+- [ ] **Bulletins tab (F8)** -- same four sub-views, but bulletins are
       broadcast-addressed rather than person-addressed, and that difference is
       not cosmetic: a bulletin is addressed to a category (`ALL`, `ARES`,
       `WX`) and typically carries a lifetime after which it should stop being
@@ -472,7 +506,7 @@ operator's own callsign and licence. So:
 - [ ] **A hash and a claimed-source line per file**, shown locally and in the
       remote listing. Small once the areas exist.
 
-- [ ] **Files tab** -- sub-views for Downloads (files this station
+- [ ] **Files tab (F9)** -- sub-views for Downloads (files this station
       fetched), Received (files other stations sent us, which is the P9 drop
       box and carries all of its security requirements: a resolved jail
       directory, allowlisted filenames, quotas enforced during transfer, never
