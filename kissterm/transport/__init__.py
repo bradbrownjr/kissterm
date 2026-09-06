@@ -73,6 +73,8 @@ _VALID_KINDS = (
     "vara",
     "varafm",
     "mercury",
+    "telnet",
+    "ssh",
 )
 
 
@@ -143,6 +145,16 @@ def build_transport(config: dict[str, Any]) -> Transport:
         from .mercury import MercuryTransport
 
         return _named(MercuryTransport(**kwargs), label)
+
+    if kind == "telnet":
+        from .telnet import TelnetTransport
+
+        return _named(TelnetTransport(**kwargs), label)
+
+    if kind == "ssh":
+        from .ssh import SshTransport
+
+        return _named(SshTransport(**kwargs), label)
 
     # Unreachable: _VALID_KINDS and the branches above are kept in sync, but
     # fail loudly rather than falling through to `None` if they ever drift.

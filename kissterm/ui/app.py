@@ -185,6 +185,74 @@ HOP_TIMEOUT = 20.0
 HOP_FAIL_WORDS = ("BUSY", "FAILED", "DISCONNECTED", "TIMEOUT")
 
 
+class _SessionLinkAdapter:
+    """Presents a session-tier `Session` (VARA, Mercury, kernel AX.25,
+    Telnet, SSH) with the same shape `AX25Link` already has, so every piece
+    of connect-flow logic written once against `AX25Link` -- `_bind_link`,
+    `_hop_through`/`_hop_to`, `_run_connect_script`, `action_disconnect` --
+    works unchanged for either tier, with no branch scattered through any
+    of them.
+
+    The two really do differ: `Session.on_state_change` is a registration
+    *method*, `AX25Link.on_state` a plain callback list; `Session` has no
+    `on_data` at all, only an `incoming` queue fed by `deliver()`, because
+    `Session` predates any real caller -- nothing in this app constructed
+    one through `SessionTransport.connect()` before this adapter existed.
+    Adapting here rather than reshaping `Session` to match keeps
+    `kernel_ax25.py`/`vara.py`/`mercury.py` and their existing tests
+    (`tests/unit/test_tx_gate.py` included) untouched.
+
+    `Session` also has no error-reporting channel to match `AX25Link.
+    on_error` -- `self.on_error` exists so `_bind_link` can append to it
+    without a branch, but nothing here ever calls what is in it. Session
+    transports do not have a "why" beyond a plain disconnect yet.
+    """
+
+    def __init__(self, session) -> None:
+        self._session = session
+        self.peer = session.peer
+        self.on_data: list = []
+        self.on_state: list = []
+        self.on_error: list = []
+        session.on_state_change(lambda _session, state: self._emit_state(state))
+        self._pump_task = asyncio.get_event_loop().create_task(
+            self._pump(), name=f"session-adapter-pump:{session.peer}"
+        )
+
+    @property
+    def connected(self) -> bool:
+        return self._session.connected
+
+    @property
+    def state(self):
+        return self._session.state
+
+    async def send(self, data: bytes) -> None:
+        await self._session.send(data)
+
+    async def disconnect(self) -> None:
+        """The session-tier equivalent of `AX25Link.disconnect()` -- there
+        is no DISC to send, only the connection itself to close."""
+        self._pump_task.cancel()
+        await self._session.close()
+
+    def close(self) -> None:
+        self._pump_task.cancel()
+
+    def _emit_state(self, state) -> None:
+        for cb in list(self.on_state):
+            cb(state)
+
+    async def _pump(self) -> None:
+        try:
+            while True:
+                data = await self._session.incoming.get()
+                for cb in list(self.on_data):
+                    cb(data)
+        except asyncio.CancelledError:
+            pass
+
+
 class KissTermApp(App):
     """The application.
 
@@ -245,7 +313,13 @@ class KissTermApp(App):
         Binding("ctrl+l", "clear_log", "Clear"),
     ]
 
-    def __init__(self, config, station: AX25Station | None = None, **kwargs) -> None:
+    def __init__(
+        self,
+        config,
+        station: AX25Station | None = None,
+        session_transport=None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.config = config
         # Applied before the rest of __init__ so the very first frame paints
@@ -253,6 +327,14 @@ class KissTermApp(App):
         # visibly flashing over to the right one a moment later.
         self.apply_theme()
         self.station = station
+        #: Set when the active transport is a `SessionTransport` (Telnet,
+        #: SSH, VARA, Mercury, kernel AX.25) instead of a `FrameTransport` --
+        #: `station` stays None in that case, since there is no AX.25 state
+        #: machine for one of these to run underneath. Exactly one of
+        #: `station`/`session_transport` is ever set; see `action_connect`
+        #: for how the two paths converge on the same terminal-pane binding
+        #: through `_SessionLinkAdapter`.
+        self.session_transport = session_transport
         #: The master transmit switch, installed here rather than left to
         #: whatever built the transport: a bare transport is a dumb pipe with
         #: no operator, and the app is the thing that HAS an operator. Closed
@@ -261,6 +343,8 @@ class KissTermApp(App):
         self.gate = TransmitGate(enabled=getattr(config, "tx_armed_at_start", False))
         if station is not None:
             station.transport.gate = self.gate
+        elif session_transport is not None:
+            session_transport.gate = self.gate
         self.gate.on_change.append(self._on_transmit_change)
         self.heard = HeardTable()
         self.monitor_filter = MonitorFilter()
@@ -578,7 +662,13 @@ class KissTermApp(App):
         from ..config import log_path
 
         directory = Path(self.config.log_dir) if self.config.log_dir else log_path()
-        mycall = str(self.station.mycall) if self.station is not None else ""
+        # `self.station` is None on the session-transport tier (Telnet, SSH,
+        # VARA, Mercury, kernel AX.25) -- there is no AX25Station to read an
+        # operating callsign off, but the operator's own callsign is still
+        # `config.mycall` regardless of which tier is active.
+        mycall = str(self.station.mycall) if self.station is not None else str(
+            getattr(self.config, "mycall", "") or ""
+        )
         transcript = SessionLog(directory, mycall, str(link.peer))
         if not transcript.open():
             self._to_terminal("log", f"\n*** No transcript: {transcript.failed}\n")
@@ -799,6 +889,9 @@ class KissTermApp(App):
         lighter-weight path into it.
         """
         if self.station is None:
+            if self.session_transport is not None:
+                await self._connect_session_transport()
+                return
             self.notify("No transport is open.", severity="error")
             return
         if prefill is not None:
@@ -946,6 +1039,43 @@ class KissTermApp(App):
         )
         if login_text.strip():
             self._run_connect_script(link, login_text)
+
+    async def _connect_session_transport(self) -> None:
+        """Connect through a session-tier transport (Telnet, SSH, VARA,
+        Mercury, kernel AX.25) -- no target dialog, no hop chain, no
+        address book.
+
+        There is exactly one destination a session transport can reach:
+        whatever host and port (or callsign, for VARA/kernel AX.25) it was
+        configured with at startup, in Settings > Transports. Routing that
+        through the FrameTransport flow above would force AX.25-shaped
+        concepts -- a target to parse, a digipeater path, per-station
+        hops -- onto an addressing model that genuinely has none of them;
+        see `SessionTransport.connect`'s docstring. An operator who needs
+        to reach a further node once this session is up can still type
+        "C <node>" by hand -- that has always worked and needs nothing
+        from this method.
+
+        Known gap: unlike the FrameTransport path, there is no way to
+        cancel a connect attempt that hangs here (a slow or unreachable
+        host) short of waiting for it to time out or fail on its own --
+        see docs/ROADMAP.md's Telnet/SSH entry.
+        """
+        transport = self.session_transport
+        if self.link is not None and self.link.connected:
+            self.notify("Already connected.", severity="warning")
+            return
+        self._arm_for(f"connect via {transport.info.detail}")
+        self.query_one(TerminalPane).clear()
+        self.query_one(TerminalPane).log(f"\n*** Connecting to {transport.info.detail}...\n")
+        try:
+            session = await transport.connect()
+        except TransportError as exc:
+            self._to_terminal("log", f"*** Could not connect: {exc}\n")
+            self.notify(str(exc), severity="error")
+            return
+        self._bind_link(_SessionLinkAdapter(session))
+        self.query_one(TerminalPane).focus_input()
 
     async def _hop_through(self, link, nodes: list[str]) -> bool:
         """Walk a chain of node-to-node hops over an already-open link.
@@ -1175,10 +1305,11 @@ class KissTermApp(App):
         dead TCP socket. A transport that is not carrying frames has to say
         so where the operator is already looking.
         """
-        if self.station is None:
+        transport = self.station.transport if self.station is not None else self.session_transport
+        if transport is None:
             return self._status
-        state = self.station.transport.state
-        detail = self.station.transport.info.detail
+        state = transport.state
+        detail = transport.info.detail
         if state is TransportState.OPEN:
             return detail
         if state is TransportState.OPENING:
@@ -1198,12 +1329,23 @@ class KissTermApp(App):
             parts.append(f"TX OFF{blocked}")
         if self.station is not None:
             parts.append(str(self.station.mycall))
+        elif self.session_transport is not None:
+            # No AX25Station on this tier to read a callsign off, but the
+            # operator's own callsign is still `config.mycall` regardless.
+            mycall = getattr(self.config, "mycall", "") or ""
+            if mycall:
+                parts.append(mycall)
         if self.link is not None:
-            stats = self.link.stats
             parts.append(f"{self.link.peer} {self.link.state.value}")
-            parts.append(
-                f"tx {stats.frames_sent} rx {stats.frames_received} rtx {stats.retransmits}"
-            )
+            # Frame-level counters exist only on the AX.25 tier -- a session
+            # transport (Telnet, SSH, VARA, ...) has no frames to count, and
+            # showing "tx 0 rx 0" for one would claim a stat that was never
+            # tracked rather than one that is genuinely zero.
+            stats = getattr(self.link, "stats", None)
+            if stats is not None:
+                parts.append(
+                    f"tx {stats.frames_sent} rx {stats.frames_received} rtx {stats.retransmits}"
+                )
         if getattr(self.config, "accept_incoming", False):
             # The honest counterpart to the opt-in: if this station will
             # transmit with nobody present, that fact is always on screen.

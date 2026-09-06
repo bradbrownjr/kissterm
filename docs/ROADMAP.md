@@ -89,14 +89,20 @@ What P1 deliberately did **not** settle, and is now the top of the queue:
   real GATT characteristic discovery/subscription work, since KISS bytes
   arrive as BLE notifications rather than a byte stream. Medium-large; no
   reference implementation to lean on yet.
-- [ ] **Linux kernel AF_AX25 — new `kissterm/transport/kernel_ax25.py`,
-  `SessionTransport` subclass.** For users who already run `ax25d`/`kissattach`
-  and want kissterm as a terminal on top of the kernel's own link layer
-  instead of kissterm's userspace one (see SETUP.md's "kernel AX.25 as an
-  alternative" section for when that's the right call). This is a
-  `SessionTransport`, not a `FrameTransport` — the kernel already ran the
-  state machine, so kissterm's own `session.py` must not run a second one on
-  top of it. Medium effort, Linux-only.
+- [ ] **Linux kernel AF_AX25 verification against real hardware.**
+  `kissterm/transport/kernel_ax25.py` is implemented (`SessionTransport`,
+  for users who already run `ax25d`/`kissattach` and want kissterm as a
+  terminal on top of the kernel's own link layer -- see SETUP.md's "kernel
+  AX.25 as an alternative" section for when that's the right call) and, as
+  of the same session that added Telnet/SSH, actually reachable from the
+  app (`KissTermApp.action_connect` via `_SessionLinkAdapter` -- before
+  that, `station is None` on this tier meant Ctrl+N did nothing at all,
+  for VARA and Mercury too). What is still open is real verification: one
+  socket-API detail is marked `# RESEARCH:` in that file (the exact
+  bind/connect address tuple shape for `AF_AX25`, which has shifted across
+  Python versions), and nothing here has been exercised against a live
+  `kissattach` setup. Linux-only, small once someone with that setup can
+  test it.
 - [ ] **VARA HF/FM verification against real hardware.** The two-TCP-port
   protocol (control + data, see SETUP.md) is documented and a
   `SessionTransport` implementation is planned, but nothing has been tested
@@ -111,33 +117,19 @@ What P1 deliberately did **not** settle, and is now the top of the queue:
   1`); what's missing is UI to pick which port a new connection or the
   monitor pane uses when more than one is configured. Small, blocked on the
   app shell (P1) existing.
-- [ ] **Telnet and SSH — Internet-reachable nodes, new `SessionTransport`s.**
-  Asked directly: not supported yet. Both belong in the `SessionTransport`
-  tier alongside VARA/Mercury/kernel-AX25 -- there is no AX.25 framing on
-  the wire at all for either, and no SABM/UA either: the remote node's own
-  telnet or SSH server accepts the TCP/SSH connection and the byte stream
-  IS the session from the moment it opens, exactly like BPQ32's telnet
-  listener already works for anyone using SyncTERM or a plain `telnet`
-  client against it today. The concrete case this was asked about: WS1EC
-  offers `ssh packet@ws1ec.mainepacketradio.org -p 4122`, where the SSH
-  session's remote command is a local `telnet` into the actual node --
-  SSH is purely the transport security here, not a second protocol layer
-  kissterm needs to understand. Once authenticated, an SSH channel and a
-  raw telnet socket are the same thing to the terminal pane: bytes in,
-  bytes out.
-  - **Telnet**: plain `asyncio.open_connection`, no new dependency. Small.
-  - **SSH**: needs a client library kissterm does not currently depend on
-    (`asyncssh` is the natural choice -- asyncio-native, unlike `paramiko`
-    which is thread-based and would need a bridge like `serial_kiss.py`
-    already uses for pyserial). New optional dependency + extra in
-    `pyproject.toml`, same pattern as `ble`. Auth method(s) to support
-    (password, key file, `ssh-agent`) still need deciding with whoever
-    picks this up -- do not guess a default silently. Medium.
-  - Both need a config/wizard story: a hostname and port belong in
-    `config.toml.example` the same way `[[transports]]` entries do now,
-    but neither is discoverable by the existing LAN sweep (`discovery.py`
-    only ever probes the operator's own subnet) -- these are always
-    hand-entered.
+- [ ] **SSH key-based authentication.** `kissterm/transport/ssh.py` supports
+  password auth only (shipped -- see docs/CHANGELOG.md). Some hosts require
+  a key; needs deciding where a key path and passphrase live in config
+  before building it, not guessing a default silently.
+- [ ] **SSH host-key verification.** Currently off (`known_hosts=None` --
+  see `ssh.py`'s module docstring for why that is a real gap, not an
+  oversight). Needs either a trust-on-first-use prompt or a config field to
+  pin the expected key.
+- [ ] **Cancelling a hung session-transport connect.** The FrameTransport
+  path has `_connect_target`/Ctrl+D cancellation for a stuck SABM retry
+  loop; `KissTermApp._connect_session_transport` (Telnet, SSH, VARA,
+  Mercury, kernel AX.25) has no equivalent yet -- a slow or unreachable
+  host has to time out or fail on its own. Small once someone wants it.
 - [ ] **AX/IP — a different, lower-priority ask.** Carries actual AX.25
   *frames* over UDP (BPQ32's convention for linking nodes to each other
   over the Internet), so architecturally it is a `FrameTransport` like

@@ -43,6 +43,15 @@ ENTRIES: dict[str, dict] = {
     "vara": {"kind": "vara", "name": "VARA HF", "host": "127.0.0.1", "mycall": "N1ABC-1"},
     "varafm": {"kind": "varafm", "name": "VARA FM", "host": "127.0.0.1", "mycall": "N1ABC-1"},
     "mercury": {"kind": "mercury", "name": "Mercury", "host": "127.0.0.1", "mycall": "N1ABC-1"},
+    "telnet": {"kind": "telnet", "name": "WS1EC", "host": "example.org", "port": 8010},
+    "ssh": {
+        "kind": "ssh",
+        "name": "WS1EC",
+        "host": "example.org",
+        "port": 4122,
+        "username": "packet",
+        "password": "",
+    },
 }
 
 

@@ -269,7 +269,9 @@ If you already have a working `kissattach`/`ax25d` setup — an `axports`
 file, a kernel AX.25 stack in use by other software (some node/BBS packages
 still assume it) — kissterm can sit on top of the kernel's own connected-mode
 implementation instead of running its own, through a kernel `AF_AX25`
-`SessionTransport` (see ROADMAP P3 — not yet implemented).
+`SessionTransport` (`kind = "kernel"` in `config.toml`). Implemented, but not
+yet exercised against a real `kissattach` setup — see ROADMAP P3 for exactly
+what is still unverified before you rely on it.
 
 **When you'd want this instead of kissterm's own KISS-over-TCP/serial path:**
 mainly if you're running other AX.25-aware software on the same machine that
@@ -280,6 +282,50 @@ port-sharing behavior. If you have no existing kernel AX.25 setup and no
 other software that needs one, there's no reason to set one up just for
 kissterm — KISS over serial or TCP (§2–3) is simpler and is what kissterm is
 built around.
+
+## 6a. Telnet and SSH — reaching a node over the Internet
+
+If a node offers plain Telnet (most commonly BPQ32/LinBPQ's own telnet
+listener) or an SSH login that drops you straight into one, kissterm can
+reach it directly — no AX.25 framing crosses either wire, no digipeater path,
+no hop chain: the byte stream *is* the session from the moment it connects,
+exactly the way SyncTERM or a plain `telnet`/`ssh` client already reaches
+this kind of node.
+
+Neither is found by "Scan for hardware" — that only sweeps your own LAN —
+so add the entry by hand in `config.toml` (see the worked examples in
+`config.toml.example`), then pick it in Settings (`F6`) > Transports:
+
+```toml
+[[transports]]
+name = "some-node-telnet"
+kind = "telnet"
+host = "bpq.example.org"
+port = 8010
+
+[[transports]]
+name = "ws1ec"
+kind = "ssh"
+host = "ws1ec.mainepacketradio.org"
+port = 4122
+username = "packet"
+password = ""
+```
+
+SSH needs the optional `asyncssh` package: `pip install kissterm[ssh]` (or
+`kissterm[all]`). Password authentication only for now — see
+`kissterm/transport/ssh.py`'s module docstring for the current limits,
+including that host-key verification is not yet implemented; treat an SSH
+node the way you would any new host whose key you have not verified out of
+band.
+
+Once one of these is the active transport, `Ctrl+N` connects directly —
+there is exactly one destination this kind of transport can reach (the
+host and port it was configured with), so there is no target to type and no
+address-book entry involved. If the node needs a further hop once you're in
+(a `C` command to a node beyond the one you landed on), type it by hand the
+same as you would on any other terminal — that has always worked and needs
+nothing special from this transport.
 
 ## 7. First run
 

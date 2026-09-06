@@ -62,14 +62,33 @@ about connections. KISS over serial (`serial_kiss.py`), KISS over TCP
 
 **Session transports** (`SessionTransport`) hand back an *already-connected
 byte stream*. VARA HF/FM (`vara.py`), Mercury (`mercury.py`), the Linux kernel
-AX.25 stack (`kernel_ax25.py`). The modem or kernel already ran the link layer.
-**Running kissterm's state machine on top of one of these puts two AX.25
-implementations on one link and corrupts it.** That is what the tier split
-exists to prevent.
+AX.25 stack (`kernel_ax25.py`), Telnet (`telnet.py`), SSH (`ssh.py`). The
+modem, kernel, or remote node already ran the link layer (for Telnet/SSH
+there is no AX.25 on the wire at all to run one). **Running kissterm's state
+machine on top of one of these puts two AX.25 implementations on one link
+and corrupts it.** That is what the tier split exists to prevent.
 
-Both tiers produce a `Session`. Everything above — panes, logging, file
-transfer — talks only to `Session` and never learns which tier it is on. That
-is the seam that lets a VARA link and a KISS link render in the same pane.
+**The two tiers do NOT produce the same object, and pretending otherwise
+would be wrong.** The frame tier's `AX25Station.connect()` returns an
+`AX25Link` (`ax25/session.py`) -- the state machine itself; the session
+tier's `SessionTransport.connect()` returns a `Session`
+(`transport/base.py`) -- a thin dataclass around a sender/closer pair and an
+`incoming` queue. They differ in real ways (`Session.on_state_change` is a
+registration *method*, `AX25Link.on_state` a plain callback list;
+`AX25Link` has `on_data`, `Session` only `incoming`/`deliver()`) because
+`Session` predates any real caller -- nothing in this app constructed one
+through `SessionTransport.connect()` until Telnet/SSH shipped, so VARA,
+Mercury and kernel AX.25 existed as backend classes with no way to actually
+be connected to from the UI. `KissTermApp._SessionLinkAdapter`
+(`ui/app.py`) is the seam: it wraps a `Session` in `AX25Link`'s shape once,
+at bind time, so `_bind_link`, `_hop_through`/`_run_connect_script`, and
+`action_disconnect` — all written once against `AX25Link` — work unchanged
+for either tier. **Add a new session transport by matching `Session`'s
+actual interface (`_sender`/`_closer`, `deliver()`, `set_state()`); add UI
+logic that needs to work on either tier by extending the adapter, never by
+reshaping `Session` to look more like `AX25Link` -- that would ripple into
+`vara.py`/`kernel_ax25.py`/`mercury.py` and their existing tests
+(`tests/unit/test_tx_gate.py` included) for a UI-layer problem.**
 
 ### 2b. One shared frame fan-out
 
@@ -205,7 +224,7 @@ kissterm/
 │       ├── base.py          # the two tiers, Session
 │       ├── kiss.py          # KISS codec, no I/O
 │       ├── serial_kiss.py   tcp_kiss.py   agwpe.py      (frame tier)
-│       └── bluetooth.py     kernel_ax25.py  vara.py  mercury.py
+│       └── bluetooth.py  kernel_ax25.py  vara.py  mercury.py  telnet.py  ssh.py
 └── tests/
     ├── loopback.py          # two frame transports wired together, with loss
     ├── unit/                # pytest; test_ax25_link.py is the important one
@@ -764,6 +783,15 @@ again after a Settings save or a config reload.
   is inferred. `mercury.py` is an honest skeleton that raises from `open()`;
   its wire protocol needs reading out of the upstream source before it can
   work. Do not "finish" either one by guessing.
+- **The `SessionTransport` UI wiring (`_SessionLinkAdapter`, `KissTermApp.
+  _connect_session_transport`) is proven against real local Telnet and SSH
+  servers, never against a real remote node.** Telnet and SSH themselves are
+  simple enough on the wire that this is a reasonable bar; VARA, Mercury and
+  kernel AX.25 -- unblocked by this same wiring, since it was VARA/Mercury/
+  kernel AX.25 that first exposed `station is None` meaning "Ctrl+N does
+  nothing" -- still carry their own, separate hardware-verification gaps
+  above and in docs/ROADMAP.md P3, unrelated to whether the UI can reach
+  them now.
 - **BLE TNCs are not supported.** Mobilinkd TNC4-class devices need GATT
   characteristic handling and a `bleak` dependency. `BleKissTransport` is a
   marked stub.

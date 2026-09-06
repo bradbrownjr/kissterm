@@ -61,6 +61,11 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   AGWPE (Direwolf, UZ7HO SoundModem); the Linux kernel AX.25 stack if you
   already have one. VARA HF/FM and Mercury are implemented but not yet verified
   against hardware — see [docs/ROADMAP.md](docs/ROADMAP.md).
+- **Telnet and SSH, for a node reachable over the Internet.** No AX.25
+  framing on either wire — the remote node's own telnet or SSH server
+  already ran the link layer, and the byte stream is the session the moment
+  it connects, same as SyncTERM or a plain `telnet`/`ssh` client. SSH is
+  password-auth only for now (see [SETUP.md](SETUP.md) §6a).
 - **The network scan covers the whole subnet, and says so if it cannot.** A
   /24 across the well-known packet ports is over a thousand connection
   attempts; the first version fit about a sixth of them into its time budget,

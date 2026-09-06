@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.31"
+version = "0.1.32"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -42,8 +42,13 @@ serial = ["pyserial-asyncio-fast"]
 # Bluetooth RFCOMM TNCs need no extra dependency -- they show up as a plain
 # serial device (/dev/rfcomm0) once paired, and use the base "serial" path.
 ble = ["bleak"]
-dev = ["pytest", "pytest-asyncio"]
-all = ["pyserial-asyncio-fast", "bleak"]
+# Telnet needs nothing extra (plain asyncio TCP, see transport/telnet.py).
+# SSH does -- an asyncio-native client library, unlike the thread-based
+# paramiko, which would need the same executor bridge serial_kiss.py uses
+# for pyserial. See transport/ssh.py.
+ssh = ["asyncssh"]
+dev = ["pytest", "pytest-asyncio", "asyncssh"]
+all = ["pyserial-asyncio-fast", "bleak", "asyncssh"]
 
 [project.scripts]
 kissterm = "kissterm.__main__:main"

@@ -3,6 +3,66 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-06] — Telnet and SSH: reaching a node over the Internet
+
+Asked directly, with the concrete case already in hand: WS1EC (Maine Packet
+Radio) accepts `ssh packet@ws1ec.mainepacketradio.org -p 4122`, where the
+account's own login shell runs a local `telnet` into the real BPQ node the
+moment the session opens. Neither Telnet nor SSH was supported at all --
+worse, investigating turned up that the whole `SessionTransport` tier
+(VARA, Mercury, kernel AX.25 too) had never been reachable from the app:
+`station is None` on that tier meant `Ctrl+N` did nothing but refuse.
+
+### New Features
+- **Telnet and SSH transports** (`kind = "telnet"` / `"ssh"` in
+  `config.toml` -- see `config.toml.example` and SETUP.md §6a). Neither
+  carries AX.25 framing: the remote node's own telnet or SSH server accepts
+  the connection and the byte stream *is* the session from the moment it
+  opens, the same way SyncTERM or a plain `telnet`/`ssh` client already
+  reaches this kind of node. SSH is password-auth only for now and does
+  not yet verify the host key (both flagged plainly in `ssh.py`'s module
+  docstring and in docs/ROADMAP.md, not silently shipped as more complete
+  than they are); it needs the new optional `asyncssh` dependency
+  (`pip install kissterm[ssh]`). Both verified against real local
+  Telnet/SSH servers in `tests/unit/test_telnet_transport.py` and
+  `tests/unit/test_ssh_transport.py` -- `asyncssh` ships a genuine SSH
+  server too, so the SSH tests run a real handshake and password
+  authentication over loopback, not a mock.
+- **The `SessionTransport` tier is wired into the app for the first time.**
+  `KissTermApp.action_connect` now branches on `session_transport` when
+  there is no `AX25Station`, connects it directly (no target dialog, no hop
+  chain, no address book -- a session transport has exactly one
+  destination, fixed at configuration), and binds the resulting `Session`
+  into the terminal pane through a new `_SessionLinkAdapter`, which
+  presents `Session`'s shape as `AX25Link`'s so `_bind_link`, `action_
+  disconnect` and the status bar work unchanged for either tier. This is
+  what actually unblocks VARA, Mercury and kernel AX.25 too, not just the
+  two transports added today -- all three existed as backend classes with
+  nothing in the UI that could ever call `.connect()` on one.
+
+### Fixes
+- `transport/base.py`'s `Session.path` is now optional: VARA/Mercury/kernel
+  AX.25 dial a real AX.25 callsign, but Telnet/SSH have none to give
+  (`AX25Address.parse` would reject a hostname outright) -- `Session.peer`
+  falls back to the transport's own detail string when there is no path.
+  Added `Session.connected`, mirroring `AX25Link.connected`, for the same
+  reason. Both are additive; no existing caller's shape changed.
+- `docs/ROADMAP.md`'s kernel-AX25 entry said "new
+  `kissterm/transport/kernel_ax25.py`" as an open TODO -- the file has
+  existed and been fully implemented for a while (one `# RESEARCH:`-marked
+  socket-API detail aside). Corrected to what is actually still open: real
+  verification against a live `kissattach` setup, unblocked by the UI
+  wiring above. SETUP.md's kernel-AX25 section had the same "not yet
+  implemented" claim; fixed there too.
+
+**Files:** `kissterm/transport/telnet.py` (new), `kissterm/transport/
+ssh.py` (new), `kissterm/transport/base.py`, `kissterm/transport/
+__init__.py`, `kissterm/ui/app.py`, `kissterm/__main__.py`, `pyproject.toml`,
+`config.toml.example`, `SETUP.md`, `docs/ROADMAP.md`,
+`tests/unit/test_telnet_transport.py` (new), `tests/unit/test_ssh_
+transport.py` (new), `tests/pilot/test_session_transport.py` (new),
+`tests/unit/test_transport_factory.py`
+
 ## [2026-09-06] — Address Book gets its own tab: F5, dial directly, frequency reminders
 
 Follow-up to the same day's "a place to manage the address book" entry below,

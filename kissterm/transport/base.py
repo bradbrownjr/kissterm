@@ -218,10 +218,17 @@ class SessionTransport(Transport):
     `connect` returns a `Session` that is already up. There is no frame-level
     access -- these modems do not expose one, and pretending otherwise is how
     you end up with a KISS abstraction that lies about VARA.
+
+    `path` is optional: VARA, Mercury and the kernel AX.25 stack all dial a
+    specific AX.25 callsign, so they need a real one. Telnet and SSH do not
+    -- their destination is the transport's own configured host and port,
+    fixed at construction, and there is no AX.25 address to give (a hostname
+    is not a valid `AX25Address`; `AX25Address.parse` would reject it). Those
+    two backends ignore `path` entirely.
     """
 
     @abc.abstractmethod
-    async def connect(self, path: AX25Path) -> "Session": ...
+    async def connect(self, path: AX25Path | None = None) -> "Session": ...
 
 
 @dataclass
@@ -232,8 +239,10 @@ class Session:
     state machine or a VARA modem is behind them.
     """
 
-    path: AX25Path
     transport: Transport
+    #: None for Telnet/SSH -- see `SessionTransport.connect`'s docstring for
+    #: why those two backends have no real AX.25 address to put here.
+    path: AX25Path | None = None
     state: SessionState = SessionState.DISCONNECTED
     incoming: asyncio.Queue[bytes] = field(default_factory=asyncio.Queue)
     _on_state: list[Callable[["Session", SessionState], None]] = field(
@@ -244,7 +253,16 @@ class Session:
 
     @property
     def peer(self) -> str:
-        return str(self.path.destination)
+        # Falls back to the transport's own detail string (a host:port, for
+        # Telnet/SSH) when there is no AX.25 address to show instead.
+        return str(self.path.destination) if self.path is not None else self.transport.info.detail
+
+    @property
+    def connected(self) -> bool:
+        """Mirrors `AX25Link.connected` so UI code that binds either tier's
+        object through a common shape (see `kissterm/ui/app.py`'s
+        `_SessionLinkAdapter`) does not need to know which one it has."""
+        return self.state in (SessionState.CONNECTED, SessionState.TIMER_RECOVERY)
 
     def on_state_change(self, cb: Callable[["Session", SessionState], None]) -> None:
         self._on_state.append(cb)

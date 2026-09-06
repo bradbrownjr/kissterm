@@ -367,7 +367,13 @@ async def _amain(args) -> int:
         getattr(config, "mycall", "") or "(unset)",
         transport.info.detail or transport.info.kind,
     )
-    app = KissTermApp(config, station)
+    # `station` is None for a SessionTransport (Telnet, SSH, VARA, Mercury,
+    # kernel AX.25) -- there is no AX.25 state machine to run underneath it,
+    # but the app still needs a way to reach it: `action_connect` opens it
+    # directly, with no AX25Station involved. See KissTermApp.__init__.
+    app = KissTermApp(
+        config, station, session_transport=None if station is not None else transport
+    )
     try:
         await app.run_async()
     finally:

@@ -399,6 +399,33 @@ host = "127.0.0.1"
 command_port = 8300
 data_port = 8301
 
+# telnet: an Internet-reachable node's own telnet server (most commonly
+# BPQ32/LinBPQ's telnet listener). No AX.25 framing on this wire at all --
+# the remote node runs its own link layer on its own RF ports and just
+# presents the same node prompt over plain TCP. Not discoverable by
+# "Scan for hardware" (that only sweeps your own LAN); always hand-entered.
+[[transports]]
+name = "some-node-telnet"
+kind = "telnet"
+host = "bpq.example.org"
+port = 8010
+
+# ssh: the secure-delivery case -- a shell account whose login immediately
+# hands you a telnet session to the real node, entirely on the remote end
+# (Maine Packet Radio's WS1EC is exactly this: `ssh packet@host -p 4122`).
+# SSH is purely the transport here, not a second protocol kissterm needs to
+# understand; see kissterm/transport/ssh.py. Password auth only for now.
+# `password` sits here in plain text like every other config.toml secret in
+# this file (there is nowhere else for it to live yet) -- protect this file
+# with normal filesystem permissions the same way you would an SSH key.
+[[transports]]
+name = "ws1ec"
+kind = "ssh"
+host = "ws1ec.mainepacketradio.org"
+port = 4122
+username = "packet"
+password = ""
+
 # --- Saved connect targets -------------------------------------------------
 # Optional shortcuts for stations you connect to often -- a local BBS, a
 # club's packet node, a friend's station. `path` is a digipeater route in

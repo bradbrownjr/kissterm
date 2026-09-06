@@ -18,10 +18,15 @@ Ask one question: **does this thing connect on its own?**
   Subclass `FrameTransport`. Its frames feed kissterm's own AX.25 state
   machine. Examples: `serial_kiss.py`, `tcp_kiss.py`, `bluetooth.py`,
   `agwpe.py`.
-- **Yes** → it hands back an already-connected byte stream because the modem
-  or the kernel already ran the link layer. Subclass `SessionTransport` and
-  return a wired-up `Session` from `connect()`. Examples: `vara.py`,
-  `mercury.py`, `kernel_ax25.py`.
+- **Yes** → it hands back an already-connected byte stream because the modem,
+  the kernel, or the remote node already ran the link layer (Telnet/SSH: no
+  AX.25 on the wire at all, so there was never a link layer for kissterm to
+  duplicate). Subclass `SessionTransport` and return a wired-up `Session`
+  from `connect()`. Examples: `vara.py`, `mercury.py`, `kernel_ax25.py`,
+  `telnet.py`, `ssh.py`. `connect()`'s `path: AX25Path | None` is genuinely
+  optional -- Telnet/SSH have exactly one destination (their own configured
+  host/port) and no AX.25 address to give one; `Session.peer` falls back to
+  `transport.info.detail` when `path` is `None`.
 
 **Putting a session-tier device behind `FrameTransport` puts two AX.25
 implementations on one link and corrupts it.** This is the mistake the tier
@@ -40,6 +45,8 @@ split exists to prevent.
 | `kernel_ax25.py` | session | Linux `AF_AX25` sockets |
 | `vara.py` | session | VARA HF/FM — command port + data port |
 | `mercury.py` | session | Honest stub; raises from `open()` |
+| `telnet.py` | session | Plain TCP telnet — no AX.25 on the wire at all |
+| `ssh.py` | session | SSH to a login shell; needs the optional `asyncssh` extra |
 | `__init__.py` | — | `build_transport(config)` factory, lazy imports |
 
 ## The rules that will bite you
@@ -52,10 +59,16 @@ split exists to prevent.
    Catch **both** `AX25FrameError` and `AX25AddressError` around
    `AX25Frame.decode` — they are distinct types and a corrupt address field
    raises the second one. This already killed read loops once.
-3. **Import optional dependencies lazily, inside `open()`**, never at module
-   import time, and raise `TransportError` with an actionable message
-   (`pip install ...`). `import kissterm` must work with none of them present.
-   `build_transport` imports the concrete modules lazily for the same reason.
+3. **Import optional dependencies lazily, inside whichever method actually
+   needs them** (`open()` for most transports; `connect()` for a session
+   transport like `ssh.py`, where `open()` does no real work -- see the
+   tier note above), never at module import time, and raise `TransportError`
+   with an actionable message (`pip install ...`). `import kissterm` must
+   work with none of them present, and so must *constructing* any transport
+   class -- `build_transport` does that for every configured entry at
+   startup, so an import inside `__init__` would defeat the whole point.
+   `build_transport` itself imports the concrete modules lazily for the
+   same reason.
 4. **Guard platform-specific socket families** (`AF_AX25`, `AF_BLUETOOTH`) with
    `hasattr(socket, ...)` and fail from `open()`, never at import.
 5. **The KISS codec has no I/O and must stay that way.** It is shared by
@@ -71,7 +84,11 @@ split exists to prevent.
 1. Subclass the right tier in a new file here.
 2. Add a branch to `build_transport()` in `__init__.py` (lazy import).
 3. Add a worked example to `config.toml.example` at the repo root.
-4. Add a heuristic to `kissterm/discovery.py` if the device is findable.
+4. Add a heuristic to `kissterm/discovery.py` if the device is findable --
+   `discovery.py` only ever sweeps the operator's own LAN, so an
+   Internet-reachable transport (Telnet, SSH) is never a candidate here and
+   is always hand-entered in `config.toml` instead. Do not add one just to
+   fill in this step.
 5. Add a `kissterm/doctor.py` check if it has a common misconfiguration.
 
 ## Testing
@@ -81,5 +98,10 @@ split exists to prevent.
 ```
 
 `tests/loopback.py` is a `FrameTransport` pair for testing without hardware.
-There is no loopback for the session tier yet — a fake `SessionTransport`
-returning a canned `Session` is the pattern to write when one is needed.
+For the session tier, run a real local server rather than mocking `Session`:
+`tests/unit/test_telnet_transport.py` uses a plain `asyncio.start_server`;
+`tests/unit/test_ssh_transport.py` uses `asyncssh`'s own server support
+(`asyncssh.listen`) to run a genuine SSH handshake and password
+authentication over loopback. Both are far more convincing than a canned
+`Session` and cost nothing extra to write once the real client library is
+already a dependency.
