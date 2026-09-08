@@ -721,6 +721,16 @@ Gotchas that already cost time:
 - **ALWAYS** update `docs/CHANGELOG.md` and `docs/ROADMAP.md` when something
   ships. New capabilities go under "New Features"; "Improvements" is only for
   making existing things better. Remove a roadmap item the moment it ships.
+- **ALWAYS commit finished, tested work rather than leaving it sitting
+  uncommitted.** Requested directly: "so we have history and snapshots to
+  roll back to" -- an uncommitted working tree has no rollback point if the
+  next change goes wrong, and it is not visible to anything that reads git
+  history. Split unrelated changes into separate commits (one per shipped
+  CHANGELOG entry is the natural boundary) rather than one commit covering
+  several features, so a single commit is still a meaningful revert target.
+  This does not relax the git safety protocol elsewhere in this file --
+  commit, don't force-push or rewrite history, and never commit without
+  having run the tests first.
 - **`Select.NULL` is the "nothing selected" sentinel in this installed
   Textual version -- `Select.BLANK` is a stale alias that is literally the
   bool `False`, and assigning it to `.value` raises `InvalidSelectValueError`
