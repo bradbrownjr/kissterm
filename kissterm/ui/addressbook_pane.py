@@ -89,7 +89,10 @@ class AddressBookPane(Vertical):
         not on the next unrelated event."""
         table = self.query_one("#addressbook-table", DataTable)
         table.clear(columns=True)
-        table.add_columns("Target", "Hops", "Frequency", "Connection", "Login", "Attempts", "Connects")
+        table.add_columns(
+            "Target", "Hops", "Frequency", "Connection", "Paclen", "Window", "Login",
+            "Attempts", "Connects",
+        )
         for entry in book.entries:
             if entry.credential:
                 login = f"credential: {entry.credential}"
@@ -105,6 +108,8 @@ class AddressBookPane(Vertical):
                 entry.hops,
                 entry.frequency,
                 entry.connection_type,
+                entry.paclen,
+                entry.window,
                 login,
                 str(entry.attempts),
                 str(entry.connects),
@@ -198,6 +203,8 @@ class AddressBookPane(Vertical):
                 script_name=entry.script_name if entry else "",
                 frequency=entry.frequency if entry else "",
                 connection_type=entry.connection_type if entry else "",
+                paclen=entry.paclen if entry else "",
+                window=entry.window if entry else "",
                 credentials=config.credentials,
                 scripts=config.scripts,
                 transports=config.transports,
@@ -213,6 +220,8 @@ class AddressBookPane(Vertical):
             script_name=result.script_name,
             frequency=result.frequency,
             connection_type=result.connection_type,
+            paclen=result.paclen,
+            window=result.window,
             original_target=target or "",
         )
         self.refresh_from(book)

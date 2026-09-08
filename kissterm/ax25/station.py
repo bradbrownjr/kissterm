@@ -76,13 +76,31 @@ class AX25Station:
 
     # ------------------------------------------------------------------
     async def connect(
-        self, target: AX25Path, *, port: int = 0, timeout: float | None = None
+        self,
+        target: AX25Path,
+        *,
+        port: int = 0,
+        timeout: float | None = None,
+        paclen: int | None = None,
+        window: int | None = None,
     ) -> AX25Link | None:
         """Connect to ``target``. Returns the link, or None if it did not come up.
 
         A link object is created before the SABM goes out and kept even on
         failure until the caller drops it, so the UI can show why it failed
         rather than having the object vanish out from under the pane.
+
+        `paclen`/`window`, when given, override `self.params` for this ONE
+        link only -- `self.params` (built from `Config.paclen`/`window`) is
+        never mutated, so every other link this station opens keeps the
+        global default. This is how a per-station address-book entry
+        (`addressbook.Entry.paclen`/`window`) reaches the state machine: HF
+        wants a small `paclen` for the whole station's traffic, but one slow
+        node on an otherwise fast VHF LAN wants just that one link tuned
+        down, not every link this station has open. `LinkParams.__post_init__`
+        still clamps whatever comes out of `dataclasses.replace`, so an
+        override can't corrupt sequence-number arithmetic any more than a
+        config-file value could.
         """
         path = self._path_to(target)
         key = _key(path.destination, port)
@@ -90,10 +108,15 @@ class AX25Station:
         if link is not None and link.connected:
             return link
 
+        overrides = {}
+        if paclen is not None:
+            overrides["paclen"] = paclen
+        if window is not None:
+            overrides["window"] = window
         link = AX25Link(
             path,
             send=lambda frame: self.transport.send_frame(frame, port),
-            params=dataclasses.replace(self.params),
+            params=dataclasses.replace(self.params, **overrides),
             port=port,
         )
         self.links[key] = link

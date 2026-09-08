@@ -145,6 +145,30 @@ node.
   frames with no way to take the Enter back once it is pressed. Any of the
   three triggers a warning notification naming what changed. **Files:**
   `kissterm/ui/terminal_pane.py`, `tests/pilot/test_paste_protection.py`.
+- **Configurable paclen/window per link.** `ax25.session.LinkParams` was
+  already a per-link dataclass, but every link a station opened got an
+  identical copy of `self.params`, built once from the global
+  `Config.paclen`/`window` -- there was no way to run a slow HF link and a
+  fast LAN VHF link at once with each using sane values. `AX25Station.
+  connect` now takes optional `paclen`/`window` overrides that apply to
+  just that one link via `dataclasses.replace` (still clamped by
+  `LinkParams.__post_init__`, so an override can't corrupt sequence-number
+  arithmetic any more than a config-file value could); the station's own
+  `self.params` is never mutated, so every other link keeps the global
+  default. `addressbook.Entry` gained matching `paclen`/`window` fields,
+  set from two new optional Address Book editor fields (blank means "use
+  Settings' default", same convention as everywhere else in that dialog)
+  and validated the same way hops/target already are; `KissTermApp.
+  action_connect` reads them off the resolved entry and passes them
+  through on every dial, including a saved address-book entry, not just a
+  live-typed target. Deliberately not exposed in the quick Connect dialog,
+  same reasoning as `frequency`/`connection_type`: a per-station tuning
+  choice belongs in the Address Book editor, set up once, not retyped on
+  every dial. **Files:** `kissterm/ax25/station.py`,
+  `kissterm/addressbook.py`, `kissterm/ui/dialogs.py`,
+  `kissterm/ui/addressbook_pane.py`, `kissterm/ui/app.py`,
+  `tests/unit/test_link_params_override.py`,
+  `tests/unit/test_addressbook.py`, `tests/pilot/test_addressbook_pane.py`.
 
 ## [2026-09-07] — "They got it, they're just not answering" is now on screen
 

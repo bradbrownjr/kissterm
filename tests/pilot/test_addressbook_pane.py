@@ -95,6 +95,8 @@ async def test_new_entry_via_the_dialog(tmp_path):
                 hops="N1QFY, AB1KI-15",
                 frequency="146.520 MHz",
                 connection_type="1200 AFSK",
+                paclen="128",
+                window="2",
             )
         )
         await pilot.pause()
@@ -102,6 +104,8 @@ async def test_new_entry_via_the_dialog(tmp_path):
         entry = app.addressbook.entries[0]
         assert entry.target == "W1LH-6"
         assert entry.hops == "N1QFY, AB1KI-15"
+        assert entry.paclen == "128"
+        assert entry.window == "2"
         assert entry.frequency == "146.520 MHz"
         assert entry.connection_type == "1200 AFSK"
         assert entry.attempts == 0, "creating an entry here is not an attempt to reach it"
@@ -305,4 +309,62 @@ async def test_connection_type_preserves_a_value_matching_no_configured_transpor
         await pilot.pause()
 
         assert book.entries[0].connection_type == "1200 AFSK"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_non_numeric_paclen_is_refused_without_dismissing_the_dialog(tmp_path):
+    """`_validate_link_params` (kissterm/ui/dialogs.py) keeps a hand-typed
+    garbage value out of the address book -- same shape as the existing
+    hops-vs-digipeater-path refusal, just for a different pair of fields."""
+    from kissterm.ui.dialogs import AddressBookEntryScreen
+
+    app, station, ta, tb = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        _fresh_book(app, tmp_path)
+        await _addressbook_tab(app, pilot)
+
+        app.query_one(AddressBookPane)._new_entry()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, AddressBookEntryScreen)
+
+        app.screen.query_one("#connect-target", Input).value = "W1LH-6"
+        app.screen.query_one("#addressbook-paclen", Input).value = "not-a-number"
+        await pilot.click("#connect-go")
+        await pilot.pause()
+
+        assert isinstance(app.screen, AddressBookEntryScreen), "an invalid paclen dismissed the dialog"
+        assert app.addressbook.entries == []
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_saved_paclen_override_reaches_the_actual_link(tmp_path):
+    """The functional half of this feature: not just that the address book
+    remembers a paclen/window override, but that dialing a saved entry with
+    one actually produces an `AX25Link` tuned to it -- the same
+    "verify at the wire/state level, not just the UI level" standard as
+    `tests/pilot/test_paste_protection.py`."""
+    app, station, ta, tb = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        book = _fresh_book(app, tmp_path)
+        book.upsert("W1AW-1", paclen="64", window="2", original_target="W1AW-1")
+        peer_station = AX25Station(
+            AX25Address.parse("W1AW-1"), tb, LinkParams(t1=0.3, t2=0.05, t3=5.0)
+        )
+        await _addressbook_tab(app, pilot)
+
+        table = app.query_one("#addressbook-table", DataTable)
+        table.move_cursor(row=0)
+        await pilot.pause()
+        app.query_one(AddressBookPane)._connect_selected()
+        await asyncio.sleep(0.5)
+        await pilot.pause()
+
+        link = station.link_to(AX25Address.parse("W1AW-1"))
+        assert link is not None and link.connected, "setup: the loopback link did not come up"
+        assert link.params.paclen == 64
+        assert link.params.window == 2
+        peer_station.close()
     station.close()

@@ -164,6 +164,23 @@ def _status_row(parts: list[str]) -> Table:
 #: answer" / "check the Monitor tab" wording meant for a genuine timeout.
 CANCELLED_REASON = "cancelled by operator"
 
+
+def _entry_link_override(text: str) -> int | None:
+    """Turn an `addressbook.Entry.paclen`/`window` string into an override
+    for `AX25Station.connect`, or `None` to mean "use the global default".
+
+    `AddressBookEntryScreen` already refuses to save anything but blank or a
+    positive whole number (`dialogs._validate_link_params`), but the address
+    book is a JSON file an operator could still hand-edit into something
+    invalid -- treating that the same as blank (fall back to the global
+    default) is a data-format mismatch, not a reason to refuse a connect.
+    """
+    try:
+        value = int(text.strip())
+    except ValueError:
+        return None
+    return value if value >= 1 else None
+
 #: Pause between auto-login lines (`KissTermApp._run_connect_script`). A
 #: login sequence is normally two or three short commands, not a burst --
 #: pacing them gives a BBS's own line handling a moment to catch up rather
@@ -1238,7 +1255,11 @@ class KissTermApp(App):
         # address -- which is what lets Ctrl+D find and cancel it mid-attempt.
         self._connect_target = path.destination
         try:
-            link = await self.station.connect(path)
+            link = await self.station.connect(
+                path,
+                paclen=_entry_link_override(reminder.paclen) if reminder else None,
+                window=_entry_link_override(reminder.window) if reminder else None,
+            )
         except TransportError as exc:
             self.notify(str(exc), severity="error")
             return

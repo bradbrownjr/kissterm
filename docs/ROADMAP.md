@@ -50,11 +50,6 @@ What P1 deliberately did **not** settle, and is now the top of the queue:
   since they read from the transport, not from any one session. Touches
   `kissterm/app.py` (tab management) and probably a `SessionManager` to keep
   `ax25/session.py` from needing to know about the UI. Medium-large.
-- [ ] **Configurable paclen/window per link.** `DEFAULT_PACLEN` and
-  `DEFAULT_WINDOW` in `kissterm/ax25/frame.py` are link-wide constants today;
-  make them per-connection settings the state machine reads instead, so a
-  slow HF link and a fast LAN VHF link can each use sane values
-  simultaneously. Small, blocked on `session.py` existing.
 
 ## P3 — Transports
 

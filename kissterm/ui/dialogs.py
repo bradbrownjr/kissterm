@@ -75,6 +75,22 @@ def _validate_target_and_hops(text: str, hops: str) -> tuple[object | None, str]
     return path, ""
 
 
+def _validate_link_params(paclen: str, window: str) -> str:
+    """Blank means "use `Config.paclen`/`window`" for both -- the common
+    case, and every entry until an operator sets one. Only checks that a
+    non-blank value is a positive whole number; the actual range clamp
+    (paclen to 256, window to 7 or 63 depending on modulo) lives once, in
+    `LinkParams.__post_init__`, which runs again at connect time -- this is
+    just enough to keep an obviously-wrong value (blank of a different
+    kind, "abc", "-1") out of the address book rather than duplicating that
+    clamp here and risking the two drifting apart.
+    """
+    for label, value in (("Paclen", paclen), ("Window", window)):
+        if value and not (value.isdigit() and int(value) >= 1):
+            return f"{label} must be blank or a whole number of 1 or more."
+    return ""
+
+
 def _select_has_value(select: Select) -> bool:
     return bool(select.value) and select.value is not Select.NULL
 
@@ -387,10 +403,13 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
 @dataclass(frozen=True)
 class AddressBookEdit:
     """What `AddressBookEntryScreen` hands back -- a full entry, not just a
-    connect request. `frequency`/`connection_type` only ever come from here;
-    the quick Connect dialog does not manage them, so `ConnectRequest` has
-    no equivalent fields and `AddressBook.record_attempt` never touches
-    them (see that method's docstring)."""
+    connect request. `frequency`/`connection_type`/`paclen`/`window` only
+    ever come from here; the quick Connect dialog does not manage them, so
+    `ConnectRequest` has no equivalent fields and `AddressBook.record_
+    attempt` never touches them (see that method's docstring). `paclen`/
+    `window` are validated by `_validate_link_params` before this is built,
+    so by the time `AddressBook.upsert` sees them they are either empty or a
+    string `int()` will accept."""
 
     target: str
     script: str = ""
@@ -399,6 +418,8 @@ class AddressBookEdit:
     script_name: str = ""
     frequency: str = ""
     connection_type: str = ""
+    paclen: str = ""
+    window: str = ""
 
 
 class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
@@ -423,6 +444,12 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
     transport, or a second entry for hardware already found by a scan, is
     added from Settings (`F6`) > Transports > New (`TransportEntryScreen`);
     this only lists whatever is already configured there.
+
+    "Paclen"/"Window", unlike frequency and connection type, are NOT just a
+    reminder -- see `addressbook.Entry.paclen`/`window`. They are exactly
+    `ax25.session.LinkParams.paclen`/`window`, so the placeholders describe
+    what leaving them blank does (fall back to Settings' global paclen/
+    window) rather than repeating field names the operator can already see.
     """
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
@@ -436,6 +463,8 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         script_name: str = "",
         frequency: str = "",
         connection_type: str = "",
+        paclen: str = "",
+        window: str = "",
         credentials: list[dict] | None = None,
         scripts: list[dict] | None = None,
         transports: list[dict] | None = None,
@@ -448,6 +477,8 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         self._script_name = script_name
         self._frequency = frequency
         self._connection_type = connection_type
+        self._paclen = paclen
+        self._window = window
         self.credentials = credentials or []
         self.scripts = scripts or []
         self.transports = transports or []
@@ -476,6 +507,17 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
                     id="addressbook-connection-type",
                     allow_blank=True,
                     prompt="Connection type",
+                )
+            with Horizontal(id="addressbook-link-row"):
+                yield Input(
+                    value=self._paclen,
+                    placeholder="Paclen (optional, default from Settings)",
+                    id="addressbook-paclen",
+                )
+                yield Input(
+                    value=self._window,
+                    placeholder="Window/k (optional, default from Settings)",
+                    id="addressbook-window",
                 )
             yield Label("", id="connect-error")
             yield Label("Auto-login (optional)", id="connect-script-title")
@@ -595,9 +637,23 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         connection_type = (
             str(type_value) if type_value and type_value is not Select.NULL else ""
         )
+        paclen = self.query_one("#addressbook-paclen", Input).value.strip()
+        window = self.query_one("#addressbook-window", Input).value.strip()
+        link_error = _validate_link_params(paclen, window)
+        if link_error:
+            self.query_one("#connect-error", Label).update(f"[red]{link_error}[/red]")
+            return
         self.dismiss(
             AddressBookEdit(
-                text, script, hops, credential, script_name, frequency, connection_type
+                text,
+                script,
+                hops,
+                credential,
+                script_name,
+                frequency,
+                connection_type,
+                paclen,
+                window,
             )
         )
 

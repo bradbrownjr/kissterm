@@ -108,6 +108,18 @@ class Entry:
     #: since renamed or removed) -- that is not an error, just a stale note
     #: kept around rather than silently discarded.
     connection_type: str = ""
+    #: Per-station overrides for `ax25.session.LinkParams.paclen`/`window`,
+    #: kept as strings (like `frequency`) because they come straight out of
+    #: an `Input` widget -- empty means "use `Config.paclen`/`window`",
+    #: which is what every entry has until an operator sets one from the
+    #: Address Book editor. Unlike `frequency`/`connection_type` these are
+    #: NOT purely informational: `KissTermApp.action_connect` reads them and
+    #: passes them to `AX25Station.connect` as real per-link overrides, for
+    #: the one node on an otherwise-fast LAN that needs tuning down, or the
+    #: HF station reached through an otherwise-VHF setup. Set only from the
+    #: Address Book editor, same as `frequency` -- see `AddressBook.upsert`.
+    paclen: str = ""
+    window: str = ""
 
     @property
     def summary(self) -> str:
@@ -170,6 +182,8 @@ class AddressBook:
                     script_name=str(item.get("script_name", "")),
                     frequency=str(item.get("frequency", "")),
                     connection_type=str(item.get("connection_type", "")),
+                    paclen=str(item.get("paclen", "")),
+                    window=str(item.get("window", "")),
                 )
             )
         self.entries = entries[:MAX_ENTRIES]
@@ -236,6 +250,8 @@ class AddressBook:
         script_name: str = "",
         frequency: str = "",
         connection_type: str = "",
+        paclen: str = "",
+        window: str = "",
         original_target: str = "",
     ) -> Entry:
         """Create or hand-edit an entry directly -- the Address Book pane,
@@ -269,6 +285,8 @@ class AddressBook:
         entry.script_name = script_name
         entry.frequency = frequency
         entry.connection_type = connection_type
+        entry.paclen = paclen
+        entry.window = window
         self.save()
         return entry
 

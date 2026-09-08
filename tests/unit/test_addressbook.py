@@ -96,6 +96,8 @@ def test_upsert_creates_an_entry_with_no_attempts(book):
         hops="N1QFY",
         frequency="146.520 MHz",
         connection_type="1200 AFSK",
+        paclen="128",
+        window="2",
     )
     entry = book.entries[0]
     assert entry.target == "WS1EC-7"
@@ -103,6 +105,8 @@ def test_upsert_creates_an_entry_with_no_attempts(book):
     assert entry.hops == "N1QFY"
     assert entry.frequency == "146.520 MHz"
     assert entry.connection_type == "1200 AFSK"
+    assert entry.paclen == "128"
+    assert entry.window == "2"
     assert entry.attempts == 0
     assert entry.connects == 0
 
@@ -117,6 +121,16 @@ def test_record_attempt_never_touches_frequency_or_connection_type(book):
     entry = book.entries[0]
     assert entry.frequency == "146.520 MHz"
     assert entry.connection_type == "1200 AFSK"
+
+
+def test_record_attempt_never_touches_paclen_or_window(book):
+    """Same rule as frequency/connection_type -- these are only ever set
+    from the Address Book editor, not the quick Connect dialog."""
+    book.upsert("WS1EC-7", paclen="128", window="2")
+    book.record_attempt("WS1EC-7", script="CLYDE")
+    entry = book.entries[0]
+    assert entry.paclen == "128"
+    assert entry.window == "2"
 
 
 def test_find_matches_case_insensitively_and_does_not_touch_the_entry(book):
@@ -168,6 +182,7 @@ def test_the_list_is_capped(book):
 
 def test_it_survives_a_round_trip(tmp_path):
     first = AddressBook(tmp_path / "addressbook.json")
+    first.upsert("WS1EC-15", paclen="128", window="2")
     first.record_attempt("WS1EC-15", script="C WS1EC-15\nCLYDE")
     first.record_attempt("W1LH-6", hops="N1QFY, AB1KI-15", credential="Personal BBS login")
     first.record_connect("W1AW-1")
@@ -179,6 +194,8 @@ def test_it_survives_a_round_trip(tmp_path):
     assert second.entries[1].hops == "N1QFY, AB1KI-15"
     assert second.entries[1].credential == "Personal BBS login"
     assert second.entries[2].script == "C WS1EC-15\nCLYDE"
+    assert second.entries[2].paclen == "128"
+    assert second.entries[2].window == "2"
 
 
 def test_a_missing_file_is_not_an_error(tmp_path):
