@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.44"
+version = "0.1.45"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -47,7 +47,14 @@ ble = ["bleak"]
 # paramiko, which would need the same executor bridge serial_kiss.py uses
 # for pyserial. See transport/ssh.py.
 ssh = ["asyncssh"]
-dev = ["pytest", "pytest-asyncio", "asyncssh"]
+# aprslib (GPLv2) is test-only, never imported at runtime -- kissterm is MIT
+# and a runtime dependency on GPL code would put a copyleft obligation on
+# anyone distributing kissterm (relevant for the PyPI/Debian packaging
+# roadmap items). It exists purely as an independent cross-check for
+# kissterm/aprs/mice.py: found and fixed a real bug in 0.1.44 (an inverted
+# message-status table) that this codebase's own self-consistent fixtures
+# could never have caught. See tests/unit/test_aprs_mice_cross_check.py.
+dev = ["pytest", "pytest-asyncio", "asyncssh", "aprslib"]
 all = ["pyserial-asyncio-fast", "bleak", "asyncssh"]
 
 [project.scripts]

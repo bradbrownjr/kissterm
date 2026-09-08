@@ -28,19 +28,24 @@ What P1 deliberately did **not** settle:
       `--log-level debug` output.
 - [x] **Verify APRS Mic-E against a real captured packet.** DONE
       (2026-09-08) -- see CHANGELOG, and see `kissterm/aprs/mice.py`'s
-      module docstring for the full account. **Found and fixed a real bug**:
-      `_MICE_MESSAGES` shipped with every bit pattern inverted, so a normal
-      "Off Duty" beacon decoded as "Emergency" and vice versa -- caught by
-      capturing ~30 real Mic-E frames from ~7 distinct New England stations
-      via a standalone sniffer against the operator's real UZ7HO SoundModem
-      feed, noticing the decode was implausible (mostly "Emergency"/
-      "Priority", never the near-universal "Off Duty" default), and
-      confirming against `aprslib` (an independent, mature reference
-      implementation) that the bit pattern -> text mapping was exactly
-      backwards. Position/lat/lon/N-S/longitude-offset/E-W were separately
-      confirmed correct: a real "Oxford County EOC" (W1OCA) beacon decoded
-      to within ~150m of that office's real street address after
-      geocoding.
+      module docstring for the full account. **Found and fixed two real
+      bugs**: `_MICE_MESSAGES` shipped with every bit pattern inverted, so a
+      normal "Off Duty" beacon decoded as "Emergency" and vice versa --
+      caught by capturing ~30 real Mic-E frames from ~7 distinct New England
+      stations via a standalone sniffer against the operator's real UZ7HO
+      SoundModem feed, noticing the decode was implausible, and confirming
+      against `aprslib` that the bit pattern -> text mapping was exactly
+      backwards. A second, narrower bug in the N/S/longitude-offset/E-W
+      flags (which read the wrong bit for an A-K-range destination
+      character) was then caught by the new automated cross-check
+      (`tests/unit/test_aprs_mice_cross_check.py`) rather than by a further
+      capture -- no real transmitter puts an A-K letter there, so it never
+      showed up on the air. Position/lat/lon were separately confirmed
+      correct against real traffic: a real "Oxford County EOC" (W1OCA)
+      beacon decoded to within ~150m of that office's real street address
+      after geocoding. `aprslib` (GPLv2) is now a test-only dev dependency
+      used purely for this kind of cross-check -- never imported at
+      runtime, so it carries no licensing weight for kissterm (MIT) itself.
 - [ ] **Verify the compressed-position `{` cs-byte** (implemented as a
       pre-calculated range in `Position.precalc_range_mi`, not as altitude)
       against a live APRS-IS feed. `kissterm/aprs/position.py`. Small.

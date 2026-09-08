@@ -3,7 +3,7 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
-## [2026-09-08] — Mic-E verified against real traffic; found and fixed an inverted message-status table
+## [2026-09-08] — Mic-E verified against real traffic; found and fixed two decode bugs; added an independent cross-check to the test suite
 
 ### Bug fixes
 - **`kissterm/aprs/mice.py`'s `_MICE_MESSAGES` table had every bit pattern
@@ -22,13 +22,39 @@ touched and any breaking notes.
   maps `(1,1,1)` to "Off Duty" and `(0,0,0)` to "Emergency". Re-decoding all
   ~30 captures against the corrected table turned every implausible
   "Emergency"/"Priority" into a mundane, station-consistent "Off Duty"/
-  "En Route"/"In Service". The two existing test fixtures in
-  `tests/unit/test_aprs.py` were hand-built against this same, then-wrong
-  table, so they agreed with the bug instead of catching it -- corrected
-  their expected text and added a new dedicated `test_mic_e_emergency_message`
-  so the Emergency case (the one entry that must never be confused with a
-  routine status) stays under direct test. **Files:** `kissterm/aprs/mice.py`,
-  `tests/unit/test_aprs.py`.
+  "En Route"/"In Service".
+- **N/S, the longitude-offset flag, and E/W had a second, narrower bug**,
+  found immediately after while building the automated cross-check below
+  rather than by a new capture: these three flags were read off the same
+  generic "letter = flag set" bit the 3-bit message code uses, but the real
+  flag is set by the CUSTOM-range letters (P-Y/Z) specifically -- an A-K
+  letter there should read as flag-clear, same as a digit. No real capture
+  exposed this (a correctly-encoding transmitter never puts an A-K letter
+  in positions 4-6, so the two rules happened to agree on every real frame
+  seen so far), but the parametrized cross-check below caught it
+  immediately once it exercised that combination. Confirmed against both
+  `aprslib` and Direwolf's `decode_aprs.c` before fixing it.
+  The existing hand-built fixtures in `tests/unit/test_aprs.py` were
+  regenerated to use real, correctly-encoded destination bytes (previously
+  they used A-K letters for the N/S/E-W flags, which is itself not
+  something a real encoder produces) and their expected text corrected; a
+  new `test_mic_e_emergency_message` keeps the Emergency case under direct
+  test. **Files:** `kissterm/aprs/mice.py`, `tests/unit/test_aprs.py`.
+
+### New Features
+- **`tests/unit/test_aprs_mice_cross_check.py`: an automated, independent
+  cross-check for the Mic-E decoder**, added specifically because the two
+  bugs above showed this file's own hand-built fixtures cannot catch a bug
+  they were built to agree with. Generates Mic-E frames from first
+  principles (an encoder independent of anything in `kissterm/aprs/`) across
+  every message bit pattern, both codesets, and five lat/lon/hemisphere
+  combinations (including the longitude +100 offset branch), and decodes
+  each one through both `parse_mic_e` and `aprslib.parsing.mice.parse_mice`,
+  asserting agreement. `aprslib` is GPLv2 and stays a **test-only** dev
+  dependency -- never imported at runtime -- so it puts no copyleft
+  obligation on kissterm (MIT) or anyone distributing it; see the `dev`
+  extra's comment in `pyproject.toml`. **Files:** `pyproject.toml`,
+  `tests/unit/test_aprs_mice_cross_check.py`.
 
 ### Verification
 - **Mic-E position decode (lat/lon, N/S, longitude offset, E/W) is now

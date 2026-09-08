@@ -20,11 +20,14 @@ The most error-prone details, if this ever needs a fix:
     (subtract 800 / 400 respectively above their max) are both easy to get
     subtly backwards; `tests/unit/test_aprs.py`'s two hemisphere-combination
     tests exist specifically to catch that class of bug.
-  - **Position, N/S, longitude-offset, and E/W were verified against real
-    captured traffic on 2026-09-08**: kissterm's decode of a real "Oxford
-    County EOC" Mic-E beacon (W1OCA) matched that office's real street
-    address (26 Western Avenue, South Paris, ME) to within ~150m after
-    independent geocoding -- see docs/CHANGELOG.md. Trust this part.
+  - **Position and hemisphere math were confirmed against real captured
+    traffic on 2026-09-08**: kissterm's decode of a real "Oxford County EOC"
+    Mic-E beacon (W1OCA) matched that office's real street address (26
+    Western Avenue, South Paris, ME) to within ~150m after independent
+    geocoding -- see docs/CHANGELOG.md. That capture, like every other real
+    Mic-E frame captured in the same session, only ever used CUSTOM-range
+    (P-Y/Z) letters in positions 4-6 -- which is what a correctly-encoding
+    real transmitter always does (see the next bullet for why).
   - **`_MICE_MESSAGES` was wrong until the same session and is now fixed.**
     It shipped with every bit pattern inverted -- `(1,1,1)` was mapped to
     "Emergency" and `(0,0,0)` to "Off Duty", the exact opposite of the real
@@ -41,11 +44,30 @@ The most error-prone details, if this ever needs a fix:
     actually send. This was a live bug in a tool that could plausibly be
     used to watch for a real Mic-E emergency flag; a bit-inverted table
     means it would have shown routine traffic as emergencies and missed a
-    real one. Any future change to this table needs the same kind of
-    independent cross-check, not just self-consistency with this file's own
-    tests -- the old, wrong fixtures in `tests/unit/test_aprs.py` were
-    hand-built against this same, then-wrong, table and could not have
-    caught it.
+    real one.
+  - **N/S, the longitude-offset flag, and E/W had a second, narrower bug**,
+    found immediately after the one above while building an automated
+    cross-check (`tests/unit/test_aprs_mice_cross_check.py`) rather than by
+    a new live capture: these three flags were read from the same generic
+    per-character `bit` value positions 1-3 use (letter = 1, digit = 0,
+    regardless of A-K vs P-Y/Z), but the real flag is set by the
+    CUSTOM-range letters (P-Y/Z) specifically -- an A-K letter there must
+    read as flag-clear, same as a plain digit, confirmed against both
+    `aprslib` and Direwolf's `decode_aprs.c`. No real capture ever exposed
+    this: a correctly-encoding transmitter never legitimately puts an A-K
+    letter in positions 4-6 (there is no std-vs-custom *table* choice to
+    signal for a single flag bit the way there is for the 3-bit message
+    code), so `bit == 1` and `codeset == "custom"` agree on every real
+    frame this codebase has ever seen and would only diverge on a
+    malformed or synthetic one. Fixed by keying these three flags off
+    `codeset == "custom"` instead of the generic bit.
+  - **Any future change to this file needs the same kind of independent
+    cross-check** (`tests/unit/test_aprs_mice_cross_check.py`, which
+    generates frames from first principles and decodes them through both
+    kissterm and `aprslib`), not just self-consistency with hand-built
+    fixtures -- the original fixtures in `tests/unit/test_aprs.py` were
+    hand-built against this file's own (then-wrong) formulas twice over and
+    could not have caught either bug on their own.
 
 Like every other parser in this package, `parse_mic_e` must be safe to call
 from `parse.py`'s dispatcher without a caller-side try/except: it is free to
@@ -128,11 +150,21 @@ def parse_mic_e(info: bytes, dest_callsign: str | None) -> Position:
     min_int = int(_z(digits[2]) + _z(digits[3]))
     min_frac = int(_z(digits[4]) + _z(digits[5]))
     lat = deg + (min_int + min_frac / 100) / 60
-    north = bits[3] == 1
+    # N/S, longitude-offset, and E/W are flagged by the CUSTOM-range letters
+    # (P-Y/Z) specifically, not "any letter" -- unlike positions 1-3, where
+    # both A-K and P-Y letters carry a message bit. A real encoder never
+    # legitimately puts an A-K letter in positions 4-6 (there is no "custom
+    # vs standard" choice to make for a single flag bit), so `bits[i] == 1`
+    # happened to agree with this on every real frame captured so far -- but
+    # it silently gets N/S backwards for the A-K case, caught only by
+    # cross-checking `aprslib`'s independent `ord(char) <= ord('L')`
+    # threshold, which is exactly equivalent to `codeset == "custom"` across
+    # the whole valid character set. See the module docstring.
+    north = codesets[3] == "custom"
     if not north:
         lat = -lat
-    long_offset = bits[4] == 1
-    west = bits[5] == 1
+    long_offset = codesets[4] == "custom"
+    west = codesets[5] == "custom"
 
     msg_bits = (bits[0], bits[1], bits[2])
     msg_codeset = next((cs for cs in codesets[0:3] if cs != "digit"), "std")
