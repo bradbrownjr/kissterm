@@ -132,6 +132,19 @@ node.
   the box went from some other tab. **Files:** `kissterm/ui/terminal_pane.py`,
   `kissterm/ui/app.py`, `kissterm/ui/styles.py`,
   `tests/pilot/test_terminal_find.py`.
+- **Paste protection on the send line.** A paste is sanitized before it
+  reaches the box a plain Enter would transmit -- the opposite direction
+  from `ansi.py`'s remote-to-local filtering, protecting the channel from
+  the operator's own clipboard instead of the screen from the far end.
+  `Input`'s own paste handler already keeps only the first line of a
+  multi-line paste, but silently; `_SendInput._on_paste` now says so, and
+  additionally strips C0/C1 control bytes (a binary clipboard, or a copied
+  terminal session, could otherwise put bytes on the air that look exactly
+  like something the operator typed) and caps a single line at 512
+  characters, since a paclen of 256 turns one long pasted line into many I
+  frames with no way to take the Enter back once it is pressed. Any of the
+  three triggers a warning notification naming what changed. **Files:**
+  `kissterm/ui/terminal_pane.py`, `tests/pilot/test_paste_protection.py`.
 
 ## [2026-09-07] — "They got it, they're just not answering" is now on screen
 

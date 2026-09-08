@@ -50,13 +50,6 @@ What P1 deliberately did **not** settle, and is now the top of the queue:
   since they read from the transport, not from any one session. Touches
   `kissterm/app.py` (tab management) and probably a `SessionManager` to keep
   `ax25/session.py` from needing to know about the UI. Medium-large.
-- [ ] **Paste protection.** A bracketed-paste-style guard so a large or
-  binary paste into a connected session doesn't get sent a keystroke at a
-  time in a way that floods a slow RF link or triggers a remote command
-  injection via embedded control characters. Small: the filtering primitives
-  it shares now exist in `kissterm/ansi.py`, but note the direction is the
-  opposite one -- that module protects the *local* terminal from remote
-  bytes, and this protects the *channel* from a local paste.
 - [ ] **Configurable paclen/window per link.** `DEFAULT_PACLEN` and
   `DEFAULT_WINDOW` in `kissterm/ax25/frame.py` are link-wide constants today;
   make them per-connection settings the state machine reads instead, so a

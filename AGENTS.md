@@ -681,6 +681,17 @@ Gotchas that already cost time:
   text is a spoofing primitive.
 - **A transcript gets fully stripped text, never the coloured form.** `cat` on
   a log file runs whatever escapes it contains.
+- **A paste is sanitized before it reaches the send line, not just before
+  display.** `_SendInput._on_paste` (`kissterm/ui/terminal_pane.py`) is the
+  mirror image of the rule above: it protects the *channel* from the
+  operator's own clipboard rather than the screen from the far end --
+  stripping C0/C1 control bytes, keeping only the first line of a
+  multi-line paste, and capping length, all before `send_line` can ever see
+  the text. Textual's own dispatcher calls every class's own message
+  handler in the MRO for one message, `Input`'s included, so this method
+  mutates `event.text` and returns -- it must never call
+  `super()._on_paste(event)` itself, which would run `Input`'s
+  insert-at-cursor logic a second time and double whatever was pasted.
 - **A log that cannot be written must never disturb a live link.**
   `session_log.py` catches `OSError` everywhere and degrades to a no-op. A
   full disk taking a station off the air mid-net is a regression an operator

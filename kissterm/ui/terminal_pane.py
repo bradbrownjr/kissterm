@@ -39,6 +39,17 @@ substring, so what is displayed and what would open can never differ. Remote
 text is not permitted to supply markup of its own -- notably including OSC 8,
 the terminal hyperlink sequence, which is exactly a way to display one address
 and open another and is removed with the rest of OSC.
+
+**A paste is filtered before it reaches the send line, not after.** This is
+the opposite direction from the filtering above: `ansi.py` protects the local
+screen from what a remote station sends, and `_SendInput._on_paste` protects
+the channel from what the operator's own clipboard hands to `send_line`.
+Textual enables bracketed paste for the whole app, so a paste always arrives
+as one `events.Paste` rather than simulated keystrokes -- but `Input`'s own
+handler silently keeps only the first line and nothing caps its length or
+strips control bytes a binary or multi-line clipboard can carry, and a paclen
+of 256 turns one long pasted line into many I frames with no way to take the
+Enter back once it is pressed.
 """
 
 from __future__ import annotations
@@ -46,7 +57,7 @@ from __future__ import annotations
 import re
 
 from rich.text import Text
-from textual import on
+from textual import events, on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
@@ -79,6 +90,22 @@ def linkify(text: str | Text) -> Text:
     return result
 
 
+#: A pasted line longer than this is not a command or a chat line, it is a
+#: flood: fragmented into I frames at the default 256-byte `paclen`, a paste
+#: this size still ties up a slow VHF/HF link for a long time after one Enter
+#: press the operator cannot take back. Two default frames' worth is still
+#: generous for anything a person actually typed with intent.
+_MAX_PASTE_CHARS = 512
+
+#: C0/C1 control bytes, minus nothing -- unlike `_CONTROL_RE` in `ansi.py`
+#: this is a single-line send box, so there is no tab/LF/CR to preserve. A
+#: byte in this set from a binary clipboard or a copied terminal session
+#: would otherwise ride out to the far end looking exactly like something
+#: the operator typed, which is the "remote command injection" half of what
+#: paste protection guards against.
+_PASTE_CONTROL_RE = re.compile("[\x00-\x1f\x7f-\x9f]")
+
+
 class _SendInput(Input):
     """The outgoing-message box -- Input's own "enter" binding, plus a
     defensive net around it.
@@ -104,6 +131,43 @@ class _SendInput(Input):
         Binding("ctrl+enter", "submit", show=False),
         Binding("alt+enter", "submit", show=False),
     ]
+
+    def _on_paste(self, event: events.Paste) -> None:
+        """Sanitize a paste before `Input`'s own handler ever sees it.
+
+        `Input._on_paste` already keeps only the first line -- but silently,
+        which is the wrong kind of silent for a channel that costs airtime:
+        an operator who pastes a multi-line block deserves to be told only
+        one line is going anywhere, not to discover it after the fact.
+
+        Mutates `event.text` and returns WITHOUT calling `Input`'s own
+        `_on_paste` -- Textual's dispatcher (`MessagePump._on_message`)
+        walks the whole MRO and calls every class's own handler for a
+        message, `Input`'s included, so `super()._on_paste(event)` here
+        would run the insert-at-cursor/replace-selection logic a second
+        time and double whatever this method left in `event.text`. This
+        method only narrows the event; it never puts anything on the air
+        itself.
+        """
+        if not event.text:
+            return
+        lines = event.text.splitlines()
+        first_line = lines[0] if lines else ""
+        notices = []
+        if len(lines) > 1:
+            notices.append("only the first line was kept")
+        cleaned = _PASTE_CONTROL_RE.sub("", first_line)
+        if cleaned != first_line:
+            notices.append("control characters were removed")
+        if len(cleaned) > _MAX_PASTE_CHARS:
+            cleaned = cleaned[:_MAX_PASTE_CHARS]
+            notices.append(f"cut to {_MAX_PASTE_CHARS} characters")
+        event.text = cleaned
+        if notices:
+            self.app.notify(
+                "Paste protection: " + "; ".join(notices) + ". Enter still sends it.",
+                severity="warning",
+            )
 
 
 class TerminalPane(Container):
