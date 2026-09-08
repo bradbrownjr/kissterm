@@ -292,9 +292,12 @@ no hop chain: the byte stream *is* the session from the moment it connects,
 exactly the way SyncTERM or a plain `telnet`/`ssh` client already reaches
 this kind of node.
 
-Neither is found by "Scan for hardware" — that only sweeps your own LAN —
-so add the entry by hand in `config.toml` (see the worked examples in
-`config.toml.example`), then pick it in Settings (`F6`) > Transports:
+Neither is found by "Scan for hardware" — that only sweeps your own LAN, and
+neither one is hardware to begin with. Add the entry from Settings (`F6`) >
+Transports > New, which asks for exactly these fields, or by hand in
+`config.toml` (see the worked examples in `config.toml.example`) if you
+prefer to edit text directly — either way it shows up the same in Settings
+(`F6`) > Transports:
 
 ```toml
 [[transports]]
@@ -326,6 +329,29 @@ address-book entry involved. If the node needs a further hop once you're in
 (a `C` command to a node beyond the one you landed on), type it by hand the
 same as you would on any other terminal — that has always worked and needs
 nothing special from this transport.
+
+**Auto-login.** Add `script` (inline text) or `credential` (a name from
+`[[credentials]]`) to the transport entry and it's sent, one line at a time,
+right after connecting — the same auto-login an address-book entry gives a
+regular AX.25 connect, just attached to the transport instead of a
+per-attempt dialog, since this kind of connect has no dialog. `credential`
+wins if both are set. This is the WS1EC shape from the top of this
+section: the SSH login above only gets you the shell account, and that
+shell then runs its own local `telnet` into the real BPQ node, which
+prompts again for a packet callsign and password. A script's last line can
+be a `C <node>` command too, so one script both logs in and reaches the
+actual service from the node prompt, same as typing that hop by hand:
+
+```toml
+[[transports]]
+name = "ws1ec"
+kind = "ssh"
+host = "ws1ec.mainepacketradio.org"
+port = 4122
+username = "packet"
+password = ""
+script = "MYCALL\nMYPASS\nC BBS"
+```
 
 ## 7. First run
 

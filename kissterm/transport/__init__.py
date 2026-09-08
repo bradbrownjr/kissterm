@@ -38,15 +38,48 @@ from .base import (
 __all__ = [
     "FrameHandler",
     "FrameTransport",
+    "FRAME_TIER_KINDS",
+    "KIND_LABELS",
     "Session",
     "SessionState",
     "SessionTransport",
+    "SESSION_TIER_KINDS",
     "Transport",
     "TransportError",
     "TransportInfo",
     "TransportState",
     "build_transport",
 ]
+
+#: A config `kind` string, as an operator-facing name -- what the Address
+#: Book's "Connection type" picker and the Settings transport list show
+#: instead of the raw config keyword. One place, so the two do not drift
+#: apart the way a name typed twice always eventually does.
+KIND_LABELS: dict[str, str] = {
+    "serial": "Serial KISS",
+    "tcp": "TCP KISS",
+    "agwpe": "AGWPE",
+    "bluetooth": "Bluetooth KISS",
+    "kernel": "Kernel AX.25",
+    "vara": "VARA HF",
+    "varafm": "VARA FM",
+    "mercury": "Mercury",
+    "telnet": "Telnet",
+    "ssh": "SSH",
+}
+
+#: Which `kind` values are `FrameTransport`s (kissterm runs its own AX.25
+#: state machine on top) versus `SessionTransport`s (already-connected byte
+#: stream, no AX.25 framing at all) -- see `AGENTS.md` section 2a, "the two
+#: transport tiers". Used wherever something needs to offer only same-tier
+#: alternatives, e.g. the Connect dialog's transport picker
+#: (`KissTermApp.action_connect`): switching which frame-tier modem is
+#: active is a live `AX25Station.rebind_transport` call, but switching
+#: TIERS while running needs monitor/heard/beacon/status-bar all rewired to
+#: a different kind of thing entirely, which nothing here supports doing
+#: live -- only a restart does, with the new one selected.
+FRAME_TIER_KINDS = frozenset({"serial", "tcp", "agwpe", "bluetooth"})
+SESSION_TIER_KINDS = frozenset({"kernel", "vara", "varafm", "mercury", "telnet", "ssh"})
 
 #: Keys that describe the config ENTRY rather than the transport, and so must
 #: never reach a constructor.
@@ -59,7 +92,13 @@ __all__ = [
 #: a program gets. Everything NOT listed here is still forwarded, so a typo in
 #: a real setting still surfaces loudly as a TypeError instead of being
 #: silently dropped.
-_ENTRY_ONLY_KEYS = frozenset({"kind", "name"})
+#:
+#: `script`/`credential`/`script_name` are the same idea: an optional
+#: post-connect auto-login belongs to the ENTRY (what this WS1EC login
+#: needs), not to any transport class's wire-level constructor -- see
+#: `Transport.script`'s docstring in `base.py`. `_named` below copies them
+#: onto the built transport instead of forwarding them as keywords.
+_ENTRY_ONLY_KEYS = frozenset({"kind", "name", "script", "credential", "script_name"})
 
 #: Config ``kind`` values `build_transport` accepts, kept as a tuple (rather
 #: than derived from a dict of already-imported classes) precisely so this
@@ -105,70 +144,86 @@ def build_transport(config: dict[str, Any]) -> Transport:
 
     kwargs = {k: v for k, v in config.items() if k not in _ENTRY_ONLY_KEYS}
     label = config.get("name")
+    script = str(config.get("script", "") or "")
+    credential = str(config.get("credential", "") or "")
+    script_name = str(config.get("script_name", "") or "")
 
     if kind == "serial":
         from .serial_kiss import SerialKissTransport
 
-        return _named(SerialKissTransport(**kwargs), label)
+        return _named(SerialKissTransport(**kwargs), label, script, credential, script_name)
 
     if kind == "tcp":
         from .tcp_kiss import TcpKissTransport
 
-        return _named(TcpKissTransport(**kwargs), label)
+        return _named(TcpKissTransport(**kwargs), label, script, credential, script_name)
 
     if kind == "agwpe":
         from .agwpe import AgwpeTransport
 
-        return _named(AgwpeTransport(**kwargs), label)
+        return _named(AgwpeTransport(**kwargs), label, script, credential, script_name)
 
     if kind == "bluetooth":
         from .bluetooth import BluetoothKissTransport
 
-        return _named(BluetoothKissTransport(**kwargs), label)
+        return _named(BluetoothKissTransport(**kwargs), label, script, credential, script_name)
 
     if kind == "kernel":
         from .kernel_ax25 import KernelAx25Transport
 
-        return _named(KernelAx25Transport(**kwargs), label)
+        return _named(KernelAx25Transport(**kwargs), label, script, credential, script_name)
 
     if kind == "vara":
         from .vara import VaraHfTransport
 
-        return _named(VaraHfTransport(**kwargs), label)
+        return _named(VaraHfTransport(**kwargs), label, script, credential, script_name)
 
     if kind == "varafm":
         from .vara import VaraFmTransport
 
-        return _named(VaraFmTransport(**kwargs), label)
+        return _named(VaraFmTransport(**kwargs), label, script, credential, script_name)
 
     if kind == "mercury":
         from .mercury import MercuryTransport
 
-        return _named(MercuryTransport(**kwargs), label)
+        return _named(MercuryTransport(**kwargs), label, script, credential, script_name)
 
     if kind == "telnet":
         from .telnet import TelnetTransport
 
-        return _named(TelnetTransport(**kwargs), label)
+        return _named(TelnetTransport(**kwargs), label, script, credential, script_name)
 
     if kind == "ssh":
         from .ssh import SshTransport
 
-        return _named(SshTransport(**kwargs), label)
+        return _named(SshTransport(**kwargs), label, script, credential, script_name)
 
     # Unreachable: _VALID_KINDS and the branches above are kept in sync, but
     # fail loudly rather than falling through to `None` if they ever drift.
     raise AssertionError(f"transport kind {kind!r} listed as valid but not dispatched")
 
 
-def _named(transport: Transport, label: str | None) -> Transport:
-    """Let the config entry's `name` win over the class's derived one.
+def _named(
+    transport: Transport,
+    label: str | None,
+    script: str = "",
+    credential: str = "",
+    script_name: str = "",
+) -> Transport:
+    """Let the config entry's `name` win over the class's derived one, and
+    carry over its optional post-connect auto-login.
 
     The operator named this entry, `active_transport` matches on that name,
     and the status bar shows it -- so the transport agreeing with the config
     is what keeps "which one am I on?" answerable from one string instead of
-    two that can differ.
+    two that can differ. `script`/`credential`/`script_name` ride along the
+    same way, for the same reason: they belong to the config entry, and this
+    is the one place that entry's fields land on the built object -- see
+    `Transport.script`'s docstring.
     """
     if label:
         transport.info.name = label
+    transport.script = script
+    transport.credential = credential
+    transport.script_name = script_name
     return transport

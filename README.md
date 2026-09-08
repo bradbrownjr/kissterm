@@ -120,7 +120,7 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   line. It starts **off**, so a fresh launch cannot transmit until you say so,
   and the status bar reads `TX OFF` for as long as that is true. A station
   meant to run unattended sets `tx_armed_at_start`. Asking to connect to a
-  named station (`Ctrl+N`) or to disconnect (`Ctrl+D`) **turns it on** rather
+  named station (`Ctrl+N`) or to disconnect (`Ctrl+Shift+D`) **turns it on** rather
   than being refused -- naming a station and confirming it is the clearest
   way an operator can ask to transmit, and the switch exists to stop the
   transmissions you did *not* ask for. It says so when it does: a
@@ -178,6 +178,14 @@ field saying whether it takes effect now, on the next connection, or at
 restart. "Scan for hardware" re-runs discovery from inside the app, so moving
 your Direwolf host to a new IP does not mean editing a TOML file.
 
+**"New" adds a transport a scan cannot find.** Discovery can only identify a
+KISS TNC or an AGWPE engine by probing it -- it has no way to invent a VARA
+modem's callsign, a Telnet host, or an SSH login nobody has typed yet. "New"
+in Settings > Transports opens a form for exactly those (and a second entry
+for hardware a scan already found); the fields shown change with the kind you
+pick, and a Telnet/SSH/VARA/Mercury entry gets the same auto-login section
+the Connect dialog has, sent right after that transport connects.
+
 **"Test selected" asks a configured host what it actually is.** Port 8000 and
 8001 are as popular with self-hosted web apps as with packet software, so a
 scan that matched on port number alone would offer you a media server as a
@@ -208,7 +216,7 @@ conversation, and swapping it mid-session would kill the link by timeout.
 | `Ctrl+T` | Enable / disable transmit -- the master switch |
 | `Ctrl+Shift+B` | Send one beacon now (see the tmux note below) |
 | `Ctrl+N` | Connect to a station (with a list of stations already tried) |
-| `Ctrl+D` | Disconnect |
+| `Ctrl+Shift+D` | Disconnect -- plain `Ctrl+D` also works except while a text field has focus, which is most of a session; see below |
 | `Ctrl+K` | Change your callsign |
 | `Ctrl+L` | Clear the active log |
 | `Ctrl+Q` | Quit |
@@ -227,6 +235,15 @@ The list lives in `addressbook.json` in your data directory, not in
 `config.toml` -- it is history, not settings, and nothing should rewrite a
 file you hand-edit.
 
+**If you have more than one transport of the same kind configured, the
+Connect dialog can switch between them before dialing** -- two KISS TNCs, or
+two Telnet/SSH hosts. With only one configured (the usual case) there is no
+dropdown to get in the way; with two or more, it defaults to whichever is
+active and switches live if you pick a different one. Switching TIERS this
+way -- a frame-tier KISS TNC to a session-tier Telnet/SSH/VARA host, or back
+-- is not supported live; Settings (`F6`) > Transports still needs a restart
+for that.
+
 **The Address Book tab (`F5`) is the same list, with room to manage it.**
 A table of every saved station -- add one in advance, fix a typo in its
 hop chain, or dial it directly (Enter or the Connect button) without
@@ -237,12 +254,21 @@ An entry can carry:
   exists, so kissterm connects to the first node and sends `C <node>` over
   that link for each remaining hop, waiting for its own CONNECTED reply
   before the next;
-- a **saved credential** (managed in Settings > Credentials) instead of its
-  own typed-out login, looked up fresh every connect so changing a password
-  once updates every station that points at it;
+- a **saved credential** (managed in Settings > Credentials) or a **saved
+  script** (Settings > Scripts) instead of its own typed-out login, looked
+  up fresh every connect so changing one updates every station that points
+  at it. The two are kept as separate lists on purpose: a credential is a
+  login, named for the account it belongs to; a script is any sequence of
+  commands sent after connecting -- a login followed by a node hop, a
+  mailbox check, whatever you do after every connect to some station --
+  named for what it does. A credential wins if both happen to be set;
 - a **frequency and connection type**, purely informational -- kissterm
   cannot tune a radio or start a modem for you, but it will ask you to
   confirm both are set before a connect that has them on file goes out.
+  Connection type picks from whatever you've already set up in
+  Settings (`F6`) > Transports (a TCP KISS TNC, VARA HF, a Telnet or SSH
+  node, ...), so it's a reminder that matches what you actually have
+  configured rather than a note you have to retype consistently by hand.
 
 **Running under tmux or screen?** The beacon is `Ctrl+Shift+B` rather than
 `Ctrl+B` because `Ctrl+B` is tmux's default prefix -- the multiplexer eats it
@@ -257,6 +283,16 @@ set -as terminal-features 'xterm*:extkeys'
 
 Outside a multiplexer, plain `Ctrl+B` still beacons, so a terminal that cannot
 distinguish the two keys at all is not left without the shortcut.
+
+**Why Disconnect is `Ctrl+Shift+D`, not plain `Ctrl+D`.** Textual's text
+fields (the outgoing-message box, the Connect dialog, every address-book
+field) already bind plain `Ctrl+D` to delete-the-character-right, and
+whichever one has focus wins -- which is most of a live session, since the
+outgoing box holds focus the whole time you are typing to the far station.
+`Ctrl+Shift+D` is not claimed by anything, so it disconnects no matter what
+has focus. Plain `Ctrl+D` still disconnects too, whenever focus happens to be
+somewhere that does not shadow it (the scrollback itself, say) -- it is a
+fallback, not a second, unreliable way to do the same thing.
 
 ## Command line
 
@@ -286,10 +322,20 @@ responses, so kissterm never reports them with the same words:
 
 The **Monitor tab (F2)** is the real instrument. It shows every frame in both
 directions, `>` for what you transmitted and `<` for what was heard, so you
-can see your SABM leave and watch for a reply. Supervisory frames (RR, RNR,
-REJ) are hidden by default because they are most of the traffic on a busy
-link and almost none of the information -- press **Supervisory** in the filter
-bar to show them when you are diagnosing retries.
+can see your SABM leave and watch for a reply -- including supervisory
+frames (RR, RNR, REJ), shown by default because on an ordinary one-to-one
+link an RR coming back is exactly the "did they get it" answer. On a busy
+multi-station link they can be most of the traffic and almost none of the
+information; the filter bar's **Supervisory** button (its label shows which
+state it's in) turns them back off for that case.
+
+**If you send a line and nothing comes back, kissterm says so.** Fifteen
+seconds after a send with no reply since, and only once the far end has
+actually acknowledged it at the AX.25 layer, a note appears: `<call>
+acknowledged that -- no reply yet`. That distinguishes "the link is fine and
+the node is just slow or silent" from "this never reached them" -- the two
+used to look identical unless you already knew to check the Monitor tab for
+a bare RR.
 
 For a record you can read afterwards or send to someone else:
 
@@ -368,7 +414,7 @@ only to tell you *why* nothing happened. A blocked transmission is counted, not
 raised, because AX.25 retransmission runs on timer callbacks where an exception
 has nowhere to go.
 
-Two keys are exempt, and only these two: `Ctrl+N` and `Ctrl+D`. Naming a
+Two keys are exempt, and only these two: `Ctrl+N` and `Ctrl+Shift+D`. Naming a
 station in the connect dialog and confirming it is an unambiguous request to
 key the radio, so it opens the gate instead of hitting a refusal that cannot
 be acted on. Disconnecting is the same, and skipping the DISC would leave the

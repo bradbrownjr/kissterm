@@ -116,6 +116,9 @@ async def test_ctrl_n_connects_directly_with_no_dialog():
             assert app.link.peer == f"{host}:{port}"
             text = _log_text(app)
             assert "Welcome to FAKE-NODE" in text, text
+            assert "Connected to" in text, text
+            assert app.transcript is not None
+            assert "Connected to" in app.transcript.path.read_text()
 
             # The single send path (TerminalPane.send_line) works unchanged.
             await app.query_one(TerminalPane).send_line("hello")
@@ -127,6 +130,118 @@ async def test_ctrl_n_connects_directly_with_no_dialog():
             await pilot.press("ctrl+d")
             await pilot.pause()
             await asyncio.sleep(0.2)
+    finally:
+        await transport.close()
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_n_offers_a_picker_with_two_session_transports():
+    """A second Telnet/SSH entry (the exact gap a real report asked about)
+    means Ctrl+N is no longer a non-choice -- `SessionTransportPickerScreen`
+    shows up, and picking the OTHER one connects to IT, not the one the app
+    happened to launch with."""
+    from kissterm.ui.dialogs import SessionTransportPickerScreen
+    from textual.widgets import Select
+
+    server_a = await asyncio.start_server(_fake_node, "127.0.0.1", 0)
+    server_b = await asyncio.start_server(_fake_node, "127.0.0.1", 0)
+    host, port_a = server_a.sockets[0].getsockname()[:2]
+    _, port_b = server_b.sockets[0].getsockname()[:2]
+
+    transport = TelnetTransport(host, port_a)
+    await transport.open()
+    config = Config(mycall="N1ABC-1")
+    config.tx_armed_at_start = True
+    config.transports = [
+        {"kind": "telnet", "name": "first", "host": host, "port": port_a},
+        {"kind": "telnet", "name": "second", "host": host, "port": port_b},
+    ]
+    config.active_transport = "first"
+    app = KissTermApp(config, station=None, session_transport=transport)
+    try:
+        async with app.run_test(size=(110, 32)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+n")
+            await pilot.pause()
+            assert isinstance(app.screen, SessionTransportPickerScreen)
+
+            app.screen.query_one("#connect-transport", Select).value = "second"
+            from textual.widgets import Button
+
+            app.screen.query_one("#connect-go", Button).press()
+            await asyncio.sleep(0.3)
+            await pilot.pause()
+
+            assert app.config.active_transport == "second"
+            assert app.link is not None and app.link.connected
+            assert app.link.peer == f"{host}:{port_b}", app.link.peer
+    finally:
+        await app.session_transport.close()
+        server_a.close()
+        server_b.close()
+        await server_a.wait_closed()
+        await server_b.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_connecting_runs_the_transports_own_auto_login():
+    """The WS1EC shape: a session transport's own `script` (or `credential`)
+    is sent right after connecting, same as an address-book entry's login
+    for a FrameTransport connect -- there is no per-attempt dialog on this
+    path to carry one, so it has to come from the transport itself. See
+    `Transport.script`'s docstring and `_connect_session_transport`."""
+    server = await asyncio.start_server(_fake_node, "127.0.0.1", 0)
+    host, port = server.sockets[0].getsockname()[:2]
+    transport = TelnetTransport(host, port)
+    transport.script = "MYCALL\nMYPASS"
+    await transport.open()
+    config = Config(mycall="N1ABC-1")
+    config.tx_armed_at_start = True
+    app = KissTermApp(config, station=None, session_transport=transport)
+    try:
+        async with app.run_test(size=(110, 32)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+n")
+            await pilot.pause()
+            await asyncio.sleep(0.5)
+            await pilot.pause()
+
+            text = _log_text(app)
+            assert "echo: MYCALL" in text, text
+            assert "echo: MYPASS" in text, text
+    finally:
+        await transport.close()
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_a_saved_credential_wins_over_a_transports_own_script():
+    """Same precedence as `ConnectRequest`/`AddressBookEdit`: a named
+    credential is authoritative over inline script text when both are set."""
+    server = await asyncio.start_server(_fake_node, "127.0.0.1", 0)
+    host, port = server.sockets[0].getsockname()[:2]
+    transport = TelnetTransport(host, port)
+    transport.script = "should not be sent"
+    transport.credential = "WS1EC login"
+    await transport.open()
+    config = Config(mycall="N1ABC-1")
+    config.tx_armed_at_start = True
+    config.credentials = [{"name": "WS1EC login", "text": "REALCALL\nREALPASS"}]
+    app = KissTermApp(config, station=None, session_transport=transport)
+    try:
+        async with app.run_test(size=(110, 32)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+n")
+            await pilot.pause()
+            await asyncio.sleep(0.5)
+            await pilot.pause()
+
+            text = _log_text(app)
+            assert "echo: REALCALL" in text, text
+            assert "should not be sent" not in text, text
     finally:
         await transport.close()
         server.close()

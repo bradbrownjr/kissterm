@@ -58,14 +58,14 @@ class Entry:
     attempts: int = 0
     connects: int = 0
     note: str = ""
-    #: An auto-login script for this station: lines sent, one at a time,
+    #: Literal auto-login text for this station: lines sent, one at a time,
     #: right after the connection comes up (see `KissTermApp._run_connect_
     #: script`). Empty means "connect only, send nothing automatically",
-    #: which is the default for every entry -- a script only exists here
-    #: because an operator typed one into the Connect dialog for this exact
-    #: station and it got saved alongside the target, the same way a typed
-    #: digipeater path does. Ignored when `credential` names a saved one
-    #: instead -- see that field.
+    #: which is the default for every entry -- this only holds text because
+    #: an operator typed something into the Connect dialog's box for this
+    #: exact station and it got saved alongside the target, the same way a
+    #: typed digipeater path does. The LAST of three sources checked, after
+    #: `credential` and `script_name` -- see those two fields.
     script: str = ""
     #: Comma-separated node callsigns to hop through BEFORE `target`, in
     #: order, for stations reached only node-to-node -- no digipeater path
@@ -77,11 +77,20 @@ class Entry:
     #: See `KissTermApp.action_connect`'s hop-chain handling.
     hops: str = ""
     #: The NAME of a saved credential (`Config.credentials`) to send instead
-    #: of `script`, looked up fresh at connect time -- see that field's
-    #: docstring for why this is a name, not a copy. Empty means "use
-    #: `script` literally", which is what every entry has until an operator
-    #: picks a saved credential from the Connect dialog's dropdown.
+    #: of `script`/`script_name`, looked up fresh at connect time -- see
+    #: `Config.credentials`'s docstring for why this is a name, not a copy,
+    #: and for why a credential is kept conceptually separate from a
+    #: script: a login is not the same thing as a command sequence, even
+    #: though both end up as a saved block of text sent line by line. FIRST
+    #: of three sources checked; empty means "try `script_name` next".
     credential: str = ""
+    #: The NAME of a saved script (`Config.scripts`) to send instead of the
+    #: literal `script` text, looked up fresh at connect time -- same
+    #: mechanism as `credential`, separate list. SECOND of three sources,
+    #: checked only when `credential` is empty; empty means "use `script`
+    #: literally", which is what every entry has until an operator picks a
+    #: saved script from a Connect/Address-Book dialog's dropdown.
+    script_name: str = ""
     #: Free text, e.g. ``"146.520 MHz"`` -- purely informational. kissterm
     #: does not control a radio, so this cannot tune anything; it exists so
     #: `KissTermApp.action_connect` can remind the operator what to set
@@ -89,9 +98,15 @@ class Entry:
     #: from the Address Book editor (`AddressBookEntryScreen` /
     #: `AddressBook.upsert`), never from the quick Connect dialog.
     frequency: str = ""
-    #: Free text, e.g. ``"1200 AFSK"`` or ``"VARA HF"`` -- what the operator
-    #: needs running or tuned before this station will answer. Same
-    #: informational-only role as `frequency`, and the same reminder.
+    #: The NAME of an entry in `Config.transports` (e.g. ``"ws1ec"``), picked
+    #: from a list of the operator's own configured transports rather than
+    #: typed -- `AddressBookEntryScreen._render_connection_types` shows each
+    #: as "name (kind)". Still purely informational, the same reminder role
+    #: as `frequency`: it does not change which transport a dial actually
+    #: uses. May also hold a value that matches no configured transport (a
+    #: note saved before this became a picklist, or one naming a transport
+    #: since renamed or removed) -- that is not an error, just a stale note
+    #: kept around rather than silently discarded.
     connection_type: str = ""
 
     @property
@@ -152,6 +167,7 @@ class AddressBook:
                     script=str(item.get("script", "")),
                     hops=str(item.get("hops", "")),
                     credential=str(item.get("credential", "")),
+                    script_name=str(item.get("script_name", "")),
                     frequency=str(item.get("frequency", "")),
                     connection_type=str(item.get("connection_type", "")),
                 )
@@ -177,23 +193,29 @@ class AddressBook:
 
     # -- the list ---------------------------------------------------------
     def record_attempt(
-        self, target: str, script: str = "", hops: str = "", credential: str = ""
+        self,
+        target: str,
+        script: str = "",
+        hops: str = "",
+        credential: str = "",
+        script_name: str = "",
     ) -> Entry:
         """Note that the operator asked to connect to `target`, and save.
 
-        `script`, `hops` and `credential` are whatever the Connect dialog's
-        matching fields held at submit time, including empty -- those fields
-        are the one place each can be entered or cleared, so what they held
-        is written back unconditionally rather than only when non-empty. A
-        deliberate blank removes a script/hop-chain/credential the operator
-        no longer wants, exactly the same way typing over the target field
-        changes it.
+        `script`, `hops`, `credential` and `script_name` are whatever the
+        Connect dialog's matching fields held at submit time, including
+        empty -- those fields are the one place each can be entered or
+        cleared, so what they held is written back unconditionally rather
+        than only when non-empty. A deliberate blank removes a script/hop-
+        chain/credential/saved-script the operator no longer wants, exactly
+        the same way typing over the target field changes it.
         """
         entry = self._touch(target)
         entry.attempts += 1
         entry.script = script
         entry.hops = hops
         entry.credential = credential
+        entry.script_name = script_name
         self.save()
         return entry
 
@@ -211,6 +233,7 @@ class AddressBook:
         script: str = "",
         hops: str = "",
         credential: str = "",
+        script_name: str = "",
         frequency: str = "",
         connection_type: str = "",
         original_target: str = "",
@@ -243,6 +266,7 @@ class AddressBook:
         entry.script = script
         entry.hops = hops
         entry.credential = credential
+        entry.script_name = script_name
         entry.frequency = frequency
         entry.connection_type = connection_type
         self.save()

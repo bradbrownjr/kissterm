@@ -26,7 +26,6 @@ into the UI. See `settings_schema`'s docstring.
 
 from __future__ import annotations
 
-import contextlib
 import logging
 
 from textual import on, work
@@ -142,6 +141,9 @@ class SettingsPane(Vertical):
                     with TabPane("Credentials", id=_tab_id("Credentials")):
                         with VerticalScroll(classes="settings-tab-scroll"):
                             yield from self._compose_credentials()
+                    with TabPane("Scripts", id=_tab_id("Scripts")):
+                        with VerticalScroll(classes="settings-tab-scroll"):
+                            yield from self._compose_scripts()
 
         with Vertical(id="settings-bar"):
             yield Static("", id="settings-banner", classes="settings-banner")
@@ -159,7 +161,10 @@ class SettingsPane(Vertical):
             "connection, so disconnect first. USB and serial TNCs are noticed "
             "automatically when you plug them in; scanning the network is "
             "manual, because a sweep is around 1500 connection attempts and "
-            "does not belong on a timer.",
+            "does not belong on a timer. 'Scan for hardware' only finds a "
+            "KISS TNC or AGWPE engine it can identify by itself -- add a "
+            "VARA/Mercury modem, a Telnet or SSH node, or a second entry for "
+            "hardware already found with 'New'.",
             classes="settings-note",
         )
         with Horizontal(classes="settings-row"):
@@ -169,6 +174,8 @@ class SettingsPane(Vertical):
         with Horizontal(classes="settings-row"):
             yield Label("", classes="settings-label")
             yield Button("Scan for hardware", id="settings-scan")
+            yield Button("New", id="transport-new")
+            yield Button("Edit selected", id="transport-edit")
             yield Button("Test selected", id="settings-test")
             yield Button("Forget selected", id="settings-forget")
         yield Static("", id="settings-transport-detail", classes="settings-help")
@@ -198,6 +205,35 @@ class SettingsPane(Vertical):
             yield Button("Edit selected", id="credential-edit")
             yield Button("Forget selected", id="credential-forget")
         yield Static("", id="settings-credential-detail", classes="settings-help")
+
+    def _compose_scripts(self) -> ComposeResult:
+        """Saved command sequences, referenced by name from a station's
+        Connect entry -- same shape and mechanism as Credentials
+        (`{"name", "text"}`, live lookup by name), kept as a separate list
+        on purpose: a credential is a login, named for the account it
+        belongs to; a script is any sequence of commands sent after
+        connecting, named for what it does -- "Check WS1EC mail", not an
+        account name. See `Config.scripts`'s docstring.
+        """
+        yield Static(
+            "Reusable command sequences a station's Connect entry can point "
+            "at by name instead of storing its own copy -- a login followed "
+            "by a node hop, a mailbox check, anything sent one line at a "
+            "time after connecting. Checked after a saved credential, "
+            "before any literal text typed into an entry directly. Nothing "
+            "here is sent until a Connect entry actually references it.",
+            classes="settings-note",
+        )
+        with Horizontal(classes="settings-row"):
+            yield Label("Saved", classes="settings-label")
+            yield Select([], id="set-script", allow_blank=True)
+            yield Label("", classes="settings-apply")
+        with Horizontal(classes="settings-row"):
+            yield Label("", classes="settings-label")
+            yield Button("New", id="script-new")
+            yield Button("Edit selected", id="script-edit")
+            yield Button("Forget selected", id="script-forget")
+        yield Static("", id="settings-script-detail", classes="settings-help")
 
     def _compose_field(self, spec: Field) -> ComposeResult:
         wid = _widget_id(spec.path)
@@ -243,6 +279,7 @@ class SettingsPane(Vertical):
 
         self._render_transports(config)
         self._render_credentials(config)
+        self._render_scripts(config)
         self._render_banner(config)
 
     def _set_select_value(self, wid: str, spec: Field, value) -> None:
@@ -311,6 +348,28 @@ class SettingsPane(Vertical):
                 "No credentials saved yet. 'New' adds one; a station's "
                 "Connect entry can then pick it from a dropdown instead of "
                 "storing its own copy of the text."
+            )
+            return
+        lines = str(entry.get("text", "")).count("\n") + 1 if entry.get("text") else 0
+        detail.update(f"{lines} line(s) saved." if lines else "(empty)")
+
+    def _render_scripts(self, config) -> None:
+        select = self.query_one("#set-script", Select)
+        names = [s.get("name", "") for s in config.scripts if s.get("name")]
+        select.set_options((name, name) for name in names)
+        if select.value not in names:
+            select.value = Select.NULL
+        self._render_script_detail(config)
+
+    def _render_script_detail(self, config) -> None:
+        name = self.query_one("#set-script", Select).value
+        entry = next((s for s in config.scripts if s.get("name") == name), None)
+        detail = self.query_one("#settings-script-detail", Static)
+        if entry is None:
+            detail.update(
+                "No scripts saved yet. 'New' adds one; a station's Connect "
+                "entry can then pick it from a dropdown instead of storing "
+                "its own copy of the text."
             )
             return
         lines = str(entry.get("text", "")).count("\n") + 1 if entry.get("text") else 0
@@ -475,6 +534,70 @@ class SettingsPane(Vertical):
     def _transport_changed(self) -> None:
         self._render_transport_detail(self.app.config)  # type: ignore[attr-defined]
 
+    @work
+    async def _new_transport(self) -> None:
+        config = self.app.config  # type: ignore[attr-defined]
+        await self._edit_transport_entry(None, config)
+
+    @on(Button.Pressed, "#transport-new")
+    def _new_transport_pressed(self) -> None:
+        self._new_transport()
+
+    @work
+    async def _edit_transport(self) -> None:
+        config = self.app.config  # type: ignore[attr-defined]
+        name = self.query_one("#set-active-transport", Select).value
+        entry = next((t for t in config.transports if t.get("name") == name), None)
+        if entry is None:
+            self.app.notify("Select a transport first.", severity="warning")  # type: ignore[attr-defined]
+            return
+        await self._edit_transport_entry(entry, config)
+
+    @on(Button.Pressed, "#transport-edit")
+    def _edit_transport_pressed(self) -> None:
+        self._edit_transport()
+
+    async def _edit_transport_entry(self, entry: dict | None, config) -> None:
+        """Shared by New and Edit selected: push the form, then -- per
+        `AGENTS.md`'s "one way to build a transport" rule -- prove the
+        result actually constructs before saving it. A config entry that
+        looks right and fails at `open()` is worse than catching it here,
+        while the operator is still looking at the form that produced it.
+        """
+        from .dialogs import TransportEntryScreen
+
+        existing_names = tuple(
+            t.get("name", "") for t in config.transports if t.get("name")
+        )
+        result = await self.app.push_screen_wait(  # type: ignore[attr-defined]
+            TransportEntryScreen(
+                entry, config.credentials, config.scripts, existing_names
+            )
+        )
+        if result is None:
+            return
+
+        from .. import transport as transport_mod
+
+        try:
+            transport_mod.build_transport(result)
+        except Exception as exc:
+            self.app.notify(f"Could not save {result['name']!r}: {exc}", severity="error")  # type: ignore[attr-defined]
+            return
+
+        old_name = entry.get("name", "") if entry else ""
+        config.transports = [
+            t for t in config.transports if t.get("name") not in (old_name, result["name"])
+        ]
+        config.transports.append(result)
+        if config.active_transport == old_name or not config.active_transport:
+            config.active_transport = result["name"]
+        self.app._save_config()  # type: ignore[attr-defined]
+        self._render_transports(config)
+        self.query_one("#set-active-transport", Select).value = result["name"]
+        self._render_transport_detail(config)
+        self.app.notify(f"Saved transport {result['name']!r}.")  # type: ignore[attr-defined]
+
     @on(Button.Pressed, "#settings-forget")
     def _forget(self) -> None:
         config = self.app.config  # type: ignore[attr-defined]
@@ -557,6 +680,74 @@ class SettingsPane(Vertical):
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_credentials(config)
         self.app.notify(f"Forgot credential {name!r}.")  # type: ignore[attr-defined]
+
+    @on(Select.Changed, "#set-script")
+    def _script_changed(self) -> None:
+        self._render_script_detail(self.app.config)  # type: ignore[attr-defined]
+
+    @work
+    async def _new_script(self) -> None:
+        from .dialogs import CredentialScreen
+
+        result = await self.app.push_screen_wait(CredentialScreen(kind="script"))
+        if result is None:
+            return
+        config = self.app.config  # type: ignore[attr-defined]
+        config.scripts = [s for s in config.scripts if s.get("name") != result.name]
+        config.scripts.append({"name": result.name, "text": result.text})
+        self.app._save_config()  # type: ignore[attr-defined]
+        self._render_scripts(config)
+        self.query_one("#set-script", Select).value = result.name
+        self._render_script_detail(config)
+        self.app.notify(f"Saved script {result.name!r}.")  # type: ignore[attr-defined]
+
+    @on(Button.Pressed, "#script-new")
+    def _new_script_pressed(self) -> None:
+        self._new_script()
+
+    @work
+    async def _edit_script(self) -> None:
+        from .dialogs import CredentialScreen
+
+        config = self.app.config  # type: ignore[attr-defined]
+        name = self.query_one("#set-script", Select).value
+        entry = next((s for s in config.scripts if s.get("name") == name), None)
+        if entry is None:
+            self.app.notify("Select a script first.", severity="warning")  # type: ignore[attr-defined]
+            return
+        result = await self.app.push_screen_wait(
+            CredentialScreen(entry.get("name", ""), entry.get("text", ""), kind="script")
+        )
+        if result is None:
+            return
+        # Same rename handling as `_edit_credential`: drop both the old and
+        # new name before re-adding, so a rename replaces the entry in
+        # place rather than leaving a stale duplicate a station could
+        # still resolve to.
+        config.scripts = [
+            s for s in config.scripts if s.get("name") not in (name, result.name)
+        ]
+        config.scripts.append({"name": result.name, "text": result.text})
+        self.app._save_config()  # type: ignore[attr-defined]
+        self._render_scripts(config)
+        self.query_one("#set-script", Select).value = result.name
+        self._render_script_detail(config)
+        self.app.notify(f"Saved script {result.name!r}.")  # type: ignore[attr-defined]
+
+    @on(Button.Pressed, "#script-edit")
+    def _edit_script_pressed(self) -> None:
+        self._edit_script()
+
+    @on(Button.Pressed, "#script-forget")
+    def _forget_script(self) -> None:
+        config = self.app.config  # type: ignore[attr-defined]
+        name = self.query_one("#set-script", Select).value
+        if not name or name == Select.NULL:
+            return
+        config.scripts = [s for s in config.scripts if s.get("name") != name]
+        self.app._save_config()  # type: ignore[attr-defined]
+        self._render_scripts(config)
+        self.app.notify(f"Forgot script {name!r}.")  # type: ignore[attr-defined]
 
     @work
     async def _scan(self) -> None:
@@ -674,58 +865,8 @@ class SettingsPane(Vertical):
         changed `Config.active_transport` and nothing else -- the live
         station kept its old `FrameTransport` object, so the status bar kept
         reporting the old TNC no matter how many times the operator saved.
-        This builds and opens the new one and hands it to the station in
-        place of the old one, via `AX25Station.rebind_transport`.
+        Delegates to `KissTermApp._switch_frame_transport`, shared with the
+        Connect dialog's own transport picker in `action_connect` -- one
+        implementation of "actually open the newly-selected transport".
         """
-        app = self.app
-        station = getattr(app, "station", None)
-        if station is None:
-            return
-        entry = next(
-            (t for t in config.transports if t.get("name") == config.active_transport),
-            None,
-        )
-        if entry is None:
-            return
-
-        from .. import transport as transport_mod
-        from ..transport.base import FrameTransport
-
-        try:
-            new_transport = transport_mod.build_transport(entry)
-            await new_transport.open()
-        except Exception as exc:
-            log.exception("could not open %s", entry.get("name"))
-            app.notify(f"Could not open {entry.get('name', '?')}: {exc}", severity="error")  # type: ignore[attr-defined]
-            return
-
-        if not isinstance(new_transport, FrameTransport):
-            # A session transport (VARA, Mercury, the kernel stack) hands
-            # back an already-connected byte stream rather than frames the
-            # station's state machine can run on -- swapping one in here
-            # would need a different app entirely, not a different transport
-            # object. Restarting kissterm with it selected is the supported
-            # path; see `__main__.py`.
-            app.notify(  # type: ignore[attr-defined]
-                f"{entry.get('name')} is a session transport; switching to it "
-                "live is not supported. Restart kissterm with it selected.",
-                severity="warning",
-            )
-            with contextlib.suppress(Exception):
-                await new_transport.close()
-            return
-
-        try:
-            old_transport = station.rebind_transport(new_transport)
-        except RuntimeError as exc:
-            app.notify(str(exc), severity="warning")  # type: ignore[attr-defined]
-            with contextlib.suppress(Exception):
-                await new_transport.close()
-            return
-
-        with contextlib.suppress(Exception):
-            await old_transport.close()
-
-        if hasattr(app, "_refresh_status"):
-            app._refresh_status()  # type: ignore[attr-defined]
-        app.notify(f"Now using {entry.get('name')}.")  # type: ignore[attr-defined]
+        await self.app._switch_frame_transport(config.active_transport)  # type: ignore[attr-defined]

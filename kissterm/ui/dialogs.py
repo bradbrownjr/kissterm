@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, OptionList, Select, Static, TextArea
 from textual.widgets.option_list import Option
@@ -32,17 +32,29 @@ class ConnectRequest:
 
     `hops` is a comma-separated chain of intermediate nodes to reach
     `target` node-to-node, for when no digipeater path does the job --
-    almost always empty. `script`/`credential` are the two mutually
-    exclusive ways to say what to send once the FULL chain (or the plain
-    direct connect, if `hops` is empty) comes up: literal text, or the name
-    of a saved credential looked up fresh at send time. See
-    `KissTermApp.action_connect` and `_run_connect_script`.
+    almost always empty. `script`/`credential`/`script_name` are the three
+    mutually exclusive ways to say what to send once the FULL chain (or the
+    plain direct connect, if `hops` is empty) comes up, checked in that
+    order by `KissTermApp._resolve_login`: the name of a saved credential,
+    the name of a saved script, or literal text -- see `Config.credentials`
+    for why a login and a script are two separate saved lists rather than
+    one, and `_run_connect_script` for how the winning text gets sent.
+
+    `transport_name`, when non-empty and different from the currently
+    active transport, asks `action_connect` to switch to it (via
+    `KissTermApp._switch_frame_transport`) BEFORE dialing -- only ever a
+    same-tier alternative to whatever this dialog was shown for, since
+    `ConnectScreen` itself only appears on the frame tier; see
+    `transport.FRAME_TIER_KINDS`'s docstring for why a live tier switch is
+    not offered anywhere.
     """
 
     target: str
     script: str = ""
     hops: str = ""
     credential: str = ""
+    script_name: str = ""
+    transport_name: str = ""
 
 
 def _validate_target_and_hops(text: str, hops: str) -> tuple[object | None, str]:
@@ -63,20 +75,34 @@ def _validate_target_and_hops(text: str, hops: str) -> tuple[object | None, str]
     return path, ""
 
 
-def _disable_while_credential_selected(select: Select, area: TextArea) -> None:
-    """Disable, but never touch the text of, a login script box while a
-    saved credential is selected next to it.
+def _select_has_value(select: Select) -> bool:
+    return bool(select.value) and select.value is not Select.NULL
 
-    Shared by `ConnectScreen` and `AddressBookEntryScreen`. Deliberately
-    does not clear or overwrite `.text`: doing so on every dropdown change
-    is how a credential's password ends up copied into the box and then
+
+def _sync_login_source_controls(
+    credential_select: Select, script_select: Select, area: TextArea
+) -> None:
+    """Keep the three login sources -- a saved credential, a saved script,
+    and literal text -- mutually consistent on screen, matching the order
+    `KissTermApp._resolve_login` actually picks one in: credential, then
+    script, then literal text.
+
+    Shared by `ConnectScreen`, `AddressBookEntryScreen` and
+    `TransportEntryScreen`. Deliberately never CLEARS a losing control's
+    value, only disables it: clearing on every dropdown change is how a
+    credential's password would end up copied into the text box and then
     silently saved as another station's "custom" script the next time the
-    dropdown is reset to blank. Leaving the text alone and merely disabling
-    the box means the two mechanisms cannot contaminate each other -- each
-    screen's submit handler reads the box only when no credential is
-    selected.
+    dropdown resets to blank, and clearing the script pick the same way
+    would lose it the moment a credential is tried and then reconsidered.
+    Leaving values alone and merely disabling the ones a higher-precedence
+    choice shadows means none of the three can contaminate another -- each
+    screen's submit handler reads a control only when nothing above it in
+    the precedence order is set.
     """
-    area.disabled = bool(select.value) and select.value is not Select.NULL
+    has_credential = _select_has_value(credential_select)
+    has_script = _select_has_value(script_select)
+    script_select.disabled = has_credential
+    area.disabled = has_credential or has_script
 
 
 class ConnectScreen(ModalScreen[ConnectRequest | None]):
@@ -90,13 +116,15 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
     with no app around it, and it is optional: pass `book=AddressBook(path)`
     to point it somewhere else.
 
-    Also carries an optional per-station node-hop chain and login (a literal
-    script or a saved credential) -- arrowing through the history previews
+    Also carries an optional per-station node-hop chain and login -- a
+    saved credential, a saved script, or literal text, in that precedence
+    (see `ConnectRequest`) -- arrowing through the history previews
     everything saved for that entry, and whatever the fields hold when
-    Connect fires travels back with the target and gets saved, blank or not.
-    `credentials` is the raw `Config.credentials` list of `{"name", "text"}`
-    dicts, for the "send once connected" dropdown; defaults to none, so the
-    dialog still works in a test or a script with no config around it.
+    Connect fires travels back with the target and gets saved, blank or
+    not. `credentials`/`scripts` are the raw `Config.credentials`/
+    `Config.scripts` lists of `{"name", "text"}` dicts, for the two "send
+    once connected" dropdowns; both default to none, so the dialog still
+    works in a test or a script with no config around it.
     """
 
     BINDINGS = [
@@ -109,6 +137,9 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         self,
         book: AddressBook | None = None,
         credentials: list[dict] | None = None,
+        scripts: list[dict] | None = None,
+        transports: list[dict] | None = None,
+        active_transport_name: str = "",
     ) -> None:
         super().__init__()
         if book is None:
@@ -116,16 +147,44 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
             book.load()
         self.book = book
         self.credentials = credentials or []
+        self.scripts = scripts or []
+        # Same-tier alternatives only -- the caller (`KissTermApp.action_
+        # connect`) has already filtered to whichever tier this dialog is
+        # being shown for. Shown only with a real choice to make: one
+        # transport is the overwhelming common case, and a dropdown that
+        # can only ever show the transport already in use is not a control,
+        # it is decoration.
+        self.transports = transports or []
+        self.active_transport_name = active_transport_name
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
             yield Label("Connect to station", id="connect-title")
+            if len(self.transports) > 1:
+                from ..transport import KIND_LABELS
+
+                options = [
+                    (f"{name} ({KIND_LABELS.get(t.get('kind', ''), '?')})", name)
+                    for t in self.transports
+                    if (name := t.get("name"))
+                ]
+                known = {value for _, value in options}
+                yield Select(
+                    options,
+                    value=(
+                        self.active_transport_name
+                        if self.active_transport_name in known
+                        else options[0][1]
+                    ),
+                    id="connect-transport",
+                    allow_blank=False,
+                )
             yield Input(
                 placeholder="WS1EC-7  or  WS1EC-7 via W1AW-1",
                 id="connect-target",
             )
             yield Input(
-                placeholder="N1QFY, AB1KI-15 (optional -- node hops, when no digipeater reaches it)",
+                placeholder="Node hops, e.g. N1QFY, AB1KI-15 (optional)",
                 id="connect-hops",
             )
             yield Label("", id="connect-error")
@@ -135,17 +194,28 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
                 "Down for previous stations - Enter connects - Delete forgets",
                 id="connect-hint",
             )
-            yield Label(
-                "Send once connected (optional)",
-                id="connect-script-title",
+            yield Label("Auto-login (optional)", id="connect-script-title")
+            yield Static(
+                "Pick a saved credential or script, or type a login below.",
+                id="connect-script-hint",
             )
             yield Select(
                 [],
                 id="connect-credential",
                 allow_blank=True,
-                prompt="(type your own below)",
+                prompt="Saved credential",
             )
-            yield TextArea(id="connect-script", tab_behavior="focus")
+            yield Select(
+                [],
+                id="connect-script-name",
+                allow_blank=True,
+                prompt="Saved script",
+            )
+            yield TextArea(
+                id="connect-script",
+                tab_behavior="focus",
+                placeholder="One line per prompt, e.g. your callsign then password",
+            )
             with Horizontal(id="connect-buttons"):
                 yield Button("Connect", variant="primary", id="connect-go")
                 yield Button("Cancel", id="connect-cancel")
@@ -153,6 +223,7 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
     def on_mount(self) -> None:
         self._render_history()
         self._render_credentials()
+        self._render_scripts()
         self.query_one("#connect-target", Input).focus()
 
     def _render_credentials(self) -> None:
@@ -163,11 +234,13 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
             if (name := c.get("name"))
         )
 
-    def _credential_text(self, name: str) -> str:
-        for c in self.credentials:
-            if c.get("name") == name:
-                return str(c.get("text", ""))
-        return ""
+    def _render_scripts(self) -> None:
+        select = self.query_one("#connect-script-name", Select)
+        select.set_options(
+            (name, name)
+            for s in self.scripts
+            if (name := s.get("name"))
+        )
 
     # -- the address book -------------------------------------------------
     def _render_history(self, filter_text: str = "") -> None:
@@ -239,18 +312,23 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
             )
         self.query_one("#connect-hops", Input).value = entry.hops if entry else ""
         self.query_one("#connect-script", TextArea).text = entry.script if entry else ""
-        valid = {c.get("name") for c in self.credentials}
-        credential = entry.credential if entry and entry.credential in valid else ""
+        valid_credentials = {c.get("name") for c in self.credentials}
+        credential = entry.credential if entry and entry.credential in valid_credentials else ""
         self.query_one("#connect-credential", Select).value = credential or Select.NULL
-        self._apply_credential_state()
+        valid_scripts = {s.get("name") for s in self.scripts}
+        script_name = entry.script_name if entry and entry.script_name in valid_scripts else ""
+        self.query_one("#connect-script-name", Select).value = script_name or Select.NULL
+        self._sync_login_controls()
 
     @on(Select.Changed, "#connect-credential")
-    def _credential_changed(self) -> None:
-        self._apply_credential_state()
+    @on(Select.Changed, "#connect-script-name")
+    def _login_source_changed(self) -> None:
+        self._sync_login_controls()
 
-    def _apply_credential_state(self) -> None:
-        _disable_while_credential_selected(
+    def _sync_login_controls(self) -> None:
+        _sync_login_source_controls(
             self.query_one("#connect-credential", Select),
+            self.query_one("#connect-script-name", Select),
             self.query_one("#connect-script", TextArea),
         )
 
@@ -277,22 +355,33 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         if error:
             self.query_one("#connect-error", Label).update(f"[red]{error}[/red]")
             return
-        select_value = self.query_one("#connect-credential", Select).value
-        credential = (
-            str(select_value) if select_value and select_value is not Select.NULL else ""
+        credential_select = self.query_one("#connect-credential", Select)
+        credential = str(credential_select.value) if _select_has_value(credential_select) else ""
+        script_name_select = self.query_one("#connect-script-name", Select)
+        script_name = (
+            str(script_name_select.value)
+            if not credential and _select_has_value(script_name_select)
+            else ""
         )
-        # A credential, once selected, is authoritative -- the box next to
-        # it is disabled (see `_apply_credential_state`) specifically so
-        # its leftover text is never read here.
-        script = "" if credential else self.query_one("#connect-script", TextArea).text
+        # A credential or a saved script, once selected, is authoritative --
+        # the box next to them is disabled (see `_sync_login_controls`)
+        # specifically so its leftover text is never read here.
+        script = (
+            "" if (credential or script_name) else self.query_one("#connect-script", TextArea).text
+        )
         # Recorded on the ATTEMPT, not on success: a connect that failed is
         # the one about to be retried, and withholding it until a UA arrives
         # would keep it out of the list at exactly the moment it is wanted.
         # Everything else travels the same way, blank or not -- a deliberate
-        # blank clears a script/hop-chain/credential the operator no longer
-        # wants.
-        self.book.record_attempt(text, script, hops, credential)
-        self.dismiss(ConnectRequest(text, script, hops, credential))
+        # blank clears a script/hop-chain/credential/saved-script the
+        # operator no longer wants.
+        transport_name = ""
+        if len(self.transports) > 1:
+            transport_name = str(self.query_one("#connect-transport", Select).value)
+        self.book.record_attempt(text, script, hops, credential, script_name)
+        self.dismiss(
+            ConnectRequest(text, script, hops, credential, script_name, transport_name)
+        )
 
 
 @dataclass(frozen=True)
@@ -307,6 +396,7 @@ class AddressBookEdit:
     script: str = ""
     hops: str = ""
     credential: str = ""
+    script_name: str = ""
     frequency: str = ""
     connection_type: str = ""
 
@@ -323,6 +413,16 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
     attempt (and possibly fail) a real connect just to create the entry.
     No history browsing here: the whole point of this screen is that a
     caller already knows which entry it is editing, or that it is a new one.
+
+    "Connection type" picks from `Config.transports` by name rather than
+    taking free text -- a reminder is worth nothing if it does not match
+    anything the operator actually has set up. It does not change which
+    transport a dial actually uses (see `KissTermApp.action_connect`): this
+    stays informational, shown on `RadioReminderScreen` before connecting,
+    the same way `frequency` always has been. A Telnet/SSH/VARA/Mercury
+    transport, or a second entry for hardware already found by a scan, is
+    added from Settings (`F6`) > Transports > New (`TransportEntryScreen`);
+    this only lists whatever is already configured there.
     """
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
@@ -333,18 +433,24 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         script: str = "",
         hops: str = "",
         credential: str = "",
+        script_name: str = "",
         frequency: str = "",
         connection_type: str = "",
         credentials: list[dict] | None = None,
+        scripts: list[dict] | None = None,
+        transports: list[dict] | None = None,
     ) -> None:
         super().__init__()
         self._target = target
         self._script = script
         self._hops = hops
         self._credential = credential
+        self._script_name = script_name
         self._frequency = frequency
         self._connection_type = connection_type
         self.credentials = credentials or []
+        self.scripts = scripts or []
+        self.transports = transports or []
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
@@ -356,50 +462,105 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
             )
             yield Input(
                 value=self._hops,
-                placeholder="N1QFY, AB1KI-15 (optional -- node hops, when no digipeater reaches it)",
+                placeholder="Node hops, e.g. N1QFY, AB1KI-15 (optional)",
                 id="connect-hops",
             )
             with Horizontal(id="addressbook-radio-row"):
                 yield Input(
                     value=self._frequency,
-                    placeholder="Frequency (optional) -- e.g. 146.520 MHz",
+                    placeholder="Frequency (optional)",
                     id="addressbook-frequency",
                 )
-                yield Input(
-                    value=self._connection_type,
-                    placeholder="Connection type (optional) -- e.g. 1200 AFSK",
+                yield Select(
+                    [],
                     id="addressbook-connection-type",
+                    allow_blank=True,
+                    prompt="Connection type",
                 )
             yield Label("", id="connect-error")
-            yield Label("Send once connected (optional)", id="connect-script-title")
+            yield Label("Auto-login (optional)", id="connect-script-title")
+            yield Static(
+                "Pick a saved credential or script, or type a login below.",
+                id="connect-script-hint",
+            )
             yield Select(
                 [],
                 id="connect-credential",
                 allow_blank=True,
-                prompt="(type your own below)",
+                prompt="Saved credential",
             )
-            yield TextArea(self._script, id="connect-script", tab_behavior="focus")
+            yield Select(
+                [],
+                id="connect-script-name",
+                allow_blank=True,
+                prompt="Saved script",
+            )
+            yield TextArea(
+                self._script,
+                id="connect-script",
+                tab_behavior="focus",
+                placeholder="One line per prompt, e.g. your callsign then password",
+            )
             with Horizontal(id="connect-buttons"):
                 yield Button("Save", variant="primary", id="connect-go")
                 yield Button("Cancel", id="connect-cancel")
 
     def on_mount(self) -> None:
-        select = self.query_one("#connect-credential", Select)
-        select.set_options((name, name) for c in self.credentials if (name := c.get("name")))
-        valid = {c.get("name") for c in self.credentials}
-        select.value = self._credential if self._credential in valid else Select.NULL
-        self._apply_credential_state()
+        credential_select = self.query_one("#connect-credential", Select)
+        credential_select.set_options(
+            (name, name) for c in self.credentials if (name := c.get("name"))
+        )
+        valid_credentials = {c.get("name") for c in self.credentials}
+        credential_select.value = (
+            self._credential if self._credential in valid_credentials else Select.NULL
+        )
+        script_name_select = self.query_one("#connect-script-name", Select)
+        script_name_select.set_options(
+            (name, name) for s in self.scripts if (name := s.get("name"))
+        )
+        valid_scripts = {s.get("name") for s in self.scripts}
+        script_name_select.value = (
+            self._script_name if self._script_name in valid_scripts else Select.NULL
+        )
+        self._sync_login_controls()
+        self._render_connection_types()
         field = self.query_one("#connect-target", Input)
         field.focus()
         field.action_end()
 
-    @on(Select.Changed, "#connect-credential")
-    def _credential_changed(self) -> None:
-        self._apply_credential_state()
+    def _render_connection_types(self) -> None:
+        """List the operator's own configured transports by name, e.g.
+        "direwolf-local (TCP KISS)" -- see the class docstring for why this
+        is a picklist of real transports rather than free text.
+        """
+        from ..transport import KIND_LABELS
 
-    def _apply_credential_state(self) -> None:
-        _disable_while_credential_selected(
+        options = [
+            (f"{name} ({KIND_LABELS.get(t.get('kind', ''), t.get('kind', '?'))})", name)
+            for t in self.transports
+            if (name := t.get("name"))
+        ]
+        known = {value for _, value in options}
+        # A value saved before this became a picklist, or naming a transport
+        # since renamed or removed, must still round-trip -- show exactly
+        # what was saved as its own option rather than crashing (a plain
+        # `Select` raises if `.value` is set outside its options) or
+        # silently discarding it.
+        if self._connection_type and self._connection_type not in known:
+            options.append((self._connection_type, self._connection_type))
+        select = self.query_one("#addressbook-connection-type", Select)
+        select.set_options(options)
+        select.value = self._connection_type if self._connection_type else Select.NULL
+
+    @on(Select.Changed, "#connect-credential")
+    @on(Select.Changed, "#connect-script-name")
+    def _login_source_changed(self) -> None:
+        self._sync_login_controls()
+
+    def _sync_login_controls(self) -> None:
+        _sync_login_source_controls(
             self.query_one("#connect-credential", Select),
+            self.query_one("#connect-script-name", Select),
             self.query_one("#connect-script", TextArea),
         )
 
@@ -418,14 +579,27 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         if error:
             self.query_one("#connect-error", Label).update(f"[red]{error}[/red]")
             return
-        select_value = self.query_one("#connect-credential", Select).value
-        credential = (
-            str(select_value) if select_value and select_value is not Select.NULL else ""
+        credential_select = self.query_one("#connect-credential", Select)
+        credential = str(credential_select.value) if _select_has_value(credential_select) else ""
+        script_name_select = self.query_one("#connect-script-name", Select)
+        script_name = (
+            str(script_name_select.value)
+            if not credential and _select_has_value(script_name_select)
+            else ""
         )
-        script = "" if credential else self.query_one("#connect-script", TextArea).text
+        script = (
+            "" if (credential or script_name) else self.query_one("#connect-script", TextArea).text
+        )
         frequency = self.query_one("#addressbook-frequency", Input).value.strip()
-        connection_type = self.query_one("#addressbook-connection-type", Input).value.strip()
-        self.dismiss(AddressBookEdit(text, script, hops, credential, frequency, connection_type))
+        type_value = self.query_one("#addressbook-connection-type", Select).value
+        connection_type = (
+            str(type_value) if type_value and type_value is not Select.NULL else ""
+        )
+        self.dismiss(
+            AddressBookEdit(
+                text, script, hops, credential, script_name, frequency, connection_type
+            )
+        )
 
 
 class RadioReminderScreen(ModalScreen[bool]):
@@ -479,6 +653,63 @@ class RadioReminderScreen(ModalScreen[bool]):
         self.dismiss(True)
 
 
+class SessionTransportPickerScreen(ModalScreen[str | None]):
+    """Pick which session-tier transport to connect through (Telnet, SSH,
+    VARA, Mercury, kernel AX.25) -- `Ctrl+N`'s equivalent of `ConnectScreen`
+    for this tier.
+
+    Only ever shown with a real choice to make: `KissTermApp.action_connect`
+    skips this entirely when the app has one session-tier transport
+    configured, which is the overwhelming common case, and goes straight to
+    `_connect_session_transport` exactly as it always has. There is no
+    target field here at all -- a session transport's destination is fixed
+    at its own configuration (a host and port, or a callsign for VARA/
+    kernel AX.25), not something typed per attempt; see `SessionTransport.
+    connect`'s docstring. Switching tiers (to or from a frame-tier KISS TNC)
+    is not offered here or anywhere live -- see `transport.FRAME_TIER_
+    KINDS`'s docstring.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, transports: list[dict], active_name: str = "") -> None:
+        super().__init__()
+        self.transports = transports
+        self.active_name = active_name
+
+    def compose(self) -> ComposeResult:
+        from ..transport import KIND_LABELS
+
+        options = [
+            (f"{name} ({KIND_LABELS.get(t.get('kind', ''), '?')})", name)
+            for t in self.transports
+            if (name := t.get("name"))
+        ]
+        known = {value for _, value in options}
+        with Vertical(id="connect-box"):
+            yield Label("Connect via", id="connect-title")
+            yield Select(
+                options,
+                value=self.active_name if self.active_name in known else options[0][1],
+                id="connect-transport",
+                allow_blank=False,
+            )
+            with Horizontal(id="connect-buttons"):
+                yield Button("Connect", variant="primary", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#connect-go", Button).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#connect-go")
+    def _go(self) -> None:
+        self.dismiss(str(self.query_one("#connect-transport", Select).value))
+
+
 @dataclass(frozen=True)
 class Credential:
     """One saved login, as `CredentialScreen` hands it back."""
@@ -488,33 +719,43 @@ class Credential:
 
 
 class CredentialScreen(ModalScreen[Credential | None]):
-    """Add or edit one saved credential (Settings > Credentials).
+    """Add or edit one saved credential OR one saved script (Settings >
+    Credentials / Scripts) -- same shape, same dialog.
 
     Kept deliberately simple -- a name and a block of text, nothing
     structured -- because packet BBS logins do not agree on a shape: some
     want a bare password, some want a real name and a password, some want a
-    CBBS-style multi-field login. A named block of text sent one line at a
-    time covers all of them without guessing a schema that will not fit the
-    next BBS someone connects to.
+    CBBS-style multi-field login, and a script is any sequence at all. A
+    named block of text sent one line at a time covers all of them without
+    guessing a schema that will not fit the next BBS someone connects to.
+
+    `kind` picks only the words shown -- "credential" or "script" -- never
+    the shape of what is saved or how it is used; `Config.credentials` and
+    `Config.scripts` are kept as two separate lists by the CALLER
+    (`SettingsPane`), for the reasons in that field's docstring. This
+    dialog has no opinion on which list it is editing.
 
     Saving here does not touch `config.toml` itself -- the caller
-    (`SettingsPane`) folds the result into `Config.credentials` and saves
-    the whole config, same as every other Settings field.
+    (`SettingsPane`) folds the result into the right list and saves the
+    whole config, same as every other Settings field.
     """
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
-    def __init__(self, name: str = "", text: str = "") -> None:
+    def __init__(self, name: str = "", text: str = "", kind: str = "credential") -> None:
         super().__init__()
         self._name = name
         self._text = text
+        self._kind = kind
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
-            yield Label("Saved credential", id="connect-title")
+            yield Label(f"Saved {self._kind}", id="connect-title")
             yield Input(
                 value=self._name,
-                placeholder="Personal BBS login",
+                placeholder=(
+                    "Personal BBS login" if self._kind == "credential" else "Check WS1EC mail"
+                ),
                 id="credential-name",
             )
             yield Label("", id="credential-error")
@@ -542,12 +783,353 @@ class CredentialScreen(ModalScreen[Credential | None]):
         name = self.query_one("#credential-name", Input).value.strip()
         if not name:
             self.query_one("#credential-error", Label).update(
-                "[red]Name this credential something -- it is how a station's "
+                f"[red]Name this {self._kind} something -- it is how a station's "
                 "Connect entry will find it.[/red]"
             )
             return
         text = self.query_one("#credential-text", TextArea).text
         self.dismiss(Credential(name, text))
+
+
+@dataclass(frozen=True)
+class _TransportField:
+    """One kind-specific input. `key` is exactly the config key it fills --
+    the same name `build_transport` forwards to that kind's constructor."""
+
+    key: str
+    label: str
+    placeholder: str = ""
+    default: str = ""
+    numeric: bool = False
+    password: bool = False
+
+
+#: Which fields each kind needs, and whether it is a session transport --
+#: that decides whether the auto-login section applies at all (`Transport.
+#: script`/`credential` are meaningful only to a `SessionTransport`; see
+#: that field's docstring in `transport/base.py`). This is each kind's
+#: REQUIRED constructor arguments, not its full parameter list -- an
+#: advanced knob like serial's `kiss_params` or vara's `bandwidth` stays
+#: something only `config.toml.example` documents, same as before this
+#: dialog existed. Editing an entry that already has one of those set
+#: preserves it rather than dropping it -- see `TransportEntryScreen._save`.
+_TRANSPORT_KINDS: dict[str, tuple[bool, tuple[_TransportField, ...]]] = {
+    "tcp": (False, (
+        _TransportField("host", "Host", "e.g. 192.168.1.50"),
+        _TransportField("port", "Port", default="8001", numeric=True),
+    )),
+    "agwpe": (False, (
+        _TransportField("host", "Host", "e.g. 192.168.1.50"),
+        _TransportField("port", "Port", default="8000", numeric=True),
+    )),
+    "serial": (False, (
+        _TransportField("device", "Serial device", "e.g. /dev/ttyUSB0 or COM3"),
+        _TransportField("baud", "Baud rate", default="9600", numeric=True),
+    )),
+    "bluetooth": (False, (
+        _TransportField("address", "Bluetooth address", "e.g. 00:11:22:33:44:55"),
+        _TransportField("channel", "RFCOMM channel", default="1", numeric=True),
+    )),
+    "kernel": (True, (
+        _TransportField("ax25_port", "AX.25 port", "e.g. radio0, from /etc/ax25/axports"),
+        _TransportField("mycall", "Callsign for this port", "e.g. N1ABC-1"),
+    )),
+    "vara": (True, (
+        _TransportField("host", "Host", "e.g. 127.0.0.1"),
+        _TransportField("mycall", "Callsign", "e.g. N1ABC-1"),
+        _TransportField("cmd_port", "Command port", default="8300", numeric=True),
+        _TransportField("data_port", "Data port", default="8301", numeric=True),
+    )),
+    "varafm": (True, (
+        _TransportField("host", "Host", "e.g. 127.0.0.1"),
+        _TransportField("mycall", "Callsign", "e.g. N1ABC-1"),
+        _TransportField("cmd_port", "Command port", default="8300", numeric=True),
+        _TransportField("data_port", "Data port", default="8301", numeric=True),
+    )),
+    "mercury": (True, (
+        _TransportField("host", "Host", "e.g. 127.0.0.1"),
+        _TransportField("port", "Port", numeric=True),
+        _TransportField("mycall", "Callsign", "e.g. N1ABC-1"),
+    )),
+    "telnet": (True, (
+        _TransportField("host", "Host", "e.g. bbs.example.net"),
+        _TransportField("port", "Port", default="23", numeric=True),
+    )),
+    "ssh": (True, (
+        _TransportField("host", "Host", "e.g. ws1ec.mainepacketradio.org"),
+        _TransportField("username", "Username", "e.g. packet"),
+        _TransportField("password", "Password", password=True),
+        _TransportField("port", "Port", default="22", numeric=True),
+    )),
+}
+
+
+class TransportEntryScreen(ModalScreen[dict | None]):
+    """Add or hand-edit one `[[transports]]` entry (Settings > Transports).
+
+    'Scan for hardware' only finds what a network probe or a serial listing
+    can identify by itself -- KISS TNCs and AGWPE engines (see `discovery.
+    py`'s own docstring on why a probe must never emit a config it cannot
+    complete). It cannot invent a VARA modem's callsign, an SSH login, or a
+    Telnet host nobody has typed yet. Before this screen, the only way to
+    add one of those was hand-editing `config.toml` -- which is also why the
+    Address Book's Connection-type picklist could show a scanned TCP KISS
+    TNC but nothing at all for a Telnet/SSH node or a second modem, even
+    after the operator had set one up and believed it saved.
+
+    The field set changes with the chosen kind (`_TRANSPORT_KINDS`) because
+    each transport's constructor takes different arguments -- there is no
+    one form that fits a serial device path and an SSH login. This screen
+    only builds the dict; it does not construct or validate the transport
+    itself. The caller (`SettingsPane`) does that through `transport.
+    build_transport()`, the one place a `Transport` is ever built from
+    config, and refuses to save if it raises -- the same rule the first-run
+    wizard follows, for the same reason: a config entry that looks right and
+    fails at `open()` is worse than catching it here, while the operator is
+    still looking at the form that produced it.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(
+        self,
+        entry: dict | None = None,
+        credentials: list[dict] | None = None,
+        scripts: list[dict] | None = None,
+        existing_names: tuple[str, ...] = (),
+    ) -> None:
+        super().__init__()
+        self._entry = dict(entry) if entry else {}
+        self._credentials = credentials or []
+        self._scripts = scripts or []
+        # Names already in use, for the "pick a different name" check --
+        # excluding this entry's OWN current name, or editing without
+        # renaming would refuse to save because it collides with itself.
+        self._existing_names = tuple(
+            n for n in existing_names if n != self._entry.get("name", "")
+        )
+        self._kind = self._entry.get("kind") or next(iter(_TRANSPORT_KINDS))
+
+    def compose(self) -> ComposeResult:
+        from ..transport import KIND_LABELS
+
+        # `VerticalScroll`, not the plain `Vertical` every shorter dialog
+        # uses: an `Input` is 3 rows tall by default, and SSH's four fields
+        # plus name/kind/error/auto-login add up to more than a typical
+        # terminal's height. `#transport-box` caps at 90% of the screen and
+        # this scrolls inside that cap instead of pushing Save/Cancel off
+        # the bottom, unreachable, the way an un-capped `height: auto` did.
+        with Vertical(id="transport-box"):
+            yield Label(
+                "Edit transport" if self._entry else "New transport",
+                id="connect-title",
+            )
+            with VerticalScroll(id="transport-form"):
+                yield Input(
+                    value=str(self._entry.get("name", "")),
+                    placeholder="Name, e.g. direwolf-local or ws1ec",
+                    id="transport-name",
+                )
+                yield Select(
+                    [
+                        (label, kind)
+                        for kind, label in KIND_LABELS.items()
+                        if kind in _TRANSPORT_KINDS
+                    ],
+                    value=self._kind,
+                    id="transport-kind",
+                    allow_blank=False,
+                )
+                yield Label("", id="transport-error")
+                with Vertical(id="transport-fields"):
+                    yield from self._field_rows(self._kind, self._entry)
+                yield Label("Auto-login (optional)", id="transport-script-title")
+                yield Static(
+                    "Pick a saved credential or script, or type a login "
+                    "below. Sent right after this transport connects.",
+                    id="transport-script-hint",
+                )
+                yield Select(
+                    [],
+                    id="transport-credential",
+                    allow_blank=True,
+                    prompt="Saved credential",
+                )
+                yield Select(
+                    [],
+                    id="transport-script-name",
+                    allow_blank=True,
+                    prompt="Saved script",
+                )
+                yield TextArea(
+                    str(self._entry.get("script", "")),
+                    id="transport-script",
+                    tab_behavior="focus",
+                    placeholder="One line per prompt, e.g. your callsign then password",
+                )
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save", variant="primary", id="transport-save")
+                yield Button("Cancel", id="transport-cancel")
+
+    def on_mount(self) -> None:
+        self._render_credentials()
+        self._render_scripts()
+        self._show_script_section(self._kind)
+        field = self.query_one("#transport-name", Input)
+        field.focus()
+        field.action_end()
+
+    # -- kind-specific fields ----------------------------------------------
+    def _field_rows(self, kind: str, prefill: dict) -> list[Horizontal]:
+        """Built with children passed directly to `Horizontal(...)` rather
+        than the `with Horizontal(): yield ...` compose sugar, since this is
+        also called from `_kind_changed` to feed `mount_all` -- outside an
+        active `compose()` walk, the context-manager form has no compose
+        stack to append itself to and raises `IndexError`."""
+        _session_tier, fields = _TRANSPORT_KINDS[kind]
+        return [
+            Horizontal(
+                Label(field.label, classes="settings-label"),
+                Input(
+                    value=str(prefill.get(field.key, field.default)),
+                    placeholder=field.placeholder,
+                    id=f"transport-field-{field.key}",
+                    password=field.password,
+                ),
+                classes="settings-row",
+            )
+            for field in fields
+        ]
+
+    def _show_script_section(self, kind: str) -> None:
+        session_tier, _fields = _TRANSPORT_KINDS[kind]
+        for widget_id in (
+            "#transport-script-title",
+            "#transport-script-hint",
+            "#transport-credential",
+            "#transport-script-name",
+            "#transport-script",
+        ):
+            self.query_one(widget_id).display = session_tier
+
+    @on(Select.Changed, "#transport-kind")
+    async def _kind_changed(self, event: Select.Changed) -> None:
+        kind = str(event.value)
+        if kind not in _TRANSPORT_KINDS:
+            return
+        self._kind = kind
+        container = self.query_one("#transport-fields", Vertical)
+        await container.remove_children()
+        # A field from the PREVIOUS kind is not carried over even when the
+        # key happens to match (both "tcp" and "vara" have a "host") --
+        # switching kind is the operator starting a different transport, not
+        # editing this one's host, and half-carried values from a form that
+        # no longer matches what is on screen would be worse than a blank.
+        await container.mount_all(self._field_rows(kind, {}))
+        self._show_script_section(kind)
+
+    # -- credentials / scripts -----------------------------------------------
+    def _render_credentials(self) -> None:
+        select = self.query_one("#transport-credential", Select)
+        select.set_options(
+            (name, name) for c in self._credentials if (name := c.get("name"))
+        )
+        credential = str(self._entry.get("credential", ""))
+        if credential:
+            select.value = credential
+        self._sync_login_controls()
+
+    def _render_scripts(self) -> None:
+        select = self.query_one("#transport-script-name", Select)
+        select.set_options(
+            (name, name) for s in self._scripts if (name := s.get("name"))
+        )
+        script_name = str(self._entry.get("script_name", ""))
+        if script_name:
+            select.value = script_name
+        self._sync_login_controls()
+
+    @on(Select.Changed, "#transport-credential")
+    @on(Select.Changed, "#transport-script-name")
+    def _login_source_changed(self) -> None:
+        self._sync_login_controls()
+
+    def _sync_login_controls(self) -> None:
+        _sync_login_source_controls(
+            self.query_one("#transport-credential", Select),
+            self.query_one("#transport-script-name", Select),
+            self.query_one("#transport-script", TextArea),
+        )
+
+    # -- save / cancel -------------------------------------------------------
+    @on(Button.Pressed, "#transport-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#transport-save")
+    def _save(self) -> None:
+        error = self.query_one("#transport-error", Label)
+        name = self.query_one("#transport-name", Input).value.strip()
+        if not name:
+            error.update(
+                "[red]Name this transport something -- it is how Settings "
+                "and the Address Book will find it.[/red]"
+            )
+            return
+        if name in self._existing_names:
+            error.update(f"[red]{name!r} is already in use -- pick another name.[/red]")
+            return
+
+        session_tier, fields = _TRANSPORT_KINDS[self._kind]
+        values: dict[str, object] = {}
+        for field in fields:
+            raw = self.query_one(f"#transport-field-{field.key}", Input).value.strip()
+            if field.numeric:
+                if not raw:
+                    error.update(f"[red]{field.label} is required.[/red]")
+                    return
+                try:
+                    values[field.key] = int(raw)
+                except ValueError:
+                    error.update(f"[red]{field.label} must be a number.[/red]")
+                    return
+            elif not raw and not field.password:
+                error.update(f"[red]{field.label} is required.[/red]")
+                return
+            else:
+                values[field.key] = raw
+
+        # Start from a copy of what was already there, not a blank dict, so
+        # an advanced knob this form does not expose (serial's `ports`,
+        # vara's `bandwidth`, ...) survives an edit made through this
+        # screen instead of being silently dropped -- see the class
+        # docstring on why those stay config.toml-only for now.
+        entry = dict(self._entry) if self._entry.get("kind") == self._kind else {}
+        entry.update(values)
+        entry["name"] = name
+        entry["kind"] = self._kind
+        if session_tier:
+            credential_select = self.query_one("#transport-credential", Select)
+            credential = str(credential_select.value) if _select_has_value(credential_select) else ""
+            script_name_select = self.query_one("#transport-script-name", Select)
+            script_name = (
+                str(script_name_select.value)
+                if not credential and _select_has_value(script_name_select)
+                else ""
+            )
+            script = (
+                ""
+                if (credential or script_name)
+                else self.query_one("#transport-script", TextArea).text
+            )
+            entry["script"] = script
+            entry["credential"] = credential
+            entry["script_name"] = script_name
+        else:
+            entry.pop("script", None)
+            entry.pop("credential", None)
+            entry.pop("script_name", None)
+        self.dismiss(entry)
 
 
 class CallsignScreen(ModalScreen[str | None]):
@@ -713,3 +1295,146 @@ class CommandReferenceScreen(ModalScreen[str | None]):
     def on_data_table_row_selected(self, event) -> None:
         """Hand the command back to the app, which fills the input line."""
         self.dismiss(str(event.row_key.value or ""))
+
+
+def _human_size(n: int) -> str:
+    """Bytes, KB or MB -- whichever reads best. Transcripts are plain text,
+    so anything past a few hundred KB is unusual enough to be worth noticing
+    rather than rounding away."""
+    if n < 1024:
+        return f"{n} B"
+    if n < 1024 * 1024:
+        return f"{n / 1024:.1f} KB"
+    return f"{n / (1024 * 1024):.1f} MB"
+
+
+class TranscriptsScreen(ModalScreen[None]):
+    """Past session transcripts: find one, read it, copy it out.
+
+    `kissterm/session_log.py` writes one plain-text file per connected
+    session, and did so long before this screen existed -- what was missing
+    was a way to find one again from inside the app. `kissterm/transcripts.py`
+    does the actual listing/searching/copying; this screen is display and
+    wiring only.
+
+    Read-only over the transcripts themselves: nothing here can delete or
+    edit one, only copy it elsewhere. That mirrors the terminal pane's own
+    read-only scrollback -- a session record is something to consult, not
+    something a stray keypress in a list screen should be able to alter.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Close")]
+
+    def __init__(self, directory) -> None:
+        super().__init__()
+        self._directory = directory
+        self._rows: list = []
+        self._current = None
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import DataTable, RichLog
+
+        with Vertical(id="transcripts-box"):
+            yield Label("Session Transcripts", id="transcripts-title")
+            yield Static(
+                f"Reading from {self._directory}", id="transcripts-note"
+            )
+            yield Input(
+                placeholder="search by callsign or by what was said",
+                id="transcripts-search",
+            )
+            with Horizontal(id="transcripts-body"):
+                yield DataTable(
+                    id="transcripts-table", cursor_type="row", zebra_stripes=True
+                )
+                yield RichLog(
+                    id="transcripts-preview", wrap=True, markup=False, highlight=False
+                )
+            with Horizontal(id="transcripts-export-row"):
+                yield Input(placeholder="export to path...", id="transcripts-dest")
+                yield Button("Export", id="transcripts-export")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Close", id="transcripts-close")
+
+    def on_mount(self) -> None:
+        from textual.widgets import DataTable
+
+        table = self.query_one("#transcripts-table", DataTable)
+        table.add_columns("Started", "Peer", "Mycall", "Size")
+        self._populate("")
+        self.query_one("#transcripts-search", Input).focus()
+
+    def _populate(self, needle: str) -> None:
+        from textual.widgets import DataTable
+
+        from ..transcripts import search_transcripts
+
+        table = self.query_one("#transcripts-table", DataTable)
+        table.clear()
+        self._rows = search_transcripts(self._directory, needle)
+        for info in self._rows:
+            table.add_row(
+                info.started or "?",
+                info.peer or "?",
+                info.mycall or "?",
+                _human_size(info.size),
+                key=str(info.path),
+            )
+
+    @on(Input.Changed, "#transcripts-search")
+    def _search(self, event: Input.Changed) -> None:
+        self._populate(event.value)
+
+    def _row_for(self, path_str: str):
+        return next((r for r in self._rows if str(r.path) == path_str), None)
+
+    def _show_preview(self, path_str: str | None) -> None:
+        from pathlib import Path
+
+        from textual.widgets import RichLog
+
+        preview = self.query_one("#transcripts-preview", RichLog)
+        preview.clear()
+        self._current = self._row_for(path_str) if path_str else None
+        if self._current is None:
+            return
+        try:
+            # Transcripts are written by `SessionLog`, which only ever
+            # receives already-sanitized text (see that module's docstring)
+            # -- safe to display raw, the same trust boundary `TerminalPane.
+            # log` relies on for locally-generated text.
+            text = self._current.path.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            preview.write(f"(could not read this file: {exc})")
+            return
+        preview.write(text)
+        dest = self.query_one("#transcripts-dest", Input)
+        if not dest.value:
+            dest.value = str(Path.home() / self._current.path.name)
+
+    def on_data_table_row_highlighted(self, event) -> None:
+        self._show_preview(str(event.row_key.value) if event.row_key else None)
+
+    @on(Button.Pressed, "#transcripts-export")
+    def _export(self) -> None:
+        from pathlib import Path
+
+        from ..transcripts import export_transcript
+
+        if self._current is None:
+            self.app.notify("Select a transcript first.", severity="warning")
+            return
+        dest = self.query_one("#transcripts-dest", Input).value.strip()
+        if not dest:
+            self.app.notify("Enter a destination path.", severity="warning")
+            return
+        try:
+            export_transcript(self._current, Path(dest).expanduser())
+        except OSError as exc:
+            self.app.notify(f"Export failed: {exc}", severity="error")
+            return
+        self.app.notify(f"Exported to {dest}")
+
+    @on(Button.Pressed, "#transcripts-close")
+    def _close(self) -> None:
+        self.dismiss(None)

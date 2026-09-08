@@ -146,6 +146,63 @@ async def test_enter_sends_and_the_send_button_sends():
 
 
 @pytest.mark.asyncio
+async def test_the_send_button_leaves_focus_on_the_input():
+    """From a real report: pressing Send with the mouse, then having to
+    click back into the text field before typing the next line -- for
+    every single line of a session. Clicking a Button moves focus to the
+    button, Textual's ordinary behaviour for anything clicked; nothing
+    here returned it to the input, so a mouse-only operator (or one whose
+    terminal was swallowing Enter that same session -- see
+    `test_enter_variants_a_terminal_might_misreport_also_send`) had to
+    reach for the mouse twice per line instead of once."""
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        assert link is not None
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+
+        app.query_one("#session-input", Input).value = "n"
+        await app.query_one(TerminalPane)._send_pressed()
+        await pilot.pause()
+
+        assert app.query_one("#session-input", Input).has_focus
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_enter_variants_a_terminal_might_misreport_also_send():
+    """From a real report: typed text sent fine through the Send button,
+    but plain Enter did nothing -- most likely a terminal under an
+    enhanced keyboard protocol (this app already depends on one, for
+    Ctrl+Shift+B/D) attaching a modifier to a bare Enter that a plain one
+    would not carry, which changes the reported key name out from under
+    Input's own "enter"-only binding. `_SendInput` adds a few plausible
+    variants; this proves each one actually reaches `send_line`."""
+    for key in ("shift+enter", "ctrl+enter", "alt+enter"):
+        app, a, b, incoming = await _connected_app()
+        async with app.run_test(size=(110, 32)) as pilot:
+            await pilot.pause()
+            link = await a.connect(AX25Path(PEER, MYCALL))
+            assert link is not None
+            app._bind_link(link)
+            await asyncio.sleep(0.1)
+            far = incoming[0]
+
+            field = app.query_one("#session-input", Input)
+            field.focus()
+            await pilot.pause()
+            field.value = "u"
+            await pilot.press(key)
+            await asyncio.sleep(0.4)
+            assert b"u\r" in far.read_nowait(), f"{key} did not transmit"
+        a.close()
+        b.close()
+
+
+@pytest.mark.asyncio
 async def test_typing_alone_never_transmits():
     """Characters in the field are not on the air until committed."""
     app, a, b, incoming = await _connected_app()

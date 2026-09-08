@@ -65,10 +65,7 @@ class AddressBookPane(Vertical):
 
     def compose(self) -> ComposeResult:
         yield Static(
-            "Every station you've connected to, or set up in advance. Enter "
-            "or Connect dials the highlighted row through the normal connect "
-            "flow -- the transmit gate, transport check and any node-hop "
-            "chain or login all still apply.",
+            "Every station you've connected to, or set up in advance.",
             classes="addressbook-note",
         )
         yield _AddressBookTable(id="addressbook-table", cursor_type="row", zebra_stripes=True)
@@ -96,6 +93,8 @@ class AddressBookPane(Vertical):
         for entry in book.entries:
             if entry.credential:
                 login = f"credential: {entry.credential}"
+            elif entry.script_name:
+                login = f"script: {entry.script_name}"
             elif entry.script:
                 first_line = entry.script.splitlines()[0]
                 login = first_line + ("..." if "\n" in entry.script else "")
@@ -196,9 +195,12 @@ class AddressBookPane(Vertical):
                 script=entry.script if entry else "",
                 hops=entry.hops if entry else "",
                 credential=entry.credential if entry else "",
+                script_name=entry.script_name if entry else "",
                 frequency=entry.frequency if entry else "",
                 connection_type=entry.connection_type if entry else "",
                 credentials=config.credentials,
+                scripts=config.scripts,
+                transports=config.transports,
             )
         )
         if result is None:
@@ -208,6 +210,7 @@ class AddressBookPane(Vertical):
             script=result.script,
             hops=result.hops,
             credential=result.credential,
+            script_name=result.script_name,
             frequency=result.frequency,
             connection_type=result.connection_type,
             original_target=target or "",

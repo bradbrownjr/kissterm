@@ -22,6 +22,7 @@ from kissterm._isolate import isolate
 isolate()
 
 import asyncio  # noqa: E402
+import contextlib  # noqa: E402
 
 import pytest  # noqa: E402
 
@@ -203,6 +204,41 @@ async def test_a_saved_credential_is_looked_up_live_at_connect_time(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_a_plain_connect_announces_itself_clearly(tmp_path):
+    """From a real report: connecting directly to a node with nothing to
+    say until you type a command left NOTHING on screen resembling
+    EasyTerm's "*** Connected to station X" -- `_on_link_state` cannot
+    catch this particular transition, because `AX25Station.connect` only
+    returns the link once it is already connected, which is after the one
+    chance to register a callback on it. See the comment in
+    `KissTermApp.action_connect` next to the fix.
+
+    A second, real transcript pulled from this exact gap showed the
+    durable ``* connected`` line arriving eleven seconds late -- timed to
+    the NEXT state transition rather than the actual connect -- because
+    the original fix wrote only to the terminal pane. This also asserts
+    the transcript file itself carries the line, so that regression stays
+    caught."""
+    app, station, tb = await _app()
+    book = _fresh_book(app, tmp_path)
+    book.record_attempt("WS1EC-7")
+    peer = AX25Station(NODE, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _connect_via_history(app, pilot)
+        await asyncio.sleep(0.3)
+        await pilot.pause()
+
+        text = _log_text(app)
+        assert "Connected to WS1EC-7" in text, text
+        assert app.transcript is not None
+        transcript_text = app.transcript.path.read_text()
+        assert "Connected to WS1EC-7" in transcript_text, transcript_text
+    peer.close()
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_a_radio_reminder_blocks_the_connect_until_acknowledged(tmp_path):
     """kissterm cannot tune a radio or start a modem -- the reminder exists
     precisely so the operator sees the frequency/connection type BEFORE
@@ -297,3 +333,90 @@ async def test_dialing_from_the_addressbook_pane_also_shows_the_reminder(tmp_pat
 
         assert not station.transport.sent
     station.close()
+
+
+# ---------------------------------------------------------------------------
+# Connect dialog transport picker -- same-tier only, see AGENTS.md 2a
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_transport_picker_is_hidden_with_only_one_transport():
+    """The overwhelming common case: one TNC configured. A dropdown that
+    can only ever show the transport already in use is not a control, it
+    is decoration -- see `ConnectScreen`'s docstring."""
+    from kissterm.ui.dialogs import ConnectScreen
+    from textual.widgets import Select
+
+    config = Config(mycall=str(MYCALL))
+    config.transports = [{"kind": "tcp", "name": "only-one", "host": "10.0.0.2", "port": 8001}]
+    config.active_transport = "only-one"
+    app, station, tb = await _app(config)
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        assert isinstance(app.screen, ConnectScreen)
+        assert len(app.screen.query("#connect-transport")) == 0
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_picking_a_different_transport_switches_before_dialing():
+    """Two configured KISS TNCs -- the case a real report asked for
+    directly ("in case I have different modems"). Picking the OTHER one in
+    the Connect dialog must actually open it and rebind the station before
+    the SABM for the typed target goes anywhere, exactly like Settings'
+    own Active-transport switch (`KissTermApp._switch_frame_transport`,
+    shared by both)."""
+    from kissterm.ui.dialogs import ConnectScreen
+    from textual.widgets import Select
+
+    async def handler(reader, writer):
+        await reader.read(64)
+        await asyncio.sleep(5.0)
+
+    server_a = await asyncio.start_server(handler, "127.0.0.1", 0)
+    server_b = await asyncio.start_server(handler, "127.0.0.1", 0)
+    host, port_a = server_a.sockets[0].getsockname()[:2]
+    _, port_b = server_b.sockets[0].getsockname()[:2]
+
+    config = Config(mycall=str(MYCALL))
+    config.tx_armed_at_start = True
+    config.transports = [
+        {"kind": "tcp", "name": "first", "host": host, "port": port_a},
+        {"kind": "tcp", "name": "second", "host": host, "port": port_b},
+    ]
+    config.active_transport = "first"
+    app, station, tb = await _app(config)
+
+    try:
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.press("ctrl+n")
+            await pilot.pause()
+            assert isinstance(app.screen, ConnectScreen)
+
+            select = app.screen.query_one("#connect-transport", Select)
+            assert select.value == "first"
+            select.value = "second"
+
+            for key in "WS1EC-7":
+                await pilot.press(key if key != "-" else "minus")
+            await pilot.press("enter")
+            await asyncio.sleep(0.3)
+            await pilot.pause()
+
+            assert app.config.active_transport == "second"
+            assert app.station.transport.info.detail == f"{host}:{port_b}", (
+                app.station.transport.info.detail
+            )
+    finally:
+        station.close()
+        # The rebind leaves a second live transport behind -- see the
+        # matching cleanup note in test_settings.py's version of this test.
+        with contextlib.suppress(Exception):
+            await app.station.transport.close()
+        server_a.close()
+        server_b.close()
+        await server_a.wait_closed()
+        await server_b.wait_closed()

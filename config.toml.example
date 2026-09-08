@@ -409,6 +409,14 @@ name = "some-node-telnet"
 kind = "telnet"
 host = "bpq.example.org"
 port = 8010
+# Optional auto-login, sent one line at a time right after connecting --
+# same idea as an address-book entry's script, just for a transport that has
+# no per-attempt dialog to carry one. Three sources, checked in order:
+# `credential` (a name from [[credentials]] below), `script_name` (a name
+# from [[scripts]] below), then `script` (typed here, literally).
+# credential = "Personal BBS login"
+# script_name = "Check WS1EC mail"
+# script = "CLYDE\nMYPASS"
 
 # ssh: the secure-delivery case -- a shell account whose login immediately
 # hands you a telnet session to the real node, entirely on the remote end
@@ -418,6 +426,13 @@ port = 8010
 # `password` sits here in plain text like every other config.toml secret in
 # this file (there is nowhere else for it to live yet) -- protect this file
 # with normal filesystem permissions the same way you would an SSH key.
+#
+# `script` here is a second, later login: the SSH password above only gets
+# you the shell account; WS1EC's shell then runs its own local telnet into
+# the actual BPQ node, which prompts again for a packet callsign and
+# password of its own. The last line can be a "C <node>" command too, so one
+# script both logs into the node and connects on to the service you
+# actually want, exactly like a hand-typed hop chain.
 [[transports]]
 name = "ws1ec"
 kind = "ssh"
@@ -425,6 +440,7 @@ host = "ws1ec.mainepacketradio.org"
 port = 4122
 username = "packet"
 password = ""
+script = "MYCALL\nMYPASS\nC BBS"
 
 # --- Saved connect targets -------------------------------------------------
 # Optional shortcuts for stations you connect to often -- a local BBS, a
@@ -446,3 +462,15 @@ transport = "direwolf-local"
 [[credentials]]
 name = "Personal BBS login"
 text = "CLYDE\nMYPASS"
+
+# --- Saved scripts -----------------------------------------------------------
+# Reusable command sequences, managed from Settings > Scripts -- same
+# mechanism as [[credentials]] above (a name, looked up fresh at connect
+# time), kept as a SEPARATE list on purpose: a credential is a login, named
+# for the account it belongs to; a script is any sequence sent after
+# connecting (a login followed by a node hop, a mailbox check, ...), named
+# for what it does. An address-book or transport entry's `script_name`
+# field references one by name; `credential`, if also set, wins over it.
+[[scripts]]
+name = "Check WS1EC mail"
+text = "CLYDE\nMYPASS\nC BBS\nL"

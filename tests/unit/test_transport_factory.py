@@ -29,7 +29,14 @@ _isolate.isolate()
 import pytest  # noqa: E402
 
 from kissterm import doctor  # noqa: E402
-from kissterm.transport import _ENTRY_ONLY_KEYS, _VALID_KINDS, build_transport  # noqa: E402
+from kissterm.transport import (  # noqa: E402
+    _ENTRY_ONLY_KEYS,
+    _VALID_KINDS,
+    FRAME_TIER_KINDS,
+    KIND_LABELS,
+    SESSION_TIER_KINDS,
+    build_transport,
+)
 from kissterm.transport.base import Transport  # noqa: E402
 
 #: One config entry per kind, shaped the way the wizard writes them -- which
@@ -80,6 +87,40 @@ def test_an_unknown_key_still_fails_loudly():
     entry = dict(ENTRIES["tcp"], hsot="typo")
     with pytest.raises(TypeError):
         build_transport(entry)
+
+
+def test_every_valid_kind_has_a_label():
+    """The Address Book's connection-type picker shows `KIND_LABELS`, not the
+    raw config keyword -- a kind missing here would show up there as a bare
+    string like "ssh" instead of "SSH"."""
+    assert set(KIND_LABELS) == set(_VALID_KINDS)
+
+
+def test_every_valid_kind_is_in_exactly_one_tier():
+    """The Connect dialog's transport picker (`KissTermApp.action_connect`)
+    offers only same-tier alternatives -- a kind missing from both sets
+    would silently never be offered there; a kind in both would be offered
+    on the wrong tier's dialog."""
+    assert FRAME_TIER_KINDS | SESSION_TIER_KINDS == set(_VALID_KINDS)
+    assert FRAME_TIER_KINDS & SESSION_TIER_KINDS == set()
+
+
+@pytest.mark.parametrize("kind", sorted(ENTRIES))
+def test_script_and_credential_never_reach_a_constructor(kind):
+    """`script`/`credential` describe the entry's auto-login, not any
+    transport's wire-level constructor -- see `Transport.script`'s
+    docstring. A future transport whose `__init__` happens to accept one of
+    these names by coincidence must still not receive it from config."""
+    entry = dict(ENTRIES[kind], script="MYCALL\nMYPASS", credential="Personal BBS login")
+    transport = build_transport(entry)
+    assert transport.script == "MYCALL\nMYPASS"
+    assert transport.credential == "Personal BBS login"
+
+
+def test_script_and_credential_default_to_empty():
+    transport = build_transport(ENTRIES["tcp"])
+    assert transport.script == ""
+    assert transport.credential == ""
 
 
 def test_doctor_builds_transports_through_the_factory():

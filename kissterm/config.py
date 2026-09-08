@@ -201,6 +201,19 @@ class Config:
     #: picks up the change on its next connect, which is the entire point of
     #: keeping logins here instead of retyped into each station's script.
     credentials: list[dict[str, Any]] = field(default_factory=list)
+    #: Reusable named command sequences (`{"name": ..., "text": ...}`), same
+    #: shape and same live-lookup-by-name mechanism as `credentials` and
+    #: deliberately kept as a SEPARATE list rather than folded into it: a
+    #: credential is a login, one purpose, named for the account it belongs
+    #: to ("Personal BBS login"); a script is any sequence of commands sent
+    #: after connecting -- a login followed by a node hop, a mailbox check,
+    #: whatever an operator does after every connect to some station -- and
+    #: naming it for what it DOES ("Check WS1EC mail") is a different act
+    #: from naming a login for who owns it. Referenced by name from an
+    #: address-book entry's `script_name` field, which is checked AFTER
+    #: `credential` and before that entry's own literal `script` text --
+    #: see `Entry.script_name`'s docstring for the full precedence.
+    scripts: list[dict[str, Any]] = field(default_factory=list)
     #: Max AX.25 info-field size in bytes. 256 is the traditional default;
     #: dropping to 128 or even 64 on a noisy HF path trades throughput for a
     #: much lower chance any given frame needs a retransmit, since a shorter
@@ -353,6 +366,21 @@ def find_credential(config: Config, name: str) -> str:
     return ""
 
 
+def find_script(config: Config, name: str) -> str:
+    """The current text of the saved script named `name`, or `""`.
+
+    Same live-lookup shape as `find_credential`, over the separate
+    `Config.scripts` list -- see that field's docstring for why the two
+    are kept apart rather than one list serving both purposes.
+    """
+    if not name:
+        return ""
+    for entry in config.scripts:
+        if entry.get("name") == name:
+            return str(entry.get("text", ""))
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Loading -- defensive by construction, see module docstring
 # ---------------------------------------------------------------------------
@@ -394,6 +422,7 @@ def load_config(path: Path | None = None) -> Config:
     cfg.transports = _load_dict_list(raw.get("transports", []), "transports", warnings)
     cfg.active_transport = _load_str(raw, "active_transport", cfg.active_transport, warnings)
     cfg.credentials = _load_dict_list(raw.get("credentials", []), "credentials", warnings)
+    cfg.scripts = _load_dict_list(raw.get("scripts", []), "scripts", warnings)
     cfg.paclen = _load_int(raw, "paclen", cfg.paclen, warnings)
     cfg.modulo = _load_modulo(raw.get("modulo", cfg.modulo), warnings)
     cfg.window = _load_window(raw.get("window", cfg.window), warnings, cfg.modulo)

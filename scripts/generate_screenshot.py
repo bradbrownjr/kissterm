@@ -168,7 +168,7 @@ async def main() -> int:
             hops="KC1XYZ-9",
             credential="Personal BBS login",
             frequency="146.520 MHz",
-            connection_type="1200 AFSK",
+            connection_type="Direwolf (LAN)",
             original_target="N1XYZ-2",
         )
 

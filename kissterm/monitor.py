@@ -61,12 +61,22 @@ def sanitize(data: bytes, keep_newlines: bool = True) -> str:
 class MonitorFilter:
     """What the monitor pane shows.
 
-    Defaults are chosen for "I want to see what is happening on the channel":
-    everything except the supervisory chatter, which on a busy link is most of
-    the frames and almost none of the information.
+    Defaults are chosen for "I want to see what is happening on the
+    channel" -- which includes supervisory frames (RR/RNR/REJ) despite
+    their being pure channel noise on a busy multi-station link, because on
+    an ordinary one-to-one link they are exactly the evidence that answers
+    "did the far end even get that." A real diagnosis turned on precisely
+    this: a node ACKed a line within 3 seconds (an RR), then said nothing
+    for 22 more, and the operator had no way to tell "they got it, they are
+    just slow" from "this never reached them" without knowing a hidden-by-
+    default frame type existed to look for. `KissTermApp._note_if_no_reply`
+    (`ui/app.py`) now says so directly after a wait; this default is what
+    lets *looking* answer the same question immediately, and the pane's own
+    "Supervisory" button is there for the busy-link case where the noise
+    argument still wins and an operator wants it back off.
     """
 
-    show_supervisory: bool = False
+    show_supervisory: bool = True
     show_unnumbered: bool = True
     show_information: bool = True
     show_ui: bool = True

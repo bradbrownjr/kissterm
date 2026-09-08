@@ -3,6 +3,272 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-08] — A real connect never said "Connected", Enter sometimes didn't send, and scripts get their own list
+
+Three more findings from side-by-side testing against EasyTerm on the same
+node.
+
+### Fixes
+- **A fresh outgoing connect never announced itself.** `AX25Station.connect`
+  only returns the link once the SABM/UA exchange is already done, which is
+  AFTER the one moment the UI could have registered an `on_state` callback
+  on it -- so the transition into `connected` fired to nobody, and if the
+  node had nothing to say until you typed something, there was no
+  confirmation on screen at all (EasyTerm's "*** Connected to station X"
+  had no kissterm equivalent). `action_connect` and
+  `_connect_session_transport` now print `*** Connected to <peer>`
+  explicitly, right after binding the link, instead of depending on a
+  callback that structurally cannot catch this one transition. **Files:**
+  `kissterm/ui/app.py`, `tests/pilot/test_connect_scripts.py`.
+- **Enter sometimes didn't send.** Typed text sent fine through the Send
+  button but plain Enter did nothing, on a terminal (Konsole) whose
+  enhanced keyboard protocol this app already depends on elsewhere (`Ctrl+
+  Shift+B`/`D`) -- the same class of protocol can occasionally attach a
+  modifier to a bare Enter that changes the key name Textual reports, missing
+  `Input`'s own "enter"-only binding. `_SendInput` (a thin `Input` subclass)
+  adds `shift+enter`/`ctrl+enter`/`alt+enter` bindings routed to the same
+  `action_submit`, so the outgoing box is not dependent on getting exactly
+  one specific key name back from the terminal. **Files:**
+  `kissterm/ui/terminal_pane.py`, `tests/pilot/test_terminal_ux.py`.
+- **The "Connected" fix above only reached the screen, not the transcript
+  file.** Pulling the actual log from the WS1EC-15 report that prompted
+  it showed the durable ``* connected`` line still arriving eleven seconds
+  late -- timed to the next state transition (a T1 timer-recovery retry)
+  rather than the real connect at 15:30:25 -- because the first fix wrote
+  straight to the terminal pane instead of through `_note` (the one method
+  that reaches both the pane and the transcript). Both call sites now use
+  `_note`, so a transcript pulled after the fact shows the connect where it
+  actually happened. **Files:** `kissterm/ui/app.py`,
+  `tests/pilot/test_connect_scripts.py`,
+  `tests/pilot/test_session_transport.py`.
+- **Clicking Send left focus on the button, not the input.** A second
+  report on the same WS1EC-15 session described needing to click Send,
+  then click back into the text field, for every line -- Textual moves
+  focus to whatever was clicked, and nothing in `send_line` moved it back.
+  `TerminalPane.send_line` now refocuses the input on every path through
+  it, so clicking Send once behaves like pressing Enter once: the field is
+  ready for the next line immediately. **Files:**
+  `kissterm/ui/terminal_pane.py`, `tests/pilot/test_terminal_ux.py`.
+
+### New Features
+- **Saved scripts, kept separate from saved credentials.** Requested
+  directly: a credential is a login, named for the account it belongs to;
+  a script is any command sequence sent after connecting (login then a
+  node hop, a mailbox check, ...), named for what it does -- conflating
+  them into one list was flagged as wrong even though the underlying
+  mechanism (a named block of text, sent line by line) is identical.
+  `Config.scripts` is a new list, same shape as `Config.credentials`
+  (`{"name", "text"}`), with its own Settings tab (New/Edit/Forget, reusing
+  `CredentialScreen` with `kind="script"` rather than a near-duplicate
+  dialog). The Connect dialog, the Address Book editor, and
+  `TransportEntryScreen`'s auto-login section each gained a second "Saved
+  script" dropdown next to "Saved credential" -- three sources now, checked
+  in order (credential, then saved script, then literal text) by the new
+  `KissTermApp._resolve_login`, wherever an auto-login is resolved.
+  `addressbook.Entry`, `ConnectRequest`, `AddressBookEdit` and `Transport`
+  all gained a matching `script_name` field alongside their existing
+  `script`/`credential`. **Files:** `kissterm/config.py`,
+  `kissterm/addressbook.py`, `kissterm/transport/base.py`,
+  `kissterm/transport/__init__.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/dialogs.py`, `kissterm/ui/settings_pane.py`,
+  `kissterm/ui/addressbook_pane.py`, `config.toml.example`,
+  `tests/pilot/test_settings.py`, `tests/unit/test_config.py`.
+- **The Connect dialog can switch which same-tier transport it dials
+  through.** Requested directly, for "different modems" -- a second KISS
+  TNC, a second Telnet/SSH host. `ConnectScreen` gains a transport dropdown
+  (frame tier), and a new `SessionTransportPickerScreen` covers the session
+  tier, which previously had no dialog on `Ctrl+N` at all to put a picker
+  in; both are shown ONLY when there is a real choice (2+ same-tier
+  transports configured) and default to whichever is already active, so
+  the overwhelming one-transport case is unchanged. Picking a different
+  one calls new, shared `KissTermApp._switch_frame_transport`/
+  `_switch_session_transport` before dialing -- the frame-tier one is the
+  same logic `SettingsPane`'s own Active-transport switch already used
+  (moved onto the app so both callers share one implementation instead of
+  two that could drift). Deliberately does NOT offer switching TIERS live
+  (frame KISS TNC to/from a session-tier Telnet/SSH/VARA/etc, or vice
+  versa) -- monitor/heard/beacon/status-bar are all wired to whichever
+  tier the app launched on, and retrofitting a live tier swap was scoped
+  out as a separate, much larger and riskier change than what was asked
+  for. New `transport.FRAME_TIER_KINDS`/`SESSION_TIER_KINDS` name the
+  split. **Files:** `kissterm/transport/__init__.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/dialogs.py`, `kissterm/ui/settings_pane.py`,
+  `kissterm/ui/styles.py`, `tests/unit/test_transport_factory.py`,
+  `tests/pilot/test_connect_scripts.py`,
+  `tests/pilot/test_session_transport.py`.
+- **Past session transcripts are findable and exportable from inside the
+  app, not just from a shell.** `kissterm/session_log.py` has written one
+  plain-text file per connected session since P1, but the only way to find
+  one again was `ls`/`grep` on the log directory. New `Ctrl+O` opens
+  `TranscriptsScreen`: a searchable list of every transcript (newest
+  first), a live preview pane, and an "Export" field/button that copies
+  the selected one to any path the operator types, creating the
+  destination directory if needed. The search box matches on
+  callsign/filename first and falls back to the transcript's own text, so
+  "what did we say about the net frequency" is answerable without knowing
+  which callsign or date it was. Read-only over the originals -- nothing
+  here can edit or delete a transcript, only copy one out. New
+  `kissterm/transcripts.py` (listing/search/export, no Textual import, so
+  it is testable with no running app) and `TranscriptsScreen` in
+  `kissterm/ui/dialogs.py`. Also fixed the startup banner, which had
+  advertised "Ctrl+H for help" since the very first commit even though no
+  `Ctrl+H` binding has ever existed in this app -- it now names the two
+  keys that actually do something (`Ctrl+R` commands, `Ctrl+O`
+  transcripts). **Files:** `kissterm/transcripts.py`,
+  `kissterm/ui/dialogs.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/styles.py`, `tests/unit/test_transcripts.py`,
+  `tests/pilot/test_transcripts_screen.py`.
+
+## [2026-09-07] — "They got it, they're just not answering" is now on screen
+
+From a real, fully-logged case: connected to WS1EC-15 cleanly (SABM/UA),
+sent a line, and the node ACKed it (an RR) within 3 seconds -- then said
+nothing for 22 more, and the operator had no way to tell "they got it,
+they're just slow" from "this went nowhere" without reading `--log-level
+debug` output. Confirmed against the modem's own independent monitor: both
+logs agreed to the millisecond, and kissterm's AX.25 layer was correct
+throughout (V(A) advanced on the RR, no spurious retransmit). The gap was
+entirely in what the operator could see.
+
+### New Features
+- **A note when a sent line goes unanswered.** `KissTermApp._note_if_no_
+  reply`, armed by `log_sent` and cancelled the moment any data comes back
+  or the link stops being plainly CONNECTED. Fires `REPLY_WAIT_SECONDS`
+  (15s) after a send with nothing since, and only when the AX.25 layer has
+  already acknowledged that line (`link.va == link.vs`) -- if it has NOT
+  been acknowledged, T1/timer-recovery is already retrying and already
+  wrote its own note, so this stays quiet rather than repeating that with
+  less detail. **Files:** `kissterm/ui/app.py`,
+  `tests/pilot/test_transcript_and_color.py`.
+
+### Improvements
+- **`MonitorFilter.show_supervisory` now defaults to on.** RR/RNR/REJ are
+  exactly the "did they get it" evidence on an ordinary one-to-one link,
+  and hiding them by default is what let the report above happen: the one
+  frame that proved the node was responding never appeared. The noise
+  argument for hiding them still holds on a busy multi-station link, which
+  is what the pane's own "Supervisory" toggle is for -- its label now shows
+  which state it's in ("Supervisory: on/off", highlighted when on) instead
+  of only a toast on the press that set it, since a setting that changes
+  behaviour on every future frame should be visible after the fact too.
+  **Files:** `kissterm/monitor.py`, `kissterm/ui/monitor_pane.py`,
+  `tests/pilot/test_monitor_sees_both_directions.py`.
+- **Fixed the Monitor tab's filter row: the "Supervisory" button was
+  invisible.** `Input`'s own default CSS is `width: 100%`, which inside a
+  `Horizontal` claimed the entire row and pushed the button off the right
+  edge with nothing on screen to suggest it existed -- confirmed against
+  the committed screenshot from before this fix, so this predates
+  everything else in this entry and was never about the button's label.
+  **Files:** `kissterm/ui/styles.py`.
+
+## [2026-09-06] — Add a transport by hand: Settings > Transports > New
+
+The gap behind a report that looked like an Address Book bug: "I can't
+select from multiple transports in the address book if I can't save
+multiple transports in the settings." True -- "Scan for hardware" only
+finds a KISS TNC or AGWPE engine it can identify by itself (see AGENTS.md's
+"Discovery must only emit a config it can actually complete"); it has never
+been able to add a VARA/Mercury modem, a Telnet or SSH node, or a second
+entry for hardware already found, and until now neither could anything
+else in the app -- that was `config.toml`-only, documented in
+`config.toml.example` but with no UI path at all.
+
+### New Features
+- **Settings > Transports > New / Edit selected.** `TransportEntryScreen`
+  (`kissterm/ui/dialogs.py`) is a form whose fields change with the chosen
+  kind -- a serial device path, a TCP/AGWPE host and port, a VARA/Mercury
+  host/callsign/ports, or a Telnet/SSH host (SSH adds username/password) --
+  each matching that kind's real constructor. A Telnet/SSH/VARA/Mercury/
+  kernel-AX.25 entry gets the same auto-login section the Connect dialog
+  has (`script`/`credential`), since those are the session-tier kinds
+  `Transport.script` actually does something for. Saving proves the entry
+  by calling `transport.build_transport()` -- the one place a `Transport` is
+  ever constructed from config -- and refuses to save if it raises, the
+  same rule the first-run wizard already follows and for the same reason:
+  a config entry that looks right and fails at `open()` is worse than
+  catching it here. This is also what makes the Address Book's Connection-
+  type picklist (2026-09-06, above) actually useful for anything a scan
+  cannot find, which is most of what an operator would want to add second.
+  **Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/settings_pane.py`,
+  `kissterm/ui/styles.py`, `tests/pilot/test_settings.py`.
+
+## [2026-09-06] — Disconnect fixed while typing, and the transcript path is a header now
+
+Two things caught from live use right after the Telnet/SSH work above.
+
+### Fixes
+- **Disconnect is now `Ctrl+Shift+D`.** Plain `Ctrl+D` is also
+  `Input`/`TextArea`'s own binding for delete-character-right, and the
+  outgoing-message box holds focus for nearly all of a live session -- so
+  the Footer silently dropped the "Disconnect" hint the moment that box took
+  focus, and the keystroke deleted a character instead of disconnecting.
+  Reported directly ("^d went missing when I started to connect, but the
+  keystroke still was able to cancel the attempt" -- that second half was
+  luck: focus had not reached the box yet at that exact moment). Plain
+  `Ctrl+D` is kept, hidden, as a fallback for whenever focus happens to be
+  somewhere that does not shadow it, same pattern as `Ctrl+Shift+B`/`Ctrl+B`
+  for the beacon. `Ctrl+K` (Callsign) has the identical collision and is not
+  fixed here -- see the comment above its `Binding` in `kissterm/ui/app.py`.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_transmit_gate.py`,
+  `README.md`, `AGENTS.md`, `DESIGN.md`.
+
+### Improvements
+- **The transcript path is a fixed header above the scrollback, not a line
+  inside it.** A session can run for hours; a line logged once and then
+  scrolled past is not "shown to the operator" in any way that survives
+  Ctrl+L or normal scrolling. `TerminalPane.set_transcript_note` owns it now;
+  `KissTermApp._start_transcript`/`_close_transcript` set and clear it
+  instead of writing a `"*** Transcript: ..."` log line. Also answers a
+  direct request that the transcript note read before the "Connecting..."
+  line rather than after it -- a header is always above the scrollback by
+  construction, so the two can no longer land in the wrong order regardless
+  of how long the connect attempt takes. **Files:** `kissterm/ui/app.py`,
+  `kissterm/ui/terminal_pane.py`, `kissterm/ui/styles.py`,
+  `tests/pilot/test_transcript_and_color.py`.
+
+## [2026-09-06] — Session-transport auto-login, and an Address Book copy pass
+
+Two follow-ups from actually looking at the Telnet/SSH work above.
+
+### New Features
+- **Auto-login for Telnet/SSH (and VARA/Mercury/kernel AX.25).** A session
+  transport's config entry can carry `script` (inline text) or `credential`
+  (a name from `[[credentials]]`) and it is sent, one line at a time, right
+  after connecting -- the WS1EC case in full: the SSH login only reaches
+  the shell account, whose own profile then runs `telnet` into the real
+  BPQ node and prompts again for a packet callsign and password. A
+  script's last line can be `C <node>`, so one script both logs in and
+  reaches the actual service, the same as typing that hop by hand. See
+  `Transport.script`'s docstring (`kissterm/transport/base.py`),
+  `build_transport`'s `_named` (`kissterm/transport/__init__.py`), and the
+  worked example in `config.toml.example`/SETUP.md §6a.
+- **Address Book "Connection type" is now a picklist of the operator's own
+  configured transports** (`kissterm/ui/dialogs.py`'s `AddressBookEntryScreen`),
+  not free text -- shown as "name (kind)", e.g. "ws1ec (SSH)", from a new
+  `KIND_LABELS` map in `kissterm/transport/__init__.py`. Still informational
+  only (shown on `RadioReminderScreen` before connecting); it does not
+  change which transport a dial actually uses. A value saved before this
+  change, or naming a transport since renamed or removed, still shows up
+  and round-trips as its own option rather than crashing the screen or
+  silently vanishing.
+
+### Improvements
+- Reworded the Connect and Address Book dialogs: shorter placeholders
+  ("Node hops, e.g. N1QFY, AB1KI-15 (optional)" instead of a parenthetical
+  paragraph), the auto-login section renamed "Auto-login" with a one-line
+  hint ("Pick a saved credential, or type a login below") and the
+  previously blank, unlabeled script box now says what belongs in it. A
+  Select's "(type your own below)" prompt referring to a sibling control
+  was exactly the "puzzle, not a placeholder" DESIGN.md now warns against.
+- `DESIGN.md` §8 gained two rules: a dialog is not a docstring (Settings
+  copy can afford a fuller explanation; a modal mid-task cannot), and a
+  placeholder must stand alone rather than pointing at another widget.
+- Trimmed the Address Book tab's own persistent note to one short sentence
+  -- it was explaining internal mechanism (the transmit gate, transport
+  check) the operator does not need re-told every time a frequently-used
+  tab opens. Audited every other modal and pane note against the same
+  standard; nothing else needed changing.
+
 ## [2026-09-06] — Telnet and SSH: reaching a node over the Internet
 
 Asked directly, with the concrete case already in hand: WS1EC (Maine Packet

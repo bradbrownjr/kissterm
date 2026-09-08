@@ -136,7 +136,7 @@ tab existed to expect it.
   screen twice, in two different corners. Register the binding with
   `show=False`.
 - **The Footer is for non-tab actions only** — Connect, Disconnect, Callsign,
-  Commands, Quit, palette.
+  Commands, Transcripts, Quit, palette.
 - **`Ctrl+1..5` are unlabelled fallback aliases** for terminals that intercept
   function keys.
 - **Ceiling: F1–F8.** F9+ are not reliably delivered by every terminal, so
@@ -152,7 +152,7 @@ tab existed to expect it.
 ## 6. The bottom two rows
 
 ```
- ^q Quit  ^n Connect  ^d Disconnect  ^k Callsign  ^r Commands   <- Footer
+ ^q Quit  ^n Connect  ^D Disconnect  ^k Callsign  ^r Commands  ^o Transcripts   <- Footer
  kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6     <- status
 ```
 
@@ -212,6 +212,20 @@ docstrings do: explain *why*, at the moment it matters.
   a silent TNC and a wrong port look identical until a frame arrives.
 - **Warn where the cost is paid.** Airtime, unattended transmission and
   network scanning all get told to the operator at the point of the action.
+- **A dialog is not a docstring.** Settings is a page the operator visits
+  occasionally and can afford to read; a modal (Connect, Address book entry)
+  sits between the operator and a task already in progress and must be
+  readable in one glance. Keep dialog labels and placeholders to what fills
+  the field correctly — one short example, not a parenthetical essay:
+  "Node hops, e.g. N1QFY, AB1KI-15 (optional)", not "N1QFY, AB1KI-15
+  (optional -- node hops, when no digipeater reaches it)". The fuller
+  explanation belongs in this file, in AGENTS.md, or in a docstring — never
+  squeezed into a widget the operator has to read under time pressure.
+- **A placeholder must stand alone.** It is the only text some operators will
+  ever see in that field, so "(type your own below)" next to an unlabeled
+  blank box is not a placeholder, it's a puzzle. Every empty `Input` or
+  `TextArea` says, by itself, what belongs in it, and does not require
+  reading a sibling control to make sense.
 
 ---
 

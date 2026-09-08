@@ -49,6 +49,16 @@ split exists to prevent.
 | `ssh.py` | session | SSH to a login shell; needs the optional `asyncssh` extra |
 | `__init__.py` | — | `build_transport(config)` factory, lazy imports |
 
+Every config entry may also carry `script`/`credential` for an optional
+post-connect auto-login -- `build_transport` strips these into
+`Transport.script`/`Transport.credential` rather than forwarding them as
+constructor keywords (see `_ENTRY_ONLY_KEYS`). Only `KissTermApp.
+_connect_session_transport` reads them today, since a frame-tier connect
+already gets its script from the address-book request instead -- but they
+live on every transport, not just the session tier, so a new transport
+kind's constructor must not declare a `script` or `credential` parameter of
+its own (it would collide with this).
+
 ## The rules that will bite you
 
 1. **Never transmit anything the operator did not ask for.** Every send keys a

@@ -13,7 +13,7 @@ isolate()
 import asyncio  # noqa: E402
 
 import pytest  # noqa: E402
-from textual.widgets import DataTable, Input  # noqa: E402
+from textual.widgets import DataTable, Input, Select  # noqa: E402
 
 from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.app import KissTermApp  # noqa: E402
@@ -244,4 +244,65 @@ async def test_connect_button_dials_the_selected_station(tmp_path):
         assert book.entries[0].attempts == 2, "dialing did not record as an attempt"
         # Some SABMs actually went out -- a real connect attempt, not a no-op.
         assert ta.sent, "dialing from the pane never transmitted anything"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_connection_type_lists_the_operators_own_configured_transports(tmp_path):
+    """The picker shows what is actually in Settings > Transports, by name
+    -- not free text the operator has to remember to spell consistently."""
+    config = Config(
+        mycall=str(MYCALL),
+        transports=[
+            {"name": "direwolf-local", "kind": "tcp", "host": "127.0.0.1", "port": 8001},
+            {"name": "ws1ec", "kind": "ssh", "host": "example.org", "username": "packet"},
+        ],
+    )
+    app, station, ta, tb = await _app(config)
+    async with app.run_test(size=(120, 40)) as pilot:
+        _fresh_book(app, tmp_path)
+        await _addressbook_tab(app, pilot)
+
+        app.query_one(AddressBookPane)._new_entry()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        select = app.screen.query_one("#addressbook-connection-type", Select)
+        labels = {label for label, _value in select._options}
+        assert "direwolf-local (TCP KISS)" in labels
+        assert "ws1ec (SSH)" in labels
+        await app.screen.dismiss(None)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_connection_type_preserves_a_value_matching_no_configured_transport(tmp_path):
+    """A note saved before this became a picklist, or naming a transport
+    since renamed or removed, must still show up and round-trip -- not
+    crash the screen (a plain `Select` raises on an out-of-options value)
+    and not silently vanish."""
+    app, station, ta, tb = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        book = _fresh_book(app, tmp_path)
+        book.upsert("WS1EC-7", connection_type="1200 AFSK", original_target="WS1EC-7")
+        await _addressbook_tab(app, pilot)
+        app.query_one(AddressBookPane).refresh_from(book)
+        await pilot.pause()
+
+        table = app.query_one("#addressbook-table", DataTable)
+        table.move_cursor(row=0)
+        await pilot.pause()
+        app.query_one(AddressBookPane)._edit_selected()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        select = app.screen.query_one("#addressbook-connection-type", Select)
+        assert select.value == "1200 AFSK"
+
+        from kissterm.ui.dialogs import AddressBookEdit
+
+        await app.screen.dismiss(AddressBookEdit("WS1EC-7", connection_type="1200 AFSK"))
+        await pilot.pause()
+
+        assert book.entries[0].connection_type == "1200 AFSK"
     station.close()

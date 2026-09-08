@@ -113,6 +113,21 @@ class Transport(abc.ABC):
         #: could only ever show half a conversation, and "the node never
         #: answered" would be indistinguishable from "we never asked".
         self.on_sent: list[Callable[[AX25Frame, int], None]] = []
+        #: Optional post-connect auto-login, from this transport's own
+        #: config entry (`build_transport` sets these; see `_ENTRY_ONLY_KEYS`
+        #: in `kissterm/transport/__init__.py`). Three sources, checked in
+        #: order: `credential` names an entry in `Config.credentials` and
+        #: wins if set; `script_name` names an entry in `Config.scripts` and
+        #: is checked next; `script` is inline text, used last -- see
+        #: `find_credential`/`find_script`. Meaningful only to a
+        #: `SessionTransport`: its `connect()` has no per-attempt
+        #: address-book request to carry a script the way a frame-tier
+        #: connect does, so this is where a Telnet/SSH login lives instead.
+        #: Frame-tier transports carry these fields too but nothing reads
+        #: them there.
+        self.script: str = ""
+        self.credential: str = ""
+        self.script_name: str = ""
 
     @property
     def error(self) -> str:

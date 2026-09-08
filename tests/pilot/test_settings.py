@@ -16,7 +16,7 @@ import asyncio  # noqa: E402
 import dataclasses  # noqa: E402
 
 import pytest  # noqa: E402
-from textual.widgets import Input, Select, TabbedContent  # noqa: E402
+from textual.widgets import Button, Input, Select, TabbedContent  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
@@ -62,6 +62,10 @@ NOT_IN_SCHEMA = {
     # scalar or two, and Add/Edit/Forget need real widgets a schema entry
     # cannot generate.
     "credentials",
+    # Same shape, same reason, separate tab -- see Config.scripts's
+    # docstring for why this is a second list rather than folded into
+    # credentials.
+    "scripts",
     "warnings",
     "aprs",
     # Nested dataclasses. Their fields ARE in the schema, as dotted paths --
@@ -317,6 +321,170 @@ async def test_forgetting_a_transport():
         names = [t["name"] for t in app.config.transports]
         assert names == ["USB TNC"]
         assert app.config.active_transport == "USB TNC", "active must not dangle"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_new_transport_is_saved_and_becomes_active():
+    """'Scan for hardware' can only find a KISS TNC or AGWPE engine it can
+    identify by itself -- it never invents a Telnet/SSH login or a VARA
+    modem's callsign. Before `TransportEntryScreen`, the only way to add one
+    of those at all was hand-editing config.toml. Dismissing with a dict
+    the way this test does stands in for filling the form -- what matters
+    here is the SettingsPane side: validating through `build_transport`
+    before saving, and applying the result to `config.transports`."""
+    app, station = await _app(Config(mycall=str(MYCALL)))
+    async with app.run_test(size=(120, 44)) as pilot:
+        await _settings_tab(app, pilot)
+
+        pane = app.query_one(SettingsPane)
+        pane._new_transport()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        from kissterm.ui.dialogs import TransportEntryScreen
+
+        assert isinstance(app.screen, TransportEntryScreen), type(app.screen).__name__
+        await app.screen.dismiss(
+            {"name": "ws1ec", "kind": "ssh", "host": "ws1ec.example.net",
+             "username": "packet", "password": "hunter2", "port": 22,
+             "script": "", "credential": ""}
+        )
+        await pilot.pause()
+
+        assert [t["name"] for t in app.config.transports] == ["ws1ec"]
+        # The very first transport ever configured becomes active on its
+        # own, same as a hardware scan's result does.
+        assert app.config.active_transport == "ws1ec"
+        assert app.query_one("#set-active-transport", Select).value == "ws1ec"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_transport_that_fails_to_build_is_not_saved():
+    """`build_transport` is the ONLY way a `Transport` is constructed from
+    config (AGENTS.md); this dialog must prove a config entry actually
+    builds before writing it, the same rule the first-run wizard follows --
+    a config entry that looks right and fails at `open()` is worse than
+    catching it here. A `tcp` entry with no `host` fails inside `TcpKissTransport.
+    __init__` (a required positional argument), which is exactly the kind of
+    entry a hand-typed form could otherwise produce."""
+    app, station = await _app(Config(mycall=str(MYCALL)))
+    async with app.run_test(size=(120, 44)) as pilot:
+        await _settings_tab(app, pilot)
+
+        pane = app.query_one(SettingsPane)
+        pane._new_transport()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        await app.screen.dismiss({"name": "broken", "kind": "tcp"})
+        await pilot.pause()
+
+        assert app.config.transports == []
+        assert app.config.active_transport == ""
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_editing_a_transport_renames_it_without_leaving_a_duplicate():
+    cfg = Config(
+        mycall=str(MYCALL),
+        transports=[{"name": "Old name", "kind": "tcp", "host": "10.0.0.2", "port": 8001}],
+        active_transport="Old name",
+    )
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 44)) as pilot:
+        await _settings_tab(app, pilot)
+        app.query_one("#set-active-transport", Select).value = "Old name"
+        await pilot.pause()
+
+        pane = app.query_one(SettingsPane)
+        pane._edit_transport()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        from kissterm.ui.dialogs import TransportEntryScreen
+
+        assert isinstance(app.screen, TransportEntryScreen), type(app.screen).__name__
+        await app.screen.dismiss(
+            {"name": "New name", "kind": "tcp", "host": "10.0.0.3", "port": 8002}
+        )
+        await pilot.pause()
+
+        assert app.config.transports == [
+            {"name": "New name", "kind": "tcp", "host": "10.0.0.3", "port": 8002}
+        ]
+        # The renamed entry was the active one -- the pointer must follow it,
+        # or `active_transport` is left naming an entry that no longer exists.
+        assert app.config.active_transport == "New name"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_transport_dialog_switching_kind_resets_the_fields():
+    """"host" means something different for every kind that has one -- a tcp
+    KISS TNC's address is not a VARA modem's, and carrying it over silently
+    would look filled-in for a field the operator never actually typed
+    anything into for THIS kind."""
+    from kissterm.ui.dialogs import TransportEntryScreen
+
+    app, station = await _app(Config(mycall=str(MYCALL)))
+    async with app.run_test(size=(120, 50)) as pilot:
+        app.query_one(SettingsPane)._new_transport()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, TransportEntryScreen)
+
+        app.screen.query_one("#transport-field-host", Input).value = "10.0.0.5"
+        app.screen.query_one("#transport-kind", Select).value = "serial"
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        assert len(app.screen.query("#transport-field-host")) == 0
+        assert app.screen.query_one("#transport-field-device", Input).value == ""
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_transport_dialog_hides_autologin_for_a_frame_transport():
+    """`Transport.script`/`credential` are meaningful only to a
+    `SessionTransport` -- showing the section for a plain TCP KISS TNC would
+    invite an operator to type a login nothing ever reads."""
+    from kissterm.ui.dialogs import TransportEntryScreen
+
+    app, station = await _app(Config(mycall=str(MYCALL)))
+    async with app.run_test(size=(120, 50)) as pilot:
+        app.query_one(SettingsPane)._new_transport()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, TransportEntryScreen)
+
+        assert app.screen.query_one("#transport-script-title").display is False
+        app.screen.query_one("#transport-kind", Select).value = "ssh"
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert app.screen.query_one("#transport-script-title").display is True
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_transport_dialog_requires_a_name():
+    from kissterm.ui.dialogs import TransportEntryScreen
+
+    app, station = await _app(Config(mycall=str(MYCALL)))
+    async with app.run_test(size=(120, 50)) as pilot:
+        app.query_one(SettingsPane)._new_transport()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, TransportEntryScreen)
+
+        app.screen.query_one("#transport-field-host", Input).value = "10.0.0.5"
+        app.screen.query_one("#transport-save", Button).press()
+        await pilot.pause()
+
+        assert isinstance(app.screen, TransportEntryScreen), "an invalid save must not dismiss"
+        assert "Name" in str(app.screen.query_one("#transport-error").content)
     station.close()
 
 

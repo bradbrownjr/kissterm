@@ -84,6 +84,7 @@ Underline > .underline--bar { color: $accent; }
 
 /* Terminal pane */
 TerminalPane { layout: vertical; }
+#transcript-note { height: auto; padding: 0 1; color: $text-muted; }
 #session-log { border: round $primary; height: 1fr; }
 #session-send-row { height: auto; }
 #session-input { border: round $accent; width: 1fr; }
@@ -92,6 +93,12 @@ TerminalPane { layout: vertical; }
 /* Monitor pane */
 MonitorPane { layout: vertical; }
 #monitor-filter { height: 3; }
+/* Input's own default CSS is `width: 100%`, which inside a Horizontal means
+   "the whole row" -- it left no room for the sibling button at all, pushing
+   it off the right edge where nothing on screen hinted it existed. Confirmed
+   against `screenshot-monitor.png` from before this fix: the button was
+   already missing there, independent of anything else changed alongside it. */
+#monitor-query { width: 1fr; }
 #monitor-log { border: round $primary; height: 1fr; }
 
 /* Heard pane */
@@ -112,6 +119,7 @@ ConnectScreen { align: center middle; }
     width: 72; height: auto; padding: 1 2;
     border: thick $primary; background: $surface;
 }
+#connect-transport { width: 100%; margin-top: 1; }
 #connect-hops { margin-top: 1; }
 #connect-buttons { height: auto; align: right middle; margin-top: 1; }
 #connect-buttons Button { margin-left: 1; }
@@ -128,7 +136,9 @@ ConnectScreen { align: center middle; }
    which is longer than the dialog and was reading as cut off mid-sentence. */
 #connect-hint { color: $text-muted; width: 100%; height: auto; }
 #connect-script-title { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
+#connect-script-hint { color: $text-muted; width: 100%; height: auto; }
 #connect-credential { width: 100%; }
+#connect-script-name { width: 100%; margin-top: 1; }
 /* Fixed and short on purpose -- a login script is a handful of lines
    (callsign, password, maybe a mailbox command), not a document, and a
    box that grew with its content would push Connect/Cancel around. */
@@ -138,11 +148,30 @@ ConnectScreen { align: center middle; }
    fields side by side rather than stacked, since both together are still
    shorter than the target line above them. */
 #addressbook-radio-row { height: auto; margin-top: 1; }
-#addressbook-radio-row Input { width: 1fr; }
+#addressbook-radio-row Input, #addressbook-radio-row Select { width: 1fr; }
 #addressbook-radio-row Input:first-child { margin-right: 1; }
 /* RadioReminderScreen -- a checkpoint, not a form; sized to its short
    fixed content rather than the wider #connect-box default. */
 #reminder-detail { color: $text; padding: 0 0 1 0; }
+/* TransportEntryScreen. Reuses #connect-title/#connect-buttons; the box
+   itself gets its own id and a capped height with an internal scroll --
+   SSH's four fields plus name/kind/error/auto-login is taller than a
+   typical terminal, and an un-capped `#connect-box` (every shorter dialog's
+   choice) pushed Save/Cancel off the bottom, unreachable. */
+TransportEntryScreen { align: center middle; }
+#transport-box {
+    width: 72; height: auto; max-height: 90%; padding: 1 2;
+    border: thick $primary; background: $surface;
+}
+#transport-form { height: 1fr; }
+#transport-kind { margin-top: 1; width: 100%; }
+#transport-fields { margin-top: 1; height: auto; }
+#transport-script-title { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
+#transport-script-hint { color: $text-muted; width: 100%; height: auto; }
+#transport-credential { width: 100%; }
+#transport-script-name { width: 100%; margin-top: 1; }
+#transport-script { height: 4; border: round $primary; margin-top: 1; }
+#transport-script:disabled { border: round $panel; }
 
 .placeholder { padding: 1 2; color: $text-muted; }
 
@@ -153,6 +182,22 @@ ConnectScreen { align: center middle; }
 #ref-title { text-style: bold; color: $accent; }
 #ref-note, #ref-help { color: $text-muted; padding: 0 0 1 0; }
 #ref-table { height: 1fr; }
+
+TranscriptsScreen { align: center middle; }
+#transcripts-box {
+    width: 90%; height: 85%; padding: 1 2;
+    border: thick $primary; background: $surface;
+}
+#transcripts-title { text-style: bold; color: $accent; }
+#transcripts-note { color: $text-muted; padding: 0 0 1 0; }
+/* Table and preview side by side -- a callsign/date alone rarely says
+   enough to pick the right session; seeing the text next to the list does. */
+#transcripts-body { height: 1fr; }
+#transcripts-table { width: 40%; }
+#transcripts-preview { width: 60%; border: round $primary; margin-left: 1; }
+#transcripts-export-row { height: auto; margin-top: 1; }
+#transcripts-export-row Input { width: 1fr; }
+#transcripts-export-row Button { margin-left: 1; }
 
 /* Settings form. Generated from settings_schema, so these rules style whole
    classes of row rather than any particular field -- adding a setting must

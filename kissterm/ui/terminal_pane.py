@@ -48,8 +48,9 @@ import re
 from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, Input, RichLog
+from textual.widgets import Button, Input, RichLog, Static
 
 from ..ansi import to_text
 from ..monitor import sanitize
@@ -78,6 +79,33 @@ def linkify(text: str | Text) -> Text:
     return result
 
 
+class _SendInput(Input):
+    """The outgoing-message box -- Input's own "enter" binding, plus a
+    defensive net around it.
+
+    From a real report: typed text sent fine through the Send button, but
+    plain Enter did nothing at all -- the text just sat there. Nothing in
+    this app intercepts Enter (`grep` confirms no `on_key`/`_on_key`
+    anywhere in `kissterm/ui/`), so the keystroke was reaching Textual and
+    simply not resolving to the string `"enter"` Input's own binding
+    matches. This app's enhanced-keyboard-protocol reliance is not
+    hypothetical -- `Ctrl+Shift+B`/`Ctrl+Shift+D` need it and are confirmed
+    working over Konsole's CSI-u mode -- and that same class of protocol is
+    exactly where a terminal can occasionally attach a modifier to a bare
+    Enter that a plain one would never carry, changing the reported key
+    name out from under a binding that only listens for "enter". These
+    extra bindings catch the variants that would otherwise swallow the
+    keystroke silently, all routed to the same `action_submit` a normal
+    Enter already runs.
+    """
+
+    BINDINGS = [
+        Binding("shift+enter", "submit", show=False),
+        Binding("ctrl+enter", "submit", show=False),
+        Binding("alt+enter", "submit", show=False),
+    ]
+
+
 class TerminalPane(Container):
     """Read-only session log, plus the send line that is the only transmit path."""
 
@@ -87,6 +115,11 @@ class TerminalPane(Container):
     remote_color: bool = True
 
     def compose(self) -> ComposeResult:
+        # A fixed header, not a line in the scrollback -- a session can run
+        # for hours, and the one thing worth finding without scrolling back
+        # to the top is where its own record is being kept. Empty and
+        # hidden until a transcript actually opens; see `set_transcript_note`.
+        yield Static("", id="transcript-note")
         # A RichLog is not editable, so the transcript cannot be typed into by
         # accident. Textual's selection support keeps it copyable anyway.
         yield RichLog(
@@ -98,11 +131,14 @@ class TerminalPane(Container):
             auto_scroll=True,
         )
         with Horizontal(id="session-send-row"):
-            yield Input(
+            yield _SendInput(
                 placeholder="not connected -- Ctrl+N to connect",
                 id="session-input",
             )
             yield Button("Send", id="session-send", variant="primary")
+
+    def on_mount(self) -> None:
+        self.query_one("#transcript-note", Static).display = False
 
     # ------------------------------------------------------------------
     # Output
@@ -127,6 +163,12 @@ class TerminalPane(Container):
 
     def clear(self) -> None:
         self.query_one("#session-log", RichLog).clear()
+
+    def set_transcript_note(self, text: str) -> None:
+        """Show or clear the transcript-path header. Empty hides it."""
+        note = self.query_one("#transcript-note", Static)
+        note.update(text)
+        note.display = bool(text)
 
     # ------------------------------------------------------------------
     # Input
@@ -165,6 +207,16 @@ class TerminalPane(Container):
         transmitter?" is this method and nothing else.
         """
         field = self.query_one("#session-input", Input)
+        # Enter leaves focus on the input by itself, but a mouse click on
+        # the Send button moves focus to the BUTTON -- Textual's normal
+        # behaviour for anything clicked. Every subsequent line then needs
+        # a click back into the field before it can be typed, which is
+        # exactly the loop a real report described: type, click Send,
+        # click the field, type, click Send... Refocusing here, on every
+        # path through this method, means clicking Send once behaves like
+        # pressing Enter once: the field is ready for the next line
+        # immediately, mouse or keyboard.
+        field.focus()
         link = getattr(self.app, "link", None)
         gate = getattr(self.app, "gate", None)
         if gate is not None and not gate.enabled:

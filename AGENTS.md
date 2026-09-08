@@ -400,13 +400,15 @@ Gotchas that already cost time:
   beacon, not answering, not connecting, not the terminal send line.
 - **A confirmed, targeted request ARMS the gate; it is not refused by it.**
   `KissTermApp._arm_for` is the only way this happens, and `Ctrl+N` (after
-  the operator names a station and confirms the dialog) and `Ctrl+D` are its
-  only callers. The gate exists to stop transmissions the operator did not
+  the operator names a station and confirms the dialog) and Disconnect
+  (`Ctrl+Shift+D`, or plain `Ctrl+D` when nothing has shadowed it -- see
+  `kissterm/ui/app.py`'s BINDINGS) are its only callers. The gate exists to
+  stop transmissions the operator did not
   initiate -- a timer, an incoming call -- and it was never meant to veto one
   they just asked for by name. Refusing a connect with "transmit is disabled"
   is a dead end: the only thing the operator wanted is the only thing the
   message will not do, and on a marginal path it reads like the far station
-  is missing. `Ctrl+D` matters for the channel too -- a DISC we refuse to
+  is missing. Disconnecting matters for the channel too -- a DISC we refuse to
   send leaves the far station holding a session open until its own timers
   give up.
 - **A bare keystroke never arms it.** The manual beacon (`Ctrl+Shift+B`) has
@@ -845,10 +847,17 @@ again after a Settings save or a config reload.
   `V(S)/V(R)/V(A)/rc` — `AX25Link.__repr__` prints all four.
 - **Debug "nothing in the monitor pane":** the frame never reached
   `Transport.dispatch`. Check the transport's decode-error counter first, then
-  `MonitorFilter` (supervisory frames are hidden by default). Run with
+  `MonitorFilter` (supervisory frames show by default as of 2026-09-07 --
+  see that class's docstring for why -- but an operator may have toggled the
+  pane's "Supervisory" button off for a busy link). Run with
   `--log-level debug`: every frame is logged in both directions from
   `send_frame` and `dispatch`, so the log settles whether the frame arrived at
   all before you go looking in the UI.
+- **Debug "the connect got an ACK but never a reply":** that is
+  `KissTermApp._note_if_no_reply`'s exact case, not a connect failure --
+  `link.va == link.vs` means the far end already acknowledged the line at
+  the AX.25 layer, and the silence past that point is the remote
+  application (or the RF path back) being slow or dead, never kissterm's.
 - **Debug "the connect failed":** read `link.last_error` via
   `AX25Station.link_to()`, and the Monitor tab. A DM means the far end heard
   us and refused — a configuration problem. N2 silence means the path did not

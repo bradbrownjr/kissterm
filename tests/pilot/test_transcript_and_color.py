@@ -96,14 +96,20 @@ async def test_a_connected_session_writes_both_directions_to_disk(tmp_path):
 
 @pytest.mark.asyncio
 async def test_the_transcript_path_is_shown_to_the_operator(tmp_path):
+    """As a fixed header above the scrollback, not a line inside it -- a
+    session can run for hours, and a header stays findable through both
+    Ctrl+L and ordinary scrolling in a way a log line does not."""
     app, a, b, incoming = await _app(_config(tmp_path))
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         await _connect(app, a, b, incoming, pilot)
         await pilot.pause()
         pane = app.query_one(TerminalPane)
-        log = pane.query_one("#session-log")
-        assert "Transcript" in _rendered(log)
+        from textual.widgets import Static
+
+        note = pane.query_one("#transcript-note", Static)
+        assert note.display
+        assert "Transcript" in str(note.content)
     a.close()
     b.close()
 
@@ -203,5 +209,90 @@ async def test_colour_off_still_shows_the_text(tmp_path):
         log = pane.query_one("#session-log")
         rendered = _rendered(log)
         assert "MENU" in rendered
+    a.close()
+    b.close()
+
+
+# ---------------------------------------------------------------------------
+# Reply watch -- "they got it, are they just not answering?"
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_note_appears_once_a_sent_line_goes_unanswered(tmp_path, monkeypatch):
+    """From a real report: WS1EC-15 ACKed a typed line (an RR, at the AX.25
+    layer) within 3 seconds and then said nothing for 22 more, and the
+    operator had no on-screen way to tell "they got it, they are just
+    slow" from "this went nowhere" -- the ACK is a supervisory frame the
+    Monitor tab used to hide by default, and nothing else marked it."""
+    from kissterm.ui import app as app_module
+
+    monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 0.2)
+    app, a, b, incoming = await _app(_config(tmp_path))
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await _connect(app, a, b, incoming, pilot)
+        await pilot.pause()
+
+        await app.query_one(TerminalPane).send_line("L")
+        # Nothing sent back on purpose -- b's own link still ACKs the I-frame
+        # at the AX.25 layer automatically, same as any real peer would.
+        await asyncio.sleep(0.5)
+        await pilot.pause()
+
+        text = _rendered(app.query_one(TerminalPane).query_one("#session-log"))
+        assert "acknowledged that" in text, text
+        assert str(PEER) in text, text
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_no_note_when_a_reply_actually_arrives(tmp_path, monkeypatch):
+    """The note exists to fill a real silence, not to shadow every send --
+    an actual reply must cancel it."""
+    from kissterm.ui import app as app_module
+
+    monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 0.2)
+    app, a, b, incoming = await _app(_config(tmp_path))
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link, far = await _connect(app, a, b, incoming, pilot)
+        await pilot.pause()
+
+        await app.query_one(TerminalPane).send_line("L")
+        await far.send(b"No messages.\r")
+        await asyncio.sleep(0.5)
+        await pilot.pause()
+
+        text = _rendered(app.query_one(TerminalPane).query_one("#session-log"))
+        assert "acknowledged that" not in text, text
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_no_note_while_the_line_is_still_unacknowledged(tmp_path, monkeypatch):
+    """If the AX.25 layer itself has nothing outstanding acknowledged yet,
+    T1/timer-recovery is already retrying and already wrote its own note --
+    this one would only repeat that with less information. Simulated with
+    100% loss on the sending transport, so the I-frame never reaches the
+    peer at all and V(A) never advances past what it was before the send."""
+    from kissterm.ui import app as app_module
+
+    monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 0.2)
+    app, a, b, incoming = await _app(_config(tmp_path))
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link, far = await _connect(app, a, b, incoming, pilot)
+        await pilot.pause()
+        a.transport.loss = 1.0
+
+        await app.query_one(TerminalPane).send_line("L")
+        await asyncio.sleep(0.5)
+        await pilot.pause()
+
+        text = _rendered(app.query_one(TerminalPane).query_one("#session-log"))
+        assert "acknowledged that" not in text, text
     a.close()
     b.close()

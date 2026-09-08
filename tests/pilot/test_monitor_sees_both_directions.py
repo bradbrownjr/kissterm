@@ -60,6 +60,32 @@ async def _app():
 
 
 @pytest.mark.asyncio
+async def test_supervisory_frames_show_by_default():
+    """From a real report: WS1EC-15 ACKed a line (an RR) within 3 seconds
+    of it going out, and that RR was the one piece of evidence that the
+    connection was working -- but `MonitorFilter.show_supervisory` used to
+    default to False, so it never appeared and the attempt looked dead. An
+    RR is exactly the "did they get it" answer on an ordinary one-to-one
+    link; the noise argument for hiding it only bites on a busy multi-
+    station link, which is what the pane's own "Supervisory" button is
+    still there to turn back off."""
+    app, mine, theirs = await _app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await mine.connect(AX25Path(PEER, MYCALL))
+        assert link is not None
+        await link.send(b"hello\r")
+        await _show_monitor(app, pilot)
+        for _ in range(20):
+            if "RR" in _monitor_text(app):
+                break
+            await pilot.pause()
+        assert "RR" in _monitor_text(app), _monitor_text(app)
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_our_own_transmissions_appear_in_the_monitor():
     app, mine, theirs = await _app()
     async with app.run_test(size=(110, 32)) as pilot:

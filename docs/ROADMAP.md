@@ -59,10 +59,6 @@ What P1 deliberately did **not** settle, and is now the top of the queue:
   it shares now exist in `kissterm/ansi.py`, but note the direction is the
   opposite one -- that module protects the *local* terminal from remote
   bytes, and this protects the *channel* from a local paste.
-- [ ] **Transcript export and search.** `kissterm/session_log.py` writes one
-  plain-text file per session already. What is missing is finding them from
-  inside the app: a list of past sessions with a peer, and a way to open or
-  export one without going to a shell. Small.
 - [ ] **Configurable paclen/window per link.** `DEFAULT_PACLEN` and
   `DEFAULT_WINDOW` in `kissterm/ax25/frame.py` are link-wide constants today;
   make them per-connection settings the state machine reads instead, so a

@@ -329,3 +329,44 @@ async def test_ctrl_d_cancels_a_stuck_connect_instead_of_saying_not_connected():
             "a cancelled attempt was reported as a timed-out one: " + text
         )
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_shift_d_disconnects_even_with_the_outgoing_box_focused():
+    """From a real report: the Footer's Disconnect hint vanished and the
+    keystroke stopped reaching `action_disconnect` once the outgoing-message
+    box took focus -- which is true for nearly all of a live session.
+    Textual's `Input` binds plain `Ctrl+D` to delete-character-right, and
+    whichever binding is closer to the focused widget wins; `Ctrl+Shift+D` is
+    not claimed by `Input` at all, so it must keep working regardless of
+    focus. See the BINDINGS list in `kissterm/ui/app.py`."""
+    from kissterm.ax25 import AX25Path
+
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    config = Config(mycall=str(MYCALL), tx_armed_at_start=True)
+    config.log_sessions = False
+    peer = AX25Address.parse("WS1EC-7")
+    station = AX25Station(MYCALL, ta, LinkParams(t1=0.2, t2=0.05, t3=5.0))
+    peer_station = AX25Station(peer, tb, LinkParams(t1=0.2, t2=0.05, t3=5.0))
+    app = KissTermApp(config, station)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await station.connect(AX25Path(peer, MYCALL), timeout=2.0)
+        assert link is not None and link.connected
+        app._bind_link(link)
+        await pilot.pause()
+
+        send_box = app.query_one(TerminalPane).query_one("#session-input")
+        send_box.focus()
+        await pilot.pause()
+        assert send_box.has_focus, "the outgoing box must hold focus for this to prove anything"
+
+        await pilot.press("ctrl+shift+d")
+        await pilot.pause()
+        await asyncio.sleep(0.3)
+
+        assert not link.connected, "Ctrl+Shift+D did not reach action_disconnect"
+    station.close()
+    peer_station.close()

@@ -97,13 +97,14 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
+from textual.timer import Timer
 from textual.widgets import Footer, Static, TabbedContent, TabPane
 
 from .. import __version__
 from ..addressbook import AddressBook
 from ..ax25 import AX25Station, parse_path
 from ..beacon import Beaconer
-from ..config import BeaconConfig, find_credential
+from ..config import BeaconConfig, find_credential, find_script
 from ..ax25.frame import AX25Frame
 from ..heard import HeardTable
 from ..hotplug import PortEvent, SerialPortWatcher
@@ -123,6 +124,7 @@ from .dialogs import (
     ConnectRequest,
     ConnectScreen,
     RadioReminderScreen,
+    TranscriptsScreen,
 )
 from .heard_pane import HeardPane
 from .monitor_pane import MonitorPane
@@ -183,6 +185,16 @@ HOP_TIMEOUT = 20.0
 #: substring against everything received since the "C <node>" command went
 #: out, the same heuristic bpq-apps' crawler uses against real BPQ nodes.
 HOP_FAIL_WORDS = ("BUSY", "FAILED", "DISCONNECTED", "TIMEOUT")
+
+#: How long after sending a line, with nothing back, before saying so
+#: (`KissTermApp._note_if_no_reply`). From a real report: WS1EC-15
+#: acknowledged a line at the AX.25 layer (an RR came back within 3
+#: seconds) and then said nothing for 22 seconds before the operator gave
+#: up and disconnected, having no way to tell "they got it, they are just
+#: slow" from "this went nowhere" without reading the Monitor tab and
+#: knowing to look for a hidden-by-default supervisory frame. Long enough
+#: that an ordinary node's response time does not trip it on every line.
+REPLY_WAIT_SECONDS = 15.0
 
 
 class _SessionLinkAdapter:
@@ -307,10 +319,35 @@ class KissTermApp(App):
         # the app ever sees it.
         Binding("ctrl+b", "beacon_now", "Beacon", show=False),
         Binding("ctrl+n", "connect", "Connect"),
-        Binding("ctrl+d", "disconnect", "Disconnect"),
+        # Ctrl+SHIFT+D, not plain Ctrl+D, for the same reason as Ctrl+Shift+B
+        # above: Textual's `Input` and `TextArea` both bind plain `ctrl+d` to
+        # delete-character-right for ordinary line editing (`show=False`),
+        # and whichever of those has focus -- which is most of the session:
+        # the terminal's own outgoing-message box -- wins over the app-level
+        # binding of the same key. Before this, the Footer silently dropped
+        # "Disconnect" the instant that box took focus, and the keystroke
+        # deleted a character instead of disconnecting -- reported directly
+        # ("^d went missing when I started to connect"). `key_display="^D"`
+        # keeps the footer showing the same short glyph as every neighbour;
+        # the capital is the shift, same convention as `^B`.
+        Binding("ctrl+shift+d", "disconnect", "Disconnect", key_display="^D"),
+        # Legacy fallback, hidden, for a terminal that collapses Ctrl+Shift+D
+        # to plain Ctrl+D -- same reasoning as the Ctrl+B fallback below.
+        # Still shadowed by a focused Input/TextArea exactly as before this
+        # change; Ctrl+Shift+D above is what actually fixes the report.
+        Binding("ctrl+d", "disconnect", "Disconnect", show=False),
+        # Ctrl+K (Callsign) has the identical collision with Input/TextArea's
+        # own delete-to-end-of-line binding and is not fixed here -- nobody
+        # has hit it in practice, and TextArea's own Ctrl+Shift+K
+        # (delete-line, used by the auto-login script boxes) means the same
+        # Ctrl+Shift+ fix used above for Disconnect is not free for this key.
+        # Worth the Ctrl+Shift+K trade-off only if this ever gets reported.
         Binding("ctrl+k", "set_callsign", "Callsign"),
         Binding("ctrl+r", "command_reference", "Commands"),
         Binding("ctrl+l", "clear_log", "Clear"),
+        # "Open" is the standard mnemonic (most editors' Ctrl+O) for "open a
+        # saved file", and there is nothing else on this key.
+        Binding("ctrl+o", "show_transcripts", "Transcripts"),
     ]
 
     def __init__(
@@ -381,6 +418,9 @@ class KissTermApp(App):
         #: than by the pane: it records what crossed the *link*, and the pane
         #: is only one of the things watching that.
         self.transcript: SessionLog | None = None
+        #: Armed by `log_sent`, cancelled by `_on_link_data` or a state
+        #: change -- see `_note_if_no_reply` and `REPLY_WAIT_SECONDS`.
+        self._reply_timer: Timer | None = None
         #: Plain-text beacon. Constructed unconditionally so there is one
         #: object to ask "is this station transmitting on a timer?"; it does
         #: nothing at all until `start()` succeeds, and `start()` refuses
@@ -458,7 +498,8 @@ class KissTermApp(App):
             self.station.on_incoming.append(self._on_incoming_link)
             self._status = f"{self.station.transport.info.detail}"
         self.query_one(TerminalPane).log(
-            f"kissterm {__version__} -- Ctrl+N to connect, Ctrl+H for help.\n"
+            f"kissterm {__version__} -- Ctrl+N to connect, Ctrl+R for commands, "
+            "Ctrl+O for past transcripts.\n"
         )
         self.apply_runtime_settings()
 
@@ -514,6 +555,7 @@ class KissTermApp(App):
         self.beaconer.cancel()
         self._unsubscribe_monitor()
         self._close_transcript()
+        self._cancel_reply_timer()
 
     # ------------------------------------------------------------------
     # Hardware hotplug (serial only -- never the network)
@@ -637,6 +679,7 @@ class KissTermApp(App):
         # identification rather than offering its commands for this one.
         self.reference = CommandReference()
         self._detect_buffer = ""
+        self._cancel_reply_timer()
         self.link = link
         self._start_transcript(link)
         link.on_data.append(self._on_link_data)
@@ -644,24 +687,36 @@ class KissTermApp(App):
         link.on_error.append(lambda why: self._note(f"\n*** {why}\n"))
         self._to_terminal("set_placeholder", f"connected to {link.peer}")
 
+    def _transcript_directory(self) -> Path:
+        """Where transcripts are read from AND written to.
+
+        One method so `_start_transcript` (writing) and
+        `action_show_transcripts` (reading them back later) can never drift
+        onto two different ideas of "the log directory".
+        """
+        from ..config import log_path
+
+        return Path(self.config.log_dir) if self.config.log_dir else log_path()
+
     # ------------------------------------------------------------------
     # Transcript
     # ------------------------------------------------------------------
     def _start_transcript(self, link) -> None:
         """Open a transcript for this session, and say where it is.
 
-        The path goes on screen because a file appearing on disk without the
-        operator being told is a surprise, and this is on by default. A
-        transcript that cannot be opened is reported once and then forgotten
-        about -- see `session_log.py` on why a failed log must never be
-        allowed to disturb a live link.
+        The path goes on screen -- as a fixed header above the scrollback,
+        not a line inside it (`TerminalPane.set_transcript_note`) -- because a
+        file appearing on disk without the operator being told is a surprise,
+        and this is on by default. A header survives Ctrl+L and scrolling;
+        a log line would not stay findable through either. A transcript that
+        cannot be opened is reported once, as a log line since there is no
+        path to keep showing, and then forgotten about -- see `session_log.py`
+        on why a failed log must never be allowed to disturb a live link.
         """
         self._close_transcript()
         if not getattr(self.config, "log_sessions", True):
             return
-        from ..config import log_path
-
-        directory = Path(self.config.log_dir) if self.config.log_dir else log_path()
+        directory = self._transcript_directory()
         # `self.station` is None on the session-transport tier (Telnet, SSH,
         # VARA, Mercury, kernel AX.25) -- there is no AX25Station to read an
         # operating callsign off, but the operator's own callsign is still
@@ -674,12 +729,13 @@ class KissTermApp(App):
             self._to_terminal("log", f"\n*** No transcript: {transcript.failed}\n")
             return
         self.transcript = transcript
-        self._to_terminal("log", f"\n*** Transcript: {transcript.path}\n")
+        self._to_terminal("set_transcript_note", f"Transcript: {transcript.path}")
 
     def _close_transcript(self) -> None:
         if self.transcript is not None:
             self.transcript.close()
             self.transcript = None
+            self._to_terminal("set_transcript_note", "")
 
     def _note(self, text: str) -> None:
         """A local note: to the terminal pane, and to the transcript."""
@@ -690,10 +746,16 @@ class KissTermApp(App):
     def log_sent(self, text: str) -> None:
         """Record a line the operator transmitted. Called from `send_line`.
 
-        The pane echoes it to the scrollback itself; this is the durable half.
+        The pane echoes it to the scrollback itself; this is the durable
+        half -- and this also (re)arms the reply-watch timer (`_note_if_no_
+        reply`), cancelling any previous one so it is the LAST line typed
+        that starts the clock, not the first.
         """
         if self.transcript is not None:
             self.transcript.sent(text)
+        self._cancel_reply_timer()
+        if self.link is not None and self.link.connected:
+            self._reply_timer = self.set_timer(REPLY_WAIT_SECONDS, self._note_if_no_reply)
 
     def _base_query(self, selector):
         """Query the app's own screen, not whatever modal is on top of it.
@@ -732,6 +794,9 @@ class KissTermApp(App):
             return
 
     def _on_link_data(self, data: bytes) -> None:
+        # Any data back answers the "did they get it" question the reply
+        # timer exists for -- see `_note_if_no_reply`.
+        self._cancel_reply_timer()
         self._to_terminal("write_incoming", data)
         if self.transcript is not None:
             # Sanitized, never raw. A transcript is read later by a person in
@@ -768,9 +833,46 @@ class KissTermApp(App):
 
     def _on_link_state(self, state: SessionState) -> None:
         self._note(f"\n*** {state.value}\n")
+        if state is not SessionState.CONNECTED:
+            # Anything other than a plain, steady CONNECTED -- disconnecting,
+            # failed, timer recovery -- already gets its own note above; the
+            # "acknowledged but silent" one below would only repeat that with
+            # less information, or fire after the link is no longer there to
+            # ask a question about.
+            self._cancel_reply_timer()
         if state is SessionState.DISCONNECTED:
             self._to_terminal("set_placeholder", "not connected -- Ctrl+N")
             self._close_transcript()
+
+    # ------------------------------------------------------------------
+    # Reply watch -- "they got it, are they just not answering?"
+    # ------------------------------------------------------------------
+    def _cancel_reply_timer(self) -> None:
+        if self._reply_timer is not None:
+            self._reply_timer.stop()
+            self._reply_timer = None
+
+    def _note_if_no_reply(self) -> None:
+        """Fired `REPLY_WAIT_SECONDS` after a send with nothing back since.
+
+        Only says anything when the AX.25 layer has nothing outstanding
+        (`link.va == link.vs`) -- i.e. the far end already acknowledged the
+        line. If it has NOT been acknowledged, T1/timer recovery is already
+        retrying it and already wrote its own note to the terminal; this
+        would only be a vaguer echo of that. This is exactly the gap a real
+        report exposed: WS1EC-15 ACKed a line within 3 seconds and then said
+        nothing for 22 more, and the only place that ACK showed up was an RR
+        frame the Monitor tab hides by default.
+        """
+        self._reply_timer = None
+        link = self.link
+        if link is None or not link.connected or link.va != link.vs:
+            return
+        self._to_terminal(
+            "log",
+            f"\n*** {link.peer} acknowledged that -- no reply yet. See "
+            "Monitor (F2) for what has come back since.\n",
+        )
 
     # ------------------------------------------------------------------
     # Actions
@@ -877,6 +979,125 @@ class KissTermApp(App):
         else:
             self.query_one(TerminalPane).clear()
 
+    def _frame_tier_transports(self) -> list[dict]:
+        """This app's own configured transports of the SAME tier it is
+        currently running on -- see `transport.FRAME_TIER_KINDS`'s
+        docstring for why switching tiers live is not offered here. Empty
+        when `self.station is None` (session-tier app)."""
+        from ..transport import FRAME_TIER_KINDS
+
+        if self.station is None:
+            return []
+        return [t for t in self.config.transports if t.get("kind") in FRAME_TIER_KINDS]
+
+    def _session_tier_transports(self) -> list[dict]:
+        """The session-tier counterpart of `_frame_tier_transports`. Empty
+        when `self.session_transport is None` (frame-tier app)."""
+        from ..transport import SESSION_TIER_KINDS
+
+        if self.session_transport is None:
+            return []
+        return [t for t in self.config.transports if t.get("kind") in SESSION_TIER_KINDS]
+
+    async def _switch_frame_transport(self, name: str) -> bool:
+        """Open the transport named `name` and hand it to `self.station` in
+        place of whatever it is currently using, via `AX25Station.rebind_
+        transport`. Returns whether it worked; reports its own failure via
+        `notify`, so a caller only needs to act on the boolean.
+
+        Shared by `SettingsPane` (choosing a different Active transport and
+        hitting Save) and `KissTermApp.action_connect` (the Connect
+        dialog's own transport picker) -- one implementation of "actually
+        open the newly-selected transport", not two that could drift apart.
+        Frame-tier only: a session transport hands back an already-
+        connected byte stream, not frames this station's state machine can
+        run on, so swapping one in here would need a different app
+        entirely. Restarting kissterm with it selected is the supported
+        path for THAT case; this method refuses and says so rather than
+        guessing.
+        """
+        if self.station is None:
+            return False
+        entry = next((t for t in self.config.transports if t.get("name") == name), None)
+        if entry is None:
+            return False
+
+        from .. import transport as transport_mod
+        from ..transport.base import FrameTransport
+
+        try:
+            new_transport = transport_mod.build_transport(entry)
+            await new_transport.open()
+        except Exception as exc:
+            log.exception("could not open %s", name)
+            self.notify(f"Could not open {name}: {exc}", severity="error")
+            return False
+
+        if not isinstance(new_transport, FrameTransport):
+            self.notify(
+                f"{name} is a session transport; switching to it live is not "
+                "supported. Restart kissterm with it selected.",
+                severity="warning",
+            )
+            with contextlib.suppress(Exception):
+                await new_transport.close()
+            return False
+
+        try:
+            old_transport = self.station.rebind_transport(new_transport)
+        except RuntimeError as exc:
+            self.notify(str(exc), severity="warning")
+            with contextlib.suppress(Exception):
+                await new_transport.close()
+            return False
+
+        with contextlib.suppress(Exception):
+            await old_transport.close()
+
+        self._refresh_status()
+        self.notify(f"Now using {name}.")
+        return True
+
+    async def _switch_session_transport(self, name: str) -> bool:
+        """The session-tier counterpart of `_switch_frame_transport`.
+
+        Simpler in one way: a session transport has no state machine
+        anything else is bound to, so this is just building the new one and
+        replacing `self.session_transport` -- there is no `AX25Station.
+        rebind_transport` equivalent because there is no station. Still
+        calls `.open()` before handing it over, same as the frame-tier
+        version and `__main__.py`'s own launch-time construction: for
+        Telnet/SSH `.open()` is a no-op (the real work happens in
+        `.connect()`), but for VARA/Mercury/kernel AX.25 it does the actual
+        setup -- VARA's `.open()` connects to the local modem's own command
+        and data TCP ports, entirely separate from the later AX.25-level
+        `.connect()` to a remote station. Skipping it here would work by
+        accident for Telnet/SSH and fail for the other three.
+        """
+        entry = next((t for t in self.config.transports if t.get("name") == name), None)
+        if entry is None:
+            return False
+
+        from .. import transport as transport_mod
+
+        try:
+            new_transport = transport_mod.build_transport(entry)
+            await new_transport.open()
+        except Exception as exc:
+            log.exception("could not open %s", name)
+            self.notify(f"Could not open {name}: {exc}", severity="error")
+            return False
+
+        old_transport = self.session_transport
+        self.session_transport = new_transport
+        if old_transport is not None:
+            with contextlib.suppress(Exception):
+                await old_transport.close()
+
+        self._refresh_status()
+        self.notify(f"Now using {name}.")
+        return True
+
     @work
     async def action_connect(self, prefill=None) -> None:
         """Connect to a station, via the dialog or dialed directly.
@@ -890,26 +1111,61 @@ class KissTermApp(App):
         """
         if self.station is None:
             if self.session_transport is not None:
+                candidates = self._session_tier_transports()
+                if len(candidates) > 1:
+                    from .dialogs import SessionTransportPickerScreen
+
+                    chosen = await self.push_screen_wait(
+                        SessionTransportPickerScreen(
+                            candidates, self.config.active_transport
+                        )
+                    )
+                    if chosen is None:
+                        return
+                    if chosen != self.config.active_transport:
+                        self.config.active_transport = chosen
+                        self._save_config()
+                        if not await self._switch_session_transport(chosen):
+                            return
                 await self._connect_session_transport()
                 return
             self.notify("No transport is open.", severity="error")
             return
         if prefill is not None:
             request = ConnectRequest(
-                prefill.target, prefill.script, prefill.hops, prefill.credential
+                prefill.target,
+                prefill.script,
+                prefill.hops,
+                prefill.credential,
+                prefill.script_name,
             )
             # A dial is an attempt like any other -- see AddressBook.record_
             # attempt's docstring for why this is recorded on the attempt,
             # not on success.
             self.addressbook.record_attempt(
-                prefill.target, prefill.script, prefill.hops, prefill.credential
+                prefill.target,
+                prefill.script,
+                prefill.hops,
+                prefill.credential,
+                prefill.script_name,
             )
         else:
             request = await self.push_screen_wait(
-                ConnectScreen(self.addressbook, self.config.credentials)
+                ConnectScreen(
+                    self.addressbook,
+                    self.config.credentials,
+                    self.config.scripts,
+                    transports=self._frame_tier_transports(),
+                    active_transport_name=self.config.active_transport,
+                )
             )
             if not request:
                 return
+            if request.transport_name and request.transport_name != self.config.active_transport:
+                self.config.active_transport = request.transport_name
+                self._save_config()
+                if not await self._switch_frame_transport(request.transport_name):
+                    return
         # A frequency or connection type on file is worth nothing if the
         # operator only sees it after the SABMs already went out -- ask
         # before arming anything. `find` is a read-only lookup (see its
@@ -1013,6 +1269,28 @@ class KissTermApp(App):
             )
             return
         self._bind_link(link)
+        # Explicit, not left to the `on_state` callback `_bind_link` just
+        # registered: `AX25Station.connect` already ran the SABM/UA exchange
+        # to completion before returning this link, so the transition INTO
+        # `connected` fired to whatever was listening at the time -- which
+        # was nobody, since nothing could subscribe before the link existed.
+        # Every later transition (disconnecting, timer recovery, ...) is
+        # caught fine; only this first one is structurally too late for that
+        # mechanism to catch, and it is the one an operator most needs to
+        # see. From a real report: connecting to WS1EC-15 directly never
+        # printed anything resembling EasyTerm's "*** Connected to station
+        # WS1EC-15" -- with a node that has nothing to say until you type a
+        # command, that silence was the only feedback there was at all.
+        #
+        # `_note`, not a bare `_to_terminal` call: a real transcript pulled
+        # from this exact gap showed the file's own "* connected" line
+        # arriving eleven seconds late, timed to the NEXT state transition
+        # (a T1 timer-recovery retry) rather than the actual connect --
+        # `_bind_link` wires `_on_link_state` (which calls `_note`) in too
+        # late to see this first transition either, so writing straight to
+        # the terminal pane fixed what the operator watched live but left
+        # the durable transcript with the same hole.
+        self._note(f"\n*** Connected to {link.peer}\n")
         self.query_one(TerminalPane).focus_input()
         reached_target = True
         if len(chain) > 1:
@@ -1032,10 +1310,8 @@ class KissTermApp(App):
         # flattening them would hide exactly the pattern an operator wants to
         # see next to a callsign on a marginal path.
         self.addressbook.record_connect(target)
-        login_text = (
-            find_credential(self.config, request.credential)
-            if request.credential
-            else request.script
+        login_text = self._resolve_login(
+            request.credential, request.script_name, request.script
         )
         if login_text.strip():
             self._run_connect_script(link, login_text)
@@ -1056,6 +1332,14 @@ class KissTermApp(App):
         "C <node>" by hand -- that has always worked and needs nothing
         from this method.
 
+        An auto-login still runs after connecting, same as the address-book
+        flow -- it just comes from `transport.script`/`transport.credential`
+        (this transport's own config entry, see `Transport.script`'s
+        docstring) rather than a per-attempt dialog, since there is no dialog
+        on this path. This is the WS1EC case: the script's last line can be
+        "C <node>" exactly like a hand-typed hop, so one saved script both
+        logs in and reaches the actual node from the shell SSH lands in.
+
         Known gap: unlike the FrameTransport path, there is no way to
         cancel a connect attempt that hangs here (a slow or unreachable
         host) short of waiting for it to time out or fail on its own --
@@ -1074,8 +1358,22 @@ class KissTermApp(App):
             self._to_terminal("log", f"*** Could not connect: {exc}\n")
             self.notify(str(exc), severity="error")
             return
-        self._bind_link(_SessionLinkAdapter(session))
+        link = _SessionLinkAdapter(session)
+        self._bind_link(link)
+        # Same gap as the frame-tier connect above (`action_connect`) and
+        # the same fix -- see the comment there.
+        self._note(f"\n*** Connected to {link.peer}\n")
         self.query_one(TerminalPane).focus_input()
+        # Same auto-login as the address-book flow above (`request.script`/
+        # `request.credential`/`request.script_name`), just sourced from the
+        # transport's own config entry instead of a per-attempt dialog --
+        # there is no target dialog on this path to carry one. See
+        # `Transport.script`'s docstring.
+        login_text = self._resolve_login(
+            transport.credential, transport.script_name, transport.script
+        )
+        if login_text.strip():
+            self._run_connect_script(link, login_text)
 
     async def _hop_through(self, link, nodes: list[str]) -> bool:
         """Walk a chain of node-to-node hops over an already-open link.
@@ -1159,6 +1457,20 @@ class KissTermApp(App):
         finally:
             with contextlib.suppress(ValueError):
                 link.on_data.remove(_watch)
+
+    def _resolve_login(self, credential: str, script_name: str, script: str) -> str:
+        """The text to actually send, from the three sources every auto-
+        login carries -- `credential` (a name in `Config.credentials`),
+        `script_name` (a name in `Config.scripts`), and `script` (literal
+        text) -- checked in that order. `Config.credentials`'s docstring
+        has the full reasoning for why a login and a script are kept as
+        two separate saved lists rather than one.
+        """
+        if credential:
+            return find_credential(self.config, credential)
+        if script_name:
+            return find_script(self.config, script_name)
+        return script
 
     @work
     async def _run_connect_script(self, link, script: str) -> None:
@@ -1261,6 +1573,17 @@ class KissTermApp(App):
         if chosen:
             self.action_show_tab("terminal")
             self._to_terminal("suggest", chosen)
+
+    @work
+    async def action_show_transcripts(self) -> None:
+        """Find, read and export a past session's transcript.
+
+        The screen reads from the same directory `_start_transcript` writes
+        to (`_transcript_directory`), so this always shows what a live
+        session would have just written -- including one in progress right
+        now, since `SessionLog` is line-buffered.
+        """
+        await self.push_screen_wait(TranscriptsScreen(self._transcript_directory()))
 
     @work
     async def action_disconnect(self) -> None:

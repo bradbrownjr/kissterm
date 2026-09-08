@@ -31,10 +31,25 @@ class MonitorPane(Container):
     def compose(self) -> ComposeResult:
         with Horizontal(id="monitor-filter"):
             yield Input(placeholder="filter: callsign or text", id="monitor-query")
-            yield Button("Supervisory", id="monitor-toggle-s")
+            yield Button(self._supervisory_label(), id="monitor-toggle-s")
         yield RichLog(
             id="monitor-log", wrap=True, markup=False, highlight=False, max_lines=5000
         )
+
+    def on_mount(self) -> None:
+        # The filter (and its default) live on the app, not this pane -- a
+        # freshly mounted pane must reflect it rather than always showing
+        # the label the compose-time default happened to write.
+        self._refresh_supervisory_button()
+
+    def _supervisory_label(self, on: bool = True) -> str:
+        return f"Supervisory: {'on' if on else 'off'}"
+
+    def _refresh_supervisory_button(self) -> None:
+        monitor_filter = self.app.monitor_filter  # type: ignore[attr-defined]
+        button = self.query_one("#monitor-toggle-s", Button)
+        button.label = self._supervisory_label(monitor_filter.show_supervisory)
+        button.variant = "primary" if monitor_filter.show_supervisory else "default"
 
     # ------------------------------------------------------------------
     def write_line(self, text: str) -> None:
@@ -66,5 +81,4 @@ class MonitorPane(Container):
     def _toggle_supervisory(self) -> None:
         monitor_filter = self.app.monitor_filter  # type: ignore[attr-defined]
         monitor_filter.show_supervisory = not monitor_filter.show_supervisory
-        state = "on" if monitor_filter.show_supervisory else "off"
-        self.app.notify(f"Supervisory frames {state}")
+        self._refresh_supervisory_button()
