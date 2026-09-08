@@ -830,9 +830,18 @@ again after a Settings save or a config reload.
   no commands. That is roadmap P9. **Read P9's regulatory note before building
   a mailbox**: unattended answering and third-party traffic are both regulated
   and vary by country and band.
-- **The APRS pane is a placeholder.** Decoding is wired into the frame fan-out
-  and APRS traffic shows in the Monitor tab, but the dedicated pane
-  (positions, messaging with ack/retry, beaconing) is roadmap P4.
+- **The APRS pane is a placeholder, and so is APRS decoding itself.**
+  `aprs.parse_packet` exists and is tested (`tests/unit/test_aprs.py`) but is
+  **not called from anywhere in `kissterm/ui/`** -- checked directly
+  (2026-09-08): the only importers of `kissterm.aprs` outside its own package
+  are `aprs_pane.py` (which imports the pane class, not the parser) and the
+  test suite. What the Monitor pane shows for APRS traffic is the *raw
+  sanitized frame text* (`monitor.format_frame`), not a decoded position or
+  message -- correcting an earlier, wrong version of this bullet that implied
+  decode was already wired to the frame fan-out. Building the dedicated pane
+  (positions, messaging with ack/retry, beaconing -- P4) and any
+  decode-driven feature (P4's APRS message/emergency notification item) both
+  need that subscriber added first; neither exists today.
 - **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
   documents YAPP as a dead end because BPQ32's terminal emulation filters the
   control characters it needs — that limitation applies to apps running *under*

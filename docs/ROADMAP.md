@@ -149,6 +149,32 @@ transports and framing that already exist, not a new transport.
   possible stretch goal. Medium.
 - [ ] **Weather and telemetry display.** Decode APRS weather (`_`) and
   telemetry (`T#`) packet formats into a readable pane. Medium.
+- [ ] **Notify on an APRS message addressed to the operator, or an
+  Emergency-flagged Mic-E/status beacon.** Requested directly, alongside the
+  Mic-E verification work: "pop up a notification if someone messages them or
+  an emergency beacon is sent." Two real prerequisites, not yet built:
+  - **APRS decode has to actually reach a frame-fan-out subscriber first.**
+    `aprs.parse_packet` is implemented and tested but currently called from
+    nowhere in `kissterm/ui/` -- see the corrected "APRS pane is a
+    placeholder" caveat in AGENTS.md sec. 8. This item cannot be built before
+    that subscriber exists; it is the real reason this pane keeps being
+    listed as a placeholder.
+  - **Message addressing** (a message's 9-character `TO` field, matched
+    against `Config.mycall`/`mycall_aliases`, the same base-callsign-and-SSID
+    convention `monitor.mail_waiting_for` already uses) has to distinguish a
+    message actually addressed to the operator from one addressed to a third
+    party passing through, or every APRS message on the band pops a toast.
+  - **Delivery**: reuse `kissterm/desktop_notify.py`'s herdr path, with
+    `notify-send` (libnotify/D-Bus `org.freedesktop.Notifications`, confirmed
+    present here and the de-facto standard across GNOME/KDE/XFCE session
+    notification daemons) as a second-tier fallback when herdr is not
+    present, degrading silently if neither is -- never a hard dependency.
+  - **Reuse P9's rate-limiting design** (per-callsign cooldown, global cap,
+    quiet hours) rather than inventing new throttling rules here -- an
+    Emergency flag is the one case that should skip the cooldown, everything
+    else gets the same treatment as a watched-callsign hit.
+  Small once the decode subscriber exists; that subscriber is the real
+  effort.
 - [ ] **Igate-adjacent features are explicitly out of scope.** kissterm is a
   terminal for a human operator, not an unattended relay — running it as an
   RF-to-APRS-IS igate or a digipeater is a different problem (unattended
