@@ -61,6 +61,7 @@ from textual import events, on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
+from textual.timer import Timer
 from textual.widgets import Button, Input, RichLog, Static
 
 from ..ansi import to_text
@@ -197,6 +198,10 @@ class TerminalPane(Container):
         self._find_needle: str | None = None
         self._find_matches: list[int] = []
         self._find_pos: int = -1
+        # Incoming bytes not yet written to the log -- see `_flush_incoming`
+        # for why a chunk boundary must never become a visible line break.
+        self._pending_incoming: bytes = b""
+        self._flush_timer: Timer | None = None
 
     def compose(self) -> ComposeResult:
         # A fixed header, not a line in the scrollback -- a session can run
@@ -242,8 +247,12 @@ class TerminalPane(Container):
 
         Deliberately separate from `write_incoming`. Text kissterm produced is
         already trusted, and putting it through `sanitize` would strip
-        formatting chosen on purpose.
+        formatting chosen on purpose. Flushes any buffered incoming bytes
+        first, so a "*** Disconnecting..." note (or any other status line)
+        cannot jump ahead of output the far end already sent -- and a link
+        that drops mid-word never loses the word.
         """
+        self._flush_incoming(final=True)
         self.query_one("#session-log", RichLog).write(text)
 
     def write_incoming(self, data: bytes) -> None:
@@ -251,11 +260,66 @@ class TerminalPane(Container):
 
         `remote_color` picks which filter, and both are safe -- see the module
         docstring. It does not gate whether filtering happens.
+
+        Buffered rather than written straight through: AX.25 delivers this a
+        frame (up to `paclen` bytes) at a time, with no regard for where a
+        word ends, and each call to `RichLog.write` renders as its own line
+        -- it does not continue the previous one. Writing every chunk as it
+        arrives turned an ordinary word straddling a frame boundary into a
+        hard line break mid-word ("You have 2 me" / "ssages waiting for
+        you."), reported directly from a real session. `_flush_incoming`
+        holds back everything after the last newline until either a newline
+        completes it or a short idle timer fires, so a chunk boundary is
+        invisible unless it happens to land on a real line break.
         """
-        text = to_text(data) if self.remote_color else Text(sanitize(data))
+        self._pending_incoming += data
+        self._flush_incoming(final=False)
+
+    def _flush_incoming(self, *, final: bool) -> None:
+        """Write complete buffered lines; `final` also flushes a trailing
+        partial one (a prompt with no newline, a dying link, Ctrl+L).
+        """
+        buf = self._pending_incoming
+        if not buf:
+            return
+        if final:
+            ready, self._pending_incoming = buf, b""
+        else:
+            # `\r` counts as a line end too, not just `\n` -- packet nodes
+            # are CR-oriented (see the module docstring) and a bare-CR
+            # stream would otherwise never find a "\n" to split on and
+            # would sit fully at the mercy of the idle timer.
+            split = max(buf.rfind(b"\n"), buf.rfind(b"\r"))
+            if split == -1:
+                # No complete line yet -- wait for the rest of the word
+                # instead of rendering the chunk boundary as a wrap point.
+                self._schedule_flush()
+                return
+            ready, self._pending_incoming = buf[: split + 1], buf[split + 1 :]
+        if self._flush_timer is not None:
+            self._flush_timer.stop()
+            self._flush_timer = None
+        text = to_text(ready) if self.remote_color else Text(sanitize(ready))
         self.query_one("#session-log", RichLog).write(linkify(text), expand=True)
+        if not final and self._pending_incoming:
+            self._schedule_flush()
+
+    def _schedule_flush(self) -> None:
+        # Only ever one in flight, and it is not rescheduled on every byte --
+        # a prompt with no trailing newline still has to appear within a
+        # bounded time even if data keeps trickling in, not "eventually".
+        if self._flush_timer is None:
+            self._flush_timer = self.set_timer(0.2, self._on_flush_timer)
+
+    def _on_flush_timer(self) -> None:
+        self._flush_timer = None
+        self._flush_incoming(final=True)
 
     def clear(self) -> None:
+        self._pending_incoming = b""
+        if self._flush_timer is not None:
+            self._flush_timer.stop()
+            self._flush_timer = None
         self.query_one("#session-log", RichLog).clear()
 
     def set_transcript_note(self, text: str) -> None:

@@ -196,9 +196,29 @@ transports and framing that already exist, not a new transport.
   language. This item is the general-purpose, arbitrary-hook version of the
   same idea (conditionals, reacting to arbitrary text, running on other
   events besides connect).
-- [ ] **Command palette actions.** Expose connect/disconnect/monitor-toggle/
-  transport-switch etc. through Textual's command palette, not just
-  keybindings. Small once the actions themselves exist.
+- [ ] **Footer overflow and a real, searchable Keys reference.** Reported
+  directly from a real session: at an ordinary terminal width the footer's
+  key list already runs off the right edge, under the `^p` command-palette
+  label, with no way to see what got truncated. Two parts:
+  - **The footer must not just truncate.** Pick which bindings are shown
+    there by terminal width (`App.size.width` / a resize handler) rather
+    than a fixed list that silently loses its rightmost entries -- show the
+    handful that matter most at 80 columns, more as the terminal widens.
+  - **Ctrl+P must become an actual command/key reference, not a decoration.**
+    Today nothing registers a Textual `Provider`, so Ctrl+P only lists
+    Textual's own small built-in System Commands set (dark mode toggle,
+    quit, and the like) -- every app-level `Binding` (`BINDINGS` in
+    `ui/app.py`, plus each pane's own) is invisible there, including the
+    ones the footer above had no room to show. That is also why typing in
+    the palette's search box feels useless: it is genuinely just filtering
+    that short built-in list, not searching kissterm's key bindings at all.
+    A custom `Provider` that walks every registered `Binding` (visible and
+    `show=False` alike, since several -- Ctrl+Shift+B/D's hidden plain
+    fallbacks, Ctrl+K, Ctrl+F -- currently have no on-screen reference at
+    all once the footer is full) and offers them as fuzzy-searchable,
+    categorized commands (Connection, Panes, Terminal, Transmit...) would
+    fix both: the footer stops being the only place a key can be
+    discovered, and search would search something real. Medium.
 - [ ] **`textual serve` remote access.** Let kissterm be reached over a
   browser via `textual serve`, useful for operating a home-station TNC from
   elsewhere. Small — mostly confirming nothing in the transport layer assumes
@@ -348,6 +368,18 @@ of the beacon work is the half that needs a mailbox behind it:
         it, and the per-callsign back-off -- not another beacon. **Do not
         build a second beaconer beside the first.** Mid.
 
+- [ ] **Passive "mail waiting" notification from the monitor.** Different
+      direction from the "MAIL FOR" beacon item above -- that one is kissterm
+      *advertising its own* mailbox; this one is kissterm *noticing someone
+      else's* node beacon "MAIL FOR {the operator's own callsign}" and
+      raising a notification for it, purely from what the monitor's existing
+      frame fan-out (`FrameTransport.subscribe()`, see AGENTS.md sec. 2b)
+      already decodes -- no connection needed, since the modem being on
+      frequency is enough to hear a beacon. Match against `Config.mycall`
+      (and `mycall_aliases`) the same way node identification is passive
+      (`_sniff_node`) -- read what already arrived, never ask a question.
+      Small once the match pattern is nailed down against a real "MAIL FOR"
+      beacon format from an on-air node.
 - [ ] **A personal mailbox on an alternate SSID** -- the `-1` convention, which
       `Config.mycall_aliases` and `AX25Station.aliases` already support at the
       protocol level. Minimal command set in the EasyTerm//W0RLI tradition:

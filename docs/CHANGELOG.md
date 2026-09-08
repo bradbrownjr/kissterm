@@ -3,6 +3,28 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-08] — A word could split across a frame boundary in the Terminal pane
+
+### Fixes
+- **Incoming text could hard-wrap mid-word ("You have 2 me" / "ssages
+  waiting for you.").** Reported directly from a real session, also seen
+  splitting `BULLETIN` mid-word in a message-list line. Root cause: AX.25
+  delivers incoming data one frame at a time (`AX25Link.on_data`, up to
+  `paclen` bytes), with no regard for where a word ends, and
+  `TerminalPane.write_incoming` wrote every such chunk straight to the
+  `RichLog` -- but each call to `RichLog.write` renders as its own line
+  rather than continuing the previous one, so a word straddling a frame
+  boundary always became a hard line break at that exact byte, with no
+  relation to the pane's width or an actual wrap point. Fixed by buffering:
+  `TerminalPane._flush_incoming` holds back everything after the last
+  newline (`\n` or a bare `\r` -- packet nodes are CR-oriented) until either
+  a newline completes it or a bounded idle timer (200 ms) fires, so a chunk
+  boundary is invisible unless it happens to land on a real line break. A
+  prompt with no trailing newline still appears (via the idle timer); a
+  disconnect or Ctrl+L flushes or discards whatever is pending rather than
+  losing or reordering it. **Files:** `kissterm/ui/terminal_pane.py`,
+  `tests/pilot/test_transcript_and_color.py`.
+
 ## [2026-09-08] — The Connect dialog was too tall
 
 ### Improvements
