@@ -3,6 +3,42 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-08] — Mic-E verified against real traffic; found and fixed an inverted message-status table
+
+### Bug fixes
+- **`kissterm/aprs/mice.py`'s `_MICE_MESSAGES` table had every bit pattern
+  inverted, causing a normal "Off Duty" Mic-E beacon to decode as
+  "Emergency" and vice versa.** `(1,1,1)` was mapped to "Emergency" and
+  `(0,0,0)` to "Off Duty" -- the exact opposite of the real convention.
+  Caught while doing the P1 roadmap item "verify Mic-E against a real
+  captured packet": a standalone receive-only sniffer script (subscribing
+  to the operator's real UZ7HO SoundModem feed, never transmitting) logged
+  ~30 real Mic-E frames from ~7 distinct New England stations, and the
+  decoded statuses were implausible -- mostly "Emergency"/"Priority", never
+  "Off Duty", the default virtually every tracker ships with and nobody
+  changes. Cross-checked against `aprslib` (PyPI, an independent, mature
+  APRS parsing library) -- its `MTYPE_TABLE_STD` computes the identical
+  letter-vs-digit bit per destination-callsign character kissterm does, but
+  maps `(1,1,1)` to "Off Duty" and `(0,0,0)` to "Emergency". Re-decoding all
+  ~30 captures against the corrected table turned every implausible
+  "Emergency"/"Priority" into a mundane, station-consistent "Off Duty"/
+  "En Route"/"In Service". The two existing test fixtures in
+  `tests/unit/test_aprs.py` were hand-built against this same, then-wrong
+  table, so they agreed with the bug instead of catching it -- corrected
+  their expected text and added a new dedicated `test_mic_e_emergency_message`
+  so the Emergency case (the one entry that must never be confused with a
+  routine status) stays under direct test. **Files:** `kissterm/aprs/mice.py`,
+  `tests/unit/test_aprs.py`.
+
+### Verification
+- **Mic-E position decode (lat/lon, N/S, longitude offset, E/W) is now
+  independently confirmed correct against real traffic**, closing the rest
+  of this P1 item. A real "Oxford County EOC" (W1OCA) Mic-E beacon decoded
+  to lat 44.2207/lon -70.5188; that office's real street address (26
+  Western Avenue, South Paris, ME) geocodes to 44.2211/-70.5183 -- about
+  150m apart, well inside Mic-E's precision. See
+  `kissterm/aprs/mice.py`'s module docstring for the full account.
+
 ## [2026-09-08] — Connected mode verified against real hardware
 
 ### Verification

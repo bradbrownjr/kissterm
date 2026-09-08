@@ -20,10 +20,32 @@ The most error-prone details, if this ever needs a fix:
     (subtract 800 / 400 respectively above their max) are both easy to get
     subtly backwards; `tests/unit/test_aprs.py`'s two hemisphere-combination
     tests exist specifically to catch that class of bug.
-  - The N/S, longitude-offset, and E/W bit convention (bit=1 -> N / +100 / W)
-    is implemented per the most common description of the format but was not
-    independently verified against a captured frame -- flag any change here
-    for extra scrutiny.
+  - **Position, N/S, longitude-offset, and E/W were verified against real
+    captured traffic on 2026-09-08**: kissterm's decode of a real "Oxford
+    County EOC" Mic-E beacon (W1OCA) matched that office's real street
+    address (26 Western Avenue, South Paris, ME) to within ~150m after
+    independent geocoding -- see docs/CHANGELOG.md. Trust this part.
+  - **`_MICE_MESSAGES` was wrong until the same session and is now fixed.**
+    It shipped with every bit pattern inverted -- `(1,1,1)` was mapped to
+    "Emergency" and `(0,0,0)` to "Off Duty", the exact opposite of the real
+    convention. Caught by capturing ~30 real Mic-E frames from ~7 distinct
+    stations and finding the decode implausible (mostly "Emergency" and
+    "Priority", never "Off Duty", which is the default virtually every
+    tracker ships with and never changes) -- then confirmed against
+    `aprslib` (PyPI, a mature independent implementation)'s
+    `MTYPE_TABLE_STD`, which computes the identical letter-vs-digit bit per
+    character kissterm does but maps `(1,1,1)` to "Off Duty" and `(0,0,0)`
+    to "Emergency". Re-decoding all ~30 captures against the corrected
+    table turned every implausible "Emergency"/"Priority" into a mundane
+    "Off Duty"/"En Route"/"In Service" -- exactly what real mobile stations
+    actually send. This was a live bug in a tool that could plausibly be
+    used to watch for a real Mic-E emergency flag; a bit-inverted table
+    means it would have shown routine traffic as emergencies and missed a
+    real one. Any future change to this table needs the same kind of
+    independent cross-check, not just self-consistency with this file's own
+    tests -- the old, wrong fixtures in `tests/unit/test_aprs.py` were
+    hand-built against this same, then-wrong, table and could not have
+    caught it.
 
 Like every other parser in this package, `parse_mic_e` must be safe to call
 from `parse.py`'s dispatcher without a caller-side try/except: it is free to
@@ -46,9 +68,8 @@ __all__ = ["parse_mic_e"]
 #: plain 0-9 or the all-zero space markers K/L/Z. Position 1-3 characters
 #: feed the 3-bit message code; position 4-6 characters double as the N/S,
 #: longitude-offset, and E/W flags (bit=1 -> N / +100 / W, bit=0 -> S / no
-#: offset / E), which is the convention this implementation follows -- flagged
-#: as the one part of Mic-E decode not independently verified against a
-#: captured frame.
+#: offset / E). Verified against real captured traffic 2026-09-08 -- see the
+#: module docstring.
 _MICE_TABLE: dict[str, tuple[str, int, str]] = {}
 for _c in "0123456789":
     _MICE_TABLE[_c] = (_c, 0, "digit")
@@ -62,15 +83,18 @@ _MICE_TABLE["Z"] = (" ", 1, "custom")
 
 #: Message code (bit_A, bit_B, bit_C) -> status text, both codesets share the
 #: same 8 meanings by convention except "Emergency" is unambiguous either way.
+#: CORRECTED 2026-09-08: this table shipped bit-inverted (every entry mapped
+#: to its complement's real meaning) until cross-checked against `aprslib`'s
+#: `MTYPE_TABLE_STD` and ~30 real captured frames -- see the module docstring.
 _MICE_MESSAGES: dict[tuple[int, int, int], str] = {
-    (1, 1, 1): "Emergency",
-    (1, 1, 0): "Priority",
-    (1, 0, 1): "Special",
-    (1, 0, 0): "Committed",
-    (0, 1, 1): "Returning",
-    (0, 1, 0): "In Service",
-    (0, 0, 1): "En Route",
-    (0, 0, 0): "Off Duty",
+    (1, 1, 1): "Off Duty",
+    (1, 1, 0): "En Route",
+    (1, 0, 1): "In Service",
+    (1, 0, 0): "Returning",
+    (0, 1, 1): "Committed",
+    (0, 1, 0): "Special",
+    (0, 0, 1): "Priority",
+    (0, 0, 0): "Emergency",
 }
 
 _MICE_ALT_RE = re.compile(r"^([\x21-\x7b]{3})\}")
