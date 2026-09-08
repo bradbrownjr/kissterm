@@ -368,18 +368,23 @@ of the beacon work is the half that needs a mailbox behind it:
         it, and the per-callsign back-off -- not another beacon. **Do not
         build a second beaconer beside the first.** Mid.
 
-- [ ] **Passive "mail waiting" notification from the monitor.** Different
-      direction from the "MAIL FOR" beacon item above -- that one is kissterm
-      *advertising its own* mailbox; this one is kissterm *noticing someone
-      else's* node beacon "MAIL FOR {the operator's own callsign}" and
-      raising a notification for it, purely from what the monitor's existing
-      frame fan-out (`FrameTransport.subscribe()`, see AGENTS.md sec. 2b)
-      already decodes -- no connection needed, since the modem being on
-      frequency is enough to hear a beacon. Match against `Config.mycall`
-      (and `mycall_aliases`) the same way node identification is passive
-      (`_sniff_node`) -- read what already arrived, never ask a question.
-      Small once the match pattern is nailed down against a real "MAIL FOR"
-      beacon format from an on-air node.
+- [ ] **Auto-collect mail once a mailbox exists.** Depends on the mailbox
+      item below shipping first -- once kissterm can hold mail *for its own
+      operator*, it should also be able to go get mail (and bulletins)
+      *from someone else's*: on hearing (or being told about) a "MAIL FOR"
+      match via the passive notice above, offer to dial the advertising
+      node, log in, run its list/read/download command sequence for the
+      node family in question (`kissterm/nodes/` already has per-family
+      command references -- see P8), and file the results locally, all
+      without the operator typing the session by hand. This is a
+      **connection the operator has to confirm**, same as every other
+      unattended-looking action in this codebase (AGENTS.md's "Unattended
+      transmission" rules) -- never auto-dial on a bare notification with no
+      confirmation step, that is exactly the "bare keystroke never arms the
+      gate" case applied to a whole session instead of one transmission.
+      Medium-large: needs a per-family "collect" script (list, read each,
+      mark read/kill, disconnect) layered on the BBS session helpers item
+      above (P5), not a new parsing approach.
 - [ ] **A personal mailbox on an alternate SSID** -- the `-1` convention, which
       `Config.mycall_aliases` and `AX25Station.aliases` already support at the
       protocol level. Minimal command set in the EasyTerm//W0RLI tradition:

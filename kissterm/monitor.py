@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from .ax25.frame import PID_NO_LAYER3, AX25Frame, UType
@@ -130,6 +131,50 @@ class MonitorLine:
         arrow = ">" if self.outgoing else "<"
         head = f"{stamp} {arrow} [{self.port}] {self.header}".strip()
         return f"{head}\n{self.payload}" if self.payload else head
+
+
+#: A bare or SSID-suffixed callsign token, e.g. "W1AW" or "W1AW-15". Loose
+#: on purpose -- this only has to find candidates to check against a short,
+#: known list (the operator's own call and aliases), not validate AX.25
+#: addressing.
+_CALLSIGN_TOKEN_RE = re.compile(r"\b[A-Z0-9]{3,7}(?:-\d{1,2})?\b")
+
+
+def mail_waiting_for(text: str, callsigns: Iterable[str]) -> str | None:
+    """The matched callsign if `text` announces mail waiting for one of them.
+
+    Looks for the W0RLI/FBB "MAIL FOR" beacon convention (docs/ROADMAP.md
+    P9's passive-notification item).
+
+    # UNVERIFIED: the exact beacon wording and callsign-list layout were
+    # never checked against a real captured "MAIL FOR" beacon -- this
+    # matches the *documented* convention (the phrase followed by a list of
+    # callsigns), not a sample off the air. Revisit this pattern once one
+    # has actually been heard.
+
+    Matches on the callsign with its SSID stripped as well as an exact
+    match, since a mailbox advertising mail for "W1AW" and an operator
+    running a session as "W1AW-7" are the same person -- the SSID is a
+    *session* convention, the mailbox addresses the base call.
+
+    Only the text immediately after the phrase is scanned (a small fixed
+    window), so a long bulletin that happens to contain "MAIL FOR" deep
+    inside its body cannot turn this into an unbounded scan.
+    """
+    upper = text.upper()
+    idx = upper.find("MAIL FOR")
+    if idx == -1:
+        return None
+    start = idx + len("MAIL FOR")
+    window = upper[start : start + 120]
+    wanted_full = {c.upper() for c in callsigns if c}
+    wanted_base = {c.split("-")[0] for c in wanted_full}
+    if not wanted_full:
+        return None
+    for token in _CALLSIGN_TOKEN_RE.findall(window):
+        if token in wanted_full or token.split("-")[0] in wanted_base:
+            return token
+    return None
 
 
 def format_frame(

@@ -3,6 +3,48 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-08] — Passive "mail waiting" notification, with an optional herdr desktop alert
+
+### New Features
+- **kissterm now notices someone else's node beaconing "MAIL FOR
+  {your callsign}" and raises a notification for it, with no connection
+  needed.** Requested directly: "even if the user isn't connected to the
+  node, the modem is just on frequency." Reads UI (unproto) frames off the
+  existing shared frame fan-out (`AX25Station.transport.subscribe`, see
+  AGENTS.md sec. 2b) the same way the monitor pane and heard list already
+  do -- passive, like `_sniff_node`'s node-family detection, never a
+  question asked of the channel. `monitor.mail_waiting_for` matches the
+  W0RLI/FBB "MAIL FOR" convention against `Config.mycall` and
+  `mycall_aliases`, on the base callsign as well as an exact match (a
+  mailbox holding mail for "W1AW" and an operator running "W1AW-7" are the
+  same person). Marked `# UNVERIFIED:` per this repo's rule -- the exact
+  beacon wording was never checked against a real captured one, only the
+  documented convention. `KissTermApp._check_mail_for` writes a line into
+  the terminal log, raises kissterm's own in-app notification, and
+  de-duplicates by (source callsign, matched callsign) so a beacon
+  repeating on its own interval does not re-notify every time it is heard
+  again. **Files:** `kissterm/monitor.py`, `kissterm/ui/app.py`,
+  `tests/unit/test_monitor.py`, `tests/pilot/test_mail_waiting_notice.py`.
+- **New `kissterm/desktop_notify.py`: mirrors that alert (and is available
+  for future ones) through herdr's desktop notification CLI, when present.**
+  A kissterm pane is easy to miss if it is not the one focused, especially
+  under a terminal workspace manager holding several panes at once -- which
+  is exactly the situation the mail-waiting notice above is for, since the
+  whole point is finding out without kissterm in view. Detection is
+  `HERDR_ENV=1` (herdr's own marker) plus the `herdr` binary on PATH, so an
+  install merely present on the machine does not pop notifications into a
+  session herdr is not actually showing. Confirmed interactively against a
+  real herdr install: `herdr notification show <title> [--body TEXT]
+  [--sound none|done|request]` returns a JSON result with `"shown": true`.
+  Runs as an async subprocess with a bounded timeout, never a blocking
+  call -- `AX25Link` schedules its own timers on the running loop
+  (AGENTS.md sec. 3), and a synchronous wait on an external process here
+  would stall them. Every failure (herdr absent, binary gone, a hang)
+  degrades to "did not notify" and never raises, same rule this codebase
+  applies to every other background-task failure. **Files:**
+  `kissterm/desktop_notify.py`, `kissterm/ui/app.py`,
+  `tests/unit/test_desktop_notify.py`.
+
 ## [2026-09-08] — A word could split across a frame boundary in the Terminal pane
 
 ### Fixes

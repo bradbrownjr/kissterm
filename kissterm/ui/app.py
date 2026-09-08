@@ -105,10 +105,11 @@ from ..addressbook import AddressBook
 from ..ax25 import AX25Station, parse_path
 from ..beacon import Beaconer
 from ..config import BeaconConfig, find_credential, find_script
-from ..ax25.frame import AX25Frame
+from .. import desktop_notify
+from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
 from ..hotplug import PortEvent, SerialPortWatcher
-from ..monitor import MonitorFilter, format_frame, sanitize
+from ..monitor import MonitorFilter, format_frame, mail_waiting_for, sanitize
 from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError, TransportState
 from ..tx import DISABLED_MESSAGE, TransmitGate
@@ -433,6 +434,11 @@ class KissTermApp(App):
         #: costs real airtime (see kissterm/nodes/__init__.py).
         self.reference = CommandReference()
         self._detect_buffer = ""
+        #: (source callsign, matched callsign) pairs already surfaced by
+        #: `_check_mail_for`, so a beacon repeating on its own interval does
+        #: not re-notify the operator every time it is heard again -- the
+        #: point is "you have not seen this yet", not a running tally.
+        self._mail_notified: set[tuple[str, str]] = set()
         #: Transcript for the current session, or None. Owned here rather
         #: than by the pane: it records what crossed the *link*, and the pane
         #: is only one of the things watching that.
@@ -639,6 +645,7 @@ class KissTermApp(App):
         """
         self.heard.record(frame, port)
         self._monitor(frame, port, outgoing=False)
+        self._check_mail_for(frame)
 
     def _on_sent_frame(self, frame: AX25Frame, port: int = 0) -> None:
         """Every frame that got past the transmit gate. Monitor only --
@@ -652,6 +659,46 @@ class KissTermApp(App):
         line = format_frame(frame, port, outgoing=outgoing)
         for pane in self._base_query(MonitorPane):
             pane.write_line(line.as_text())
+
+    def _check_mail_for(self, frame: AX25Frame) -> None:
+        """Notice someone else's node beaconing mail for us -- see
+        docs/ROADMAP.md P9, "Passive mail waiting notification".
+
+        Passive, like `_sniff_node`: reads a beacon kissterm already decoded
+        off the shared frame fan-out (AGENTS.md sec. 2b), asks no question,
+        and needs no connection -- the modem being on frequency is enough to
+        hear it. Restricted to UI frames because that is what a beacon
+        actually is; a connected-mode chat line that happens to contain the
+        words "mail for" is not a node advertising a mailbox.
+        """
+        if frame.kind != "U" or frame.utype is not UType.UI:
+            return
+        if not frame.info or frame.pid not in (PID_NO_LAYER3, None):
+            return
+        calls = [self.config.mycall, *self.config.mycall_aliases]
+        matched = mail_waiting_for(sanitize(frame.info, keep_newlines=False), calls)
+        if matched is None:
+            return
+        source = str(frame.path.source)
+        key = (source, matched)
+        if key in self._mail_notified:
+            return
+        self._mail_notified.add(key)
+        self._to_terminal(
+            "log", f"\n*** {source} is holding mail for {matched} (heard on the channel)\n"
+        )
+        self.notify(f"{source} has mail waiting for {matched}.", severity="information")
+        self._notify_mail_via_herdr(source, matched)
+
+    @work
+    async def _notify_mail_via_herdr(self, source: str, matched: str) -> None:
+        # Best-effort only -- see kissterm/desktop_notify.py for why a
+        # subprocess call here has to be async and never allowed to raise.
+        await desktop_notify.notify(
+            f"Mail waiting at {source}",
+            f'Heard "MAIL FOR {matched}" on the channel.',
+            sound="request",
+        )
 
     def _on_incoming_link(self, link) -> None:
         self._to_terminal("log", f"\n*** Incoming connection from {link.peer}\n")
