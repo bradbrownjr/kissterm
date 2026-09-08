@@ -114,12 +114,42 @@ class TerminalPane(Container):
     #: own so a pane mounted in a test needs no config object.
     remote_color: bool = True
 
+    #: Shift+Enter (previous match) and Escape (close the bar) only need to
+    #: fire while focus is somewhere inside this pane -- including
+    #: `#find-input` itself, since plain `Input` binds neither key and lets
+    #: them bubble up. `_SendInput`'s OWN `shift+enter` binding (submit) is
+    #: resolved first whenever `#session-input` is the actually-focused
+    #: widget, so the two never collide despite sharing a key.
+    BINDINGS = [
+        Binding("shift+enter", "previous_match", show=False),
+        Binding("escape", "close_find", show=False),
+    ]
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # `None` here, never "" -- an empty needle is a real, typeable state
+        # (the operator cleared the box) and must still force a recompute
+        # the first time, which comparing against "" would skip.
+        self._find_needle: str | None = None
+        self._find_matches: list[int] = []
+        self._find_pos: int = -1
+
     def compose(self) -> ComposeResult:
         # A fixed header, not a line in the scrollback -- a session can run
         # for hours, and the one thing worth finding without scrolling back
         # to the top is where its own record is being kept. Empty and
         # hidden until a transcript actually opens; see `set_transcript_note`.
         yield Static("", id="transcript-note")
+        # Hidden until Ctrl+F -- see `open_find`/`action_close_find`. Sits
+        # above the scrollback, not the send row, so it never shifts where
+        # the operator types.
+        with Horizontal(id="find-row"):
+            yield Input(
+                placeholder="find in this session -- Enter: next, Shift+Enter: previous",
+                id="find-input",
+            )
+            yield Static("", id="find-status")
+            yield Button("Close", id="find-close")
         # A RichLog is not editable, so the transcript cannot be typed into by
         # accident. Textual's selection support keeps it copyable anyway.
         yield RichLog(
@@ -169,6 +199,94 @@ class TerminalPane(Container):
         note = self.query_one("#transcript-note", Static)
         note.update(text)
         note.display = bool(text)
+
+    # ------------------------------------------------------------------
+    # Find in scrollback
+    # ------------------------------------------------------------------
+    def open_find(self) -> None:
+        """Show the find bar and focus it. `Ctrl+F`'s target in `app.py`."""
+        self.query_one("#find-row").display = True
+        self.query_one("#find-input", Input).focus()
+
+    def action_close_find(self) -> None:
+        """Escape, or the Close button. A no-op if the bar is already
+        hidden, so binding it at the pane level (see the class docstring)
+        never disturbs a plain Escape typed for some other reason."""
+        row = self.query_one("#find-row")
+        if not row.display:
+            return
+        row.display = False
+        self._find_needle = None
+        self._find_matches = []
+        self._find_pos = -1
+        self.query_one("#find-status", Static).update("")
+        self.focus_input()
+
+    def _recompute_matches(self, needle: str) -> None:
+        """Rebuild the match list only when the needle actually changed, so
+        repeated Enter/Shift+Enter on an unchanged search just walks
+        `_find_pos` instead of re-scanning the whole scrollback every time.
+        """
+        if needle == self._find_needle:
+            return
+        self._find_needle = needle
+        self._find_pos = -1
+        if not needle:
+            self._find_matches = []
+            return
+        # `RichLog.lines` holds every WRAPPED display line currently kept
+        # (up to its own `max_lines`), each a `Strip` -- `.text` is its
+        # plain content. A match that straddles a wrap point is missed;
+        # accepted for a find-as-you-type box over an operator's own
+        # session, not a document search tool.
+        lowered = needle.lower()
+        log = self.query_one("#session-log", RichLog)
+        self._find_matches = [
+            i for i, strip in enumerate(log.lines) if lowered in strip.text.lower()
+        ]
+
+    def _step_match(self, direction: int) -> None:
+        status = self.query_one("#find-status", Static)
+        if not self._find_matches:
+            status.update("No matches" if self._find_needle else "")
+            return
+        self._find_pos = (self._find_pos + direction) % len(self._find_matches)
+        line = self._find_matches[self._find_pos]
+        # `immediate=True`: this is a deliberate jump, not a smooth follow --
+        # and it makes the new position readable back in a test right after
+        # the call, with no animation frame to wait out.
+        self.query_one("#session-log", RichLog).scroll_to(y=line, animate=False, immediate=True)
+        status.update(f"{self._find_pos + 1}/{len(self._find_matches)}")
+
+    @on(Input.Changed, "#find-input")
+    def _find_typed(self, event: Input.Changed) -> None:
+        """Count matches as the operator types, without jumping anywhere
+        yet -- Enter (see `_find_submitted`) is the deliberate "go" here,
+        the same "typing alone never acts" shape `send_line` enforces for
+        the send line itself, just for navigation instead of transmission.
+        """
+        self._recompute_matches(event.value.strip())
+        status = self.query_one("#find-status", Static)
+        if not self._find_needle:
+            status.update("")
+        elif self._find_matches:
+            n = len(self._find_matches)
+            status.update(f"{n} match" if n == 1 else f"{n} matches")
+        else:
+            status.update("No matches")
+
+    @on(Input.Submitted, "#find-input")
+    def _find_submitted(self, event: Input.Submitted) -> None:
+        self._recompute_matches(event.value.strip())
+        self._step_match(1)
+
+    def action_previous_match(self) -> None:
+        self._recompute_matches(self.query_one("#find-input", Input).value.strip())
+        self._step_match(-1)
+
+    @on(Button.Pressed, "#find-close")
+    def _find_close_pressed(self) -> None:
+        self.action_close_find()
 
     # ------------------------------------------------------------------
     # Input

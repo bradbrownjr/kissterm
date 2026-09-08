@@ -118,6 +118,20 @@ node.
   `kissterm/ui/dialogs.py`, `kissterm/ui/app.py`,
   `kissterm/ui/styles.py`, `tests/unit/test_transcripts.py`,
   `tests/pilot/test_transcripts_screen.py`.
+- **`Ctrl+F` finds text in the Terminal pane's scrollback.** A find bar
+  above the log (Enter: next match, Shift+Enter: previous, Escape or Close
+  closes it) that counts matches as you type and jumps between them,
+  wrapping past the last one back to the first rather than stopping.
+  Case-insensitive, and matched against `RichLog.lines` directly -- the
+  same wrapped display lines already on screen, not a second copy of the
+  transcript kept just for this. Read-only, like the scrollback it
+  searches: nothing here can be typed into the session by accident.
+  New `TerminalPane.open_find`/`action_close_find` and the `#find-row`
+  it toggles; `KissTermApp.action_find_in_terminal` switches to the
+  Terminal tab first, so Find never leaves the operator wondering where
+  the box went from some other tab. **Files:** `kissterm/ui/terminal_pane.py`,
+  `kissterm/ui/app.py`, `kissterm/ui/styles.py`,
+  `tests/pilot/test_terminal_find.py`.
 
 ## [2026-09-07] — "They got it, they're just not answering" is now on screen
 

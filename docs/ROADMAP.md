@@ -50,8 +50,6 @@ What P1 deliberately did **not** settle, and is now the top of the queue:
   since they read from the transport, not from any one session. Touches
   `kissterm/app.py` (tab management) and probably a `SessionManager` to keep
   `ax25/session.py` from needing to know about the UI. Medium-large.
-- [ ] **Scrollback search.** In-pane find, forward/backward, on the terminal
-  buffer Textual already retains. Small.
 - [ ] **Paste protection.** A bracketed-paste-style guard so a large or
   binary paste into a connected session doesn't get sent a keystroke at a
   time in a way that floods a slow RF link or triggers a remote command

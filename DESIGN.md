@@ -136,7 +136,7 @@ tab existed to expect it.
   screen twice, in two different corners. Register the binding with
   `show=False`.
 - **The Footer is for non-tab actions only** — Connect, Disconnect, Callsign,
-  Commands, Transcripts, Quit, palette.
+  Commands, Transcripts, Find, Quit, palette.
 - **`Ctrl+1..5` are unlabelled fallback aliases** for terminals that intercept
   function keys.
 - **Ceiling: F1–F8.** F9+ are not reliably delivered by every terminal, so
@@ -152,7 +152,7 @@ tab existed to expect it.
 ## 6. The bottom two rows
 
 ```
- ^q Quit  ^n Connect  ^D Disconnect  ^k Callsign  ^r Commands  ^o Transcripts   <- Footer
+ ^q Quit  ^n Connect  ^D Disconnect  ^k Callsign  ^r Commands  ^o Transcripts  ^f Find   <- Footer
  kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6     <- status
 ```
 

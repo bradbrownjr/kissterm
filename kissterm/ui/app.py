@@ -348,6 +348,8 @@ class KissTermApp(App):
         # "Open" is the standard mnemonic (most editors' Ctrl+O) for "open a
         # saved file", and there is nothing else on this key.
         Binding("ctrl+o", "show_transcripts", "Transcripts"),
+        # The universal "Find" mnemonic (every browser, every editor).
+        Binding("ctrl+f", "find_in_terminal", "Find"),
     ]
 
     def __init__(
@@ -978,6 +980,16 @@ class KissTermApp(App):
             self.query_one(MonitorPane).clear()
         else:
             self.query_one(TerminalPane).clear()
+
+    def action_find_in_terminal(self) -> None:
+        """Ctrl+F: find in the Terminal pane's scrollback.
+
+        Switches to the Terminal tab first -- pressing Find should never
+        leave the operator staring at whichever tab happened to be open
+        wondering where the search box went.
+        """
+        self.action_show_tab("terminal")
+        self.query_one(TerminalPane).open_find()
 
     def _frame_tier_transports(self) -> list[dict]:
         """This app's own configured transports of the SAME tier it is

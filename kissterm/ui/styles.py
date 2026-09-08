@@ -85,6 +85,11 @@ Underline > .underline--bar { color: $accent; }
 /* Terminal pane */
 TerminalPane { layout: vertical; }
 #transcript-note { height: auto; padding: 0 1; color: $text-muted; }
+/* Hidden until Ctrl+F -- see TerminalPane.open_find. */
+#find-row { height: auto; display: none; }
+#find-input { border: round $accent; width: 1fr; }
+#find-status { width: auto; padding: 1 1 0 1; color: $text-muted; }
+#find-close { margin-left: 1; }
 #session-log { border: round $primary; height: 1fr; }
 #session-send-row { height: auto; }
 #session-input { border: round $accent; width: 1fr; }
