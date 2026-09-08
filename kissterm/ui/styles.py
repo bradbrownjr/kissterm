@@ -251,6 +251,17 @@ SettingsPane { layout: vertical; }
 .settings-row Input { width: 46; }
 .settings-row Select { width: 46; }
 .settings-row Button { margin-right: 1; }
+/* A hex value is short; the full 46-wide Input would be mostly empty and
+   would crowd the swatch out of the row. */
+.settings-row Input.settings-color-input { width: 20; }
+/* The swatch's fill is the one legitimate exception to "never hardcode a
+   hex value" (DESIGN.md#2): it renders an arbitrary color the operator
+   typed, not a piece of kissterm's own chrome, so it is set at runtime from
+   the field's value rather than from a theme token. Only its border --
+   which IS kissterm's own chrome -- uses one, and switches to $error the
+   moment the typed value stops being a color Theme can accept. */
+.settings-swatch { width: 4; height: 1; margin: 1 0 0 1; border: round $panel; }
+.settings-swatch.-invalid { border: round $error; }
 /* Its own bar now, not the last row of a field column -- no label-column
    indent to match, just enough top margin to separate it from the banner. */
 .settings-actions { margin-top: 1; }

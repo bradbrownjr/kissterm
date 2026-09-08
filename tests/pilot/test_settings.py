@@ -69,15 +69,9 @@ NOT_IN_SCHEMA = {
     "warnings",
     "aprs",
     # Nested dataclasses. Their fields ARE in the schema, as dotted paths --
-    # covered field-by-field by the two nested tests below, which is stricter
+    # covered field-by-field by the nested tests below, which is stricter
     # than this top-level check, not an exemption from it.
     "beacon",
-    # custom_theme is a nested dataclass of eleven hex/bool fields, read only
-    # when theme == "custom". Deliberately not exposed field-by-field in the
-    # Settings UI yet (that is eleven raw hex-input widgets) -- see
-    # kissterm/ui/themes.py's docstring and docs/ROADMAP.md P6. "theme"
-    # itself IS in the schema as a dropdown; only its custom-color escape
-    # hatch is config-file-only for now.
     "custom_theme",
 }
 
@@ -125,6 +119,14 @@ def test_every_nested_beacon_field_is_editable():
     paths = {f.path for s in SETTINGS_SCHEMA for f in s.fields}
     for f in dataclasses.fields(BeaconConfig):
         assert f"beacon.{f.name}" in paths, f"beacon.{f.name} has no Settings UI"
+
+
+def test_every_nested_custom_theme_field_is_editable():
+    from kissterm.config import CustomThemeConfig
+
+    paths = {f.path for s in SETTINGS_SCHEMA for f in s.fields}
+    for f in dataclasses.fields(CustomThemeConfig):
+        assert f"custom_theme.{f.name}" in paths, f"custom_theme.{f.name} has no Settings UI"
 
 
 def test_beacon_and_aprs_are_not_presented_as_the_same_feature():
@@ -268,6 +270,35 @@ async def test_an_invalid_field_saves_nothing_at_all():
 
         assert app.config.paclen == before, "a valid field was saved beside a bad one"
         err = app.query_one(f"#{_widget_id('retries')}-error")
+        assert err.display and str(err.render()).strip()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_bad_custom_theme_color_marks_the_swatch_and_saves_nothing():
+    """The swatch is a live preview, not the enforcement point -- typing an
+    incomplete hex value must not corrupt `Config`, and must be visibly
+    flagged (the `-invalid` class, which switches its border to `$error` in
+    styles.py) rather than silently keeping the last good fill."""
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        wid = _widget_id("custom_theme.primary")
+        before = app.config.custom_theme.primary
+
+        app.query_one(f"#{wid}", Input).value = "#ff00ff"
+        await pilot.pause()
+        assert "-invalid" not in app.query_one(f"#{wid}-swatch").classes
+
+        app.query_one(f"#{wid}", Input).value = "not-a-color"
+        await pilot.pause()
+        assert "-invalid" in app.query_one(f"#{wid}-swatch").classes
+
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.custom_theme.primary == before, "invalid color must not be saved"
+        err = app.query_one(f"#{wid}-error")
         assert err.display and str(err.render()).strip()
     station.close()
 

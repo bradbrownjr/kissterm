@@ -238,7 +238,10 @@ log_sessions = true
 # Only read when theme = "custom" above. Exact hex values, one per Textual
 # theme field -- this is the field for an external theme-sync tool, or for
 # copying color values by hand out of a terminal emulator's own color-scheme
-# file. Every field below is optional; anything missing or invalid (not a
+# file. The Settings tab's Appearance section has the same eleven fields as
+# hex-input widgets with a live swatch preview, if you would rather pick
+# there than edit this file. Every field below is optional; anything missing
+# or invalid (not a
 # "#rrggbb" or "#rgb" hex string) falls back to that one field's own default
 # without discarding the rest of the table. Defaults shown here ARE Tokyo
 # Night's real values, so leaving this whole table untouched while

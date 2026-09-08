@@ -169,6 +169,26 @@ node.
   `kissterm/ui/addressbook_pane.py`, `kissterm/ui/app.py`,
   `tests/unit/test_link_params_override.py`,
   `tests/unit/test_addressbook.py`, `tests/pilot/test_addressbook_pane.py`.
+- **Hex color pickers for the Custom theme.** `Config.custom_theme`'s eleven
+  fields were config-file-only since theming shipped -- editing one meant
+  hand-editing `[custom_theme]` in `config.toml`. They are now eleven
+  ordinary fields in the Settings pane's Appearance tab (`kind = "color"`,
+  new in `settings_schema.py`), which is what makes this "small once the
+  pattern for a color-swatch input exists" as the roadmap put it: `coerce()`
+  validates against the same `HEX_COLOR_RE` `config.py`'s TOML loader
+  already used (renamed from `_HEX_COLOR_RE` to share it, one regex so a
+  value the Settings pane accepts is guaranteed to also survive
+  `load_config()` on the next launch), and every other save/apply/live-theme
+  mechanism the schema-driven pane already had -- `_save`'s per-field
+  validation, `_apply_live`'s `app.apply_theme()` call -- needed no changes
+  at all. The only genuinely new piece is the swatch: a small `Static` next
+  to each hex `Input`, filled from the typed value live via `Input.Changed`
+  and bordered `$error` the moment the text stops parsing as a color, so a
+  typo is visible before Save is even pressed rather than only after.
+  **Files:** `kissterm/config.py`, `kissterm/ui/settings_schema.py`,
+  `kissterm/ui/settings_pane.py`, `kissterm/ui/styles.py`,
+  `kissterm/ui/themes.py`, `config.toml.example`,
+  `tests/pilot/test_settings.py`.
 
 ## [2026-09-07] — "They got it, they're just not answering" is now on screen
 

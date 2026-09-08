@@ -31,6 +31,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from ..config import HEX_COLOR_RE
 from .themes import choices as _theme_choices
 
 
@@ -44,7 +45,7 @@ class Field:
 
     path: str
     label: str
-    kind: str  # "text" | "int" | "float" | "bool" | "choice" | "callsign" | "calllist"
+    kind: str  # "text" | "int" | "float" | "bool" | "choice" | "callsign" | "calllist" | "color"
     help: str = ""
     apply: str = "connect"
     choices: tuple[tuple[str, Any], ...] = ()
@@ -353,7 +354,10 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     Section(
         "Appearance",
         "Every color in kissterm is a theme variable, so switching here "
-        "repaints instantly -- nothing to restart.",
+        "repaints instantly -- nothing to restart. The eleven fields below "
+        "only matter when Theme is set to Custom; they are ignored "
+        "otherwise, and are pre-filled with Tokyo Night's own values so "
+        "Custom starts out looking identical to it rather than blank.",
         (
             Field(
                 "theme",
@@ -361,11 +365,90 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "choice",
                 "'Terminal ANSI' uses your terminal emulator's own 16-color "
                 "palette directly, which is the closest thing to automatic "
-                "syncing with an external terminal theme. 'Custom' reads "
-                "exact hex values from config.toml's [custom_theme] table -- "
-                "not yet editable here, see docs/ROADMAP.md.",
+                "syncing with an external terminal theme. 'Custom' uses the "
+                "exact hex values below.",
                 apply="live",
                 choices=_theme_choices(),
+            ),
+            Field(
+                "custom_theme.primary",
+                "Custom: Primary",
+                "color",
+                "Structural borders -- pane outlines.",
+                apply="live",
+            ),
+            Field(
+                "custom_theme.secondary",
+                "Custom: Secondary",
+                "color",
+                "A second accent, used sparingly alongside Primary.",
+                apply="live",
+            ),
+            Field(
+                "custom_theme.accent",
+                "Custom: Accent",
+                "color",
+                "The active/current thing: the selected tab, section "
+                "headings.",
+                apply="live",
+            ),
+            Field(
+                "custom_theme.foreground",
+                "Custom: Foreground",
+                "color",
+                "Body text.",
+                apply="live",
+            ),
+            Field(
+                "custom_theme.background",
+                "Custom: Background",
+                "color",
+                "The app's own ground -- tab bar, status bar.",
+                apply="live",
+            ),
+            Field(
+                "custom_theme.surface",
+                "Custom: Surface",
+                "color",
+                "Panel interiors, dialog bodies.",
+                apply="live",
+            ),
+            Field(
+                "custom_theme.panel",
+                "Custom: Panel",
+                "color",
+                "Header and Footer chrome.",
+                apply="live",
+            ),
+            Field(
+                "custom_theme.warning",
+                "Custom: Warning",
+                "color",
+                "State, not emphasis -- something needs attention.",
+                apply="live",
+            ),
+            Field(
+                "custom_theme.error",
+                "Custom: Error",
+                "color",
+                "State, not emphasis -- something is wrong.",
+                apply="live",
+            ),
+            Field(
+                "custom_theme.success",
+                "Custom: Success",
+                "color",
+                "State, not emphasis -- something worked.",
+                apply="live",
+            ),
+            Field(
+                "custom_theme.dark",
+                "Custom: Dark theme",
+                "bool",
+                "Whether Textual should treat Custom as a dark or light "
+                "palette, for the few built-in widgets that pick their own "
+                "contrast from it. Not a color itself.",
+                apply="live",
             ),
         ),
     ),
@@ -517,6 +600,11 @@ def coerce(field_spec: Field, raw: Any) -> Any:
         except AX25AddressError as exc:
             raise ValidationError(str(exc)) from None
         return text.upper()
+
+    if kind == "color":
+        if not HEX_COLOR_RE.match(text):
+            raise ValidationError("must be a hex color like #1A1B26")
+        return text
 
     if kind == "calllist":
         from ..ax25.address import AX25Address, AX25AddressError

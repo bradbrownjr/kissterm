@@ -694,7 +694,11 @@ def _load_beacon(value: Any, warnings: list[str]) -> BeaconConfig:
 
 
 #: A Textual-acceptable hex color: 6 or 3 hex digits, always `#`-prefixed.
-_HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?$")
+#: Public (not `_`-prefixed) because `kissterm.ui.settings_schema` validates
+#: a Settings-pane color field against this exact pattern -- one regex, so a
+#: value the Settings pane accepts is guaranteed to also survive
+#: `load_config()` on the next launch.
+HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?$")
 
 
 def _load_hex_color(raw: dict[str, Any], key: str, default: str, warnings: list[str]) -> str:
@@ -706,7 +710,7 @@ def _load_hex_color(raw: dict[str, Any], key: str, default: str, warnings: list[
     silently lose the other nine.
     """
     value = raw.get(key, default)
-    if not isinstance(value, str) or not _HEX_COLOR_RE.match(value):
+    if not isinstance(value, str) or not HEX_COLOR_RE.match(value):
         warnings.append(
             f"custom_theme.{key} should be a hex color like '#1A1B26', got {value!r}; "
             f"using default {default!r}"

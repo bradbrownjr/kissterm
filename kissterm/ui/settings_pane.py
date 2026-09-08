@@ -247,6 +247,12 @@ class SettingsPane(Vertical):
                     id=wid,
                     allow_blank=False,
                 )
+            elif spec.kind == "color":
+                yield Input(
+                    id=wid, placeholder=spec.placeholder or "#1A1B26",
+                    classes="settings-color-input",
+                )
+                yield Static("", id=f"{wid}-swatch", classes="settings-swatch")
             else:
                 yield Input(id=wid, placeholder=spec.placeholder)
             yield Label(APPLY_NOTE.get(spec.apply, ""), classes="settings-apply")
@@ -274,7 +280,10 @@ class SettingsPane(Vertical):
                 elif spec.kind == "choice":
                     self._set_select_value(wid, spec, value)
                 else:
-                    self.query_one(f"#{wid}", Input).value = format_value(spec, value)
+                    text = format_value(spec, value)
+                    self.query_one(f"#{wid}", Input).value = text
+                    if spec.kind == "color":
+                        self._update_swatch(wid, text)
                 self._set_error(wid, "")
 
         self._render_transports(config)
@@ -298,6 +307,39 @@ class SettingsPane(Vertical):
         select = self.query_one(f"#{wid}", Select)
         valid = {v for _label, v in spec.choices}
         select.value = value if value in valid else (spec.choices[0][1] if spec.choices else Select.NULL)
+
+    def _update_swatch(self, wid: str, text: str) -> None:
+        """Fill the color-picker swatch next to a `"color"` field's `Input`
+        with the color it names, live as the operator types.
+
+        A hex value the operator has not finished typing yet ("#1A1B" or an
+        empty field mid-edit) is simply not a valid `Theme` color -- that is
+        not a bug to report inline the way `_save` reports one, it is the
+        normal state of an input between keystrokes. The swatch goes back to
+        the neutral `-invalid` border and no fill rather than raising or
+        showing an error; `_save`'s own validation is what actually stops a
+        bad value from being written.
+        """
+        from textual.css.query import NoMatches
+
+        try:
+            swatch = self.query_one(f"#{wid}-swatch", Static)
+        except NoMatches:
+            return
+        from ..config import HEX_COLOR_RE
+
+        text = text.strip()
+        if HEX_COLOR_RE.match(text):
+            swatch.remove_class("-invalid")
+            swatch.styles.background = text
+        else:
+            swatch.add_class("-invalid")
+            swatch.styles.background = None
+
+    @on(Input.Changed, ".settings-color-input")
+    def _on_color_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id:
+            self._update_swatch(event.input.id, event.value)
 
     def _render_transports(self, config) -> None:
         select = self.query_one("#set-active-transport", Select)

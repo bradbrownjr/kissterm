@@ -91,6 +91,24 @@ async def test_changing_theme_in_settings_repaints_live():
 
 
 @pytest.mark.asyncio
+async def test_editing_a_custom_theme_color_in_settings_repaints_live():
+    """The Settings-pane color fields (`kind = "color"` in `settings_schema`)
+    reach the same `apply_theme()` every other Appearance field already did
+    -- no separate wiring needed for this to repaint immediately."""
+    cfg = Config(mycall=str(MYCALL), theme="custom")
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        app.query_one(f"#{_widget_id('custom_theme.primary')}").value = "#ff00ff"
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.custom_theme.primary == "#ff00ff"
+        assert app.get_theme("custom").primary == "#ff00ff"
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_reload_from_file_reapplies_the_theme():
     from kissterm.config import save_config
 
