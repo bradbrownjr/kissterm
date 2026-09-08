@@ -3,6 +3,37 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-08] — Connected mode verified against real hardware
+
+### Verification
+- **P1's top-priority open item is closed: the AX.25 connected-mode state
+  machine has now run for real, repeatedly, against real packet nodes over
+  a real TNC** -- not only the software loopback. Sessions against WS1EC-15
+  and CCEMA span 2026-09-05 through 2026-09-08 in
+  `~/.local/state/kissterm/logs/kissterm.log` (`--log-level debug`) and a
+  matching set of per-session transcripts in `logs/*_KC1JMH_*.log`. What the
+  debug log actually shows, not just a successful connect:
+  - **SABM/UA handshake** on every connect, both nodes.
+  - **Multi-frame I-frame transfer** -- over 400 I-frames logged with
+    content, modulo-8 sequence numbers wrapping correctly past S7 back to
+    S0 (`ax25/window.py`'s modular arithmetic, on the air, not simulated).
+  - **RR acknowledgement piggybacking** and a live poll/final exchange
+    (`RR R4 P cmd` / `RR R0 F res` pairs).
+  - **A real REJ recovery**, not just the loopback's injected-loss
+    version: `13:53:55 TX ... KC1JMH>CCEMA REJ R2 F res` in the 2026-09-08
+    session, confirming out-of-sequence detection and go-back-N recovery
+    both fire against a real peer's real timing, not just
+    `tests/loopback.py`'s synthetic loss.
+  - **Clean DISC/UA close** in both directions (kissterm-initiated and
+    peer-initiated), across multiple sessions.
+  This does not close the rest of P1's verification items -- APRS Mic-E,
+  the compressed-position cs-byte, and the modulo-128 fallback are each
+  separate code paths and remain open; APRS specifically has not been
+  exercised yet even though APRS UI frames from WS1EC-2 and WS1EC-15 are
+  visible passing through the monitor in the same log. **Files:** none (a
+  documentation-only update recording verification already performed);
+  see `docs/ROADMAP.md` P1.
+
 ## [2026-09-08] — Passive "mail waiting" notification, with an optional herdr desktop alert
 
 ### New Features
