@@ -102,14 +102,18 @@ from textual.widgets import Footer, Static, TabbedContent, TabPane
 
 from .. import __version__
 from ..addressbook import AddressBook
+from .. import aprs
+from ..aprs_conversations import ConversationStore
+from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import AX25Station, parse_path
+from ..ax25.address import AX25Address
 from ..beacon import Beaconer
 from ..config import BeaconConfig, find_credential, find_script
 from .. import desktop_notify
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
 from ..hotplug import PortEvent, SerialPortWatcher
-from ..monitor import MonitorFilter, format_frame, mail_waiting_for, sanitize
+from ..monitor import MonitorFilter, callsign_matches, format_frame, mail_waiting_for, sanitize
 from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError, TransportState
 from ..tx import DISABLED_MESSAGE, TransmitGate
@@ -409,6 +413,10 @@ class KissTermApp(App):
         #: `on_mount`; a no-op until then so shutdown never has to ask
         #: whether mount happened.
         self._unsubscribe_monitor = lambda: None
+        #: Same reasoning as `_unsubscribe_monitor` -- a no-op until
+        #: `on_mount` replaces it, so shutdown never has to ask whether
+        #: mount happened.
+        self._unsubscribe_aprs = lambda: None
         #: The one active link, if any. Panes read this off `self.app` rather
         #: than tracking their own copy -- see this module's docstring.
         self.link = None
@@ -426,6 +434,17 @@ class KissTermApp(App):
         #: startup instead of on every Ctrl+N.
         self.addressbook = AddressBook()
         self.addressbook.load()
+        #: APRS message history, keyed by correspondent -- see
+        #: kissterm/aprs_conversations.py. Loaded here rather than by the
+        #: APRS pane so a message that arrives before the operator ever
+        #: visits F4 is still recorded, the same reasoning `self.heard`
+        #: is built and loaded before any pane asks for it.
+        self.aprs_conversations = ConversationStore()
+        self.aprs_conversations.load()
+        #: Suppresses a repeat desktop notification for the same (source,
+        #: reason) pair within its window -- see kissterm/aprs_notify.py.
+        #: An Emergency Mic-E flag always bypasses it.
+        self._aprs_notify_cooldown = Cooldown()
         #: Watches local serial ports only. The network is never scanned on a
         #: timer -- see kissterm/hotplug.py for the cost argument.
         self.port_watcher = SerialPortWatcher()
@@ -519,6 +538,12 @@ class KissTermApp(App):
             self._unsubscribe_monitor = self.station.transport.subscribe(
                 self._on_received_frame
             )
+            # A second, independent subscriber on the same fan-out -- never a
+            # second decode path for the same frame (AGENTS.md sec. 2b). This
+            # one only ever looks at APRS traffic (position/message/status
+            # UI frames); the monitor subscriber above still sees, and still
+            # renders, everything.
+            self._unsubscribe_aprs = self.station.transport.subscribe(self._on_aprs_frame)
             self.station.transport.on_sent.append(self._on_sent_frame)
             self.station.on_incoming.append(self._on_incoming_link)
             self._status = f"{self.station.transport.info.detail}"
@@ -579,6 +604,7 @@ class KissTermApp(App):
         """
         self.beaconer.cancel()
         self._unsubscribe_monitor()
+        self._unsubscribe_aprs()
         self._close_transcript()
         self._cancel_reply_timer()
 
@@ -688,17 +714,99 @@ class KissTermApp(App):
             "log", f"\n*** {source} is holding mail for {matched} (heard on the channel)\n"
         )
         self.notify(f"{source} has mail waiting for {matched}.", severity="information")
-        self._notify_mail_via_herdr(source, matched)
+        self._notify_mail_desktop(source, matched)
 
     @work
-    async def _notify_mail_via_herdr(self, source: str, matched: str) -> None:
+    async def _notify_mail_desktop(self, source: str, matched: str) -> None:
         # Best-effort only -- see kissterm/desktop_notify.py for why a
         # subprocess call here has to be async and never allowed to raise.
-        await desktop_notify.notify(
+        await desktop_notify.notify_any(
             f"Mail waiting at {source}",
             f'Heard "MAIL FOR {matched}" on the channel.',
             sound="request",
         )
+
+    # ------------------------------------------------------------------
+    # APRS: message history, auto-ack, and Emergency/message notification
+    # ------------------------------------------------------------------
+    async def _on_aprs_frame(self, frame: AX25Frame, port: int = 0) -> None:
+        """Decode one frame as APRS, if it is APRS at all.
+
+        A second subscriber on the same fan-out `_on_received_frame` uses --
+        never a second decode path for the same bytes (AGENTS.md sec. 2b).
+        `aprs.parse_packet` itself never raises (see its module docstring);
+        everything past that point here is app-level routing: record a
+        message into `self.aprs_conversations`, auto-ack it if addressed to
+        us, and decide whether it is worth an unattended notification via
+        `kissterm.aprs_notify.evaluate_packet`.
+        """
+        packet = aprs.parse_packet(frame)
+        if packet is None:
+            return
+
+        if packet.kind == "message" and isinstance(packet.data, aprs.Message):
+            msg = packet.data
+            source = str(packet.source)
+            if not (msg.is_ack or msg.is_rej):
+                self.aprs_conversations.record_incoming(source, msg.text, number=msg.number)
+                mycalls = [self.config.mycall, *self.config.mycall_aliases]
+                if callsign_matches(msg.addressee, mycalls):
+                    if getattr(self.config, "aprs_auto_ack", True) and msg.number:
+                        await self._send_aprs_ack(source, msg.number, port)
+            elif msg.is_ack and msg.number:
+                # Flips `MessageEntry.acked` in the persisted log. A pending-
+                # send retry loop (APRS pane, not built yet) reads that flag
+                # back off `self.aprs_conversations` on its own timer rather
+                # than needing a live callback wired here for a consumer
+                # that does not exist yet.
+                self.aprs_conversations.mark_acked(source, msg.number)
+
+        decision = evaluate_packet(packet, self.config.mycall, self.config.mycall_aliases)
+        if decision is None:
+            return
+        if not self._aprs_notify_cooldown.allow(decision.key, urgent=decision.urgent):
+            return
+        self.notify(
+            f"{decision.title}: {decision.body}" if decision.body else decision.title,
+            severity="warning" if decision.urgent else "information",
+            timeout=15 if decision.urgent else 5,
+        )
+        self._notify_aprs_desktop(decision.title, decision.body, urgent=decision.urgent)
+
+    @work
+    async def _notify_aprs_desktop(self, title: str, body: str, *, urgent: bool) -> None:
+        await desktop_notify.notify_any(title, body, sound="request" if urgent else "none")
+
+    async def _send_aprs_ack(self, addressee: str, number: str, port: int) -> None:
+        """Auto-ack an APRS message addressed to us -- see
+        `Config.aprs_auto_ack`'s docstring for why this defaults on and is
+        still just as gated by the transmit switch as everything else this
+        app sends. Every auto-ack is written to the terminal pane, the same
+        rule a beacon or a connect-script line follows: a station that
+        transmits without the operator being able to see that it did is
+        exactly what that rule exists to prevent.
+        """
+        if self.station is None:
+            return
+        # `send_frame` drops a gated frame silently and does not say so --
+        # that is the whole point of TX BLOCKED not being an exception (see
+        # its docstring). Checked here, the same way `Beaconer.problem()`
+        # checks it, so a closed gate cannot make this method log or record
+        # an ack as sent when nothing went out. Never report a suppressed
+        # transmission as a sent one.
+        gate = getattr(self.station.transport, "gate", None)
+        if gate is not None and not gate.enabled:
+            return
+        try:
+            payload = aprs.ack(addressee, number)
+            dest = AX25Address.parse("APRS")
+            outframe = aprs.beacon_frame(self.station.mycall, dest, (), payload)
+            await self.station.transport.send_frame(outframe, port)
+        except Exception as exc:  # never let an ack failure disturb the link
+            log.debug("APRS auto-ack to %s not sent: %s", addressee, exc)
+            return
+        self.aprs_conversations.record_outgoing(addressee, f"ack{number}", number=None)
+        self._to_terminal("log", f"\n*** Auto-ack sent to {addressee} (msg {number})\n")
 
     def _on_incoming_link(self, link) -> None:
         self._to_terminal("log", f"\n*** Incoming connection from {link.peer}\n")

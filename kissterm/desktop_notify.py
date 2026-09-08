@@ -20,6 +20,16 @@ addition to the binary being on PATH, so a herdr install that merely exists
 on the machine, with kissterm launched outside of it, does not pop
 notifications into a session herdr is not actually showing.
 
+`notify_send()` is the cross-desktop fallback for when herdr is not present
+at all: `notify-send` (libnotify/D-Bus `org.freedesktop.Notifications`) is
+the de-facto standard notification daemon interface across GNOME, KDE and
+XFCE, confirmed present on this machine during development. `notify_any()`
+tries herdr first and falls back to it, so a caller that just wants "get
+this in front of the operator, by whatever means are available" has one
+function to call rather than reimplementing the fallback chain itself --
+`KissTermApp` uses it for both the passive mail-waiting notice and APRS
+message/Emergency notifications.
+
 Every call here swallows its own failures. herdr not being installed, its
 CLI shape changing in a future release, or the subprocess hanging is a
 "the notification did not happen" problem, never a "kissterm crashed" one
@@ -77,3 +87,52 @@ async def notify(title: str, body: str = "", *, sound: str = "none") -> bool:
         log.debug("herdr notification failed: %s", exc)
         return False
     return proc.returncode == 0
+
+
+_NOTIFY_SEND_BIN = shutil.which("notify-send")
+
+
+def notify_send_present() -> bool:
+    """True when `notify-send` is on PATH. No `HERDR_ENV`-style session gate
+    exists for it -- unlike herdr, which is only running the app it launched,
+    a libnotify daemon speaks for whatever desktop session this process is
+    part of, so being on PATH is the only precondition."""
+    return bool(_NOTIFY_SEND_BIN)
+
+
+async def notify_send(title: str, body: str = "") -> bool:
+    """Best-effort desktop notification via `notify-send`.
+
+    No `--sound` option: unlike herdr's CLI, plain `notify-send` has no
+    portable sound argument -- the daemon behind it decides on its own
+    whether and how to play one.
+    """
+    if not notify_send_present():
+        return False
+    assert _NOTIFY_SEND_BIN is not None
+    cmd = [_NOTIFY_SEND_BIN, title]
+    if body:
+        cmd.append(body)
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL
+        )
+        await asyncio.wait_for(proc.wait(), timeout=_TIMEOUT)
+    except (OSError, asyncio.TimeoutError) as exc:
+        log.debug("notify-send failed: %s", exc)
+        return False
+    return proc.returncode == 0
+
+
+async def notify_any(title: str, body: str = "", *, sound: str = "none") -> bool:
+    """herdr first, `notify-send` as the cross-desktop fallback.
+
+    Returns whether either actually fired -- same "decide whether the
+    in-app toast is the only thing that happened" role `notify()`'s return
+    value plays on its own, just widened to both mechanisms. Never raises:
+    both `notify()` and `notify_send()` already swallow their own failures,
+    so there is nothing left here that could.
+    """
+    if await notify(title, body, sound=sound):
+        return True
+    return await notify_send(title, body)

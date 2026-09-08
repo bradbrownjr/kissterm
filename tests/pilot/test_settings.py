@@ -66,6 +66,10 @@ NOT_IN_SCHEMA = {
     # docstring for why this is a second list rather than folded into
     # credentials.
     "scripts",
+    # Same shape and reason again -- a list of dicts with its own Add/Edit/
+    # Forget UI in the APRS pane (F4), not a scalar this schema can render.
+    # See kissterm/aprs_contacts.py.
+    "aprs_contacts",
     "warnings",
     "aprs",
     # Nested dataclasses. Their fields ARE in the schema, as dotted paths --

@@ -214,6 +214,27 @@ class Config:
     #: `credential` and before that entry's own literal `script` text --
     #: see `Entry.script_name`'s docstring for the full precedence.
     scripts: list[dict[str, Any]] = field(default_factory=list)
+    #: APRS messaging contacts (`{"name", "callsign", "service", "detail",
+    #: "notes"}`) -- deliberately a SEPARATE list from the address book
+    #: above and from `autoconnect` below: those are stations you CONNECT to,
+    #: this is people/services you MESSAGE over APRS, and conflating the two
+    #: would make one entry's fields mean different things depending on
+    #: which feature is reading it. See `kissterm/aprs_contacts.py` for the
+    #: dict shape and validation; managed from the APRS pane (F4), not
+    #: Settings, the same reason the address book moved to its own tab.
+    aprs_contacts: list[dict[str, Any]] = field(default_factory=list)
+    #: Auto-send a message ack (`kissterm.aprs.encode.ack`) when an incoming
+    #: APRS message is addressed to us. Defaults to True -- unlike
+    #: `accept_incoming` (an open-ended session with an unknown caller) or a
+    #: beacon (arbitrary text on a timer), an ack is a single, fully
+    #: deterministic reply with no content the operator did not already
+    #: choose by nature of two-way APRS messaging existing at all: a message
+    #: nobody acks is not "safely" delivered, it is just broken. Still fully
+    #: covered by the master transmit gate (`tx_armed_at_start`/Ctrl+T) like
+    #: every other transmission in this app, and every auto-ack is written
+    #: to the terminal pane exactly like a beacon or a connect-script line --
+    #: see `KissTermApp._on_aprs_frame`. Set False for manual-ack-only.
+    aprs_auto_ack: bool = True
     #: Max AX.25 info-field size in bytes. 256 is the traditional default;
     #: dropping to 128 or even 64 on a noisy HF path trades throughput for a
     #: much lower chance any given frame needs a retransmit, since a shorter
@@ -423,6 +444,7 @@ def load_config(path: Path | None = None) -> Config:
     cfg.active_transport = _load_str(raw, "active_transport", cfg.active_transport, warnings)
     cfg.credentials = _load_dict_list(raw.get("credentials", []), "credentials", warnings)
     cfg.scripts = _load_dict_list(raw.get("scripts", []), "scripts", warnings)
+    cfg.aprs_contacts = _load_dict_list(raw.get("aprs_contacts", []), "aprs_contacts", warnings)
     cfg.paclen = _load_int(raw, "paclen", cfg.paclen, warnings)
     cfg.modulo = _load_modulo(raw.get("modulo", cfg.modulo), warnings)
     cfg.window = _load_window(raw.get("window", cfg.window), warnings, cfg.modulo)
@@ -437,6 +459,7 @@ def load_config(path: Path | None = None) -> Config:
         raw, "tx_armed_at_start", cfg.tx_armed_at_start, warnings
     )
     cfg.accept_incoming = _load_bool(raw, "accept_incoming", cfg.accept_incoming, warnings)
+    cfg.aprs_auto_ack = _load_bool(raw, "aprs_auto_ack", cfg.aprs_auto_ack, warnings)
     cfg.connect_banner = _load_str(raw, "connect_banner", cfg.connect_banner, warnings)
     cfg.monitor_filter = _load_str(raw, "monitor_filter", cfg.monitor_filter, warnings)
     cfg.log_sessions = _load_bool(raw, "log_sessions", cfg.log_sessions, warnings)

@@ -3,6 +3,56 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-08] — APRS decode reaches a frame subscriber: message history, auto-ack, and message/Emergency notification
+
+### New Features
+- **`aprs.parse_packet` is now called from a live frame-fan-out subscriber**
+  (`KissTermApp._on_aprs_frame`, `kissterm/ui/app.py`) -- a second
+  subscriber on the same fan-out the monitor pane uses, never a second
+  decode path (AGENTS.md sec. 2b). This is the prerequisite roadmap item
+  (docs/ROADMAP.md P4) that both the dedicated APRS pane and any
+  decode-driven feature needed before either could exist; first two
+  consumers ship in this same change.
+- **APRS message history** (`kissterm/aprs_conversations.py`,
+  `ConversationStore`) -- every incoming/outgoing message, kept per
+  correspondent (callsign+SSID, unlike the SSID-stripped "addressed to me"
+  check below), persisted as JSON in the state directory the same way
+  `kissterm/addressbook.py` persists the station list. Pending-ack/retry
+  bookkeeping is deliberately NOT persisted -- see the module docstring.
+- **Auto-ack for a message addressed to the operator**
+  (`Config.aprs_auto_ack`, default `true`) -- `KissTermApp._send_aprs_ack`
+  sends `aprs.encode.ack` through the same transmit gate as every other
+  transmission, checks the gate itself first so a closed gate can never be
+  logged or recorded as a sent ack, and writes every auto-ack to the
+  terminal pane, the same visibility rule a beacon or connect-script line
+  follows.
+- **Message-addressed-to-me and Emergency-Mic-E desktop notification**
+  (`kissterm/aprs_notify.py`, pure decision logic with no I/O --
+  `evaluate_packet`/`Cooldown`) -- delivered via a new
+  `desktop_notify.notify_any()` (herdr first, `notify-send` as the
+  cross-desktop GNOME/KDE/XFCE fallback, confirmed present here). An
+  Emergency flag always bypasses the per-(source, reason) cooldown; the
+  passive "MAIL FOR" notice (`_check_mail_for`) now goes through the same
+  `notify_any` fallback chain rather than herdr alone.
+- **`Config.aprs_contacts`** (`kissterm/aprs_contacts.py`) -- the APRS
+  messaging contact list, deliberately separate from the station Address
+  Book: a messaging contact (`name`/`callsign`/`service`/`detail`/`notes`,
+  `service` one of station/sms/email) is a different kind of thing from a
+  connect target. Storage-only in this change -- the Contacts editor
+  screen and the chat view that use it are the next P4 item.
+- `monitor.callsign_matches` -- the SSID-stripping match `mail_waiting_for`
+  already did inline, extracted so the new "message addressed to me" check
+  shares the exact same rule instead of a second copy of it.
+
+### Files
+- `kissterm/ui/app.py`, `kissterm/aprs_notify.py` (new),
+  `kissterm/aprs_conversations.py` (new), `kissterm/aprs_contacts.py` (new),
+  `kissterm/monitor.py`, `kissterm/desktop_notify.py`, `kissterm/config.py`,
+  `kissterm/ui/settings_schema.py`
+- `tests/unit/test_aprs_notify.py`, `tests/unit/test_aprs_conversations.py`,
+  `tests/unit/test_aprs_contacts.py`, `tests/pilot/test_aprs_messaging.py`
+  (all new), `tests/pilot/test_settings.py`
+
 ## [2026-09-08] — Mic-E verified against real traffic; found and fixed two decode bugs; added an independent cross-check to the test suite
 
 ### Bug fixes

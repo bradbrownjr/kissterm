@@ -140,6 +140,29 @@ class MonitorLine:
 _CALLSIGN_TOKEN_RE = re.compile(r"\b[A-Z0-9]{3,7}(?:-\d{1,2})?\b")
 
 
+def callsign_matches(candidate: str, callsigns: Iterable[str]) -> bool:
+    """Whether `candidate` is one of `callsigns`, treating SSID as a
+    *session* convention rather than part of identity.
+
+    Matches both the exact string and the base call with any ``-N`` SSID
+    stripped, since a mailbox advertising mail for "W1AW" and an operator
+    running a session as "W1AW-7" are the same person, and an APRS message
+    addressed to "W1AW-9" is meant for an operator configured as bare
+    "W1AW" just as much as one configured as "W1AW-9". Shared by
+    `mail_waiting_for` (MAIL FOR beacons) and
+    `kissterm.aprs_notify.message_is_addressed_to` (APRS message
+    addressing) so the SSID-stripping rule lives in exactly one place.
+    """
+    candidate = candidate.strip().upper()
+    if not candidate:
+        return False
+    wanted_full = {c.upper() for c in callsigns if c}
+    if not wanted_full:
+        return False
+    wanted_base = {c.split("-")[0] for c in wanted_full}
+    return candidate in wanted_full or candidate.split("-")[0] in wanted_base
+
+
 def mail_waiting_for(text: str, callsigns: Iterable[str]) -> str | None:
     """The matched callsign if `text` announces mail waiting for one of them.
 
@@ -152,11 +175,6 @@ def mail_waiting_for(text: str, callsigns: Iterable[str]) -> str | None:
     # callsigns), not a sample off the air. Revisit this pattern once one
     # has actually been heard.
 
-    Matches on the callsign with its SSID stripped as well as an exact
-    match, since a mailbox advertising mail for "W1AW" and an operator
-    running a session as "W1AW-7" are the same person -- the SSID is a
-    *session* convention, the mailbox addresses the base call.
-
     Only the text immediately after the phrase is scanned (a small fixed
     window), so a long bulletin that happens to contain "MAIL FOR" deep
     inside its body cannot turn this into an unbounded scan.
@@ -167,12 +185,8 @@ def mail_waiting_for(text: str, callsigns: Iterable[str]) -> str | None:
         return None
     start = idx + len("MAIL FOR")
     window = upper[start : start + 120]
-    wanted_full = {c.upper() for c in callsigns if c}
-    wanted_base = {c.split("-")[0] for c in wanted_full}
-    if not wanted_full:
-        return None
     for token in _CALLSIGN_TOKEN_RE.findall(window):
-        if token in wanted_full or token.split("-")[0] in wanted_base:
+        if callsign_matches(token, callsigns):
             return token
     return None
 

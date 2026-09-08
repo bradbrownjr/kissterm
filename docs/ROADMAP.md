@@ -143,12 +143,42 @@ APRS rides on the same AX.25 UI (`UType.UI`) frames every other unproto
 traffic uses — decoding it is a payload-format problem sitting on top of
 transports and framing that already exist, not a new transport.
 
-- [ ] **APRS pane** (new `kissterm/aprs/` package) — heard stations table,
-  position decoding (compressed and uncompressed formats), and messaging with
-  ack/retry per the APRS spec's message addressing convention. Large — this
-  is a full sub-protocol.
+- [x] **APRS decode reaches a frame-fan-out subscriber, message
+  history, auto-ack, and message/Emergency desktop notification** (2026-09-08).
+  `KissTermApp._on_aprs_frame` is a second subscriber on the same fan-out the
+  monitor pane uses (never a second decode path) — `kissterm/aprs_notify.py`
+  decides what is worth an unattended notification (a message addressed to
+  the operator, or a Mic-E Emergency flag), `kissterm/aprs_conversations.py`
+  keeps the message history behind the future chat view, and an incoming
+  message addressed to the operator is auto-acked
+  (`Config.aprs_auto_ack`, on by default) through the same transmit gate as
+  everything else. Delivery is `desktop_notify.notify_any` — herdr first,
+  `notify-send` (libnotify/D-Bus, confirmed present here) as the
+  cross-desktop fallback. This closes the "notify on message/Emergency"
+  item and the decode-subscriber prerequisite the pane below still needs.
+- [ ] **The APRS pane itself** (`kissterm/ui/aprs_pane.py`) — still a
+  placeholder. Now that the decode subscriber and message store exist, this
+  is: a contacts list (`Config.aprs_contacts`, see
+  `kissterm/aprs_contacts.py` — deliberately separate from the station
+  Address Book, since a messaging contact and a connect target are
+  different things), a chat-style conversation view per contact with
+  send/ack/retry, and a heard-stations position/map view. Requested
+  directly: replicate what KM6LYW's APRS WebChat does, in terminal form.
+  Medium now that the backend pieces above exist; the UI is the remaining
+  effort.
+- [ ] **SMS/email-over-APRS compose forms.** A compose mode that builds the
+  message body a phone/email gateway expects (`<phone> <text>` /
+  `<address> <text>`) from a contact's `service`/`detail` fields. **Which
+  gateway callsigns and body formats currently work is not verifiable from
+  here** — these conventions vary by region and change over time — so this
+  ships as an editable, clearly-unverified default
+  (`Config.aprs_sms_template`/`aprs_email_template`/`*_gateway`, empty
+  gateway by default), never asserted as fact. Small once the chat view
+  above exists.
 - [ ] **Beaconing on a timer.** Fixed-interval position/status beacon
-  transmission. Small once the APRS encoder exists.
+  transmission. Small — the APRS encoder (`kissterm.aprs.encode`) and the
+  `beacon_frame` wrapper it needs already exist and are now exercised by
+  the auto-ack path above.
 - [ ] **Smart beaconing.** Speed/heading-aware beacon interval adjustment
   (the SmartBeaconing algorithm most APRS trackers use) — needs a GPS or
   manually-entered position source first. Medium.
@@ -158,32 +188,6 @@ transports and framing that already exist, not a new transport.
   possible stretch goal. Medium.
 - [ ] **Weather and telemetry display.** Decode APRS weather (`_`) and
   telemetry (`T#`) packet formats into a readable pane. Medium.
-- [ ] **Notify on an APRS message addressed to the operator, or an
-  Emergency-flagged Mic-E/status beacon.** Requested directly, alongside the
-  Mic-E verification work: "pop up a notification if someone messages them or
-  an emergency beacon is sent." Two real prerequisites, not yet built:
-  - **APRS decode has to actually reach a frame-fan-out subscriber first.**
-    `aprs.parse_packet` is implemented and tested but currently called from
-    nowhere in `kissterm/ui/` -- see the corrected "APRS pane is a
-    placeholder" caveat in AGENTS.md sec. 8. This item cannot be built before
-    that subscriber exists; it is the real reason this pane keeps being
-    listed as a placeholder.
-  - **Message addressing** (a message's 9-character `TO` field, matched
-    against `Config.mycall`/`mycall_aliases`, the same base-callsign-and-SSID
-    convention `monitor.mail_waiting_for` already uses) has to distinguish a
-    message actually addressed to the operator from one addressed to a third
-    party passing through, or every APRS message on the band pops a toast.
-  - **Delivery**: reuse `kissterm/desktop_notify.py`'s herdr path, with
-    `notify-send` (libnotify/D-Bus `org.freedesktop.Notifications`, confirmed
-    present here and the de-facto standard across GNOME/KDE/XFCE session
-    notification daemons) as a second-tier fallback when herdr is not
-    present, degrading silently if neither is -- never a hard dependency.
-  - **Reuse P9's rate-limiting design** (per-callsign cooldown, global cap,
-    quiet hours) rather than inventing new throttling rules here -- an
-    Emergency flag is the one case that should skip the cooldown, everything
-    else gets the same treatment as a watched-callsign hit.
-  Small once the decode subscriber exists; that subscriber is the real
-  effort.
 - [ ] **Igate-adjacent features are explicitly out of scope.** kissterm is a
   terminal for a human operator, not an unattended relay — running it as an
   RF-to-APRS-IS igate or a digipeater is a different problem (unattended

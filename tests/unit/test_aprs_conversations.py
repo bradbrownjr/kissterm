@@ -1,0 +1,101 @@
+"""`kissterm.aprs_conversations` -- the chat history behind the APRS pane."""
+
+from __future__ import annotations
+
+from kissterm._isolate import isolate
+
+isolate()
+
+import json  # noqa: E402
+
+import pytest  # noqa: E402
+
+from kissterm.aprs_conversations import (  # noqa: E402
+    MAX_MESSAGES_PER_CONVERSATION,
+    ConversationStore,
+)
+
+
+@pytest.fixture
+def store(tmp_path):
+    return ConversationStore(tmp_path / "aprs_messages.json")
+
+
+def test_an_outgoing_message_is_recorded(store):
+    store.record_outgoing("K1ABC-9", "hello", number="1")
+    convo = store.conversations["K1ABC-9"]
+    assert convo.messages[0].direction == "out"
+    assert convo.messages[0].text == "hello"
+    assert convo.messages[0].number == "1"
+    assert convo.messages[0].acked is False
+
+
+def test_an_incoming_message_is_recorded(store):
+    store.record_incoming("K1ABC-9", "hi there", number="7")
+    convo = store.conversations["K1ABC-9"]
+    assert convo.messages[0].direction == "in"
+
+
+def test_callsign_and_ssid_are_a_different_conversation_than_bare_call(store):
+    """Unlike the "addressed to me" check in aprs_notify, a conversation key
+    keeps the SSID -- these may be different physical stations."""
+    store.record_outgoing("K1ABC-9", "to the mobile", number="1")
+    store.record_outgoing("K1ABC", "to the home station", number="2")
+    assert len(store.conversations) == 2
+    assert store.conversations["K1ABC-9"].messages[0].text == "to the mobile"
+    assert store.conversations["K1ABC"].messages[0].text == "to the home station"
+
+
+def test_mark_acked_flips_the_matching_outgoing_message(store):
+    store.record_outgoing("K1ABC-9", "hello", number="1")
+    assert store.mark_acked("K1ABC-9", "1") is True
+    assert store.conversations["K1ABC-9"].messages[0].acked is True
+
+
+def test_mark_acked_on_an_unknown_number_finds_nothing(store):
+    store.record_outgoing("K1ABC-9", "hello", number="1")
+    assert store.mark_acked("K1ABC-9", "99") is False
+
+
+def test_persistence_round_trips(tmp_path):
+    file = tmp_path / "aprs_messages.json"
+    a = ConversationStore(file)
+    a.record_outgoing("K1ABC-9", "hello", number="1", service="sms")
+    a.record_incoming("K1ABC-9", "reply", number="2")
+    a.mark_acked("K1ABC-9", "1")
+
+    b = ConversationStore(file)
+    b.load()
+    convo = b.conversations["K1ABC-9"]
+    assert len(convo.messages) == 2
+    assert convo.messages[0].service == "sms"
+    assert convo.messages[0].acked is True
+    assert convo.messages[1].direction == "in"
+
+
+def test_a_missing_file_loads_as_empty(tmp_path):
+    store = ConversationStore(tmp_path / "does-not-exist.json")
+    store.load()
+    assert store.conversations == {}
+
+
+def test_a_corrupt_file_loads_as_empty_and_does_not_raise(tmp_path):
+    file = tmp_path / "aprs_messages.json"
+    file.write_text("not json at all {{{", "utf-8")
+    store = ConversationStore(file)
+    store.load()
+    assert store.conversations == {}
+
+
+def test_per_conversation_message_count_is_capped(store):
+    for i in range(MAX_MESSAGES_PER_CONVERSATION + 10):
+        store.record_outgoing("K1ABC-9", f"msg {i}", number=None)
+    assert len(store.conversations["K1ABC-9"].messages) == MAX_MESSAGES_PER_CONVERSATION
+    # The oldest were dropped, not the newest.
+    assert store.conversations["K1ABC-9"].messages[-1].text == f"msg {MAX_MESSAGES_PER_CONVERSATION + 9}"
+
+
+def test_save_writes_valid_json(store):
+    store.record_outgoing("K1ABC-9", "hello", number="1")
+    raw = json.loads(store.file.read_text("utf-8"))
+    assert "K1ABC-9" in raw

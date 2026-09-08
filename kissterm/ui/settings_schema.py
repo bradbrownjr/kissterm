@@ -277,6 +277,18 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "for a line break -- packet is carriage-return oriented.",
                 apply="live",
             ),
+            Field(
+                "aprs_auto_ack",
+                "Auto-ack APRS messages addressed to me",
+                "bool",
+                "On by default: an APRS message you never ack is not safely "
+                "delivered, it is just broken -- this is a single, fixed "
+                "reply with no content you did not already choose by using "
+                "two-way messaging at all, and it is still gated by the "
+                "transmit switch above like everything else. Turn off for "
+                "manual-ack-only.",
+                apply="live",
+            ),
         ),
     ),
     Section(
