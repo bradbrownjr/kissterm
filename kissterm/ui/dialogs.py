@@ -18,8 +18,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, OptionList, Select, Static, TextArea
-from textual.widgets.option_list import Option
+from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
 from ..addressbook import AddressBook
 from ..ax25 import parse_path
@@ -55,6 +54,15 @@ class ConnectRequest:
     credential: str = ""
     script_name: str = ""
     transport_name: str = ""
+    #: Non-empty only when the operator typed a NAME next to the literal
+    #: login text under "+ Add new credential..." in `ConnectScreen` -- see
+    #: that screen's `_ADD_CREDENTIAL` sentinel. `credential` already holds
+    #: the chosen name in that case; `KissTermApp.action_connect` is what
+    #: actually writes `{"name": credential, "text": new_credential_text}`
+    #: into `Config.credentials` (replacing a same-named entry rather than
+    #: duplicating it) before resolving the login, because a dialog has no
+    #: business mutating `Config` itself -- see `_resolve_login`.
+    new_credential_text: str = ""
 
 
 def _validate_target_and_hops(text: str, hops: str) -> tuple[object | None, str]:
@@ -121,31 +129,57 @@ def _sync_login_source_controls(
     area.disabled = has_credential or has_script
 
 
+#: `ConnectScreen`'s Saved-credential dropdown grows a trailing sentinel
+#: option that means "define a new one inline" rather than "pick an
+#: existing one" -- see that screen's docstring for why this, and the
+#: matching `_SHOW_HOPS` sentinel, exist at all.
+_ADD_CREDENTIAL = "__add_credential__"
+#: `ConnectScreen`'s Saved-script dropdown's equivalent sentinel: not a
+#: script at all, just the switch that reveals the Node hops field.
+_SHOW_HOPS = "__show_hops__"
+
+
 class ConnectScreen(ModalScreen[ConnectRequest | None]):
     """Ask for a connect target. Accepts ``CALL-SSID [via DIGI,DIGI]``.
 
     Carries an address book of stations already tried, because `WS1EC-15` and
     `WS1EC-7` are different services on one machine and a mistyped SSID fails
-    in a way that looks exactly like a bad RF path. Typing filters the list;
-    Down moves into it; Enter on a row connects; Delete forgets the row. The
-    book is loaded here rather than passed in so the dialog works in a test
-    with no app around it, and it is optional: pass `book=AddressBook(path)`
-    to point it somewhere else.
+    in a way that looks exactly like a bad RF path. The book shows as the
+    "Address book" dropdown: typing in the target field narrows its options,
+    Down focuses and opens it, picking a row fills the target field and
+    previews everything saved for that station, and Delete (with the
+    dropdown focused) forgets whatever row it last picked. The book is
+    loaded here rather than passed in so the dialog works in a test with no
+    app around it, and it is optional: pass `book=AddressBook(path)` to
+    point it somewhere else.
 
-    Also carries an optional per-station node-hop chain and login -- a
-    saved credential, a saved script, or literal text, in that precedence
-    (see `ConnectRequest`) -- arrowing through the history previews
-    everything saved for that entry, and whatever the fields hold when
-    Connect fires travels back with the target and gets saved, blank or
-    not. `credentials`/`scripts` are the raw `Config.credentials`/
-    `Config.scripts` lists of `{"name", "text"}` dicts, for the two "send
-    once connected" dropdowns; both default to none, so the dialog still
-    works in a test or a script with no config around it.
+    Two fields that matter to almost nobody's everyday connect -- node hops
+    and a hand-typed, unnamed login -- do not get their own permanent rows.
+    A quick connect is "type a callsign, hit Connect", and a field that is
+    blank 99% of the time earns its place in that layout only by staying out
+    of the way until asked for:
+
+    - Node hops lives under the Saved-script dropdown, revealed by picking
+      "+ Node hops (advanced)..." there (`_SHOW_HOPS`) -- or automatically
+      when an address-book pick already has some, so a value that exists is
+      never hidden from the operator editing it.
+    - The free-text login box lives under Saved credential, revealed by
+      picking "+ Add new credential..." there (`_ADD_CREDENTIAL`) -- typing
+      a Name next to it there defines a new, reusable, named entry in
+      `Config.credentials` (via `ConnectRequest.new_credential_text`,
+      applied by `KissTermApp.action_connect`); leaving Name blank keeps the
+      text a one-off, exactly like today's unnamed literal login. Same
+      auto-reveal rule for a preview that already has script text.
+
+    `credentials`/`scripts` are the raw `Config.credentials`/`Config.scripts`
+    lists of `{"name", "text"}` dicts, for the two "send once connected"
+    dropdowns; both default to none, so the dialog still works in a test or
+    a script with no config around it.
     """
 
     BINDINGS = [
         Binding("escape", "dismiss(None)", "Cancel"),
-        Binding("down", "into_list", "History", show=False),
+        Binding("down", "into_list", "Address book", show=False),
         Binding("delete", "forget", "Forget", show=False),
     ]
 
@@ -172,6 +206,15 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         # it is decoration.
         self.transports = transports or []
         self.active_transport_name = active_transport_name
+        # NOT read from `#connect-address-book`'s own `.value` at forget
+        # time -- `Select.set_options` unconditionally resets `.value` to
+        # blank, and picking a row does exactly that a moment later by
+        # filling the target field, which re-filters this same dropdown
+        # (see `_render_history`). By the time a Delete keypress could ever
+        # land, `.value` is already back to blank again; this is what
+        # `_pick_from_address_book` actually remembers was picked, and what
+        # `action_forget` acts on.
+        self._last_picked = ""
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
@@ -199,20 +242,16 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
                 placeholder="WS1EC-7  or  WS1EC-7 via W1AW-1",
                 id="connect-target",
             )
-            yield Input(
-                placeholder="Node hops, e.g. N1QFY, AB1KI-15 (optional)",
-                id="connect-hops",
-            )
-            yield Label("", id="connect-error")
-            yield Label("Recent stations", id="connect-history-title")
-            yield OptionList(id="connect-history")
+            yield Select([], id="connect-address-book", prompt="Address book")
             yield Label(
-                "Down for previous stations - Enter connects - Delete forgets",
+                "Enter to connect - Delete forgets the picked entry",
                 id="connect-hint",
             )
+            yield Label("", id="connect-error")
             yield Label("Auto-login (optional)", id="connect-script-title")
             yield Static(
-                "Pick a saved credential or script, or type a login below.",
+                "Pick a saved credential or script -- both have an option to"
+                " add a new one.",
                 id="connect-script-hint",
             )
             yield Select(
@@ -221,16 +260,24 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
                 allow_blank=True,
                 prompt="Saved credential",
             )
+            yield Input(
+                placeholder="Name to save this login as (optional)",
+                id="connect-credential-name",
+            )
+            yield TextArea(
+                id="connect-script",
+                tab_behavior="focus",
+                placeholder="One line per prompt, e.g. your callsign then password",
+            )
             yield Select(
                 [],
                 id="connect-script-name",
                 allow_blank=True,
                 prompt="Saved script",
             )
-            yield TextArea(
-                id="connect-script",
-                tab_behavior="focus",
-                placeholder="One line per prompt, e.g. your callsign then password",
+            yield Input(
+                placeholder="Node hops, e.g. N1QFY, AB1KI-15",
+                id="connect-hops",
             )
             with Horizontal(id="connect-buttons"):
                 yield Button("Connect", variant="primary", id="connect-go")
@@ -240,99 +287,108 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         self._render_history()
         self._render_credentials()
         self._render_scripts()
+        self._sync_login_controls()
         self.query_one("#connect-target", Input).focus()
 
     def _render_credentials(self) -> None:
         select = self.query_one("#connect-credential", Select)
-        select.set_options(
-            (name, name)
-            for c in self.credentials
-            if (name := c.get("name"))
-        )
+        options = [(name, name) for c in self.credentials if (name := c.get("name"))]
+        options.append(("+ Add new credential...", _ADD_CREDENTIAL))
+        select.set_options(options)
 
     def _render_scripts(self) -> None:
         select = self.query_one("#connect-script-name", Select)
-        select.set_options(
-            (name, name)
-            for s in self.scripts
-            if (name := s.get("name"))
-        )
+        options = [(name, name) for s in self.scripts if (name := s.get("name"))]
+        options.append(("+ Node hops (advanced)...", _SHOW_HOPS))
+        select.set_options(options)
 
     # -- the address book -------------------------------------------------
     def _render_history(self, filter_text: str = "") -> None:
-        """Repaint the list, narrowed to entries matching `filter_text`.
+        """Repaint the dropdown, narrowed to entries matching `filter_text`.
 
         The filter is a plain case-insensitive substring on the whole typed
         target, so "ws1" narrows to one machine's services and "via" finds
-        the paths that need a digipeater.
+        the paths that need a digipeater. `Select.set_options` always resets
+        the control's own value to blank, which is exactly what is wanted
+        here -- every keystroke re-filtering is not the operator picking
+        blank on purpose, so `_pick_from_address_book` ignores that reset
+        rather than treating it as "clear the preview".
         """
         needle = filter_text.strip().upper()
         matches = [e for e in self.book.entries if needle in e.target.upper()]
         options = [
-            Option(
+            (
                 f"{e.target}"
                 f"{'  --  ' + e.summary if e.summary else ''}"
                 f"{'  [via nodes]' if e.hops else ''}",
-                id=e.target,
+                e.target,
             )
             for e in matches
         ]
-        history = self.query_one("#connect-history", OptionList)
-        history.clear_options()
-        history.add_options(options)
-        history.display = bool(options)
+        select = self.query_one("#connect-address-book", Select)
+        select.set_options(options)
+        select.display = bool(options)
         self.query_one("#connect-hint", Label).display = bool(options)
-        self.query_one("#connect-history-title", Label).display = bool(options)
 
     def action_into_list(self) -> None:
-        history = self.query_one("#connect-history", OptionList)
-        if not (history.display and history.option_count):
+        select = self.query_one("#connect-address-book", Select)
+        if not select.display:
             return
-        history.focus()
-        if history.highlighted is None:
-            # Focus alone leaves nothing highlighted, so the first Delete or
-            # Enter after arrowing down would do nothing at all -- the key
-            # appears dead rather than doing something the operator can see.
-            history.highlighted = 0
+        select.focus()
+        select.expanded = True
 
     def action_forget(self) -> None:
-        """Delete the highlighted row. Only meaningful with the list focused,
-        so a Delete keypress while editing the target text still edits text."""
-        history = self.query_one("#connect-history", OptionList)
-        if not history.has_focus or history.highlighted is None:
+        """Forget whatever address-book row the dropdown last picked (see
+        `_last_picked`'s docstring for why that is not simply `select.
+        value`). Only meaningful with the dropdown focused, so a Delete
+        keypress while editing the target text still edits text."""
+        select = self.query_one("#connect-address-book", Select)
+        if not select.has_focus or not self._last_picked:
             return
-        option = history.get_option_at_index(history.highlighted)
-        if option.id and self.book.forget(option.id):
-            self._render_history(self.query_one("#connect-target", Input).value)
+        if self.book.forget(self._last_picked):
+            self._last_picked = ""
+            # The target field held the just-forgotten entry's name (that is
+            # what picking it wrote there) -- clearing it, not just
+            # re-filtering on it, is what brings the rest of the address
+            # book back into view instead of leaving a needle that now
+            # matches nothing.
+            self.query_one("#connect-target", Input).value = ""
+            self._render_history("")
+            self.query_one("#connect-hops", Input).value = ""
+            self.query_one("#connect-script", TextArea).text = ""
+            self.query_one("#connect-credential-name", Input).value = ""
+            self.query_one("#connect-credential", Select).value = Select.NULL
+            self.query_one("#connect-script-name", Select).value = Select.NULL
+            self._sync_login_controls()
             if not self.book.entries:
                 self.query_one("#connect-target", Input).focus()
 
-    @on(OptionList.OptionSelected, "#connect-history")
-    def _pick(self, event: OptionList.OptionSelected) -> None:
-        if event.option.id:
-            self._submit(event.option.id)
+    @on(Select.Changed, "#connect-address-book")
+    def _pick_from_address_book(self, event: Select.Changed) -> None:
+        """Picking a station fills the target field and previews everything
+        saved for it -- its node-hop chain and its login, script or
+        credential -- in one step. Still editable before Connect.
 
-    @on(OptionList.OptionHighlighted, "#connect-history")
-    def _preview_entry(self, event: OptionList.OptionHighlighted) -> None:
-        """Arrowing through history previews everything saved for that
-        station -- its node-hop chain and its login, script or credential.
-
-        So picking a station also picks up how to reach it and what to say
-        once there, without having to remember any of it separately. Still
-        editable before Connect.
+        Fires with a blank value on every keystroke in the target field too
+        (see `_render_history`'s docstring), which must be a no-op: acting
+        on it would wipe out hops/credential/script the operator is mid-way
+        through editing by hand.
         """
-        entry = None
-        if event.option.id:
-            entry = next(
-                (e for e in self.book.entries if e.target == event.option.id), None
-            )
-        self.query_one("#connect-hops", Input).value = entry.hops if entry else ""
-        self.query_one("#connect-script", TextArea).text = entry.script if entry else ""
+        value = event.value
+        if value is Select.NULL or not value:
+            return
+        entry = next((e for e in self.book.entries if e.target == value), None)
+        if entry is None:
+            return
+        self._last_picked = entry.target
+        self.query_one("#connect-target", Input).value = entry.target
+        self.query_one("#connect-hops", Input).value = entry.hops
+        self.query_one("#connect-script", TextArea).text = entry.script
         valid_credentials = {c.get("name") for c in self.credentials}
-        credential = entry.credential if entry and entry.credential in valid_credentials else ""
+        credential = entry.credential if entry.credential in valid_credentials else ""
         self.query_one("#connect-credential", Select).value = credential or Select.NULL
         valid_scripts = {s.get("name") for s in self.scripts}
-        script_name = entry.script_name if entry and entry.script_name in valid_scripts else ""
+        script_name = entry.script_name if entry.script_name in valid_scripts else ""
         self.query_one("#connect-script-name", Select).value = script_name or Select.NULL
         self._sync_login_controls()
 
@@ -342,11 +398,46 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         self._sync_login_controls()
 
     def _sync_login_controls(self) -> None:
-        _sync_login_source_controls(
-            self.query_one("#connect-credential", Select),
-            self.query_one("#connect-script-name", Select),
-            self.query_one("#connect-script", TextArea),
+        """Keep the advanced fields' enabled-ness AND visibility consistent
+        with the two dropdowns, without ever clearing a value the operator
+        typed -- same "disable, never clear" rule as the shared
+        `_sync_login_source_controls` this replaces for this screen only
+        (`AddressBookEntryScreen`/`TransportEntryScreen` keep that function
+        and their own always-visible layout; they were not part of this
+        request).
+
+        Visibility follows two independent rules, checked every time this
+        runs so a preview that already has a value is never left hidden:
+        the credential Name/textarea pair shows for the `_ADD_CREDENTIAL`
+        sentinel OR non-blank content; Node hops shows for the `_SHOW_HOPS`
+        sentinel OR a non-blank value. Precedence disabling (credential
+        beats script beats literal text, per `ConnectRequest`'s docstring)
+        only ever considers a REAL pick -- a sentinel is not itself a
+        credential or a script, so it must never disable the very field it
+        exists to reveal.
+        """
+        credential_select = self.query_one("#connect-credential", Select)
+        script_select = self.query_one("#connect-script-name", Select)
+        area = self.query_one("#connect-script", TextArea)
+        name_input = self.query_one("#connect-credential-name", Input)
+        hops_input = self.query_one("#connect-hops", Input)
+
+        has_credential_pick = _select_has_value(credential_select)
+        has_real_script = (
+            _select_has_value(script_select) and script_select.value != _SHOW_HOPS
         )
+
+        script_select.disabled = has_credential_pick
+        disable_literal = (
+            has_credential_pick and credential_select.value != _ADD_CREDENTIAL
+        ) or has_real_script
+        area.disabled = disable_literal
+        name_input.disabled = disable_literal
+
+        show_literal = credential_select.value == _ADD_CREDENTIAL or bool(area.text)
+        area.display = show_literal
+        name_input.display = show_literal
+        hops_input.display = script_select.value == _SHOW_HOPS or bool(hops_input.value)
 
     @on(Input.Changed, "#connect-target")
     def _filter(self, event: Input.Changed) -> None:
@@ -372,19 +463,38 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
             self.query_one("#connect-error", Label).update(f"[red]{error}[/red]")
             return
         credential_select = self.query_one("#connect-credential", Select)
-        credential = str(credential_select.value) if _select_has_value(credential_select) else ""
+        cred_value = credential_select.value
+        credential = ""
+        new_credential_text = ""
+        if cred_value == _ADD_CREDENTIAL:
+            # A name turns the box below into a NEW, reusable, named
+            # credential (`KissTermApp.action_connect` is what actually
+            # writes it to `Config.credentials`); no name keeps it exactly
+            # what a hand-typed login has always been -- literal text used
+            # once and saved only on this address-book entry.
+            name = self.query_one("#connect-credential-name", Input).value.strip()
+            body = self.query_one("#connect-script", TextArea).text
+            if name and body:
+                credential = name
+                new_credential_text = body
+        elif _select_has_value(credential_select):
+            credential = str(cred_value)
         script_name_select = self.query_one("#connect-script-name", Select)
+        script_value = script_name_select.value
         script_name = (
-            str(script_name_select.value)
-            if not credential and _select_has_value(script_name_select)
+            str(script_value)
+            if not credential and _select_has_value(script_name_select) and script_value != _SHOW_HOPS
             else ""
         )
-        # A credential or a saved script, once selected, is authoritative --
-        # the box next to them is disabled (see `_sync_login_controls`)
-        # specifically so its leftover text is never read here.
-        script = (
-            "" if (credential or script_name) else self.query_one("#connect-script", TextArea).text
-        )
+        # A credential (saved or newly-named) or a saved script is
+        # authoritative once present -- the literal-text box is disabled
+        # whenever one of those wins (see `_sync_login_controls`)
+        # specifically so its leftover text is never read here. Otherwise
+        # the box's text is read unconditionally, exactly as it always was:
+        # that covers both an unnamed "+ Add new credential..." entry (a
+        # one-off login) AND a plain address-book preview that carries a
+        # per-station literal script with neither dropdown touched.
+        script = "" if (credential or script_name) else self.query_one("#connect-script", TextArea).text
         # Recorded on the ATTEMPT, not on success: a connect that failed is
         # the one about to be retried, and withholding it until a UA arrives
         # would keep it out of the list at exactly the moment it is wanted.
@@ -396,7 +506,15 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
             transport_name = str(self.query_one("#connect-transport", Select).value)
         self.book.record_attempt(text, script, hops, credential, script_name)
         self.dismiss(
-            ConnectRequest(text, script, hops, credential, script_name, transport_name)
+            ConnectRequest(
+                text,
+                script,
+                hops,
+                credential,
+                script_name,
+                transport_name,
+                new_credential_text=new_credential_text,
+            )
         )
 
 

@@ -3,6 +3,31 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-08] — The Connect dialog was too tall
+
+### Improvements
+- **The Connect dialog collapsed from an always-tall form to a quick
+  "type a callsign, hit Connect" box.** The address book, previously an
+  always-visible OptionList that could run to 8 rows plus its own title and
+  hint line, is now a single-row "Address book" dropdown -- typing in the
+  target field still narrows it, and picking a row still fills the target
+  field and previews everything saved for that station in one step (it no
+  longer requires arrowing in and pressing Enter to preview, since a
+  `Select`'s own overlay highlight isn't something a preview can hook the
+  way `OptionList.OptionHighlighted` was). Node hops and a hand-typed,
+  unnamed login -- both blank on nearly every connect -- no longer get
+  permanent rows either: Node hops now lives under Saved script, revealed
+  by "+ Node hops (advanced)..." there (or automatically, if a picked
+  address-book entry already has some); the free-text login box now lives
+  under Saved credential, revealed by "+ Add new credential..." there, and
+  typing a Name next to it there saves it as a new, reusable entry in
+  `Config.credentials` instead of a one-off (leaving Name blank keeps it a
+  one-off, exactly like before). **Files:** `kissterm/ui/dialogs.py`
+  (`ConnectScreen`), `kissterm/ui/app.py` (`action_connect` persists an
+  inline "+ Add new credential..." pick via the new
+  `ConnectRequest.new_credential_text`), `kissterm/ui/styles.py`,
+  `tests/pilot/test_app_mounts.py`, `tests/pilot/test_connect_scripts.py`.
+
 ## [2026-09-08] — A real connect never said "Connected", Enter sometimes didn't send, and scripts get their own list
 
 Three more findings from side-by-side testing against EasyTerm on the same

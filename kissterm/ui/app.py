@@ -1190,6 +1190,28 @@ class KissTermApp(App):
             )
             if not request:
                 return
+            if request.new_credential_text and request.credential:
+                # ConnectScreen's "+ Add new credential..." flow, named --
+                # see ConnectRequest.new_credential_text's docstring. Replace
+                # a same-named entry rather than append a shadowing
+                # duplicate: `find_credential` returns the FIRST match, so a
+                # second entry with the same name would silently never be
+                # the one used.
+                existing = next(
+                    (
+                        c
+                        for c in self.config.credentials
+                        if c.get("name") == request.credential
+                    ),
+                    None,
+                )
+                if existing is not None:
+                    existing["text"] = request.new_credential_text
+                else:
+                    self.config.credentials.append(
+                        {"name": request.credential, "text": request.new_credential_text}
+                    )
+                self._save_config()
             if request.transport_name and request.transport_name != self.config.active_transport:
                 self.config.active_transport = request.transport_name
                 self._save_config()

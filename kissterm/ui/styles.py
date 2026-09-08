@@ -125,17 +125,13 @@ ConnectScreen { align: center middle; }
     border: thick $primary; background: $surface;
 }
 #connect-transport { width: 100%; margin-top: 1; }
-#connect-hops { margin-top: 1; }
 #connect-buttons { height: auto; align: right middle; margin-top: 1; }
 #connect-buttons Button { margin-left: 1; }
-/* The address book. A visible border and its own title, because "no border,
-   same background as the dialog" made a first-time operator unable to tell
-   the history apart from the rest of the box -- it read as decoration, not
-   as a list of anything. `max-height` rather than a fixed height so a first
-   run with no history does not reserve a blank hole in the middle of the
-   box, and a long list scrolls instead of pushing the buttons off screen. */
-#connect-history-title { color: $text-muted; margin-top: 1; }
-#connect-history { max-height: 8; border: round $primary; background: $surface; }
+/* The address book is a single-row dropdown, not a bordered list -- see
+   ConnectScreen's docstring. Collapsing it from an always-visible,
+   up-to-8-row OptionList (plus its own title and hint rows) to one row is
+   most of what took the dialog from too tall to fit a normal terminal. */
+#connect-address-book { width: 100%; margin-top: 1; }
 /* `width: 100%` so this wraps inside the box instead of being clipped at its
    edge -- a `Label`'s default auto width sizes to fit the text on one line,
    which is longer than the dialog and was reading as cut off mid-sentence. */
@@ -143,12 +139,22 @@ ConnectScreen { align: center middle; }
 #connect-script-title { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
 #connect-script-hint { color: $text-muted; width: 100%; height: auto; }
 #connect-credential { width: 100%; }
-#connect-script-name { width: 100%; margin-top: 1; }
+/* Hidden by default (`ConnectScreen._sync_login_controls`) -- shown only
+   for "+ Add new credential..." or a preview that already has one, same
+   reasoning as #connect-hops below. */
+#connect-credential-name { margin-top: 1; }
 /* Fixed and short on purpose -- a login script is a handful of lines
    (callsign, password, maybe a mailbox command), not a document, and a
    box that grew with its content would push Connect/Cancel around. */
 #connect-script { height: 4; border: round $primary; margin-top: 1; }
 #connect-script:disabled { border: round $panel; }
+#connect-script-name { width: 100%; margin-top: 1; }
+/* Hidden by default -- almost no connect uses node hops, and a field that
+   is blank 99% of the time does not earn a permanent row. Shown only for
+   "+ Node hops (advanced)..." or a preview that already has some (see
+   ConnectScreen._sync_login_controls, which is also why this is not just
+   `display: none` in CSS -- the visibility rule depends on live state). */
+#connect-hops { margin-top: 1; }
 /* AddressBookEntryScreen's frequency/connection-type row -- two short
    fields side by side rather than stacked, since both together are still
    shorter than the target line above them. */

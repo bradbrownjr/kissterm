@@ -25,7 +25,7 @@ from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.ui.dialogs import CallsignScreen, ConnectScreen  # noqa: E402
-from textual.widgets import Input, OptionList, Select, TextArea  # noqa: E402
+from textual.widgets import Input, Select, TextArea  # noqa: E402
 
 from kissterm.ui.heard_pane import HeardPane  # noqa: E402
 from kissterm.ui.monitor_pane import MonitorPane  # noqa: E402
@@ -523,6 +523,15 @@ async def _open_connect(app, pilot):
     return app.screen
 
 
+def _address_book_targets(select: Select) -> list:
+    """The station targets currently offered by the address-book dropdown,
+    in on-screen order. `Select` exposes no public accessor for its option
+    list, so this reads `_options` directly -- the same tuples `set_options`
+    was given, minus the leading blank/`Select.NULL` entry every `Select`
+    with `allow_blank` carries."""
+    return [value for _, value in select._options if value is not Select.NULL]
+
+
 @pytest.mark.asyncio
 async def test_the_connect_dialog_offers_stations_already_tried(tmp_path):
     """`WS1EC-15` and `WS1EC-7` are different services on one machine, and a
@@ -533,10 +542,9 @@ async def test_the_connect_dialog_offers_stations_already_tried(tmp_path):
     app.addressbook.record_connect("W1AW-1")
     async with app.run_test(size=(120, 40)) as pilot:
         screen = await _open_connect(app, pilot)
-        history = screen.query_one("#connect-history", OptionList)
-        assert history.display, "the history list was not shown"
-        shown = [history.get_option_at_index(i).id for i in range(history.option_count)]
-        assert shown == ["W1AW-1", "WS1EC-15"], shown
+        select = screen.query_one("#connect-address-book", Select)
+        assert select.display, "the address book dropdown was not shown"
+        assert _address_book_targets(select) == ["W1AW-1", "WS1EC-15"]
     station.close()
 
 
@@ -551,29 +559,29 @@ async def test_typing_narrows_the_list(tmp_path):
         for key in "ws":
             await pilot.press(key)
         await pilot.pause()
-        history = screen.query_one("#connect-history", OptionList)
-        shown = [history.get_option_at_index(i).id for i in range(history.option_count)]
-        assert shown == ["WS1EC-7", "WS1EC-15"], shown
+        select = screen.query_one("#connect-address-book", Select)
+        assert _address_book_targets(select) == ["WS1EC-7", "WS1EC-15"]
     station.close()
 
 
 @pytest.mark.asyncio
 async def test_delete_forgets_a_row_and_it_stays_forgotten(tmp_path):
-    """The explicit ask: rows you can delete."""
+    """The explicit ask: rows you can delete -- pick one from the address
+    book dropdown, then Delete forgets it."""
     app, ta, tb, station = await _app()
     _fresh_book(app, tmp_path)
     app.addressbook.record_attempt("WS1EC-15")
     app.addressbook.record_attempt("W1AW-1")
     async with app.run_test(size=(120, 40)) as pilot:
         screen = await _open_connect(app, pilot)
-        await pilot.press("down")
+        select = screen.query_one("#connect-address-book", Select)
+        select.value = "W1AW-1"
+        select.focus()
         await pilot.pause()
-        history = screen.query_one("#connect-history", OptionList)
-        assert history.has_focus, "Down did not move into the history list"
+        assert select.has_focus, "picking a row did not leave the dropdown focused"
         await pilot.press("delete")
         await pilot.pause()
-        shown = [history.get_option_at_index(i).id for i in range(history.option_count)]
-        assert shown == ["WS1EC-15"], shown
+        assert _address_book_targets(select) == ["WS1EC-15"]
         assert [e.target for e in app.addressbook.entries] == ["WS1EC-15"]
 
         reloaded = AddressBook(app.addressbook.file)
@@ -602,12 +610,12 @@ async def test_delete_while_typing_edits_text_instead_of_forgetting(tmp_path):
 @pytest.mark.asyncio
 async def test_a_first_run_shows_no_empty_list(tmp_path):
     """With nothing remembered the dialog must look exactly as it did before
-    this feature -- not a blank hole where a list will one day be."""
+    this feature -- not a blank dropdown where a list will one day be."""
     app, ta, tb, station = await _app()
     _fresh_book(app, tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
         screen = await _open_connect(app, pilot)
-        assert not screen.query_one("#connect-history", OptionList).display
+        assert not screen.query_one("#connect-address-book", Select).display
         assert not screen.query_one("#connect-hint").display
     station.close()
 
@@ -630,19 +638,29 @@ async def test_a_confirmed_target_is_remembered_even_when_it_fails(tmp_path):
 
 @pytest.mark.asyncio
 async def test_browsing_history_previews_that_stations_script(tmp_path):
-    """Arrowing onto a row loads its saved script into the box -- that is how
-    an operator finds out one is even there, short of remembering it."""
+    """Picking a row from the address-book dropdown loads its saved script
+    into the box -- that is how an operator finds out one is even there,
+    short of remembering it."""
     app, ta, tb, station = await _app()
     book = _fresh_book(app, tmp_path)
     book.record_attempt("WS1EC-7", script="CLYDE\nMYPASS")
     book.record_attempt("W1AW-1")  # no script -- the preview must clear too
     async with app.run_test(size=(120, 40)) as pilot:
         screen = await _open_connect(app, pilot)
-        screen.action_into_list()  # highlights the first (most recent) row: W1AW-1
+        select = screen.query_one("#connect-address-book", Select)
+
+        select.value = "W1AW-1"  # the most recent entry, no script
         await pilot.pause()
         assert screen.query_one("#connect-script", TextArea).text == ""
 
-        await pilot.press("down")  # onto WS1EC-7
+        # Picking narrowed the dropdown to whatever now matches the target
+        # field it just filled in (see `ConnectScreen._render_history`'s
+        # docstring) -- clear it before the second pick, exactly as an
+        # operator would by backspacing, or "WS1EC-7" is not a legal option
+        # any more.
+        screen.query_one("#connect-target", Input).value = ""
+        await pilot.pause()
+        select.value = "WS1EC-7"
         await pilot.pause()
         assert screen.query_one("#connect-script", TextArea).text == "CLYDE\nMYPASS"
     station.close()
@@ -659,9 +677,9 @@ async def test_a_saved_script_is_sent_after_the_connect_comes_up(tmp_path):
     peer_station = AX25Station(PEER, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
     async with app.run_test(size=(120, 40)) as pilot:
         screen = await _open_connect(app, pilot)
-        screen.action_into_list()
+        screen.query_one("#connect-address-book", Select).value = "WS1EC-7"
         await pilot.pause()
-        await pilot.press("enter")
+        await pilot.click("#connect-go")
         await pilot.pause()
         await asyncio.sleep(2.0)  # connect, then two lines ~0.75s apart
         await pilot.pause()

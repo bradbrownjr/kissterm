@@ -74,12 +74,23 @@ def _install_relay(node: AX25Station, replies: dict[str, bytes]) -> None:
 
 
 async def _connect_via_history(app, pilot) -> None:
+    """Open the Connect dialog and dial the one address-book entry every
+    caller here has already recorded. Picks it from `#connect-address-book`
+    directly rather than opening the dropdown's overlay and pressing Enter
+    on it -- `ConnectScreen` no longer auto-highlights a "top" row the way
+    the old `OptionList` did, and a `Select`'s overlay highlight is not
+    something a pilot key press can rely on -- then clicks Connect exactly
+    like an operator would, since picking a row now only fills the fields
+    (see `ConnectScreen._pick_from_address_book`), it does not submit."""
+    from textual.widgets import Select
+
     await pilot.press("ctrl+n")
     await pilot.pause()
     await asyncio.sleep(0.15)
-    app.screen.action_into_list()
+    target = app.addressbook.entries[0].target
+    app.screen.query_one("#connect-address-book", Select).value = target
     await pilot.pause()
-    await pilot.press("enter")
+    await pilot.click("#connect-go")
     await pilot.pause()
 
 
