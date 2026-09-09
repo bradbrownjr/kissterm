@@ -3,6 +3,22 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — APRS SSID
+
+### New Features
+- **`aprs.ssid` transmits APRS under its own SSID**, separate from the
+  callsign connected-mode packet uses — conventionally -9 for a car, -7 for a
+  handheld, -5 for a phone. It applies to the position beacon, outgoing
+  messages, and auto-acks alike, so a station has one APRS identity rather
+  than a beacon under one address and a message under another. Blank keeps
+  the station callsign as-is, and an unparseable value degrades to it rather
+  than transmitting something invented.
+
+### Files
+- `kissterm/config.py`, `kissterm/aprs_beacon.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/settings_schema.py`, `tests/unit/test_config.py`,
+  `tests/unit/test_aprs_beacon.py`
+
 ## [2026-09-09] — Fix: F1-F5 bounced straight back while an input had focus
 
 ### Bug Fixes

@@ -554,3 +554,59 @@ def test_one_bad_hidden_service_entry_does_not_take_the_list_with_it(tmp_path):
     loaded = kconfig.load_config(path=path)
     assert loaded.aprs_hidden_services == ["winlink", "wxbot"]
     assert any("aprs_hidden_services" in w for w in loaded.warnings)
+
+
+# ---------------------------------------------------------------------------
+# aprs.ssid -- the APRS-only SSID override
+# ---------------------------------------------------------------------------
+
+
+def test_aprs_ssid_defaults_to_the_station_callsign_unchanged():
+    """Blank must behave exactly as things did before this field existed."""
+    cfg = kconfig.AprsConfig()
+    assert str(cfg.source_for("KC1JMH-1")) == "KC1JMH-1"
+    assert str(cfg.source_for("KC1JMH")) == "KC1JMH"
+
+
+def test_aprs_ssid_overrides_only_the_ssid():
+    cfg = kconfig.AprsConfig(ssid="9")
+    assert str(cfg.source_for("KC1JMH-1")) == "KC1JMH-9"
+    assert str(cfg.source_for("KC1JMH")) == "KC1JMH-9"
+
+
+def test_aprs_ssid_zero_is_a_real_value_not_absence():
+    """-0 is the bare callsign, and is a meaningful thing to ask for -- which
+    is why the field is a string and not an int with a sentinel."""
+    cfg = kconfig.AprsConfig(ssid="0")
+    assert str(cfg.source_for("KC1JMH-1")) == "KC1JMH"
+
+
+def test_a_bad_aprs_ssid_falls_back_instead_of_raising():
+    """A bad value must not stop an otherwise-fine callsign transmitting."""
+    assert str(kconfig.AprsConfig(ssid="99").source_for("KC1JMH-1")) == "KC1JMH-1"
+    assert str(kconfig.AprsConfig(ssid="nope").source_for("KC1JMH-1")) == "KC1JMH-1"
+
+
+def test_aprs_ssid_loads_from_int_string_or_dashed_form(tmp_path):
+    for written, expected in (("9", "9"), ("-9", "9"), ('"9"', "9"), ('"-9"', "9")):
+        path = tmp_path / f"c{written.strip(chr(34))}.toml"
+        path.write_text(f"[aprs]\nssid = {written}\n", encoding="utf-8")
+        loaded = kconfig.load_config(path=path)
+        assert loaded.aprs.ssid == expected, written
+        assert loaded.warnings == []
+
+
+def test_an_out_of_range_aprs_ssid_degrades_with_a_warning(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text("[aprs]\nssid = 16\n", encoding="utf-8")
+    loaded = kconfig.load_config(path=path)
+    assert loaded.aprs.ssid == ""
+    assert any("ssid" in w for w in loaded.warnings)
+
+
+def test_aprs_ssid_round_trips(tmp_path):
+    path = tmp_path / "config.toml"
+    cfg = kconfig.Config()
+    cfg.aprs.ssid = "9"
+    kconfig.save_config(cfg, path=path)
+    assert kconfig.load_config(path=path).aprs.ssid == "9"

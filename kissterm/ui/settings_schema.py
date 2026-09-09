@@ -201,6 +201,17 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 apply="live",
             ),
             Field(
+                "aprs.ssid",
+                "APRS SSID",
+                "str",
+                "SSID to transmit APRS under, 0-15. Blank uses your station "
+                "callsign as-is. Conventionally -9 for a car, -7 for a "
+                "handheld, -5 for a phone, keeping your APRS identity "
+                "separate from the callsign connected-mode packet uses.",
+                apply="live",
+                placeholder="e.g. 9",
+            ),
+            Field(
                 "aprs.beacon_interval_minutes",
                 "Beacon every (min)",
                 "int",

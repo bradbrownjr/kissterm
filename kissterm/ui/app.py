@@ -958,7 +958,12 @@ class KissTermApp(App):
         try:
             payload = aprs.ack(addressee, number)
             dest = AX25Address.parse("APRS")
-            outframe = aprs.beacon_frame(self.station.mycall, dest, (), payload)
+            # The APRS SSID override again -- an ack has to come from the
+            # same address the message it answers went to, or the far end
+            # cannot match it up.
+            outframe = aprs.beacon_frame(
+                self.config.aprs.source_for(str(self.station.mycall)), dest, (), payload
+            )
             await self.station.transport.send_frame(outframe, port)
         except Exception as exc:  # never let an ack failure disturb the link
             log.debug("APRS auto-ack to %s not sent: %s", addressee, exc)
@@ -990,7 +995,11 @@ class KissTermApp(App):
         try:
             payload = aprs.message(addressee, text, number=number)
             dest = AX25Address.parse("APRS")
-            outframe = aprs.beacon_frame(self.station.mycall, dest, (), payload)
+            # Same APRS-only SSID override the position beacon uses, so a
+            # message and a beacon go out under one identity rather than two.
+            outframe = aprs.beacon_frame(
+                self.config.aprs.source_for(str(self.station.mycall)), dest, (), payload
+            )
             await self.station.transport.send_frame(outframe, port)
         except Exception as exc:
             log.debug("APRS message to %s not sent: %s", addressee, exc)

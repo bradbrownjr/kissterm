@@ -117,6 +117,48 @@ class AprsConfig:
     #: and an operator confirmation behind it. `kissterm/aprs_services/data/
     #: winlink.toml` carries the rest of APRSLink's command set.
     winlink_check: bool = False
+    #: SSID to transmit APRS under, overriding the station callsign's own.
+    #: Empty means "use `Config.mycall` exactly as it is".
+    #:
+    #: Operators conventionally separate their APRS identity from their
+    #: packet one: `-9` for a car, `-7` for a handheld, `-5` for a phone,
+    #: while connected-mode packet runs on the bare call or `-1`. Without
+    #: this, kissterm's APRS position reports and messages went out under
+    #: whatever SSID the AX.25 station was using, which is both wrong on the
+    #: air (a mobile beacon claiming the base station's SSID) and
+    #: unfixable without changing the callsign for connected mode too.
+    #:
+    #: Stored as a string rather than an int so "not set" and "-0" stay
+    #: distinguishable -- `-0` is a legal, meaningful SSID (it is the bare
+    #: callsign), and an int field would have to pick a sentinel that
+    #: collides with it. Validated to 0-15 by the loader; anything else
+    #: degrades to empty with a warning rather than putting an illegal
+    #: address on the air.
+    ssid: str = ""
+
+    def source_for(self, mycall: str):
+        """The `AX25Address` APRS traffic should be sent from.
+
+        Takes the base callsign from `mycall` and applies `ssid` if one is
+        set. Returns the parsed `mycall` unchanged when it is not, so the
+        default behaviour is exactly what it was before this field existed.
+
+        Anything unparseable falls back to the station's own address rather
+        than raising: a bad SSID in a config file must not stop the operator
+        from transmitting under a callsign that is otherwise fine.
+        """
+        from .ax25 import AX25Address, AX25AddressError
+
+        try:
+            base = AX25Address.parse(mycall)
+        except AX25AddressError:
+            raise
+        if not self.ssid.strip():
+            return base
+        try:
+            return AX25Address(base.callsign, int(self.ssid.strip().lstrip("-")))
+        except (ValueError, AX25AddressError):
+            return base
 
 
 #: Floor on the beacon interval, in minutes, enforced here and again in
@@ -709,6 +751,30 @@ def _load_callsign_list(value: Any, warnings: list[str]) -> list[str]:
     return out
 
 
+def _load_aprs_ssid(raw: dict[str, Any], warnings: list[str]) -> str:
+    """`aprs.ssid` as a canonical "" or "0".."15".
+
+    Accepts an int (TOML `ssid = 9`) or a string, with or without a leading
+    dash, because all three are what an operator would naturally write.
+    Anything out of range degrades to empty with a warning: transmitting
+    under the station's own SSID is a defensible fallback, putting an
+    illegal address on the air is not.
+    """
+    value = raw.get("ssid", "")
+    if value in (None, ""):
+        return ""
+    text = str(value).strip().lstrip("-")
+    try:
+        number = int(text)
+    except ValueError:
+        warnings.append(f"aprs.ssid {value!r} is not a number; ignoring it")
+        return ""
+    if not 0 <= number <= 15:
+        warnings.append(f"aprs.ssid {value!r} is outside 0-15; ignoring it")
+        return ""
+    return str(number)
+
+
 def _load_str_list(value: Any, field_name: str, warnings: list[str]) -> list[str]:
     """A list of plain strings, dropping anything that is not one.
 
@@ -781,6 +847,7 @@ def _load_aprs(value: Any, warnings: list[str]) -> AprsConfig:
 
     aprs.grid_square = _load_str(value, "grid_square", default.grid_square, warnings)
     aprs.winlink_check = _load_bool(value, "winlink_check", default.winlink_check, warnings)
+    aprs.ssid = _load_aprs_ssid(value, warnings)
 
     return aprs
 

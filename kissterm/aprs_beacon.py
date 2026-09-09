@@ -168,8 +168,15 @@ class AprsBeaconer:
             log.warning("APRS beacon not sent: %s", exc)
             return None
         target = self._path()
+        # `AprsConfig.ssid` overrides the station's own SSID for APRS only --
+        # a beacon from a car should say `-9`, while connected-mode packet
+        # keeps running under the base call. Falls back to the station's
+        # address when unset or unusable; see that field's docstring.
         return aprs_encode.beacon_frame(
-            self.station.mycall, target.destination, target.repeaters, payload
+            self.config.source_for(str(self.station.mycall)),
+            target.destination,
+            target.repeaters,
+            payload,
         )
 
     async def send_once(self, force: bool = False) -> bool:

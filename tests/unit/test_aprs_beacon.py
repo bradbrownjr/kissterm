@@ -332,3 +332,20 @@ async def test_force_waives_only_the_timer_being_off():
     no_position = AprsBeaconer(station, _config(enabled=False, latitude=0.0, longitude=0.0))
     assert await no_position.send_once(force=True) is False
     assert len(ta.sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_the_aprs_ssid_override_reaches_the_transmitted_frame():
+    """A beacon from a car should say -9 even though connected-mode packet
+    keeps running under the base call."""
+    station, _ta, _tb = await _station()
+    beacon = AprsBeaconer(station, _config(ssid="9"))
+    frame = beacon.build_frame()
+    assert str(frame.path.source) == f"{MYCALL.callsign}-9"
+
+
+@pytest.mark.asyncio
+async def test_no_aprs_ssid_leaves_the_station_callsign_alone():
+    station, _ta, _tb = await _station()
+    frame = AprsBeaconer(station, _config()).build_frame()
+    assert str(frame.path.source) == str(station.mycall)
