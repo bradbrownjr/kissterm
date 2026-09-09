@@ -317,3 +317,26 @@ async def test_a_new_connection_forgets_the_previous_node():
         assert app.reference.family is None
     a.close()
     b.close()
+
+
+@pytest.mark.asyncio
+async def test_writing_to_a_torn_down_terminal_pane_does_not_raise():
+    """A link outlives the UI, and its callbacks must survive teardown.
+
+    `KissTermApp._to_terminal` tolerates the pane being gone; this covers the
+    window one level in, where the pane is still mounted but its children
+    have already been removed. A callback landing there used to raise
+    `NoMatches` out of a worker with nowhere for the exception to go, which
+    showed up as an intermittent failure in an unrelated pilot test rather
+    than as anything pointing at the real cause.
+    """
+    app, _a, _b, _incoming = await _connected_app()
+    async with app.run_test(size=(100, 30)):
+        pane = app.query_one(TerminalPane)
+        # Exactly what shutdown does: the pane stays, its children go.
+        await pane.query("#session-log").remove()
+
+        # Both callback-reachable write paths, neither of which may raise.
+        pane.log("*** Disconnected")
+        pane.write_incoming(b"hello from the far end\r\n")
+        pane._flush_incoming(final=True)

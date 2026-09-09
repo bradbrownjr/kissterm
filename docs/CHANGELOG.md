@@ -3,6 +3,34 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Fix a teardown race that wrote to a pane whose widgets were gone
+
+### Bug Fixes
+- **A link callback arriving during shutdown could raise `NoMatches` out of a
+  worker.** `KissTermApp._to_terminal` already guards against the terminal
+  pane being gone -- its docstring describes this exact class of bug -- but
+  the guard was one level too shallow. There is a window on teardown where
+  the pane is still in the widget tree and its children have already been
+  removed, and `TerminalPane.log` / `_flush_incoming` queried `#session-log`
+  directly. AX.25 retransmission runs on `call_later` callbacks with nowhere
+  for an exception to go, so this violated the house rule that a background
+  task never dies of one.
+- **Found as an intermittent failure in an unrelated test**
+  (`tests/pilot/test_transmit_gate.py`), which is the worst way to find
+  anything: the failure pointed at the connect path, the cause was in the
+  terminal pane, and a flake makes "the suite is green" stop meaning
+  anything -- which in this repo is load-bearing, since a full green run is
+  required before every commit.
+- Only the two call sites reachable from a background callback changed.
+  `clear` and the find helpers run from a keystroke, so the pane is
+  necessarily alive; guarding those too would suggest a danger that is not
+  there. The new regression test removes the pane's children and then calls
+  both write paths -- it reproduces the original `NoMatches` exactly when
+  the fix is reverted.
+
+### Files
+- `kissterm/ui/terminal_pane.py`, `tests/pilot/test_terminal_ux.py`
+
 ## [2026-09-09] — A shipped directory of 17 APRS gateway services
 
 ### New Features

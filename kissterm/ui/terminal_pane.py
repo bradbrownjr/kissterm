@@ -266,6 +266,27 @@ class TerminalPane(Container):
     # ------------------------------------------------------------------
     # Output
     # ------------------------------------------------------------------
+    def _scrollback(self) -> RichLog | None:
+        """The scrollback widget, or None once this pane is being torn down.
+
+        `KissTermApp._to_terminal` already documents why a link outlives the
+        UI and guards against the *pane* being gone -- but that guard is one
+        level too shallow. On shutdown there is a window where the pane is
+        still in the widget tree and its children have already been removed,
+        and a link callback landing in it made `query_one("#session-log")`
+        raise `NoMatches` out of a worker with nowhere for the exception to
+        go. That surfaced as an intermittent failure in an unrelated pilot
+        test (`test_transmit_gate.py`), which is the worst way to find it:
+        a flake makes "the suite is green" stop meaning anything.
+
+        Only the two callers reachable from a background link callback --
+        `log` and `_flush_incoming` -- need this. `clear` and the find
+        helpers run from a keystroke, so the pane is necessarily alive.
+        """
+        for widget in self.query("#session-log").results(RichLog):
+            return widget
+        return None
+
     def log(self, text: str) -> None:
         """Write locally-generated text: status notes, echoes of what we sent.
 
@@ -277,7 +298,9 @@ class TerminalPane(Container):
         that drops mid-word never loses the word.
         """
         self._flush_incoming(final=True)
-        self.query_one("#session-log", RichLog).write(text)
+        log = self._scrollback()
+        if log is not None:
+            log.write(text)
 
     def write_incoming(self, data: bytes) -> None:
         """Write bytes received from the far end. Filtered, then linkified.
@@ -324,7 +347,9 @@ class TerminalPane(Container):
             self._flush_timer.stop()
             self._flush_timer = None
         text = to_text(ready) if self.remote_color else Text(sanitize(ready))
-        self.query_one("#session-log", RichLog).write(linkify(text), expand=True)
+        log = self._scrollback()
+        if log is not None:
+            log.write(linkify(text), expand=True)
         if not final and self._pending_incoming:
             self._schedule_flush()
 
