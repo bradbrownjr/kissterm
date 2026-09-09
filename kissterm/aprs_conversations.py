@@ -255,6 +255,19 @@ class PendingAcks:
             ):
                 del self._pending[(callsign, number)]
 
+    def attempts_for(self, callsign: str, number: str | None) -> int | None:
+        """How many times this message has been retried, or None if it is not
+        awaiting an ack (never sent by us, already acked, or given up on).
+
+        Read-only, unlike `due()` -- this exists so the conversation view can
+        show an operator whether a message is still in flight without that
+        display having the side effect of consuming a retry.
+        """
+        if number is None:
+            return None
+        pending = self._pending.get((callsign.strip().upper(), number))
+        return None if pending is None else pending.attempts
+
     def due(self, *, now: float | None = None) -> list[tuple[str, str, str]]:
         """(callsign, number, text) triples due for a retry right now.
 

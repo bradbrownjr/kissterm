@@ -3,6 +3,27 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — APRS messages show sent, retry, ack, or no ack
+
+### New Features
+- **Every outgoing APRS message carries its delivery state** in the
+  conversation view: `sent` (gone out, waiting), `retry N` (resent N times,
+  still nothing), `ack` (the far end confirmed it), `no ack` (we stopped
+  retrying and never heard one), `no ack requested` (sent unnumbered, so it
+  is unackable by construction). Modelled on APRS WebChat, which this pane
+  was built to replicate. Previously an acked message said `(acked)` and
+  everything else said nothing at all, so "still trying" and "gave up" and
+  "never sent" were indistinguishable — which is the whole question the
+  numbered-message mechanism exists to answer.
+- **An arriving ack repaints the open conversation immediately** rather than
+  leaving a stale `sent` on screen for up to a retry interval.
+- `PendingAcks.attempts_for` is a read-only lookup, deliberately separate
+  from `due()`, so displaying a status cannot consume a retry.
+
+### Files
+- `kissterm/aprs_conversations.py`, `kissterm/ui/aprs_pane.py`,
+  `kissterm/ui/app.py`, `tests/pilot/test_aprs_send.py`
+
 ## [2026-09-09] — APRS SSID
 
 ### New Features

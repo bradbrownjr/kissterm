@@ -90,6 +90,11 @@ class AprsPane(Horizontal):
         #: Wraps well inside the spec's 1-5 alphanumeric characters; a
         #: fresh number each send, reused by nothing until it wraps.
         self._next_msg_number = 1
+        #: Whose conversation is currently rendered, so an ack arriving or a
+        #: retry going out can repaint it in place. Empty until the operator
+        #: has opened one.
+        self._shown_callsign = ""
+        self._shown_title = ""
 
     def compose(self) -> ComposeResult:
         # Conversation first -- this is the main, always-visible column.
@@ -279,11 +284,52 @@ class AprsPane(Horizontal):
         contact = Contact.from_dict(raw_contacts[index])
         self._show_conversation_for(contact.callsign, f"{contact.name} ({contact.callsign})")
 
+    def _outgoing_status(self, callsign: str, entry) -> str:
+        """The delivery state of one outgoing message, in square brackets.
+
+        APRS messaging is acknowledged end to end, and an operator on a
+        marginal path needs to know which of their messages actually landed
+        -- "did that get through?" is the question the whole numbered-message
+        and ack mechanism exists to answer, and until now the pane threw the
+        answer away except for a bare "(acked)".
+
+        The four states are genuinely different actions for the operator:
+
+        * `ack`      -- the far end confirmed it. Done.
+        * `sent`     -- gone out, waiting for the ack. Wait.
+        * `retry N`  -- no ack yet and we have resent it N times. Still
+                        waiting, but the path is not looking good.
+        * `no ack`   -- we stopped retrying and never heard one. Nothing else
+                        is going to happen on its own; send it again, or try
+                        another path. This also covers a message from before
+                        a restart, because the retry queue is deliberately
+                        in-memory only (see `aprs_conversations`'s docstring
+                        -- kissterm must not resume transmitting into an old
+                        conversation on launch), so "we have forgotten" and
+                        "we gave up" are honestly the same claim here.
+
+        A message we sent with no number at all is unackable by construction
+        and says so rather than pretending it is waiting for something.
+        """
+        if entry.acked:
+            return "ack"
+        if entry.number is None:
+            return "no ack requested"
+        attempts = self._pending.attempts_for(callsign, entry.number)
+        if attempts is None:
+            return "no ack"
+        return "sent" if attempts == 0 else f"retry {attempts}"
+
     def _show_conversation_for(self, callsign: str, title: str) -> None:
         """Repaint the conversation log for `callsign` -- the shared render
         step for a contact-row selection AND a bare "To:" callsign that
         matches no saved contact at all."""
         callsign = callsign.strip().upper()
+        # Remembered so a status change (an ack arriving, a retry going out)
+        # can repaint the view the operator is actually looking at, rather
+        # than only correcting itself the next time they click a contact.
+        self._shown_callsign = callsign
+        self._shown_title = title
         self.query_one("#aprs-conversation-title", Static).update(title)
         log = self.query_one("#aprs-conversation-log", RichLog)
         log.clear()
@@ -293,9 +339,20 @@ class AprsPane(Horizontal):
             log.write("(no messages yet)")
             return
         for entry in convo.messages:
-            arrow = "<" if entry.direction == "in" else ">"
-            ack = " (acked)" if entry.direction == "out" and entry.acked else ""
-            log.write(f"{arrow} {entry.text}{ack}")
+            if entry.direction == "in":
+                log.write(f"< {entry.text}")
+            else:
+                log.write(f"> {entry.text}  [{self._outgoing_status(callsign, entry)}]")
+
+    def refresh_conversation(self) -> None:
+        """Repaint whatever conversation is on screen, if any.
+
+        Called when a status may have changed underneath the view -- an ack
+        arriving on the frame fan-out, or the retry timer resending. Cheap
+        (a `RichLog` rewrite of one conversation) and idempotent.
+        """
+        if self._shown_callsign:
+            self._show_conversation_for(self._shown_callsign, self._shown_title)
 
     # -- new / edit / forget -------------------------------------------------
     def _new_contact(self) -> None:
@@ -545,3 +602,8 @@ class AprsPane(Horizontal):
             await self.app._send_aprs_message(  # type: ignore[attr-defined]
                 callsign, text, number, retry=True
             )
+        # An ack may have landed and a retry may have gone out since the last
+        # paint; both change what the status column should say. Repainting
+        # here is what makes "sent" become "ack" on screen without the
+        # operator having to click away and back.
+        self.refresh_conversation()

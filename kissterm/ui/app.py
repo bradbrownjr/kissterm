@@ -911,13 +911,16 @@ class KissTermApp(App):
                 if callsign_matches(msg.addressee, mycalls):
                     if getattr(self.config, "aprs_auto_ack", True) and msg.number:
                         await self._send_aprs_ack(source, msg.number, port)
+                self._repaint_aprs_conversation()
             elif msg.is_ack and msg.number:
-                # Flips `MessageEntry.acked` in the persisted log. A pending-
-                # send retry loop (APRS pane, not built yet) reads that flag
-                # back off `self.aprs_conversations` on its own timer rather
-                # than needing a live callback wired here for a consumer
-                # that does not exist yet.
+                # Flips `MessageEntry.acked` in the persisted log, which the
+                # pane's retry loop also reads off its own timer.
                 self.aprs_conversations.mark_acked(source, msg.number)
+                # Repaint now rather than waiting up to a retry interval for
+                # the pane's timer: an ack is the answer to "did that get
+                # through?", and an operator watching the screen for it
+                # should not see a stale "sent" for another ten seconds.
+                self._repaint_aprs_conversation()
 
         decision = evaluate_packet(packet, self.config.mycall, self.config.mycall_aliases)
         if decision is None:
@@ -934,6 +937,15 @@ class KissTermApp(App):
     @work
     async def _notify_aprs_desktop(self, title: str, body: str, *, urgent: bool) -> None:
         await desktop_notify.notify_any(title, body, sound="request" if urgent else "none")
+
+    def _repaint_aprs_conversation(self) -> None:
+        """Ask the APRS pane to redraw the conversation on screen, if it is
+        mounted. Tolerates it not being there -- this runs from the frame
+        fan-out, which outlives the widget tree (same reasoning as
+        `_to_terminal`)."""
+        for pane in self._base_query(AprsPane):
+            pane.refresh_conversation()
+            return
 
     async def _send_aprs_ack(self, addressee: str, number: str, port: int) -> None:
         """Auto-ack an APRS message addressed to us -- see

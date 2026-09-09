@@ -278,3 +278,41 @@ async def test_a_configured_sms_template_changes_the_wire_body(tmp_path):
         assert packet.data.text == "SMS 5551234567: hi"
     mine.close()
     theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_the_conversation_shows_sent_then_ack(tmp_path):
+    """APRS messaging is acknowledged end to end, and "did that get through?"
+    is the question the whole numbered-message mechanism exists to answer.
+    The pane used to throw the answer away except for a bare "(acked)"."""
+    app, mine, theirs, ta = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        pane = app.query_one(AprsPane)
+
+        app.query_one("#aprs-to-input", Input).value = "WLNK-1"
+        app.query_one("#aprs-compose-input", Input).value = "L"
+        pane._send_pressed()
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+
+        lines = _log_lines(app)
+        assert any("[sent]" in line for line in lines), lines
+
+        # The far end acks it; the status must follow without the operator
+        # clicking away and back.
+        number = pane._pending._pending and list(pane._pending._pending)[0][1]
+        app.aprs_conversations.mark_acked("WLNK-1", number)
+        pane.refresh_conversation()
+        await pilot.pause()
+
+        lines = _log_lines(app)
+        assert any("[ack]" in line for line in lines), lines
+        assert not any("[sent]" in line for line in lines), lines
+    mine.close()
+    theirs.close()
+
+
+def _log_lines(app):
+    log = app.query_one("#aprs-conversation-log", RichLog)
+    return [seg.text for line in log.lines for seg in line._segments]
