@@ -143,15 +143,50 @@ def test_winlink_ships_its_documented_command_set():
     assert compose.insert_text.startswith("SP ")
 
 
-def test_ntsgte_does_not_invent_a_radiogram_format():
-    """The National Traffic System gateway publishes only `INFO`; the
-    filing syntax is in a training video. A guessed format would put a
-    malformed radiogram into NTS under the operator's own callsign, which
-    is the "wrong family shown confidently" failure with real consequences.
-    This test exists to stop a future session helpfully filling the gap."""
+#: The `Nx\` line identifiers defined in the APRS Protocol Reference 1.0.1,
+#: chapter 14, "NTS Radiograms" -- the whole published list, and nothing else.
+_NTS_LINES_FROM_THE_SPEC = {
+    "N#", "NA", "NP", "N1", "N2", "N3", "N4", "N5", "N6", "NS", "NR",
+}
+
+
+def test_ntsgte_radiogram_lines_are_the_documented_ones():
+    """A malformed radiogram filed into the National Traffic System goes in
+    under the operator's own callsign, so this entry is the one place in the
+    directory where an invented field costs someone else real work.
+
+    The `Nx\\` line set is therefore closed: exactly what chapter 14 of the
+    APRS Protocol Reference defines, no more. A future session that wants to
+    add a line identifier has to cite it, and if it is not in that chapter it
+    belongs in the `recalled` set below instead.
+    """
     ntsgte = lookup("ntsgte")
     assert ntsgte is not None
-    assert [c.name for c in ntsgte.commands] == ["INFO"]
+    lines = {c.name for c in ntsgte.commands if c.name.startswith("N") and c.name != "NE"}
+    assert lines == _NTS_LINES_FROM_THE_SPEC
+
+
+def test_ntsgte_labels_what_did_not_come_from_the_specification():
+    """`QTC` and `NE` were transcribed from screenshots of one real NTSGTE
+    session, not from a specification -- so they are honest to ship and
+    dishonest to present at the same confidence as the rest."""
+    ntsgte = lookup("ntsgte")
+    assert ntsgte is not None
+    by_name = {c.name: c for c in ntsgte.commands}
+    assert by_name["QTC"].confidence == "recalled"
+    assert by_name["NE"].confidence == "recalled"
+    for name in _NTS_LINES_FROM_THE_SPEC | {"INFO"}:
+        assert by_name[name].confidence == "documented", name
+
+
+def test_ntsgte_radiogram_templates_fit_one_message_line():
+    """Chapter 14: a line may be at most 67 characters INCLUDING the
+    3-character identifier, and the gateway truncates rather than complains.
+    A shipped template longer than that would silently lose its tail."""
+    ntsgte = lookup("ntsgte")
+    assert ntsgte is not None
+    for command in ntsgte.commands:
+        assert len(command.insert_text) <= 67, command.name
 
 
 def test_lookup_by_callsign_including_aliases():

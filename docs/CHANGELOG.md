@@ -3,6 +3,33 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — NTSGTE: the radiogram line format, cited at last
+
+### New Features
+- **`NTSGTE` now ships the full NTS radiogram line format** instead of only
+  `INFO`. The previous entry stopped there on purpose — the gateway's own
+  page documents no syntax, and a guessed format would have put a malformed
+  radiogram into the National Traffic System under the operator's callsign.
+  The operator supplied the missing source: chapter 14 of the APRS Protocol
+  Reference 1.0.1 defines the `Nx\` line identifiers as part of the APRS
+  message format itself (`N#\` preamble, `NA\` address, `NP\` phone,
+  `N1\`-`N6\` text, `NS\` signature, `NR\` servicing record), along with
+  the 67-character line limit, the six-line text maximum, and why the
+  separator is a backslash — it exists in neither the RTTY nor the CW
+  alphabet, so it cannot occur inside the traffic.
+- **`QTC` and `NE\` are shipped as `recalled`, not `documented`.** Neither is
+  in that chapter; both are transcribed from screenshots of one real NTSGTE
+  session (WZ0C-5 filing message 487). `QTC <count>` announces how many
+  radiograms are coming and the gateway answers when ready; `NE\` carries
+  the addressee's email spoken out in radiogram form. They work, and saying
+  they were sourced the same way as the rest would not be true.
+- `tests/unit/test_aprs_services.py` closes the `Nx\` set against chapter
+  14's list, asserts the confidence split, and checks every template still
+  fits one 67-character message line.
+
+### Files
+- `kissterm/aprs_services/data/ntsgte.toml`, `tests/unit/test_aprs_services.py`
+
 ## [2026-09-09] — APRS contact list: callsign first, descriptions that fit, keys in the Footer
 
 ### Improvements

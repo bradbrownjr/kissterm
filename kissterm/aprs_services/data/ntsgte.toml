@@ -1,6 +1,17 @@
 # ARRL NTS radiogram gateway -- files a message into the National Traffic
-# System over APRS. kissterm ships only the INFO command on purpose; see the
-# note below. Source: https://nts2.arrl.org/ntsgte-an-aprs-nts-gateway/.
+# System over APRS.
+#
+# The radiogram line format below is NOT from the gateway's own web page,
+# which documents none of it. It is transcribed from the APRS Protocol
+# Reference 1.0.1, chapter 14 ("Messages, Bulletins and Announcements"),
+# section "NTS Radiograms", which defines the `Nx\` line identifiers as part
+# of the APRS message format itself -- supplied by the operator, along with
+# screenshots of a real NTSGTE session (WZ0C-5 filing message 487 on
+# 2023-09-17) that show the same lines being accepted on the air.
+#
+# `NE\` and `QTC` are the two things NOT in that chapter: both are
+# transcribed from that session rather than from a specification, and are
+# marked as such below.
 
 [service]
 id = "ntsgte"
@@ -8,13 +19,24 @@ callsign = "NTSGTE"
 name = "ARRL NTS radiogram gateway"
 summary = "File an NTS radiogram over APRS"
 note = """
-kissterm ships only the INFO command here, on purpose. The radiogram filing
-syntax itself is NOT published on the gateway's web page -- it lives in a
-training presentation and a linked video, with the gateway's operator
-(WZ0C) as the contact for anything not covered there. Guessing a filing
-format would risk putting a malformed radiogram into the National Traffic
-System under the operator's own callsign, which is worse than not offering
-the command at all. Send INFO and the gateway will tell you the rest.
+Files a message into the ARRL National Traffic System from APRS. Send QTC
+first to tell the gateway how many radiograms you have; it answers when it
+is ready to copy. Each radiogram is then sent as a series of messages, one
+per line, each starting with a 3-character identifier and using a BACKSLASH
+between fields -- backslash because it exists in neither the RTTY nor the CW
+alphabet, so it can never appear inside the traffic itself.
+
+A line may be at most 67 characters including the identifier, and anything
+past that is TRUNCATED rather than rejected. There is a maximum of 6 message
+text lines. The gateway checks the preamble's word count against what you
+actually sent and will ask you to correct it before it accepts the message.
+
+The line format is from the APRS Protocol Reference 1.0.1, chapter 14
+(http://www.aprs.org/doc/APRS101.PDF), not from the gateway's own page,
+which documents none of it. QTC and the NE email line are transcribed from a
+real NTSGTE session instead and are labelled as such. Send INFO for the
+gateway's own instructions; it is run by WZ0C, who is the contact for
+anything not covered here.
 """
 source = "https://nts2.arrl.org/ntsgte-an-aprs-nts-gateway/"
 checked = "2026-09-09"
@@ -25,3 +47,105 @@ region = "US (National Traffic System)"
 name = "INFO"
 summary = "Ask the gateway to send you its instructions"
 template = "INFO"
+
+[[commands]]
+name = "QTC"
+summary = "Announce how many radiograms you are about to file"
+template = "QTC <count>"
+detail = """
+Sent before the radiogram itself. The gateway replies with your name and
+"ready to copy N radiogram(s)". Observed in a real NTSGTE session rather
+than taken from a specification, so the exact argument form is best-effort.
+"""
+confidence = "recalled"
+
+[[commands]]
+name = "N#"
+summary = "Preamble: number, precedence, handling, originator, check, place, date"
+template = "N#\\<num>\\<prec>\\<hx>\\<orig>\\<chk>\\<place>\\<time>\\<date>"
+detail = """
+REQUIRED. The eight preamble fields of the ARRL radiogram form, separated by
+backslashes: number, precedence, handling, originator, check, place of
+origin, time filed, date. Leave a field empty to omit it (the time field is
+commonly empty). Example from a real session:
+N#\\487\\R\\HXC\\WZ0C\\10\\MAYNARD MA\\\\SEP 17
+The `check` is the word count of the message text, and the gateway verifies
+it -- it answered "Please fill preamble. Got check of 10 in 2 lines" to a
+message whose check said 9.
+"""
+
+[[commands]]
+name = "NA"
+summary = "Addressee: up to four address lines"
+template = "NA\\<name and callsign>\\<street>\\<city state zip>\\<line 4>"
+detail = """
+REQUIRED. Up to four lines of the mailing address, backslash separated.
+Real example: NA\\FRED KEMMERER AB1OC\\HOLLIS NH 03049
+"""
+
+[[commands]]
+name = "NP"
+summary = "Addressee's telephone number"
+template = "NP\\<phone number>"
+detail = "Optional."
+
+[[commands]]
+name = "NE"
+summary = "Addressee's email address, spoken out in radiogram form"
+template = "NE\\<call> ATSIGN <domain> DOT <tld>"
+detail = """
+Optional, and NOT part of the APRS Protocol Reference's chapter 14 list --
+transcribed from a real NTSGTE session, where NE\\AB1OC ATSIGN ARRL DOT ORG
+was accepted and came out as "EMAIL AB1OC ATSIGN ARRL DOT ORG" on the
+delivered radiogram. Written out in words because a radiogram is a
+plain-text form carried by voice and CW as well as by APRS.
+"""
+confidence = "recalled"
+
+[[commands]]
+name = "N1"
+summary = "Message text, line 1"
+template = "N1\\<line 1 of message text>"
+detail = "Up to six text lines, N1 through N6. Each line is at most 67 characters including the identifier."
+
+[[commands]]
+name = "N2"
+summary = "Message text, line 2"
+template = "N2\\<line 2 of message text>"
+
+[[commands]]
+name = "N3"
+summary = "Message text, line 3"
+template = "N3\\<line 3 of message text>"
+
+[[commands]]
+name = "N4"
+summary = "Message text, line 4"
+template = "N4\\<line 4 of message text>"
+
+[[commands]]
+name = "N5"
+summary = "Message text, line 5"
+template = "N5\\<line 5 of message text>"
+
+[[commands]]
+name = "N6"
+summary = "Message text, line 6"
+template = "N6\\<line 6 of message text>"
+
+[[commands]]
+name = "NS"
+summary = "Signature block"
+template = "NS\\<name and callsign>"
+detail = "REQUIRED. Real example: NS\\MICHAEL WZ0C"
+
+[[commands]]
+name = "NR"
+summary = "Received-from and sent-to servicing record"
+template = "NR\\<received from>\\<date_time>\\<sent to>\\<date_time>"
+detail = """
+Listed as required by the APRS Protocol Reference, but the real NTSGTE
+session that sourced the rest of this entry filed message 487 successfully
+without it -- the gateway answered "Roger message 487" after the corrected
+preamble, with no NR line sent.
+"""
