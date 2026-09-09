@@ -221,7 +221,15 @@ conversation, and swapping it mid-session would kill the link by timeout.
 | `Ctrl+Shift+D` | Disconnect -- plain `Ctrl+D` also works except while a text field has focus, which is most of a session; see below |
 | `Ctrl+K` | Change your callsign |
 | `Ctrl+L` | Clear the active log |
+| `Ctrl+O` | Browse saved session transcripts |
+| `Ctrl+F` | Find in the terminal scrollback |
 | `Ctrl+Q` | Quit |
+| `Ctrl+P` | Command palette -- also a searchable reference for every key above |
+
+**The footer at the bottom of the screen shows as many of the keys above as
+fit the terminal width**, TX/Connect/Disconnect/Contacts first, widening out
+to the rest as the window grows. Nothing is ever unreachable at a narrow
+width -- `Ctrl+P` always lists the full set, searchable by name.
 
 Connect targets accept a digipeater path: `WS1EC-7 via W1AW-1,W1XYZ`.
 

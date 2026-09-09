@@ -102,12 +102,13 @@ import logging
 from pathlib import Path
 
 from rich.table import Table
-from textual import on, work
+from textual import events, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.timer import Timer
 from textual.widgets import Footer, Static, TabbedContent, TabPane
+from textual.widgets._footer import FooterKey
 
 from .. import __version__
 from ..addressbook import AddressBook
@@ -129,6 +130,7 @@ from ..tx import DISABLED_MESSAGE, TransmitGate
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
+from .commands import KeyBindingsProvider, fit_footer_bindings
 from ..nodes import CommandReference
 from ..nodes.reference import identify_family
 from .dialogs import (
@@ -295,6 +297,109 @@ class _SessionLinkAdapter:
             pass
 
 
+class KissTermFooter(Footer):
+    """A Footer that hides its lowest-priority keys instead of scrolling
+    them off-screen.
+
+    Textual's own `Footer` is a horizontally-scrollable container with its
+    scrollbar suppressed (`scrollbar-size: 0 0` in its own `DEFAULT_CSS`):
+    at an ordinary 80-column terminal, kissterm's eleven action bindings plus
+    the command-palette chip need about 140 columns, so roughly a third of
+    them are pushed past the right edge, reachable only by a mouse-wheel
+    scroll with no on-screen sign anything is missing. Reported directly
+    from a real session; see `docs/CHANGELOG.md`.
+
+    This override reimplements `Footer.compose()` (Textual's own version:
+    `textual.widgets._footer.Footer.compose`) but replaces "show every
+    `show=True` binding, however many columns that needs" with "show the
+    highest-priority prefix of them that actually fits" --
+    `commands.fit_footer_bindings`, ranked by `commands.ACTION_META`. A
+    narrower terminal means fewer keys shown, never a key silently pushed
+    out of reach; the full set stays one `Ctrl+P` away either way, since
+    `commands.KeyBindingsProvider` reads the same `BINDINGS` list.
+
+    Does NOT support `Binding.Group` the way the real `Footer.compose()`
+    does -- nothing in this app groups bindings today. Add that back (see
+    the real implementation) if a future `Binding` ever sets `group=`.
+
+    `_on_resize` is what makes the fit re-run as the terminal is resized:
+    Textual's own `Footer` only recomposes when the *set* of bindings
+    changes (`bindings_updated_signal`), because which ones fit was never
+    previously a function of width. `refresh_bindings()` republishes that
+    same signal, which `Footer.bindings_changed` (inherited, unchanged) is
+    already subscribed to.
+    """
+
+    def compose(self) -> ComposeResult:
+        if not self._bindings_ready:
+            return
+        active_bindings = self.screen.active_bindings
+        bindings = [
+            (binding, enabled, tooltip)
+            for (_, binding, enabled, tooltip) in active_bindings.values()
+            if binding.show
+        ]
+        action_to_bindings: dict[str, list[tuple[Binding, bool, str]]] = {}
+        for binding, enabled, tooltip in bindings:
+            action_to_bindings.setdefault(binding.action, []).append(
+                (binding, enabled, tooltip)
+            )
+
+        show_palette = self.show_command_palette and self.app.ENABLE_COMMAND_PALETTE
+        palette_binding = None
+        palette_reserved = 0
+        if show_palette:
+            try:
+                _node, palette_binding, _enabled, _tooltip = active_bindings[
+                    self.app.COMMAND_PALETTE_BINDING
+                ]
+            except KeyError:
+                show_palette = False
+            else:
+                palette_reserved = (
+                    len(self.app.get_key_display(palette_binding))
+                    + len(palette_binding.description)
+                    + 3
+                )
+
+        budget = max(self.size.width - palette_reserved, 0)
+        items = [
+            (
+                action,
+                self.app.get_key_display(group[0][0]),
+                group[0][0].description,
+            )
+            for action, group in action_to_bindings.items()
+        ]
+        for action, key_display, description in fit_footer_bindings(items, budget):
+            binding, enabled, tooltip = action_to_bindings[action][0]
+            yield FooterKey(
+                binding.key,
+                key_display,
+                description,
+                binding.action,
+                disabled=not enabled,
+                tooltip=tooltip,
+            ).data_bind(compact=Footer.compact)
+
+        if show_palette:
+            _node, binding, enabled, tooltip = active_bindings[
+                self.app.COMMAND_PALETTE_BINDING
+            ]
+            yield FooterKey(
+                binding.key,
+                self.app.get_key_display(binding),
+                binding.description,
+                binding.action,
+                classes="-command-palette",
+                disabled=not enabled,
+                tooltip=binding.tooltip or binding.description,
+            )
+
+    def _on_resize(self, event: events.Resize) -> None:
+        self.refresh_bindings()
+
+
 class KissTermApp(App):
     """The application.
 
@@ -308,12 +413,21 @@ class KissTermApp(App):
 
     CSS = APP_CSS
 
+    #: Adds `KeyBindingsProvider` (`commands.py`) to Textual's own default
+    #: `{get_system_commands_provider}` -- without this, Ctrl+P only ever
+    #: listed Textual's small built-in System Commands (Theme, Quit, Keys,
+    #: Maximize, Screenshot), and typing in its search box filtered that
+    #: short list and nothing else: none of kissterm's own BINDINGS, visible
+    #: or hidden, were searchable there at all.
+    COMMANDS = App.COMMANDS | {KeyBindingsProvider}
+
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit"),
-        # Hidden from the footer: the tab bar already shows these, and at 80
-        # columns -- a perfectly ordinary terminal -- the footer overflows and
-        # starts truncating the ACTION bindings, which are not discoverable
-        # anywhere else.
+        # Hidden from the footer: the tab bar already shows these instead
+        # (rule 16, `kissterm/ui/AGENTS.md`) -- unrelated to why every other
+        # binding below stays discoverable even once `KissTermFooter` (this
+        # module) runs out of room for it: `Ctrl+P` lists all of them,
+        # `commands.KeyBindingsProvider` reads this same list.
         Binding("f1", "show_tab('terminal')", "Terminal", show=False),
         Binding("f2", "show_tab('monitor')", "Monitor", show=False),
         Binding("f3", "show_tab('heard')", "Heard", show=False),
@@ -512,7 +626,7 @@ class KissTermApp(App):
         # order. One docked parent with an explicit height lays them out as
         # two distinct rows. Verified in tests/pilot/test_app_mounts.py.
         with Vertical(id="bottom-bar"):
-            yield Footer()
+            yield KissTermFooter()
             yield Static(id="status-bar")
 
     def apply_theme(self) -> None:

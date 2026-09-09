@@ -135,10 +135,30 @@ tab existed to expect it.
 - **A tab's key never also appears in the Footer.** That put the same words on
   screen twice, in two different corners. Register the binding with
   `show=False`.
-- **The Footer is for non-tab actions only** — Connect, Disconnect, Callsign,
-  Commands, Transcripts, Find, Quit, palette.
+- **The Footer is for non-tab actions only** — TX, Connect, Disconnect,
+  Contacts, Commands, Beacon, Callsign, Find, Clear, Transcripts, Quit,
+  palette.
 - **`Ctrl+1..5` are unlabelled fallback aliases** for terminals that intercept
   function keys.
+- **The Footer shows the highest-priority prefix of that list that fits the
+  terminal width, not all of it truncated.** Textual's own `Footer` is a
+  horizontally-scrollable container with its scrollbar suppressed — at an
+  ordinary 80-column terminal the full list above needs about 140 columns, so
+  roughly a third of it used to be scrolled off past the right edge with no
+  on-screen sign anything was missing (reported directly from a real
+  session). `KissTermFooter` (`kissterm/ui/app.py`) keeps the essential
+  mid-contact cluster — TX, Connect, Disconnect, Contacts — and drops the rest
+  in priority order as the terminal narrows, ranked by
+  `kissterm/ui/commands.py`'s `ACTION_META`. A narrower terminal means fewer
+  keys shown, never a key silently unreachable: the full list is always one
+  `Ctrl+P` away regardless of width.
+- **`Ctrl+P` is a real, searchable key reference, not just Textual's small
+  built-in System Commands.** `commands.KeyBindingsProvider` walks every
+  action in `KissTermApp.BINDINGS` — visible and `show=False` alike, so
+  Ctrl+B/Ctrl+D's hidden legacy-terminal fallbacks and anything the Footer
+  currently has no room for are still one search away — and offers them
+  fuzzy-searchable, grouped by the same `ACTION_META` categories (Connection,
+  Transmit, Terminal, Contacts, Panes, App).
 - **Ceiling: F1–F10.** Originally set at F8 (some terminals were assumed
   unreliable past it), raised once F9/F10 were confirmed working in practice
   — see `docs/ROADMAP.md` P10. Five tabs exist, three more are planned
@@ -187,9 +207,15 @@ contacts panel once that tab exists — is a collapsible column docked on the
 ## 6. The bottom two rows
 
 ```
- ^q Quit  ^n Connect  ^D Disconnect  ^k Callsign  ^r Commands  ^o Transcripts  ^f Find  ^G Contacts   <- Footer
- kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6     <- status
+ ^t TX  ^n Connect  ^D Disconnect  ^G Contacts  ^r Commands  ^B Beacon  ^k Callsign ...  <- Footer (80 cols)
+ kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6                             <- status
 ```
+
+The Footer row above is illustrative, not literal — which keys actually fit
+is a function of terminal width; see the new bullet above. At 80 columns
+that is roughly the prefix shown; a wider terminal keeps adding Find, Clear,
+Transcripts, Quit and the `^p` command-palette chip in the same priority
+order.
 
 - **Footer above, status below.** Keys you might press come first, reading top
   to bottom; the passive readout comes last.

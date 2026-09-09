@@ -24,6 +24,7 @@ from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa
 from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
+from kissterm.ui.commands import ACTION_META, KeyBindingsProvider, _action_base  # noqa: E402
 from kissterm.ui.dialogs import CallsignScreen, ConnectScreen  # noqa: E402
 from textual.widgets import Input, Select, TextArea  # noqa: E402
 
@@ -405,6 +406,100 @@ async def test_ctrl_g_is_a_no_op_on_a_tab_with_no_slideout():
         await pilot.press("ctrl+g")
         await pilot.pause()
         assert not app.query_one("#terminal-addressbook-column").display
+    station.close()
+
+
+# ---------------------------------------------------------------------------
+# The width-aware Footer and the Ctrl+P key reference --
+# docs/CHANGELOG.md's "Footer overflow and a real, searchable Keys
+# reference" entry, kissterm/ui/commands.py.
+# ---------------------------------------------------------------------------
+
+
+def test_every_visible_binding_action_has_footer_and_palette_metadata():
+    """A `Binding` with no `ACTION_META` entry silently falls back to
+    `commands._FALLBACK_META` instead of crashing the Footer -- this test is
+    what actually enforces that every action gets a deliberate category and
+    priority, the same discipline `AGENTS.md` asks of `Config`/
+    `SETTINGS_SCHEMA`."""
+    missing = {
+        _action_base(binding.action)
+        for binding in KissTermApp.BINDINGS
+        if binding.show and _action_base(binding.action) not in ACTION_META
+    }
+    assert not missing, f"no ACTION_META entry for: {sorted(missing)}"
+
+
+@pytest.mark.asyncio
+async def test_the_footer_shows_fewer_keys_at_an_ordinary_terminal_width():
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        footer = app.query_one("Footer")
+        shown = {c.description for c in footer.children}
+        # The core mid-contact cluster survives an 80-column terminal...
+        for essential in ("TX", "Connect", "Disconnect", "Contacts"):
+            assert essential in shown, f"{essential} missing at 80 columns: {shown}"
+        # ...but not everything does; if it did, this feature fixed nothing.
+        assert "Transcripts" not in shown
+        assert len(shown) < len(KissTermApp.BINDINGS)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_footer_shows_every_binding_once_the_terminal_is_wide_enough():
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(200, 30)) as pilot:
+        await pilot.pause()
+        footer = app.query_one("Footer")
+        shown = {c.description for c in footer.children}
+        for expected in (
+            "TX",
+            "Connect",
+            "Disconnect",
+            "Contacts",
+            "Commands",
+            "Beacon",
+            "Callsign",
+            "Find",
+            "Clear",
+            "Transcripts",
+            "Quit",
+        ):
+            assert expected in shown, f"{expected} missing at 200 columns: {shown}"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_footer_widens_back_out_on_a_live_resize():
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        footer = app.query_one("Footer")
+        narrow_count = len(list(footer.children))
+        await pilot.resize_terminal(200, 30)
+        await pilot.pause()
+        assert len(list(footer.children)) > narrow_count
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_p_key_reference_finds_and_runs_a_binding():
+    """Before this, Ctrl+P only listed Textual's own tiny built-in System
+    Commands -- searching for one of kissterm's own keys found nothing at
+    all, regardless of terminal width."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        assert KeyBindingsProvider in app.COMMANDS
+        provider = KeyBindingsProvider(app.screen)
+        hits = [hit async for hit in provider.search("contacts")]
+        assert hits, "Ctrl+G's Contacts binding is not searchable from the palette"
+        column = app.query_one("#terminal-addressbook-column")
+        assert not column.display
+        await hits[0].command()
+        await pilot.pause()
+        assert column.display, "the palette hit's command did not run the action"
     station.close()
 
 

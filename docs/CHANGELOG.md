@@ -3,6 +3,40 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Width-aware Footer, and Ctrl+P as a real key reference
+
+### New Features
+- **The Footer now shows the highest-priority prefix of its key list that
+  actually fits the terminal, not everything truncated.** Reported directly
+  from a real session: Textual's own `Footer` is a horizontally-scrollable
+  container with its scrollbar suppressed, so at an ordinary 80-column
+  terminal roughly a third of kissterm's eleven action bindings were being
+  pushed past the right edge, reachable only by a mouse-wheel scroll with no
+  on-screen sign anything was missing. `KissTermFooter`
+  (`kissterm/ui/app.py`) keeps TX, Connect, Disconnect and Contacts first --
+  the cluster an operator reaches for mid-contact -- and adds the rest back
+  in priority order as the terminal widens, re-fitting live on resize.
+- **`Ctrl+P` is now a real, searchable key reference.** Nothing previously
+  registered a Textual command-palette `Provider`, so Ctrl+P only ever
+  listed Textual's own small built-in System Commands (Theme, Quit, Keys,
+  Maximize, Screenshot) and typing in its search box filtered that short
+  list, not kissterm's own keys. `commands.KeyBindingsProvider` walks every
+  action in `KissTermApp.BINDINGS` -- including Ctrl+B/Ctrl+D's hidden
+  legacy-terminal fallbacks and anything the Footer has no room for -- and
+  offers them fuzzy-searchable, grouped by category (Connection, Transmit,
+  Terminal, Contacts, Panes, App).
+- Both read one shared table, `kissterm/ui/commands.py`'s `ACTION_META`
+  (category + Footer priority per action), so a key can no longer be
+  discoverable in one place and not the other. A `Binding` missing an entry
+  fails `tests/pilot/test_app_mounts.py::test_every_visible_binding_action_
+  has_footer_and_palette_metadata` at test time rather than silently
+  dropping out of the Footer at some width.
+
+### Files
+- `kissterm/ui/app.py`, `kissterm/ui/commands.py` (new)
+- `DESIGN.md`, `kissterm/ui/AGENTS.md`, `docs/ROADMAP.md`
+- `tests/unit/test_commands.py` (new), `tests/pilot/test_app_mounts.py`
+
 ## [2026-09-09] — Address Book and APRS contacts become Ctrl+G slide-outs
 
 ### New Features

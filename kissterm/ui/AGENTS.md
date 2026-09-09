@@ -19,11 +19,13 @@ Read this file plus the one pane you are changing.
 | `terminal_pane.py` | Session scrollback + input line + sending |
 | `monitor_pane.py` | Channel log + filter bar |
 | `heard_pane.py` | Heard `DataTable` |
-| `aprs_pane.py` | Placeholder; the real pane is roadmap P4 |
+| `aprs_pane.py` | Conversation view + a Ctrl+G contacts slide-out; station list/map and beaconing are still roadmap P4 |
 | `themes.py` | Theme catalog: curated ids, custom-hex builder |
 | `settings_schema.py` | **Declarative** list of every editable setting |
 | `settings_pane.py` | The settings form, generated from that schema |
 | `dialogs.py` | `ConnectScreen` and future modals |
+| `addressbook_pane.py` | The Address Book table + CRUD, mounted as the Terminal pane's Ctrl+G slide-out (`DESIGN.md`'s "Slide-out panels") |
+| `commands.py` | `ACTION_META`: one table of (category, footer priority) per `BINDINGS` action, read by both `KissTermFooter` and `KeyBindingsProvider` in `app.py` |
 
 `kissterm/app.py` one level up is a thin shim re-exporting `KissTermApp`, so
 `from kissterm.app import KissTermApp` keeps working. Leave it alone.
@@ -89,12 +91,12 @@ Read this file plus the one pane you are changing.
     (all five tabs, including Settings) are named in the tab label itself, key
     first (`F1 Terminal`, like a menu accelerator); `Binding(..., show=False)`
     keeps them registered without the Footer repeating the same word that is
-    already in the tab strip above it. Only add a Footer-visible binding for
-    something that is NOT a tab -- the command reference is F6, specifically
-    NOT F5, because F1..F5 mapping onto "the five tabs" is the pattern an
-    operator expects once F1..F4 exist, and a non-tab action squatting on the
-    next number in sequence broke that the moment a fifth tab existed. If a
-    sixth tab is ever added, F6 needs to move again, not the reverse.
+    already in the tab strip above it. Function keys are tabs, Ctrl sequences
+    are actions and modals -- no exceptions; the one time a modal took a
+    function key (the command reference, briefly on F5 then F6) it broke the
+    "F*n* is the *n*-th tab" pattern the moment another tab existed to expect
+    it. The command reference is `Ctrl+R` now, not any F-key, for exactly
+    that reason. If a sixth tab is ever added it takes F6, not the reverse.
 17. **One `Button` style for the whole app** (`styles.py`, top of `APP_CSS`):
     a flat rounded border, no filled 3D bevel. Variant classes
     (`-primary`/`-error`/...) change only the border and text color, never the
@@ -155,6 +157,18 @@ Read this file plus the one pane you are changing.
     `link.send` -- which is not a second transmit path, and rule 14 still
     holds.
 29. No emoji anywhere.
+30. **`KissTermFooter` shows the highest-priority prefix of `BINDINGS` that
+    fits the terminal width, not everything truncated.** Textual's stock
+    `Footer` is a horizontally-scrollable container with its scrollbar
+    suppressed, so at an ordinary 80-column terminal roughly a third of
+    kissterm's own bindings used to be scrolled off past the right edge with
+    no on-screen sign anything was missing. Adding a new App-level `Binding`
+    means adding it to `commands.ACTION_META` too (category for `Ctrl+P`,
+    priority for the Footer) -- a missing entry degrades to `Other`/lowest
+    priority at runtime rather than crashing, but
+    `tests/pilot/test_app_mounts.py::test_every_visible_binding_action_has_
+    footer_and_palette_metadata` fails the build for it regardless, the same
+    discipline rule 11 already asks of `SETTINGS_SCHEMA`.
 
 ## Testing
 
