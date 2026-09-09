@@ -3,6 +3,52 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — APRS Settings: a real symbol picker, WIDE presets, grid squares, Winlink notify
+
+### New Features
+- **The APRS Settings section stopped asking the operator to remember
+  things.** Map symbol was a two-character text field an operator had to
+  know from memory; the WIDE digipeater path was a bare string; position
+  was decimal degrees only, with no help for anyone quoting their QTH as a
+  grid square. All three are now real pickers:
+  - **Map symbol** is a filterable dropdown (`kissterm/aprs/symbols.py`,
+    the full primary+secondary APRS table, sourced from
+    https://github.com/hessu/aprs-symbol-index) -- type "car", "digi",
+    "fire" and the list narrows live. Each entry optionally carries a
+    cosmetic emoji, shown only when `Config.ascii_safe` is False.
+  - **Digipeater path** is a preset dropdown (`WIDE1-1,WIDE2-1` /
+    `WIDE1-1` / `WIDE2-2` / direct) plus a **Custom...** option that
+    reveals a free-text field -- a value that matches no preset (a
+    hand-edited config.toml, say) still shows correctly as Custom with its
+    literal text, never silently discarded.
+  - **Position entry** can be typed as decimal degrees or a Maidenhead
+    grid square (4/6/8 characters, `kissterm/locator.py`, new hand-rolled
+    conversion verified against the well-known ARRL HQ reference point
+    FN31pr) -- a mode dropdown switches between them, converting whatever
+    is already entered rather than discarding it. A regression bug was
+    caught and fixed here before it shipped: bulk-loading the position
+    widgets from a saved config used to be able to silently overwrite an
+    exact stored latitude with the center of its own grid square, because
+    the Input widgets' own live-sync handlers could process their queued
+    `Changed` messages after the mode had already switched underneath
+    them. Fixed by using `set_reactive` (no message posted at all) for the
+    bulk-load path, rather than trying to out-race Textual's async message
+    queue with a timing-sensitive suppression flag.
+- **"Check for Winlink messages" checkbox** (`Config.aprs.winlink_check`).
+  Appends `WINLINK` to the transmitted beacon comment, reserving room for
+  the token before truncation runs so a long comment never crowds it out.
+  **UNVERIFIED, uncited convention** -- some Winlink RMS/CMS gateways are
+  reported to treat this as a request to notify the operator of pending
+  mail over APRS, not confirmed against a spec, same footing as
+  `Config.aprs_sms_gateway`.
+
+### Files
+- `kissterm/locator.py`, `kissterm/aprs/symbols.py` (both new, previous
+  commit), `kissterm/config.py`, `kissterm/aprs_beacon.py`,
+  `kissterm/ui/settings_schema.py`, `kissterm/ui/settings_pane.py`,
+  `kissterm/ui/styles.py`, `tests/unit/test_aprs_beacon.py`,
+  `tests/pilot/test_settings.py`
+
 ## [2026-09-09] — APRS beaconing actually beacons
 
 ### New Features

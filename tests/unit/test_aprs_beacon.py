@@ -178,6 +178,50 @@ async def test_the_transmitted_frame_decodes_back_to_the_same_position():
 
 
 # ---------------------------------------------------------------------------
+# Winlink notify flag
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_winlink_check_appends_the_token_to_the_comment():
+    station, _, _ = await _station()
+    beacon = AprsBeaconer(station, _config(comment="hi", winlink_check=True))
+    frame = beacon.build_frame()
+    decoded = parse_packet(frame)
+    assert decoded.data.comment == "hi WINLINK"
+
+
+@pytest.mark.asyncio
+async def test_winlink_check_off_leaves_the_comment_untouched():
+    station, _, _ = await _station()
+    beacon = AprsBeaconer(station, _config(comment="hi", winlink_check=False))
+    frame = beacon.build_frame()
+    decoded = parse_packet(frame)
+    assert decoded.data.comment == "hi"
+
+
+@pytest.mark.asyncio
+async def test_winlink_token_alone_when_comment_is_empty():
+    station, _, _ = await _station()
+    beacon = AprsBeaconer(station, _config(comment="", winlink_check=True))
+    frame = beacon.build_frame()
+    decoded = parse_packet(frame)
+    assert decoded.data.comment == "WINLINK"
+
+
+@pytest.mark.asyncio
+async def test_winlink_token_survives_truncation_of_a_long_comment():
+    """The token must never be the thing that gets cut off -- reserve its
+    room before truncating the operator's own comment, not after."""
+    station, _, _ = await _station()
+    beacon = AprsBeaconer(station, _config(comment="x" * 200, winlink_check=True))
+    frame = beacon.build_frame()
+    decoded = parse_packet(frame)
+    assert decoded.data.comment.endswith("WINLINK")
+    assert len(decoded.data.comment.encode("ascii")) <= 100
+
+
+# ---------------------------------------------------------------------------
 # Timing
 # ---------------------------------------------------------------------------
 
@@ -185,6 +229,17 @@ async def test_the_transmitted_frame_decodes_back_to_the_same_position():
 def test_interval_floor_is_enforced_in_code_not_only_in_the_config_loader():
     beacon = AprsBeaconer(None, AprsConfig(beacon_interval_minutes=1))
     assert beacon.interval_seconds == MIN_INTERVAL_MINUTES * 60
+
+
+def test_grid_square_and_winlink_check_round_trip_through_save_and_load(tmp_path):
+    path = tmp_path / "config.toml"
+    cfg = Config(mycall="W1AW-1")
+    cfg.aprs = _config(grid_square="FN31pr", winlink_check=True)
+    save_config(cfg, path)
+    loaded = load_config(path)
+    assert loaded.aprs.grid_square == "FN31pr"
+    assert loaded.aprs.winlink_check is True
+    assert loaded.warnings == []
 
 
 def test_config_loader_clamps_the_interval_and_says_so(tmp_path):

@@ -23,11 +23,19 @@ import logging
 from collections.abc import Callable
 
 from .aprs import encode as aprs_encode
+from .aprs.encode import _MAX_COMMENT
 from .ax25.address import AX25AddressError, AX25Path, parse_path
 from .ax25.frame import AX25Frame
 from .config import MIN_BEACON_INTERVAL_MINUTES, AprsConfig
 
 log = logging.getLogger(__name__)
+
+#: Appended to the comment when `Config.aprs.winlink_check` is set.
+#: **UNVERIFIED, uncited convention**: some Winlink RMS/CMS gateways are
+#: reported to treat the literal text WINLINK in a heard station's beacon
+#: comment as a request to check for and notify about pending mail -- not
+#: confirmed against a spec, same footing as `Config.aprs_sms_gateway`.
+_WINLINK_TOKEN = "WINLINK"
 
 #: Same floor as the plain-text beacon, for the same reason: a courtesy to
 #: everyone else on the channel, not a preference of the operator's to be
@@ -136,13 +144,21 @@ class AprsBeaconer:
         if len(self.config.symbol) != 2 or self.config.symbol[0] not in "/\\":
             log.warning("APRS beacon not sent: bad map symbol %r", self.config.symbol)
             return None
+        comment = self.config.comment
+        if self.config.winlink_check:
+            # Reserve room for the token BEFORE position_report's own
+            # truncation to _MAX_COMMENT runs, so a long operator comment
+            # is what gets cut -- never the token itself.
+            budget = max(0, _MAX_COMMENT - len(_WINLINK_TOKEN) - 1)
+            kept = comment[:budget].rstrip()
+            comment = f"{kept} {_WINLINK_TOKEN}" if kept else _WINLINK_TOKEN
         try:
             payload = aprs_encode.position_report(
                 self.config.latitude,
                 self.config.longitude,
                 self.config.symbol[0],
                 self.config.symbol[1],
-                self.config.comment,
+                comment,
                 messaging=True,
             )
         except ValueError as exc:

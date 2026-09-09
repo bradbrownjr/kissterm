@@ -954,3 +954,254 @@ def _detail_text_of(app, selector: str) -> str:
     return str(app.query_one(selector).content)
 
 
+# ---------------------------------------------------------------------------
+# APRS WIDE-path picker (custom_choice)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_wide_path_preset_is_selected_and_the_custom_field_stays_hidden():
+    cfg = Config(mycall=str(MYCALL))
+    cfg.aprs.path = "WIDE2-2"
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        select = app.query_one("#set-aprs-path", Select)
+        custom = app.query_one("#set-aprs-path-custom", Input)
+        assert select.value == "WIDE2-2"
+        assert custom.display is False
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_path_matching_no_preset_shows_custom_with_the_literal_text():
+    """Disable, never clear: a hand-edited config.toml path must stay
+    visible and still round-trip on Save, not be silently discarded."""
+    cfg = Config(mycall=str(MYCALL))
+    cfg.aprs.path = "W1AW-1,WIDE1-1"
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        select = app.query_one("#set-aprs-path", Select)
+        custom = app.query_one("#set-aprs-path-custom", Input)
+        assert select.value == "__custom__"
+        assert custom.display is True
+        assert custom.value == "W1AW-1,WIDE1-1"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_picking_custom_reveals_the_field_and_saving_it_persists():
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        select = app.query_one("#set-aprs-path", Select)
+        custom = app.query_one("#set-aprs-path-custom", Input)
+        select.value = "__custom__"
+        await pilot.pause()
+        assert custom.display is True
+        custom.value = "WIDE1-1,N1ABC-2"
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.aprs.path == "WIDE1-1,N1ABC-2"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_picking_a_preset_after_custom_saves_the_preset_not_the_old_text():
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        select = app.query_one("#set-aprs-path", Select)
+        select.value = "__custom__"
+        await pilot.pause()
+        app.query_one("#set-aprs-path-custom", Input).value = "some custom text"
+        select.value = "WIDE1-1"
+        await pilot.pause()
+        assert app.query_one("#set-aprs-path-custom", Input).display is False
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.aprs.path == "WIDE1-1"
+    station.close()
+
+
+# ---------------------------------------------------------------------------
+# APRS symbol picker (filtered_choice)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_stored_symbol_is_preselected():
+    cfg = Config(mycall=str(MYCALL))
+    cfg.aprs.symbol = "\\!"
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        assert app.query_one("#set-aprs-symbol", Select).value == "\\!"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_typing_in_the_symbol_filter_narrows_the_options():
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        filter_input = app.query_one("#set-aprs-symbol-filter", Input)
+        select = app.query_one("#set-aprs-symbol", Select)
+        full_count = len(select._options)
+        filter_input.value = "ambulance"
+        await pilot.pause()
+        assert len(select._options) < full_count
+        assert any(v == "/a" for _label, v in select._options)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_picking_a_filtered_symbol_and_saving_persists_it():
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        app.query_one("#set-aprs-symbol-filter", Input).value = "car"
+        await pilot.pause()
+        app.query_one("#set-aprs-symbol", Select).value = "/>"
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.aprs.symbol == "/>"
+    station.close()
+
+
+# ---------------------------------------------------------------------------
+# APRS position: decimal / grid square
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_loading_a_saved_grid_square_does_not_corrupt_the_decimal_position_it_was_computed_from():
+    """Regression: bulk-populating the position widgets from `render_settings`
+    used to fire each Input's own Changed handler, and one of those could be
+    processed (asynchronously) after the mode Select had already flipped to
+    "grid" -- silently overwriting an exact stored decimal with the CENTER
+    of its own grid square the moment Settings was merely opened."""
+    cfg = Config(mycall=str(MYCALL))
+    cfg.aprs.latitude = 41.7148
+    cfg.aprs.longitude = -72.7273
+    cfg.aprs.grid_square = "FN31pr"
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        assert app.query_one("#aprs-position-mode", Select).value == "grid"
+        assert app.query_one("#set-aprs-latitude", Input).value == "41.7148"
+        assert app.query_one("#set-aprs-longitude", Input).value == "-72.7273"
+        assert app.query_one("#set-aprs-grid_square", Input).value == "FN31pr"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_decimal_only_config_defaults_to_decimal_mode_with_a_blank_grid_field():
+    cfg = Config(mycall=str(MYCALL))
+    cfg.aprs.latitude = 40.0
+    cfg.aprs.longitude = -75.0
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        assert app.query_one("#aprs-position-mode", Select).value == "decimal"
+        assert app.query_one("#aprs-decimal-row").display is True
+        assert app.query_one("#aprs-grid-row").display is False
+        assert app.query_one("#set-aprs-grid_square", Input).value == ""
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_switching_to_grid_from_blank_autofills_it_from_the_decimal_position():
+    cfg = Config(mycall=str(MYCALL))
+    cfg.aprs.latitude = 40.0
+    cfg.aprs.longitude = -75.0
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        app.query_one("#aprs-position-mode", Select).value = "grid"
+        await pilot.pause()
+        assert app.query_one("#set-aprs-grid_square", Input).value == "FN20ma"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_switching_modes_never_overwrites_an_already_populated_field():
+    """A bare mode switch with nothing newly typed must be a pure view
+    toggle -- looking at the grid tab and back must not quietly discard the
+    decimal precision that was already loaded."""
+    cfg = Config(mycall=str(MYCALL))
+    cfg.aprs.latitude = 41.7148
+    cfg.aprs.longitude = -72.7273
+    cfg.aprs.grid_square = "FN31pr"
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        mode = app.query_one("#aprs-position-mode", Select)
+        assert mode.value == "grid"
+        mode.value = "decimal"
+        await pilot.pause()
+        assert app.query_one("#set-aprs-latitude", Input).value == "41.7148"
+        assert app.query_one("#set-aprs-longitude", Input).value == "-72.7273"
+        mode.value = "grid"
+        await pilot.pause()
+        assert app.query_one("#set-aprs-grid_square", Input).value == "FN31pr"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_typing_a_new_grid_square_recomputes_the_decimal_position():
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        app.query_one("#aprs-position-mode", Select).value = "grid"
+        await pilot.pause()
+        app.query_one("#set-aprs-grid_square", Input).value = "FN31pr"
+        await pilot.pause()
+        lat = float(app.query_one("#set-aprs-latitude", Input).value)
+        lon = float(app.query_one("#set-aprs-longitude", Input).value)
+        assert round(lat, 2) == 41.73
+        assert round(lon, 2) == -72.71
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_position_round_trips_through_save_and_reload():
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        app.query_one("#set-aprs-latitude", Input).value = "34.0522"
+        app.query_one("#set-aprs-longitude", Input).value = "-118.2437"
+        await pilot.pause()
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.aprs.latitude == 34.0522
+        assert app.config.aprs.longitude == -118.2437
+
+        from kissterm.config import load_config
+
+        reloaded = load_config()
+        assert reloaded.aprs.latitude == 34.0522
+        assert reloaded.aprs.longitude == -118.2437
+        assert reloaded.aprs.grid_square  # kept in sync, not left stale/empty
+    station.close()
+
+
+# ---------------------------------------------------------------------------
+# Winlink notify checkbox
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_winlink_check_toggles_and_saves():
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        assert app.query_one("#set-aprs-winlink_check").value is False
+        app.query_one("#set-aprs-winlink_check").value = True
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.aprs.winlink_check is True
+    station.close()
+
+

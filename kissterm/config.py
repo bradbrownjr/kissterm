@@ -87,6 +87,8 @@ class AprsConfig:
     enabled: bool = False
     beacon_interval_minutes: int = 30
     #: APRS symbol table + code, e.g. "/>" for a car, "/-" for a house.
+    #: Picked from kissterm.aprs.symbols.SYMBOLS in Settings, not typed
+    #: from memory.
     symbol: str = "/>"
     latitude: float = 0.0
     longitude: float = 0.0
@@ -95,6 +97,23 @@ class AprsConfig:
     #: N-paradigm" path that gets a beacon out one hop then two wide hops
     #: without flooding a whole region the way WIDE7-7 once did.
     path: str = "WIDE1-1,WIDE2-1"
+    #: The grid square Settings last showed `latitude`/`longitude` as, purely
+    #: for redisplay fidelity -- empty means the operator has only ever used
+    #: decimal degrees. Settings defaults to grid-square entry mode showing
+    #: this string when it still matches the current lat/lon (recomputed at
+    #: render time, not trusted blindly), so switching to Settings does not
+    #: show a computed decimal that visually differs from what was typed.
+    #: Never read by the beacon itself -- `latitude`/`longitude` remain the
+    #: only fields that affect what is transmitted.
+    grid_square: str = ""
+    #: Append "WINLINK" to the transmitted comment when set -- an
+    #: UNVERIFIED, uncited convention some Winlink RMS/CMS gateways are
+    #: reported to treat as a request to notify the operator of pending
+    #: mail over APRS. Same footing as `aprs_sms_gateway`/
+    #: `aprs_email_gateway` below: real enough to be worth offering, not
+    #: confirmed against a spec, so it is never presented as fact in the
+    #: UI copy either.
+    winlink_check: bool = False
 
 
 #: Floor on the beacon interval, in minutes, enforced here and again in
@@ -702,6 +721,9 @@ def _load_aprs(value: Any, warnings: list[str]) -> AprsConfig:
         clamped = max(-180.0, min(180.0, aprs.longitude))
         warnings.append(f"aprs.longitude {aprs.longitude} out of range -180..180; clamped to {clamped}")
         aprs.longitude = clamped
+
+    aprs.grid_square = _load_str(value, "grid_square", default.grid_square, warnings)
+    aprs.winlink_check = _load_bool(value, "winlink_check", default.winlink_check, warnings)
 
     return aprs
 

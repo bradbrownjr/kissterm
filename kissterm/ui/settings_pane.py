@@ -42,6 +42,8 @@ from textual.widgets import (
     TabPane,
 )
 
+from ..aprs import symbols
+from ..locator import LocatorError, from_grid, to_grid
 from .settings_schema import (
     SETTINGS_SCHEMA,
     Field,
@@ -54,6 +56,13 @@ from .settings_schema import (
 )
 
 log = logging.getLogger(__name__)
+
+#: Sentinel `Select` value meaning "use the text field below instead of any
+#: preset" -- not a real config value, never written to `Config`. Only one
+#: `"custom_choice"` field exists today (`aprs.path`), so this is not
+#: namespaced per-field; generalize it if a second one is ever added.
+_CUSTOM_SENTINEL = "__custom__"
+_CUSTOM_LABEL = "Custom..."
 
 #: The Transports block is emitted immediately after this schema section.
 #: "Station" puts callsign and aliases at the very top of the page, with the
@@ -236,6 +245,13 @@ class SettingsPane(Vertical):
         yield Static("", id="settings-script-detail", classes="settings-help")
 
     def _compose_field(self, spec: Field) -> ComposeResult:
+        if spec.custom_render:
+            # Only `aprs.latitude` triggers the hand-built block; longitude
+            # and grid_square are covered by that same block (it yields
+            # widgets for all three ids) and yield nothing of their own here.
+            if spec.path == "aprs.latitude":
+                yield from self._compose_aprs_position()
+            return
         wid = _widget_id(spec.path)
         with Horizontal(classes="settings-row"):
             yield Label(spec.label, classes="settings-label")
@@ -247,6 +263,34 @@ class SettingsPane(Vertical):
                     id=wid,
                     allow_blank=False,
                 )
+            elif spec.kind == "custom_choice":
+                # Only `aprs.path` uses this today -- see `_CUSTOM_SENTINEL`.
+                with Vertical(classes="settings-custom-choice"):
+                    yield Select(
+                        [(label, value) for label, value in spec.choices]
+                        + [(_CUSTOM_LABEL, _CUSTOM_SENTINEL)],
+                        id=wid,
+                        allow_blank=False,
+                    )
+                    yield Input(
+                        id=f"{wid}-custom", placeholder=spec.placeholder,
+                        classes="settings-custom-choice-input",
+                    )
+            elif spec.kind == "filtered_choice":
+                # Only `aprs.symbol` uses this today. The full table is
+                # static (unlike Transports' dynamic list), so it is
+                # composed here directly rather than populated at render
+                # time; typing in the filter Input narrows it live.
+                with Vertical(classes="settings-filtered-choice"):
+                    yield Input(
+                        id=f"{wid}-filter", placeholder="Filter by name...",
+                        classes="settings-filtered-choice-filter",
+                    )
+                    yield Select(
+                        [(s.label, s.key) for s in symbols.SYMBOLS],
+                        id=wid,
+                        allow_blank=False,
+                    )
             elif spec.kind == "color":
                 yield Input(
                     id=wid, placeholder=spec.placeholder or "#1A1B26",
@@ -260,11 +304,68 @@ class SettingsPane(Vertical):
             yield Static(spec.help, classes="settings-help")
         yield Label("", id=f"{wid}-error", classes="settings-error")
 
+    def _compose_aprs_position(self) -> ComposeResult:
+        """Latitude/longitude/grid-square as one hand-built block, outside
+        the generic per-`Field` loop -- the same escape hatch Transports
+        uses, because a position has two equally valid on-screen forms and
+        the schema's one-Field-one-widget model cannot express that. See
+        `kissterm/locator.py`. `_save`/`render_settings`/`coerce` treat
+        `aprs.latitude`/`aprs.longitude`/`aprs.grid_square` exactly like any
+        other field -- this only changes what builds their widgets, not how
+        their values are read, written, or validated.
+        """
+        with Horizontal(classes="settings-row"):
+            yield Label("Position entry", classes="settings-label")
+            yield Select(
+                [("Decimal degrees", "decimal"), ("Maidenhead grid square", "grid")],
+                id="aprs-position-mode",
+                allow_blank=False,
+                value="decimal",
+            )
+            yield Label("", classes="settings-apply")
+        with Horizontal(classes="settings-row", id="aprs-decimal-row"):
+            yield Label("Latitude / Longitude", classes="settings-label")
+            with Horizontal(classes="settings-decimal-pair"):
+                yield Input(id="set-aprs-latitude", placeholder="41.7")
+                yield Input(id="set-aprs-longitude", placeholder="-72.7")
+            yield Label(APPLY_NOTE["live"], classes="settings-apply")
+        yield Label("", id="set-aprs-latitude-error", classes="settings-error")
+        yield Label("", id="set-aprs-longitude-error", classes="settings-error")
+        with Horizontal(classes="settings-row", id="aprs-grid-row"):
+            yield Label("Grid square", classes="settings-label")
+            yield Input(id="set-aprs-grid_square", placeholder="FN31pr")
+            yield Label(APPLY_NOTE["live"], classes="settings-apply")
+        yield Label("", id="set-aprs-grid_square-error", classes="settings-error")
+        yield Static(
+            "Decimal degrees or a Maidenhead grid square (4, 6, or 8 "
+            "characters) -- both edit the same underlying position; "
+            "switching modes converts whatever is already entered.",
+            classes="settings-help",
+        )
+
     # ------------------------------------------------------------------
     # Loading
     # ------------------------------------------------------------------
     def render_settings(self, config) -> None:
-        """Populate every widget from `config`. Safe to call repeatedly."""
+        """Populate every widget from `config`. Safe to call repeatedly.
+
+        `_aprs_position_loading` is held for the whole pass (see
+        `_loading_aprs_position`'s docstring) and released only after
+        Textual's message queue has drained, via `call_after_refresh` --
+        not cleared synchronously here, which would be too early relative
+        to when the `Changed` messages this bulk population posts actually
+        get processed.
+        """
+        self._aprs_position_loading = True
+        try:
+            self._render_settings_fields(config)
+        finally:
+            self.call_after_refresh(self._stop_loading_aprs_position)
+
+    def _stop_loading_aprs_position(self) -> None:
+        self._aprs_position_loading = False
+
+    def _render_settings_fields(self, config) -> None:
         for section in SETTINGS_SCHEMA:
             for spec in section.fields:
                 wid = _widget_id(spec.path)
@@ -279,9 +380,34 @@ class SettingsPane(Vertical):
                     self.query_one(f"#{wid}", Switch).value = bool(value)
                 elif spec.kind == "choice":
                     self._set_select_value(wid, spec, value)
+                elif spec.kind == "custom_choice":
+                    self._set_custom_choice_value(wid, spec, value)
+                elif spec.kind == "filtered_choice":
+                    self._set_symbol_value(wid, value)
                 else:
                     text = format_value(spec, value)
-                    self.query_one(f"#{wid}", Input).value = text
+                    input_widget = self.query_one(f"#{wid}", Input)
+                    if spec.custom_render:
+                        # aprs.latitude/longitude/grid_square: silent set,
+                        # no Changed message. These three widgets' own
+                        # Changed handlers keep each other in sync on a
+                        # genuine keystroke, and firing that same machinery
+                        # here -- three separate messages processed later,
+                        # asynchronously, on three different widgets --
+                        # cannot be reliably suppressed by any one flag's
+                        # timing (a `call_after_refresh` measured against
+                        # ONE widget's queue does not bound when ANOTHER
+                        # widget's queued message actually runs). Loading
+                        # these three needs no recompute at all: `config`
+                        # already stores a consistent decimal and grid
+                        # square, so the loop is just copying, not deriving.
+                        input_widget.set_reactive(Input.value, text)
+                        input_widget.refresh()  # set_reactive skips the
+                        # widget's own repaint trigger along with its
+                        # watcher; without this the loaded value is
+                        # correct in .value but not yet visible on screen.
+                    else:
+                        input_widget.value = text
                     if spec.kind == "color":
                         self._update_swatch(wid, text)
                 self._set_error(wid, "")
@@ -290,6 +416,34 @@ class SettingsPane(Vertical):
         self._render_credentials(config)
         self._render_scripts(config)
         self._render_banner(config)
+        self._sync_aprs_position_mode(config)
+
+    def _set_custom_choice_value(self, wid: str, spec: Field, value) -> None:
+        """Select a matching preset, or fall back to Custom + the literal
+        text -- "disable, never clear": a value from a hand-edited
+        config.toml that matches no preset must still be visible and still
+        round-trip on Save, not silently discarded (same rule
+        `ConnectScreen._sync_login_controls` follows in `dialogs.py`)."""
+        preset_values = {v for _label, v in spec.choices}
+        select = self.query_one(f"#{wid}", Select)
+        custom_input = self.query_one(f"#{wid}-custom", Input)
+        if value in preset_values:
+            select.value = value
+            custom_input.value = str(value)
+            custom_input.display = False
+        else:
+            select.value = _CUSTOM_SENTINEL
+            custom_input.value = "" if value is None else str(value)
+            custom_input.display = True
+
+    def _set_symbol_value(self, wid: str, value) -> None:
+        """Same tolerate-an-unknown-value rule as `_set_select_value`,
+        against the symbol table instead of a schema's own `Field.choices`."""
+        select = self.query_one(f"#{wid}", Select)
+        known = {s.key for s in symbols.SYMBOLS}
+        select.value = value if value in known else (
+            symbols.SYMBOLS[0].key if symbols.SYMBOLS else Select.NULL
+        )
 
     def _set_select_value(self, wid: str, spec: Field, value) -> None:
         """Set a Select's value, tolerating one that is not among its options.
@@ -340,6 +494,157 @@ class SettingsPane(Vertical):
     def _on_color_input_changed(self, event: Input.Changed) -> None:
         if event.input.id:
             self._update_swatch(event.input.id, event.value)
+
+    # ------------------------------------------------------------------
+    # APRS: WIDE-path preset/custom, symbol filter, position mode switch
+    # ------------------------------------------------------------------
+    @on(Select.Changed, "#set-aprs-path")
+    def _on_aprs_path_changed(self, event: Select.Changed) -> None:
+        self.query_one("#set-aprs-path-custom", Input).display = (
+            event.value == _CUSTOM_SENTINEL
+        )
+
+    @on(Input.Changed, "#set-aprs-symbol-filter")
+    def _on_aprs_symbol_filter_changed(self, event: Input.Changed) -> None:
+        select = self.query_one("#set-aprs-symbol", Select)
+        current = select.value
+        matches = symbols.filter_symbols(event.value)
+        select.set_options([(s.label, s.key) for s in matches])
+        # Select.set_options() always resets .value to blank; keep the
+        # operator's already-made choice if it is still in the narrowed
+        # list, so typing in the filter box does not silently discard it.
+        if current in {s.key for s in matches}:
+            select.value = current
+
+    def _sync_aprs_position_mode(self, config) -> None:
+        """Pick the initial Decimal/Grid mode from `config.aprs.grid_square`,
+        recomputing rather than trusting it blindly -- a hand-edited
+        config.toml can carry a grid square that no longer matches the
+        lat/lon next to it.
+
+        Deliberately does NOT go through the interactive recompute path:
+        `render_settings` has *just* populated the lat/lon/grid Inputs
+        straight from `config` a few lines up, and those are already
+        correct and authoritative. Letting `Select.Changed` fire its usual
+        recompute here would overwrite an exact stored latitude with the
+        CENTER of its own grid square -- a real bug caught by
+        `tests/pilot/test_settings.py`. `_apply_aprs_position_mode` (show/
+        hide only) always runs; `.value` is only touched when it would
+        actually change, so a `Changed` message is queued if and only if
+        `_suppress_aprs_position_recompute` will be there to catch it --
+        no window where a leaked, never-cleared flag could suppress a
+        later, real operator-driven mode switch.
+        """
+        aprs = config.aprs
+        mode = "decimal"
+        if aprs.grid_square:
+            try:
+                g_lat, g_lon = from_grid(aprs.grid_square)
+            except LocatorError:
+                g_lat = g_lon = None
+            if (
+                g_lat is not None
+                and abs(g_lat - aprs.latitude) < 1.0
+                and abs(g_lon - aprs.longitude) < 1.0
+            ):
+                mode = "grid"
+        self._apply_aprs_position_mode(mode)
+        select = self.query_one("#aprs-position-mode", Select)
+        select.value = mode
+
+    def _apply_aprs_position_mode(self, mode: str) -> None:
+        self.query_one("#aprs-decimal-row").display = mode == "decimal"
+        self.query_one("#aprs-grid-row").display = mode == "grid"
+
+    def _loading_aprs_position(self) -> bool:
+        """True while `render_settings` is (or was, very recently) bulk-
+        populating the position widgets.
+
+        `render_settings` sets `.value` on the grid Input, then the
+        latitude Input, then the longitude Input, then (via
+        `_sync_aprs_position_mode`) the mode Select -- each of those posts
+        its own `Changed` message, and Textual processes a widget's message
+        queue asynchronously, not inline with the assignment that posted
+        it. A message queued early (e.g. the grid Input's, while mode was
+        still "decimal") can end up PROCESSED late, after mode has already
+        flipped to "grid" -- so a same-instant mode check inside a handler
+        is not enough; a message that looked harmless when it was posted
+        can become corrupting by the time it actually runs. One flag held
+        for the whole render pass, and released only after Textual's
+        message queue has drained (`call_after_refresh`, not a synchronous
+        clear), is what actually closes that window. Caught by
+        `tests/pilot/test_settings.py::test_loading_a_saved_grid_square_
+        does_not_corrupt_the_decimal_position_it_was_computed_from`.
+        """
+        return getattr(self, "_aprs_position_loading", False)
+
+    @on(Select.Changed, "#aprs-position-mode")
+    def _on_aprs_position_mode_changed(self, event: Select.Changed) -> None:
+        """Switching modes is a view toggle, not an edit -- it must never
+        overwrite a representation that already has real content with a
+        recomputed approximation of the other one (that would silently
+        discard a loaded decimal's precision the instant the operator
+        merely looks at the grid tab and back). It only fills in a
+        representation that is genuinely still blank, e.g. the first time
+        an operator with a real decimal position switches to grid mode and
+        has never typed one -- matching the compose-time help text's
+        promise that switching modes "converts what's already there",
+        never what wasn't.
+        """
+        if self._loading_aprs_position():
+            return
+        self._apply_aprs_position_mode(event.value)
+        if event.value == "grid":
+            if not self.query_one("#set-aprs-grid_square", Input).value.strip():
+                self._recompute_grid_from_decimal()
+        else:
+            lat_blank = not self.query_one("#set-aprs-latitude", Input).value.strip()
+            lon_blank = not self.query_one("#set-aprs-longitude", Input).value.strip()
+            if lat_blank and lon_blank:
+                self._recompute_decimal_from_grid()
+
+    @on(Input.Changed, "#set-aprs-grid_square")
+    def _on_aprs_grid_changed(self, event: Input.Changed) -> None:
+        if self._loading_aprs_position():
+            return
+        if self.query_one("#aprs-position-mode", Select).value == "grid":
+            self._recompute_decimal_from_grid()
+
+    @on(Input.Changed, "#set-aprs-latitude")
+    @on(Input.Changed, "#set-aprs-longitude")
+    def _on_aprs_decimal_changed(self, event: Input.Changed) -> None:
+        if self._loading_aprs_position():
+            return
+        if self.query_one("#aprs-position-mode", Select).value == "decimal":
+            self._recompute_grid_from_decimal()
+
+    def _recompute_decimal_from_grid(self) -> None:
+        """Live grid -> decimal conversion, into the (possibly hidden)
+        lat/lon Inputs `_save` already reads generically. Silently does
+        nothing on an incomplete or invalid grid square -- that is the
+        normal state of this field mid-keystroke, not an error to report."""
+        text = self.query_one("#set-aprs-grid_square", Input).value.strip()
+        try:
+            lat, lon = from_grid(text)
+        except LocatorError:
+            return
+        self.query_one("#set-aprs-latitude", Input).value = f"{lat:.6f}"
+        self.query_one("#set-aprs-longitude", Input).value = f"{lon:.6f}"
+
+    def _recompute_grid_from_decimal(self) -> None:
+        """The mirror image of `_recompute_decimal_from_grid`, so
+        `aprs.grid_square` stays a faithful redisplay of whatever position
+        decimal-mode editing last settled on."""
+        try:
+            lat = float(self.query_one("#set-aprs-latitude", Input).value)
+            lon = float(self.query_one("#set-aprs-longitude", Input).value)
+        except ValueError:
+            return
+        try:
+            grid = to_grid(lat, lon, 6)
+        except LocatorError:
+            return
+        self.query_one("#set-aprs-grid_square", Input).value = grid
 
     def _render_transports(self, config) -> None:
         select = self.query_one("#set-active-transport", Select)
@@ -452,6 +757,15 @@ class SettingsPane(Vertical):
                     raw = self.query_one(f"#{wid}", Switch).value
                 elif spec.kind == "choice":
                     raw = self.query_one(f"#{wid}", Select).value
+                elif spec.kind == "custom_choice":
+                    select_value = self.query_one(f"#{wid}", Select).value
+                    if select_value == _CUSTOM_SENTINEL:
+                        raw = self.query_one(f"#{wid}-custom", Input).value
+                    else:
+                        raw = "" if select_value == Select.NULL else select_value
+                elif spec.kind == "filtered_choice":
+                    select_value = self.query_one(f"#{wid}", Select).value
+                    raw = "" if select_value == Select.NULL else select_value
                 else:
                     raw = self.query_one(f"#{wid}", Input).value
                 try:

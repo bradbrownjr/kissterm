@@ -301,4 +301,14 @@ SettingsPane { layout: vertical; }
 /* Its own bar now, not the last row of a field column -- no label-column
    indent to match, just enough top margin to separate it from the banner. */
 .settings-actions { margin-top: 1; }
+/* custom_choice / filtered_choice: a Select stacked over its companion
+   Input inside one field's widget column, rather than a second settings-row
+   -- keeps the preset/custom (or filter/pick) pair visually grouped as one
+   control instead of reading as two unrelated fields. */
+.settings-custom-choice, .settings-filtered-choice { height: auto; width: 46; }
+.settings-custom-choice-input, .settings-filtered-choice-filter { margin-top: 1; }
+/* Position entry: latitude and longitude side by side, narrower than the
+   default 46 so the pair fits the same column a single field would. */
+.settings-decimal-pair { height: auto; }
+.settings-decimal-pair Input { width: 22; margin-right: 1; }
 """
