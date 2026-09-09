@@ -307,6 +307,19 @@ DISC — inside one event loop. `tests/unit/test_ax25_link.py` is the suite that
 matters most in this project; it is the only conformance check short of putting
 the code on the air.
 
+**The full suite runs in parallel by default** (`pytest-xdist`,
+`addopts = "-n auto"` in `pyproject.toml`) — about 3 minutes on a 12-core
+machine versus roughly 15 serial, same tests, same result. Safe because
+`_isolate.isolate()` gives every test file its own `tempfile.mkdtemp()`
+config directory and xdist workers are separate processes, so there is no
+shared state to collide on. Run the full suite before every commit
+(non-negotiable — see §7's "always commit tested work" rule); it no longer
+has to be the thing you dread doing that often. For fast iteration on one
+piece, run just its own test file(s) directly (still parallelized, just
+across fewer files) rather than the whole suite, and save the full run for
+right before `git commit`. Pass `-n0` if you need un-interleaved output to
+debug a single failing test.
+
 Gotchas that already cost time:
 
 - **The loopback re-encodes and re-decodes** rather than passing the same

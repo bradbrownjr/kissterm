@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.57"
+version = "0.1.58"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -54,7 +54,7 @@ ssh = ["asyncssh"]
 # kissterm/aprs/mice.py: found and fixed a real bug in 0.1.44 (an inverted
 # message-status table) that this codebase's own self-consistent fixtures
 # could never have caught. See tests/unit/test_aprs_mice_cross_check.py.
-dev = ["pytest", "pytest-asyncio", "asyncssh", "aprslib"]
+dev = ["pytest", "pytest-asyncio", "pytest-xdist", "asyncssh", "aprslib"]
 all = ["pyserial-asyncio-fast", "bleak", "asyncssh"]
 
 [project.scripts]
@@ -71,3 +71,11 @@ include = ["kissterm*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# -n auto: parallelize across CPU cores (pytest-xdist). ~5x faster on the
+# full suite (14m -> 3m measured on a 12-core machine) with zero change in
+# what runs -- kissterm._isolate.isolate() already gives each test file its
+# own tempfile.mkdtemp() config directory, and xdist workers are separate
+# processes, so there is no shared-state collision to worry about. Drop to
+# plain `pytest -p no:cacheprovider -n0` (or just `-n0`) if you ever need to
+# debug a single test's output without interleaving.
+addopts = "-n auto"

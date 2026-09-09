@@ -3,6 +3,22 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — The full test suite runs in parallel now: ~15 min -> ~3 min
+
+### Improvements
+- **`pytest-xdist` added as a dev dependency, `-n auto` set as the default**
+  (`[tool.pytest.ini_options]` in `pyproject.toml`). Measured on a 12-core
+  machine: the full 815-test suite went from ~14.5 minutes serial to
+  ~2m50s parallel, same tests, same result -- nothing removed, nothing
+  weakened. Safe because `kissterm._isolate.isolate()` already gives every
+  test file its own `tempfile.mkdtemp()` config directory and xdist
+  workers are separate processes, so there is no shared state to collide
+  on across workers. `-n0` still works for un-interleaved output when
+  debugging one failing test.
+
+### Files
+- `pyproject.toml`, `AGENTS.md`
+
 ## [2026-09-09] — Roadmap: GPS integration scoped, object reports and APRS bulletins noted
 
 ### Improvements
