@@ -3,6 +3,31 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Roadmap: GPS integration scoped, object reports and APRS bulletins noted
+
+### Improvements
+- **GPS integration is now a fully scoped P4 roadmap item**, not built --
+  the beacon Settings work above covers a fixed station only (static
+  decimal-degree or grid-square entry); a mobile/portable operator with a
+  GPS puck has nothing to plug into yet. Scoped module shape
+  (`kissterm/gps.py`, modeled on `kissterm/hotplug.py`'s
+  `SerialPortWatcher`), config field, device-discovery reuse (inverted
+  from `discovery.py`'s TNC-scoring heuristic), the Bluetooth-GPS-is-just-
+  a-serial-device confirmation, and how a live fix should feed
+  `AprsBeaconer` without touching `Config.aprs.latitude`/`longitude`
+  directly -- see `docs/ROADMAP.md` P4 for the full writeup. Needs real
+  hardware to verify before it could ship, same as this project's other
+  hardware-dependent items.
+- **Two more P4 items added at the operator's request**, for after the
+  beacon Settings work ships: sending object reports (with a selector
+  reusing the new symbol picker) and sending APRS bulletins (the `BLNn`
+  addressee convention -- not P10's BBS-style Mail/Bulletins/Files tab,
+  a different feature entirely despite the name collision). Not built,
+  not yet fully scoped -- flagged so the thought is not lost.
+
+### Files
+- `docs/ROADMAP.md`
+
 ## [2026-09-09] — Ctrl+Shift+B turns APRS beaconing on without opening Settings
 
 ### New Features

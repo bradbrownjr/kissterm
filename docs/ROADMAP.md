@@ -124,9 +124,57 @@ with ack/retry, and SMS/email compose forms -- all shipped 2026-09-08 and
   positions decode (`aprs.parse_packet`, `kind in ("position", "mic-e",
   ...)`) but nothing renders them yet; see the separate "text-mode map or
   bearing/distance list" item below, which covers the same ground.
+- [ ] **GPS integration.** Everything shipped `[2026-09-09]` (see
+  CHANGELOG) covers a *fixed* station: static decimal-degree or
+  Maidenhead-grid-square position entry in Settings, with a real
+  symbol/WIDE-path/Winlink-notify picker around it. A mobile or portable
+  operator with a GPS puck has nothing to plug into yet -- this item is
+  that missing half, scoped but not built (needs real hardware to verify
+  before it could be marked done, same as every other hardware-dependent
+  item in this file).
+  - **Shape**: a new `kissterm/gps.py`, modeled on `kissterm/hotplug.py`'s
+    `SerialPortWatcher` -- `subscribe`/`start`/`stop`, never raises out of
+    its own read loop, cheap enough to run continuously. Differs from that
+    class in what it does with the port once found: it *opens* it and
+    parses a continuous NMEA-0183 sentence stream (GGA for a fix plus
+    altitude, RMC for the same fix plus speed/course) rather than just
+    enumerating and diffing. This is explicitly NOT a `FrameTransport` --
+    no KISS framing involved, a different kind of background reader
+    entirely, closer in shape to `serial_kiss.py`'s own read loop than to
+    anything in `kissterm/transport/`.
+  - **Config**: one new field for the GPS device path (empty means off,
+    today's static-position behaviour unchanged). The device picker
+    should reuse `discover_serial()`/`list_ports.comports()` -- the same
+    enumeration TNC discovery already does -- rather than inventing a
+    second one, but with the INVERSE heuristic from `discovery.py`'s
+    `_UNLIKELY_SUBSTRINGS`: that list currently down-scores a port
+    description containing "gps receiver" *because* it is scoring
+    candidate TNCs, so a GPS device picker wants to score those same
+    descriptions *up*.
+  - **Bluetooth GPS pucks need no new code at all.** Exactly the same
+    "pair once with `bluetoothctl`, `rfcomm bind`, then it is an ordinary
+    serial device" story SETUP.md already documents for Bluetooth TNCs
+    applies unchanged -- confirmed while scoping this, not assumed.
+  - **Feed `AprsBeaconer` a live position at send time, never write one
+    into `Config.aprs.latitude`/`longitude`.** `AprsBeaconer.build_frame`
+    already re-checks everything at the moment of transmission rather
+    than trusting state from when it was started (see
+    `kissterm/aprs_beacon.py`) -- a GPS fix should plug into that same
+    discipline as an optional live-position source the beaconer asks for
+    at send time, not by mutating the config fields a Settings save could
+    clobber out from under it.
+  - **Status bar**: a `GPS FIX` / `GPS NO FIX` marker for as long as the
+    reader is running, matching the existing `ANSWERING`/`BEACON`
+    convention -- this station is doing something semi-autonomous
+    (trusting a hardware fix over what Settings says), so say so on
+    screen the whole time it's true.
+  - Unblocks the "Smart beaconing" item below, which needs exactly this
+    as its position/speed/course source. Large effort; no reference
+    implementation in this codebase to lean on.
 - [ ] **Smart beaconing.** Speed/heading-aware beacon interval adjustment
-  (the SmartBeaconing algorithm most APRS trackers use) — needs a GPS or
-  manually-entered position source first. Medium.
+  (the SmartBeaconing algorithm most APRS trackers use) — needs the GPS
+  integration item above as its position/speed source first. Medium once
+  that exists.
 - [ ] **A text-mode map or a bearing/distance list.** Full map rendering in a
   terminal is a stretch; a sorted bearing/distance-from-me list of heard
   stations is the realistic v1, with a crude ASCII-art radar-style view as a
@@ -136,6 +184,30 @@ with ack/retry, and SMS/email compose forms -- all shipped 2026-09-08 and
   `aprs.parse_packet`'s `"weather"`/`"telemetry"` `kind`s -- what's missing
   is a pane that renders a `WeatherReport`/`Telemetry` value at all; nothing
   in `kissterm/ui/` references either type today. Medium.
+- [ ] **Sending object reports, with an object selector.** Requested
+  directly, for after the beacon Settings work `[2026-09-09]` ships.
+  Decoding already exists (`kissterm/aprs/messages.py::parse_object` ->
+  `ObjectReport`) but `kissterm/aprs/encode.py` has no matching encoder,
+  and there is no UI for picking which of the ~184 symbols in
+  `kissterm/aprs/symbols.py` an object should use -- the new filterable
+  symbol picker built for the beacon Settings section (`kissterm/ui/
+  settings_pane.py`) is the natural widget to reuse rather than building
+  a second one. Not scoped further yet -- where in the APRS pane this
+  lives, and how an object's own position (not necessarily the operator's
+  own) gets entered, are still open questions. Medium-large.
+- [ ] **Sending APRS bulletins.** Also requested for after the beacon
+  Settings work ships. **Do not confuse this with P10's Mail/Bulletins/
+  Files "Bulletins tab"** -- that is BBS-style store-and-forward mail
+  reached over an AX.25 connected-mode session; this is the APRS
+  convention of a message addressed to `BLNn`/`ANn` (n = 0-9) instead of a
+  callsign, sent unproto the same way a position beacon is.
+  `kissterm/aprs/messages.py`'s own docstring already notes decode needs
+  no special-casing for this ("a message whose addressee happens to be
+  BLNn"); `encode.py`'s `message()` likely already produces a valid
+  bulletin frame if given a `BLNn`-shaped addressee, unverified. What's
+  missing is entirely UI: composing one, and a place to read ones heard
+  from other stations that is not just raw APRS-messaging conversation
+  history. Small-medium once scoped.
 - [ ] **Igate-adjacent features are explicitly out of scope.** kissterm is a
   terminal for a human operator, not an unattended relay — running it as an
   RF-to-APRS-IS igate or a digipeater is a different problem (unattended
