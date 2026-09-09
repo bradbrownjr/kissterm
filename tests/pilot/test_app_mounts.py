@@ -26,6 +26,7 @@ from kissterm.config import Config  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.ui.commands import ACTION_META, KeyBindingsProvider, _action_base  # noqa: E402
 from kissterm.ui.dialogs import CallsignScreen, ConnectScreen  # noqa: E402
+from textual.widgets import TabbedContent  # noqa: E402
 from textual.widgets import Input, Select, TextArea  # noqa: E402
 
 from kissterm.ui.heard_pane import HeardPane  # noqa: E402
@@ -864,3 +865,60 @@ async def test_selecting_a_saved_credential_disables_the_script_box(tmp_path):
         assert area.text == "something typed by hand", "typed text was lost"
     station.close()
 
+
+
+@pytest.mark.asyncio
+async def test_tab_keys_work_while_an_input_has_focus():
+    """The regression that made F1-F5 unusable whenever you were typing.
+
+    Textual re-activates a `TabPane` when a widget inside it takes focus.
+    Switching tabs while an `Input` in the outgoing pane was still focused
+    made Textual move focus to the next widget *in that hidden pane*, which
+    pulled the activation straight back -- the tab appeared for a frame and
+    vanished. It affected every pane with a focusable widget, and went
+    unnoticed because tests drove `action_show_tab` without focusing
+    anything first.
+    """
+    app, _ta, _tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        tabs = app.query_one("#main-tabs", TabbedContent)
+        for start, widget, key, dest in (
+            ("terminal", "#session-input", "f2", "monitor"),
+            ("terminal", "#session-input", "f5", "settings"),
+            ("aprs", "#aprs-compose-input", "f2", "monitor"),
+            ("aprs", "#aprs-compose-input", "f3", "heard"),
+        ):
+            app.action_show_tab(start)
+            await pilot.pause()
+            await asyncio.sleep(0.1)
+            app.query_one(widget).focus()
+            await pilot.pause()
+            assert tabs.active == start
+
+            await pilot.press(key)
+            await pilot.pause()
+            await asyncio.sleep(0.2)
+            assert tabs.active == dest, (
+                f"{key} from {start} with {widget} focused landed on "
+                f"{tabs.active}, not {dest}"
+            )
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_opening_a_tab_focuses_something_worth_typing_into():
+    """The other half of the fix: land somewhere useful, not nowhere."""
+    app, _ta, _tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        for tab, expected in (
+            ("terminal", "session-input"),
+            ("aprs", "aprs-compose-input"),
+            ("monitor", "monitor-query"),
+        ):
+            app.action_show_tab(tab)
+            await pilot.pause()
+            await asyncio.sleep(0.2)
+            assert app.focused is not None and app.focused.id == expected, (
+                f"{tab} focused {app.focused.id if app.focused else None}"
+            )
+    station.close()

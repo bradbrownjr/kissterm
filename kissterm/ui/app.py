@@ -1381,8 +1381,68 @@ class KissTermApp(App):
             message += " Ctrl+T to transmit."
         self.notify(message)
 
+    #: Where focus goes when a tab is opened, so the operator can act
+    #: immediately: type at the node, type a message, search the monitor.
+    #: A tab with nothing worth typing into (Heard, Settings) is absent and
+    #: keeps whatever Textual's own activation does.
+    _TAB_FOCUS = {
+        "terminal": "#session-input",
+        "aprs": "#aprs-compose-input",
+        "monitor": "#monitor-query",
+    }
+
     def action_show_tab(self, tab: str) -> None:
-        self.query_one("#main-tabs", TabbedContent).active = tab
+        """Switch tabs, and take focus out of the tab being left.
+
+        **Clearing focus first is load-bearing, not tidiness.** Textual
+        re-activates a `TabPane` whenever a widget inside it takes focus.
+        Setting `.active` alone left the old pane's `Input` still focused --
+        Textual then moved focus to the next widget *within that same hidden
+        pane*, which re-activated it and threw the operator straight back
+        where they came from. The visible symptom was a tab flashing up and
+        vanishing again.
+
+        This affected EVERY pane with a focusable widget, not one of them:
+        F2/F3/F5 from the Terminal pane's send line and from the APRS compose
+        box were all equally dead, which is most of the time an operator is
+        actually typing. It went unnoticed because every test drove
+        `action_show_tab` without focusing anything first, and a fresh app
+        has focus nowhere in particular.
+        """
+        tabs = self.query_one("#main-tabs", TabbedContent)
+        # Blur BEFORE switching: a focused widget in the outgoing pane is
+        # exactly what pulls the activation back.
+        self.set_focus(None)
+        tabs.active = tab
+        target = self._TAB_FOCUS.get(tab)
+        if target is None:
+            return
+
+        def _focus_target() -> None:
+            # After the switch has settled, so this focus lands in the pane
+            # that is now visible. Missing widget is not an error -- a pane
+            # can legitimately not have composed it yet.
+            #
+            # Re-check the active tab first: two tab keys pressed in quick
+            # succession queue two of these, and the first one firing late
+            # would focus a widget in a pane the operator has already left --
+            # re-activating it, which is the very bug this method exists to
+            # fix, just with a different trigger.
+            if tabs.active != tab:
+                return
+            # This is a FALLBACK, not an override. `set_focus(None)` above
+            # left focus empty, so anything focused by now was claimed
+            # deliberately by whoever called us -- `action_find_in_terminal`
+            # switches to the Terminal tab and then focuses the find box, and
+            # stealing that back to the send line put the operator's typing
+            # in the wrong widget. Only fill a vacuum.
+            if self.focused is not None:
+                return
+            for widget in self._base_query(target):
+                widget.focus()
+                return
+
+        self.call_after_refresh(_focus_target)
 
     def action_toggle_contacts(self) -> None:
         """Ctrl+G: show or hide whichever slide-out belongs to the active

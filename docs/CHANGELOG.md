@@ -3,6 +3,31 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Fix: F1-F5 bounced straight back while an input had focus
+
+### Bug Fixes
+- **Pressing a tab key while typing switched tabs and immediately switched
+  back.** Textual re-activates a `TabPane` whenever a widget inside it takes
+  focus; `action_show_tab` set `.active` without moving focus, so the pane
+  being left still held it, Textual moved focus on within that now-hidden
+  pane, and the activation snapped back. Reported against F2 from the APRS
+  pane, but it affected **every** pane — F2/F3/F5 from the Terminal send line
+  and from the APRS compose box were equally dead, which is most of the time
+  anyone is actually typing. Fixed by clearing focus before switching and
+  restoring it, after the switch settles, into the pane now on screen.
+- The restored focus is a **fallback, never an override**: `Ctrl+F` switches
+  to the Terminal tab and then focuses the find box, and stealing that back
+  to the send line would put the operator's typing in the wrong widget. A
+  late-firing focus also re-checks the active tab first, so two tab keys in
+  quick succession cannot reintroduce the same bounce from the other side.
+- It survived this long because every test drove `action_show_tab` without
+  focusing anything first, and a fresh app has focus nowhere in particular.
+  `tests/pilot/test_app_mounts.py` now presses the tab keys *from* a focused
+  input.
+
+### Files
+- `kissterm/ui/app.py`, `tests/pilot/test_app_mounts.py`
+
 ## [2026-09-09] — Fix: the Settings symbol picker crashed the app
 
 ### Bug Fixes
