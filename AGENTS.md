@@ -816,7 +816,21 @@ Gotchas that already cost time:
   it. Check `Select.NULL` before trusting `Select.BLANK` in any future
   Textual upgrade -- this is exactly the kind of rename that would silently
   reintroduce the bug if the two ever swap meaning again.
-
+- **`Select.set_options` raises on an empty list and RESETS `.value`.**
+  Three separate `Select` bugs have now shipped in this project, all of them
+  the same shape -- an invariant between a `Select`'s options and its value
+  that nothing enforces for you:
+  1. `Select.BLANK` above.
+  2. Setting `.value` to something outside the current options raises
+     (`themes.resolve_theme_id`, `settings_pane._set_select_value`).
+  3. `set_options([])` raises `EmptySelectError` when the widget was built
+     with `allow_blank=False`, and `set_options` **resets the value** in every
+     case. The Settings map-symbol filter did both: any word matching no
+     symbol crashed the app out of a message handler, and narrowing past your
+     own symbol silently blanked it so a save wrote an empty symbol.
+  **The rule that fixes all three: whatever is currently selected is pinned
+  into the options you set, and the list you set is never empty.**
+  `tests/pilot/test_settings.py` guards the symbol filter both ways.
 ## 7a. Theming
 
 `kissterm/ui/themes.py` curates a set of Textual's own `BUILTIN_THEMES`

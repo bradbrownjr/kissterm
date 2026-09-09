@@ -1213,3 +1213,48 @@ async def test_winlink_check_toggles_and_saves():
     station.close()
 
 
+
+
+@pytest.mark.asyncio
+async def test_a_symbol_filter_matching_nothing_does_not_crash():
+    """This crashed the whole app. `set_options([])` on a `Select` built with
+    `allow_blank=False` raises `EmptySelectError` out of a message handler,
+    and typing any word not in the symbol table was enough to hit it.
+    Third distinct way this project has been bitten by `Select`'s
+    value/option invariants -- see AGENTS.md sec. 7.
+    """
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        select = app.query_one("#set-aprs-symbol", Select)
+        before = select.value
+        for needle in ("car", "zzzznotasymbol", "house", ""):
+            app.query_one("#set-aprs-symbol-filter", Input).value = needle
+            await pilot.pause()
+            await asyncio.sleep(0.05)
+            assert select.value == before, f"filter {needle!r} lost the selection"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_filtering_past_your_own_symbol_keeps_it_selected():
+    """The quieter half of the same bug: `set_options` resets `.value`, and
+    the old code restored it only when it survived the filter -- so narrowing
+    past your own symbol blanked it and saving wrote an empty symbol. Losing
+    a setting by typing in a search box is not something an operator would
+    ever expect."""
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        select = app.query_one("#set-aprs-symbol", Select)
+        select.value = "/>"
+        await pilot.pause()
+
+        # "boat" cannot match the car symbol, so the pinned current value is
+        # the only thing keeping it selected.
+        app.query_one("#set-aprs-symbol-filter", Input).value = "boat"
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert select.value == "/>"
+        assert "/>" in {value for _, value in select._options}
+    station.close()

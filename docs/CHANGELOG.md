@@ -3,6 +3,26 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Fix: the Settings symbol picker crashed the app
+
+### Bug Fixes
+- **Typing a filter word that matched no map symbol took the whole app
+  down.** `Select.set_options([])` raises `EmptySelectError` when the widget
+  was built with `allow_blank=False`, and it was raised out of a message
+  handler, so there was nothing to catch it. Any word not in the symbol table
+  was enough.
+- **A second, quieter bug rode along**: `set_options` resets `.value`, and the
+  old handler restored it only when the current symbol survived the filter —
+  so narrowing past your own symbol silently blanked it, and saving then
+  wrote an empty symbol. Both are fixed by one rule: the currently selected
+  symbol is always pinned into the option list, whatever the filter says.
+- This is the **third** distinct way this project has been bitten by
+  `Select`'s value/option invariants; AGENTS.md sec. 7's `Select` entry now
+  records all three.
+
+### Files
+- `kissterm/ui/settings_pane.py`, `tests/pilot/test_settings.py`
+
 ## [2026-09-09] — Roadmap: ISS is a path, not a contact; keeping the directory current
 
 ### Notes

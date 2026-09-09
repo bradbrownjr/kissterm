@@ -506,15 +506,51 @@ class SettingsPane(Vertical):
 
     @on(Input.Changed, "#set-aprs-symbol-filter")
     def _on_aprs_symbol_filter_changed(self, event: Input.Changed) -> None:
+        """Narrow the symbol list as the operator types.
+
+        Two things go wrong here if the filter result is used naively, and
+        both did:
+
+        * **A filter matching nothing crashed the app.** `set_options([])` on
+          a `Select` built with `allow_blank=False` raises `EmptySelectError`
+          -- out of a message handler, which takes the whole app down. Typing
+          any word that is not in the symbol table (or simply overshooting a
+          word that is) was enough. This is the third distinct way this
+          project has been bitten by `Select`'s value/option invariants; see
+          AGENTS.md sec. 7's `Select.NULL` entry for the other two.
+        * **The selection was silently dropped.** `set_options` resets
+          `.value`, and the old code restored it only when it survived the
+          filter -- so narrowing past your own symbol blanked it, and saving
+          then wrote an empty symbol. Losing a setting because you typed in a
+          search box is not something an operator would ever expect, and
+          nothing on screen said it had happened.
+
+        Both are fixed by the same rule: **the currently-selected symbol is
+        always in the list.** It is pinned even when it does not match, so
+        the value can never be lost and the list can never be empty. A filter
+        matching nothing therefore shows exactly the current symbol, which
+        also reads correctly as "nothing else matched".
+        """
         select = self.query_one("#set-aprs-symbol", Select)
         current = select.value
         matches = symbols.filter_symbols(event.value)
-        select.set_options([(s.label, s.key) for s in matches])
-        # Select.set_options() always resets .value to blank; keep the
-        # operator's already-made choice if it is still in the narrowed
-        # list, so typing in the filter box does not silently discard it.
-        if current in {s.key for s in matches}:
-            select.value = current
+        options = [(s.label, s.key) for s in matches]
+
+        current_key = current if isinstance(current, str) else ""
+        if current_key and current_key not in {s.key for s in matches}:
+            pinned = symbols.lookup(current_key[0], current_key[1:]) if len(current_key) >= 2 else None
+            if pinned is not None:
+                options.insert(0, (pinned.label, pinned.key))
+
+        if not options:
+            # Only reachable when the stored symbol is not in the table at
+            # all (a hand-edited config.toml) AND the filter matches nothing.
+            # Showing everything beats showing nothing, and beats crashing.
+            options = [(s.label, s.key) for s in symbols.SYMBOLS]
+
+        select.set_options(options)
+        if current_key in {key for _, key in options}:
+            select.value = current_key
 
     def _sync_aprs_position_mode(self, config) -> None:
         """Pick the initial Decimal/Grid mode from `config.aprs.grid_square`,
