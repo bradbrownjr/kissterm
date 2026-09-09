@@ -524,6 +524,18 @@ Gotchas that already cost time:
   other is transmitting something they did not intend, under their own
   callsign -- so this is a transmitting bug, not a cosmetic one, and
   `tests/pilot/test_settings.py` guards the labelling.
+- **They stay distinct features, but are deliberately mutually exclusive
+  when APRS beaconing is turned on via `Ctrl+Shift+B` on the APRS pane**
+  (`KissTermApp._toggle_aprs_beacon_quick`, `kissterm/ui/app.py`): turning
+  APRS beaconing on this way also turns the BTEXT timer off if it was
+  running, on the reasoning that an operator reaching for this key does
+  not also want BTEXT still repeating in the background unattended. This
+  is a UX convenience for the ONE shortcut, not a new general rule --
+  Settings itself still lets both be enabled simultaneously with no such
+  cross-effect, and BTEXT's own `Ctrl+Shift+B` (Terminal pane, unchanged
+  one-shot send) has no symmetrical case to handle. Do not "fix" this
+  into allowing both to run at once from the quick-toggle path, and do
+  not extend the cross-disable into Settings' own checkboxes.
 - **The beacon interval floor is a clamp, not advice.** Ten minutes, enforced
   in `config.py`'s loader AND again in `Beaconer.interval_seconds`, because a
   `Config` built in code bypasses the loader. It is a courtesy to everyone

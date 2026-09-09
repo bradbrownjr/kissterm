@@ -3,6 +3,27 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Ctrl+Shift+B turns APRS beaconing on without opening Settings
+
+### New Features
+- **`Ctrl+Shift+B` is now context-aware by active tab**, the same dispatch
+  shape `Ctrl+G` already uses for the Address-Book/Contacts slide-outs. On
+  the Terminal pane it is completely unchanged: send one BTEXT beacon
+  right now. On the APRS pane it instead toggles
+  `Config.aprs.enabled` -- an operator no longer has to open Settings just
+  to start position beaconing. Deliberately does **not** arm the transmit
+  gate (AGENTS.md's transmit-gate rules name the manual beacon key
+  specifically as a bare keystroke that must never do that -- this is the
+  same case), and turns the plain-text (BTEXT) timer off if it was running
+  when APRS beaconing is turned on this way, since an operator reaching
+  for this key is very unlikely to want both running unattended at once.
+  The toggle is persisted to `config.toml` immediately, same as a Settings
+  save.
+
+### Files
+- `kissterm/ui/app.py`, `DESIGN.md`, `AGENTS.md`,
+  `tests/pilot/test_beacon_key_dispatch.py` (new)
+
 ## [2026-09-09] — APRS Settings: a real symbol picker, WIDE presets, grid squares, Winlink notify
 
 ### New Features

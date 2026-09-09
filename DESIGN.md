@@ -159,6 +159,20 @@ tab existed to expect it.
   currently has no room for are still one search away — and offers them
   fuzzy-searchable, grouped by the same `ACTION_META` categories (Connection,
   Transmit, Terminal, Contacts, Panes, App).
+- **`Ctrl+Shift+B` is context-aware by active tab, same dispatch shape as
+  `Ctrl+G`'s slide-outs.** On the Terminal pane (or any tab but APRS) it is
+  unchanged from before: send one BTEXT beacon right now. On the APRS pane
+  it instead toggles `config.aprs.enabled` -- the quick-access equivalent
+  of the Settings checkbox plus Save, so an operator does not have to open
+  Settings just to turn position beaconing on. It never arms the transmit
+  gate (a bare keystroke with no confirmation and no named target must
+  not, per AGENTS.md's transmit-gate rules -- this is architecturally the
+  same case as the manual BTEXT send it shares a key with) and, per
+  AGENTS.md's beaconing section, turns the plain-text timer off if it was
+  running when APRS beaconing is turned on this way -- the two are not
+  meant to run at once. The Footer label stays "Beacon" on every tab, the
+  same as `Ctrl+G` stays labelled "Contacts" everywhere even where it has
+  nothing to do.
 - **Ceiling: F1–F10.** Originally set at F8 (some terminals were assumed
   unreliable past it), raised once F9/F10 were confirmed working in practice
   — see `docs/ROADMAP.md` P10. Five tabs exist, three more are planned

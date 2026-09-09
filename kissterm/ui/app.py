@@ -1311,15 +1311,26 @@ class KissTermApp(App):
 
     @work
     async def action_beacon_now(self) -> None:
-        """Ctrl+Shift+B -- send one beacon immediately.
+        """Ctrl+Shift+B -- context-aware by active tab, same dispatch shape
+        as `action_toggle_contacts` (Ctrl+G).
 
-        The timed beacon deliberately waits a full interval before its first
-        transmission, because launching the app is not a request to key the
-        radio. This is how an operator says "yes it is, right now" without
-        having to wait out the interval or shorten it -- the same role
-        JS8Call's heartbeat button plays. It does not enable the timer and
-        does not need the timer to be on.
+        **On the APRS pane**: toggles `config.aprs.enabled` -- see
+        `_toggle_aprs_beacon_quick` for why this is a plain toggle, never
+        a transmission, and never touches the transmit gate.
+
+        **On every other tab**: sends one BTEXT beacon immediately,
+        unchanged from before this key became context-aware. The timed
+        beacon deliberately waits a full interval before its first
+        transmission, because launching the app is not a request to key
+        the radio. This is how an operator says "yes it is, right now"
+        without having to wait out the interval or shorten it -- the same
+        role JS8Call's heartbeat button plays. It does not enable the
+        timer and does not need the timer to be on.
         """
+        active = self.query_one("#main-tabs", TabbedContent).active
+        if active == "aprs":
+            await self._toggle_aprs_beacon_quick()
+            return
         if not self.gate.enabled:
             self.notify(DISABLED_MESSAGE, severity="warning")
             return
@@ -1333,6 +1344,42 @@ class KissTermApp(App):
             self.notify("Beacon sent.")
         else:
             self.notify("Beacon not sent.", severity="warning")
+
+    async def _toggle_aprs_beacon_quick(self) -> None:
+        """Flip `config.aprs.enabled` from the APRS pane's Ctrl+Shift+B,
+        so an operator does not have to open Settings just to turn
+        beaconing on -- identical in effect to the Settings checkbox plus
+        Save, just faster to reach.
+
+        **Deliberately does not arm the transmit gate.** AGENTS.md's
+        transmit-gate rules are explicit that a bare keystroke -- no
+        confirmation step, no named target -- must never do that, and
+        name the manual BTEXT beacon key as exactly this case. Turning
+        APRS beaconing on here is architecturally the same kind of action:
+        if the gate is closed, the beacon simply will not fire yet, same
+        as BTEXT's own manual send above when the gate is closed.
+
+        **Turns the plain-text (BTEXT) timer off if it was running.**
+        AGENTS.md's beaconing section is explicit that the two beacons
+        must never be conflated, but that is about identity, not about
+        whether both may run at once -- an operator reaching for this key
+        to turn APRS beaconing on is very unlikely to also want BTEXT
+        still repeating in the background unattended. Only this
+        direction: BTEXT's own Ctrl+Shift+B (Terminal pane) is a one-shot
+        send, not a timer toggle, so there is no symmetrical case where
+        enabling BTEXT this way would need to disable APRS.
+        """
+        self.config.aprs.enabled = not self.config.aprs.enabled
+        if self.config.aprs.enabled and self.config.beacon.enabled:
+            self.config.beacon.enabled = False
+            self._restart_beacon()
+        self._restart_aprs_beacon()
+        self._save_config()
+        state = "enabled" if self.config.aprs.enabled else "disabled"
+        message = f"APRS beaconing {state}."
+        if self.config.aprs.enabled and not self.gate.enabled:
+            message += " Ctrl+T to transmit."
+        self.notify(message)
 
     def action_show_tab(self, tab: str) -> None:
         self.query_one("#main-tabs", TabbedContent).active = tab
