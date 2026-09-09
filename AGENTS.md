@@ -424,6 +424,19 @@ Gotchas that already cost time:
 - **Suggestions and completions fill the input; they never send.** Use
   `TerminalPane.suggest`. A completion that transmits on its own is a defect on
   a shared channel. Never complete-on-enter.
+- **The same rule governs the APRS template picker, and matters more there.**
+  `AprsServiceScreen` (`kissterm/ui/dialogs.py`) offers well over a hundred
+  shipped gateway commands, several of which *act* when they arrive -- APSPOT
+  posts a public spot, SMSGTE texts a real phone, NTSGTE files traffic. A
+  picker that transmitted on selection would turn browsing into acting.
+  Selection returns a string; `AprsPane.show_templates` puts it in the
+  compose box and stops. Two tests guard this and both must stay:
+  `test_choosing_a_template_from_every_shipped_service_transmits_nothing`
+  drives the real selection handler for every service with the gate OPEN and
+  asserts the wire stayed empty, and `test_the_picker_has_no_transmit_path_
+  at_all` asserts it against the source (docstrings stripped first -- the
+  prose explains which send path it is *not* on, and a naive substring
+  search matches the documentation written to prevent the bug).
 - **The scrollback is a `RichLog`, not an editable widget** -- selectable and
   copyable, but it cannot be typed into by accident.
 - **Links are constructed from sanitized text, never parsed from remote

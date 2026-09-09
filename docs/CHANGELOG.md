@@ -3,6 +3,56 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Gateway services are built-in contacts, with a template picker
+
+### New Features
+- **The 17 shipped gateway services appear in the APRS contacts list**
+  (`Ctrl+G`), after the operator's own contacts, marked `built-in`, with each
+  service's one-line description in the Notes column. `WLNK-1` next to
+  "Winlink radio email, read and sent over APRS" is the point — a bare
+  callsign tells an operator nothing. They are rendered from
+  `kissterm/aprs_services/` and never written into `Config.aprs_contacts`, so
+  they improve when kissterm updates and can never masquerade as something
+  the operator typed.
+- **`Ctrl+R` on the APRS pane opens the template picker** for whoever is in
+  the "To:" field — the service's commands, its description, its coverage,
+  and its source URL. Same key as the Terminal pane's node command reference
+  because it is the same question with a different answer; Terminal-pane
+  behaviour is unchanged, and every other tab still gets the node reference.
+  There is also a **Templates** button next to Send, because a discoverability
+  feature reachable only by an undocumented key is not one.
+- **Choosing a template fills the message box. It never sends.** This is
+  AGENTS.md's existing completion rule, and it matters more here than for the
+  terminal: several shipped commands *act* on arrival. APSPOT posts a public
+  spot, SMSGTE texts a real phone. Two tests guard it — one drives the real
+  selection handler for every one of the seventeen services with the transmit
+  gate open and asserts nothing reached the wire, the other asserts it
+  against the source.
+- **Save your own messages** (Insert in the picker, `Config.aprs_templates`).
+  Each one is either scoped to a service or global, which is what lets one
+  list serve both "attach templates to the contact" and "keep a set of canned
+  messages". Scoped entries sort above global ones, and both sort above the
+  shipped commands.
+- **`F2` on a built-in offers to save your own copy** rather than erroring —
+  the reason to "edit" SMSGTE is to attach your own phone number, which is a
+  new contact. **`Delete` hides it** (`Config.aprs_hidden_services`), since a
+  built-in cannot be deleted and a key that does nothing looks broken.
+
+### Notes
+- The picker resolves a contact's own `gateway` field ahead of the shipped
+  callsign table, so a gateway reachable at an unlisted callsign still gets
+  its commands.
+- Edits and deletions of saved messages match on content, not on a row index:
+  the picker shows a filtered, re-ordered view, and treating a position in it
+  as a position in the config list is how an edit silently rewrites the wrong
+  entry.
+
+### Files
+- `kissterm/ui/aprs_pane.py`, `kissterm/ui/dialogs.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/styles.py`, `tests/pilot/test_aprs_templates.py`,
+  `tests/pilot/test_aprs_contacts_pane.py`, `AGENTS.md`, `DESIGN.md`,
+  `assets/*`
+
 ## [2026-09-09] — Fix a teardown race that wrote to a pane whose widgets were gone
 
 ### Bug Fixes

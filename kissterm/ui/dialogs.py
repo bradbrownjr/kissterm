@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from textual import on
+from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -21,7 +21,13 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
 from ..addressbook import AddressBook
-from ..aprs_contacts import Contact, normalize_service, validate_contact
+from ..aprs_contacts import (
+    CannedMessage,
+    Contact,
+    normalize_service,
+    validate_canned_message,
+    validate_contact,
+)
 from ..ax25 import parse_path
 
 
@@ -1609,6 +1615,332 @@ class CallsignScreen(ModalScreen[str | None]):
             self.query_one("#callsign-error", Label).update(f"[red]{exc}[/red]")
             return
         self.dismiss(text)
+
+
+class AprsCannedMessageScreen(ModalScreen["CannedMessage | None"]):
+    """Add or edit one of the operator's own saved APRS messages.
+
+    Deliberately tiny, the same shape as `CredentialScreen`: a name, the
+    text, and which service it belongs to. The scope `Select` is the whole
+    reason this is not just a flat list -- see `CannedMessage.gateway`.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, name: str = "", text: str = "", gateway: str = "") -> None:
+        super().__init__()
+        self._name = name
+        self._text = text
+        self._gateway = gateway.strip()
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("Saved message", id="connect-title")
+            yield Input(value=self._name, placeholder="Name, e.g. Net check-in", id="canned-name")
+            yield Input(value=self._text, placeholder="Message text", id="canned-text")
+            choices = _gateway_choices()
+            known = {value for _, value in choices}
+            # Reuses the gateway list, with the "not a gateway" entry
+            # relabelled: here it means "offer this everywhere", which is a
+            # different idea from a contact's "this is not a gateway" even
+            # though both store "".
+            choices = [("Show for every recipient", _NO_GATEWAY)] + choices[1:]
+            yield Select(
+                choices,
+                id="canned-gateway",
+                value=self._gateway if self._gateway in known else _NO_GATEWAY,
+                allow_blank=False,
+            )
+            yield Label("", id="connect-error")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save", variant="primary", id="canned-save")
+                yield Button("Cancel", id="canned-cancel")
+
+    def on_mount(self) -> None:
+        field = self.query_one("#canned-name", Input)
+        field.focus()
+        field.action_end()
+
+    @on(Button.Pressed, "#canned-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#canned-save")
+    @on(Input.Submitted, "#canned-text")
+    def _save(self) -> None:
+        name = self.query_one("#canned-name", Input).value.strip()
+        text = self.query_one("#canned-text", Input).value
+        problem = validate_canned_message(name, text)
+        if problem:
+            self.query_one("#connect-error", Label).update(f"[red]{problem}[/red]")
+            return
+        gateway = self.query_one("#canned-gateway", Select).value
+        if gateway in (_NO_GATEWAY, Select.NULL) or not isinstance(gateway, str):
+            gateway = ""
+        self.dismiss(CannedMessage(name=name, text=text, gateway=gateway))
+
+
+class AprsServiceScreen(ModalScreen[str | None]):
+    """What to say to an APRS gateway: shipped commands plus saved messages.
+
+    The APRS counterpart to `CommandReferenceScreen` above, and it exists for
+    the same reason: a gateway's command set is knowable in advance, and
+    asking the gateway itself costs channel time every operator would have to
+    spend separately. See `kissterm/aprs_services/directory.py`.
+
+    **Choosing an entry fills the compose box and does not send it.** That is
+    not a new rule invented here, it is AGENTS.md's existing one -- "a
+    completion that transmits on its own is a defect on a shared channel" --
+    and it is what makes a seventeen-service template library safe rather
+    than alarming. `AprsPane` still routes the actual transmission through
+    `KissTermApp._send_aprs_message` and the master transmit gate, exactly as
+    it does for a hand-typed message.
+
+    The screen shows the service's own description and source URL, not just
+    its commands. An operator looking at `MPAD` needs to know what it is
+    before they need to know its verbs, and the `confidence` column is the
+    honest answer to "can I trust this line enough to spend airtime on it?"
+    -- several shipped entries are `recalled` rather than `documented`.
+    """
+
+    BINDINGS = [
+        Binding("escape", "dismiss(None)", "Close"),
+        Binding("insert", "new_message", "Save a message", show=False),
+        Binding("f2", "edit_message", "Edit", show=False),
+        Binding("delete", "forget_message", "Forget", show=False),
+    ]
+
+    def __init__(self, service, saved: list, addressee: str = "") -> None:
+        """`service` is an `aprs_services.Service` or None (an addressee that
+        is nobody in the directory -- the operator's own saved messages are
+        still worth offering). `saved` is `CannedMessage`s already scoped by
+        `canned_messages_for`."""
+        super().__init__()
+        self._service = service
+        self._saved = list(saved)
+        self._addressee = addressee
+        #: Row key -> the text to insert. Built in `_populate` so a filtered
+        #: table never hands back a stale row's text.
+        self._rows: dict[str, str] = {}
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import DataTable
+
+        with Vertical(id="ref-box"):
+            yield Label(self._title(), id="ref-title")
+            yield Static(self._note(), id="ref-note")
+            yield Input(placeholder="search", id="aprs-service-search")
+            yield DataTable(id="aprs-service-table", cursor_type="row", zebra_stripes=True)
+            yield Static(
+                "Enter puts the text in the message box. Nothing is sent until "
+                "you press Enter there or click Send.  --  "
+                "Insert: save a message -- F2: edit -- Delete: forget",
+                id="ref-help",
+            )
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save a message", id="aprs-service-new")
+                yield Button("Close", id="aprs-service-close")
+
+    def _title(self) -> str:
+        if self._service is None:
+            target = self._addressee or "this recipient"
+            return f"Messages -- {target}"
+        return f"{self._service.name} -- {self._service.callsign}"
+
+    def _note(self) -> str:
+        """What this service is, and how much to trust the list.
+
+        Mirrors `CommandReferenceScreen._note`, including its "this reference
+        is unverified" warning -- the same question ("should I spend airtime
+        on this line?") with the same stakes.
+        """
+        if self._service is None:
+            return (
+                "Not one of the gateway services kissterm ships, so there are no "
+                "command templates for it -- only your own saved messages. Set a "
+                "gateway on the contact (F2 in the contacts list) if it is one."
+            )
+        parts = [self._service.note.replace("\n", " ").strip()]
+        if self._service.region:
+            parts.append(f"Coverage: {self._service.region}.")
+        if any(c.confidence == "recalled" for c in self._service.commands):
+            parts.append(
+                "Some lines below are marked 'recalled' -- their exact arguments "
+                "were not confirmed against the source. Check one before spending "
+                "airtime on it."
+            )
+        # The source is shown, not just cited in a docstring: an operator who
+        # wants the authoritative answer should be one URL away, and a
+        # directory entry with a date is honest about being a snapshot.
+        checked = f" (checked {self._service.checked})" if self._service.checked else ""
+        parts.append(f"Source: {self._service.source}{checked}")
+        return " ".join(p for p in parts if p)
+
+    def on_mount(self) -> None:
+        from textual.widgets import DataTable
+
+        table = self.query_one("#aprs-service-table", DataTable)
+        table.add_columns("From", "Command", "Send", "What it does", "Source")
+        self._populate("")
+        self.query_one("#aprs-service-search", Input).focus()
+
+    def _populate(self, needle: str) -> None:
+        from textual.widgets import DataTable
+
+        table = self.query_one("#aprs-service-table", DataTable)
+        table.clear()
+        self._rows = {}
+        needle_lower = needle.strip().lower()
+
+        # Saved messages first: they are the operator's own words, and
+        # someone who took the trouble to save a line usually wants it more
+        # often than any one shipped command.
+        for index, message in enumerate(self._saved):
+            if needle_lower and needle_lower not in f"{message.name} {message.text}".lower():
+                continue
+            key = f"saved:{index}"
+            scope = "yours" if message.gateway else "yours (all)"
+            table.add_row(scope, message.name, message.text, "", "saved", key=key)
+            self._rows[key] = message.text
+
+        if self._service is not None:
+            for command in self._service.find(needle):
+                key = f"cmd:{command.name}"
+                table.add_row(
+                    self._service.callsign,
+                    command.name,
+                    command.insert_text,
+                    command.summary,
+                    command.confidence,
+                    key=key,
+                )
+                self._rows[key] = command.insert_text
+
+    @on(Input.Changed, "#aprs-service-search")
+    def _search(self, event: Input.Changed) -> None:
+        self._populate(event.value)
+
+    @on(Button.Pressed, "#aprs-service-close")
+    def _close(self) -> None:
+        self.dismiss(None)
+
+    def on_data_table_row_selected(self, event) -> None:
+        """Hand the text back for the caller to put in the compose box."""
+        key = str(event.row_key.value or "")
+        text = self._rows.get(key)
+        if text is not None:
+            self.dismiss(text)
+
+    # -- the operator's own saved messages -----------------------------------
+    def _selected_saved_index(self) -> int | None:
+        """The `self._saved` index under the cursor, or None if the cursor is
+        on a shipped command (which the operator does not own and cannot
+        edit)."""
+        from textual.widgets import DataTable
+
+        table = self.query_one("#aprs-service-table", DataTable)
+        if table.row_count == 0 or table.cursor_coordinate is None:
+            return None
+        try:
+            row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
+        except Exception:
+            return None
+        key = str(row_key.value or "")
+        if not key.startswith("saved:"):
+            return None
+        return int(key.split(":", 1)[1])
+
+    def action_new_message(self) -> None:
+        self._edit_message(None)
+
+    @on(Button.Pressed, "#aprs-service-new")
+    def _new_pressed(self) -> None:
+        self.action_new_message()
+
+    def action_edit_message(self) -> None:
+        index = self._selected_saved_index()
+        if index is None:
+            self.app.notify(
+                "Select one of your own saved messages to edit -- the shipped "
+                "commands come from kissterm and cannot be changed here.",
+                severity="warning",
+            )
+            return
+        self._edit_message(index)
+
+    def action_forget_message(self) -> None:
+        index = self._selected_saved_index()
+        if index is None:
+            return
+        message = self._saved[index]
+        self._apply(lambda raw: _forget_canned(raw, message))
+        self._saved.pop(index)
+        self._populate(self.query_one("#aprs-service-search", Input).value)
+
+    @work
+    async def _edit_message(self, index: int | None) -> None:
+        existing = self._saved[index] if index is not None else None
+        default_gateway = self._service.id if self._service is not None else ""
+        result = await self.app.push_screen_wait(
+            AprsCannedMessageScreen(
+                name=existing.name if existing else "",
+                text=existing.text if existing else "",
+                gateway=existing.gateway if existing else default_gateway,
+            )
+        )
+        if result is None:
+            return
+        old = existing
+        self._apply(lambda raw: _replace_canned(raw, old, result))
+        if index is not None:
+            self._saved[index] = result
+        else:
+            self._saved.insert(0, result)
+        self._populate(self.query_one("#aprs-service-search", Input).value)
+
+    def _apply(self, change) -> None:
+        """Mutate `Config.aprs_templates` in place and persist.
+
+        In place because `Config` is handed around by reference everywhere in
+        this app -- rebinding the attribute to a new list would leave any
+        other holder looking at the old one, the same reason
+        `AprsPane._forget_selected` pops from the live list rather than
+        rebuilding it.
+        """
+        raw = self.app.config.aprs_templates  # type: ignore[attr-defined]
+        raw[:] = change(raw)
+        self.app._save_config()  # type: ignore[attr-defined]
+
+
+def _replace_canned(raw: list[dict], old, new) -> list[dict]:
+    """`raw` with `old` swapped for `new`, or `new` appended if `old` is None.
+
+    Matched on the stored dict rather than on an index because the picker
+    shows a FILTERED, re-ordered view (scoped before global, saved before
+    shipped) -- a position in that view is not a position in the config list,
+    and using one as the other is how an edit silently rewrites the wrong
+    entry.
+    """
+    out = list(raw)
+    if old is not None:
+        target = old.to_dict()
+        for i, entry in enumerate(out):
+            if CannedMessage.from_dict(entry) == old or entry == target:
+                out[i] = new.to_dict()
+                return out
+    out.append(new.to_dict())
+    return out
+
+
+def _forget_canned(raw: list[dict], message) -> list[dict]:
+    """`raw` without the first entry equal to `message`. Same
+    match-on-content reasoning as `_replace_canned`."""
+    out = list(raw)
+    for i, entry in enumerate(out):
+        if CannedMessage.from_dict(entry) == message:
+            del out[i]
+            return out
+    return out
 
 
 class CommandReferenceScreen(ModalScreen[str | None]):

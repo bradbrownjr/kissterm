@@ -173,6 +173,16 @@ tab existed to expect it.
   meant to run at once. The Footer label stays "Beacon" on every tab, the
   same as `Ctrl+G` stays labelled "Contacts" everywhere even where it has
   nothing to do.
+- **`Ctrl+R` is context-aware by active tab, third use of the same dispatch
+  shape.** The key asks one question — "what can I say to the thing I am
+  talking to?" — and only the source of the answer changes. On the Terminal
+  pane (and every tab but APRS) it is unchanged: the shipped node command
+  reference from `kissterm/nodes/`. On the APRS pane it opens the gateway
+  service picker from `kissterm/aprs_services/`, scoped to whoever is in the
+  "To:" field. Both fill an input and **neither sends** — the same rule that
+  has always governed the terminal's reference. The Footer label stays
+  "Commands" on every tab, like `Ctrl+G`'s "Contacts" and `Ctrl+Shift+B`'s
+  "Beacon".
 - **Ceiling: F1–F10.** Originally set at F8 (some terminals were assumed
   unreliable past it), raised once F9/F10 were confirmed working in practice
   — see `docs/ROADMAP.md` P10. Five tabs exist, three more are planned

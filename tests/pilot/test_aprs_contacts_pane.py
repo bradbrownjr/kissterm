@@ -76,8 +76,60 @@ async def test_every_configured_contact_appears_in_the_table():
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
         table = app.query_one("#aprs-contact-table", DataTable)
-        names = {str(table.get_cell_at((r, 0))) for r in range(table.row_count)}
-        assert names == {"Jim", "Mom"}
+        names = [str(table.get_cell_at((r, 0))) for r in range(table.row_count)]
+        services = [str(table.get_cell_at((r, 2))) for r in range(table.row_count)]
+
+        # The operator's own contacts come FIRST, before the shipped gateway
+        # services -- seventeen built-ins would otherwise bury the two or
+        # three people they actually message.
+        assert names[:2] == ["Jim", "Mom"]
+        assert services[:2] == ["station", "sms"]
+
+        # The shipped directory is appended, marked, and described.
+        assert "Winlink APRSLink" in names
+        assert set(services[2:]) == {"built-in"}
+        winlink_row = names.index("Winlink APRSLink")
+        assert str(table.get_cell_at((winlink_row, 1))) == "WLNK-1"
+        # The Notes column carries the summary -- a bare callsign in a
+        # contact list tells an operator nothing.
+        assert str(table.get_cell_at((winlink_row, 4))).strip()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_built_in_service_is_never_written_into_the_saved_contacts():
+    """Built-ins are rendered from kissterm/aprs_services/, not copied into
+    the operator's config. Copying them would freeze them at whatever this
+    version shipped -- a corrected callsign or a new command would never
+    reach an existing install."""
+    app, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        table = app.query_one("#aprs-contact-table", DataTable)
+        assert table.row_count > 0  # the built-ins are showing
+        assert app.config.aprs_contacts == []
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_hiding_a_built_in_removes_its_row_and_persists():
+    """Delete on a built-in row has to do something honest. It is not stored
+    in aprs_contacts and so cannot be deleted; hiding is the middle answer,
+    and it has to survive a restart or the key just looks broken."""
+    app, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        pane = app.query_one(AprsPane)
+        table = app.query_one("#aprs-contact-table", DataTable)
+        before = table.row_count
+
+        pane._hide_service("winlink")
+        await pilot.pause()
+
+        names = [str(table.get_cell_at((r, 0))) for r in range(table.row_count)]
+        assert "Winlink APRSLink" not in names
+        assert table.row_count == before - 1
+        assert app.config.aprs_hidden_services == ["winlink"]
     station.close()
 
 

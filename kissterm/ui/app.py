@@ -2027,7 +2027,21 @@ class KissTermApp(App):
         Never sends. `TerminalPane.suggest` fills the field and the operator
         commits deliberately -- a reference that transmitted on selection would
         be a defect on a shared channel.
+
+        **Context-aware, dispatched on the active tab.** `Ctrl+R` asks one
+        question -- "what can I say to the thing I am talking to?" -- and on
+        the APRS pane the answer comes from `kissterm/aprs_services/` instead
+        of `kissterm/nodes/`. Same question, same key, different source; this
+        is the third use of the per-tab dispatch `action_toggle_contacts`
+        (`Ctrl+G`) and `action_beacon_now` (`Ctrl+Shift+B`) already use, and
+        the operator learns one key rather than two. Terminal-pane behaviour
+        below is untouched, and every other tab still gets it.
         """
+        if self.query_one("#main-tabs", TabbedContent).active == "aprs":
+            for pane in self._base_query(AprsPane):
+                pane.show_templates()
+                return
+            return
         chosen = await self.push_screen_wait(
             CommandReferenceScreen(self.reference)
         )
