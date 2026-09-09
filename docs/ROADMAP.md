@@ -163,17 +163,19 @@ transports and framing that already exist, not a new transport.
   Book table is) on the left, and the selected contact's message history
   (read-only, from `kissterm.aprs_conversations`) on the right. No compose
   input yet -- nothing in this pane can transmit.
-- [ ] **APRS pane: send a message, with ack/retry.** The remaining half of
-  "replicate what KM6LYW's APRS WebChat does, in terminal form" -- a compose
-  input in the conversation view, sent via `aprs.encode.message` through
-  the existing transmit gate (no auto-arm; this is repeatable chat traffic,
-  not a one-shot confirmed action like Connect), plus a retry timer for an
-  un-acked outgoing message. `MessageEntry.acked`
-  (`kissterm/aprs_conversations.py`) already exists for this to flip once
-  `_on_aprs_frame`'s existing ack-matching logic (`ConversationStore.
-  mark_acked`) has something to notify. Small — the message store, send
-  path, and ack routing all already exist; this is the retry timer plus
-  wiring the compose input to them.
+- [x] **APRS pane: send a message, with ack/retry** (2026-09-09).
+  A "To:" field (independent of the contacts table -- typing a bare
+  callsign messages someone not saved as a contact at all) plus a compose
+  input and Send button, sent via `KissTermApp._send_aprs_message` (the
+  shared encode-and-transmit primitive a fresh send and a retry both call)
+  through the existing transmit gate -- no auto-arm; this is repeatable
+  chat traffic, not a one-shot confirmed action like Connect.
+  `kissterm.aprs_conversations.PendingAcks` tracks outgoing messages
+  awaiting an ack, in memory only, and a periodic timer in the pane
+  reconciles it against `ConversationStore.mark_acked` (flipped by
+  `_on_aprs_frame`'s existing ack-matching logic) before resending
+  anything still due. This closes "replicate what KM6LYW's APRS WebChat
+  does, in terminal form."
 - [ ] **A heard-stations position/map view.** Not part of this pass --
   positions decode (`aprs.parse_packet`, `kind in ("position", "mic-e",
   ...)`) but nothing renders them yet; see the separate "text-mode map or

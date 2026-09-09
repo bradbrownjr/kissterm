@@ -13,6 +13,7 @@ import pytest  # noqa: E402
 from kissterm.aprs_conversations import (  # noqa: E402
     MAX_MESSAGES_PER_CONVERSATION,
     ConversationStore,
+    PendingAcks,
 )
 
 
@@ -99,3 +100,64 @@ def test_save_writes_valid_json(store):
     store.record_outgoing("K1ABC-9", "hello", number="1")
     raw = json.loads(store.file.read_text("utf-8"))
     assert "K1ABC-9" in raw
+
+
+# -- PendingAcks --------------------------------------------------------
+
+
+def test_a_fresh_pending_message_is_not_due_before_its_retry_window():
+    pending = PendingAcks(retry_seconds=30.0)
+    pending.add("K1ABC-9", "1", "hello", now=0.0)
+    assert pending.due(now=10.0) == []
+
+
+def test_a_pending_message_is_due_after_its_retry_window():
+    pending = PendingAcks(retry_seconds=30.0)
+    pending.add("K1ABC-9", "1", "hello", now=0.0)
+    assert pending.due(now=31.0) == [("K1ABC-9", "1", "hello")]
+
+
+def test_due_reschedules_rather_than_repeating_immediately():
+    pending = PendingAcks(retry_seconds=30.0, max_retries=5)
+    pending.add("K1ABC-9", "1", "hello", now=0.0)
+    assert pending.due(now=31.0) == [("K1ABC-9", "1", "hello")]
+    assert pending.due(now=32.0) == []  # just retried, not due again yet
+    assert pending.due(now=61.0) == [("K1ABC-9", "1", "hello")]
+
+
+def test_a_message_is_dropped_after_max_retries():
+    pending = PendingAcks(retry_seconds=10.0, max_retries=2)
+    pending.add("K1ABC-9", "1", "hello", now=0.0)
+    assert pending.due(now=11.0) == [("K1ABC-9", "1", "hello")]  # attempt 1
+    assert pending.due(now=22.0) == [("K1ABC-9", "1", "hello")]  # attempt 2
+    assert pending.due(now=33.0) == []  # max_retries used up, dropped
+
+
+def test_discard_removes_a_pending_entry():
+    pending = PendingAcks(retry_seconds=10.0)
+    pending.add("K1ABC-9", "1", "hello", now=0.0)
+    pending.discard("K1ABC-9", "1")
+    assert pending.due(now=100.0) == []
+
+
+def test_discard_acked_stops_a_retry_once_the_store_shows_it_acked(tmp_path):
+    store = ConversationStore(tmp_path / "aprs_messages.json")
+    pending = PendingAcks(retry_seconds=10.0)
+    store.record_outgoing("K1ABC-9", "hello", number="1")
+    pending.add("K1ABC-9", "1", "hello", now=0.0)
+
+    store.mark_acked("K1ABC-9", "1")
+    pending.discard_acked(store)
+
+    assert pending.due(now=100.0) == []
+
+
+def test_discard_acked_leaves_an_unacked_message_alone(tmp_path):
+    store = ConversationStore(tmp_path / "aprs_messages.json")
+    pending = PendingAcks(retry_seconds=10.0)
+    store.record_outgoing("K1ABC-9", "hello", number="1")
+    pending.add("K1ABC-9", "1", "hello", now=0.0)
+
+    pending.discard_acked(store)
+
+    assert pending.due(now=100.0) == [("K1ABC-9", "1", "hello")]

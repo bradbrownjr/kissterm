@@ -808,6 +808,39 @@ class KissTermApp(App):
         self.aprs_conversations.record_outgoing(addressee, f"ack{number}", number=None)
         self._to_terminal("log", f"\n*** Auto-ack sent to {addressee} (msg {number})\n")
 
+    async def _send_aprs_message(
+        self, addressee: str, text: str, number: str, *, port: int = 0, retry: bool = False
+    ) -> bool:
+        """Encode and transmit one APRS message frame -- the shared send
+        primitive for both a fresh send from the APRS pane and a retry of
+        one still awaiting an ack. Returns whether it actually went out.
+
+        Deliberately does NOT touch `self.aprs_conversations` or any
+        pending-ack tracking itself: a retry resending the exact same
+        message must not create a second history entry, so whether this
+        call is "the first send" (record it, start tracking) or "a retry"
+        (already recorded, already tracked) is a decision only the caller
+        (`kissterm.ui.aprs_pane.AprsPane`) has enough context to make.
+        """
+        if self.station is None:
+            return False
+        gate = getattr(self.station.transport, "gate", None)
+        if gate is not None and not gate.enabled:
+            # Same rule as `_send_aprs_ack`: never log or claim a send that
+            # the gate silently dropped.
+            return False
+        try:
+            payload = aprs.message(addressee, text, number=number)
+            dest = AX25Address.parse("APRS")
+            outframe = aprs.beacon_frame(self.station.mycall, dest, (), payload)
+            await self.station.transport.send_frame(outframe, port)
+        except Exception as exc:
+            log.debug("APRS message to %s not sent: %s", addressee, exc)
+            return False
+        verb = "Resent" if retry else "Sent"
+        self._to_terminal("log", f"\n*** {verb} APRS message {number} to {addressee}\n")
+        return True
+
     def _on_incoming_link(self, link) -> None:
         self._to_terminal("log", f"\n*** Incoming connection from {link.peer}\n")
         if not self.gate.enabled:

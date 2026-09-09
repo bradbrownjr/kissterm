@@ -125,6 +125,9 @@ AprsPane { height: 1fr; }
 #aprs-contact-table { height: 1fr; }
 #aprs-conversation-title { padding: 1 0; color: $text-muted; }
 #aprs-conversation-log { height: 1fr; border: solid $panel; }
+#aprs-compose-row { height: auto; margin-top: 1; }
+#aprs-to-input { border: round $accent; width: 12; margin-right: 1; }
+#aprs-compose-input { border: round $accent; width: 1fr; margin-right: 1; }
 
 /* Connect dialog */
 ConnectScreen { align: center middle; }

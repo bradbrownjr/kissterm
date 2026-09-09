@@ -10,13 +10,21 @@ APRS decoding itself does not live here -- it is wired into the shared frame
 fan-out in `ui/app.py`'s `_on_aprs_frame`, the same way the monitor pane and
 heard list are (AGENTS.md sec. 2b: never a second decode path). This module
 only ever reads `self.app.config.aprs_contacts` and
-`self.app.aprs_conversations`, and sends through `self.app.station.transport
-.send_frame` -- the same transmit gate as everything else in this app.
+`self.app.aprs_conversations`; the actual encode-and-transmit step is
+`KissTermApp._send_aprs_message` -- the shared primitive a fresh send and a
+retry both call, so "what does it mean to send an APRS message" has exactly
+one answer, gated by the same transmit switch as everything else in this app.
 
-**Contacts CRUD lands first, the conversation view and sending land next**
-(this file is built in the same two-commit sequence the roadmap item was
-scoped in): until then, selecting a contact shows its message history
-read-only. No compose input exists yet, so nothing here can transmit.
+**Sending, ack, and retry.** `self._pending` (`aprs_conversations.
+PendingAcks`) tracks outgoing messages awaiting an ack, in memory only --
+see that module's docstring for why. A periodic timer
+(`_check_retries`) reconciles it against `self.app.aprs_conversations`
+(an ack arriving is `_on_aprs_frame`'s job, over on the frame fan-out; this
+pane only notices the flag it leaves behind) and resends anything still due.
+The "To:" field is independent of the contacts table on purpose: typing a
+bare callsign there sends to someone not in the contact list at all, the
+same way the Connect dialog and the Address Book coexist -- a contact is a
+convenience, not a requirement, for messaging someone.
 """
 
 from __future__ import annotations
@@ -25,9 +33,15 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, DataTable, RichLog, Static
+from textual.widgets import Button, DataTable, Input, RichLog, Static
 
 from ..aprs_contacts import Contact
+from ..aprs_conversations import PendingAcks
+
+#: How often the retry timer checks for a due, un-acked message. Independent
+#: of `PendingAcks.retry_seconds` (how long a single message waits before
+#: its own first/next retry) -- this is just the polling granularity.
+_RETRY_CHECK_INTERVAL = 10.0
 
 
 class _AprsContactTable(DataTable):
@@ -55,6 +69,13 @@ class _AprsContactTable(DataTable):
 class AprsPane(Horizontal):
     """Contacts on the left, the selected contact's conversation on the right."""
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._pending = PendingAcks()
+        #: Wraps well inside the spec's 1-5 alphanumeric characters; a
+        #: fresh number each send, reused by nothing until it wraps.
+        self._next_msg_number = 1
+
     def compose(self) -> ComposeResult:
         with Vertical(id="aprs-contacts-column"):
             yield Static("APRS messaging contacts.", classes="addressbook-note")
@@ -70,9 +91,14 @@ class AprsPane(Horizontal):
         with Vertical(id="aprs-conversation-column"):
             yield Static("Select a contact to see its message history.", id="aprs-conversation-title")
             yield RichLog(id="aprs-conversation-log", wrap=True, markup=False)
+            with Horizontal(id="aprs-compose-row"):
+                yield Input(placeholder="To (callsign)", id="aprs-to-input")
+                yield Input(placeholder="Message", id="aprs-compose-input")
+                yield Button("Send", variant="primary", id="aprs-send-button")
 
     def on_mount(self) -> None:
         self.refresh_from(self.app.config.aprs_contacts)  # type: ignore[attr-defined]
+        self.set_interval(_RETRY_CHECK_INTERVAL, self._check_retries)
 
     # ------------------------------------------------------------------
     def refresh_from(self, raw_contacts: list[dict]) -> None:
@@ -112,6 +138,11 @@ class AprsPane(Horizontal):
         index = int(event.row_key.value) if event.row_key.value is not None else None
         if index is None:
             return
+        raw_contacts = self._contacts()
+        if index < 0 or index >= len(raw_contacts):
+            return
+        contact = Contact.from_dict(raw_contacts[index])
+        self.query_one("#aprs-to-input", Input).value = contact.callsign
         self._show_conversation(index)
 
     def _show_conversation(self, index: int) -> None:
@@ -119,13 +150,18 @@ class AprsPane(Horizontal):
         if index < 0 or index >= len(raw_contacts):
             return
         contact = Contact.from_dict(raw_contacts[index])
-        self.query_one("#aprs-conversation-title", Static).update(
-            f"{contact.name} ({contact.callsign})"
-        )
+        self._show_conversation_for(contact.callsign, f"{contact.name} ({contact.callsign})")
+
+    def _show_conversation_for(self, callsign: str, title: str) -> None:
+        """Repaint the conversation log for `callsign` -- the shared render
+        step for a contact-row selection AND a bare "To:" callsign that
+        matches no saved contact at all."""
+        callsign = callsign.strip().upper()
+        self.query_one("#aprs-conversation-title", Static).update(title)
         log = self.query_one("#aprs-conversation-log", RichLog)
         log.clear()
         store = self.app.aprs_conversations  # type: ignore[attr-defined]
-        convo = store.conversations.get(contact.callsign)
+        convo = store.conversations.get(callsign)
         if convo is None or not convo.messages:
             log.write("(no messages yet)")
             return
@@ -193,3 +229,61 @@ class AprsPane(Horizontal):
         self.app._save_config()  # type: ignore[attr-defined]
         self.refresh_from(raw_contacts)
         self.app.notify(f"Saved {result.name!r}.")  # type: ignore[attr-defined]
+
+    # -- sending, ack, retry -------------------------------------------------
+    def _next_number(self) -> str:
+        number = str(self._next_msg_number)
+        self._next_msg_number = self._next_msg_number % 99999 + 1
+        return number
+
+    def _contact_service_for(self, callsign: str) -> str:
+        """The saved contact's `service` for `callsign`, or "station" for a
+        bare "To:" target that matches no saved contact -- plain text is the
+        only thing that makes sense to send someone not otherwise described."""
+        callsign = callsign.strip().upper()
+        for raw in self._contacts():
+            if str(raw.get("callsign", "")).strip().upper() == callsign:
+                return Contact.from_dict(raw).service
+        return "station"
+
+    @on(Button.Pressed, "#aprs-send-button")
+    @on(Input.Submitted, "#aprs-compose-input")
+    def _send_pressed(self) -> None:
+        self._send_compose()
+
+    @work
+    async def _send_compose(self) -> None:
+        addressee = self.query_one("#aprs-to-input", Input).value.strip()
+        text_field = self.query_one("#aprs-compose-input", Input)
+        text = text_field.value.strip()
+        if not addressee:
+            self.app.notify("Type a callsign to send to.", severity="warning")  # type: ignore[attr-defined]
+            return
+        if not text:
+            return
+        number = self._next_number()
+        ok = await self.app._send_aprs_message(addressee, text, number)  # type: ignore[attr-defined]
+        if not ok:
+            self.app.notify(  # type: ignore[attr-defined]
+                "Message not sent -- transmit is disabled (Ctrl+T).", severity="warning"
+            )
+            return
+        service = self._contact_service_for(addressee)
+        self.app.aprs_conversations.record_outgoing(  # type: ignore[attr-defined]
+            addressee, text, number=number, service=service
+        )
+        self._pending.add(addressee, number, text)
+        text_field.value = ""
+        self._show_conversation_for(addressee, addressee)
+
+    def _check_retries(self) -> None:
+        self._retry_worker()
+
+    @work
+    async def _retry_worker(self) -> None:
+        store = self.app.aprs_conversations  # type: ignore[attr-defined]
+        self._pending.discard_acked(store)
+        for callsign, number, text in self._pending.due():
+            await self.app._send_aprs_message(  # type: ignore[attr-defined]
+                callsign, text, number, retry=True
+            )

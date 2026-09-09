@@ -3,6 +3,34 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — APRS pane: send a message, with ack and retry
+
+### New Features
+- **The APRS pane can now send.** A "To:" input (independent of the
+  contacts table -- a bare callsign not in the contact list can still be
+  messaged, the same way Connect and the Address Book coexist) plus a
+  compose input and Send button. Sending goes through
+  `KissTermApp._send_aprs_message`, a new shared primitive that encodes
+  and transmits one APRS message frame through the existing transmit gate
+  (never auto-armed -- this is repeatable chat traffic, not a one-shot
+  confirmed action like Connect) and writes every send to the terminal
+  pane, the same visibility rule the auto-ack path already follows.
+- **`kissterm.aprs_conversations.PendingAcks`** -- in-memory-only tracking
+  of outgoing messages awaiting an ack (never persisted, same reasoning as
+  `AX25Link`'s T1/T2/T3 timers). The APRS pane runs a periodic timer that
+  reconciles it against `ConversationStore.mark_acked` (flipped by
+  `_on_aprs_frame`'s existing ack-matching logic on the frame fan-out) and
+  resends anything still due, up to a small retry count. A retry reuses
+  `_send_aprs_message` with `retry=True` so it is never recorded as a
+  second history entry for the same logical message.
+- This closes the roadmap item requested directly: replicate what
+  KM6LYW's APRS WebChat does, in terminal form.
+
+### Files
+- `kissterm/ui/app.py` (`_send_aprs_message`), `kissterm/ui/aprs_pane.py`,
+  `kissterm/aprs_conversations.py` (`PendingAcks`), `kissterm/ui/styles.py`
+- `tests/pilot/test_aprs_send.py` (new), `tests/unit/test_aprs_conversations.py`
+
 ## [2026-09-09] — APRS pane: contacts list, CRUD, and read-only message history
 
 ### New Features

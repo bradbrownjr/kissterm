@@ -17,7 +17,8 @@ stations (a home station and a mobile), and merging their histories under
 one entry would be presenting messages from two potentially different people
 as one conversation.
 
-**Pending-ack/retry bookkeeping is deliberately NOT here.** Which outgoing
+**Pending-ack/retry bookkeeping (`PendingAcks`, below) is deliberately
+NOT part of `ConversationStore` and is never persisted.** Which outgoing
 message numbers are still awaiting an ack, how many times each has been
 retried, and when the next retry is due are all in-memory-only state owned
 by the pane that sent them -- the same reason `AX25Link`'s T1/T2/T3 timers
@@ -192,3 +193,88 @@ class ConversationStore:
             if oldest is not convo:
                 del self.conversations[oldest.callsign]
         self.save()
+
+
+#: How long to wait for an ack before resending, and how many times to try.
+#: The APRS spec does not mandate exact figures for either -- these are a
+#: reasonable implementation choice, not a cited value, the same honesty
+#: `mice.py` and `mail_waiting_for` apply to their own unverified constants.
+DEFAULT_RETRY_SECONDS = 30.0
+DEFAULT_MAX_RETRIES = 3
+
+
+@dataclass(slots=True)
+class _Pending:
+    text: str
+    attempts: int = 0
+    next_retry: float = 0.0
+
+
+class PendingAcks:
+    """In-memory-only tracking of outgoing messages awaiting an ack.
+
+    Deliberately not part of `ConversationStore` or persisted -- see this
+    module's docstring. Owned by `kissterm.ui.aprs_pane.AprsPane`, which is
+    the only thing that both sends messages and runs a retry timer; nothing
+    here does any I/O of its own, so it is testable with no transport and no
+    mounted app.
+    """
+
+    def __init__(
+        self,
+        retry_seconds: float = DEFAULT_RETRY_SECONDS,
+        max_retries: int = DEFAULT_MAX_RETRIES,
+    ) -> None:
+        self.retry_seconds = retry_seconds
+        self.max_retries = max_retries
+        self._pending: dict[tuple[str, str], _Pending] = {}
+
+    def add(self, callsign: str, number: str, text: str, *, now: float | None = None) -> None:
+        """Start tracking a just-sent message. Called once, by the sender --
+        never by a retry, which must not restart this message's own clock
+        or it would never be allowed to expire."""
+        now = now if now is not None else time.monotonic()
+        key = (callsign.strip().upper(), number)
+        self._pending[key] = _Pending(text=text, attempts=0, next_retry=now + self.retry_seconds)
+
+    def discard(self, callsign: str, number: str) -> None:
+        self._pending.pop((callsign.strip().upper(), number), None)
+
+    def discard_acked(self, store: ConversationStore) -> None:
+        """Drop any pending entry the store already shows acked.
+
+        Reconciles against `ConversationStore.mark_acked`'s effect -- the
+        two classes share no direct reference to each other, so this is the
+        one place that connects "an ack arrived" (the store) to "stop
+        retrying" (here); called by the retry timer before `due()`.
+        """
+        for callsign, number in list(self._pending.keys()):
+            convo = store.conversations.get(callsign)
+            if convo and any(
+                m.direction == "out" and m.number == number and m.acked for m in convo.messages
+            ):
+                del self._pending[(callsign, number)]
+
+    def due(self, *, now: float | None = None) -> list[tuple[str, str, str]]:
+        """(callsign, number, text) triples due for a retry right now.
+
+        A side effect, not just a query: every entry returned has its
+        attempt count bumped and its next-retry deadline pushed out, on the
+        assumption the caller is about to actually resend it -- the same
+        "checked and acted on in one step" shape `TransmitGate.allow()`
+        uses. An entry that has already used up `max_retries` is dropped
+        (left un-acked in the conversation log, per this module's
+        docstring) rather than returned again.
+        """
+        now = now if now is not None else time.monotonic()
+        due: list[tuple[str, str, str]] = []
+        for key, pending in list(self._pending.items()):
+            if now < pending.next_retry:
+                continue
+            if pending.attempts >= self.max_retries:
+                del self._pending[key]
+                continue
+            pending.attempts += 1
+            pending.next_retry = now + self.retry_seconds
+            due.append((key[0], key[1], pending.text))
+        return due
