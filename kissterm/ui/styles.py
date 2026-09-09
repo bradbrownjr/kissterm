@@ -142,7 +142,25 @@ AprsPane { height: 1fr; }
    before changing this number; changing it alone changes nothing. */
 #aprs-contacts-column { width: 58%; padding: 0 2; border-left: solid $panel; }
 #aprs-contact-table { height: 1fr; }
-#aprs-conversation-title { padding: 1 0; color: $text-muted; }
+#aprs-conversation-title { padding: 1 0 0 0; color: $text-muted; }
+/* The conversation tab strip -- a SECOND row of tabs on the same screen as
+   the F-key tab bar, which is the whole styling problem. The generic
+   `Tabs Tab.-active` rule above plus Textual's own underline bar would make
+   this look exactly like that bar, and two identical-looking navigations
+   competing on one screen is not a hierarchy. So this one reads as
+   subordinate: the underline bar is dimmed to the panel colour instead of
+   the accent, inactive tabs are muted, and only the active tab keeps the
+   accent. Same fact, one visual language -- see DESIGN.md. */
+#aprs-convo-tabs { height: 2; margin-bottom: 1; }
+#aprs-convo-tabs Tab { color: $text-muted; }
+#aprs-convo-tabs Tab.-active { color: $accent; text-style: bold; }
+/* Unread: `$warning`, the same colour the contacts table's `*` row uses, so
+   the two markers for one fact read as one marker. The `*` in the label
+   carries it on its own for anyone who cannot see the colour. An unread tab
+   is never the active one -- activating it is what clears the mark -- so
+   these two rules cannot fight over the same tab. */
+#aprs-convo-tabs Tab.-unread { color: $warning; text-style: bold; }
+#aprs-convo-tabs Underline > .underline--bar { color: $panel; }
 #aprs-conversation-log { height: 1fr; border: solid $panel; }
 #aprs-compose-row { height: auto; margin-top: 1; }
 #aprs-to-input { border: round $accent; width: 12; margin-right: 1; }

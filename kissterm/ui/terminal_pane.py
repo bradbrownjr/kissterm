@@ -82,6 +82,7 @@ from . import slideouts
 from ..monitor import sanitize
 from ..tx import DISABLED_MESSAGE
 from .addressbook_pane import AddressBookPane
+from .wraplog import WrapLog
 
 #: Conservative URL match. Trailing punctuation is excluded so a link at the
 #: end of a sentence does not swallow the full stop into the target.
@@ -243,7 +244,13 @@ class TerminalPane(Container):
                 # A RichLog is not editable, so the transcript cannot be typed
                 # into by accident. Textual's selection support keeps it
                 # copyable anyway.
-                yield RichLog(
+                # `WrapLog`, not a plain `RichLog`: a plain one renders every
+                # line 78 cells wide whatever the column it is in, so on an
+                # 80-column terminal -- or any width with the Address Book
+                # open beside it -- a node's `?` listing arrived cut off
+                # mid-word. See `kissterm/ui/wraplog.py`, which also explains
+                # why the obvious `min_width=0` is the wrong fix.
+                yield WrapLog(
                     id="session-log",
                     wrap=True,
                     markup=False,

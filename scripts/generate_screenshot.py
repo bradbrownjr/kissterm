@@ -168,6 +168,13 @@ async def main() -> int:
         # the unackable auto-ack above it.
         app.aprs_conversations.record_outgoing("K1ABC-9", "roger, see you at the site", number="2")
         app.aprs_conversations.mark_acked("K1ABC-9", "2")
+        # A second correspondent, so the conversation tab strip has something
+        # to be a strip of, and a third station chatting with somebody else
+        # entirely so the "All" tab's channel-monitor half is in the picture
+        # too. `note_incoming` below turns the second one into the unread
+        # marker -- the `*` on the tab and beside the callsign in the list.
+        app.aprs_conversations.record_incoming("WS1EC-15", "net starts in 5", number="7")
+        app.aprs_conversations.record_incoming("KC1XYZ-9", "K1ABC-9 morning Jim", number="3")
 
         book = app.addressbook
         book.record_attempt("W1AW-1")
@@ -185,6 +192,16 @@ async def main() -> int:
         )
 
         app._refresh_status()  # repaint after populating, not before
+        # The slide-outs opened themselves at mount, which was BEFORE any of
+        # the above existed, so the tables they painted then were empty.
+        # Nothing repaints them again on its own -- opening one by hand used
+        # to be what did. Without this every shot with a panel in it is a
+        # picture of an empty table.
+        from kissterm.ui.addressbook_pane import AddressBookPane
+        from kissterm.ui.aprs_pane import AprsPane as _Aprs
+
+        app.query_one(AddressBookPane).refresh_from(app.addressbook)
+        app.query_one(_Aprs).refresh_from(app.config.aprs_contacts)
         await pilot.pause()
         await asyncio.sleep(0.2)
         await pilot.pause()
@@ -205,7 +222,13 @@ async def main() -> int:
             if tab == "aprs":
                 from kissterm.ui.aprs_pane import AprsPane
 
-                app.query_one(AprsPane)._show_conversation(0)
+                pane = app.query_one(AprsPane)
+                # An unread tab first, then the one being read -- in that
+                # order, so the picture shows a `*` tab sitting NEXT TO the
+                # active conversation rather than the marker landing on the
+                # tab we then open and clear.
+                pane.note_incoming("WS1EC-15", to_me=True)
+                pane._show_conversation(0)
                 await pilot.pause()
             app.save_screenshot(str(ASSETS / name))
             written.append(ASSETS / name)
@@ -219,7 +242,16 @@ async def main() -> int:
 
         app.action_show_tab("aprs")
         await pilot.pause()
-        app.query_one(_AprsPane).toggle_contacts()
+        # ENSURE open, never toggle: at this width the width rule
+        # (`kissterm/ui/slideouts.py`) has already opened it, so a blind
+        # toggle here would close the panel this shot exists to show.
+        _aprs_pane = app.query_one(_AprsPane)
+        if not app.query_one("#aprs-contacts-column").display:
+            _aprs_pane.toggle_contacts()
+        # On the "All" tab, so this shot carries the merged view as well as
+        # the directory. Since the contact list opens itself at this width it
+        # would otherwise be the same picture as the one above.
+        app.query_one("#aprs-convo-tabs").active = "convo-ALL"
         await pilot.pause()
         await asyncio.sleep(0.15)
         await pilot.pause()
@@ -232,7 +264,8 @@ async def main() -> int:
         # switching to a tab that no longer exists.
         app.action_show_tab("terminal")
         await pilot.pause()
-        terminal.toggle_addressbook()
+        if not app.query_one("#terminal-addressbook-column").display:
+            terminal.toggle_addressbook()  # ensure open -- see the note above
         await pilot.pause()
         await asyncio.sleep(0.15)
         await pilot.pause()

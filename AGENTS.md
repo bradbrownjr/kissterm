@@ -245,6 +245,8 @@ kissterm/
 │   ├── ui/                  # Textual panes, one file each (+ AGENTS.md)
 │   │   ├── settings_schema.py  # DECLARATIVE settings; add a field here only
 │   │   ├── settings_pane.py    # generated from the schema, edits nothing else
+│   │   ├── wraplog.py       # WrapLog: a RichLog that wraps to the width it
+│   │   │                    #   is actually shown at -- all three scrollbacks
 │   │   └── slideouts.py     # how wide a Ctrl+G column gets and whether it
 │   │                        #   opens itself -- pure arithmetic plus one
 │   │                        #   small controller, shared by BOTH panes so
@@ -835,6 +837,31 @@ Gotchas that already cost time:
   **The rule that fixes all three: whatever is currently selected is pinned
   into the options you set, and the list you set is never empty.**
   `tests/pilot/test_settings.py` guards the symbol filter both ways.
+- **`RichLog` clamps every line up to `min_width` (default 78) AFTER
+  shrinking it to the visible width -- and `min_width=0` is NOT the fix.**
+  A `RichLog` in any column narrower than 78 renders each line 78 cells
+  wide, does not wrap it, and leaves the tail off the right-hand edge behind
+  a horizontal scrollbar: a node's `?` listing arrived cut off mid-word, and
+  the APRS merged view lost the `[ack]`/`[no ack]` status those lines exist
+  to carry. But setting `min_width=0` breaks something worse -- a widget on
+  an **inactive `TabPane` has a content width of zero**, so every line
+  written while the operator is on another tab renders as an empty strip and
+  is gone from the scrollback for good. `kissterm/ui/wraplog.py`'s `WrapLog`
+  is the answer: it tracks its own laid-out width on resize and uses that as
+  the fallback. Use it for any log in a column the layout can resize; never
+  a bare `RichLog`. The truncation was caught by looking at a generated
+  screenshot (sec. 6's rule) and the zero-width regression by
+  `tests/pilot/test_aprs_send.py::test_an_unacked_message_is_retried`, which
+  reads the terminal log while the APRS tab is active.
+- **Textual's `Tabs` traps, all three verified against 8.2.8**: a widget id
+  may not begin with a digit and `2E0ABC` is an ordinary callsign, so any
+  per-callsign tab id needs a prefix (`convo-`) or it raises `BadIdentifier`;
+  `add_tab` on an EMPTY strip activates what it just added, so a strip that
+  must not jump to whatever arrived first needs its default tab composed in
+  rather than added; and `Tabs.TabActivated` and `TabbedContent.TabActivated`
+  are unrelated classes, so `@on(TabbedContent.TabActivated, "#main-tabs")`
+  cannot see an inner strip's messages (and `TabbedContent` ignores a strip
+  that is not its own via `_is_associated_tabs`).
 - **A widget's own `BINDINGS` with `show=True` ARE the context-aware shortcut
   bar.** Textual's `Footer` renders the focused widget's bindings and updates
   as focus moves, so a dialog or slide-out must not also print its keys as a

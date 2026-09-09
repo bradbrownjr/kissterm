@@ -45,6 +45,13 @@ async def _app(config=None):
     await tb.open()
     config = config or Config(mycall=str(MYCALL))
     config.tx_armed_at_start = True
+    # These tests are about the connect flow, not the layout. Left on, the
+    # width rule opens the Address Book beside the session log, which halves
+    # the column and soft-wraps the very lines being asserted on -- "*** No
+    # connection to W1LH-6 -- no response within 0s" arrives as two rows and
+    # a substring check for the phrase fails on a message that is on screen
+    # and correct. Nothing here needs the panel open.
+    config.slideouts_auto_open = False
     station = AX25Station(MYCALL, ta, LinkParams(t1=0.3, t2=0.05, t3=5.0))
     return KissTermApp(config, station), station, tb
 

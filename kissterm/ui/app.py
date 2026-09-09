@@ -915,10 +915,14 @@ class KissTermApp(App):
             if not (msg.is_ack or msg.is_rej):
                 self.aprs_conversations.record_incoming(source, msg.text, number=msg.number)
                 mycalls = [self.config.mycall, *self.config.mycall_aliases]
-                if callsign_matches(msg.addressee, mycalls):
+                to_me = callsign_matches(msg.addressee, mycalls)
+                if to_me:
                     if getattr(self.config, "aprs_auto_ack", True) and msg.number:
                         await self._send_aprs_ack(source, msg.number, port)
-                self._repaint_aprs_conversation()
+                # `to_me` decides whether this opens a tab and raises an
+                # unread marker, or is only recorded. Every message packet is
+                # recorded either way -- see `AprsPane.note_incoming`.
+                self._note_aprs_incoming(source, to_me=to_me)
             elif msg.is_ack and msg.number:
                 # Flips `MessageEntry.acked` in the persisted log, which the
                 # pane's retry loop also reads off its own timer.
@@ -952,6 +956,17 @@ class KissTermApp(App):
         `_to_terminal`)."""
         for pane in self._base_query(AprsPane):
             pane.refresh_conversation()
+            return
+
+    def _note_aprs_incoming(self, callsign: str, *, to_me: bool) -> None:
+        """Tell the APRS pane a message arrived, and whether it was for us.
+
+        Repaints as a side effect, so it replaces rather than accompanies
+        `_repaint_aprs_conversation` on the incoming-message path. Tolerates
+        the pane not being mounted, for the same reason that one does.
+        """
+        for pane in self._base_query(AprsPane):
+            pane.note_incoming(callsign, to_me=to_me)
             return
 
     async def _send_aprs_ack(self, addressee: str, number: str, port: int) -> None:

@@ -31,26 +31,43 @@ permanent column.** The conversation view is what an operator is actually
 looking at while messaging someone; the contact list is a lookup, summoned
 with `KissTermApp.action_toggle_contacts` (dispatched here to
 `toggle_contacts`) the same way the Terminal pane's Address Book is -- see
-`DESIGN.md`'s "slide-out panels" section for the shared recipe. Picking a
-row closes the panel again (`_row_selected`), since choosing a contact and
-then still having the list covering the screen is not what "select a
-contact" was for.
+`DESIGN.md`'s "slide-out panels" section for the shared recipe. On a
+terminal wide enough for both it opens itself (`kissterm/ui/slideouts.py`);
+picking a row closes it again only if the operator summoned it.
+
+**One conversation per tab, plus "All".** There is still exactly one
+`RichLog`, repainted on `Tabs.TabActivated`, rather than a `TabPane` each --
+that reuses `_show_conversation_for` unchanged instead of keeping twelve
+render states alive, and for a chat log the useful scroll position is the
+bottom, which a repaint gives for free. Before this the pane had a single
+viewer showing whoever was last picked, so a message from anyone else left
+no mark at all and "who has written to me?" was answerable only from a toast
+that had already gone. A tab appears when the operator picks a contact,
+sends to a callsign, or receives a message **addressed to this station**
+(`note_incoming`); an unread one is marked `*` both on its tab and beside
+the callsign in the contacts table. The "All" tab is always left-most and
+active at launch, and deliberately shows third-party traffic too -- see
+`_show_all`.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
+from rich.text import Text
 from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, DataTable, Input, RichLog, Static
+from textual.css.query import NoMatches
+from textual.widgets import Button, DataTable, Input, RichLog, Static, Tab, Tabs
 
 from .. import aprs_services
-from . import slideouts
 from ..aprs_contacts import Contact, build_message_body, canned_messages_for
 from ..aprs_conversations import PendingAcks
+from . import slideouts
+from .wraplog import WrapLog
 
 #: How often the retry timer checks for a due, un-acked message. Independent
 #: of `PendingAcks.retry_seconds` (how long a single message waits before
@@ -68,6 +85,41 @@ _TABLE_PADDING = 8
 #: between them is 39 cells, and a message box narrower than about 20 is not
 #: a message box.
 _COMPOSE_ROOM_FOR_TEMPLATES = 60
+
+#: The merged view's tab id. Every other tab is `convo-<CALLSIGN>`.
+_ALL_TAB = "convo-ALL"
+
+#: What the title line says while the merged view is showing. Short enough
+#: to fit one line of the narrowest conversation column the width rule
+#: allows (40 cells), because a title that wraps pushes the tab strip down
+#: and the strip should not move as tabs are switched. The tab already says
+#: "All"; this says the one thing about that view nobody could guess, which
+#: is that it carries other people's traffic too.
+_ALL_TITLE = "Every message heard -- not only yours."
+
+#: Conversation tabs kept open at once, not counting "All". Twelve is already
+#: more than fits across a normal terminal before the strip starts scrolling,
+#: and an unbounded strip would turn a busy channel into a ribbon of
+#: callsigns nobody is talking to. See `_make_room_for_a_tab`.
+_MAX_CONVO_TABS = 12
+
+#: Lines the merged view renders. It is a merge of up to two hundred
+#: conversations, and a repaint runs on every arriving frame, so it is capped
+#: at roughly a few screens of scrollback rather than everything ever heard.
+_ALL_TAB_LINES = 500
+
+
+def _tab_id(callsign: str) -> str:
+    """The `Tabs` id for one correspondent's tab.
+
+    The `convo-` prefix is load-bearing, not decoration: a Textual widget id
+    may not begin with a digit, and `2E0ABC` is an ordinary UK callsign --
+    unprefixed it raises `BadIdentifier` and takes the pane down on the first
+    message from half of Europe. The substitution is the same defensiveness:
+    a callsign off the air is already validated by `AX25Address`, but the
+    "To:" field accepts whatever the operator types.
+    """
+    return "convo-" + re.sub(r"[^A-Za-z0-9_-]", "_", callsign.strip().upper())
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,15 +149,19 @@ def _column_widths(available: int) -> _ColumnWidths:
     chosen deliberately, rather than the mid-word "Gateway Servi" that letting
     the column clip produced on a narrow screen.
     """
-    # 34 is the sum of the four minimums below -- the width at which every
+    # 35 is the sum of the four minimums below -- the width at which every
     # column is still showing something. Narrower than that the table scrolls
     # whatever we do, and squeezing further only hides more.
-    budget = max(available - _TABLE_PADDING, 34)
-    callsign = 9
+    budget = max(available - _TABLE_PADDING, 35)
+    # Ten, not nine: the longest real callsign-with-SSID is nine cells
+    # ("KA1ABC-15") and an unread row prefixes it with `*`. A column sized to
+    # the callsign alone would clip the SSID off exactly the rows the marker
+    # exists to draw attention to.
+    callsign = 10
     remaining = budget - callsign
     # "Gateway Service" is 15 wide. Only spend that when the two prose columns
     # can still carry something worth reading without it.
-    if remaining >= 47:
+    if remaining >= 46:
         service, gateway_label = 15, "Gateway Service"
     else:
         service, gateway_label = 7, "Gateway"
@@ -175,6 +231,25 @@ class _AprsContactTable(DataTable):
         self.app.query_one(AprsPane)._forget_selected()  # type: ignore[attr-defined]
 
 
+class _ConvoTabs(Tabs):
+    """The conversation strip, with `Delete` to close the tab you are on.
+
+    `show=True`, so the key appears in the Footer while the strip has focus
+    -- the same rule `_AprsContactTable`'s bindings follow, and the reason
+    there is no hint line printed under the tabs.
+
+    Deliberately **not** `Ctrl+W`: `Input` already claims that for
+    delete-word, and the compose box next to this strip is exactly where an
+    operator's hands are. `Delete` is only reachable while the strip itself
+    has focus, so it cannot fire while they are typing a message.
+    """
+
+    BINDINGS = [Binding("delete", "close_tab", "Close tab")]
+
+    def action_close_tab(self) -> None:
+        self.app.query_one(AprsPane).close_active_tab()
+
+
 class AprsPane(Horizontal):
     """The conversation view, plus a Ctrl+G contacts slide-out on the right."""
 
@@ -189,17 +264,43 @@ class AprsPane(Horizontal):
         #: fresh number each send, reused by nothing until it wraps.
         self._next_msg_number = 1
         #: Whose conversation is currently rendered, so an ack arriving or a
-        #: retry going out can repaint it in place. Empty until the operator
-        #: has opened one.
+        #: retry going out can repaint it in place. Empty while the merged
+        #: "All" view is the one on screen.
         self._shown_callsign = ""
         self._shown_title = ""
+        #: Callsigns with a message we have not looked at yet. **In memory
+        #: only**, the same reasoning `PendingAcks` gives for itself: nothing
+        #: arrives while kissterm is closed, so a persisted unread flag could
+        #: only ever be stale.
+        self._unread: set[str] = set()
+        #: Tab id -> callsign, for turning a `TabActivated` back into whose
+        #: conversation it is. A reverse `_tab_id()` would have to guess at
+        #: the substitution it makes, so the mapping is kept instead.
+        self._tab_callsigns: dict[str, str] = {}
+        #: Callsign -> the title line to print above their log.
+        self._tab_titles: dict[str, str] = {}
+        #: Open conversation tabs, least recently looked at FIRST. This is
+        #: what `_make_room_for_a_tab` evicts from, and the reason a tab is
+        #: moved to the end every time it is activated.
+        self._recent: list[str] = []
 
     def compose(self) -> ComposeResult:
         # Conversation first -- this is the main, always-visible column.
         # Contacts is the slide-out, hidden by default; see `toggle_contacts`.
         with Vertical(id="aprs-conversation-column"):
-            yield Static("Select a contact to see its message history.", id="aprs-conversation-title")
-            yield RichLog(id="aprs-conversation-log", wrap=True, markup=False)
+            yield Static(_ALL_TITLE, id="aprs-conversation-title")
+            # "All" is composed in rather than added at mount, so it is the
+            # active tab from the first frame -- `Tabs._on_mount` activates
+            # the first tab it finds. It is also why `add_tab` is never
+            # called on an empty strip: an add to an empty `Tabs` activates
+            # what it just added, which would yank the view to whichever
+            # stranger transmitted first.
+            yield _ConvoTabs(Tab("All", id=_ALL_TAB), id="aprs-convo-tabs")
+            # `WrapLog`, not a plain `RichLog`: with the contact list open
+            # this column is narrower than `RichLog`'s 78-cell `min_width`,
+            # and the tail a plain one would hide is the `[ack]` status.
+            # See `kissterm/ui/wraplog.py`.
+            yield WrapLog(id="aprs-conversation-log", wrap=True, markup=False)
             with Horizontal(id="aprs-compose-row"):
                 yield Input(placeholder="To (callsign)", id="aprs-to-input")
                 yield Input(placeholder="Message", id="aprs-compose-input")
@@ -311,6 +412,259 @@ class AprsPane(Horizontal):
         if self._slideout.closes_on_pick():
             self.action_close_contacts()
 
+    # -- conversation tabs ---------------------------------------------------
+    def _tabs(self) -> _ConvoTabs:
+        return self.query_one("#aprs-convo-tabs", _ConvoTabs)
+
+    def _label(self, callsign: str) -> str:
+        """A tab's label: `*` in front while it has something unread.
+
+        An asterisk rather than a colour alone, because the tab strip is
+        already carrying colour to mean "this is the active tab" and a second
+        meaning on the same channel is not readable -- and because a marker
+        made only of colour is invisible to anyone who cannot see it.
+        """
+        return f"*{callsign}" if callsign in self._unread else callsign
+
+    def _active_callsign(self) -> str | None:
+        """Whose conversation the strip is on, or None for the "All" tab."""
+        return self._tab_callsigns.get(self._tabs().active)
+
+    def _touch(self, callsign: str) -> None:
+        if callsign in self._recent:
+            self._recent.remove(callsign)
+        self._recent.append(callsign)
+
+    def _open_tab(self, callsign: str) -> None:
+        """Make sure `callsign` has a tab, without activating it.
+
+        Adding without activating is the whole point: a message arriving from
+        someone else must not move the view out from under an operator
+        part-way through typing a reply to a third station.
+        """
+        tabs = self._tabs()
+        tab_id = _tab_id(callsign)
+        if tabs.get_tab(tab_id) is not None:
+            return
+        self._make_room_for_a_tab()
+        self._tab_callsigns[tab_id] = callsign
+        self._recent.append(callsign)
+        tabs.add_tab(Tab(self._label(callsign), id=tab_id))
+        # The tab is queryable the moment `add_tab` returns (the mount is
+        # registered synchronously; only `on_mount` is deferred), so the
+        # unread class can be put on straight away rather than on a callback.
+        self._relabel(callsign)
+
+    def _make_room_for_a_tab(self) -> None:
+        """Close the least recently viewed tab if the strip is full.
+
+        Never "All", never the tab on screen, and **never one still holding
+        something unread** -- evicting that would throw away the only record
+        that somebody called, which is the exact failure this whole feature
+        exists to fix. If every open tab is unread or active there is nothing
+        safe to close and the strip is simply allowed to run one over; the
+        cap is a tidiness rule, not an invariant worth losing a message for.
+        """
+        active = self._active_callsign()
+        while len(self._recent) >= _MAX_CONVO_TABS:
+            victim = next(
+                (c for c in self._recent if c not in self._unread and c != active),
+                None,
+            )
+            if victim is None:
+                return
+            self._close_tab(victim)
+
+    def _close_tab(self, callsign: str) -> None:
+        tab_id = _tab_id(callsign)
+        self._tabs().remove_tab(tab_id)
+        self._tab_callsigns.pop(tab_id, None)
+        self._tab_titles.pop(callsign, None)
+        self._unread.discard(callsign)
+        if callsign in self._recent:
+            self._recent.remove(callsign)
+
+    def close_active_tab(self) -> None:
+        """`Delete` on the strip. "All" cannot be closed.
+
+        It is the one view that is always there and the thing `remove_tab`
+        falls back to when the last conversation goes, so closing it would
+        leave the pane with no tab at all and nothing to repaint.
+        """
+        callsign = self._active_callsign()
+        if callsign is None:
+            self.app.notify("The All tab stays open.", severity="warning")  # type: ignore[attr-defined]
+            return
+        self._close_tab(callsign)
+
+    def select_conversation(self, callsign: str, title: str) -> None:
+        """Put `callsign`'s conversation on screen, opening a tab if needed.
+
+        The single entry point for "show me this conversation" -- a contact
+        row, the Message button, a bare "To:" callsign nobody has saved, and
+        a message just sent all land here, so a conversation can never be
+        showing without a tab to get back to it.
+        """
+        callsign = callsign.strip().upper()
+        if not callsign:
+            return
+        self._tab_titles[callsign] = title
+        self._open_tab(callsign)
+        tabs = self._tabs()
+        tab_id = _tab_id(callsign)
+        if tabs.active != tab_id:
+            # Posts `TabActivated`, which repaints -- but the message is
+            # handled on a later pass of the event loop, and a caller that
+            # sent a message wants the log correct now, so `_activate` runs
+            # here too. It is idempotent; the worst case is one extra repaint.
+            tabs.active = tab_id
+        self._activate(callsign)
+
+    def _activate(self, callsign: str) -> None:
+        """Everything that happens when a conversation becomes the one on
+        screen: it stops being unread, it becomes the most recently viewed,
+        and its log is repainted."""
+        if callsign in self._unread:
+            self._unread.discard(callsign)
+            self._relabel(callsign)
+            # The `*` beside the callsign in the contact list has to go at
+            # the same moment as the one on the tab, or the two disagree
+            # about whether there is anything left to read.
+            self.refresh_from(self._contacts())
+        self._touch(callsign)
+        self._show_conversation_for(callsign, self._tab_titles.get(callsign, callsign))
+
+    def _relabel(self, callsign: str) -> None:
+        """Put the tab's label and its unread class back in step with
+        `self._unread`. Both, together, every time -- the `*` is what makes
+        the marker readable without colour and the class is what makes it
+        catch the eye across a strip of a dozen tabs; either one alone is
+        half a notification."""
+        tab = self._tabs().get_tab(_tab_id(callsign))
+        if tab is not None:
+            tab.label = self._label(callsign)
+            tab.set_class(callsign in self._unread, "-unread")
+
+    @on(Tabs.TabActivated, "#aprs-convo-tabs")
+    def _convo_tab_activated(self, event: Tabs.TabActivated) -> None:
+        # Stopped because it has done its job. `TabbedContent` ignores a
+        # strip that is not its own (`_is_associated_tabs`) and
+        # `Tabs.TabActivated` is a different class from
+        # `TabbedContent.TabActivated` anyway, so this is not load-bearing --
+        # but a message with nothing left to tell anyone should not keep
+        # climbing past the widget that handled it.
+        event.stop()
+        tab_id = event.tab.id or ""
+        if tab_id == _ALL_TAB:
+            self._show_all()
+            return
+        callsign = self._tab_callsigns.get(tab_id)
+        if callsign is None:
+            return
+        # Switching to a conversation addresses it too -- otherwise the
+        # operator reads a message, types a reply, and sends it to whoever
+        # was in the "To:" field before.
+        self.query_one("#aprs-to-input", Input).value = callsign
+        self._activate(callsign)
+
+    def _show_all(self) -> None:
+        """The merged view: every conversation in one log, oldest line first.
+
+        **It includes traffic between other stations, deliberately.**
+        `KissTermApp._on_aprs_frame` records every message packet it decodes
+        into `ConversationStore` *before* it checks whether the addressee is
+        us, so the store has always held third-party messages -- this is
+        simply the first view that shows them, and it doubles as a channel
+        message monitor. The per-callsign tabs are the ones that stay quiet
+        unless something was addressed to this station; if the recording rule
+        ever needs to change, it changes in `_on_aprs_frame`, not here.
+        """
+        self._shown_callsign = ""
+        self._shown_title = _ALL_TITLE
+        self.query_one("#aprs-conversation-title", Static).update(_ALL_TITLE)
+        log = self.query_one("#aprs-conversation-log", RichLog)
+        log.clear()
+        store = self.app.aprs_conversations  # type: ignore[attr-defined]
+        entries = [
+            (entry.timestamp, callsign, entry)
+            for callsign, convo in store.conversations.items()
+            for entry in convo.messages
+        ]
+        if not entries:
+            log.write("(no messages yet)")
+            return
+        # Keyed on the timestamp ALONE. Sorting the tuples themselves would
+        # fall through to comparing two `MessageEntry` objects whenever two
+        # messages share a timestamp, which raises -- and two packets
+        # decoded from the same burst share one readily.
+        entries.sort(key=lambda item: item[0])
+        for _, callsign, entry in entries[-_ALL_TAB_LINES:]:
+            if entry.direction == "in":
+                log.write(f"< {callsign}: {entry.text}")
+            else:
+                status = self._outgoing_status(callsign, entry)
+                log.write(f"> {callsign}: {entry.text}  [{status}]")
+
+    def note_incoming(self, callsign: str, *, to_me: bool) -> None:
+        """A message was decoded. Open a tab for it and mark it unread.
+
+        Called from `KissTermApp._on_aprs_frame`, which computes `to_me` with
+        the same `callsign_matches` check the auto-ack uses. **The gate is the
+        point**: every message packet on the channel is recorded, third-party
+        traffic included, so without it two strangers chatting on the
+        frequency would open tabs here and put asterisks beside their
+        callsigns -- marking as unanswered mail something nobody has to
+        answer. That traffic is still visible, in "All".
+
+        A message from whoever is already on screen is not unread; it is just
+        the next line of the conversation being read.
+        """
+        try:
+            self._tabs()
+        except NoMatches:
+            # Off the frame fan-out, which outlives the widget tree -- same
+            # tolerance `refresh_conversation` applies.
+            return
+        callsign = callsign.strip().upper()
+        if not to_me or not callsign:
+            self.refresh_conversation()
+            return
+        if self._active_callsign() == callsign:
+            self.refresh_conversation()
+            return
+        self._unread.add(callsign)
+        self._tab_titles.setdefault(callsign, callsign)
+        self._open_tab(callsign)
+        self._relabel(callsign)
+        self.refresh_from(self._contacts())
+        self.refresh_conversation()
+
+    def _unread_style(self) -> str:
+        """The Rich style for an unread row in the contacts table.
+
+        Resolved from the running theme rather than hard-coded, so it follows
+        a theme change like everything else -- a `DataTable` cell is a Rich
+        renderable, and Textual's `$warning` is a CSS variable Rich knows
+        nothing about, so it has to be looked up and handed over as a colour.
+        """
+        try:
+            colour = self.app.get_css_variables().get("warning", "")
+        except Exception:  # pragma: no cover - a theme with no warning colour
+            colour = ""
+        return f"bold {colour}" if colour else "bold"
+
+    def _callsign_cell(self, callsign: str) -> str | Text:
+        """The callsign column for one row, marked if it has unread traffic.
+
+        **The first styled `DataTable` cell in this app** -- every other table
+        in it passes plain strings. The plain path is still what a read row
+        takes, so a contact list with nothing unread in it renders exactly as
+        it did before.
+        """
+        if callsign.strip().upper() not in self._unread:
+            return callsign
+        return Text(f"*{callsign}", style=self._unread_style())
+
     # ------------------------------------------------------------------
     def refresh_from(self, raw_contacts: list[dict]) -> None:
         """Repaint the table from `Config.aprs_contacts`, then append the
@@ -363,7 +717,7 @@ class AprsPane(Horizontal):
         )
         for index, contact in saved:
             table.add_row(
-                contact.callsign,
+                self._callsign_cell(contact.callsign),
                 contact.name,
                 _detail_cell(contact.detail, contact.notes),
                 contact.service,
@@ -377,7 +731,7 @@ class AprsPane(Horizontal):
         )
         for service in services:
             table.add_row(
-                service.callsign,
+                self._callsign_cell(service.callsign),
                 service.name,
                 # The description goes in Detail, which is otherwise empty for
                 # a service (there is no phone number or address to put there)
@@ -477,7 +831,7 @@ class AprsPane(Horizontal):
             if service is None:
                 return
             self.query_one("#aprs-to-input", Input).value = service.callsign
-            self._show_conversation_for(
+            self.select_conversation(
                 service.callsign, f"{service.name} ({service.callsign})"
             )
             self._close_contacts_after_pick()
@@ -523,7 +877,7 @@ class AprsPane(Horizontal):
             contact = Contact.from_dict(raw_contacts[index])
             callsign, title = contact.callsign, f"{contact.name} ({contact.callsign})"
         self.query_one("#aprs-to-input", Input).value = callsign
-        self._show_conversation_for(callsign, title)
+        self.select_conversation(callsign, title)
         self._close_contacts_after_pick()
         self.query_one("#aprs-compose-input", Input).focus()
 
@@ -536,7 +890,7 @@ class AprsPane(Horizontal):
         if index < 0 or index >= len(raw_contacts):
             return
         contact = Contact.from_dict(raw_contacts[index])
-        self._show_conversation_for(contact.callsign, f"{contact.name} ({contact.callsign})")
+        self.select_conversation(contact.callsign, f"{contact.name} ({contact.callsign})")
 
     def _outgoing_status(self, callsign: str, entry) -> str:
         """The delivery state of one outgoing message, in square brackets.
@@ -575,9 +929,13 @@ class AprsPane(Horizontal):
         return "sent" if attempts == 0 else f"retry {attempts}"
 
     def _show_conversation_for(self, callsign: str, title: str) -> None:
-        """Repaint the conversation log for `callsign` -- the shared render
-        step for a contact-row selection AND a bare "To:" callsign that
-        matches no saved contact at all."""
+        """Repaint the conversation log for `callsign`.
+
+        The render step only -- it does not open or activate a tab. Everything
+        that means "show me this conversation" goes through
+        `select_conversation`; this is what that and `TabActivated` both call
+        once the strip already agrees whose log is on screen.
+        """
         callsign = callsign.strip().upper()
         # Remembered so a status change (an ack arriving, a retry going out)
         # can repaint the view the operator is actually looking at, rather
@@ -599,13 +957,23 @@ class AprsPane(Horizontal):
                 log.write(f"> {entry.text}  [{self._outgoing_status(callsign, entry)}]")
 
     def refresh_conversation(self) -> None:
-        """Repaint whatever conversation is on screen, if any.
+        """Repaint whichever tab is on screen -- a conversation, or "All".
 
-        Called when a status may have changed underneath the view -- an ack
-        arriving on the frame fan-out, or the retry timer resending. Cheap
-        (a `RichLog` rewrite of one conversation) and idempotent.
+        Called when a status may have changed underneath the view: an ack
+        arriving on the frame fan-out, a new message, or the retry timer
+        resending. Cheap (a `RichLog` rewrite) and idempotent.
         """
-        if self._shown_callsign:
+        try:
+            active = self._tabs().active
+        except NoMatches:
+            # The pane is mounted but its children are not composed yet. This
+            # runs off the frame fan-out, which outlives the widget tree in
+            # both directions -- same tolerance `_repaint_aprs_conversation`
+            # applies to the pane itself.
+            return
+        if active == _ALL_TAB:
+            self._show_all()
+        elif self._shown_callsign:
             self._show_conversation_for(self._shown_callsign, self._shown_title)
 
     # -- new / edit / forget -------------------------------------------------
@@ -843,7 +1211,10 @@ class AprsPane(Horizontal):
         )
         self._pending.add(addressee, number, wire_text)
         text_field.value = ""
-        self._show_conversation_for(addressee, addressee)
+        # Sending to someone opens their tab if they did not have one -- the
+        # conversation you just started is one you are in.
+        key = addressee.strip().upper()
+        self.select_conversation(addressee, self._tab_titles.get(key, key))
 
     def _check_retries(self) -> None:
         self._retry_worker()

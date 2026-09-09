@@ -24,6 +24,8 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.widgets import Button, Input, RichLog
 
+from .wraplog import WrapLog
+
 
 class MonitorPane(Container):
     """The filter bar (`#monitor-filter`) plus the channel log (`#monitor-log`)."""
@@ -32,7 +34,9 @@ class MonitorPane(Container):
         with Horizontal(id="monitor-filter"):
             yield Input(placeholder="filter: callsign or text", id="monitor-query")
             yield Button(self._supervisory_label(), id="monitor-toggle-s")
-        yield RichLog(
+        # `WrapLog` -- see `kissterm/ui/wraplog.py` for why a plain `RichLog`
+        # cuts the end off every line on an 80-column terminal.
+        yield WrapLog(
             id="monitor-log", wrap=True, markup=False, highlight=False, max_lines=5000
         )
 

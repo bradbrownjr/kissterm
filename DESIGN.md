@@ -267,6 +267,40 @@ contacts panel once that tab exists — is a collapsible column docked on the
   on a pick would be taking away something they never asked for. One flag
   (`SlideOut.summoned`) decides which, so the two panes cannot disagree.
 
+### A second tab strip inside a pane
+
+The APRS pane carries one conversation per tab, plus an "All" tab
+(`#aprs-convo-tabs`). That puts two rows of tabs on one screen, which is the
+whole design problem: two navigations that look identical are not a
+hierarchy.
+
+- **The inner strip reads as subordinate to the F-key bar.** Muted text for
+  its inactive tabs, the accent kept for the active one, and its underline
+  bar dimmed to `$panel` — the accent-coloured bar stays the property of the
+  tab bar at the top of the screen. Textual's generic `Tabs Tab.-active`
+  rule would otherwise make the two identical.
+- **The always-available view is left-most and active at launch.** "All" is
+  where the pane opens, so an operator who has picked nothing is not looking
+  at an empty viewer, and it is where closing the last conversation lands.
+  It cannot be closed.
+- **Tabs open on demand, never on a schedule and never at launch**: picking
+  a contact, sending to a callsign, or receiving a message **addressed to
+  this station**. A message between two other stations opens nothing — it is
+  still recorded and still visible in "All", which doubles as a channel
+  message monitor, but it is not mail anybody here has to answer.
+- **A tab that opens itself does not steal the view**, the same rule the
+  slide-outs follow: an arriving message must not move the screen out from
+  under someone part-way through a reply to a third station.
+- **Unread is marked twice, on purpose**: `*` in front of the callsign, and
+  `$warning` colour. The asterisk is what makes it readable for anyone who
+  cannot see the colour, and the colour is what makes it findable across a
+  dozen tabs; either alone is half a notification. The same pair marks the
+  callsign in the contacts table, so the two markers for one fact read as
+  one marker. Activating the tab clears both.
+- **Closing a tab is `Delete` on the focused strip**, shown in the Footer
+  like every other panel key. Not `Ctrl+W` — `Input` already claims that for
+  delete-word and the compose box is right there.
+
 ---
 
 ## 6. The bottom two rows

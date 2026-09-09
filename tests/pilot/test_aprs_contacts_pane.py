@@ -427,11 +427,14 @@ def test_column_widths_never_overflow_the_table():
         total = widths.callsign + widths.name + widths.detail + widths.service
         # Below the clamp there is nothing to divide up and the table scrolls
         # whatever we do; above it, the columns must fit what we were given.
-        if available - _TABLE_PADDING >= 34:
+        if available - _TABLE_PADDING >= 35:
             assert total + _TABLE_PADDING <= available, available
         # The callsign is the one field that must never be cut: it is what
-        # goes in the "To:" field.
-        assert widths.callsign == 9
+        # goes in the "To:" field. Ten, not nine: the longest real
+        # callsign-with-SSID is nine cells and an unread row prefixes it with
+        # `*`, so a column sized to the callsign alone would clip the SSID
+        # off exactly the rows the marker exists to point at.
+        assert widths.callsign == 10
         # The kind marker is a deliberate label at either width, never a
         # mid-word clip of the longer one.
         assert widths.gateway_label in ("Gateway", "Gateway Service")

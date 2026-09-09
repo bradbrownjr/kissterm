@@ -3,6 +3,77 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Tabbed APRS conversations, with unread marked
+
+### New Features
+- **One conversation per tab in the APRS pane, plus an "All" tab.** Requested
+  directly — APRS WebChat, which this pane was built to replicate, is tabbed:
+  "tabs for active conversations, highlighted when a new message is
+  received". Before this the pane had a single viewer showing whoever was
+  picked last, so a message from anybody else left no mark on the screen at
+  all and "who has written to me?" was answerable only from a toast that had
+  already gone.
+- **Tabs open on demand and none at launch**: picking a contact, sending to a
+  callsign, or receiving a message **addressed to this station**. A tab that
+  opens itself never steals the view — an arriving message must not move the
+  screen out from under someone part-way through a reply to a third station.
+- **Unread is marked twice**: `*` in front of the callsign and the theme's
+  warning colour, on the tab *and* beside the callsign in the contacts table.
+  The asterisk is what makes it readable for anyone who cannot see the colour;
+  the colour is what makes it findable across a strip of tabs. Activating the
+  tab clears both.
+- **The "All" tab is always left-most and is where the pane opens** — every
+  conversation merged, oldest line first, each line prefixed with the other
+  station's callsign and outgoing lines keeping their `[ack]`/`[sent]`/
+  `[retry N]`/`[no ack]` status. **It shows traffic between other stations
+  too, deliberately**: every message packet decoded on the channel has always
+  been recorded, and this is the first view that shows it, so All doubles as
+  a channel message monitor.
+- **`Delete` closes the tab you are on** (never "All"), shown in the Footer
+  like every other panel key. Not `Ctrl+W`: `Input` already claims that for
+  delete-word and the compose box is right beside the strip.
+- Twelve conversation tabs are kept, evicting the least recently viewed —
+  never "All", never the tab on screen, and **never one still holding
+  something unread**, because throwing that away would lose the only record
+  that somebody called.
+
+### Improvements
+- **The terminal, monitor and APRS logs no longer hide the end of a long
+  line.** `RichLog` clamps every line up to its `min_width` (78) *after*
+  shrinking it to the visible width, so in any column narrower than that —
+  an 80-column terminal, or any width at all with a slide-out open beside it
+  — lines were rendered 78 cells wide, not wrapped, and their tails left off
+  the right-hand edge behind a horizontal scrollbar. A node's `?` listing
+  arrived cut off mid-word ("`B to disconn`"), and in the new merged APRS
+  view the missing tail was the delivery status. All three now use
+  `kissterm/ui/wraplog.py`'s `WrapLog`, which tracks its own laid-out width.
+  The obvious `min_width=0` is *not* the fix and read as one for exactly one
+  test run: a widget on an inactive tab has a content width of zero, so
+  everything written while the operator is on another tab renders as a blank
+  line and is lost from the scrollback. Found by looking at a generated
+  screenshot, not by a test — and one connect-script test had been passing
+  *because* of the truncation, so it now runs with the slide-out closed.
+- The contacts table's callsign column is 10 cells rather than 9, so an unread
+  row's `*` cannot push the SSID off exactly the rows the marker points at.
+- The APRS conversation tab strip is styled to read as *subordinate* to the
+  F-key tab bar — muted inactive tabs, its underline bar dimmed to `$panel`.
+  Textual's generic `Tabs Tab.-active` rule would otherwise have put two
+  identical-looking navigations on one screen, which is not a hierarchy.
+
+- **The screenshot script repaints both slide-outs after populating them.**
+  They open themselves at mount, which is before the script has an address
+  book or a contact list to show, and nothing repaints them again on its own
+  — so every shot with a panel in it had become a picture of an empty table.
+
+**Files:** `kissterm/ui/aprs_pane.py`, `kissterm/ui/app.py`,
+`kissterm/ui/styles.py`, `kissterm/ui/terminal_pane.py`,
+`kissterm/ui/monitor_pane.py`, `kissterm/ui/wraplog.py` (new),
+`scripts/generate_screenshot.py`,
+`tests/pilot/test_aprs_conversation_tabs.py`,
+`tests/pilot/test_aprs_contacts_pane.py`,
+`tests/pilot/test_connect_scripts.py`, `AGENTS.md`, `kissterm/ui/AGENTS.md`,
+`DESIGN.md`, `docs/ROADMAP.md`, `assets/*.png`
+
 ## [2026-09-09] — The contact lists open themselves on a wide terminal
 
 ### New Features

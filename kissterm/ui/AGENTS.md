@@ -19,12 +19,14 @@ Read this file plus the one pane you are changing.
 | `terminal_pane.py` | Session scrollback + input line + sending |
 | `monitor_pane.py` | Channel log + filter bar |
 | `heard_pane.py` | Heard `DataTable` |
-| `aprs_pane.py` | Conversation view + a Ctrl+G contacts slide-out; station list/map and beaconing are still roadmap P4 |
+| `aprs_pane.py` | Tabbed conversation view (one `Tabs` strip, one `RichLog`, plus "All") + a Ctrl+G contacts slide-out; station list/map and beaconing are still roadmap P4 |
 | `themes.py` | Theme catalog: curated ids, custom-hex builder |
 | `settings_schema.py` | **Declarative** list of every editable setting |
 | `settings_pane.py` | The settings form, generated from that schema |
 | `dialogs.py` | `ConnectScreen` and future modals |
 | `addressbook_pane.py` | The Address Book table + CRUD, mounted as the Terminal pane's Ctrl+G slide-out (`DESIGN.md`'s "Slide-out panels") |
+| `slideouts.py` | How wide a Ctrl+G column gets and whether it opens itself -- pure arithmetic plus one controller, shared by BOTH panes |
+| `wraplog.py` | `WrapLog`: a `RichLog` that wraps to the width it is actually shown at. Used by all three scrollbacks; read it before touching `min_width` anywhere |
 | `commands.py` | `ACTION_META`: one table of (category, footer priority) per `BINDINGS` action, read by both `KissTermFooter` and `KeyBindingsProvider` in `app.py` |
 
 `kissterm/app.py` one level up is a thin shim re-exporting `KissTermApp`, so
