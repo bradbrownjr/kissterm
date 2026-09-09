@@ -25,7 +25,9 @@ Read this file plus the one source file you are changing.
 Other files: `types.py` (the dataclasses — imports nothing from this package,
 so nothing here can create a cycle), `extensions.py` (shared trailing fields:
 `/A=` altitude, PHG, RNG, DFS, comment remainder), `parse.py` (the dispatcher
-and `format_packet`), `encode.py` (transmit side).
+and `format_packet`), `encode.py` (transmit side), `symbols.py` (the map
+symbol table — UI display data for the Settings picker, not a wire format;
+see its own docstring and the ASCII-only rule below).
 
 ## The rules that will bite you
 
@@ -43,7 +45,13 @@ and `format_packet`), `encode.py` (transmit side).
 3. **Compressed positions are base 91.** `lat = 90 - (sum / 380926)`,
    `lon = -180 + (sum / 190463)`. The cs+T compression-type byte carries either
    course/speed or a pre-calculated range.
-4. **ASCII only** in any string this package produces. No emoji.
+4. **ASCII only** in any string this package TRANSMITS. No emoji in a
+   payload this package encodes, ever. `symbols.py`'s `Symbol.emoji` is the
+   one narrow, explicit exception in the whole codebase (see AGENTS.md's
+   top-level Code rules) -- it is UI-only annotation for the Settings
+   picker, never serialized into a frame, and shown only when
+   `Config.ascii_safe` is False. Do not let this exception bleed into
+   `encode.py` or anything that reaches the wire.
 
 ## Not yet verified — read before trusting this operationally
 

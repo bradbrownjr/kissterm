@@ -211,6 +211,8 @@ kissterm/
 │   ├── aprs_beacon.py       # APRS position beacon on its own timer (NOT
 │   │                        #   beacon.py's BTEXT -- separate config,
 │   │                        #   separate destination)
+│   ├── locator.py           # Maidenhead grid square <-> decimal degrees,
+│   │                        #   no I/O, used by the Settings position picker
 │   ├── session_log.py       # per-session plain-text transcript
 │   ├── transcripts.py       # lists/reads saved transcripts for the browser
 │   ├── heard.py             # MHEARD table
@@ -727,7 +729,13 @@ Gotchas that already cost time:
   is and what breaks otherwise. This codebase's docstrings are load-bearing
   documentation, not decoration. Shallow "This module implements X" docstrings
   do not match the house style.
-- **NEVER** put emoji in source, output, or docs.
+- **NEVER** put emoji in source, output, or docs. **One explicit, narrow
+  exception**: `kissterm/aprs/symbols.py`'s `Symbol.emoji` field, added on
+  operator request as a cosmetic annotation for the Settings map-symbol
+  picker. Those glyphs are never transmitted (the wire format is the
+  table+code pair only) and are shown in the UI only when
+  `Config.ascii_safe` is False. Do not extend this exception elsewhere
+  without the same explicit ask.
 - **NEVER** write a doubled curly brace in a Markdown file — Jekyll parses it
   as a Liquid variable and breaks this author's GitHub Pages builds. This rule
   cannot state the sequence literally for the same reason.
