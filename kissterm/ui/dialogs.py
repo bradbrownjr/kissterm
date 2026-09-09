@@ -18,7 +18,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label, Select, Static, TextArea
+from textual.widgets import Button, Footer, Input, Label, Select, Static, TextArea
 
 from ..addressbook import AddressBook
 from ..aprs_contacts import (
@@ -1703,11 +1703,18 @@ class AprsServiceScreen(ModalScreen[str | None]):
     -- several shipped entries are `recalled` rather than `documented`.
     """
 
+    #: `show=True` and a `Footer` in `compose`: the keys belong in the
+    #: context-aware bar along the bottom, the same place every other
+    #: shortcut in this app is advertised, not in a line of hint text
+    #: wedged under the buttons. A modal gets its own Footer because the
+    #: app's is on the base screen underneath and does not track a screen
+    #: pushed over it.
     BINDINGS = [
+        Binding("enter", "select_row", "Use"),
+        Binding("insert", "new_message", "Save a message"),
+        Binding("f2", "edit_message", "Edit"),
+        Binding("delete", "forget_message", "Forget"),
         Binding("escape", "dismiss(None)", "Close"),
-        Binding("insert", "new_message", "Save a message", show=False),
-        Binding("f2", "edit_message", "Edit", show=False),
-        Binding("delete", "forget_message", "Forget", show=False),
     ]
 
     def __init__(self, service, saved: list, addressee: str = "") -> None:
@@ -1731,15 +1738,20 @@ class AprsServiceScreen(ModalScreen[str | None]):
             yield Static(self._note(), id="ref-note")
             yield Input(placeholder="search", id="aprs-service-search")
             yield DataTable(id="aprs-service-table", cursor_type="row", zebra_stripes=True)
+            # The ONE thing that is not a keyboard shortcut and so does not
+            # belong in the Footer: what selecting actually does. An
+            # operator about to put a command on a shared channel should not
+            # have to find out by trying it.
             yield Static(
-                "Enter puts the text in the message box. Nothing is sent until "
-                "you press Enter there or click Send.  --  "
-                "Insert: save a message -- F2: edit -- Delete: forget",
+                "Selecting puts the text in the message box. Nothing is sent "
+                "until you press Enter there or click Send.",
                 id="ref-help",
             )
             with Horizontal(id="connect-buttons"):
+                yield Button("Use", variant="primary", id="aprs-service-use")
                 yield Button("Save a message", id="aprs-service-new")
                 yield Button("Close", id="aprs-service-close")
+        yield Footer()
 
     def _title(self) -> str:
         if self._service is None:
@@ -1823,6 +1835,31 @@ class AprsServiceScreen(ModalScreen[str | None]):
     @on(Button.Pressed, "#aprs-service-close")
     def _close(self) -> None:
         self.dismiss(None)
+
+    @on(Button.Pressed, "#aprs-service-use")
+    def _use_pressed(self) -> None:
+        self.action_select_row()
+
+    def action_select_row(self) -> None:
+        """Enter, and the Use button. Hands back the row under the cursor.
+
+        Separate from `on_data_table_row_selected` because the cursor can be
+        on a row without the table having raised a selection event -- the
+        operator arrowed to it. Both paths end at `dismiss`, which is the
+        only thing this screen does.
+        """
+        from textual.widgets import DataTable
+
+        table = self.query_one("#aprs-service-table", DataTable)
+        if table.row_count == 0 or table.cursor_coordinate is None:
+            return
+        try:
+            row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
+        except Exception:
+            return
+        text = self._rows.get(str(row_key.value or ""))
+        if text is not None:
+            self.dismiss(text)
 
     def on_data_table_row_selected(self, event) -> None:
         """Hand the text back for the caller to put in the compose box."""

@@ -831,6 +831,15 @@ Gotchas that already cost time:
   **The rule that fixes all three: whatever is currently selected is pinned
   into the options you set, and the list you set is never empty.**
   `tests/pilot/test_settings.py` guards the symbol filter both ways.
+- **A widget's own `BINDINGS` with `show=True` ARE the context-aware shortcut
+  bar.** Textual's `Footer` renders the focused widget's bindings and updates
+  as focus moves, so a dialog or slide-out must not also print its keys as a
+  hint line under its buttons -- requested directly: those keys "belong in
+  the context-aware shortcut bar at the bottom... Professional symmetry." A
+  hint line is a second copy of the same fact in a different place and style,
+  and it pushes that pane's buttons out of line with every other pane's.
+  A modal screen needs to `yield Footer()` for this to work.
+
 ## 7a. Theming
 
 `kissterm/ui/themes.py` curates a set of Textual's own `BUILTIN_THEMES`

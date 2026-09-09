@@ -3,6 +3,40 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — APRS contact list: callsign first, descriptions that fit, keys in the Footer
+
+### Improvements
+- **Callsign is the left-most column and each group is alphabetised.** It is
+  what the operator is looking up and what the "To:" field wants.
+- **The Service column says "Gateway Service", not "built-in".** The question
+  it answers is what the row *is*, not where it came from.
+- **The description moved into Detail, which was blank for a service**, and
+  the operator's `detail` and `notes` now share that one column. Five columns
+  do not fit the slide-out, and the column that fell off the right-hand edge
+  was the description a shipped directory exists to show.
+- **Column widths are computed from the table's actual width** rather than
+  hard-coded (`aprs_pane._column_widths`, recomputed on resize). A
+  `DataTable` scrolls sideways when its columns overflow — it does not shrink
+  them — so a fixed set of widths only moves the problem to whichever
+  terminal size they were not picked for. On a narrow table the kind marker
+  shortens to "Gateway", a deliberate label rather than a mid-word clip.
+- **The contacts and service-picker shortcut keys moved into the Footer.**
+  They were printed as a hint line under the buttons; Textual's Footer
+  already tracks focus and shows exactly these, so the second copy was the
+  duplication DESIGN.md's "one place for each fact" rule exists to prevent.
+  Removing it also puts the buttons at the same height as every other pane's.
+- **Enter on a contact row, and a Message button, address the selected
+  contact** and put the cursor in the message box — including for a gateway
+  service row, which is a real callsign you really message.
+- `assets/screenshot-aprs-contacts.png` is a new screenshot of the slide-out
+  itself; the old set showed the pane only with it closed, which is how the
+  overflow went unseen.
+
+### Files
+- `kissterm/ui/aprs_pane.py`, `kissterm/ui/dialogs.py`, `kissterm/ui/styles.py`,
+  `scripts/generate_screenshot.py`, `tests/pilot/test_aprs_contacts_pane.py`,
+  `assets/*`
+
 ## [2026-09-09] — APRS messages show sent, retry, ack, or no ack
 
 ### New Features

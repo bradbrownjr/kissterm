@@ -39,6 +39,8 @@ contact" was for.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -55,17 +57,105 @@ from ..aprs_conversations import PendingAcks
 _RETRY_CHECK_INTERVAL = 10.0
 
 
+#: Cells of padding a `DataTable` adds around every column's content: one
+#: either side of each of the four columns.
+_TABLE_PADDING = 8
+
+
+@dataclass(frozen=True, slots=True)
+class _ColumnWidths:
+    callsign: int
+    name: int
+    detail: int
+    service: int
+    gateway_label: str
+
+
+def _column_widths(available: int) -> _ColumnWidths:
+    """Split `available` cells across the contacts table's four columns.
+
+    Pure arithmetic, and separated from the pane so it can be tested at every
+    terminal size without mounting anything.
+
+    The priorities, in order, are what an operator needs off a glance at this
+    list: the **callsign**, because it is what goes in the "To:" field and it
+    is the one field that must never be cut; then **what the row is**, which
+    for a gateway service is its description and for a person is their name;
+    then the kind marker.
+
+    So `callsign` is fixed at the width of the longest real callsign-with-SSID
+    and everything else flexes. `service` gives up its full "Gateway Service"
+    wording below a threshold and says "Gateway" instead -- a shorter *label*,
+    chosen deliberately, rather than the mid-word "Gateway Servi" that letting
+    the column clip produced on a narrow screen.
+    """
+    # 34 is the sum of the four minimums below -- the width at which every
+    # column is still showing something. Narrower than that the table scrolls
+    # whatever we do, and squeezing further only hides more.
+    budget = max(available - _TABLE_PADDING, 34)
+    callsign = 9
+    remaining = budget - callsign
+    # "Gateway Service" is 15 wide. Only spend that when the two prose columns
+    # can still carry something worth reading without it.
+    if remaining >= 47:
+        service, gateway_label = 15, "Gateway Service"
+    else:
+        service, gateway_label = 7, "Gateway"
+    remaining -= service
+    # Name gets a third, capped: past about twenty cells it is just padding a
+    # person's name, and every cell beyond that is worth more to the
+    # description next to it.
+    name = max(8, min(20, remaining // 3))
+    detail = max(10, remaining - name)
+    return _ColumnWidths(callsign, name, detail, service, gateway_label)
+
+
+def _detail_cell(detail: str, notes: str) -> str:
+    """One column for a saved contact's `detail` and `notes`.
+
+    They were separate columns until the gateway directory landed, and a
+    five-column table does not fit the slide-out -- the description column a
+    directory of services exists to show was the one that fell off the edge.
+    These two are the pair worth merging: `detail` is the addressing extra
+    (a phone number, an email address) and `notes` is free text about the
+    same person, so reading them side by side loses nothing. Both fields are
+    still stored and still edited separately in `AprsContactScreen`; this is
+    a display join, not a data change.
+    """
+    parts = [part.strip() for part in (detail, notes) if part.strip()]
+    return " -- ".join(parts)
+
+
 class _AprsContactTable(DataTable):
-    """Insert/F2/Delete on the contacts table, same convention as
+    """Insert/F2/Delete/Enter on the contacts table, same convention as
     `_AddressBookTable` -- bound on the table itself so Delete does not also
     fire while the operator is typing somewhere else in this pane.
+
+    **`show=True`, so these appear in the Footer while this table has
+    focus**, rather than as a line of hint text printed under the buttons.
+    Textual's Footer already shows the focused widget's bindings and updates
+    as focus moves, which is exactly the context-aware shortcut bar this app
+    wants -- a second copy of the same information, in a different place and
+    a different style, is the duplication DESIGN.md's "one place for each
+    fact" rule exists to prevent. It also lets the buttons sit at the same
+    height as every other pane's, since nothing is pushed down by a hint
+    line only this pane had.
     """
 
     BINDINGS = [
-        Binding("insert", "new_contact", "New", show=False),
-        Binding("f2", "edit_contact", "Edit", show=False),
-        Binding("delete", "forget_contact", "Forget", show=False),
+        Binding("enter", "message_contact", "Message"),
+        Binding("insert", "new_contact", "New"),
+        Binding("f2", "edit_contact", "Edit"),
+        Binding("delete", "forget_contact", "Forget"),
     ]
+
+    def on_resize(self) -> None:
+        # `events.Resize` carries no `control`, so it cannot be routed with
+        # `@on(...)` from the pane -- the table has to hand it over itself.
+        self.app.query_one(AprsPane).contacts_table_resized()
+
+    def action_message_contact(self) -> None:
+        self.app.query_one(AprsPane)._message_selected()  # type: ignore[attr-defined]
 
     def action_new_contact(self) -> None:
         self.app.query_one(AprsPane)._new_contact()  # type: ignore[attr-defined]
@@ -114,14 +204,13 @@ class AprsPane(Horizontal):
         with Vertical(id="aprs-contacts-column"):
             yield Static("APRS messaging contacts.", classes="addressbook-note")
             yield _AprsContactTable(id="aprs-contact-table", cursor_type="row", zebra_stripes=True)
+            # No hint line under these. The keys live in the Footer, which
+            # already tracks focus -- see `_AprsContactTable`'s docstring.
             with Horizontal(classes="addressbook-actions"):
+                yield Button("Message", variant="primary", id="aprs-contact-message")
                 yield Button("New", id="aprs-contact-new")
                 yield Button("Edit selected", id="aprs-contact-edit")
                 yield Button("Forget selected", id="aprs-contact-forget")
-            yield Static(
-                "Insert: new -- F2: edit selected -- Delete: forget selected",
-                classes="addressbook-hint",
-            )
 
     def on_mount(self) -> None:
         self.refresh_from(self.app.config.aprs_contacts)  # type: ignore[attr-defined]
@@ -180,32 +269,97 @@ class AprsPane(Horizontal):
         """
         table = self.query_one("#aprs-contact-table", DataTable)
         table.clear(columns=True)
-        table.add_columns("Name", "Callsign", "Service", "Detail", "Notes")
-        for index, raw in enumerate(raw_contacts):
-            contact = Contact.from_dict(raw)
+        # Callsign first: it is what the operator is looking up and what the
+        # "To:" field wants, so it is the column the eye should land on.
+        #
+        # Widths are COMPUTED, and there are four columns rather than five,
+        # both for the same reason: a `DataTable` sizes its columns to their
+        # content and then SCROLLS when the total overflows -- it does not
+        # shrink. Auto-sized, the longest service summary pushed Detail off
+        # the right-hand edge of the slide-out entirely, so the descriptions
+        # this directory exists to show were invisible until the operator
+        # scrolled sideways. Hard-coded widths only move the problem to
+        # whichever terminal size they were not picked for; this pane has to
+        # look right in an 80-column ssh window and in a full-screen one.
+        widths = _column_widths(self._contacts_table_width())
+        table.add_column("Callsign", width=widths.callsign)
+        table.add_column("Name", width=widths.name)
+        table.add_column("Detail", width=widths.detail)
+        table.add_column("Service", width=widths.service)
+
+        # Alphabetical by callsign, within each group. The two groups stay
+        # separate rather than interleaving -- seventeen gateway services
+        # would otherwise bury the handful of people an operator actually
+        # messages, which is the whole reason the built-ins sort last.
+        saved = sorted(
+            ((i, Contact.from_dict(raw)) for i, raw in enumerate(raw_contacts)),
+            key=lambda pair: pair[1].callsign,
+        )
+        for index, contact in saved:
             table.add_row(
-                contact.name,
                 contact.callsign,
+                contact.name,
+                _detail_cell(contact.detail, contact.notes),
                 contact.service,
-                contact.detail,
-                contact.notes,
                 key=str(index),
             )
+
         hidden = set(getattr(self.app.config, "aprs_hidden_services", ()))  # type: ignore[attr-defined]
-        for service in aprs_services.load_all():
-            if service.id in hidden:
-                continue
+        services = sorted(
+            (s for s in aprs_services.load_all() if s.id not in hidden),
+            key=lambda s: s.callsign,
+        )
+        for service in services:
             table.add_row(
-                service.name,
                 service.callsign,
-                "built-in",
-                "",
-                # The description is the reason a built-in row is worth
-                # having at all -- "MPAD" next to a blank cell would tell an
-                # operator nothing they did not already not know.
+                service.name,
+                # The description goes in Detail, which is otherwise empty for
+                # a service (there is no phone number or address to put there)
+                # and is where the eye already goes for "what is this?".
                 service.summary,
+                # "Gateway Service", not "built-in". The column answers "what
+                # kind of thing is this?", and the useful answer is what the
+                # row IS, not where it came from -- an operator does not care
+                # that it shipped with the app, they care that messaging it
+                # reaches a service rather than a person.
+                widths.gateway_label,
                 key=f"service:{service.id}",
             )
+
+    def _contacts_table_width(self) -> int:
+        """How many cells the contacts table actually has to draw in.
+
+        Zero before the first layout pass, and while the column is hidden --
+        `_column_widths` clamps to a sane minimum rather than dividing up
+        nothing, and `Resize` recomputes as soon as a real width exists.
+        """
+        table = self.query_one("#aprs-contact-table", DataTable)
+        # The vertical scrollbar always shows here (seventeen services plus
+        # the operator's own contacts overflow any realistic height), so its
+        # width is not ours to spend.
+        return max(table.size.width - table.scrollbar_size_vertical, 0)
+
+    def contacts_table_resized(self) -> None:
+        """Re-split the columns when the table's width changes.
+
+        A `DataTable`'s column widths are set when the column is added, so a
+        table laid out for one terminal size keeps those widths forever
+        otherwise -- and this pane is a slide-out, so its width changes on
+        every toggle as well as on a real terminal resize.
+        """
+        table = self.query_one("#aprs-contact-table", DataTable)
+        if not table.columns:
+            return
+        widths = _column_widths(self._contacts_table_width())
+        wanted = (widths.callsign, widths.name, widths.detail, widths.service)
+        columns = list(table.columns.values())
+        if len(columns) != len(wanted):
+            return
+        if all(column.width == width for column, width in zip(columns, wanted)):
+            return
+        # A changed gateway label is a cell edit, not a width one, so go
+        # through the full rebuild rather than poking column widths in place.
+        self.refresh_from(self._contacts())
 
     def _contacts(self) -> list[dict]:
         return self.app.config.aprs_contacts  # type: ignore[attr-defined]
@@ -276,6 +430,39 @@ class AprsPane(Horizontal):
         # is what the operator wants to look at next, not a panel still
         # covering part of the screen.
         self.action_close_contacts()
+
+    def _message_selected(self) -> None:
+        """Address the selected row and put the cursor in the message box.
+
+        What "select a contact" is actually for -- Enter on the table and the
+        Message button both land here. Works for a gateway service row too:
+        a service is a real callsign you really message, and the only thing
+        it is not is editable.
+        """
+        key = self._selected_key()
+        if key is None:
+            self.app.notify("Select a contact first.", severity="warning")  # type: ignore[attr-defined]
+            return
+        if key.startswith("service:"):
+            service = aprs_services.lookup(key.split(":", 1)[1])
+            if service is None:
+                return
+            callsign, title = service.callsign, f"{service.name} ({service.callsign})"
+        else:
+            index = self._selected_index()
+            raw_contacts = self._contacts()
+            if index is None or index < 0 or index >= len(raw_contacts):
+                return
+            contact = Contact.from_dict(raw_contacts[index])
+            callsign, title = contact.callsign, f"{contact.name} ({contact.callsign})"
+        self.query_one("#aprs-to-input", Input).value = callsign
+        self._show_conversation_for(callsign, title)
+        self.action_close_contacts()
+        self.query_one("#aprs-compose-input", Input).focus()
+
+    @on(Button.Pressed, "#aprs-contact-message")
+    def _message_pressed(self) -> None:
+        self._message_selected()
 
     def _show_conversation(self, index: int) -> None:
         raw_contacts = self._contacts()

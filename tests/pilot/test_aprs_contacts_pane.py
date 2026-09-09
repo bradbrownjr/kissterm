@@ -76,23 +76,37 @@ async def test_every_configured_contact_appears_in_the_table():
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
         table = app.query_one("#aprs-contact-table", DataTable)
-        names = [str(table.get_cell_at((r, 0))) for r in range(table.row_count)]
-        services = [str(table.get_cell_at((r, 2))) for r in range(table.row_count)]
+        # Callsign is the left-most column: it is what the operator looks up
+        # and what the "To:" field wants.
+        calls = [str(table.get_cell_at((r, 0))) for r in range(table.row_count)]
+        names = [str(table.get_cell_at((r, 1))) for r in range(table.row_count)]
+        details = [str(table.get_cell_at((r, 2))) for r in range(table.row_count)]
+        services = [str(table.get_cell_at((r, 3))) for r in range(table.row_count)]
 
         # The operator's own contacts come FIRST, before the shipped gateway
         # services -- seventeen built-ins would otherwise bury the two or
-        # three people they actually message.
+        # three people they actually message -- and each group is sorted by
+        # callsign.
+        assert calls[:2] == ["K1ABC-9", "SMSGTE"]
         assert names[:2] == ["Jim", "Mom"]
+        assert details[:2] == ["", "5551234567"]
         assert services[:2] == ["station", "sms"]
 
-        # The shipped directory is appended, marked, and described.
-        assert "Winlink APRSLink" in names
-        assert set(services[2:]) == {"built-in"}
-        winlink_row = names.index("Winlink APRSLink")
-        assert str(table.get_cell_at((winlink_row, 1))) == "WLNK-1"
-        # The Notes column carries the summary -- a bare callsign in a
-        # contact list tells an operator nothing.
-        assert str(table.get_cell_at((winlink_row, 4))).strip()
+        service_calls = calls[2:]
+        assert service_calls == sorted(service_calls)
+        # "Gateway Service" while there is room for it; the label shortens to
+        # "Gateway" on a narrow table rather than clipping mid-word. Either
+        # way it says what the row is, never "built-in".
+        assert set(services[2:]) <= {"Gateway Service", "Gateway"}
+        assert len(set(services[2:])) == 1
+
+        assert "WLNK-1" in calls
+        winlink_row = calls.index("WLNK-1")
+        assert str(table.get_cell_at((winlink_row, 1))) == "Winlink APRSLink"
+        # The description goes in Detail -- a bare callsign in a contact list
+        # tells an operator nothing, and Detail is otherwise empty for a
+        # service since there is no phone number to put there.
+        assert str(table.get_cell_at((winlink_row, 2))).strip()
     station.close()
 
 
@@ -126,8 +140,8 @@ async def test_hiding_a_built_in_removes_its_row_and_persists():
         pane._hide_service("winlink")
         await pilot.pause()
 
-        names = [str(table.get_cell_at((r, 0))) for r in range(table.row_count)]
-        assert "Winlink APRSLink" not in names
+        calls = [str(table.get_cell_at((r, 0))) for r in range(table.row_count)]
+        assert "WLNK-1" not in calls
         assert table.row_count == before - 1
         assert app.config.aprs_hidden_services == ["winlink"]
     station.close()
@@ -384,3 +398,36 @@ async def test_no_prefill_when_no_default_gateway_is_configured():
         assert app.screen.query_one("#aprs-contact-callsign", Input).value == ""
         await app.screen.dismiss(None)
     station.close()
+
+
+def test_column_widths_never_overflow_the_table():
+    """A `DataTable` scrolls sideways when its columns do not fit -- it does
+    not shrink them. That is how the gateway descriptions became invisible on
+    a narrow screen while every test still passed, so the arithmetic that
+    replaced the hard-coded widths is checked here directly, at every width
+    from unusably narrow to a full-screen terminal."""
+    from kissterm.ui.aprs_pane import _TABLE_PADDING, _column_widths
+
+    for available in range(20, 240):
+        widths = _column_widths(available)
+        total = widths.callsign + widths.name + widths.detail + widths.service
+        # Below the clamp there is nothing to divide up and the table scrolls
+        # whatever we do; above it, the columns must fit what we were given.
+        if available - _TABLE_PADDING >= 34:
+            assert total + _TABLE_PADDING <= available, available
+        # The callsign is the one field that must never be cut: it is what
+        # goes in the "To:" field.
+        assert widths.callsign == 9
+        # The kind marker is a deliberate label at either width, never a
+        # mid-word clip of the longer one.
+        assert widths.gateway_label in ("Gateway", "Gateway Service")
+        assert len(widths.gateway_label) <= widths.service
+
+
+def test_a_wide_table_gets_the_full_gateway_service_label():
+    """The operator asked for these rows to say "Gateway Service" rather than
+    "built-in". The short form is a narrow-screen fallback, not the default."""
+    from kissterm.ui.aprs_pane import _column_widths
+
+    assert _column_widths(120).gateway_label == "Gateway Service"
+    assert _column_widths(50).gateway_label == "Gateway"

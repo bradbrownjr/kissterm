@@ -163,6 +163,11 @@ async def main() -> int:
 
         app.aprs_conversations.record_incoming("K1ABC-9", "on the road, ETA 20 min", number="1")
         app.aprs_conversations.record_outgoing("K1ABC-9", "ack1", number=None)
+        # A numbered message that came back acked, so the picture shows the
+        # delivery status the operator actually cares about rather than only
+        # the unackable auto-ack above it.
+        app.aprs_conversations.record_outgoing("K1ABC-9", "roger, see you at the site", number="2")
+        app.aprs_conversations.mark_acked("K1ABC-9", "2")
 
         book = app.addressbook
         book.record_attempt("W1AW-1")
@@ -204,6 +209,23 @@ async def main() -> int:
                 await pilot.pause()
             app.save_screenshot(str(ASSETS / name))
             written.append(ASSETS / name)
+
+        # The APRS contacts slide-out, where the shipped gateway directory is
+        # actually read. Captured on its own because that list -- saved
+        # contacts, then every gateway service with its description -- is the
+        # part of this pane most likely to break a layout, and it is invisible
+        # in the shot above.
+        from kissterm.ui.aprs_pane import AprsPane as _AprsPane
+
+        app.action_show_tab("aprs")
+        await pilot.pause()
+        app.query_one(_AprsPane).toggle_contacts()
+        await pilot.pause()
+        await asyncio.sleep(0.15)
+        await pilot.pause()
+        contacts_shot = ASSETS / "screenshot-aprs-contacts.svg"
+        app.save_screenshot(str(contacts_shot))
+        written.append(contacts_shot)
 
         # The Address Book is now a Ctrl+G slide-out on the Terminal pane,
         # not its own tab -- open it here for its own screenshot rather than

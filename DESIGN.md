@@ -140,6 +140,16 @@ tab existed to expect it.
   palette.
 - **`Ctrl+1..5` are unlabelled fallback aliases** for terminals that intercept
   function keys.
+- **A panel's own keys go in the Footer too, never in a hint line under its
+  buttons.** Textual's `Footer` renders whatever the *focused* widget binds
+  with `show=True` and repaints as focus moves, so a table that binds
+  Insert/F2/Delete/Enter already has a context-aware shortcut bar — printing
+  the same four keys as a `Static` beneath the buttons is the duplication the
+  first rule in this section exists to prevent, in a different corner again.
+  It also pushed those buttons a row lower than every other pane's, which is
+  what got it reported: the buttons should line up across the Terminal, APRS
+  and Address Book panes. A modal screen has to `yield Footer()` itself to
+  get this.
 - **The Footer shows the highest-priority prefix of that list that fits the
   terminal width, not all of it truncated.** Textual's own `Footer` is a
   horizontally-scrollable container with its scrollbar suppressed — at an

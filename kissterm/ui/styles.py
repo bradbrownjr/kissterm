@@ -133,6 +133,11 @@ AprsPane { height: 1fr; }
 /* The contacts slide-out -- hidden by default (AprsPane.on_mount), toggled
    by Ctrl+G. Same width/border treatment as the Terminal pane's Address
    Book slide-out -- see DESIGN.md's "slide-out panels" section. */
+/* 58%, the same split as the Terminal pane's Address Book. Widening it to
+   fit this table's fourth column was tried and reverted: it takes the space
+   out of the compose row, and a clipped Send button is worse than a narrow
+   column. `aprs_pane._column_widths` divides up whatever this leaves
+   instead, which is also what makes the table survive a terminal resize. */
 #aprs-contacts-column { width: 58%; padding: 0 2; border-left: solid $panel; }
 #aprs-contact-table { height: 1fr; }
 #aprs-conversation-title { padding: 1 0; color: $text-muted; }
