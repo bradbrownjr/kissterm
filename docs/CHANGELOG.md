@@ -3,6 +3,29 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Roadmap: ISS is a path, not a contact; keeping the directory current
+
+### Notes
+- **`docs/ROADMAP.md`**: recorded why `RS0ISS`/`ARISS`/`APRSAT` were left out
+  of the shipped service directory. They are a digipeater path you route
+  *through*, not a bot you send commands *to*; shipping one as a service
+  entry would have taught an operator something false. The real feature is a
+  saved digipeat path preset, which overlaps the beacon path picker already
+  in Settings far more than it overlaps messaging.
+- **Added an item for keeping the directory current.** It ships a `checked`
+  date per service and is explicitly a snapshot, not a liveness probe. There
+  is no mechanism to notice a service that has gone away for good, and
+  deliberately none that phones home — a periodic manual re-check against
+  each entry's `source` URL is the honest answer.
+- `Config.aprs_sms_gateway`/`aprs_email_gateway` now point at the shipped
+  directory for the cited cases, while still defaulting to blank: which
+  gateway an operator should use depends on their region and on who is
+  running what this month, and picking one for them would be exactly the
+  unearned confidence those fields' notes warn against.
+
+### Files
+- `docs/ROADMAP.md`, `kissterm/config.py`
+
 ## [2026-09-09] — Gateway services are built-in contacts, with a template picker
 
 ### New Features

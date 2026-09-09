@@ -286,6 +286,14 @@ class Config:
     #: this codebase has no way to confirm one from here. Never asserted as
     #: fact -- an empty gateway just means the operator has to type a
     #: contact's own gateway callsign once, the same as any other field.
+    #:
+    #: Since 0.1.60 there IS a cited answer for the common cases:
+    #: `kissterm/aprs_services/` ships `SMSGTE`, `SMS` and `EMAIL-2` with
+    #: their sources and command syntax, reachable from the APRS pane's
+    #: contact editor. These two fields stay blank by default anyway --
+    #: which gateway an operator should use depends on their region and on
+    #: who is running what this month, and picking one for them here would
+    #: be exactly the unearned confidence the note above is about.
     aprs_sms_gateway: str = ""
     aprs_email_gateway: str = ""
     #: How a compose-mode message becomes the actual on-air body, as a
