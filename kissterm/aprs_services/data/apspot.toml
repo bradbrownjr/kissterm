@@ -1,0 +1,44 @@
+# APSPOT -- self-spot a WWFF, SOTA, POTA or SiOTA activation over APRS
+# messaging. Command syntax transcribed from the author's blog post at
+# https://zindello.com.au/apspot-an-eventually-single-aprs-self-spotting-system/
+# because apspot.radio's own usage page is currently a 404.
+
+[service]
+id = "apspot"
+callsign = "APSPOT"
+name = "APSPOT self-spotting"
+summary = "Self-spot to WWFF, SOTA, POTA and SiOTA at once"
+note = """
+APSPOT posts to parksnpeaks.org (and, for POTA activations, also to
+pota.app). You must ALREADY be a valid registered user on the target site
+or the spot is silently not posted -- that is deliberate anti-abuse
+behaviour on their end, not a bug in APSPOT or in kissterm. It uses your
+APRS callsign as the spotting callsign, so you never type your own call in
+the command. The syntax below comes from the author's blog post, not from
+apspot.radio itself, because that site's own usage page currently 404s. A
+third-party health check listed APSPOT as not responding on 2026-09-09 --
+try `test` first before relying on it for a real activation.
+"""
+source = "https://zindello.com.au/apspot-an-eventually-single-aprs-self-spotting-system/"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "!"
+summary = "Post a self-spot"
+template = "! <ACTIVITY> <REF> <FREQ-MHZ> <MODE> <comment>"
+detail = """
+Activities are WWFF, SOTA, POTA, SIOTA. Modes are SSB, CW, FM, AM, DATA,
+plus FT8 for POTA. Frequency is in MHz, e.g. 7.144.
+Example: ! SOTA VK3/VN-010 7.144 SSB AutumnFieldSummit
+"""
+
+[[commands]]
+name = "test"
+summary = "Dry run -- do everything except actually post"
+template = "! <ACTIVITY> <REF> <FREQ-MHZ> <MODE> test"
+detail = """
+Including the word "test" anywhere in the message makes the system skip
+posting the spot, which is how you check your syntax without putting a
+bogus spot in front of the world.
+"""

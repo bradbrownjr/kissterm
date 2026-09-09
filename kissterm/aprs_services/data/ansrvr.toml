@@ -1,0 +1,77 @@
+# Announcement Server -- group announcements and nets over APRS messaging,
+# including the worldwide #APRSThursday net. Commands transcribed from
+# http://aprs.org/ansrvr.html.
+
+[service]
+id = "ansrvr"
+callsign = "ANSRVR"
+name = "Announcement Server"
+summary = "Group announcements and nets, including #APRSThursday"
+note = """
+ANSRVR is the group system behind the worldwide weekly #APRSThursday net,
+which runs every Thursday from 00:00 to 23:59 UTC. Check in with
+`CQ HOTG <message>`, and once ANSRVR acknowledges your check-in, send
+`U HOTG` to unjoin -- otherwise the rest of the net's traffic keeps routing
+to your radio for the remainder of the day. See https://aprsthursday.live/
+for the net itself, not just the gateway command syntax. Unlike CQSRVR,
+ANSRVR does allow a quiet keep-alive (`K`) that joins one or more groups
+without announcing you to their members.
+"""
+source = "http://aprs.org/ansrvr.html"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "CQ"
+summary = "Join a group and announce to every member"
+template = "CQ <group> <message>"
+detail = "Creates the group and makes you its owner if it does not already exist."
+
+[[commands]]
+name = "J"
+summary = "Join a group quietly"
+template = "J <group>"
+
+[[commands]]
+name = "K"
+summary = "Silent join / keep-alive, one or more groups"
+template = "K <group>"
+detail = """
+Several at once works: `K GROUP1 GROUP2 GROUP3`. Members of the group are
+not told that you joined.
+"""
+
+[[commands]]
+name = "U"
+summary = "Unjoin a group"
+template = "U <group>"
+
+[[commands]]
+name = "L"
+summary = "List the groups you are a member of"
+template = "L"
+
+[[commands]]
+name = "D"
+summary = "List groups with their descriptions"
+template = "D"
+
+[[commands]]
+name = "?"
+summary = "Help"
+template = "?"
+
+[[commands]]
+name = "CQ HOTG"
+summary = "Check in to the #APRSThursday net"
+template = "CQ HOTG <message>"
+detail = "The net runs 00:00-23:59 UTC every Thursday. See https://aprsthursday.live/."
+
+[[commands]]
+name = "U HOTG"
+summary = "Leave #APRSThursday once you have checked in"
+template = "U HOTG"
+detail = """
+Send this after your check-in is acknowledged, or the whole net's traffic
+comes to your radio for the rest of the day.
+"""

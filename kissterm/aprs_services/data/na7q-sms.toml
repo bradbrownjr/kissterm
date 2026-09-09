@@ -1,0 +1,56 @@
+# NA7Q APRS-to-SMS gateway. Commands transcribed from
+# https://aprs.wiki/howto/.
+
+[service]
+id = "na7q-sms"
+callsign = "SMS"
+name = "NA7Q APRS-to-SMS gateway"
+summary = "Send a text message to a phone from APRS"
+note = """
+SMS recipients are REQUIRED to opt in at aprs.wiki first (a carrier rule,
+not a gateway preference) -- a message to a number that has not opted in
+does not arrive, silently. The SMS side replies over the gateway number
+8663524096, addressing you as `@<callsign> <message>`. If you enable
+auto-check (APOSMS) on more than one device under the same callsign, only
+one of them will see each incoming reply and you will miss messages.
+"""
+source = "https://aprs.wiki/howto/"
+checked = "2026-09-09"
+confidence = "documented"
+region = "US, Puerto Rico, Canada, Australia, UK"
+
+[[commands]]
+name = "@number"
+summary = "Send an SMS to a phone number or alias"
+template = "@<number> <message>"
+detail = "10 digits for US/PR/Canada with no leading 1, 11 for Australia, 12 for the UK. Example: @9876543210 No cell coverage. Get me on the radio!"
+
+[[commands]]
+name = "#alias #add"
+summary = "Create a phone-number alias"
+template = "#alias #add <name> <number>"
+
+[[commands]]
+name = "#alias #remove"
+summary = "Remove a phone-number alias"
+template = "#alias #remove <name> <number>"
+
+[[commands]]
+name = "APRSM"
+summary = "Check for missed messages now"
+template = "APRSM"
+
+[[commands]]
+name = "APOSMS"
+summary = "Auto-check for missed messages every 10 minutes"
+template = "APOSMS"
+
+[[commands]]
+name = "ALLMSG"
+summary = "Check both SMS and MAIL messages"
+template = "ALLMSG"
+
+[[commands]]
+name = "del"
+summary = "Delete all missed messages"
+template = "del"

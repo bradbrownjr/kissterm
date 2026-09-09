@@ -1,0 +1,24 @@
+# NA7Q FIND station lookup. Commands transcribed from
+# https://aprs.wiki/find/.
+
+[service]
+id = "na7q-find"
+callsign = "FIND"
+name = "FIND station lookup"
+summary = "Last heard, speed, distance and grid for a station"
+note = """
+Distance and bearing are measured from YOUR last beaconed position, so
+beacon before asking or the distance in the reply is meaningless or
+absent entirely. A third-party health check listed FIND as not responding
+on 2026-09-09 -- if it stays silent, treat that as possibly the service
+being down rather than assuming your own path is bad.
+"""
+source = "https://aprs.wiki/find/"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "CALL-SSID"
+summary = "Last heard, igate, speed, distance and grid for a station"
+template = "<CALL-SSID>"
+detail = "The whole message is just the callsign. A sample reply: K7TME-9: 4d23h57m ago Via HAPPYV 9mph 65.9mi away CN85rm"

@@ -1,0 +1,102 @@
+# QRX -- missed-message mailbox for APRS. Only the command NAMES are
+# confirmed, from the APRS service registry at https://aprs.hemna.com/;
+# several argument forms are marked "recalled" because no fetched page
+# confirmed them.
+
+[service]
+id = "qrx"
+callsign = "QRX"
+name = "QRX missed-message mailbox"
+summary = "Catches messages sent while you were off the air"
+note = """
+You must REGISTER first with REG before QRX will hold anything for you. Once
+registered, it catches messages addressed to you that were not acked within
+a wait window (300 seconds by default, per-user settable), holding up to 20
+messages per station for up to 7 days, covering all SSIDs of your callsign.
+RLY ALL replays the whole mailbox into your radio as if each sender had just
+transmitted, paced so the channel is not flooded -- that replay behaviour is
+the feature worth knowing about before you rely on this service. Only the
+command NAMES below are confirmed, from the APRS service registry at
+https://aprs.hemna.com/; several argument forms are marked "recalled"
+because no fetched page confirmed them -- check before you spend airtime.
+"""
+source = "https://qrx.forkum.net/"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "REG"
+summary = "Register your callsign with the mailbox"
+template = "REG"
+confidence = "documented"
+
+[[commands]]
+name = "UNREG"
+summary = "Unregister"
+template = "UNREG"
+confidence = "documented"
+
+[[commands]]
+name = "INBOX"
+summary = "List stored messages"
+template = "INBOX"
+confidence = "documented"
+
+[[commands]]
+name = "STATUS"
+summary = "Registration state and inbox count"
+template = "STATUS"
+confidence = "documented"
+detail = "S is documented as an alias."
+
+[[commands]]
+name = "READ"
+summary = "Read a stored message"
+template = "READ <n>"
+confidence = "recalled"
+detail = "The command name is confirmed; the argument form is not."
+
+[[commands]]
+name = "RLY"
+summary = "Replay a stored message into your radio"
+template = "RLY <n>"
+confidence = "recalled"
+detail = "Re-injects it as if the sender had just transmitted. Argument form unconfirmed."
+
+[[commands]]
+name = "RLY ALL"
+summary = "Replay the whole inbox, oldest first"
+template = "RLY ALL"
+confidence = "documented"
+detail = "Paced so the channel is not flooded; each message is deleted as your radio acks it."
+
+[[commands]]
+name = "DEL"
+summary = "Delete a stored message"
+template = "DEL <n>"
+confidence = "recalled"
+detail = "Argument form unconfirmed."
+
+[[commands]]
+name = "DEL ALL"
+summary = "Empty the mailbox"
+template = "DEL ALL"
+confidence = "documented"
+
+[[commands]]
+name = "ACK"
+summary = "Acknowledge"
+template = "ACK"
+confidence = "recalled"
+
+[[commands]]
+name = "WHO"
+summary = "Who is registered"
+template = "WHO"
+confidence = "recalled"
+
+[[commands]]
+name = "HELP"
+summary = "Help"
+template = "HELP"
+confidence = "documented"

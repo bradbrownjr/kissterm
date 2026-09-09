@@ -1,0 +1,75 @@
+# MPAD -- multi-purpose APRS daemon. Only the command NAMES are confirmed,
+# from the APRS service registry at https://aprs.hemna.com/, not from
+# MPAD's own documentation. Every argument form below is "recalled" and
+# unconfirmed.
+
+[service]
+id = "mpad"
+callsign = "MPAD"
+name = "MPAD multi-purpose APRS daemon"
+summary = "Weather, METAR, repeaters, satellite passes, position"
+note = """
+Only the command NAMES below are confirmed -- they come from the APRS
+service registry at https://aprs.hemna.com/, not from MPAD's own
+documentation -- so every argument form here is marked "recalled" and
+should be checked before you spend airtime on it. Unlike the US-only
+weather bots in this directory, MPAD is documented as providing global
+forecasts, not just US National Weather Service coverage.
+"""
+source = "https://aprs.hemna.com/"
+checked = "2026-09-09"
+confidence = "recalled"
+
+[[commands]]
+name = "wx"
+summary = "Weather forecast"
+template = "wx <location>"
+confidence = "recalled"
+detail = "Argument form unconfirmed."
+
+[[commands]]
+name = "metar"
+summary = "Raw METAR for an airport"
+template = "metar <ICAO>"
+confidence = "recalled"
+detail = "Argument form unconfirmed."
+
+[[commands]]
+name = "repeater"
+summary = "Nearby repeaters"
+template = "repeater <band>"
+confidence = "recalled"
+detail = "Argument form unconfirmed."
+
+[[commands]]
+name = "riseset"
+summary = "Sunrise and sunset"
+template = "riseset"
+confidence = "recalled"
+
+[[commands]]
+name = "satpass"
+summary = "Next pass of a satellite"
+template = "satpass <satellite>"
+confidence = "recalled"
+detail = "Argument form unconfirmed."
+
+[[commands]]
+name = "whereami"
+summary = "Where the service thinks you are"
+template = "whereami"
+confidence = "recalled"
+
+[[commands]]
+name = "whereis"
+summary = "Where another station is"
+template = "whereis <CALLSIGN>"
+confidence = "recalled"
+detail = "Argument form unconfirmed."
+
+[[commands]]
+name = "cwop"
+summary = "CWOP weather station report"
+template = "cwop <station-id>"
+confidence = "recalled"
+detail = "Argument form unconfirmed."

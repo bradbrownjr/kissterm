@@ -1,0 +1,41 @@
+# SMSGTE APRS-to-SMS gateway. Commands transcribed from https://smsgte.org/;
+# #shortcut and #kill argument order is recalled, not confirmed against a
+# fetched page -- see the confidence on those two entries.
+
+[service]
+id = "smsgte"
+callsign = "SMSGTE"
+name = "SMSGTE APRS-to-SMS gateway"
+summary = "Send a text message to a phone from APRS"
+note = """
+Aliases are set up on the smsgte.org website, not over the air -- there is
+no over-the-air alias-add command here. This is a DIFFERENT service from
+the NA7Q `SMS` gateway despite the near-identical `@number` syntax: they
+are run by different people, and an alias set up on one means nothing to
+the other.
+"""
+source = "https://smsgte.org/"
+checked = "2026-09-09"
+confidence = "documented"
+region = "US, Canada, Australia, UK"
+
+[[commands]]
+name = "@number"
+summary = "Send an SMS to a phone number or alias"
+template = "@<number> <message>"
+confidence = "documented"
+detail = "10 digits for US/Canada, 11 for Australia, 12 for the UK. Example: @6135551234 No cell coverage here, ping me on radio"
+
+[[commands]]
+name = "#shortcut"
+summary = "Manage message shortcuts"
+template = "#shortcut <add|delete|list|show> <name> <text>"
+confidence = "recalled"
+detail = "The exact argument order was not confirmed against a fetched page; check smsgte.org before relying on it."
+
+[[commands]]
+name = "#kill"
+summary = "End an active conversation"
+template = "#kill <number-or-alias>"
+confidence = "recalled"
+detail = "Also documented as killing all conversations; exact form unconfirmed."

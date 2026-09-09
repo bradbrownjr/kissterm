@@ -1,0 +1,103 @@
+# WXBOT -- US National Weather Service forecasts delivered by APRS message.
+# Command syntax transcribed from the author's own usage page.
+
+[service]
+id = "wxbot"
+callsign = "WXBOT"
+name = "WXBOT weather forecasts"
+summary = "US NWS forecasts by callsign, city, ZIP or grid"
+note = """
+WXBOT pulls forecasts from the US National Weather Service, so it only
+knows about US locations. Send it a message with no location at all and it
+forecasts for wherever you LAST BEACONED -- so beacon a position before you
+ask, or you get a stale or missing location. A message shorter than 3
+characters (or truly empty) is treated as "brief forecast for my own
+position". You can combine a location and a time qualifier in one message,
+e.g. "Boston,MA tomorrow", to get a forecast for a specific place and day
+rather than the default brief-and-now.
+"""
+source = "https://sites.google.com/site/ki6wjp/wxbot"
+checked = "2026-09-09"
+confidence = "documented"
+region = "US (National Weather Service data)"
+
+[[commands]]
+name = "brief"
+summary = "Brief forecast (the default)"
+template = "brief"
+
+[[commands]]
+name = "full"
+summary = "Full forecast"
+template = "full"
+
+[[commands]]
+name = "current"
+summary = "Current conditions"
+template = "current"
+
+[[commands]]
+name = "metar"
+summary = "Raw METAR for an airport"
+template = "metar <ICAO>"
+
+[[commands]]
+name = "cwop"
+summary = "Report from a CWOP weather station"
+template = "cwop <station-id>"
+detail = "Example: cwop DW6273"
+
+[[commands]]
+name = "city"
+summary = "Forecast for a city"
+template = "<City>,<ST>"
+detail = "Example: Boston,MA"
+
+[[commands]]
+name = "zip"
+summary = "Forecast for a US ZIP code"
+template = "<5-digit-zip>"
+
+[[commands]]
+name = "grid"
+summary = "Forecast for a Maidenhead grid square"
+template = "<grid>"
+detail = "4 or 6 characters, e.g. cn81 or cn81uh"
+
+[[commands]]
+name = "latlon"
+summary = "Forecast for a decimal lat/lon"
+template = "<lat>/<lon>"
+detail = "Example: 41.123/-122.1123"
+
+[[commands]]
+name = "icao"
+summary = "Forecast for an airport by ICAO code"
+template = "<ICAO>"
+detail = "4 characters, e.g. KJFK or KSFO"
+
+[[commands]]
+name = "iata"
+summary = "Forecast for an airport by IATA code"
+template = "<IATA>"
+detail = "3 characters, e.g. SFO or LAX"
+
+[[commands]]
+name = "when"
+summary = "Forecast for a particular time"
+template = "<when>"
+detail = """
+today, tonight, tomorrow, tomorrow night, or a weekday name, optionally
+followed by night. Combine with a location, e.g. Boston,MA tomorrow.
+"""
+
+[[commands]]
+name = "outnet"
+summary = "Route the reply to the Outernet satellite feed"
+template = "outnet"
+
+[[commands]]
+name = "?"
+summary = "Help"
+template = "?"
+detail = "help works too."

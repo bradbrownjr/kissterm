@@ -1,0 +1,68 @@
+# APRS2SOTA -- spot a Summits On The Air activation, and query spots/alerts,
+# over APRS messaging. Commands transcribed from
+# https://www.sotaspots.co.uk/Aprs2Sota_Info.php.
+
+[service]
+id = "aprs2sota"
+callsign = "SOTA"
+aliases = ["APRS2SOTA"]
+name = "APRS2SOTA spotting"
+summary = "Spot your SOTA activation and query spots/alerts"
+note = """
+Spotting your own activation is a one-way message and works regardless of
+what is listening. The query commands (/last, /spots, /alerts, and so on)
+only get a reply back to you if there is a bi-directional igate in range --
+plenty of igates only forward traffic one direction, so a query into a
+receive-only igate is airtime spent for nothing. `?` or `-` may be used
+interchangeably with `/` at the start of a query, and query parameters may
+be given in any order.
+"""
+source = "https://www.sotaspots.co.uk/Aprs2Sota_Info.php"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "spot"
+summary = "Spot an activation"
+template = "<summit-ref> <freq> <mode> <comment>"
+detail = """
+Preferred order is summit reference, frequency, mode, then optional callsign
+and comment. The frequency needs a unit -- k, kz, mh or MHz. Modes: AM, CW,
+DATA, DV, FM, SSB, OTHER. There is no command word; the message itself is
+the spot.
+"""
+
+[[commands]]
+name = "/help"
+summary = "Parameter order and command summary"
+template = "/help"
+
+[[commands]]
+name = "/last"
+summary = "The last few spots"
+template = "/last"
+detail = "/last/<number> and /full narrow or widen it."
+
+[[commands]]
+name = "/mylast"
+summary = "Your own last few spots"
+template = "/mylast"
+detail = "Takes /<number> and /full the same way as /last."
+
+[[commands]]
+name = "/spots"
+summary = "Recent spots, filtered"
+template = "/spots"
+detail = "Optional /<number>, /name, /ref, /full, /<band>, /<mode>, /by."
+
+[[commands]]
+name = "/alerts"
+summary = "Recent alerts, filtered"
+template = "/alerts"
+detail = "Optional /<number>, /ref, /full, /name, /by."
+
+[[commands]]
+name = "/time"
+summary = "Current time"
+template = "/time"
+detail = "UTC by default; /time/<zone> for another."

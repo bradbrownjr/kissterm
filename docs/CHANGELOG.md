@@ -3,6 +3,51 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — A shipped directory of 17 APRS gateway services
+
+### New Features
+- **`kissterm/aprs_services/` — what to say to an APRS gateway, shipped as
+  data.** An operator who wants Winlink mail has to know `WLNK-1` understands
+  `SP`, `L` and `/EX`; one who wants an SMS has to know `SMSGTE` wants
+  `@5551234567 text`. None of that was discoverable from inside kissterm, and
+  none of it should cost airtime to find out. Same reasoning that already put
+  node command references in `kissterm/nodes/data/`, applied to the APRS side.
+- **17 services, each with a cited source and a per-command confidence
+  level**: `WLNK-1` (Winlink APRSLink), `SMSGTE` and `SMS` (SMS gateways),
+  `EMAIL-2`, `MAIL`, `FIND`, `WXBOT`, `WXNOW`, `MPAD`, `CQSRVR`, `ANSRVR`
+  (including the `CQ HOTG` / `U HOTG` pair for the worldwide weekly
+  #APRSThursday net), `SOTA`/`APRS2SOTA`, `APSPOT`, `NTSGTE`, `WHO-IS`
+  (and its `WHO-15` alias), `REPEAT`, `QRX`.
+- **Every service carries a `summary` and a `note`, and the loader refuses a
+  file without them.** A bare callsign like `MPAD` or `WLNK-1` in a contact
+  list tells an operator nothing; the description is the feature here, not a
+  nicety around it.
+
+### Notes on provenance
+- Commands are transcribed from the linked source, never reconstructed.
+  `confidence` uses the same `verified`/`documented`/`recalled`/`learned`
+  vocabulary `kissterm/nodes/reference.py` already shows, so there is one
+  scale to learn. `QRX`'s and `MPAD`'s argument forms ship marked `recalled`
+  because only their command *names* could be sourced.
+- **`NTSGTE` ships exactly one command, `INFO`.** Its radiogram filing syntax
+  is not published on the web -- it is in a training presentation and a
+  video. Guessing a format would put a malformed radiogram into the National
+  Traffic System under the operator's callsign, so kissterm asks the gateway
+  instead. A test enforces this so a future session cannot helpfully fill
+  the gap.
+- **`ISS` is deliberately absent.** `RS0ISS`/`ARISS`/`APRSAT` are a digipeater
+  path you route through, not a bot you send commands to; modelling it as a
+  contact would teach something false.
+- The directory is a snapshot, not a liveness probe -- several entries were
+  reported down by a third-party health check while being written, and were
+  shipped anyway with a `checked` date, because "down this afternoon" and
+  "gone" are different facts this file cannot tell apart.
+
+### Files
+- `kissterm/aprs_services/__init__.py`, `kissterm/aprs_services/directory.py`,
+  `kissterm/aprs_services/data/*.toml` (17), `tests/unit/test_aprs_services.py`,
+  `pyproject.toml` (package-data), `AGENTS.md`
+
 ## [2026-09-09] — The WINLINK beacon flag is documented, not a guess
 
 ### Improvements

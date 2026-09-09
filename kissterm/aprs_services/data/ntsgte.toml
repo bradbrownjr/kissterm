@@ -1,0 +1,27 @@
+# ARRL NTS radiogram gateway -- files a message into the National Traffic
+# System over APRS. kissterm ships only the INFO command on purpose; see the
+# note below. Source: https://nts2.arrl.org/ntsgte-an-aprs-nts-gateway/.
+
+[service]
+id = "ntsgte"
+callsign = "NTSGTE"
+name = "ARRL NTS radiogram gateway"
+summary = "File an NTS radiogram over APRS"
+note = """
+kissterm ships only the INFO command here, on purpose. The radiogram filing
+syntax itself is NOT published on the gateway's web page -- it lives in a
+training presentation and a linked video, with the gateway's operator
+(WZ0C) as the contact for anything not covered there. Guessing a filing
+format would risk putting a malformed radiogram into the National Traffic
+System under the operator's own callsign, which is worse than not offering
+the command at all. Send INFO and the gateway will tell you the rest.
+"""
+source = "https://nts2.arrl.org/ntsgte-an-aprs-nts-gateway/"
+checked = "2026-09-09"
+confidence = "documented"
+region = "US (National Traffic System)"
+
+[[commands]]
+name = "INFO"
+summary = "Ask the gateway to send you its instructions"
+template = "INFO"

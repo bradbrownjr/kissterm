@@ -1,0 +1,40 @@
+# APRS-to-email gateway (EMAIL-2). Commands transcribed from
+# https://www.aprs-is.net/email.aspx; the alias command form is recalled,
+# not confirmed against a fetched page -- see its confidence below.
+
+[service]
+id = "email2"
+callsign = "EMAIL-2"
+name = "APRS-to-email gateway"
+summary = "Send an email from APRS and get replies back"
+note = """
+This gateway is interactive and depends on NUMBERED messages and working
+acks in both directions, so it needs a bi-directional igate near you --
+one that can both hear you and relay a reply back to you over RF. If you
+are not on the air when a reply arrives, it is held for 24 hours. A
+third-party health check listed EMAIL-2 as not responding on 2026-09-09.
+"""
+source = "https://www.aprs-is.net/email.aspx"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "email"
+summary = "Send an email"
+template = "<user@example.com> <message>"
+confidence = "documented"
+detail = "The address is the first word of the message body, the rest is the email text."
+
+[[commands]]
+name = "get"
+summary = "Retrieve a reply the server is holding for you"
+template = "get"
+confidence = "documented"
+detail = "Replies are held 24 hours."
+
+[[commands]]
+name = "alias"
+summary = "Set an email alias so messages can be longer"
+template = "alias <name> <user@example.com>"
+confidence = "recalled"
+detail = "An alias saves characters on every send; the exact command form was not confirmed against a fetched page."

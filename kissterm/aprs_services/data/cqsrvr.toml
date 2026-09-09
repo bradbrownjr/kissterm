@@ -1,0 +1,59 @@
+# CQ Server -- lets an APRS operator call CQ to a worldwide interest group
+# (a swap net, a club, a special-interest group) without either side needing
+# to be online at the same moment. Commands transcribed from
+# https://www.aprs.org/cqsrvr.html.
+
+[service]
+id = "cqsrvr"
+callsign = "CQSRVR"
+name = "CQ Server"
+summary = "Call CQ to an interest group worldwide"
+note = """
+CQSRVR routes a message to every member of a named group, so joining and
+calling CQ reaches people who are not listening at the same moment you are.
+Everything sent to it goes as a NUMBERED APRS message, not a bare unproto
+line. You may send only one `CQ` message every 30 minutes -- this is a
+server-side limit, not a courtesy suggestion, and repeated CQs sent faster
+than that are wasted airtime. Tactical calls (a group name standing in for a
+person, like a net control alias) are not accepted here. Unlike ANSRVR,
+CQSRVR has no quiet keep-alive command: there is no way to join a group and
+say nothing, so if you only want to listen you still have to send something.
+"""
+source = "https://www.aprs.org/cqsrvr.html"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "?"
+summary = "Show all groups and their member counts"
+template = "?"
+
+[[commands]]
+name = "group"
+summary = "Show one group's member count"
+template = "<group>"
+
+[[commands]]
+name = "L"
+summary = "List the groups you are a member of"
+template = "L"
+
+[[commands]]
+name = "J"
+summary = "Join a group quietly"
+template = "J <group>"
+
+[[commands]]
+name = "CQ"
+summary = "Join a group and send a message to every member"
+template = "CQ <group> <message>"
+detail = """
+Also how you send to a group you already belong to -- there is no separate
+"send to my group" command. Creates the group if it does not already exist.
+Limited to one CQ message every 30 minutes.
+"""
+
+[[commands]]
+name = "U"
+summary = "Unjoin a group"
+template = "U <group>"

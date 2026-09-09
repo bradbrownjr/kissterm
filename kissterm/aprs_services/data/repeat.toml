@@ -1,0 +1,51 @@
+# REPEAT -- nearest-voice-repeater finder over APRS messaging. Command
+# syntax transcribed from the service's own usage page.
+
+[service]
+id = "repeat"
+callsign = "REPEAT"
+name = "REPEAT nearest-repeater finder"
+summary = "Find the nearest voice repeaters to your last beacon"
+note = """
+Results are relative to your LAST BEACONED position, not your current one --
+beacon before you ask, or you get someone else's neighbourhood, or nothing
+at all. The default reply is a single 2 m repeater; you can ask for up to
+ten at once and filter by band or capability.
+"""
+source = "https://aprs-repeat.hemna.com/"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "nearest"
+summary = "Nearest repeater to your last beacon"
+template = "n"
+detail = "n is the short form of nearest; both work."
+
+[[commands]]
+name = "nearest N"
+summary = "The nearest N repeaters"
+template = "n <count>"
+detail = "Default 1, maximum 10."
+
+[[commands]]
+name = "nearest N band"
+summary = "The nearest N repeaters on a band"
+template = "n <count> <band>"
+detail = "Band defaults to 2m. Example: n 3"
+
+[[commands]]
+name = "filter"
+summary = "Filter by repeater capability"
+template = "n <count> <band> +<feature>"
+detail = "Example: n 2m +echolink for the closest 2 m repeater with EchoLink."
+
+[[commands]]
+name = "ping"
+summary = "Check the service is alive"
+template = "ping"
+
+[[commands]]
+name = "help"
+summary = "Help"
+template = "help"

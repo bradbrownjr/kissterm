@@ -1,0 +1,27 @@
+# WHO-IS -- callsign lookup service run against the FCC (and other
+# regulators') licence databases. Command syntax transcribed from the
+# service's own usage page.
+
+[service]
+id = "whois"
+callsign = "WHO-IS"
+aliases = ["WHO-15"]
+name = "WHO-IS callsign lookup"
+summary = "Look up a callsign's licence class and location"
+note = """
+Send it as a NUMBERED APRS message with the callsign as the ENTIRE message
+text -- there is no command word, just the callsign by itself -- and the
+reply is a single line giving licence class and general location. WHO-15
+is the same service reachable under an SSID, for clients and igates that
+cannot address a station with a non-AX.25 SSID like WHO-IS. A third-party
+health check listed WHO-IS as not responding on 2026-09-09.
+"""
+source = "https://aprs-is.net/WhoIs.aspx"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "callsign"
+summary = "Licence class and general location for a callsign"
+template = "<CALLSIGN>"
+detail = "The whole message is just the callsign, e.g. W0ILO."

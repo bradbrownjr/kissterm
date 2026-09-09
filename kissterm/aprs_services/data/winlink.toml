@@ -1,0 +1,97 @@
+# Winlink APRSLink -- read and reply to Winlink radio email over APRS
+# messaging, without a full Winlink client. Commands transcribed from
+# https://winlink.org/APRSLink.
+
+[service]
+id = "winlink"
+callsign = "WLNK-1"
+name = "Winlink APRSLink"
+summary = "Winlink radio email, read and sent over APRS"
+note = """
+APRSLink is a gateway into the Winlink radio email system for stations that
+only have APRS messaging, not a full Winlink client. It requires a Winlink
+account (register at winlink.org before using this). Put the word WINLINK
+in your position comment (kissterm: Settings > APRS > "Check for Winlink
+messages") and APRSLink will send you a daily alert while mail is waiting,
+so you do not have to poll it yourself. On a Kenwood D7/D700/D710 keypad,
+where digits are awkward to enter, you may substitute a keypad letter for
+the corresponding digit -- for example `Rd` in place of `R3`.
+"""
+source = "https://winlink.org/APRSLink"
+checked = "2026-09-09"
+confidence = "documented"
+region = "Worldwide -- needs a Winlink account"
+
+[[commands]]
+name = "H"
+summary = "Return brief help"
+template = "H"
+detail = "`?` does the same thing."
+
+[[commands]]
+name = "L"
+summary = "List pending messages (a maximum of 5 are returned)"
+template = "L"
+
+[[commands]]
+name = "R#"
+summary = "Read message number #"
+template = "R<n>"
+
+[[commands]]
+name = "Y#"
+summary = "Reply to message number #"
+template = "Y<n>"
+
+[[commands]]
+name = "SP"
+summary = "Start composing a message"
+template = "SP <email/callsign/alias> <subject>"
+detail = "Body lines follow as further messages; finish and send with /EX."
+
+[[commands]]
+name = "/EX"
+summary = "Complete and send the composed message"
+template = "/EX"
+
+[[commands]]
+name = "P"
+summary = "Play back the message lines composed so far"
+template = "P"
+
+[[commands]]
+name = "SMS"
+summary = "Send a one-line message without composing"
+template = "SMS <email/callsign/alias> <message>"
+
+[[commands]]
+name = "A"
+summary = "Create or update an alias"
+template = "A <alias>=<email@domain.com>"
+detail = "An empty right-hand side (A sam=) deletes the alias."
+
+[[commands]]
+name = "AL"
+summary = "List all your aliases"
+template = "AL"
+
+[[commands]]
+name = "F#"
+summary = "Forward message number # to an address or callsign"
+template = "F<n> <email/callsign>"
+
+[[commands]]
+name = "K#"
+summary = "Kill (mark deleted) message number #"
+template = "K<n>"
+
+[[commands]]
+name = "G"
+summary = "Information about the closest active RMS Packet gateway"
+template = "G"
+detail = "G1 selects a specific one from the list."
+
+[[commands]]
+name = "I"
+summary = "Information about APRSLink itself"
+template = "I"

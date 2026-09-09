@@ -229,6 +229,11 @@ kissterm/
 │   ├── desktop_notify.py    # cross-desktop delivery: herdr first,
 │   │                        #   notify-send as the fallback
 │   ├── nodes/               # SHIPPED command references (data/*.toml)
+│   ├── aprs_services/       # SHIPPED APRS gateway directory (data/*.toml):
+│   │                        #   who to address, what it does, what to say to
+│   │                        #   it. Same "ship it, don't ask over the air"
+│   │                        #   reasoning as nodes/ -- NOT the same module,
+│   │                        #   see its docstring for why they stay apart
 │   ├── ax25/            # + its own AGENTS.md (local contract)
 │   │   ├── address.py       # callsign/SSID encode+decode, AX25Path
 │   │   ├── frame.py         # I/S/U frames, modulo 8 and 128

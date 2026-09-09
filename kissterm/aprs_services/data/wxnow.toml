@@ -1,0 +1,29 @@
+# WXNOW -- nearest APRS weather station report. Command names transcribed
+# from the APRS service registry at https://aprs.hemna.com/, not from the
+# service's own documentation.
+
+[service]
+id = "wxnow"
+callsign = "WXNOW"
+name = "WXNOW nearest weather report"
+summary = "The nearest APRS weather station's current report"
+note = """
+Like the other position-relative bots in this directory, WXNOW answers from
+your LAST BEACONED position, not your current one -- beacon first. The
+command list here comes from the APRS service registry rather than the
+service's own documentation, so it is names only, with nothing further
+confirmed about it.
+"""
+source = "https://aprs.hemna.com/"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "nearest"
+summary = "Nearest weather station's current report"
+template = "nearest"
+
+[[commands]]
+name = "ping"
+summary = "Check the service is alive"
+template = "ping"

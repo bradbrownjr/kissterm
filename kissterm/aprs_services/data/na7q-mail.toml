@@ -1,0 +1,47 @@
+# NA7Q MAIL store-and-forward bot. Commands transcribed from
+# https://aprs.wiki/mail/.
+
+[service]
+id = "na7q-mail"
+callsign = "MAIL"
+name = "MAIL store-and-forward bot"
+summary = "Store-and-forward messaging to a callsign or group"
+note = """
+Put APMAIL or ALLMSG in your position comment and the bot delivers waiting
+messages automatically the next time you are on the air, no polling
+required. Group messages last 3 days and you are dropped from a group
+after 1 day of inactivity; individual messages are deleted after 7 days.
+"""
+source = "https://aprs.wiki/mail/"
+checked = "2026-09-09"
+confidence = "documented"
+
+[[commands]]
+name = "@CALLSIGN"
+summary = "Send a message to another operator"
+template = "@<CALLSIGN> <message>"
+
+[[commands]]
+name = "APRSM"
+summary = "Check your waiting messages"
+template = "APRSM"
+
+[[commands]]
+name = "del"
+summary = "Delete messages you have not acked"
+template = "del"
+
+[[commands]]
+name = "join"
+summary = "Join a group"
+template = "join <group>"
+
+[[commands]]
+name = "unjoin"
+summary = "Leave a group"
+template = "unjoin <group>"
+
+[[commands]]
+name = "#group"
+summary = "Send a message to everyone in a group"
+template = "#<group> <message>"
