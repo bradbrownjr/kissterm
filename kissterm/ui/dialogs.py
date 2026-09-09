@@ -21,6 +21,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, Select, Static, TextArea
 
 from ..addressbook import AddressBook
+from ..aprs_contacts import Contact, normalize_service, validate_contact
 from ..ax25 import parse_path
 
 
@@ -963,6 +964,108 @@ class CredentialScreen(ModalScreen[Credential | None]):
             return
         text = self.query_one("#credential-text", TextArea).text
         self.dismiss(Credential(name, text))
+
+
+_APRS_SERVICE_CHOICES = [
+    ("Station (plain APRS message)", "station"),
+    ("SMS gateway", "sms"),
+    ("Email gateway", "email"),
+]
+
+
+class AprsContactScreen(ModalScreen[Contact | None]):
+    """Add or edit one APRS messaging contact (`Config.aprs_contacts`).
+
+    Deliberately small, the same "one screen, no live validation against a
+    transport" shape as `CredentialScreen` -- a contact is just a name, an
+    addressee, a service, and (for a gateway service) the phone number or
+    email address that gateway needs. `service` picks which of the two
+    detail-field placeholders/labels apply; changing it just re-renders the
+    hint text under the detail field rather than swapping widgets, since a
+    plain `Input` covers both shapes.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(
+        self,
+        name: str = "",
+        callsign: str = "",
+        service: str = "station",
+        detail: str = "",
+        notes: str = "",
+    ) -> None:
+        super().__init__()
+        self._name = name
+        self._callsign = callsign
+        self._service = normalize_service(service)
+        self._detail = detail
+        self._notes = notes
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("APRS contact", id="connect-title")
+            yield Input(value=self._name, placeholder="Name / alias", id="aprs-contact-name")
+            yield Input(
+                value=self._callsign,
+                placeholder="Callsign to send to, e.g. K1ABC-9 (or a gateway's callsign)",
+                id="aprs-contact-callsign",
+            )
+            yield Select(
+                _APRS_SERVICE_CHOICES,
+                id="aprs-contact-service",
+                value=self._service,
+                allow_blank=False,
+            )
+            yield Static("", id="aprs-contact-detail-hint")
+            yield Input(value=self._detail, placeholder="", id="aprs-contact-detail")
+            yield Input(value=self._notes, placeholder="Notes (optional)", id="aprs-contact-notes")
+            yield Label("", id="connect-error")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save", variant="primary", id="aprs-contact-save")
+                yield Button("Cancel", id="aprs-contact-cancel")
+
+    def on_mount(self) -> None:
+        self._sync_detail_field()
+        field = self.query_one("#aprs-contact-name", Input)
+        field.focus()
+        field.action_end()
+
+    @on(Select.Changed, "#aprs-contact-service")
+    def _service_changed(self) -> None:
+        self._sync_detail_field()
+
+    def _sync_detail_field(self) -> None:
+        service = self.query_one("#aprs-contact-service", Select).value
+        detail = self.query_one("#aprs-contact-detail", Input)
+        hint = self.query_one("#aprs-contact-detail-hint", Static)
+        if service == "sms":
+            detail.placeholder = "Phone number the SMS gateway delivers to"
+            hint.update("SMS gateway: the gateway's own callsign goes above.")
+        elif service == "email":
+            detail.placeholder = "Email address the email gateway delivers to"
+            hint.update("Email gateway: the gateway's own callsign goes above.")
+        else:
+            detail.placeholder = "(not used for a plain station contact)"
+            hint.update("")
+
+    @on(Button.Pressed, "#aprs-contact-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#aprs-contact-save")
+    @on(Input.Submitted, "#aprs-contact-name")
+    def _save(self) -> None:
+        name = self.query_one("#aprs-contact-name", Input).value.strip()
+        callsign = self.query_one("#aprs-contact-callsign", Input).value.strip()
+        service = str(self.query_one("#aprs-contact-service", Select).value)
+        detail = self.query_one("#aprs-contact-detail", Input).value.strip()
+        notes = self.query_one("#aprs-contact-notes", Input).value.strip()
+        problem = validate_contact(name, callsign, service, detail)
+        if problem:
+            self.query_one("#connect-error", Label).update(f"[red]{problem}[/red]")
+            return
+        self.dismiss(Contact(name=name, callsign=callsign.upper(), service=service, detail=detail, notes=notes))
 
 
 @dataclass(frozen=True)

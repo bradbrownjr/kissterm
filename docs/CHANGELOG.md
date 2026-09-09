@@ -3,6 +3,30 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — APRS pane: contacts list, CRUD, and read-only message history
+
+### New Features
+- **The APRS pane (F4) is real** -- `kissterm/ui/aprs_pane.py` replaces the
+  placeholder with a two-column layout: an APRS messaging contacts table
+  on the left (`Config.aprs_contacts`), the selected contact's message
+  history on the right (read-only -- from `kissterm.aprs_conversations`,
+  written by yesterday's `_on_aprs_frame` subscriber). No compose input
+  yet, so nothing in this pane can transmit.
+- **`AprsContactScreen`** (`kissterm/ui/dialogs.py`) -- add/edit a contact:
+  name, callsign (the APRS addressee to send to), a service picker
+  (station/SMS/email), and a detail field whose placeholder/label
+  re-labels itself for the selected service. Insert/F2/Delete on the
+  contacts table follow the exact convention `_AddressBookTable` already
+  established.
+- `scripts/generate_screenshot.py` now captures the APRS pane
+  (`assets/screenshot-aprs.png`) with sample contacts and a sample
+  exchange, per the "screenshot after any layout change" rule.
+
+### Files
+- `kissterm/ui/aprs_pane.py`, `kissterm/ui/dialogs.py`,
+  `kissterm/ui/styles.py`, `scripts/generate_screenshot.py`
+- `tests/pilot/test_aprs_contacts_pane.py` (new)
+
 ## [2026-09-08] — APRS decode reaches a frame subscriber: message history, auto-ack, and message/Emergency notification
 
 ### New Features

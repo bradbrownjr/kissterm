@@ -118,6 +118,14 @@ AddressBookPane { layout: vertical; padding: 0 2; }
 .addressbook-actions Button { margin-right: 1; }
 .addressbook-hint { padding: 1 0; color: $text-muted; }
 
+/* APRS pane */
+AprsPane { height: 1fr; }
+#aprs-contacts-column { width: 58%; padding: 0 2; }
+#aprs-conversation-column { width: 1fr; padding: 0 2; border-left: solid $panel; }
+#aprs-contact-table { height: 1fr; }
+#aprs-conversation-title { padding: 1 0; color: $text-muted; }
+#aprs-conversation-log { height: 1fr; border: solid $panel; }
+
 /* Connect dialog */
 ConnectScreen { align: center middle; }
 #connect-box {
@@ -147,6 +155,13 @@ ConnectScreen { align: center middle; }
    (callsign, password, maybe a mailbox command), not a document, and a
    box that grew with its content would push Connect/Cancel around. */
 #connect-script { height: 4; border: round $primary; margin-top: 1; }
+
+/* APRS contact dialog -- shares #connect-box/#connect-title/#connect-error/
+   #connect-buttons with every other modal in this file (one screen visible
+   at a time, so the shared ID is not a conflict). */
+AprsContactScreen { align: center middle; }
+#aprs-contact-service { width: 100%; margin-top: 1; }
+#aprs-contact-detail-hint { color: $text-muted; width: 100%; height: auto; }
 #connect-script:disabled { border: round $panel; }
 #connect-script-name { width: 100%; margin-top: 1; }
 /* Hidden by default -- almost no connect uses node hops, and a field that

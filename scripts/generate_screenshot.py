@@ -116,6 +116,10 @@ async def _build():
     config.aprs.latitude = 42.3601
     config.aprs.longitude = -71.0589
     config.aprs.comment = "kissterm test station"
+    config.aprs_contacts = [
+        {"name": "Jim", "callsign": "K1ABC-9", "service": "station", "notes": ""},
+        {"name": "Mom (SMS)", "callsign": "SMSGTE", "service": "sms", "detail": "5551234567"},
+    ]
     station = AX25Station(MYCALL, ta, LinkParams(t1=8.0, t2=1.0, t3=180.0))
     station.transport.info.detail = "192.168.1.40:8001"
     return KissTermApp(config, station), ta, tb, station
@@ -157,6 +161,9 @@ async def main() -> int:
         for call in HEARD:
             app.heard.record(_frame(call, "APRS", (), b"x"), 0)
 
+        app.aprs_conversations.record_incoming("K1ABC-9", "on the road, ETA 20 min", number="1")
+        app.aprs_conversations.record_outgoing("K1ABC-9", "ack1", number=None)
+
         book = app.addressbook
         book.record_attempt("W1AW-1")
         book.record_connect("W1AW-1")
@@ -181,6 +188,7 @@ async def main() -> int:
             "terminal": "screenshot.svg",
             "monitor": "screenshot-monitor.svg",
             "heard": "screenshot-heard.svg",
+            "aprs": "screenshot-aprs.svg",
             "addressbook": "screenshot-addressbook.svg",
             "settings": "screenshot-settings.svg",
         }
@@ -190,6 +198,11 @@ async def main() -> int:
             await pilot.pause()
             await asyncio.sleep(0.15)
             await pilot.pause()
+            if tab == "aprs":
+                from kissterm.ui.aprs_pane import AprsPane
+
+                app.query_one(AprsPane)._show_conversation(0)
+                await pilot.pause()
             app.save_screenshot(str(ASSETS / name))
             written.append(ASSETS / name)
 

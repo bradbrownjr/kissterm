@@ -156,16 +156,28 @@ transports and framing that already exist, not a new transport.
   `notify-send` (libnotify/D-Bus, confirmed present here) as the
   cross-desktop fallback. This closes the "notify on message/Emergency"
   item and the decode-subscriber prerequisite the pane below still needs.
-- [ ] **The APRS pane itself** (`kissterm/ui/aprs_pane.py`) — still a
-  placeholder. Now that the decode subscriber and message store exist, this
-  is: a contacts list (`Config.aprs_contacts`, see
-  `kissterm/aprs_contacts.py` — deliberately separate from the station
-  Address Book, since a messaging contact and a connect target are
-  different things), a chat-style conversation view per contact with
-  send/ack/retry, and a heard-stations position/map view. Requested
-  directly: replicate what KM6LYW's APRS WebChat does, in terminal form.
-  Medium now that the backend pieces above exist; the UI is the remaining
-  effort.
+- [x] **APRS pane: contacts list, CRUD, and read-only message history**
+  (2026-09-08). `kissterm/ui/aprs_pane.py` is real now, at F4: a contacts
+  table (`Config.aprs_contacts`, New/Edit/Forget via `AprsContactScreen` in
+  `kissterm/ui/dialogs.py`, Insert/F2/Delete bound the same way the Address
+  Book table is) on the left, and the selected contact's message history
+  (read-only, from `kissterm.aprs_conversations`) on the right. No compose
+  input yet -- nothing in this pane can transmit.
+- [ ] **APRS pane: send a message, with ack/retry.** The remaining half of
+  "replicate what KM6LYW's APRS WebChat does, in terminal form" -- a compose
+  input in the conversation view, sent via `aprs.encode.message` through
+  the existing transmit gate (no auto-arm; this is repeatable chat traffic,
+  not a one-shot confirmed action like Connect), plus a retry timer for an
+  un-acked outgoing message. `MessageEntry.acked`
+  (`kissterm/aprs_conversations.py`) already exists for this to flip once
+  `_on_aprs_frame`'s existing ack-matching logic (`ConversationStore.
+  mark_acked`) has something to notify. Small — the message store, send
+  path, and ack routing all already exist; this is the retry timer plus
+  wiring the compose input to them.
+- [ ] **A heard-stations position/map view.** Not part of this pass --
+  positions decode (`aprs.parse_packet`, `kind in ("position", "mic-e",
+  ...)`) but nothing renders them yet; see the separate "text-mode map or
+  bearing/distance list" item below, which covers the same ground.
 - [ ] **SMS/email-over-APRS compose forms.** A compose mode that builds the
   message body a phone/email gateway expects (`<phone> <text>` /
   `<address> <text>`) from a contact's `service`/`detail` fields. **Which
