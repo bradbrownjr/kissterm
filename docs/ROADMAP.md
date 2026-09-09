@@ -18,34 +18,11 @@ monitor pane, the heard list, the first-run wizard with autodiscovery, and
 `--doctor`. See docs/CHANGELOG.md `[2026-09-04]` for what was built and how it
 was verified.
 
-What P1 deliberately did **not** settle:
+Both hardware verification and the Mic-E real-capture check called out in
+the original version of this section are done -- see CHANGELOG's
+`[2026-09-08]` entries ("Connected mode verified against real hardware" and
+"Mic-E verified against real traffic..."). What is still open:
 
-- [x] **Verify against real hardware.** DONE (2026-09-08) -- see CHANGELOG.
-      Real, repeated sessions against WS1EC-15 and CCEMA over a real TNC,
-      2026-09-05 through 2026-09-08: SABM/UA, 400+ I-frames with correct
-      modulo-8 wraparound, RR piggybacking, a live REJ recovery against a
-      real peer, and clean DISC both directions. Captured in
-      `--log-level debug` output.
-- [x] **Verify APRS Mic-E against a real captured packet.** DONE
-      (2026-09-08) -- see CHANGELOG, and see `kissterm/aprs/mice.py`'s
-      module docstring for the full account. **Found and fixed two real
-      bugs**: `_MICE_MESSAGES` shipped with every bit pattern inverted, so a
-      normal "Off Duty" beacon decoded as "Emergency" and vice versa --
-      caught by capturing ~30 real Mic-E frames from ~7 distinct New England
-      stations via a standalone sniffer against the operator's real UZ7HO
-      SoundModem feed, noticing the decode was implausible, and confirming
-      against `aprslib` that the bit pattern -> text mapping was exactly
-      backwards. A second, narrower bug in the N/S/longitude-offset/E-W
-      flags (which read the wrong bit for an A-K-range destination
-      character) was then caught by the new automated cross-check
-      (`tests/unit/test_aprs_mice_cross_check.py`) rather than by a further
-      capture -- no real transmitter puts an A-K letter there, so it never
-      showed up on the air. Position/lat/lon were separately confirmed
-      correct against real traffic: a real "Oxford County EOC" (W1OCA)
-      beacon decoded to within ~150m of that office's real street address
-      after geocoding. `aprslib` (GPLv2) is now a test-only dev dependency
-      used purely for this kind of cross-check -- never imported at
-      runtime, so it carries no licensing weight for kissterm (MIT) itself.
 - [ ] **Verify the compressed-position `{` cs-byte** (implemented as a
       pre-calculated range in `Position.precalc_range_mi`, not as altitude)
       against a live APRS-IS feed. `kissterm/aprs/position.py`. Small.
@@ -61,8 +38,8 @@ What P1 deliberately did **not** settle:
 - [ ] **Multiple simultaneous connections in tabs.** Each tab owns one
   `Session`; the monitor pane and heard list stay global across all of them
   since they read from the transport, not from any one session. Touches
-  `kissterm/app.py` (tab management) and probably a `SessionManager` to keep
-  `ax25/session.py` from needing to know about the UI. Medium-large.
+  `kissterm/ui/app.py` (tab management) and probably a `SessionManager` to
+  keep `ax25/session.py` from needing to know about the UI. Medium-large.
 
 ## P3 — Transports
 
@@ -73,11 +50,6 @@ What P1 deliberately did **not** settle:
   there), and actually parsing the port-info reply (`'G'`) instead of
   discarding it, so a multi-port AGW engine's port count and descriptions
   reach the setup wizard. Small-to-medium.
-- [ ] **Bluetooth RFCOMM — new `kissterm/transport/bluetooth_kiss.py`.**
-  Classic Bluetooth TNCs (most Mobilinkd TNC3/TNC4 configurations) present as
-  a serial device once paired (`/dev/rfcomm0` on Linux) and can likely reuse
-  `serial_kiss.py` directly; confirm that and document it rather than
-  building a parallel implementation. Small if the reuse holds.
 - [ ] **BLE (GATT) — new `kissterm/transport/ble_kiss.py`.** The Mobilinkd
   TNC4's BLE mode does not go through `/dev/rfcomm*` — it needs `bleak`
   (already an optional dependency, see `pyproject.toml`'s `ble` extra) and
@@ -143,60 +115,28 @@ APRS rides on the same AX.25 UI (`UType.UI`) frames every other unproto
 traffic uses — decoding it is a payload-format problem sitting on top of
 transports and framing that already exist, not a new transport.
 
-- [x] **APRS decode reaches a frame-fan-out subscriber, message
-  history, auto-ack, and message/Emergency desktop notification** (2026-09-08).
-  `KissTermApp._on_aprs_frame` is a second subscriber on the same fan-out the
-  monitor pane uses (never a second decode path) — `kissterm/aprs_notify.py`
-  decides what is worth an unattended notification (a message addressed to
-  the operator, or a Mic-E Emergency flag), `kissterm/aprs_conversations.py`
-  keeps the message history behind the future chat view, and an incoming
-  message addressed to the operator is auto-acked
-  (`Config.aprs_auto_ack`, on by default) through the same transmit gate as
-  everything else. Delivery is `desktop_notify.notify_any` — herdr first,
-  `notify-send` (libnotify/D-Bus, confirmed present here) as the
-  cross-desktop fallback. This closes the "notify on message/Emergency"
-  item and the decode-subscriber prerequisite the pane below still needs.
-- [x] **APRS pane: contacts list, CRUD, and read-only message history**
-  (2026-09-08). `kissterm/ui/aprs_pane.py` is real now, at F4: a contacts
-  table (`Config.aprs_contacts`, New/Edit/Forget via `AprsContactScreen` in
-  `kissterm/ui/dialogs.py`, Insert/F2/Delete bound the same way the Address
-  Book table is) on the left, and the selected contact's message history
-  (read-only, from `kissterm.aprs_conversations`) on the right. No compose
-  input yet -- nothing in this pane can transmit.
-- [x] **APRS pane: send a message, with ack/retry** (2026-09-09).
-  A "To:" field (independent of the contacts table -- typing a bare
-  callsign messages someone not saved as a contact at all) plus a compose
-  input and Send button, sent via `KissTermApp._send_aprs_message` (the
-  shared encode-and-transmit primitive a fresh send and a retry both call)
-  through the existing transmit gate -- no auto-arm; this is repeatable
-  chat traffic, not a one-shot confirmed action like Connect.
-  `kissterm.aprs_conversations.PendingAcks` tracks outgoing messages
-  awaiting an ack, in memory only, and a periodic timer in the pane
-  reconciles it against `ConversationStore.mark_acked` (flipped by
-  `_on_aprs_frame`'s existing ack-matching logic) before resending
-  anything still due. This closes "replicate what KM6LYW's APRS WebChat
-  does, in terminal form."
+The four items originally listed here -- the frame-fan-out subscriber with
+message-history/auto-ack/notification, the contacts-list CRUD pane, sending
+with ack/retry, and SMS/email compose forms -- all shipped 2026-09-08 and
+2026-09-09; see CHANGELOG for the four dated entries. What's still open:
+
 - [ ] **A heard-stations position/map view.** Not part of this pass --
   positions decode (`aprs.parse_packet`, `kind in ("position", "mic-e",
   ...)`) but nothing renders them yet; see the separate "text-mode map or
   bearing/distance list" item below, which covers the same ground.
-- [x] **SMS/email-over-APRS compose forms** (2026-09-09).
-  `kissterm.aprs_contacts.build_message_body` builds the on-air body
-  (`<phone/address> <text>` by default) from an SMS/email contact's
-  `detail` field plus what the operator typed; the conversation log keeps
-  the human-typed text, never the templated wire body, so history stays
-  readable. `Config.aprs_sms_gateway`/`aprs_email_gateway` (blank by
-  default) pre-fill a new contact's callsign in `AprsContactScreen` when
-  its service is switched to sms/email, only while the callsign field is
-  still empty. **Which gateway callsigns and body formats currently work
-  is not verifiable from here** — these conventions vary by region and
-  change over time — so `Config.aprs_sms_template`/`aprs_email_template`
-  and the gateway fields are editable, clearly-unverified defaults
-  (Settings > APRS messaging), never asserted as fact.
 - [ ] **Beaconing on a timer.** Fixed-interval position/status beacon
-  transmission. Small — the APRS encoder (`kissterm.aprs.encode`) and the
-  `beacon_frame` wrapper it needs already exist and are now exercised by
-  the auto-ack path above.
+  transmission. `Config.aprs`'s `enabled`/`beacon_interval_minutes`/
+  `latitude`/`longitude`/`symbol`/`comment`/`path` fields and their Settings
+  "APRS" section already exist end to end, and the Settings copy already
+  says "Transmits your position on a timer" — **but nothing reads them**.
+  There is no periodic task anywhere that calls `aprs.encode`/`beacon_frame`
+  to actually send a position; toggling "Enable APRS beaconing" on today
+  does nothing. This is worse than merely unbuilt, since the Settings pane
+  currently promises behaviour that does not exist — treat wiring an actual
+  `Beaconer`-shaped periodic sender (reusing `kissterm/beacon.py`'s
+  interval-floor and never-send-empty rules, per AGENTS.md's beacon
+  section) as higher priority than the wording suggests. Small once
+  scoped.
 - [ ] **Smart beaconing.** Speed/heading-aware beacon interval adjustment
   (the SmartBeaconing algorithm most APRS trackers use) — needs a GPS or
   manually-entered position source first. Medium.
@@ -204,8 +144,11 @@ transports and framing that already exist, not a new transport.
   terminal is a stretch; a sorted bearing/distance-from-me list of heard
   stations is the realistic v1, with a crude ASCII-art radar-style view as a
   possible stretch goal. Medium.
-- [ ] **Weather and telemetry display.** Decode APRS weather (`_`) and
-  telemetry (`T#`) packet formats into a readable pane. Medium.
+- [ ] **Weather and telemetry display.** Decoding is already done --
+  `kissterm/aprs/telemetry.py`'s `parse_weather`/`parse_telemetry` and
+  `aprs.parse_packet`'s `"weather"`/`"telemetry"` `kind`s -- what's missing
+  is a pane that renders a `WeatherReport`/`Telemetry` value at all; nothing
+  in `kissterm/ui/` references either type today. Medium.
 - [ ] **Igate-adjacent features are explicitly out of scope.** kissterm is a
   terminal for a human operator, not an unattended relay — running it as an
   RF-to-APRS-IS igate or a digipeater is a different problem (unattended
@@ -239,11 +182,14 @@ transports and framing that already exist, not a new transport.
 
 ## P6 — UX
 
-- [ ] **ASCII-safe mode.** For terminals that mangle Unicode box-drawing and
-  symbols (a real concern for anyone connecting in over a low-bandwidth
-  remote session to run kissterm itself) — an option that restricts all of
-  kissterm's own chrome to 7-bit ASCII. Does not affect what a remote station
-  sends (see P2's ANSI sanitization, a different concern). Small-medium.
+- [ ] **ASCII-safe mode.** `Config.ascii_safe` and its Settings toggle
+  already exist, and `doctor.py` already suggests turning it on for a
+  non-UTF-8 locale -- but no code anywhere reads `config.ascii_safe` to
+  actually change what gets drawn. The real work -- swapping kissterm's own
+  Unicode box-drawing/symbols for 7-bit ASCII when it's set -- is still
+  entirely unbuilt; the config plumbing is a shell around nothing yet. Does
+  not affect what a remote station sends (see P2's ANSI sanitization, a
+  different concern). Small-medium.
 - [ ] **Macro/scripting system — Python plugins.** Deliberately not
   linpac's Lisp-ish macro language: a documented plugin API (hook points for
   "on connect", "on line received", "on line typed") that lets a user write
@@ -261,9 +207,6 @@ transports and framing that already exist, not a new transport.
   browser via `textual serve`, useful for operating a home-station TNC from
   elsewhere. Small — mostly confirming nothing in the transport layer assumes
   a local TTY.
-- [ ] **Screenshot generation for the README.** A script akin to google-tui's
-  `scripts/generate_screenshot.py`, once there's a UI worth screenshotting.
-  Small.
 
 ## P7 — Packaging
 
@@ -316,8 +259,9 @@ opt-in, once per node, and cached forever.
 
 Shipped in `[2026-09-04]` (see CHANGELOG): the `kissterm/nodes/` package with
 TOML references for BPQ32/LinBPQ and TNC2-class command mode, passive family
-detection from the banner and prompt, the F6 reference pane, and the airtime
-estimator. Still open:
+detection from the banner and prompt, the command-reference modal (`Ctrl+R`
+today -- it moved off the F-row before Address Book's own F5/F6 shuffle, see
+`kissterm/ui/AGENTS.md` rule 16), and the airtime estimator. Still open:
 
 - [ ] **More families.** FBB, JNOS, TheNet/X1J, KA-Node, DXSpider, Winlink RMS.
       One TOML file each in `kissterm/nodes/data/` -- data, not code. Each needs

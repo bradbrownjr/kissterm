@@ -3,6 +3,57 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Roadmap audit: several open items were already shipped, and two Settings fields are dead
+
+### Improvements
+- **`docs/ROADMAP.md` had drifted from the code in both directions.** Six
+  items were checked off with a full paragraph of detail but never removed
+  (P1's two hardware-verification bullets, P4's four APRS-pane bullets) --
+  they were fully described in CHANGELOG already, so this just deletes the
+  duplicated, stale copy per this file's own "ROADMAP.md only ever shows
+  what's still open" rule. Three open items described work that was
+  actually already shipped and were removed or corrected instead:
+  - **Classic Bluetooth RFCOMM** (`kissterm/transport/bluetooth.py`,
+    `kind = "bluetooth"` in config) has existed since the initial commit --
+    the roadmap item referenced a `bluetooth_kiss.py` that was never the
+    real filename and described the whole feature as unbuilt. `SETUP.md`
+    had the identical error, telling operators the direct-RFCOMM-socket
+    path "does not yet exist" when it has always worked. Only BLE (GATT)
+    remains genuinely unbuilt (`BleKissTransport` still raises
+    `NotImplementedError`).
+  - **`scripts/generate_screenshot.py`** was listed as a P6 item ("once
+    there's a UI worth screenshotting") despite being the tool this
+    project's own AGENTS.md §6 tells every session to run after a layout
+    change, and being referenced by name in a dozen-plus CHANGELOG entries.
+  - **The command-reference modal** was still described as "the F6
+    reference pane" in P8; it is `Ctrl+R` and has not been an F-key since
+    before Address Book's own F5/F6 shuffle.
+  - Weather/telemetry decoding (`kissterm/aprs/telemetry.py`) turned out to
+    already be fully implemented and wired into `aprs.parse_packet` -- only
+    the pane that would *display* a decoded `WeatherReport`/`Telemetry`
+    is still missing. Reworded rather than removed, since the display half
+    is real remaining work.
+- **Two Settings fields do nothing, and now say so in the roadmap instead of
+  only in Settings' own copy.** `Config.ascii_safe` (Settings: "ASCII-safe
+  mode") and `Config.aprs.enabled`/`beacon_interval_minutes`/etc (Settings:
+  "Transmits your position on a timer") both have complete config/Settings
+  plumbing and neither is read anywhere outside `config.py` and
+  `settings_schema.py` -- toggling either one currently changes nothing
+  about what the app draws or transmits. Not fixed in this pass (that is
+  real feature work, not a docs cleanup), but called out explicitly in
+  `docs/ROADMAP.md` P4 and P6 so the gap between "the Settings pane says
+  this happens" and "this happens" is written down somewhere a future
+  session will actually read before assuming either field works.
+- `kissterm/AGENTS.md`'s top-level file map was missing six real modules
+  (`addressbook.py`, `aprs_contacts.py`, `aprs_conversations.py`,
+  `aprs_notify.py`, `desktop_notify.py`, `transcripts.py`) and still
+  described `kissterm/app.py` as containing the app's tabs/CSS/bindings,
+  which moved to `kissterm/ui/app.py` on day one -- `app.py` itself already
+  carries a docstring saying so; the file map just never caught up.
+
+### Files
+- `docs/ROADMAP.md`, `SETUP.md`, `AGENTS.md`
+
 ## [2026-09-09] — Width-aware Footer, and Ctrl+P as a real key reference
 
 ### New Features

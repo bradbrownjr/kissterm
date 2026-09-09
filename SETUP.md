@@ -218,16 +218,18 @@ From there you have two options:
   here — see §2 for baud rate and the `dialout` group note (it applies to
   `/dev/rfcomm0` the same as `/dev/ttyUSB0`).
 
-- **Let kissterm open the RFCOMM socket directly**, once that path exists in
-  the Bluetooth transport (see ROADMAP P3) — no `rfcomm bind` step needed,
-  at the cost of one more moving part on kissterm's side. Until that lands,
-  the `rfcomm bind` approach above is the one that works today.
+- **Let kissterm open the RFCOMM socket directly**, `kind = "bluetooth"` in
+  `config.toml` (see `config.toml.example`) — no `rfcomm bind` step needed,
+  at the cost of one more moving part on kissterm's side. Both options work
+  today; `rfcomm bind` plus the ordinary serial transport is still the
+  simpler and more predictable one if you have no reason to prefer the
+  other.
 
 A Mobilinkd TNC4 running in **BLE** mode instead of classic Bluetooth is a
 different case entirely — it does not show up as a serial device at all, and
 needs the `ble` extra (`bleak`) and GATT-level support that is not yet
 implemented (ROADMAP P3). If your TNC supports both modes, classic Bluetooth
-via `rfcomm bind` is the one to use with kissterm today.
+is the one to use with kissterm today.
 
 ## 5. VARA HF/FM on Linux under Wine
 

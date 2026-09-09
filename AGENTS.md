@@ -196,7 +196,9 @@ kissterm/
 ├── kissterm/
 │   ├── __init__.py          # __version__ -- source of truth
 │   ├── __main__.py          # CLI: --doctor, --setup, --discover, wizard, launch
-│   ├── app.py               # Textual app: tabs, panes, CSS, bindings
+│   ├── app.py               # thin backward-compat shim -- re-exports
+│   │                        #   KissTermApp from kissterm.ui; the real class
+│   │                        #   lives at kissterm/ui/app.py
 │   ├── config.py            # Config dataclass <-> config.toml (never raises)
 │   ├── _isolate.py          # platformdirs monkeypatch for tests -- see §6
 │   ├── discovery.py         # serial / LAN / Bluetooth autodiscovery (MANUAL)
@@ -207,7 +209,20 @@ kissterm/
 │   ├── ansi.py              # SGR ALLOWLIST for the terminal pane only
 │   ├── beacon.py            # BTEXT: unproto UI frames on a timer (NOT APRS)
 │   ├── session_log.py       # per-session plain-text transcript
+│   ├── transcripts.py       # lists/reads saved transcripts for the browser
 │   ├── heard.py             # MHEARD table
+│   ├── addressbook.py       # station Address Book: connect targets, hop
+│   │                        #   chains, login scripts/credentials
+│   ├── aprs_contacts.py     # APRS messaging contacts (name/callsign/
+│   │                        #   service/detail) -- separate from the
+│   │                        #   Address Book above; a different kind of thing
+│   ├── aprs_conversations.py  # ConversationStore (message history) +
+│   │                        #   PendingAcks (in-memory outgoing-ack tracking)
+│   ├── aprs_notify.py       # pure decision logic (no I/O) for
+│   │                        #   message-addressed-to-me / Emergency Mic-E
+│   │                        #   desktop notification
+│   ├── desktop_notify.py    # cross-desktop delivery: herdr first,
+│   │                        #   notify-send as the fallback
 │   ├── nodes/               # SHIPPED command references (data/*.toml)
 │   ├── ax25/            # + its own AGENTS.md (local contract)
 │   │   ├── address.py       # callsign/SSID encode+decode, AX25Path
