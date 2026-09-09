@@ -511,8 +511,9 @@ working ceiling; ten tabs the practical maximum.** F11 stays off-limits --
 "toggle fullscreen" in enough terminal emulators and window managers that it
 rarely reaches the application at all.
 
-Five tabs exist now (F1 Terminal, F2 Monitor, F3 Heard, F4 APRS, F5
-Settings). Address Book briefly had its own F5 slot (bumping Settings to F6)
+Five tabs exist now (F1 Terminal, F2 APRS, F3 Heard, F4 Monitor, F5
+Settings), ordered by how often an operator visits them rather than by the
+order they were built. Address Book briefly had its own F5 slot (bumping Settings to F6)
 before it shipped as a collapsible slide-out on the Terminal pane instead --
 `Ctrl+G`, see `kissterm/ui/app.py`'s module docstring and `DESIGN.md`'s
 "slide-out panels" section -- which returned Settings to F5 and freed the

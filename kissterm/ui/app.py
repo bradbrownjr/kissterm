@@ -4,7 +4,7 @@ Layout follows the shape a packet operator already has in their head from
 BPQTerminal and EasyTerm, because the goal is a familiar tool that happens to
 be modern, not a novel one they have to relearn:
 
-    F1 Terminal  F2 Monitor  F3 Heard  F4 APRS  F5 Settings
+    F1 Terminal  F2 APRS  F3 Heard  F4 Monitor  F5 Settings
     +--------------------------------------------+---------+
     | session output (scrollback, selectable)     | Address |
     +--------------------------------------------+ Book,   |
@@ -15,9 +15,9 @@ be modern, not a novel one they have to relearn:
 
 The F-key for each tab is printed IN THE TAB LABEL (`F1 Terminal`, keyboard-
 shortcut-first, matching how a menu shows an accelerator), not in the footer.
-Textual's `Footer` widget would otherwise show `f1 Terminal  f2 Monitor  f3
-Heard  f4 APRS  f5 Settings` right below a tab bar already showing those same
-five names -- the same words twice, in two different corners of the screen.
+Textual's `Footer` widget would otherwise show `f1 Terminal  f2 APRS  f3
+Heard  f4 Monitor  f5 Settings` right below a tab bar already showing those
+same five names -- the same words twice, in two different corners of the screen.
 All five `Binding`s stay registered (`show=False`) so the keys still work;
 only the redundant on-screen label moves. `Ctrl+1..5` remain as unlabelled
 fallback aliases for terminals that intercept function keys.
@@ -429,14 +429,21 @@ class KissTermApp(App):
         # binding below stays discoverable even once `KissTermFooter` (this
         # module) runs out of room for it: `Ctrl+P` lists all of them,
         # `commands.KeyBindingsProvider` reads this same list.
+        # Ordered by how often an operator actually visits them, requested
+        # directly: "putting useful stuff to the left of Monitor and
+        # Settings". Terminal and APRS are where the work happens; Monitor is
+        # a diagnostic and Settings is a place you leave again. The TabPane
+        # IDs deliberately did NOT change with this reordering -- every
+        # `active == "aprs"` check, `_TAB_FOCUS` entry and `show_tab` caller
+        # addresses a pane by id, so only the labels and the keys moved.
         Binding("f1", "show_tab('terminal')", "Terminal", show=False),
-        Binding("f2", "show_tab('monitor')", "Monitor", show=False),
+        Binding("f2", "show_tab('aprs')", "APRS", show=False),
         Binding("f3", "show_tab('heard')", "Heard", show=False),
-        Binding("f4", "show_tab('aprs')", "APRS", show=False),
+        Binding("f4", "show_tab('monitor')", "Monitor", show=False),
         Binding("ctrl+1", "show_tab('terminal')", "Terminal", show=False),
-        Binding("ctrl+2", "show_tab('monitor')", "Monitor", show=False),
+        Binding("ctrl+2", "show_tab('aprs')", "APRS", show=False),
         Binding("ctrl+3", "show_tab('heard')", "Heard", show=False),
-        Binding("ctrl+4", "show_tab('aprs')", "APRS", show=False),
+        Binding("ctrl+4", "show_tab('monitor')", "Monitor", show=False),
         Binding("f5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+t", "toggle_transmit", "TX"),
@@ -570,7 +577,7 @@ class KissTermApp(App):
         #: APRS message history, keyed by correspondent -- see
         #: kissterm/aprs_conversations.py. Loaded here rather than by the
         #: APRS pane so a message that arrives before the operator ever
-        #: visits F4 is still recorded, the same reasoning `self.heard`
+        #: visits F2 is still recorded, the same reasoning `self.heard`
         #: is built and loaded before any pane asks for it.
         self.aprs_conversations = ConversationStore()
         self.aprs_conversations.load()
@@ -621,12 +628,12 @@ class KissTermApp(App):
         with TabbedContent(initial="terminal", id="main-tabs"):
             with TabPane("F1 Terminal", id="terminal"):
                 yield TerminalPane()
-            with TabPane("F2 Monitor", id="monitor"):
-                yield MonitorPane()
+            with TabPane("F2 APRS", id="aprs"):
+                yield AprsPane()
             with TabPane("F3 Heard", id="heard"):
                 yield HeardPane()
-            with TabPane("F4 APRS", id="aprs"):
-                yield AprsPane()
+            with TabPane("F4 Monitor", id="monitor"):
+                yield MonitorPane()
             with TabPane("F5 Settings", id="settings"):
                 yield SettingsPane()
         # Status bar and Footer share one bottom-docked container. Docking

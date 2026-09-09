@@ -3,6 +3,31 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Tab order: APRS is F2, Monitor moves to F4
+
+### Improvements
+- **The tab bar is now ordered by how often an operator visits a pane**:
+  `F1 Terminal  F2 APRS  F3 Heard  F4 Monitor  F5 Settings`. Requested
+  directly — Terminal and APRS are where the work happens, while Monitor is a
+  diagnostic and Settings is a place you leave again, so both belong to the
+  right rather than in the middle of the run.
+- **The `TabPane` ids did not move with the labels** (`terminal`, `aprs`,
+  `heard`, `monitor`, `settings`). Every `active == "aprs"` check, every
+  `_TAB_FOCUS` entry and every `action_show_tab` caller addresses a pane by
+  id, so this was three labels and three key bindings rather than a search
+  through the app — and DESIGN.md now records that as the reason to keep
+  addressing panes by id.
+- `tests/pilot/test_app_mounts.py` gained a single `TAB_BAR` table that the
+  label test and a new key test both read, so a label saying `F2` while `F2`
+  opens something else fails the suite. The key test presses from a focused
+  input, which is the case the tab keys were silently broken in until
+  yesterday's focus fix.
+
+### Files
+- `kissterm/ui/app.py`, `kissterm/ui/AGENTS.md`, `DESIGN.md`,
+  `docs/ROADMAP.md`, `tests/pilot/test_app_mounts.py`,
+  `tests/pilot/test_aprs_contacts_pane.py`
+
 ## [2026-09-09] — NTSGTE: the radiogram line format, cited at last
 
 ### New Features

@@ -88,7 +88,8 @@ Read this file plus the one pane you are changing.
     data (`kissterm/nodes/data/`); asking a node costs ~19 s per 2 KB at 1200
     baud. Node detection is passive -- read the banner, ask nothing.
 16. **The tab bar is the ONLY place a tab-switching key is shown.** F1-F5
-    (all five tabs, including Settings) are named in the tab label itself, key
+    (`F1 Terminal  F2 APRS  F3 Heard  F4 Monitor  F5 Settings`, ordered by how
+    often an operator visits them) are named in the tab label itself, key
     first (`F1 Terminal`, like a menu accelerator); `Binding(..., show=False)`
     keeps them registered without the Footer repeating the same word that is
     already in the tab strip above it. Function keys are tabs, Ctrl sequences

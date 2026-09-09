@@ -366,21 +366,57 @@ async def test_tab_switching_keys_are_not_duplicated_in_the_footer():
     station.close()
 
 
+#: The tab bar, left to right: the printed label, the pane id it opens, and
+#: the key that opens it. Ordered by how often an operator visits them --
+#: requested directly, "putting useful stuff to the left of Monitor and
+#: Settings". The three have to agree, which is what the two tests below
+#: check: a label that says F2 while F2 opens something else is worse than
+#: no hint at all.
+TAB_BAR = (
+    ("F1 Terminal", "terminal", "f1"),
+    ("F2 APRS", "aprs", "f2"),
+    ("F3 Heard", "heard", "f3"),
+    ("F4 Monitor", "monitor", "f4"),
+    ("F5 Settings", "settings", "f5"),
+)
+
+
 @pytest.mark.asyncio
-async def test_tab_labels_carry_the_function_key_hint():
+async def test_tab_labels_carry_the_function_key_hint_in_order():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
-        tabs = app.query_one("#main-tabs")
-        labels = {str(tab.label) for tab in tabs.query("Tab")}
-        for hint in (
-            "F1 Terminal",
-            "F2 Monitor",
-            "F3 Heard",
-            "F4 APRS",
-            "F5 Settings",
-        ):
-            assert hint in labels, f"missing {hint!r} in tab labels: {labels}"
+        # The OUTER strip only -- `#main-tabs` also contains the Settings
+        # pane's own `TabbedContent`, whose tabs would otherwise be counted.
+        strip = app.query_one("#main-tabs").query_one("Tabs")
+        labels = [str(tab.label) for tab in strip.query("Tab")]
+        assert labels == [label for label, _, _ in TAB_BAR]
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_each_function_key_opens_the_pane_its_label_names():
+    """The label and the key are two copies of one fact, in two places. This
+    is the test that stops them drifting apart -- pressed from a focused
+    input, because that is the case the tab keys were silently broken in
+    until the focus fix (see `action_show_tab`)."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        for _, pane_id, key in TAB_BAR:
+            # Back to Terminal and into its send line each time, so every key
+            # is pressed from the same starting point -- and from a focused
+            # `Input`, never from a fresh app with focus nowhere.
+            app.action_show_tab("terminal")
+            await pilot.pause()
+            await asyncio.sleep(0.05)
+            app.query_one("#session-input").focus()
+            await pilot.pause()
+
+            await pilot.press(key)
+            await pilot.pause()
+            await asyncio.sleep(0.1)
+            assert app.query_one("#main-tabs").active == pane_id, key
     station.close()
 
 
@@ -402,7 +438,7 @@ async def test_the_addressbook_slideout_is_hidden_by_default():
 async def test_ctrl_g_is_a_no_op_on_a_tab_with_no_slideout():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.press("f2")  # Monitor -- no slide-out of its own
+        await pilot.press("f4")  # Monitor -- no slide-out of its own
         await pilot.pause()
         await pilot.press("ctrl+g")
         await pilot.pause()
@@ -883,9 +919,9 @@ async def test_tab_keys_work_while_an_input_has_focus():
     async with app.run_test(size=(120, 40)) as pilot:
         tabs = app.query_one("#main-tabs", TabbedContent)
         for start, widget, key, dest in (
-            ("terminal", "#session-input", "f2", "monitor"),
+            ("terminal", "#session-input", "f2", "aprs"),
             ("terminal", "#session-input", "f5", "settings"),
-            ("aprs", "#aprs-compose-input", "f2", "monitor"),
+            ("aprs", "#aprs-compose-input", "f4", "monitor"),
             ("aprs", "#aprs-compose-input", "f3", "heard"),
         ):
             app.action_show_tab(start)

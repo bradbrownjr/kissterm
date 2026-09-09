@@ -132,6 +132,15 @@ tab existed to expect it.
 
 - **A tab's key is printed in its label, key first** — `F1 Terminal`, the way a
   menu shows an accelerator. Never `Terminal (F1)`.
+- **Tabs are ordered by how often an operator visits them, not by when they
+  were built**: `F1 Terminal  F2 APRS  F3 Heard  F4 Monitor  F5 Settings`.
+  Terminal and APRS are where the work happens; Monitor is a diagnostic and
+  Settings is a place you leave again, so both sit to the right — requested
+  directly, "putting useful stuff to the left of Monitor and Settings". The
+  `TabPane` **ids never move with the labels** (`terminal`, `aprs`, `heard`,
+  `monitor`, `settings`): every `active == "aprs"` check and every
+  `action_show_tab` caller addresses a pane by id, so a future reordering is
+  three labels and three bindings, not a search through the app.
 - **A tab's key never also appears in the Footer.** That put the same words on
   screen twice, in two different corners. Register the binding with
   `show=False`.
