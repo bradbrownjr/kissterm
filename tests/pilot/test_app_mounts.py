@@ -426,20 +426,31 @@ async def test_each_function_key_opens_the_pane_its_label_names():
 
 
 @pytest.mark.asyncio
-async def test_the_addressbook_slideout_is_hidden_by_default():
-    app, ta, tb, station = await _app()
-    async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        assert not app.query_one("#terminal-addressbook-column").display
-    station.close()
+async def test_the_addressbook_slideout_follows_the_width_rule():
+    """It used to start hidden unconditionally. Now it opens itself at 80
+    columns and stays shut below that -- see `kissterm/ui/slideouts.py`, and
+    `tests/pilot/test_slideout_auto_open.py` for the rest of the behaviour."""
+    for size, expected in (((79, 30), False), ((120, 40), True)):
+        app, ta, tb, station = await _app()
+        async with app.run_test(size=size) as pilot:
+            await pilot.pause()
+            await asyncio.sleep(0.1)
+            await pilot.pause()
+            assert app.query_one("#terminal-addressbook-column").display is expected, size
+        station.close()
 
 
 @pytest.mark.asyncio
 async def test_ctrl_g_is_a_no_op_on_a_tab_with_no_slideout():
+    """Ctrl+G means the same thing everywhere; on a tab with nothing to open
+    it does nothing at all -- and in particular does not reach into another
+    pane's slide-out. Run narrow so the Terminal pane's column is shut to
+    begin with, which makes "nothing happened" unambiguous."""
     app, ta, tb, station = await _app()
-    async with app.run_test(size=(120, 40)) as pilot:
+    async with app.run_test(size=(79, 30)) as pilot:
         await pilot.press("f4")  # Monitor -- no slide-out of its own
         await pilot.pause()
+        assert not app.query_one("#terminal-addressbook-column").display
         await pilot.press("ctrl+g")
         await pilot.pause()
         assert not app.query_one("#terminal-addressbook-column").display
@@ -532,11 +543,14 @@ async def test_ctrl_p_key_reference_finds_and_runs_a_binding():
         provider = KeyBindingsProvider(app.screen)
         hits = [hit async for hit in provider.search("contacts")]
         assert hits, "Ctrl+G's Contacts binding is not searchable from the palette"
+        # 80 columns is exactly the auto-open threshold, so the slide-out is
+        # already showing -- what the palette hit has to prove is that it
+        # runs the action at all, which here means closing it.
         column = app.query_one("#terminal-addressbook-column")
-        assert not column.display
+        assert column.display
         await hits[0].command()
         await pilot.pause()
-        assert column.display, "the palette hit's command did not run the action"
+        assert not column.display, "the palette hit's command did not run the action"
     station.close()
 
 

@@ -78,6 +78,7 @@ from textual.timer import Timer
 from textual.widgets import Button, DataTable, Input, RichLog, Static
 
 from ..ansi import to_text
+from . import slideouts
 from ..monitor import sanitize
 from ..tx import DISABLED_MESSAGE
 from .addressbook_pane import AddressBookPane
@@ -261,7 +262,28 @@ class TerminalPane(Container):
 
     def on_mount(self) -> None:
         self.query_one("#transcript-note", Static).display = False
+        self._slideout = slideouts.SlideOut(
+            self.query_one("#terminal-addressbook-column"),
+            self.query_one("#terminal-main-column"),
+        )
         self.query_one("#terminal-addressbook-column").display = False
+
+    def on_resize(self) -> None:
+        """Re-decide whether the Address Book column is showing, and how wide.
+
+        On `Resize` rather than in `on_mount` because a pane has no width
+        until it has been laid out. `SlideOut` ignores this once the operator
+        has used `Ctrl+G`, and an auto-opened column deliberately does NOT
+        take focus -- see `AprsPane.on_resize` for the full reasoning; the two
+        panes share one rule and one implementation on purpose.
+        """
+        was_open = self._slideout.open
+        self._slideout.resized(
+            self.size.width,
+            allowed=getattr(self.app.config, "slideouts_auto_open", True),  # type: ignore[attr-defined]
+        )
+        if self._slideout.open and not was_open:
+            self.query_one(AddressBookPane).refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
 
     # ------------------------------------------------------------------
     # Output
@@ -404,9 +426,7 @@ class TerminalPane(Container):
             self.query_one("#find-status", Static).update("")
             self.focus_input()
             return
-        column = self.query_one("#terminal-addressbook-column")
-        if column.display:
-            column.display = False
+        if self._slideout.close_by_hand():
             self.focus_input()
 
     # ------------------------------------------------------------------
@@ -427,9 +447,7 @@ class TerminalPane(Container):
         `open_find` above. Closing is handled by `action_close_find`
         (Escape), which checks find first -- see that method's docstring.
         """
-        column = self.query_one("#terminal-addressbook-column")
-        column.display = not column.display
-        if column.display:
+        if self._slideout.toggle():
             self.query_one(AddressBookPane).refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
             self.query_one("#addressbook-table", DataTable).focus()
         else:

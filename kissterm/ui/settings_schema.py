@@ -629,6 +629,17 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 apply="live",
             ),
             Field(
+                "slideouts_auto_open",
+                "Open contact lists",
+                "bool",
+                "Let the Address Book and the APRS contact list open "
+                "themselves when the terminal is at least 80 columns wide -- "
+                "enough to keep the session or chat column at 40 beside them. "
+                "Ctrl+G still opens and closes either at any width, and doing "
+                "so takes the decision away from this setting until restart.",
+                apply="restart",
+            ),
+            Field(
                 "ascii_safe",
                 "ASCII-safe mode",
                 "bool",

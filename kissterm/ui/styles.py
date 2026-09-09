@@ -92,6 +92,8 @@ TerminalPane { layout: horizontal; }
    one pattern rather than two coincidentally similar panels. */
 /* No padding here -- AddressBookPane already pads itself (0 2) so this
    column does not double it. */
+/* Starting value only; set on resize by `kissterm/ui/slideouts.py` -- see
+   the note on `#aprs-contacts-column` below. */
 #terminal-addressbook-column { width: 58%; border-left: solid $panel; }
 #transcript-note { height: auto; padding: 0 1; color: $text-muted; }
 /* Hidden until Ctrl+F -- see TerminalPane.open_find. */
@@ -133,11 +135,11 @@ AprsPane { height: 1fr; }
 /* The contacts slide-out -- hidden by default (AprsPane.on_mount), toggled
    by Ctrl+G. Same width/border treatment as the Terminal pane's Address
    Book slide-out -- see DESIGN.md's "slide-out panels" section. */
-/* 58%, the same split as the Terminal pane's Address Book. Widening it to
-   fit this table's fourth column was tried and reverted: it takes the space
-   out of the compose row, and a clipped Send button is worse than a narrow
-   column. `aprs_pane._column_widths` divides up whatever this leaves
-   instead, which is also what makes the table survive a terminal resize. */
+/* The width here is a STARTING value only -- `kissterm/ui/slideouts.py`
+   overwrites it on every resize, because the rule ("58%, but never leave the
+   column beside me less than 40 cells") cannot be written in CSS: there is no
+   arithmetic to relate a width to a sibling's minimum. Read that module
+   before changing this number; changing it alone changes nothing. */
 #aprs-contacts-column { width: 58%; padding: 0 2; border-left: solid $panel; }
 #aprs-contact-table { height: 1fr; }
 #aprs-conversation-title { padding: 1 0; color: $text-muted; }

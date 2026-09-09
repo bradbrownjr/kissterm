@@ -3,6 +3,56 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — The contact lists open themselves on a wide terminal
+
+### New Features
+- **The Terminal pane's Address Book and the APRS pane's contact list now
+  open on their own** when the terminal is at least 80 columns wide — the
+  width a terminal is unless someone changed it. A wide screen with half of
+  it blank, and a `Ctrl+G` to press on every launch, was waste.
+- **The split is a rule, not a percentage**: 58%, but never leaving the
+  session or chat column beside it less than 40 columns, and capped at 74
+  because past that a contact list is padding while the conversation next to
+  it could use the space. Below 40 + 24 there is no useful split at all and
+  the panel takes the pane while it is open — on a 40-column terminal you
+  cannot have both, and half a contact list beside a two-character message box
+  is worse than either alone. The contact table scrolls sideways when its
+  share is tight, which was the explicitly accepted trade.
+- **CSS cannot express that rule** — there is no arithmetic to relate a width
+  to a sibling's minimum — so it lives in `kissterm/ui/slideouts.py` as pure
+  arithmetic plus one small controller shared by both panes, and is applied on
+  resize. `tests/unit/test_slideouts.py` checks it at every width from 1 to
+  240; the `width` values left in `styles.py` are starting values only.
+- `Config.slideouts_auto_open` (Settings > Display and logging) turns the
+  behaviour off for an operator who wants the full-width viewer.
+
+### Improvements
+- **A panel that opens itself does not take the cursor.** DESIGN.md's
+  "opening moves focus into the panel" is about a panel someone summoned to
+  pick something from; stealing focus out of the message box because a window
+  got wider is a different thing, and it now does not happen.
+- **Picking a row closes only a panel the operator summoned.** One that opened
+  itself is part of the layout, and closing it on a pick would take away
+  something they never asked for.
+- **A resize never overrules the operator.** Once `Ctrl+G` or Escape has been
+  used on a pane, the width rule stops deciding for it that session — without
+  that, dragging a window wider re-opened a panel someone had just closed.
+- **The APRS compose row drops the Templates button when it runs out of
+  room.** With the contact list open the conversation column can be 40 cells,
+  and `To` + Templates + Send eat most of that before the message box gets
+  anything — a two-character message box, which auto-opening would otherwise
+  have made the default view rather than an edge case. Templates is the
+  control that goes because it is purely a shortcut: `Ctrl+R` does the same
+  thing and shows in the Footer as "Commands", so nothing becomes unreachable.
+
+### Files
+- `kissterm/ui/slideouts.py` (new), `kissterm/ui/aprs_pane.py`,
+  `kissterm/ui/terminal_pane.py`, `kissterm/ui/styles.py`,
+  `kissterm/config.py`, `kissterm/ui/settings_schema.py`, `DESIGN.md`,
+  `AGENTS.md`, `tests/unit/test_slideouts.py` (new),
+  `tests/pilot/test_slideout_auto_open.py` (new),
+  `tests/pilot/test_addressbook_pane.py`, `tests/pilot/test_aprs_contacts_pane.py`
+
 ## [2026-09-09] — Tab order: APRS is F2, Monitor moves to F4
 
 ### Improvements

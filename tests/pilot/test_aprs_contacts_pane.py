@@ -47,7 +47,11 @@ async def _open_contacts(app, pilot):
     below that touches `#aprs-contact-table` needs it open first now that
     it is hidden by default (DESIGN.md's "slide-out panels" section)."""
     await _aprs_tab(app, pilot)
-    app.query_one(AprsPane).toggle_contacts()
+    # "Ensure open", not "toggle": at these sizes the column opens itself
+    # (`kissterm/ui/slideouts.py`), and a bare toggle would close it.
+    if not app.query_one("#aprs-contacts-column").display:
+        app.query_one(AprsPane).toggle_contacts()
+    app.query_one("#aprs-contact-table", DataTable).focus()
     await pilot.pause()
     await asyncio.sleep(0.05)
     await pilot.pause()
@@ -309,13 +313,19 @@ async def test_selecting_a_contact_shows_its_message_history():
         log = app.query_one("#aprs-conversation-log", RichLog)
         text = "\n".join(str(line) for line in log.lines)
         assert "hello there" in text
-        # Picking a contact closes the panel again.
-        assert not app.query_one("#aprs-contacts-column").display
+        # The panel opened ITSELF at this width, so picking a row leaves it
+        # alone -- it is part of the layout, not something covering the view.
+        # DESIGN.md's close-on-pick rule is for a panel the operator
+        # summoned; see `test_a_summoned_panel_closes_on_pick_and_an_offered_one_does_not`.
+        assert app.query_one("#aprs-contacts-column").display
     station.close()
 
 
 @pytest.mark.asyncio
-async def test_the_contacts_slideout_is_hidden_by_default_and_ctrl_g_opens_it():
+async def test_ctrl_g_closes_and_reopens_the_contacts_slideout():
+    """On a terminal this wide the contact list is already open, so Ctrl+G's
+    job here is to close it and open it again. The width rule itself is
+    driven directly in `test_slideouts.py`."""
     config = Config(
         mycall=str(MYCALL),
         aprs_contacts=[{"name": "Jim", "callsign": "K1ABC-9", "service": "station"}],
@@ -324,11 +334,15 @@ async def test_the_contacts_slideout_is_hidden_by_default_and_ctrl_g_opens_it():
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
         column = app.query_one("#aprs-contacts-column")
-        assert not column.display, "the contacts slide-out must start hidden"
+        assert column.display, "120 columns is wide enough for it to open itself"
 
         await pilot.press("ctrl+g")
         await pilot.pause()
-        assert column.display, "Ctrl+G did not open the contacts slide-out"
+        assert not column.display, "Ctrl+G did not close the contacts slide-out"
+
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+        assert column.display, "Ctrl+G did not re-open the contacts slide-out"
         assert app.query_one("#aprs-contact-table", DataTable).has_focus
 
         await pilot.press("escape")

@@ -233,17 +233,39 @@ contacts panel once that tab exists — is a collapsible column docked on the
   effect. Sec. 1's rule holds here exactly as everywhere else: nothing
   decorative may cost airtime or attention during a contact. It is an
   instant `display: none` / `display: block` toggle.
-- **Opening moves focus into the panel; closing returns it.** The operator
-  summoned the panel to do something in it — usually pick a row — so it
-  should be immediately keyboard-navigable, the same reasoning `Ctrl+F`'s
-  find bar already uses.
+- **Opening moves focus into the panel; closing returns it — unless the panel
+  opened itself.** The operator summoned the panel to do something in it,
+  usually pick a row, so it should be immediately keyboard-navigable, the same
+  reasoning `Ctrl+F`'s find bar already uses. A panel that opened on the width
+  rule below was not summoned by anyone, and taking the cursor out of the box
+  someone is typing in because a window got wider is a different thing
+  entirely: that one appears without touching focus.
+- **On a terminal at least 80 columns wide, the panel opens itself.** 80 is
+  what a terminal is unless someone changed it, and a wide screen with half of
+  it blank and a `Ctrl+G` to press on every launch is waste. The split is
+  "58%, but never leave the column beside me less than 40 columns", capped at
+  74 because past that a contact list is padding while the conversation next
+  to it could use the space. Below 40 + 24 there is no useful split and the
+  panel takes the pane instead — on a 40-column terminal you cannot have both,
+  and half a contact list beside a two-character message box is worse than
+  either alone. **CSS cannot express any of that** (there is no arithmetic to
+  relate a width to a sibling's minimum), so it lives in
+  `kissterm/ui/slideouts.py` and is applied on resize; the `width` in
+  `styles.py` is a starting value only. `Config.slideouts_auto_open` turns the
+  whole behaviour off.
+- **Once the operator has opened or closed it by hand, the width rule stops
+  deciding.** Otherwise dragging a window wider re-opens a panel someone just
+  closed on purpose.
 - **Escape closes it**, checked after anything else already using Escape on
   that pane (the Terminal pane's find bar goes first) so the key's meaning
   stays unambiguous: close whichever thing is actually open.
-- **Picking a row from the panel closes it**, when the pane's whole point is
-  to show something *else* once a contact is chosen — the APRS pane's
-  conversation view is what the operator actually wants to look at next,
-  not a panel still covering part of the screen.
+- **Picking a row from the panel closes it — but only a panel that was
+  summoned.** When the pane's whole point is to show something *else* once a
+  contact is chosen, a panel the operator just called up is covering the
+  thing they wanted to see, so it gets out of the way. A panel that opened
+  itself on a wide terminal is part of the layout instead, and closing that
+  on a pick would be taking away something they never asked for. One flag
+  (`SlideOut.summoned`) decides which, so the two panes cannot disagree.
 
 ---
 

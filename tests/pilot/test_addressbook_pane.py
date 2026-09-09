@@ -43,19 +43,38 @@ def _fresh_book(app, tmp_path) -> AddressBook:
 
 
 async def _addressbook_tab(app, pilot):
-    """Switch to Terminal and open the Address Book slide-out -- the
-    Ctrl+G-equivalent setup step every test in this file needs before it can
-    reach `#addressbook-table`."""
+    """Switch to Terminal and make sure the Address Book slide-out is open --
+    the setup step every test in this file needs before it can reach
+    `#addressbook-table`.
+
+    Deliberately "ensure open", not "toggle": at these terminal sizes the
+    column now opens itself (`kissterm/ui/slideouts.py`), so a bare toggle
+    would close the very panel the test is about to look in.
+    """
     app.action_show_tab("terminal")
     await pilot.pause()
-    app.query_one(TerminalPane).toggle_addressbook()
+    await asyncio.sleep(0.05)
+    await pilot.pause()
+    pane = app.query_one(TerminalPane)
+    if not app.query_one("#terminal-addressbook-column").display:
+        pane.toggle_addressbook()
+    else:
+        # Already open, so nothing repainted it -- and these tests swap in a
+        # fresh `AddressBook` after mount. Opening it by hand would have done
+        # this; do it explicitly instead of relying on a toggle.
+        app.query_one(AddressBookPane).refresh_from(app.addressbook)
+    app.query_one("#addressbook-table", DataTable).focus()
     await pilot.pause()
     await asyncio.sleep(0.05)
     await pilot.pause()
 
 
 @pytest.mark.asyncio
-async def test_settings_is_f5_and_ctrl_g_opens_the_addressbook_from_terminal():
+async def test_settings_is_f5_and_ctrl_g_closes_and_reopens_the_addressbook():
+    """On a terminal this wide the Address Book is already open -- so what
+    Ctrl+G has to do here is close it, and open it again, with Escape closing
+    it in between. The "starts hidden" half of this test moved to
+    `test_slideouts.py`, which drives the width rule directly."""
     app, station, ta, tb = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.press("f5")
@@ -64,12 +83,18 @@ async def test_settings_is_f5_and_ctrl_g_opens_the_addressbook_from_terminal():
 
         await pilot.press("f1")
         await pilot.pause()
+        await asyncio.sleep(0.05)
+        await pilot.pause()
         column = app.query_one("#terminal-addressbook-column")
-        assert not column.display, "the slide-out must start hidden"
+        assert column.display, "120 columns is wide enough for it to open itself"
 
         await pilot.press("ctrl+g")
         await pilot.pause()
-        assert column.display, "Ctrl+G did not open the address book slide-out"
+        assert not column.display, "Ctrl+G did not close the address book"
+
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+        assert column.display, "Ctrl+G did not re-open the address book"
         assert app.query_one("#addressbook-table", DataTable).has_focus
 
         await pilot.press("escape")

@@ -48,6 +48,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, RichLog, Static
 
 from .. import aprs_services
+from . import slideouts
 from ..aprs_contacts import Contact, build_message_body, canned_messages_for
 from ..aprs_conversations import PendingAcks
 
@@ -60,6 +61,13 @@ _RETRY_CHECK_INTERVAL = 10.0
 #: Cells of padding a `DataTable` adds around every column's content: one
 #: either side of each of the four columns.
 _TABLE_PADDING = 8
+
+#: How wide the conversation column has to be before the compose row can
+#: afford the Templates button as well as To, the message box and Send.
+#: Measured, not guessed: To(12) + Templates(13) + Send(11) + the margins
+#: between them is 39 cells, and a message box narrower than about 20 is not
+#: a message box.
+_COMPOSE_ROOM_FOR_TEMPLATES = 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -214,8 +222,58 @@ class AprsPane(Horizontal):
 
     def on_mount(self) -> None:
         self.refresh_from(self.app.config.aprs_contacts)  # type: ignore[attr-defined]
+        self._slideout = slideouts.SlideOut(
+            self.query_one("#aprs-contacts-column"),
+            self.query_one("#aprs-conversation-column"),
+        )
         self.query_one("#aprs-contacts-column").display = False
         self.set_interval(_RETRY_CHECK_INTERVAL, self._check_retries)
+
+    def on_resize(self) -> None:
+        """Re-decide whether the contacts column is showing, and how wide.
+
+        On `Resize` rather than in `on_mount` because a pane has no width
+        until it has been laid out -- `KissTermFooter._on_resize` (`ui/app.py`)
+        already fits its keys the same way. `SlideOut` ignores this once the
+        operator has used `Ctrl+G`, so a resize can never overrule them.
+        """
+        was_open = self._slideout.open
+        self._slideout.resized(
+            self.size.width,
+            allowed=getattr(self.app.config, "slideouts_auto_open", True),  # type: ignore[attr-defined]
+        )
+        if self._slideout.open and not was_open:
+            # Opened by the width rule, NOT by the operator -- so it must not
+            # take focus. DESIGN.md's "opening moves focus into the panel" is
+            # about a panel someone summoned to do something in; stealing the
+            # cursor out of the message box because a window got wider is a
+            # different thing entirely.
+            self.refresh_from(self.app.config.aprs_contacts)  # type: ignore[attr-defined]
+        self._fit_compose_row()
+
+    def _fit_compose_row(self) -> None:
+        """Drop the Templates button when the compose row runs out of room.
+
+        With the contact list open the conversation column can be as narrow as
+        40 cells, and `To` + Templates + Send are about 36 of them before the
+        message box gets anything at all -- which left a two-character box as
+        the DEFAULT view the moment the slide-out started opening itself.
+
+        Templates is the one that goes, because it is the only control here
+        that is purely a shortcut: `Ctrl+R` does exactly the same thing and
+        shows in the Footer as "Commands". Nothing becomes unreachable, which
+        is the bar for hiding anything.
+        """
+        # From the arithmetic, NOT from the rendered width: this runs inside
+        # the same `on_resize` that just set the panel's width, so the
+        # conversation column has not been laid out at its new size yet and
+        # reading `outer_size` here returns the width it had a moment ago.
+        # That is exactly how the first version of this silently did nothing.
+        total = self.size.width
+        room = slideouts.split(total).main if self._slideout.open else total
+        wide = room >= _COMPOSE_ROOM_FOR_TEMPLATES
+        self.query_one("#aprs-templates-button", Button).display = wide
+        self.query_one("#aprs-to-input", Input).styles.width = 12 if wide else 10
 
     # -- contacts slide-out ---------------------------------------------------
     def toggle_contacts(self) -> None:
@@ -228,22 +286,30 @@ class AprsPane(Horizontal):
         and focuses the table; closing (here or via Escape) returns focus to
         the compose field.
         """
-        column = self.query_one("#aprs-contacts-column")
-        column.display = not column.display
-        if column.display:
+        if self._slideout.toggle():
             self.refresh_from(self.app.config.aprs_contacts)  # type: ignore[attr-defined]
             self.query_one("#aprs-contact-table", DataTable).focus()
         else:
             self.query_one("#aprs-compose-input", Input).focus()
+        # The conversation column just changed width, so the compose row has
+        # either gained room for the Templates button or lost it.
+        self._fit_compose_row()
 
     def action_close_contacts(self) -> None:
         """Escape. A no-op if the column is already hidden, so binding it at
         the pane level never disturbs a plain Escape typed for some other
         reason (e.g. inside a modal opened over this pane)."""
-        column = self.query_one("#aprs-contacts-column")
-        if column.display:
-            column.display = False
+        if self._slideout.close_by_hand():
             self.query_one("#aprs-compose-input", Input).focus()
+            self._fit_compose_row()
+
+    def _close_contacts_after_pick(self) -> None:
+        """Close the panel because a row was chosen -- but only if the
+        operator summoned it. A panel that opened itself on a wide terminal is
+        part of the layout, and taking it away when they pick a contact would
+        be removing something they never asked for."""
+        if self._slideout.closes_on_pick():
+            self.action_close_contacts()
 
     # ------------------------------------------------------------------
     def refresh_from(self, raw_contacts: list[dict]) -> None:
@@ -414,7 +480,7 @@ class AprsPane(Horizontal):
             self._show_conversation_for(
                 service.callsign, f"{service.name} ({service.callsign})"
             )
-            self.action_close_contacts()
+            self._close_contacts_after_pick()
             return
         try:
             index = int(key)
@@ -428,8 +494,9 @@ class AprsPane(Horizontal):
         self._show_conversation(index)
         # Picking a contact closes the panel -- the conversation just loaded
         # is what the operator wants to look at next, not a panel still
-        # covering part of the screen.
-        self.action_close_contacts()
+        # covering part of the screen. Only if they summoned it; see
+        # `_close_contacts_after_pick`.
+        self._close_contacts_after_pick()
 
     def _message_selected(self) -> None:
         """Address the selected row and put the cursor in the message box.
@@ -457,7 +524,7 @@ class AprsPane(Horizontal):
             callsign, title = contact.callsign, f"{contact.name} ({contact.callsign})"
         self.query_one("#aprs-to-input", Input).value = callsign
         self._show_conversation_for(callsign, title)
-        self.action_close_contacts()
+        self._close_contacts_after_pick()
         self.query_one("#aprs-compose-input", Input).focus()
 
     @on(Button.Pressed, "#aprs-contact-message")

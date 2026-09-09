@@ -244,7 +244,11 @@ kissterm/
 │   ├── aprs/                # UI-frame payload decode + encode (+ AGENTS.md)
 │   ├── ui/                  # Textual panes, one file each (+ AGENTS.md)
 │   │   ├── settings_schema.py  # DECLARATIVE settings; add a field here only
-│   │   └── settings_pane.py    # generated from the schema, edits nothing else
+│   │   ├── settings_pane.py    # generated from the schema, edits nothing else
+│   │   └── slideouts.py     # how wide a Ctrl+G column gets and whether it
+│   │                        #   opens itself -- pure arithmetic plus one
+│   │                        #   small controller, shared by BOTH panes so
+│   │                        #   the two columns cannot drift apart
 │   └── transport/           # + its own AGENTS.md (local contract)
 │       ├── base.py          # the two tiers, Session
 │       ├── kiss.py          # KISS codec, no I/O

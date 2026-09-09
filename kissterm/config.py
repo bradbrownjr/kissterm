@@ -444,6 +444,14 @@ class Config:
     #: sysop put there on purpose; turn it off for a terminal that renders
     #: colour badly, or to see exactly the bytes a node sent.
     remote_color: bool = True
+    #: Let the Terminal pane's Address Book and the APRS pane's contact list
+    #: open themselves on a terminal wide enough to keep the chat or session
+    #: column at 40 columns beside them -- 80 columns overall, the standard
+    #: terminal width. See `kissterm/ui/slideouts.py` for the arithmetic.
+    #: `Ctrl+G` still opens and closes either at any width, and doing so takes
+    #: the decision away from this setting for the rest of the session.
+    #: Turn it off to have both start closed however wide the terminal is.
+    slideouts_auto_open: bool = True
     aprs: AprsConfig = field(default_factory=AprsConfig)
     beacon: BeaconConfig = field(default_factory=BeaconConfig)
     #: Saved connect targets: dicts with at least a "target" callsign and
@@ -592,6 +600,9 @@ def load_config(path: Path | None = None) -> Config:
     cfg.show_date = _load_bool(raw, "show_date", cfg.show_date, warnings)
     cfg.ascii_safe = _load_bool(raw, "ascii_safe", cfg.ascii_safe, warnings)
     cfg.remote_color = _load_bool(raw, "remote_color", cfg.remote_color, warnings)
+    cfg.slideouts_auto_open = _load_bool(
+        raw, "slideouts_auto_open", cfg.slideouts_auto_open, warnings
+    )
     cfg.aprs = _load_aprs(raw.get("aprs", {}), warnings)
     cfg.beacon = _load_beacon(raw.get("beacon", {}), warnings)
     cfg.autoconnect = _load_dict_list(raw.get("autoconnect", []), "autoconnect", warnings)
