@@ -36,11 +36,27 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
-__all__ = ["Contact", "SERVICES", "normalize_contact", "validate_contact"]
+__all__ = [
+    "Contact",
+    "SERVICES",
+    "DEFAULT_SMS_TEMPLATE",
+    "DEFAULT_EMAIL_TEMPLATE",
+    "normalize_contact",
+    "validate_contact",
+    "build_message_body",
+]
 
 #: The only service values the UI offers. Anything else in a hand-edited
 #: config.toml falls back to "station" -- see `normalize_contact`.
 SERVICES = ("station", "sms", "email")
+
+#: Matches `Config.aprs_sms_template`/`aprs_email_template`'s own defaults --
+#: kept here too so `build_message_body` has a safe fallback that does not
+#: require importing `kissterm.config` (which would invert this package's
+#: dependency direction: `config.py` already documents these gateway
+#: fields in terms of this module, not the other way around).
+DEFAULT_SMS_TEMPLATE = "{detail} {text}"
+DEFAULT_EMAIL_TEMPLATE = "{detail} {text}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,3 +121,31 @@ def normalize_contact(data: dict) -> Contact | None:
     if not name and not callsign:
         return None
     return Contact.from_dict(data)
+
+
+def build_message_body(
+    service: str, detail: str, text: str, *, sms_template: str = "", email_template: str = ""
+) -> str:
+    """The actual on-air message body for `text`.
+
+    `"station"` sends `text` unchanged. `"sms"`/`"email"` run it through a
+    template pairing `detail` (the contact's phone number or email address)
+    with `text` -- `sms_template`/`email_template` are normally
+    `Config.aprs_sms_template`/`aprs_email_template`, falling back to
+    `DEFAULT_SMS_TEMPLATE`/`DEFAULT_EMAIL_TEMPLATE` for an empty string
+    (never asserted as the one correct gateway format -- see this module's
+    docstring).
+
+    A hand-edited template with a typo'd placeholder (anything but
+    `{detail}`/`{text}`) falls back to the default rather than raising --
+    a malformed template must not be the reason a message never goes out.
+    """
+    service = normalize_service(service)
+    if service == "station":
+        return text
+    default = DEFAULT_SMS_TEMPLATE if service == "sms" else DEFAULT_EMAIL_TEMPLATE
+    template = (sms_template if service == "sms" else email_template) or default
+    try:
+        return template.format(detail=detail, text=text)
+    except (KeyError, IndexError):
+        return default.format(detail=detail, text=text)

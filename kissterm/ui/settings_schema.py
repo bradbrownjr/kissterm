@@ -242,6 +242,51 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         ),
     ),
     Section(
+        "APRS messaging",
+        "SMS/email gateway defaults for the APRS pane's contact editor (F4). "
+        "UNVERIFIED: gateway callsigns and message-body formats vary by "
+        "region and change over time -- confirm your own gateway's current "
+        "convention before relying on these operationally.",
+        (
+            Field(
+                "aprs_sms_gateway",
+                "Default SMS gateway callsign",
+                "text",
+                "Pre-fills a new SMS contact's callsign in the APRS pane's "
+                "contact editor. Blank means no default -- type the "
+                "gateway's callsign into each contact by hand.",
+                apply="live",
+                placeholder="e.g. SMSGTE",
+            ),
+            Field(
+                "aprs_email_gateway",
+                "Default email gateway callsign",
+                "text",
+                "Same idea as the SMS gateway above, for email contacts.",
+                apply="live",
+                placeholder="e.g. EMAIL2",
+            ),
+            Field(
+                "aprs_sms_template",
+                "SMS message-body template",
+                "text",
+                "{detail} is the contact's phone number, {text} what you "
+                "typed. The commonly-documented convention is phone number "
+                "then message text -- edit this if your gateway differs.",
+                apply="live",
+                placeholder="{detail} {text}",
+            ),
+            Field(
+                "aprs_email_template",
+                "Email message-body template",
+                "text",
+                "Same idea as the SMS template above, for email contacts.",
+                apply="live",
+                placeholder="{detail} {text}",
+            ),
+        ),
+    ),
+    Section(
         "Unattended operation",
         "Answering a call transmits under your callsign with nobody present. "
         "You remain the control operator. Off unless you turn it on.",

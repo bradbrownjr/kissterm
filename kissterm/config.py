@@ -235,6 +235,26 @@ class Config:
     #: to the terminal pane exactly like a beacon or a connect-script line --
     #: see `KissTermApp._on_aprs_frame`. Set False for manual-ack-only.
     aprs_auto_ack: bool = True
+    #: SMS/email-over-APRS gateway defaults, pre-filled into a new contact's
+    #: `callsign` when its service is set to sms/email in the APRS pane's
+    #: contact editor (`AprsContactScreen`) -- see `kissterm/aprs_contacts.py`.
+    #: **UNVERIFIED and deliberately blank by default**: which gateway
+    #: callsign is actually running, in what region, changes over time, and
+    #: this codebase has no way to confirm one from here. Never asserted as
+    #: fact -- an empty gateway just means the operator has to type a
+    #: contact's own gateway callsign once, the same as any other field.
+    aprs_sms_gateway: str = ""
+    aprs_email_gateway: str = ""
+    #: How a compose-mode message becomes the actual on-air body, as a
+    #: `str.format()` template with `{detail}` (the contact's phone number
+    #: or email address) and `{text}` (what the operator typed) --
+    #: see `kissterm.aprs_contacts.build_message_body`. **UNVERIFIED**: the
+    #: `"<phone/address> <text>"` shape is the commonly-documented
+    #: convention for these gateways, not a cited spec -- confirm your own
+    #: gateway's current format before relying on this operationally, and
+    #: edit the template here if it differs.
+    aprs_sms_template: str = "{detail} {text}"
+    aprs_email_template: str = "{detail} {text}"
     #: Max AX.25 info-field size in bytes. 256 is the traditional default;
     #: dropping to 128 or even 64 on a noisy HF path trades throughput for a
     #: much lower chance any given frame needs a retransmit, since a shorter
@@ -460,6 +480,10 @@ def load_config(path: Path | None = None) -> Config:
     )
     cfg.accept_incoming = _load_bool(raw, "accept_incoming", cfg.accept_incoming, warnings)
     cfg.aprs_auto_ack = _load_bool(raw, "aprs_auto_ack", cfg.aprs_auto_ack, warnings)
+    cfg.aprs_sms_gateway = _load_str(raw, "aprs_sms_gateway", cfg.aprs_sms_gateway, warnings)
+    cfg.aprs_email_gateway = _load_str(raw, "aprs_email_gateway", cfg.aprs_email_gateway, warnings)
+    cfg.aprs_sms_template = _load_str(raw, "aprs_sms_template", cfg.aprs_sms_template, warnings)
+    cfg.aprs_email_template = _load_str(raw, "aprs_email_template", cfg.aprs_email_template, warnings)
     cfg.connect_banner = _load_str(raw, "connect_banner", cfg.connect_banner, warnings)
     cfg.monitor_filter = _load_str(raw, "monitor_filter", cfg.monitor_filter, warnings)
     cfg.log_sessions = _load_bool(raw, "log_sessions", cfg.log_sessions, warnings)

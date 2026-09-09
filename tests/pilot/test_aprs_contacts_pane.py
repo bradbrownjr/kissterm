@@ -224,3 +224,66 @@ async def test_selecting_a_contact_shows_its_message_history():
         text = "\n".join(str(line) for line in log.lines)
         assert "hello there" in text
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_switching_to_sms_prefills_the_configured_default_gateway():
+    config = Config(mycall=str(MYCALL), aprs_sms_gateway="SMSGTE")
+    app, station = await _app(config)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        app.query_one(AprsPane)._new_contact()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        from textual.widgets import Input
+        from kissterm.ui.dialogs import AprsContactScreen
+
+        assert isinstance(app.screen, AprsContactScreen)
+        app.screen.query_one("#aprs-contact-service", Select).value = "sms"
+        await pilot.pause()
+        assert app.screen.query_one("#aprs-contact-callsign", Input).value == "SMSGTE"
+        await app.screen.dismiss(None)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_prefill_never_overwrites_a_callsign_already_typed():
+    config = Config(mycall=str(MYCALL), aprs_sms_gateway="SMSGTE")
+    app, station = await _app(config)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        app.query_one(AprsPane)._new_contact()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        from textual.widgets import Input
+        from kissterm.ui.dialogs import AprsContactScreen
+
+        assert isinstance(app.screen, AprsContactScreen)
+        app.screen.query_one("#aprs-contact-callsign", Input).value = "MYOWNGATE"
+        app.screen.query_one("#aprs-contact-service", Select).value = "sms"
+        await pilot.pause()
+        assert app.screen.query_one("#aprs-contact-callsign", Input).value == "MYOWNGATE"
+        await app.screen.dismiss(None)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_no_prefill_when_no_default_gateway_is_configured():
+    app, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        app.query_one(AprsPane)._new_contact()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        from textual.widgets import Input
+        from kissterm.ui.dialogs import AprsContactScreen
+
+        assert isinstance(app.screen, AprsContactScreen)
+        app.screen.query_one("#aprs-contact-service", Select).value = "email"
+        await pilot.pause()
+        assert app.screen.query_one("#aprs-contact-callsign", Input).value == ""
+        await app.screen.dismiss(None)
+    station.close()

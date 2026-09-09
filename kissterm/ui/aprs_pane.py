@@ -35,7 +35,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, RichLog, Static
 
-from ..aprs_contacts import Contact
+from ..aprs_contacts import Contact, build_message_body
 from ..aprs_conversations import PendingAcks
 
 #: How often the retry timer checks for a due, un-acked message. Independent
@@ -218,6 +218,8 @@ class AprsPane(Horizontal):
                 service=existing.service if existing else "station",
                 detail=existing.detail if existing else "",
                 notes=existing.notes if existing else "",
+                sms_gateway=getattr(self.app.config, "aprs_sms_gateway", ""),  # type: ignore[attr-defined]
+                email_gateway=getattr(self.app.config, "aprs_email_gateway", ""),  # type: ignore[attr-defined]
             )
         )
         if result is None:
@@ -236,15 +238,17 @@ class AprsPane(Horizontal):
         self._next_msg_number = self._next_msg_number % 99999 + 1
         return number
 
-    def _contact_service_for(self, callsign: str) -> str:
-        """The saved contact's `service` for `callsign`, or "station" for a
-        bare "To:" target that matches no saved contact -- plain text is the
-        only thing that makes sense to send someone not otherwise described."""
+    def _contact_for(self, callsign: str) -> Contact | None:
+        """The saved contact whose `callsign` matches, or `None` for a bare
+        "To:" target that matches no saved contact at all -- messaging
+        someone not in the contact list always behaves like "station"
+        service (plain text, no template), the only thing that makes sense
+        for a contact this pane knows nothing else about."""
         callsign = callsign.strip().upper()
         for raw in self._contacts():
             if str(raw.get("callsign", "")).strip().upper() == callsign:
-                return Contact.from_dict(raw).service
-        return "station"
+                return Contact.from_dict(raw)
+        return None
 
     @on(Button.Pressed, "#aprs-send-button")
     @on(Input.Submitted, "#aprs-compose-input")
@@ -261,18 +265,32 @@ class AprsPane(Horizontal):
             return
         if not text:
             return
+        contact = self._contact_for(addressee)
+        service = contact.service if contact else "station"
+        detail = contact.detail if contact else ""
+        config = self.app.config  # type: ignore[attr-defined]
+        wire_text = build_message_body(
+            service,
+            detail,
+            text,
+            sms_template=getattr(config, "aprs_sms_template", ""),
+            email_template=getattr(config, "aprs_email_template", ""),
+        )
         number = self._next_number()
-        ok = await self.app._send_aprs_message(addressee, text, number)  # type: ignore[attr-defined]
+        ok = await self.app._send_aprs_message(addressee, wire_text, number)  # type: ignore[attr-defined]
         if not ok:
             self.app.notify(  # type: ignore[attr-defined]
                 "Message not sent -- transmit is disabled (Ctrl+T).", severity="warning"
             )
             return
-        service = self._contact_service_for(addressee)
+        # The conversation log keeps what the operator actually typed, not
+        # the templated wire body -- readable history, not a wire dump.
+        # A retry, though, must resend the exact bytes that went out the
+        # first time, so `_pending` tracks `wire_text`, not `text`.
         self.app.aprs_conversations.record_outgoing(  # type: ignore[attr-defined]
             addressee, text, number=number, service=service
         )
-        self._pending.add(addressee, number, text)
+        self._pending.add(addressee, number, wire_text)
         text_field.value = ""
         self._show_conversation_for(addressee, addressee)
 

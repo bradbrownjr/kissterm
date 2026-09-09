@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from kissterm.aprs_contacts import Contact, normalize_contact, normalize_service, validate_contact
+from kissterm.aprs_contacts import (
+    Contact,
+    build_message_body,
+    normalize_contact,
+    normalize_service,
+    validate_contact,
+)
 
 
 def test_a_valid_station_contact_has_no_problem():
@@ -48,3 +54,44 @@ def test_normalize_contact_keeps_a_partial_but_identifiable_entry():
     assert contact is not None
     assert contact.name == "Jim"
     assert contact.service == "station"
+
+
+# -- build_message_body --------------------------------------------------
+
+
+def test_station_service_sends_text_unchanged():
+    assert build_message_body("station", "", "hello there") == "hello there"
+
+
+def test_sms_uses_the_default_template_when_none_is_configured():
+    body = build_message_body("sms", "5551234567", "hello there")
+    assert body == "5551234567 hello there"
+
+
+def test_email_uses_the_default_template_when_none_is_configured():
+    body = build_message_body("email", "jim@example.com", "hello there")
+    assert body == "jim@example.com hello there"
+
+
+def test_a_configured_sms_template_overrides_the_default():
+    body = build_message_body(
+        "sms", "5551234567", "hi", sms_template="SMS TO {detail}: {text}"
+    )
+    assert body == "SMS TO 5551234567: hi"
+
+
+def test_a_configured_email_template_overrides_the_default():
+    body = build_message_body(
+        "email", "jim@example.com", "hi", email_template="{text} -- for {detail}"
+    )
+    assert body == "hi -- for jim@example.com"
+
+
+def test_a_malformed_template_falls_back_to_the_default_rather_than_raising():
+    body = build_message_body("sms", "5551234567", "hi", sms_template="{bogus_field}")
+    assert body == "5551234567 hi"
+
+
+def test_an_empty_configured_template_falls_back_to_the_default():
+    body = build_message_body("sms", "5551234567", "hi", sms_template="")
+    assert body == "5551234567 hi"

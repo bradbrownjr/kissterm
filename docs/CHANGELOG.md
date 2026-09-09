@@ -3,6 +3,39 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — SMS/email-over-APRS compose forms
+
+### New Features
+- **`kissterm.aprs_contacts.build_message_body`** builds the actual on-air
+  message body for an SMS/email contact -- `<phone/address> <text>` by
+  default -- from `Config.aprs_sms_template`/`aprs_email_template` (a
+  `str.format()` template with `{detail}`/`{text}`) and the contact's
+  `detail` field. A malformed hand-edited template falls back to the
+  default rather than failing the send. The APRS pane's conversation log
+  keeps what the operator actually typed, never the templated wire body --
+  readable history, not a wire dump -- and a retry resends the exact wire
+  bytes rather than re-templating the human text a second time.
+- **`Config.aprs_sms_gateway`/`aprs_email_gateway`** (blank by default)
+  pre-fill a new contact's callsign in `AprsContactScreen` when its
+  service is switched to sms/email, only while the callsign field is
+  still empty -- never overwrites one already typed or one an existing
+  contact already has.
+- New Settings section "APRS messaging" for all four fields.
+  **UNVERIFIED, and said so in the UI**: gateway callsigns and
+  message-body formats vary by region and change over time -- this
+  codebase has no way to confirm one from here, so these ship as editable
+  defaults, never asserted as fact.
+- This closes the last of the four APRS-pane roadmap items from this
+  pass (frame-fan-out subscriber/notifications, contacts CRUD, send with
+  ack/retry, and this one).
+
+### Files
+- `kissterm/aprs_contacts.py` (`build_message_body`), `kissterm/config.py`,
+  `kissterm/ui/aprs_pane.py`, `kissterm/ui/dialogs.py`,
+  `kissterm/ui/settings_schema.py`
+- `tests/unit/test_aprs_contacts.py`, `tests/pilot/test_aprs_send.py`,
+  `tests/pilot/test_aprs_contacts_pane.py`
+
 ## [2026-09-09] — APRS pane: send a message, with ack and retry
 
 ### New Features

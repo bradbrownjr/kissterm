@@ -994,6 +994,8 @@ class AprsContactScreen(ModalScreen[Contact | None]):
         service: str = "station",
         detail: str = "",
         notes: str = "",
+        sms_gateway: str = "",
+        email_gateway: str = "",
     ) -> None:
         super().__init__()
         self._name = name
@@ -1001,6 +1003,13 @@ class AprsContactScreen(ModalScreen[Contact | None]):
         self._service = normalize_service(service)
         self._detail = detail
         self._notes = notes
+        #: `Config.aprs_sms_gateway`/`aprs_email_gateway` -- pre-filled into
+        #: the callsign field on switching to that service, ONLY while the
+        #: field is still empty (see `_service_changed`). Never overwrites a
+        #: callsign the operator already typed or that an existing contact
+        #: already has.
+        self._sms_gateway = sms_gateway
+        self._email_gateway = email_gateway
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
@@ -1034,6 +1043,20 @@ class AprsContactScreen(ModalScreen[Contact | None]):
     @on(Select.Changed, "#aprs-contact-service")
     def _service_changed(self) -> None:
         self._sync_detail_field()
+        self._prefill_gateway()
+
+    def _prefill_gateway(self) -> None:
+        """Pre-fill the callsign field from `Config.aprs_sms_gateway`/
+        `aprs_email_gateway` when switching to that service -- only while
+        the field is still empty, so this never overwrites a callsign the
+        operator already typed or that an existing contact already has."""
+        service = self.query_one("#aprs-contact-service", Select).value
+        gateway = self._sms_gateway if service == "sms" else self._email_gateway if service == "email" else ""
+        if not gateway:
+            return
+        callsign_field = self.query_one("#aprs-contact-callsign", Input)
+        if not callsign_field.value.strip():
+            callsign_field.value = gateway
 
     def _sync_detail_field(self) -> None:
         service = self.query_one("#aprs-contact-service", Select).value
@@ -1041,10 +1064,12 @@ class AprsContactScreen(ModalScreen[Contact | None]):
         hint = self.query_one("#aprs-contact-detail-hint", Static)
         if service == "sms":
             detail.placeholder = "Phone number the SMS gateway delivers to"
-            hint.update("SMS gateway: the gateway's own callsign goes above.")
+            note = "" if self._sms_gateway else " (no default gateway set -- Settings > APRS messaging)"
+            hint.update(f"SMS gateway: the gateway's own callsign goes above.{note}")
         elif service == "email":
             detail.placeholder = "Email address the email gateway delivers to"
-            hint.update("Email gateway: the gateway's own callsign goes above.")
+            note = "" if self._email_gateway else " (no default gateway set -- Settings > APRS messaging)"
+            hint.update(f"Email gateway: the gateway's own callsign goes above.{note}")
         else:
             detail.placeholder = "(not used for a plain station contact)"
             hint.update("")

@@ -180,15 +180,19 @@ transports and framing that already exist, not a new transport.
   positions decode (`aprs.parse_packet`, `kind in ("position", "mic-e",
   ...)`) but nothing renders them yet; see the separate "text-mode map or
   bearing/distance list" item below, which covers the same ground.
-- [ ] **SMS/email-over-APRS compose forms.** A compose mode that builds the
-  message body a phone/email gateway expects (`<phone> <text>` /
-  `<address> <text>`) from a contact's `service`/`detail` fields. **Which
-  gateway callsigns and body formats currently work is not verifiable from
-  here** — these conventions vary by region and change over time — so this
-  ships as an editable, clearly-unverified default
-  (`Config.aprs_sms_template`/`aprs_email_template`/`*_gateway`, empty
-  gateway by default), never asserted as fact. Small once the chat view
-  above exists.
+- [x] **SMS/email-over-APRS compose forms** (2026-09-09).
+  `kissterm.aprs_contacts.build_message_body` builds the on-air body
+  (`<phone/address> <text>` by default) from an SMS/email contact's
+  `detail` field plus what the operator typed; the conversation log keeps
+  the human-typed text, never the templated wire body, so history stays
+  readable. `Config.aprs_sms_gateway`/`aprs_email_gateway` (blank by
+  default) pre-fill a new contact's callsign in `AprsContactScreen` when
+  its service is switched to sms/email, only while the callsign field is
+  still empty. **Which gateway callsigns and body formats currently work
+  is not verifiable from here** — these conventions vary by region and
+  change over time — so `Config.aprs_sms_template`/`aprs_email_template`
+  and the gateway fields are editable, clearly-unverified defaults
+  (Settings > APRS messaging), never asserted as fact.
 - [ ] **Beaconing on a timer.** Fixed-interval position/status beacon
   transmission. Small — the APRS encoder (`kissterm.aprs.encode`) and the
   `beacon_frame` wrapper it needs already exist and are now exercised by

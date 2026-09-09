@@ -187,3 +187,92 @@ async def test_an_unacked_message_is_retried(tmp_path):
         assert len(convo.messages) == 1
     mine.close()
     theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_sending_to_an_sms_contact_transmits_the_templated_body(tmp_path):
+    """The wire body is `<phone> <text>`, but the conversation log keeps
+    what the operator actually typed -- readable history, not a wire dump.
+    A retry must resend the templated body, not re-template the human text
+    a second time."""
+    config = Config(
+        mycall=str(MYCALL),
+        aprs_contacts=[
+            {"name": "Mom", "callsign": "SMSGTE", "service": "sms", "detail": "5551234567"},
+        ],
+    )
+    config.tx_armed_at_start = True
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    params = LinkParams(t1=0.3, t2=0.05, t3=5.0, retries=2)
+    mine = AX25Station(MYCALL, ta, params)
+    theirs = AX25Station(PEER, tb, params)
+    app = KissTermApp(config, mine)
+    app.aprs_conversations = ConversationStore(tmp_path / "aprs_messages.json")
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        table = app.query_one("#aprs-contact-table")
+        table.focus()
+        table.move_cursor(row=0)
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.query_one("#aprs-to-input", Input).value == "SMSGTE"
+
+        app.query_one("#aprs-compose-input", Input).value = "running late"
+        await pilot.click("#aprs-send-button")
+        for _ in range(20):
+            if "Sent APRS message" in _terminal_text(app):
+                break
+            await pilot.pause()
+
+        # Human-readable text in the conversation log.
+        convo = app.aprs_conversations.conversations["SMSGTE"]
+        assert convo.messages[0].text == "running late"
+        assert convo.messages[0].service == "sms"
+
+        # Templated body actually on the wire.
+        sent = [f for f in ta.sent if f.info.startswith(b":SMSGTE")]
+        assert sent, "no APRS message frame was actually transmitted"
+        packet = aprs.parse_packet(sent[-1])
+        assert packet.data.text == "5551234567 running late"
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_a_configured_sms_template_changes_the_wire_body(tmp_path):
+    config = Config(
+        mycall=str(MYCALL),
+        aprs_contacts=[
+            {"name": "Mom", "callsign": "SMSGTE", "service": "sms", "detail": "5551234567"},
+        ],
+        aprs_sms_template="SMS {detail}: {text}",
+    )
+    config.tx_armed_at_start = True
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    params = LinkParams(t1=0.3, t2=0.05, t3=5.0, retries=2)
+    mine = AX25Station(MYCALL, ta, params)
+    theirs = AX25Station(PEER, tb, params)
+    app = KissTermApp(config, mine)
+    app.aprs_conversations = ConversationStore(tmp_path / "aprs_messages.json")
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        app.query_one("#aprs-to-input", Input).value = "SMSGTE"
+        app.query_one("#aprs-compose-input", Input).value = "hi"
+        await pilot.click("#aprs-send-button")
+        for _ in range(20):
+            if "Sent APRS message" in _terminal_text(app):
+                break
+            await pilot.pause()
+
+        sent = [f for f in ta.sent if f.info.startswith(b":SMSGTE")]
+        packet = aprs.parse_packet(sent[-1])
+        assert packet.data.text == "SMS 5551234567: hi"
+    mine.close()
+    theirs.close()
