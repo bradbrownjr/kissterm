@@ -106,13 +106,16 @@ class AprsConfig:
     #: Never read by the beacon itself -- `latitude`/`longitude` remain the
     #: only fields that affect what is transmitted.
     grid_square: str = ""
-    #: Append "WINLINK" to the transmitted comment when set -- an
-    #: UNVERIFIED, uncited convention some Winlink RMS/CMS gateways are
-    #: reported to treat as a request to notify the operator of pending
-    #: mail over APRS. Same footing as `aprs_sms_gateway`/
-    #: `aprs_email_gateway` below: real enough to be worth offering, not
-    #: confirmed against a spec, so it is never presented as fact in the
-    #: UI copy either.
+    #: Append "WINLINK" to the transmitted comment when set. DOCUMENTED, not
+    #: inferred: <https://winlink.org/APRSLink> states it directly -- "If you
+    #: desire notification of pending Winlink email just add 'WINLINK'
+    #: somewhere in your station's position comment (or status text)" -- and
+    #: APRSLink then sends a daily APRS alert while mail is waiting. Shipped
+    #: as an unverified guess when this field was added; the source was
+    #: supplied afterwards and confirmed working on the air, so this is one
+    #: of the few protocol details in this codebase that has BOTH a citation
+    #: and an operator confirmation behind it. `kissterm/aprs_services/data/
+    #: winlink.toml` carries the rest of APRSLink's command set.
     winlink_check: bool = False
 
 

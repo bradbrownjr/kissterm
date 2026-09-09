@@ -31,10 +31,13 @@ from .config import MIN_BEACON_INTERVAL_MINUTES, AprsConfig
 log = logging.getLogger(__name__)
 
 #: Appended to the comment when `Config.aprs.winlink_check` is set.
-#: **UNVERIFIED, uncited convention**: some Winlink RMS/CMS gateways are
-#: reported to treat the literal text WINLINK in a heard station's beacon
-#: comment as a request to check for and notify about pending mail -- not
-#: confirmed against a spec, same footing as `Config.aprs_sms_gateway`.
+#: **DOCUMENTED**: <https://winlink.org/APRSLink> -- "If you desire
+#: notification of pending Winlink email just add 'WINLINK' somewhere in
+#: your station's position comment (or status text)". APRSLink watches the
+#: APRS-IS feed for it and sends a daily alert while mail is waiting, so the
+#: token has to survive comment truncation to do anything at all -- see
+#: `build_frame`, which reserves room for it BEFORE trimming to
+#: `_MAX_COMMENT`.
 _WINLINK_TOKEN = "WINLINK"
 
 #: Same floor as the plain-text beacon, for the same reason: a courtesy to

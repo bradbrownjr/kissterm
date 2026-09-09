@@ -3,6 +3,28 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — The WINLINK beacon flag is documented, not a guess
+
+### Improvements
+- **`Config.aprs.winlink_check` now cites its source instead of warning that
+  it has none.** It shipped earlier the same day marked "UNVERIFIED, uncited
+  convention", because nothing in reach confirmed it. The operator supplied
+  the source -- <https://winlink.org/APRSLink>, which states it plainly: *"If
+  you desire notification of pending Winlink email just add 'WINLINK'
+  somewhere in your station's position comment (or status text)"* -- and
+  confirmed it working on the air. APRSLink watches the APRS-IS feed for the
+  token and sends a daily APRS alert while mail is waiting.
+- The Settings help text no longer tells the operator the feature might not
+  work. Overstating uncertainty is its own kind of wrong label: it invites
+  someone to leave a working feature off.
+- No behaviour change. The token, the placement, and the reserve-room-before-
+  truncating logic in `AprsBeaconer.build_frame` were already right; only the
+  provenance claim around them was wrong.
+
+### Files
+- `kissterm/config.py`, `kissterm/aprs_beacon.py`,
+  `kissterm/ui/settings_schema.py`, `docs/CHANGELOG.md`
+
 ## [2026-09-09] — The full test suite runs in parallel now: ~15 min -> ~3 min
 
 ### Improvements
@@ -99,10 +121,8 @@ touched and any breaking notes.
 - **"Check for Winlink messages" checkbox** (`Config.aprs.winlink_check`).
   Appends `WINLINK` to the transmitted beacon comment, reserving room for
   the token before truncation runs so a long comment never crowds it out.
-  **UNVERIFIED, uncited convention** -- some Winlink RMS/CMS gateways are
-  reported to treat this as a request to notify the operator of pending
-  mail over APRS, not confirmed against a spec, same footing as
-  `Config.aprs_sms_gateway`.
+  Shipped marked **UNVERIFIED**; see the entry below dated 2026-09-09 --
+  the source turned up and it is documented behaviour after all.
 
 ### Files
 - `kissterm/locator.py`, `kissterm/aprs/symbols.py` (both new, previous

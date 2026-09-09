@@ -27,6 +27,10 @@ logs/
 config.toml
 !config.toml.example
 
+# Scratch progress tracker for a multi-step agent session, not project history.
+# What shipped belongs in docs/CHANGELOG.md; this is the working scratchpad.
+PROGRESS.md
+
 # Local secrets (never commit)
 *.token
 *.json.bak

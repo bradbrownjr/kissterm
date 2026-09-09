@@ -276,10 +276,10 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "aprs.winlink_check",
                 "Check for Winlink messages",
                 "bool",
-                "Appends WINLINK to the transmitted comment. UNVERIFIED, "
-                "uncited convention -- some Winlink RMS/CMS gateways are "
-                "reported to treat this as a request to notify you of "
-                "pending mail over APRS; not confirmed against a spec.",
+                "Appends WINLINK to the transmitted comment. APRSLink watches "
+                "for this word in a position comment or status text and sends "
+                "you a daily APRS alert when Winlink mail is waiting. "
+                "Documented at winlink.org/APRSLink.",
                 apply="live",
             ),
         ),
