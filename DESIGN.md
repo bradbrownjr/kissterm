@@ -139,20 +139,55 @@ tab existed to expect it.
   Commands, Transcripts, Find, Quit, palette.
 - **`Ctrl+1..5` are unlabelled fallback aliases** for terminals that intercept
   function keys.
-- **Ceiling: F1–F8.** F9+ are not reliably delivered by every terminal, so
-  **eight tabs is the practical maximum**. Five exist, three are planned
-  (Mail, Bulletins, Files) — a ninth needs a different scheme, not a ninth
-  function key.
+- **Ceiling: F1–F10.** Originally set at F8 (some terminals were assumed
+  unreliable past it), raised once F9/F10 were confirmed working in practice
+  — see `docs/ROADMAP.md` P10. Five tabs exist, three more are planned
+  (Mail, Bulletins, Files) — an eleventh needs a different scheme entirely,
+  not an eleventh function key, since F11 is "toggle fullscreen" in enough
+  terminals and window managers to rarely reach the application at all.
 - **Never bind a bare printable key globally.** A focused `Input` swallows it,
   so the binding works inconsistently depending on focus — and this is a
   terminal, where typing a character must always just type that character.
+
+### Slide-out panels
+
+A contact list that a pane needs but does not want permanently on screen —
+the Terminal pane's Address Book, the APRS pane's contacts list, Mail's own
+contacts panel once that tab exists — is a collapsible column docked on the
+**right** edge of its pane, not a tab and not a modal.
+
+- **One key opens or closes whichever slide-out belongs to the active
+  pane**: `Ctrl+G`. The key's meaning does not change tab to tab; a tab with
+  no slide-out (Monitor, Heard, Settings) just has nothing for it to do.
+  Picked only after checking every existing binding —
+  `kissterm/ui/app.py`'s `Binding("ctrl+g", ...)` records the full check —
+  because `Input`'s own built-in bindings already claim more of the alphabet
+  (`ctrl+a`, `ctrl+shift+a`, `ctrl+e/w/u/k/x/c/v/d`) than is obvious until
+  you look, and a key silently shadowed by a focused `Input` is worse than
+  an unfamiliar one, per the `Select.BLANK` lesson in `AGENTS.md`.
+- **No animation, ever, on any slide-out.** "Slides out" describes where the
+  panel ends up — docked at the right edge, over nothing else — not a motion
+  effect. Sec. 1's rule holds here exactly as everywhere else: nothing
+  decorative may cost airtime or attention during a contact. It is an
+  instant `display: none` / `display: block` toggle.
+- **Opening moves focus into the panel; closing returns it.** The operator
+  summoned the panel to do something in it — usually pick a row — so it
+  should be immediately keyboard-navigable, the same reasoning `Ctrl+F`'s
+  find bar already uses.
+- **Escape closes it**, checked after anything else already using Escape on
+  that pane (the Terminal pane's find bar goes first) so the key's meaning
+  stays unambiguous: close whichever thing is actually open.
+- **Picking a row from the panel closes it**, when the pane's whole point is
+  to show something *else* once a contact is chosen — the APRS pane's
+  conversation view is what the operator actually wants to look at next,
+  not a panel still covering part of the screen.
 
 ---
 
 ## 6. The bottom two rows
 
 ```
- ^q Quit  ^n Connect  ^D Disconnect  ^k Callsign  ^r Commands  ^o Transcripts  ^f Find   <- Footer
+ ^q Quit  ^n Connect  ^D Disconnect  ^k Callsign  ^r Commands  ^o Transcripts  ^f Find  ^G Contacts   <- Footer
  kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6     <- status
 ```
 

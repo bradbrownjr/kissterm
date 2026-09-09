@@ -4,36 +4,44 @@ Layout follows the shape a packet operator already has in their head from
 BPQTerminal and EasyTerm, because the goal is a familiar tool that happens to
 be modern, not a novel one they have to relearn:
 
-    F1 Terminal  F2 Monitor  F3 Heard  F4 APRS  F5 Address Book  F6 Settings
-    +--------------------------------------------+
-    | session output (scrollback, selectable)     |
-    +--------------------------------------------+
-    | > type here                          [Send] |
-    +--------------------------------------------+
-      ^r Commands  ^n Connect  ^d Disconnect  ...   <- shortcut keys
-      kissterm 0.1 | transport | callsign | heard N <- status, BELOW them
+    F1 Terminal  F2 Monitor  F3 Heard  F4 APRS  F5 Settings
+    +--------------------------------------------+---------+
+    | session output (scrollback, selectable)     | Address |
+    +--------------------------------------------+ Book,   |
+    | > type here                          [Send] | Ctrl+G  |
+    +--------------------------------------------+---------+
+      ^r Commands  ^n Connect  ^d Disconnect  ^G Contacts ...  <- shortcut keys
+      kissterm 0.1 | transport | callsign | heard N          <- status, BELOW them
 
 The F-key for each tab is printed IN THE TAB LABEL (`F1 Terminal`, keyboard-
 shortcut-first, matching how a menu shows an accelerator), not in the footer.
 Textual's `Footer` widget would otherwise show `f1 Terminal  f2 Monitor  f3
-Heard  f4 APRS  f5 Address Book  f6 Settings` right below a tab bar already
-showing those same six names -- the same words twice, in two different
-corners of the screen. All six `Binding`s stay registered (`show=False`) so
-the keys still work; only the redundant on-screen label moves. `Ctrl+1..6`
-remain as unlabelled fallback aliases for terminals that intercept function
-keys.
+Heard  f4 APRS  f5 Settings` right below a tab bar already showing those same
+five names -- the same words twice, in two different corners of the screen.
+All five `Binding`s stay registered (`show=False`) so the keys still work;
+only the redundant on-screen label moves. `Ctrl+1..5` remain as unlabelled
+fallback aliases for terminals that intercept function keys.
 
 **Function keys are tabs. Ctrl sequences are actions and modals.** That is
-the whole rule, and it is why Address Book is F5 and Settings F6 (left to
-right, in the order they were added) rather than either being the command
-reference, and why the command reference -- a modal opened over whatever tab
-is active -- is `Ctrl+R`, not a function key. A non-tab action squatting on
-the next free F-number breaks the "F<n> is the n-th tab" pattern the moment
-an n-th tab exists to expect it, which already happened once here. Address
-Book moved OUT of a Settings tab and onto its own F-key for the same
-reason it existed at all: it turned out to be used far more often than a
-one-time setup screen, closer to Terminal/Monitor in how often an operator
-reaches for it than to Settings.
+the whole rule, and it is why the command reference -- a modal opened over
+whatever tab is active -- is `Ctrl+R`, not a function key. A non-tab action
+squatting on the next free F-number breaks the "F<n> is the n-th tab" pattern
+the moment an n-th tab exists to expect it, which already happened once here
+(Address Book briefly had its own F-key before this). Address Book is now a
+collapsible slide-out on the Terminal pane instead of a tab -- `Ctrl+G`
+(`action_toggle_contacts`, dispatched by whichever tab is active) opens or
+closes it, focusing its table on open; Escape closes it, same as the find
+bar. `AprsPane`'s contacts list is the same pattern, on the APRS tab, added
+right after this in the same feature; Mail's own contacts panel is expected
+to follow the identical recipe once that tab exists. See `DESIGN.md`'s
+"slide-out panels" section for the pattern written down once, in one place,
+rather than re-derived per pane. Dialing a station is something an operator
+does *from* the terminal, not a separate destination, which is also why this
+folded into Terminal rather than staying its own tab: it turned out to be
+used far more often than a one-time setup screen, closer to Terminal/Monitor
+in how often an operator reaches for it than to Settings -- but *reaching*
+for it is now a keystroke inside the pane it dials from, not a tab switch
+away from it.
 
 This also reserves the F-row for the tabs still to come (Mail, Bulletins,
 Files -- see docs/ROADMAP.md). The ceiling was originally set at F8 (some
@@ -44,8 +52,9 @@ F1-F10 for its whole menu row for decades without it being a practical
 problem. **F1..F10 is the working ceiling now, ten tabs the practical
 maximum.** F11 is out regardless: it is "toggle fullscreen" in enough
 terminal emulators and window managers that it rarely reaches the
-application at all. Six tabs exist and three more are planned, landing at
-F9 with F10 spare -- see docs/ROADMAP.md's P10 section for the assignment.
+application at all. Five tabs exist and three more are planned, landing at
+F6-F8 with F9/F10 spare -- see docs/ROADMAP.md's P10 section for the
+assignment.
 
 The status bar sits BELOW the Footer's shortcut-key row, not above it -- the
 keys you might press come first, reading top to bottom, and the passive status
@@ -117,7 +126,6 @@ from ..monitor import MonitorFilter, callsign_matches, format_frame, mail_waitin
 from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError, TransportState
 from ..tx import DISABLED_MESSAGE, TransmitGate
-from .addressbook_pane import AddressBookPane
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
@@ -314,11 +322,21 @@ class KissTermApp(App):
         Binding("ctrl+2", "show_tab('monitor')", "Monitor", show=False),
         Binding("ctrl+3", "show_tab('heard')", "Heard", show=False),
         Binding("ctrl+4", "show_tab('aprs')", "APRS", show=False),
-        Binding("f5", "show_tab('addressbook')", "Address Book", show=False),
-        Binding("ctrl+5", "show_tab('addressbook')", "Address Book", show=False),
-        Binding("f6", "show_tab('settings')", "Settings", show=False),
-        Binding("ctrl+6", "show_tab('settings')", "Settings", show=False),
+        Binding("f5", "show_tab('settings')", "Settings", show=False),
+        Binding("ctrl+5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+t", "toggle_transmit", "TX"),
+        # The Address Book (Terminal) and APRS contacts slide-outs share this
+        # one key -- see `action_toggle_contacts`. Checked against every
+        # existing claim before picking "G": `Input`'s own bindings already
+        # own ctrl+a *and* ctrl+shift+a (home / select-all), ctrl+e/w/u/k/x/
+        # c/v/d for line editing; this app already owns ctrl+q/t/b/n/d/k/r/l/
+        # o/f/1..5; Textual's own command palette owns ctrl+p; and Ctrl+C
+        # (any shifted form included) is avoided everywhere in this file for
+        # the SIGINT reason below. Ctrl+G collides with none of that and is
+        # not a flow-control byte or job-control signal either, so it needs
+        # no Ctrl+Shift+-plus-legacy-fallback pair the way Beacon/Disconnect
+        # do below.
+        Binding("ctrl+g", "toggle_contacts", "Contacts", key_display="^G"),
         # Ctrl+SHIFT+B, not Ctrl+B: Ctrl+B is tmux's default prefix (and
         # screen's, once remapped), so under a multiplexer -- which is how a
         # station PC in another room is usually reached -- the beacon key was
@@ -486,9 +504,7 @@ class KissTermApp(App):
                 yield HeardPane()
             with TabPane("F4 APRS", id="aprs"):
                 yield AprsPane()
-            with TabPane("F5 Address Book", id="addressbook"):
-                yield AddressBookPane()
-            with TabPane("F6 Settings", id="settings"):
+            with TabPane("F5 Settings", id="settings"):
                 yield SettingsPane()
         # Status bar and Footer share one bottom-docked container. Docking
         # them both individually puts them in the SAME region -- the Footer
@@ -1179,6 +1195,19 @@ class KissTermApp(App):
     def action_show_tab(self, tab: str) -> None:
         self.query_one("#main-tabs", TabbedContent).active = tab
 
+    def action_toggle_contacts(self) -> None:
+        """Ctrl+G: show or hide whichever slide-out belongs to the active
+        tab -- the Address Book on Terminal, the contacts list on APRS. A
+        silent no-op on every other tab (Monitor, Heard, Settings), same as
+        pressing Ctrl+F outside the Terminal pane does nothing: the key
+        always means the same thing, it just has nothing to act on there.
+        """
+        active = self.query_one("#main-tabs", TabbedContent).active
+        if active == "terminal":
+            self.query_one(TerminalPane).toggle_addressbook()
+        elif active == "aprs":
+            self.query_one(AprsPane).toggle_contacts()
+
     def action_clear_log(self) -> None:
         active = self.query_one("#main-tabs", TabbedContent).active
         if active == "monitor":
@@ -1440,7 +1469,7 @@ class KissTermApp(App):
                 "log",
                 f"\n*** Not connecting: the link to the TNC at {where} is "
                 f"{state.value}, so nothing would reach the air. This is not "
-                f"an RF problem -- check the TNC, then Settings (F6) > Test "
+                f"an RF problem -- check the TNC, then Settings (F5) > Test "
                 f"selected.\n",
             )
             self.notify(
@@ -1952,10 +1981,6 @@ class KissTermApp(App):
         """
         if event.pane.id == "heard":
             self._refresh_heard(force=True)
-        elif event.pane.id == "addressbook":
-            # Same rule: an attempt recorded from Ctrl+N since this pane was
-            # last open must show up the instant the operator switches to it.
-            self.query_one(AddressBookPane).refresh_from(self.addressbook)
         elif event.pane.id == "settings":
             # Same rule as the heard table: a pane must be correct the instant
             # it is visible. Re-rendering also discards half-typed edits the

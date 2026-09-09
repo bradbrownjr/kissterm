@@ -13,10 +13,11 @@ has been active and whether you heard them directly:
 
 ![The heard list](assets/screenshot-heard.png)
 
-Every station you've connected to, or set up in advance -- dial one directly,
-with its node-hop chain, saved login and frequency reminder all still applying:
+Every station you've connected to, or set up in advance -- `Ctrl+G` opens the
+Address Book as a slide-out on the Terminal pane, and dials one directly, with
+its node-hop chain, saved login and frequency reminder all still applying:
 
-![The address book pane](assets/screenshot-addressbook.png)
+![The address book slide-out](assets/screenshot-addressbook.png)
 
 Everything the first-run wizard asks for stays editable in the app -- callsign,
 transport, link timing, APRS:
@@ -171,7 +172,7 @@ First run asks for your callsign and then goes looking for your TNC. See
 [SETUP.md](SETUP.md) for Direwolf, Bluetooth pairing, serial permissions, and
 the rest.
 
-**Nothing you answer at setup is locked in.** The Settings tab (`F6`)
+**Nothing you answer at setup is locked in.** The Settings tab (`F5`)
 edits your callsign, which TNC or modem to use, AX.25 timing (paclen, window,
 T1/T2/T3, retries) and APRS beaconing -- with validation, and a note on each
 field saying whether it takes effect now, on the next connection, or at
@@ -211,7 +212,8 @@ conversation, and swapping it mid-session would kill the link by timeout.
 
 | Key | Action |
 |-----|--------|
-| `F1`..`F6` | Terminal / Monitor / Heard / APRS / Address Book / Settings -- shown as the key right in each tab's label (also `Ctrl+1`..`Ctrl+6`, for a terminal that intercepts function keys) |
+| `F1`..`F5` | Terminal / Monitor / Heard / APRS / Settings -- shown as the key right in each tab's label (also `Ctrl+1`..`Ctrl+5`, for a terminal that intercepts function keys) |
+| `Ctrl+G` | Open/close the Address Book (Terminal) or contacts list (APRS) as a slide-out on the right |
 | `Ctrl+R` | Command reference for the detected node |
 | `Ctrl+T` | Enable / disable transmit -- the master switch |
 | `Ctrl+Shift+B` | Send one beacon now (see the tmux note below) |
@@ -241,13 +243,14 @@ two Telnet/SSH hosts. With only one configured (the usual case) there is no
 dropdown to get in the way; with two or more, it defaults to whichever is
 active and switches live if you pick a different one. Switching TIERS this
 way -- a frame-tier KISS TNC to a session-tier Telnet/SSH/VARA host, or back
--- is not supported live; Settings (`F6`) > Transports still needs a restart
+-- is not supported live; Settings (`F5`) > Transports still needs a restart
 for that.
 
-**The Address Book tab (`F5`) is the same list, with room to manage it.**
-A table of every saved station -- add one in advance, fix a typo in its
-hop chain, or dial it directly (Enter or the Connect button) without
-opening Ctrl+N first. Insert/F2/Delete match `syncterm`'s dialing directory.
+**The Address Book slide-out (`Ctrl+G`, from the Terminal pane) is the same
+list, with room to manage it.** A table of every saved station -- add one in
+advance, fix a typo in its hop chain, or dial it directly (Enter or the
+Connect button) without opening Ctrl+N first. Insert/F2/Delete match
+`syncterm`'s dialing directory; Escape closes the panel again.
 An entry can carry:
 - a **node-to-node hop chain**, for a station reached only by connecting
   through intermediate BPQ/NET-ROM nodes in turn -- no digipeater path
@@ -266,7 +269,7 @@ An entry can carry:
   cannot tune a radio or start a modem for you, but it will ask you to
   confirm both are set before a connect that has them on file goes out.
   Connection type picks from whatever you've already set up in
-  Settings (`F6`) > Transports (a TCP KISS TNC, VARA HF, a Telnet or SSH
+  Settings (`F5`) > Transports (a TCP KISS TNC, VARA HF, a Telnet or SSH
   node, ...), so it's a reminder that matches what you actually have
   configured rather than a note you have to retype consistently by hand.
 
@@ -318,7 +321,7 @@ responses, so kissterm never reports them with the same words:
 - **`no answer from <call> after N tries`** -- nothing came back at all. That
   is an antenna, power, squelch or propagation problem, not a configuration
   one. kissterm sends 6 SABMs over about 18 seconds before saying this;
-  `connect_retries` in Settings (F6) changes that.
+  `connect_retries` in Settings (F5) changes that.
 
 The **Monitor tab (F2)** is the real instrument. It shows every frame in both
 directions, `>` for what you transmitted and `<` for what was heard, so you
@@ -373,13 +376,13 @@ operator and April 3rd to nearly everyone else, and packet is international.
 On the nights the local and UTC dates disagree, each reading carries its own
 date rather than one covering both.
 
-Set it in Settings (`F6`) under Clock, or in `config.toml`
+Set it in Settings (`F5`) under Clock, or in `config.toml`
 (`show_local_time`, `show_utc_time`, `clock_24h`, `show_date`).
 
 ## Themes
 
 Every color in kissterm is a theme variable, so switching repaints the whole
-app instantly -- nothing to restart. Pick one in Settings (`F6`), set
+app instantly -- nothing to restart. Pick one in Settings (`F5`), set
 `theme = "..."` in `config.toml`, or answer the wizard's theme prompt on first
 run. Default is **Tokyo Night**.
 

@@ -42,6 +42,17 @@ async def _aprs_tab(app, pilot):
     await pilot.pause()
 
 
+async def _open_contacts(app, pilot):
+    """Switch to APRS and open the Ctrl+G contacts slide-out -- every test
+    below that touches `#aprs-contact-table` needs it open first now that
+    it is hidden by default (DESIGN.md's "slide-out panels" section)."""
+    await _aprs_tab(app, pilot)
+    app.query_one(AprsPane).toggle_contacts()
+    await pilot.pause()
+    await asyncio.sleep(0.05)
+    await pilot.pause()
+
+
 @pytest.mark.asyncio
 async def test_aprs_is_f4():
     app, station = await _app()
@@ -155,7 +166,7 @@ async def test_editing_a_contact_updates_it_in_place():
     )
     app, station = await _app(config)
     async with app.run_test(size=(120, 40)) as pilot:
-        await _aprs_tab(app, pilot)
+        await _open_contacts(app, pilot)
         table = app.query_one("#aprs-contact-table", DataTable)
         table.move_cursor(row=0)
         await pilot.pause()
@@ -189,7 +200,7 @@ async def test_forgetting_a_contact():
     )
     app, station = await _app(config)
     async with app.run_test(size=(120, 40)) as pilot:
-        await _aprs_tab(app, pilot)
+        await _open_contacts(app, pilot)
         table = app.query_one("#aprs-contact-table", DataTable)
         table.move_cursor(row=1)
         await pilot.pause()
@@ -210,7 +221,7 @@ async def test_selecting_a_contact_shows_its_message_history():
     app, station = await _app(config)
     async with app.run_test(size=(120, 40)) as pilot:
         app.aprs_conversations.record_incoming("K1ABC-9", "hello there", number="1")
-        await _aprs_tab(app, pilot)
+        await _open_contacts(app, pilot)
         table = app.query_one("#aprs-contact-table", DataTable)
         table.focus()
         table.move_cursor(row=0)
@@ -223,6 +234,31 @@ async def test_selecting_a_contact_shows_its_message_history():
         log = app.query_one("#aprs-conversation-log", RichLog)
         text = "\n".join(str(line) for line in log.lines)
         assert "hello there" in text
+        # Picking a contact closes the panel again.
+        assert not app.query_one("#aprs-contacts-column").display
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_contacts_slideout_is_hidden_by_default_and_ctrl_g_opens_it():
+    config = Config(
+        mycall=str(MYCALL),
+        aprs_contacts=[{"name": "Jim", "callsign": "K1ABC-9", "service": "station"}],
+    )
+    app, station = await _app(config)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        column = app.query_one("#aprs-contacts-column")
+        assert not column.display, "the contacts slide-out must start hidden"
+
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+        assert column.display, "Ctrl+G did not open the contacts slide-out"
+        assert app.query_one("#aprs-contact-table", DataTable).has_focus
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not column.display, "Escape did not close the slide-out"
     station.close()
 
 

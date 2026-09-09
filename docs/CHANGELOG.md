@@ -3,6 +3,39 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Address Book and APRS contacts become Ctrl+G slide-outs
+
+### New Features
+- **The Address Book is no longer a tab.** `F5 Address Book` is removed;
+  Settings moves back to `F5` (it briefly held `F6` while Address Book had
+  its own key). Dialing a station is now a `Ctrl+G` slide-out docked on the
+  right of the Terminal pane, opened with the table immediately focused and
+  closed with Escape or a second `Ctrl+G` -- same list, same CRUD, same
+  `action_connect` flow underneath, just reached from where an operator
+  actually dials rather than a separate destination.
+- **The APRS pane's contacts list is the same pattern**, on the right of the
+  APRS pane: hidden until `Ctrl+G`, and picking a contact closes the panel
+  again so the conversation it just loaded is what's on screen next.
+- **One key, dispatched per active tab.** `KissTermApp.action_toggle_contacts`
+  opens whichever slide-out belongs to the current tab and is a silent
+  no-op elsewhere (Monitor, Heard, Settings). Checked against every existing
+  `Input`/app-level binding before landing on `Ctrl+G` -- see
+  `kissterm/ui/app.py`'s `Binding` comment and `DESIGN.md`'s new "slide-out
+  panels" section, which is the recipe Mail's own contacts panel is expected
+  to reuse once that tab exists. No animation: the panel appears instantly,
+  per `DESIGN.md`'s "no animation" rule -- "slides out" describes where it
+  ends up, not a motion effect.
+- `docs/ROADMAP.md` P10's F-key assignments shift up by one slot
+  accordingly: Mail F6, Bulletins F7, Files F8, with F9/F10 spare.
+
+### Files
+- `kissterm/ui/app.py`, `kissterm/ui/terminal_pane.py`,
+  `kissterm/ui/aprs_pane.py`, `kissterm/ui/styles.py`
+- `DESIGN.md`, `docs/ROADMAP.md`, `README.md`, `SETUP.md`,
+  `scripts/generate_screenshot.py`
+- `tests/pilot/test_addressbook_pane.py`, `tests/pilot/test_app_mounts.py`,
+  `tests/pilot/test_aprs_contacts_pane.py`, `tests/pilot/test_aprs_send.py`
+
 ## [2026-09-09] — SMS/email-over-APRS compose forms
 
 ### New Features

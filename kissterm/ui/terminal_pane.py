@@ -50,6 +50,19 @@ handler silently keeps only the first line and nothing caps its length or
 strips control bytes a binary or multi-line clipboard can carry, and a paclen
 of 256 turns one long pasted line into many I frames with no way to take the
 Enter back once it is pressed.
+
+**The Address Book lives here, as a collapsible slide-out, not as its own
+tab.** Dialing a station is something an operator does *from* the terminal,
+not a separate destination -- and `AddressBookPane` (`addressbook_pane.py`)
+is otherwise unchanged: it still reads and writes the one shared
+`KissTermApp.addressbook`, and dialing still goes through the full
+`action_connect` flow. `Ctrl+G` (`KissTermApp.action_toggle_contacts`,
+dispatched here to `toggle_addressbook`) shows or hides
+`#terminal-addressbook-column`, focusing its table on open; `Escape` closes
+it, the same shape as `action_close_find` below, checked first so the two
+never fight over the same key. See `DESIGN.md`'s "slide-out panels" section
+for the pattern -- `AprsPane`'s contacts column and, later, Mail's own
+contacts panel follow the identical recipe.
 """
 
 from __future__ import annotations
@@ -60,13 +73,14 @@ from rich.text import Text
 from textual import events, on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, Vertical
 from textual.timer import Timer
-from textual.widgets import Button, Input, RichLog, Static
+from textual.widgets import Button, DataTable, Input, RichLog, Static
 
 from ..ansi import to_text
 from ..monitor import sanitize
 from ..tx import DISABLED_MESSAGE
+from .addressbook_pane import AddressBookPane
 
 #: Conservative URL match. Trailing punctuation is excluded so a link at the
 #: end of a sentence does not swallow the full stop into the target.
@@ -204,40 +218,50 @@ class TerminalPane(Container):
         self._flush_timer: Timer | None = None
 
     def compose(self) -> ComposeResult:
-        # A fixed header, not a line in the scrollback -- a session can run
-        # for hours, and the one thing worth finding without scrolling back
-        # to the top is where its own record is being kept. Empty and
-        # hidden until a transcript actually opens; see `set_transcript_note`.
-        yield Static("", id="transcript-note")
-        # Hidden until Ctrl+F -- see `open_find`/`action_close_find`. Sits
-        # above the scrollback, not the send row, so it never shifts where
-        # the operator types.
-        with Horizontal(id="find-row"):
-            yield Input(
-                placeholder="find in this session -- Enter: next, Shift+Enter: previous",
-                id="find-input",
-            )
-            yield Static("", id="find-status")
-            yield Button("Close", id="find-close")
-        # A RichLog is not editable, so the transcript cannot be typed into by
-        # accident. Textual's selection support keeps it copyable anyway.
-        yield RichLog(
-            id="session-log",
-            wrap=True,
-            markup=False,
-            highlight=False,
-            max_lines=5000,
-            auto_scroll=True,
-        )
-        with Horizontal(id="session-send-row"):
-            yield _SendInput(
-                placeholder="not connected -- Ctrl+N to connect",
-                id="session-input",
-            )
-            yield Button("Send", id="session-send", variant="primary")
+        # The main column holds everything this pane has always shown;
+        # the address book is a second column, hidden until Ctrl+G, docked
+        # on the right -- see `toggle_addressbook` and the module docstring.
+        with Horizontal():
+            with Vertical(id="terminal-main-column"):
+                # A fixed header, not a line in the scrollback -- a session
+                # can run for hours, and the one thing worth finding without
+                # scrolling back to the top is where its own record is being
+                # kept. Empty and hidden until a transcript actually opens;
+                # see `set_transcript_note`.
+                yield Static("", id="transcript-note")
+                # Hidden until Ctrl+F -- see `open_find`/`action_close_find`.
+                # Sits above the scrollback, not the send row, so it never
+                # shifts where the operator types.
+                with Horizontal(id="find-row"):
+                    yield Input(
+                        placeholder="find in this session -- Enter: next, Shift+Enter: previous",
+                        id="find-input",
+                    )
+                    yield Static("", id="find-status")
+                    yield Button("Close", id="find-close")
+                # A RichLog is not editable, so the transcript cannot be typed
+                # into by accident. Textual's selection support keeps it
+                # copyable anyway.
+                yield RichLog(
+                    id="session-log",
+                    wrap=True,
+                    markup=False,
+                    highlight=False,
+                    max_lines=5000,
+                    auto_scroll=True,
+                )
+                with Horizontal(id="session-send-row"):
+                    yield _SendInput(
+                        placeholder="not connected -- Ctrl+N to connect",
+                        id="session-input",
+                    )
+                    yield Button("Send", id="session-send", variant="primary")
+            with Vertical(id="terminal-addressbook-column"):
+                yield AddressBookPane()
 
     def on_mount(self) -> None:
         self.query_one("#transcript-note", Static).display = False
+        self.query_one("#terminal-addressbook-column").display = False
 
     # ------------------------------------------------------------------
     # Output
@@ -337,18 +361,54 @@ class TerminalPane(Container):
         self.query_one("#find-input", Input).focus()
 
     def action_close_find(self) -> None:
-        """Escape, or the Close button. A no-op if the bar is already
-        hidden, so binding it at the pane level (see the class docstring)
-        never disturbs a plain Escape typed for some other reason."""
+        """Escape, or the Close button.
+
+        Also the pane's one Escape handler for the address book slide-out
+        (see `toggle_addressbook`) -- find is checked first, so if both were
+        ever open at once Escape closes find before the slide-out, and a
+        second Escape closes the slide-out. A no-op if neither is open, so
+        binding it at the pane level (see the class docstring) never
+        disturbs a plain Escape typed for some other reason.
+        """
         row = self.query_one("#find-row")
-        if not row.display:
+        if row.display:
+            row.display = False
+            self._find_needle = None
+            self._find_matches = []
+            self._find_pos = -1
+            self.query_one("#find-status", Static).update("")
+            self.focus_input()
             return
-        row.display = False
-        self._find_needle = None
-        self._find_matches = []
-        self._find_pos = -1
-        self.query_one("#find-status", Static).update("")
-        self.focus_input()
+        column = self.query_one("#terminal-addressbook-column")
+        if column.display:
+            column.display = False
+            self.focus_input()
+
+    # ------------------------------------------------------------------
+    # Address book slide-out
+    # ------------------------------------------------------------------
+    def toggle_addressbook(self) -> None:
+        """Show or hide the Address Book column. `Ctrl+G`'s target on this
+        pane, dispatched from `KissTermApp.action_toggle_contacts`.
+
+        Opening repaints from `KissTermApp.addressbook` -- same rule as the
+        heard table and every other periodically-or-elsewhere-updated pane:
+        correct the instant it becomes visible, not stale until the next
+        unrelated event. (`AddressBookPane.on_mount` only ever runs once, at
+        app mount, so an attempt recorded from Ctrl+N since then would
+        otherwise never reach a slide-out that stays composed-but-hidden
+        rather than being torn down and rebuilt like a `TabPane` was.) Also
+        focuses the table so it is immediately keyboard-navigable, matching
+        `open_find` above. Closing is handled by `action_close_find`
+        (Escape), which checks find first -- see that method's docstring.
+        """
+        column = self.query_one("#terminal-addressbook-column")
+        column.display = not column.display
+        if column.display:
+            self.query_one(AddressBookPane).refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
+            self.query_one("#addressbook-table", DataTable).focus()
+        else:
+            self.focus_input()
 
     def _recompute_matches(self, needle: str) -> None:
         """Rebuild the match list only when the needle actually changed, so

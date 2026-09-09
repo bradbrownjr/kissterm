@@ -189,7 +189,6 @@ async def main() -> int:
             "monitor": "screenshot-monitor.svg",
             "heard": "screenshot-heard.svg",
             "aprs": "screenshot-aprs.svg",
-            "addressbook": "screenshot-addressbook.svg",
             "settings": "screenshot-settings.svg",
         }
         written = []
@@ -205,6 +204,19 @@ async def main() -> int:
                 await pilot.pause()
             app.save_screenshot(str(ASSETS / name))
             written.append(ASSETS / name)
+
+        # The Address Book is now a Ctrl+G slide-out on the Terminal pane,
+        # not its own tab -- open it here for its own screenshot rather than
+        # switching to a tab that no longer exists.
+        app.action_show_tab("terminal")
+        await pilot.pause()
+        terminal.toggle_addressbook()
+        await pilot.pause()
+        await asyncio.sleep(0.15)
+        await pilot.pause()
+        addressbook_shot = ASSETS / "screenshot-addressbook.svg"
+        app.save_screenshot(str(addressbook_shot))
+        written.append(addressbook_shot)
 
     station.close()
 

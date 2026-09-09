@@ -349,7 +349,7 @@ async def test_tab_switching_keys_are_not_duplicated_in_the_footer():
             for key, active in app.active_bindings.items()
             if active.binding.show
         }
-        for key in ("f1", "f2", "f3", "f4", "f5", "f6"):
+        for key in ("f1", "f2", "f3", "f4", "f5"):
             assert key not in shown, (
                 f"{key} is shown in the footer, duplicating its tab label"
             )
@@ -376,10 +376,35 @@ async def test_tab_labels_carry_the_function_key_hint():
             "F2 Monitor",
             "F3 Heard",
             "F4 APRS",
-            "F5 Address Book",
-            "F6 Settings",
+            "F5 Settings",
         ):
             assert hint in labels, f"missing {hint!r} in tab labels: {labels}"
+    station.close()
+
+
+# ---------------------------------------------------------------------------
+# The Ctrl+G contacts slide-out -- see DESIGN.md's "slide-out panels" section.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_addressbook_slideout_is_hidden_by_default():
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert not app.query_one("#terminal-addressbook-column").display
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_g_is_a_no_op_on_a_tab_with_no_slideout():
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press("f2")  # Monitor -- no slide-out of its own
+        await pilot.pause()
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+        assert not app.query_one("#terminal-addressbook-column").display
     station.close()
 
 

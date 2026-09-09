@@ -1,4 +1,5 @@
-"""The Address Book pane (F5): its own tab, dialing, and management.
+"""The Address Book pane: a Ctrl+G slide-out on the Terminal pane, dialing,
+and management.
 
 `isolate()` runs FIRST -- see tests/pilot/test_app_mounts.py's module
 docstring for why.
@@ -20,6 +21,7 @@ from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.ui.addressbook_pane import AddressBookPane  # noqa: E402
+from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
 MYCALL = AX25Address.parse("N1ABC-1")
@@ -41,22 +43,38 @@ def _fresh_book(app, tmp_path) -> AddressBook:
 
 
 async def _addressbook_tab(app, pilot):
-    app.action_show_tab("addressbook")
+    """Switch to Terminal and open the Address Book slide-out -- the
+    Ctrl+G-equivalent setup step every test in this file needs before it can
+    reach `#addressbook-table`."""
+    app.action_show_tab("terminal")
+    await pilot.pause()
+    app.query_one(TerminalPane).toggle_addressbook()
     await pilot.pause()
     await asyncio.sleep(0.05)
     await pilot.pause()
 
 
 @pytest.mark.asyncio
-async def test_address_book_is_f5_and_settings_is_f6():
+async def test_settings_is_f5_and_ctrl_g_opens_the_addressbook_from_terminal():
     app, station, ta, tb = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.press("f5")
         await pilot.pause()
-        assert app.query_one("#main-tabs").active == "addressbook"
-        await pilot.press("f6")
-        await pilot.pause()
         assert app.query_one("#main-tabs").active == "settings"
+
+        await pilot.press("f1")
+        await pilot.pause()
+        column = app.query_one("#terminal-addressbook-column")
+        assert not column.display, "the slide-out must start hidden"
+
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+        assert column.display, "Ctrl+G did not open the address book slide-out"
+        assert app.query_one("#addressbook-table", DataTable).has_focus
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not column.display, "Escape did not close the slide-out"
     station.close()
 
 
@@ -203,8 +221,8 @@ async def test_forgetting_an_entry(tmp_path):
 @pytest.mark.asyncio
 async def test_insert_f2_and_delete_act_only_while_the_table_is_focused(tmp_path):
     """Bound on the table widget itself so Delete still deletes a character
-    out of an Input on another tab, rather than forgetting a row on a tab
-    that was not even open."""
+    out of the terminal's own send input, rather than forgetting a row in
+    the address book slide-out sitting open right beside it."""
     app, station, ta, tb = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
         book = _fresh_book(app, tmp_path)
@@ -213,8 +231,6 @@ async def test_insert_f2_and_delete_act_only_while_the_table_is_focused(tmp_path
         app.query_one(AddressBookPane).refresh_from(book)
         await pilot.pause()
 
-        app.action_show_tab("terminal")
-        await pilot.pause()
         app.query_one("#session-input", Input).focus()
         await pilot.pause()
 

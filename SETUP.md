@@ -293,11 +293,11 @@ exactly the way SyncTERM or a plain `telnet`/`ssh` client already reaches
 this kind of node.
 
 Neither is found by "Scan for hardware" — that only sweeps your own LAN, and
-neither one is hardware to begin with. Add the entry from Settings (`F6`) >
+neither one is hardware to begin with. Add the entry from Settings (`F5`) >
 Transports > New, which asks for exactly these fields, or by hand in
 `config.toml` (see the worked examples in `config.toml.example`) if you
 prefer to edit text directly — either way it shows up the same in Settings
-(`F6`) > Transports:
+(`F5`) > Transports:
 
 ```toml
 [[transports]]

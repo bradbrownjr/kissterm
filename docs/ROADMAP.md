@@ -507,22 +507,25 @@ working ceiling; ten tabs the practical maximum.** F11 stays off-limits --
 "toggle fullscreen" in enough terminal emulators and window managers that it
 rarely reaches the application at all.
 
-Six tabs exist now (F1 Terminal, F2 Monitor, F3 Heard, F4 APRS, F5 Address
-Book, F6 Settings -- Address Book shipped after this section was first
-written and took the F5 slot Settings originally had, bumping Settings to
-F6). The three below take **F7 Mail, F8 Bulletins, F9 Files**, landing with
-**F10 spare** for whatever needs a tab next -- no longer the "nothing to
-spare" situation the F8 ceiling produced, but still worth spending
-deliberately: do not put something on F10 that would rather be a
-command-palette entry or a modal.
+Five tabs exist now (F1 Terminal, F2 Monitor, F3 Heard, F4 APRS, F5
+Settings). Address Book briefly had its own F5 slot (bumping Settings to F6)
+before it shipped as a collapsible slide-out on the Terminal pane instead --
+`Ctrl+G`, see `kissterm/ui/app.py`'s module docstring and `DESIGN.md`'s
+"slide-out panels" section -- which returned Settings to F5 and freed the
+slot back up. The three below take **F6 Mail, F7 Bulletins, F8 Files**,
+landing with **F9 and F10 spare** for whatever needs a tab next -- do not put
+something on either of those that would rather be a command-palette entry or
+a modal. Mail's own contact list is expected to reuse the Address-Book/APRS
+slide-out recipe rather than becoming a seventh tab or a fourth copy of
+"contacts".
 
-- [ ] **Mail tab (F7)** -- personal message store, sub-views for Inbox,
+- [ ] **Mail tab (F6)** -- personal message store, sub-views for Inbox,
       Outbox, Sent and Deleted. Reads the mailbox P9 builds; the tab is the
       view layer, not a second copy of the storage. Deleted should be a real
       recoverable folder rather than immediate destruction -- an operator who
       fat-fingers a delete on a message that arrived over a marginal HF path
       may have no way to get it re-sent. Large.
-- [ ] **Bulletins tab (F8)** -- same four sub-views, but bulletins are
+- [ ] **Bulletins tab (F7)** -- same four sub-views, but bulletins are
       broadcast-addressed rather than person-addressed, and that difference is
       not cosmetic: a bulletin is addressed to a category (`ALL`, `ARES`,
       `WX`) and typically carries a lifetime after which it should stop being
@@ -571,7 +574,7 @@ operator's own callsign and licence. So:
 - [ ] **A hash and a claimed-source line per file**, shown locally and in the
       remote listing. Small once the areas exist.
 
-- [ ] **Files tab (F9)** -- sub-views for Downloads (files this station
+- [ ] **Files tab (F8)** -- sub-views for Downloads (files this station
       fetched), Received (files other stations sent us, which is the P9 drop
       box and carries all of its security requirements: a resolved jail
       directory, allowlisted filenames, quotas enforced during transfer, never

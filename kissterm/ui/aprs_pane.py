@@ -25,6 +25,16 @@ The "To:" field is independent of the contacts table on purpose: typing a
 bare callsign there sends to someone not in the contact list at all, the
 same way the Connect dialog and the Address Book coexist -- a contact is a
 convenience, not a requirement, for messaging someone.
+
+**The contacts table is a Ctrl+G slide-out, docked on the right, not a
+permanent column.** The conversation view is what an operator is actually
+looking at while messaging someone; the contact list is a lookup, summoned
+with `KissTermApp.action_toggle_contacts` (dispatched here to
+`toggle_contacts`) the same way the Terminal pane's Address Book is -- see
+`DESIGN.md`'s "slide-out panels" section for the shared recipe. Picking a
+row closes the panel again (`_row_selected`), since choosing a contact and
+then still having the list covering the screen is not what "select a
+contact" was for.
 """
 
 from __future__ import annotations
@@ -67,7 +77,11 @@ class _AprsContactTable(DataTable):
 
 
 class AprsPane(Horizontal):
-    """Contacts on the left, the selected contact's conversation on the right."""
+    """The conversation view, plus a Ctrl+G contacts slide-out on the right."""
+
+    BINDINGS = [
+        Binding("escape", "close_contacts", show=False),
+    ]
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
@@ -77,6 +91,15 @@ class AprsPane(Horizontal):
         self._next_msg_number = 1
 
     def compose(self) -> ComposeResult:
+        # Conversation first -- this is the main, always-visible column.
+        # Contacts is the slide-out, hidden by default; see `toggle_contacts`.
+        with Vertical(id="aprs-conversation-column"):
+            yield Static("Select a contact to see its message history.", id="aprs-conversation-title")
+            yield RichLog(id="aprs-conversation-log", wrap=True, markup=False)
+            with Horizontal(id="aprs-compose-row"):
+                yield Input(placeholder="To (callsign)", id="aprs-to-input")
+                yield Input(placeholder="Message", id="aprs-compose-input")
+                yield Button("Send", variant="primary", id="aprs-send-button")
         with Vertical(id="aprs-contacts-column"):
             yield Static("APRS messaging contacts.", classes="addressbook-note")
             yield _AprsContactTable(id="aprs-contact-table", cursor_type="row", zebra_stripes=True)
@@ -88,17 +111,39 @@ class AprsPane(Horizontal):
                 "Insert: new -- F2: edit selected -- Delete: forget selected",
                 classes="addressbook-hint",
             )
-        with Vertical(id="aprs-conversation-column"):
-            yield Static("Select a contact to see its message history.", id="aprs-conversation-title")
-            yield RichLog(id="aprs-conversation-log", wrap=True, markup=False)
-            with Horizontal(id="aprs-compose-row"):
-                yield Input(placeholder="To (callsign)", id="aprs-to-input")
-                yield Input(placeholder="Message", id="aprs-compose-input")
-                yield Button("Send", variant="primary", id="aprs-send-button")
 
     def on_mount(self) -> None:
         self.refresh_from(self.app.config.aprs_contacts)  # type: ignore[attr-defined]
+        self.query_one("#aprs-contacts-column").display = False
         self.set_interval(_RETRY_CHECK_INTERVAL, self._check_retries)
+
+    # -- contacts slide-out ---------------------------------------------------
+    def toggle_contacts(self) -> None:
+        """Show or hide the contacts column. `Ctrl+G`'s target on this pane,
+        dispatched from `KissTermApp.action_toggle_contacts`. Opening
+        repaints from `Config.aprs_contacts` (same "correct the instant it
+        becomes visible" reasoning as `TerminalPane.toggle_addressbook` --
+        this column stays composed-but-hidden rather than being torn down
+        and rebuilt, so nothing else repaints it once the pane has mounted)
+        and focuses the table; closing (here or via Escape) returns focus to
+        the compose field.
+        """
+        column = self.query_one("#aprs-contacts-column")
+        column.display = not column.display
+        if column.display:
+            self.refresh_from(self.app.config.aprs_contacts)  # type: ignore[attr-defined]
+            self.query_one("#aprs-contact-table", DataTable).focus()
+        else:
+            self.query_one("#aprs-compose-input", Input).focus()
+
+    def action_close_contacts(self) -> None:
+        """Escape. A no-op if the column is already hidden, so binding it at
+        the pane level never disturbs a plain Escape typed for some other
+        reason (e.g. inside a modal opened over this pane)."""
+        column = self.query_one("#aprs-contacts-column")
+        if column.display:
+            column.display = False
+            self.query_one("#aprs-compose-input", Input).focus()
 
     # ------------------------------------------------------------------
     def refresh_from(self, raw_contacts: list[dict]) -> None:
@@ -144,6 +189,10 @@ class AprsPane(Horizontal):
         contact = Contact.from_dict(raw_contacts[index])
         self.query_one("#aprs-to-input", Input).value = contact.callsign
         self._show_conversation(index)
+        # Picking a contact closes the panel -- the conversation just loaded
+        # is what the operator wants to look at next, not a panel still
+        # covering part of the screen.
+        self.action_close_contacts()
 
     def _show_conversation(self, index: int) -> None:
         raw_contacts = self._contacts()

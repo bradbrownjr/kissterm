@@ -213,6 +213,8 @@ async def test_sending_to_an_sms_contact_transmits_the_templated_body(tmp_path):
 
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
+        app.query_one(AprsPane).toggle_contacts()
+        await pilot.pause()
         table = app.query_one("#aprs-contact-table")
         table.focus()
         table.move_cursor(row=0)

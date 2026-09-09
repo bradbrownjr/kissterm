@@ -83,7 +83,16 @@ Underline > .underline--bar { color: $accent; }
 }
 
 /* Terminal pane */
-TerminalPane { layout: vertical; }
+TerminalPane { layout: horizontal; }
+#terminal-main-column { width: 1fr; layout: vertical; }
+/* The Address Book slide-out -- hidden by default (TerminalPane.on_mount),
+   toggled by Ctrl+G. See DESIGN.md's "slide-out panels" section: docked
+   right, no animation, focus moves in on open. Same width and border
+   treatment as AprsPane's own contacts slide-out below, so the two read as
+   one pattern rather than two coincidentally similar panels. */
+/* No padding here -- AddressBookPane already pads itself (0 2) so this
+   column does not double it. */
+#terminal-addressbook-column { width: 58%; border-left: solid $panel; }
 #transcript-note { height: auto; padding: 0 1; color: $text-muted; }
 /* Hidden until Ctrl+F -- see TerminalPane.open_find. */
 #find-row { height: auto; display: none; }
@@ -120,8 +129,11 @@ AddressBookPane { layout: vertical; padding: 0 2; }
 
 /* APRS pane */
 AprsPane { height: 1fr; }
-#aprs-contacts-column { width: 58%; padding: 0 2; }
-#aprs-conversation-column { width: 1fr; padding: 0 2; border-left: solid $panel; }
+#aprs-conversation-column { width: 1fr; padding: 0 2; }
+/* The contacts slide-out -- hidden by default (AprsPane.on_mount), toggled
+   by Ctrl+G. Same width/border treatment as the Terminal pane's Address
+   Book slide-out -- see DESIGN.md's "slide-out panels" section. */
+#aprs-contacts-column { width: 58%; padding: 0 2; border-left: solid $panel; }
 #aprs-contact-table { height: 1fr; }
 #aprs-conversation-title { padding: 1 0; color: $text-muted; }
 #aprs-conversation-log { height: 1fr; border: solid $panel; }
