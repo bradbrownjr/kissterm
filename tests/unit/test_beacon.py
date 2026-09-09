@@ -253,19 +253,23 @@ async def test_nothing_is_transmitted_at_start():
 
 
 @pytest.mark.asyncio
-async def test_the_timer_fires_after_one_interval():
+async def test_the_timer_fires_after_one_interval(monkeypatch):
+    """`monkeypatch.setattr` on the class, not a manual set-then-`del`: a
+    `del` on a class attribute destroys the original `@property` object
+    permanently for the rest of the process rather than reverting to it --
+    that previously broke `tests/pilot/test_beacon_wiring.py` whenever
+    `tests/unit/test_beacon.py` happened to run first."""
     station, ta, _ = await _station()
     beacon = Beaconer(station, _config())
     # Monkeypatched rather than waiting ten real minutes. The floor itself is
     # asserted separately, above.
-    type(beacon).interval_seconds = property(lambda self: 0.05)
+    monkeypatch.setattr(type(beacon), "interval_seconds", property(lambda self: 0.05))
     try:
         assert beacon.start() == ""
         await asyncio.sleep(0.18)
         assert beacon.sent_count >= 2
         assert len(ta.sent) >= 2
     finally:
-        del type(beacon).interval_seconds
         await beacon.stop()
 
 
@@ -292,18 +296,15 @@ async def test_stop_and_cancel_are_safe_when_never_started():
 
 
 @pytest.mark.asyncio
-async def test_stop_disarms_it():
+async def test_stop_disarms_it(monkeypatch):
     station, ta, _ = await _station()
     beacon = Beaconer(station, _config())
-    type(beacon).interval_seconds = property(lambda self: 0.05)
-    try:
-        beacon.start()
-        await beacon.stop()
-        assert not beacon.running
-        await asyncio.sleep(0.2)
-        assert ta.sent == []
-    finally:
-        del type(beacon).interval_seconds
+    monkeypatch.setattr(type(beacon), "interval_seconds", property(lambda self: 0.05))
+    beacon.start()
+    await beacon.stop()
+    assert not beacon.running
+    await asyncio.sleep(0.2)
+    assert ta.sent == []
 
 
 # ---------------------------------------------------------------------------

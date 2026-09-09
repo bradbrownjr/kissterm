@@ -3,6 +3,38 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — APRS beaconing actually beacons
+
+### New Features
+- **APRS position beaconing is wired up.** `Config.aprs`'s Settings section
+  has said "Transmits your position on a timer" since it shipped, but
+  nothing read those fields -- toggling "Enable APRS beaconing" on did
+  nothing at all. `kissterm/aprs_beacon.py`'s new `AprsBeaconer` closes that
+  gap: same shape as `kissterm/beacon.py`'s `Beaconer` (`start`/`stop`/
+  `cancel`/`send_once`/`problem`/`build_frame`, sleep-then-send, re-checked
+  at the moment of transmission, off by default) but its own timer, its own
+  config table, and its own destination (`APRS`, always, per `_send_aprs_ack`/
+  `_send_aprs_message`'s existing convention) -- never conflated with the
+  plain-text beacon, per AGENTS.md's "a beacon is not APRS beaconing" rule.
+  - `Config.aprs.latitude`/`longitude` both `0.0` (the untouched default) is
+    treated as "no position set," not the Gulf of Guinea -- refused rather
+    than transmitting a placeholder position under the operator's callsign.
+  - The same 10-minute interval floor as the plain-text beacon, enforced in
+    both `config._load_aprs` and `AprsBeaconer.interval_seconds` -- the
+    Settings field's minimum was quietly 1 while the help text said 10;
+    both now agree.
+  - Wired into `KissTermApp` exactly like the existing beacon: constructed
+    in `__init__`, (re)started from `apply_runtime_settings` on mount and
+    every Settings save, cancelled on `on_unmount`, every transmission
+    logged to the terminal pane, and an `APRS BEACON` status-bar marker for
+    as long as it is armed -- the same "unattended transmission is always
+    visible" rule as `ANSWERING`/`BEACON`.
+
+### Files
+- `kissterm/aprs_beacon.py` (new), `kissterm/config.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/settings_schema.py`, `tests/unit/test_aprs_beacon.py` (new),
+  `tests/pilot/test_aprs_beacon_wiring.py` (new), `docs/ROADMAP.md`
+
 ## [2026-09-09] — Roadmap audit: several open items were already shipped, and two Settings fields are dead
 
 ### Improvements

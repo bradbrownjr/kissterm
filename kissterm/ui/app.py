@@ -117,8 +117,9 @@ from ..aprs_conversations import ConversationStore
 from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import AX25Station, parse_path
 from ..ax25.address import AX25Address
+from ..aprs_beacon import AprsBeaconer
 from ..beacon import Beaconer
-from ..config import BeaconConfig, find_credential, find_script
+from ..config import AprsConfig, BeaconConfig, find_credential, find_script
 from .. import desktop_notify
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
@@ -605,6 +606,14 @@ class KissTermApp(App):
             station, getattr(config, "beacon", None) or BeaconConfig(),
             on_sent=self._on_beacon_sent,
         )
+        #: APRS position beacon -- same shape as `beaconer` above, separate
+        #: timer, separate config table, separate destination. See
+        #: `kissterm/aprs_beacon.py`'s module docstring for why the two must
+        #: never be conflated.
+        self.aprs_beaconer = AprsBeaconer(
+            station, getattr(config, "aprs", None) or AprsConfig(),
+            on_sent=self._on_aprs_beacon_sent,
+        )
 
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -696,6 +705,7 @@ class KissTermApp(App):
         for pane in self._base_query(TerminalPane):
             pane.remote_color = getattr(self.config, "remote_color", True)
         self._restart_beacon()
+        self._restart_aprs_beacon()
 
     @work
     async def _restart_beacon(self) -> None:
@@ -725,14 +735,32 @@ class KissTermApp(App):
         """
         self._to_terminal("log", f"\n*** Beacon sent to {frame.path.destination}\n")
 
+    @work
+    async def _restart_aprs_beacon(self) -> None:
+        """Stop then start the APRS position beacon -- see `_restart_beacon`
+        for why a live mutation is wrong here too: a half-changed config
+        transmitting under the operator's callsign is never acceptable.
+        """
+        await self.aprs_beaconer.stop()
+        self.aprs_beaconer.station = self.station
+        self.aprs_beaconer.config = getattr(self.config, "aprs", None) or AprsConfig()
+        why = self.aprs_beaconer.start()
+        if why and self.aprs_beaconer.config.enabled and why != "transmit is disabled":
+            self.notify(f"APRS beacon not started: {why}", severity="warning")
+
+    def _on_aprs_beacon_sent(self, frame: AX25Frame) -> None:
+        """Same rule as `_on_beacon_sent`: every transmission is visible."""
+        self._to_terminal("log", "\n*** APRS position beacon sent\n")
+
     def on_unmount(self) -> None:
-        """Disarm the beacon as the app goes away.
+        """Disarm the beacons as the app goes away.
 
         Not merely tidy: a beacon task still armed while the UI is being torn
         down would transmit under the operator's callsign with nothing on
         screen to show it -- and nowhere to show it.
         """
         self.beaconer.cancel()
+        self.aprs_beaconer.cancel()
         self._unsubscribe_monitor()
         self._unsubscribe_aprs()
         self._close_transcript()
@@ -2064,6 +2092,8 @@ class KissTermApp(App):
             # it is on screen for as long as it is armed -- not only when it
             # happens to fire.
             parts.append("BEACON")
+        if self.aprs_beaconer.running:
+            parts.append("APRS BEACON")
         parts.append(f"heard {len(self.heard)}")
         renderable = _status_row(parts)
         for bar in self._base_query("#status-bar"):

@@ -208,6 +208,9 @@ kissterm/
 │   ├── tx.py                # MASTER TRANSMIT GATE -- closed on launch
 │   ├── ansi.py              # SGR ALLOWLIST for the terminal pane only
 │   ├── beacon.py            # BTEXT: unproto UI frames on a timer (NOT APRS)
+│   ├── aprs_beacon.py       # APRS position beacon on its own timer (NOT
+│   │                        #   beacon.py's BTEXT -- separate config,
+│   │                        #   separate destination)
 │   ├── session_log.py       # per-session plain-text transcript
 │   ├── transcripts.py       # lists/reads saved transcripts for the browser
 │   ├── heard.py             # MHEARD table
@@ -845,17 +848,19 @@ again after a Settings save or a config reload.
   no commands. That is roadmap P9. **Read P9's regulatory note before building
   a mailbox**: unattended answering and third-party traffic are both regulated
   and vary by country and band.
-- **The APRS pane is still a placeholder, but decoding itself is now wired
-  to the frame fan-out** (2026-09-08). `KissTermApp._on_aprs_frame`
-  (`kissterm/ui/app.py`) is a second subscriber on the same fan-out the
-  monitor pane uses -- `aprs.parse_packet` runs on every frame, feeding
+- **The APRS pane covers messaging and beaconing; a station list/map view is
+  still open (P4).** `KissTermApp._on_aprs_frame` (`kissterm/ui/app.py`) is a
+  second subscriber on the same fan-out the monitor pane uses --
+  `aprs.parse_packet` runs on every frame, feeding
   `kissterm/aprs_conversations.py` (message history) and
   `kissterm/aprs_notify.py` (message-addressed-to-me / Emergency Mic-E
-  desktop notification, plus auto-ack). The Monitor pane still shows the
-  *raw sanitized frame text* for APRS traffic, not a decoded position --
-  that is what the dedicated pane (station list/map, a chat-style
-  conversation view per contact, beaconing -- P4) still needs to add, now
-  that the decode subscriber and message store it depends on both exist.
+  desktop notification, plus auto-ack). The contacts CRUD pane, a
+  conversation view per contact, sending with ack/retry, SMS/email compose,
+  and a periodic position beacon (`kissterm/aprs_beacon.py`) have all
+  shipped since. The Monitor pane still shows the *raw sanitized frame
+  text* for APRS traffic, not a decoded position -- what P4 still needs is
+  a dedicated station list/map or bearing-distance view, now that the
+  decode subscriber and message store it would depend on both exist.
 - **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
   documents YAPP as a dead end because BPQ32's terminal emulation filters the
   control characters it needs — that limitation applies to apps running *under*

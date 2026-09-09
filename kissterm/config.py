@@ -679,6 +679,14 @@ def _load_aprs(value: Any, warnings: list[str]) -> AprsConfig:
     aprs.beacon_interval_minutes = _load_int(
         value, "beacon_interval_minutes", default.beacon_interval_minutes, warnings
     )
+    if aprs.beacon_interval_minutes < MIN_BEACON_INTERVAL_MINUTES:
+        warnings.append(
+            f"aprs.beacon_interval_minutes {aprs.beacon_interval_minutes} is below "
+            f"the {MIN_BEACON_INTERVAL_MINUTES}-minute minimum; using "
+            f"{MIN_BEACON_INTERVAL_MINUTES}. A beacon occupies a channel "
+            f"everyone else shares."
+        )
+        aprs.beacon_interval_minutes = MIN_BEACON_INTERVAL_MINUTES
     aprs.symbol = _load_str(value, "symbol", default.symbol, warnings)
     aprs.comment = _load_str(value, "comment", default.comment, warnings)
     aprs.path = _load_str(value, "path", default.path, warnings)

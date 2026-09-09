@@ -190,9 +190,11 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "aprs.beacon_interval_minutes",
                 "Beacon every (min)",
                 "int",
-                "Beaconing more often than every 10 minutes on a shared "
-                "channel is antisocial unless you are moving.",
-                minimum=1,
+                "Ten minutes is the floor and it is enforced, not "
+                "suggested -- a shorter interval on a shared channel is "
+                "antisocial unless you are moving. Thirty or sixty is "
+                "normal for a fixed station.",
+                minimum=10,
                 maximum=1440,
                 apply="live",
             ),

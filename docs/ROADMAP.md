@@ -124,19 +124,6 @@ with ack/retry, and SMS/email compose forms -- all shipped 2026-09-08 and
   positions decode (`aprs.parse_packet`, `kind in ("position", "mic-e",
   ...)`) but nothing renders them yet; see the separate "text-mode map or
   bearing/distance list" item below, which covers the same ground.
-- [ ] **Beaconing on a timer.** Fixed-interval position/status beacon
-  transmission. `Config.aprs`'s `enabled`/`beacon_interval_minutes`/
-  `latitude`/`longitude`/`symbol`/`comment`/`path` fields and their Settings
-  "APRS" section already exist end to end, and the Settings copy already
-  says "Transmits your position on a timer" — **but nothing reads them**.
-  There is no periodic task anywhere that calls `aprs.encode`/`beacon_frame`
-  to actually send a position; toggling "Enable APRS beaconing" on today
-  does nothing. This is worse than merely unbuilt, since the Settings pane
-  currently promises behaviour that does not exist — treat wiring an actual
-  `Beaconer`-shaped periodic sender (reusing `kissterm/beacon.py`'s
-  interval-floor and never-send-empty rules, per AGENTS.md's beacon
-  section) as higher priority than the wording suggests. Small once
-  scoped.
 - [ ] **Smart beaconing.** Speed/heading-aware beacon interval adjustment
   (the SmartBeaconing algorithm most APRS trackers use) — needs a GPS or
   manually-entered position source first. Medium.
