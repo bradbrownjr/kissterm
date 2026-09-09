@@ -7,8 +7,10 @@ overhearing -- names a source station, and "who has this radio heard, and
 when, and through what path" is useful long before anything above the frame
 layer gets involved. Keeping it here rather than folding it into the APRS
 decoder means a pure-AX.25 station that never sends a position report still
-shows up, and it means the APRS pane can enrich an entry (via `set_position`)
-without owning the table it is enriching.
+shows up, and it means the APRS decode path (`KissTermApp._on_aprs_frame`)
+can enrich an entry (via `set_position`) without this module owning APRS
+decoding, or the table owning the pane that renders bearing/distance from it
+(`kissterm/ui/heard_pane.py`).
 
 `direct` answers a specific question a station log needs answered up front:
 did we hear *this* station's own transmitter, or did we hear a digipeater

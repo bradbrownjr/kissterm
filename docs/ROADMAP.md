@@ -152,10 +152,11 @@ entries. What's still open:
   honest answer; a "last checked" column in the picker already tells an
   operator how stale the claim is. Revisit if entries start rotting.
 
-- [ ] **A heard-stations position/map view.** Not part of this pass --
-  positions decode (`aprs.parse_packet`, `kind in ("position", "mic-e",
-  ...)`) but nothing renders them yet; see the separate "text-mode map or
-  bearing/distance list" item below, which covers the same ground.
+- [ ] **A heard-stations position/map view.** The bearing/distance-list v1
+  shipped `[2026-09-09]` (see CHANGELOG: `kissterm/geo.py`, the Heard pane's
+  Distance/Bearing columns, sortable by header click) -- what's still open is
+  the map itself, see the "text-mode map" item below, now narrowed to just
+  that.
 - [ ] **GPS integration.** Everything shipped `[2026-09-09]` (see
   CHANGELOG) covers a *fixed* station: static decimal-degree or
   Maidenhead-grid-square position entry in Settings, with a real
@@ -207,10 +208,10 @@ entries. What's still open:
   (the SmartBeaconing algorithm most APRS trackers use) — needs the GPS
   integration item above as its position/speed source first. Medium once
   that exists.
-- [ ] **A text-mode map or a bearing/distance list.** Full map rendering in a
-  terminal is a stretch; a sorted bearing/distance-from-me list of heard
-  stations is the realistic v1, with a crude ASCII-art radar-style view as a
-  possible stretch goal. Medium.
+- [ ] **A text-mode map.** The realistic v1 -- a sorted bearing/distance-from-me
+  list of heard stations -- shipped `[2026-09-09]` as Heard-pane columns; what
+  remains is a full map rendering, or a crude ASCII-art radar-style view as a
+  lighter stretch goal than a real map. Medium.
 - [ ] **Weather and telemetry display.** Decoding is already done --
   `kissterm/aprs/telemetry.py`'s `parse_weather`/`parse_telemetry` and
   `aprs.parse_packet`'s `"weather"`/`"telemetry"` `kind`s -- what's missing

@@ -3,6 +3,41 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-09] — Heard pane: bearing and distance to every position-bearing station
+
+### New Features
+- **`kissterm/geo.py`** — great-circle bearing and distance (haversine),
+  returning miles to match every other distance already in this codebase
+  (`Position.range_mi`, `WeatherReport.wind_speed_mph`), plus a 16-point
+  compass label (`compass_point`). No existing dependency covers this and
+  the formulas are short, the same trade `locator.py` already made for
+  Maidenhead conversion.
+- **The Heard pane gained Distance and Bearing columns**, computed against
+  the operator's own position (`Config.aprs.latitude`/`longitude` -- the
+  same "no position set" test `AprsBeaconer` already uses) and each
+  station's last known position. Click either header to sort by it, click
+  again to reverse -- the "sorted bearing/distance-from-me list" P4's
+  roadmap item called the realistic v1 of a heard-stations map. Recomputed
+  fresh on every repaint, never cached, so a Settings change to the
+  operator's own position shows up on the next refresh with nothing to
+  invalidate.
+
+### Fixes
+- **`HeardTable.set_position` was dead code.** `heard.py`'s own module
+  docstring already described it as fed by "the APRS layer after it decodes
+  a position report", but nothing ever called it -- `HeardEntry.last_position`
+  stayed `None` forever, silently, because the Heard pane never rendered it
+  either, so there was nothing on screen to notice it missing. Wired into
+  `KissTermApp._on_aprs_frame`, the same fan-out subscriber that already
+  feeds message history and notifications, for `kind in ("position",
+  "mic-e")` -- the two APRS kinds whose `data` names a station's own fix
+  (an `object`/`item` report names something else, not the transmitting
+  station, and is left alone).
+
+**Files:** `kissterm/geo.py` (new), `kissterm/heard.py`, `kissterm/ui/app.py`,
+`kissterm/ui/heard_pane.py`, `tests/unit/test_geo.py` (new),
+`tests/pilot/test_app_mounts.py`, `docs/ROADMAP.md`.
+
 ## [2026-09-09] — Tabbed APRS conversations, with unread marked
 
 ### New Features

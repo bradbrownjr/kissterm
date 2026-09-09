@@ -301,6 +301,64 @@ async def test_heard_table_populates_the_moment_the_tab_opens():
 
 
 @pytest.mark.asyncio
+async def test_a_position_frame_enriches_the_heard_table():
+    """`HeardTable.set_position` used to be dead code -- nothing ever called
+    it, so `HeardEntry.last_position` stayed `None` forever and the Heard
+    pane's Distance/Bearing columns had nothing to render. This is the
+    frame -> `_on_aprs_frame` -> `heard.set_position` wiring."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        path = AX25Path(AX25Address.parse("APRS"), AX25Address.parse("W1AW-9"))
+        # 42 23.45 N, 071 05.67 W in the plain uncompressed position format.
+        await tb.send_frame(AX25Frame.u_frame(path, UType.UI, info=b"!4223.45N/07105.67W>"))
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+
+        entry = app.heard.get("W1AW-9")
+        assert entry is not None, "position frame did not reach the heard table at all"
+        assert entry.last_position is not None, "heard entry never got a position"
+        lat, lon = entry.last_position
+        assert lat == pytest.approx(42.0 + 23.45 / 60, abs=0.001)
+        assert lon == pytest.approx(-(71.0 + 5.67 / 60), abs=0.001)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_heard_table_shows_bearing_and_distance_once_own_position_is_set():
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 32)) as pilot:
+        # Same fix as the test above, a few miles from the operator's own
+        # position set below.
+        path = AX25Path(AX25Address.parse("APRS"), AX25Address.parse("W1AW-9"))
+        await tb.send_frame(AX25Frame.u_frame(path, UType.UI, info=b"!4223.45N/07105.67W>"))
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+
+        # Nothing set yet -- Distance/Bearing must read "-", not crash or
+        # show a stale/zero value.
+        app.action_show_tab("heard")
+        await pilot.pause()
+        table = app.query_one("#heard-table")
+        row = next(r for r in range(table.row_count) if str(table.get_cell_at((r, 0))) == "W1AW-9")
+        assert str(table.get_cell_at((row, 5))) == "-"
+        assert str(table.get_cell_at((row, 6))) == "-"
+
+        app.config.aprs.latitude = 42.0
+        app.config.aprs.longitude = -71.0
+        app._refresh_heard(force=True)
+        await pilot.pause()
+
+        row = next(r for r in range(table.row_count) if str(table.get_cell_at((r, 0))) == "W1AW-9")
+        distance_text = str(table.get_cell_at((row, 5)))
+        bearing_text = str(table.get_cell_at((row, 6)))
+        assert distance_text.endswith("mi"), distance_text
+        assert "\N{DEGREE SIGN}" in bearing_text, bearing_text
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_unplugging_the_active_transport_is_reported():
     """A TNC vanishing mid-session must say so, not fail silently later."""
     from kissterm.hotplug import PortEvent

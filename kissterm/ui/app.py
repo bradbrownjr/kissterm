@@ -909,6 +909,14 @@ class KissTermApp(App):
         if packet is None:
             return
 
+        if packet.kind in ("position", "mic-e") and isinstance(packet.data, aprs.Position):
+            # Enriches the MHEARD entry this frame already produced via
+            # `_on_received_frame` -> `heard.record` -- `HeardTable` never
+            # decodes APRS itself (see its module docstring), so this is the
+            # one place that feeds it a position. Feeds the Heard pane's
+            # bearing/distance columns.
+            self.heard.set_position(str(packet.source), packet.data.latitude, packet.data.longitude)
+
         if packet.kind == "message" and isinstance(packet.data, aprs.Message):
             msg = packet.data
             source = str(packet.source)
@@ -2276,8 +2284,15 @@ class KissTermApp(App):
             tabs = list(self._base_query("#main-tabs"))
             if not tabs or tabs[0].active != "heard":
                 return
+        # Same "no position set" test `AprsBeaconer` already uses (0.0/0.0 is
+        # the field default, not a real station's QTH) -- one convention for
+        # "has the operator entered a position", not a second one invented
+        # here.
+        my_pos = None
+        if self.config.aprs.latitude != 0.0 or self.config.aprs.longitude != 0.0:
+            my_pos = (self.config.aprs.latitude, self.config.aprs.longitude)
         for pane in self._base_query(HeardPane):
-            pane.refresh_from(self.heard)
+            pane.refresh_from(self.heard, my_position=my_pos)
 
     @on(TabbedContent.TabActivated, "#main-tabs")
     def _on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
