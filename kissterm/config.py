@@ -245,6 +245,27 @@ class Config:
     #: dict shape and validation; managed from the APRS pane (F4), not
     #: Settings, the same reason the address book moved to its own tab.
     aprs_contacts: list[dict[str, Any]] = field(default_factory=list)
+    #: The operator's own saved APRS messages (`{"name", "text", "gateway"}`)
+    #: -- see `kissterm.aprs_contacts.CannedMessage`. `gateway` scopes one to
+    #: a single shipped service (an id from `kissterm/aprs_services/`); empty
+    #: means it shows for every recipient. Separate from `aprs_contacts`
+    #: above for the usual reason: a contact is WHO you message, this is WHAT
+    #: you say, and one operator's twenty saved lines should not have to be
+    #: duplicated onto every contact they might send them to. The shipped
+    #: command templates in `kissterm/aprs_services/` are the other half of
+    #: the same picker and deliberately do NOT live here -- shipped data
+    #: improves when kissterm updates, a copy in the operator's config file
+    #: would go stale.
+    aprs_templates: list[dict[str, Any]] = field(default_factory=list)
+    #: Shipped gateway services the operator has hidden from the APRS pane's
+    #: contact list, by directory id. The directory ships seventeen services
+    #: and most operators will never use most of them; pressing Delete on a
+    #: built-in row has to do SOMETHING sensible, and hiding it is the only
+    #: honest option -- a built-in is not stored in `aprs_contacts` and so
+    #: cannot be deleted, and refusing outright would make the key look
+    #: broken. Nothing is hidden by default, and an id here that no longer
+    #: exists in the directory is harmless.
+    aprs_hidden_services: list[str] = field(default_factory=list)
     #: Auto-send a message ack (`kissterm.aprs.encode.ack`) when an incoming
     #: APRS message is addressed to us. Defaults to True -- unlike
     #: `accept_incoming` (an open-ended session with an unknown caller) or a
@@ -487,6 +508,10 @@ def load_config(path: Path | None = None) -> Config:
     cfg.credentials = _load_dict_list(raw.get("credentials", []), "credentials", warnings)
     cfg.scripts = _load_dict_list(raw.get("scripts", []), "scripts", warnings)
     cfg.aprs_contacts = _load_dict_list(raw.get("aprs_contacts", []), "aprs_contacts", warnings)
+    cfg.aprs_templates = _load_dict_list(raw.get("aprs_templates", []), "aprs_templates", warnings)
+    cfg.aprs_hidden_services = _load_str_list(
+        raw.get("aprs_hidden_services", []), "aprs_hidden_services", warnings
+    )
     cfg.paclen = _load_int(raw, "paclen", cfg.paclen, warnings)
     cfg.modulo = _load_modulo(raw.get("modulo", cfg.modulo), warnings)
     cfg.window = _load_window(raw.get("window", cfg.window), warnings, cfg.modulo)
@@ -673,6 +698,27 @@ def _load_callsign_list(value: Any, warnings: list[str]) -> list[str]:
         call = _load_callsign(item, "mycall_aliases entry", warnings)
         if call:
             out.append(call)
+    return out
+
+
+def _load_str_list(value: Any, field_name: str, warnings: list[str]) -> list[str]:
+    """A list of plain strings, dropping anything that is not one.
+
+    `_load_callsign_list` above is the same shape but validates each entry as
+    a callsign and is hard-wired to `mycall_aliases`' warning text; this is
+    the un-validated sibling for lists whose entries are just identifiers.
+    Blanks are dropped rather than kept -- an empty id matches no service and
+    would only ever be noise.
+    """
+    if not isinstance(value, list):
+        warnings.append(f"{field_name!r} should be a list, got {value!r}; using empty list")
+        return []
+    out: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            out.append(item.strip())
+        elif not isinstance(item, str):
+            warnings.append(f"{field_name}: entry {item!r} is not a string; dropped")
     return out
 
 

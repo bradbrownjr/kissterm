@@ -70,6 +70,14 @@ NOT_IN_SCHEMA = {
     # Forget UI in the APRS pane (F4), not a scalar this schema can render.
     # See kissterm/aprs_contacts.py.
     "aprs_contacts",
+    # The operator's saved APRS messages -- another list of dicts with its
+    # own Add/Edit/Forget UI, in the APRS pane's template picker rather than
+    # Settings. See kissterm/aprs_contacts.py's CannedMessage.
+    "aprs_templates",
+    # Not a setting anyone types: it accumulates as a side effect of pressing
+    # Delete on a built-in service row in the APRS pane. A Settings widget
+    # for it would be a list of ids with no context.
+    "aprs_hidden_services",
     "warnings",
     "aprs",
     # Nested dataclasses. Their fields ARE in the schema, as dotted paths --

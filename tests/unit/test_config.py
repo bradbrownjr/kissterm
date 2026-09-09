@@ -496,3 +496,61 @@ def test_every_top_level_setting_in_the_example_is_actually_top_level():
             f"key of some [table] instead of top-level -- move it above the "
             f"first table header."
         )
+
+
+# ---------------------------------------------------------------------------
+# APRS templates and hidden services
+# ---------------------------------------------------------------------------
+
+
+def test_aprs_templates_and_hidden_services_round_trip(tmp_path):
+    """Both new lists survive save/load unchanged.
+
+    `aprs_hidden_services` is a bare list of strings, which `_dump_toml`
+    writes as an inline array among the top-level scalars -- above the first
+    `[table]` header, where AGENTS.md requires every top-level setting to
+    live. This test would fail loudly if that ever changed and the key were
+    silently absorbed into `[aprs]`.
+    """
+    path = tmp_path / "config.toml"
+    cfg = kconfig.Config()
+    cfg.aprs_templates = [
+        {"name": "Net check-in", "text": "CQ HOTG QRV", "gateway": "ansrvr"},
+        {"name": "Standard", "text": "QRV, monitoring 146.520", "gateway": ""},
+    ]
+    cfg.aprs_hidden_services = ["aprs2sota", "apspot"]
+
+    kconfig.save_config(cfg, path=path)
+    loaded = kconfig.load_config(path=path)
+
+    assert loaded.warnings == []
+    assert loaded.aprs_templates == cfg.aprs_templates
+    assert loaded.aprs_hidden_services == cfg.aprs_hidden_services
+
+
+def test_both_new_lists_default_to_empty_for_a_config_without_them(tmp_path):
+    """An existing operator's config file predates both keys."""
+    path = tmp_path / "config.toml"
+    path.write_text('mycall = "N0CALL"\n', encoding="utf-8")
+    loaded = kconfig.load_config(path=path)
+    assert loaded.aprs_templates == []
+    assert loaded.aprs_hidden_services == []
+    assert loaded.warnings == []
+
+
+def test_a_bad_hidden_services_value_degrades_to_empty_with_a_warning(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('aprs_hidden_services = "winlink"\n', encoding="utf-8")
+    loaded = kconfig.load_config(path=path)
+    assert loaded.aprs_hidden_services == []
+    assert any("aprs_hidden_services" in w for w in loaded.warnings)
+
+
+def test_one_bad_hidden_service_entry_does_not_take_the_list_with_it(tmp_path):
+    """The loader's house rule everywhere: degrade one field, never the
+    whole document."""
+    path = tmp_path / "config.toml"
+    path.write_text('aprs_hidden_services = ["winlink", 7, "", "wxbot"]\n', encoding="utf-8")
+    loaded = kconfig.load_config(path=path)
+    assert loaded.aprs_hidden_services == ["winlink", "wxbot"]
+    assert any("aprs_hidden_services" in w for w in loaded.warnings)

@@ -267,6 +267,7 @@ class AprsPane(Horizontal):
                 service=existing.service if existing else "station",
                 detail=existing.detail if existing else "",
                 notes=existing.notes if existing else "",
+                gateway=existing.gateway if existing else "",
                 sms_gateway=getattr(self.app.config, "aprs_sms_gateway", ""),  # type: ignore[attr-defined]
                 email_gateway=getattr(self.app.config, "aprs_email_gateway", ""),  # type: ignore[attr-defined]
             )

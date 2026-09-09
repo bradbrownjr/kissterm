@@ -30,6 +30,18 @@ share.
   `kissterm/aprs_pane.py`'s docstring and `Config.aprs_sms_template` /
   `Config.aprs_email_template` for where the body gets built and why those
   defaults are marked unverified rather than asserted as fact.
+
+A contact separately carries `gateway`, an id into the shipped directory in
+`kissterm/aprs_services/` -- which service's command set to offer when
+composing to it. That is a different question from `service` above and the
+two must not be collapsed; see `Contact.gateway`'s own comment.
+
+`CannedMessage` at the bottom is the operator's OWN saved message text
+(`Config.aprs_templates`), as opposed to the shipped command templates the
+directory provides. Both feed the same picker, which is the point: from the
+operator's side "message WXBOT for tomorrow's forecast" and "my standard
+net check-in" are the same kind of thing, even though one ships with the
+app and the other does not.
 """
 
 from __future__ import annotations
@@ -37,11 +49,14 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 __all__ = [
+    "CannedMessage",
     "Contact",
     "SERVICES",
     "DEFAULT_SMS_TEMPLATE",
     "DEFAULT_EMAIL_TEMPLATE",
+    "canned_messages_for",
     "normalize_contact",
+    "validate_canned_message",
     "validate_contact",
     "build_message_body",
 ]
@@ -70,6 +85,27 @@ class Contact:
     service: str = "station"
     detail: str = ""
     notes: str = ""
+    #: Which shipped gateway service this contact IS, as a
+    #: `kissterm/aprs_services/data/*.toml` id -- empty for an ordinary
+    #: person. Set it and the APRS pane's template picker offers that
+    #: service's command set for this contact.
+    #:
+    #: **`gateway` and `service` above are not the same thing, and the two
+    #: names are close enough to confuse.** `service` says how
+    #: `build_message_body` wraps what the operator typed (plain text, or a
+    #: template pairing `detail` with it); `gateway` says whose command
+    #: vocabulary to show. A contact can legitimately be
+    #: `service="sms", gateway="smsgte"` -- one decides the bytes, the other
+    #: decides the help. A contact can also have a `gateway` and
+    #: `service="station"` (WXBOT takes plain text, and has a command set),
+    #: or a `service` and no `gateway` (an SMS gateway this directory has
+    #: never heard of, typed in by hand).
+    #:
+    #: An id no longer in the shipped directory degrades to "no templates
+    #: offered" rather than erroring -- a service can be retired between
+    #: kissterm versions, and that must not make an operator's saved contact
+    #: unusable for the plain messaging it could always do.
+    gateway: str = ""
 
     def to_dict(self) -> dict[str, str]:
         return asdict(self)
@@ -82,6 +118,7 @@ class Contact:
             service=normalize_service(str(data.get("service", "station"))),
             detail=str(data.get("detail", "")),
             notes=str(data.get("notes", "")),
+            gateway=str(data.get("gateway", "")).strip(),
         )
 
 
@@ -121,6 +158,82 @@ def normalize_contact(data: dict) -> Contact | None:
     if not name and not callsign:
         return None
     return Contact.from_dict(data)
+
+
+@dataclass(frozen=True, slots=True)
+class CannedMessage:
+    """One message the operator saved to send again (`Config.aprs_templates`).
+
+    `gateway` scopes it: a directory id shows it only when composing to that
+    service, and an empty string makes it global. That single field is what
+    lets one storage shape answer both halves of the request behind this
+    feature -- "attach templates to the contact rather than one long shared
+    list", and "let me save canned messages globally". A `WLNK-1`-scoped
+    "SP" line and a global "QRV, monitoring 146.520" live in the same list
+    and are told apart by where they show up, not by which list they are in.
+
+    Flat `str` fields on purpose: `Config`'s TOML writer (`_dump_toml`) only
+    knows arrays of FLAT tables, so anything nested here would need a new
+    writer shape for no gain.
+    """
+
+    name: str
+    text: str
+    gateway: str = ""
+
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CannedMessage":
+        return cls(
+            name=str(data.get("name", "")).strip(),
+            text=str(data.get("text", "")),
+            gateway=str(data.get("gateway", "")).strip(),
+        )
+
+
+def validate_canned_message(name: str, text: str) -> str:
+    """The problem with these as a saveable canned message, or `""`.
+
+    Same role as `validate_contact`: catch it while the operator is still
+    looking at the form. Empty text is the one that matters -- a saved
+    message with nothing in it would insert nothing and look like the
+    picker was broken.
+    """
+    if not name.strip():
+        return "Name this message -- it is how you will find it in the list."
+    if not text.strip():
+        return "A saved message needs some text; an empty one would insert nothing."
+    return ""
+
+
+def canned_messages_for(raw_templates: list[dict], gateway: str) -> list[CannedMessage]:
+    """The operator's saved messages applicable to `gateway`, scoped first.
+
+    Ordering is deliberate: messages saved for THIS service come before the
+    global ones, because someone composing to `WLNK-1` is far more likely to
+    want their saved Winlink line than their generic net check-in, and a
+    picker that makes them scroll past the general case to reach the
+    specific one has the priority backwards.
+
+    An entry with a name but no text is dropped rather than shown -- see
+    `validate_canned_message` for why an empty one is useless, and
+    `config.py`'s loader discipline for why a hand-edited file's bad entry
+    degrades instead of raising.
+    """
+    gateway = gateway.strip()
+    scoped: list[CannedMessage] = []
+    globals_: list[CannedMessage] = []
+    for raw in raw_templates:
+        message = CannedMessage.from_dict(raw)
+        if not message.name or not message.text.strip():
+            continue
+        if not message.gateway:
+            globals_.append(message)
+        elif gateway and message.gateway == gateway:
+            scoped.append(message)
+    return scoped + globals_
 
 
 def build_message_body(

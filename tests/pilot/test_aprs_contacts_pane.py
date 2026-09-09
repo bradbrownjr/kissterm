@@ -101,7 +101,16 @@ async def test_new_contact_via_the_dialog():
         await pilot.pause()
 
         assert app.config.aprs_contacts == [
-            {"name": "Jim", "callsign": "K1ABC-9", "service": "station", "detail": "", "notes": ""}
+            # `gateway` is "" for an ordinary person -- this contact is not one
+            # of the shipped services in kissterm/aprs_services/.
+            {
+                "name": "Jim",
+                "callsign": "K1ABC-9",
+                "service": "station",
+                "detail": "",
+                "notes": "",
+                "gateway": "",
+            }
         ]
     station.close()
 

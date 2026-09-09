@@ -972,6 +972,28 @@ _APRS_SERVICE_CHOICES = [
     ("Email gateway", "email"),
 ]
 
+#: The "this contact is nobody in the shipped directory" option. A plain
+#: empty string cannot be a `Select` value here (`Select.NULL` is the blank
+#: sentinel and assigning `""` alongside `allow_blank=False` is asking for
+#: the `Select.BLANK` class of bug AGENTS.md documents), so the no-gateway
+#: choice carries a real, distinguishable value that maps to `""` on save.
+_NO_GATEWAY = "__none__"
+
+
+def _gateway_choices() -> list[tuple[str, str]]:
+    """Every shipped service, plus "not a gateway" first.
+
+    Built at call time rather than at import so a test can point the
+    directory somewhere else, and so a directory that failed to load (a
+    missing `package-data` entry in an installed wheel) degrades to just the
+    "not a gateway" option instead of raising inside `compose`.
+    """
+    from ..aprs_services import load_all
+
+    choices = [("Not a gateway service", _NO_GATEWAY)]
+    choices.extend((f"{s.name} ({s.callsign})", s.id) for s in load_all())
+    return choices
+
 
 class AprsContactScreen(ModalScreen[Contact | None]):
     """Add or edit one APRS messaging contact (`Config.aprs_contacts`).
@@ -996,6 +1018,7 @@ class AprsContactScreen(ModalScreen[Contact | None]):
         notes: str = "",
         sms_gateway: str = "",
         email_gateway: str = "",
+        gateway: str = "",
     ) -> None:
         super().__init__()
         self._name = name
@@ -1003,6 +1026,12 @@ class AprsContactScreen(ModalScreen[Contact | None]):
         self._service = normalize_service(service)
         self._detail = detail
         self._notes = notes
+        #: A shipped-directory id, or "" for an ordinary contact. An id that
+        #: is no longer in the directory falls back to "not a gateway" rather
+        #: than raising -- a `Select` raises if set to a value outside its own
+        #: options, which is exactly how a stale theme name crashed Settings
+        #: once already (see AGENTS.md sec. 7a).
+        self._gateway = gateway.strip()
         #: `Config.aprs_sms_gateway`/`aprs_email_gateway` -- pre-filled into
         #: the callsign field on switching to that service, ONLY while the
         #: field is still empty (see `_service_changed`). Never overwrites a
@@ -1028,6 +1057,18 @@ class AprsContactScreen(ModalScreen[Contact | None]):
             )
             yield Static("", id="aprs-contact-detail-hint")
             yield Input(value=self._detail, placeholder="", id="aprs-contact-detail")
+            choices = _gateway_choices()
+            known = {value for _, value in choices}
+            yield Select(
+                choices,
+                id="aprs-contact-gateway",
+                value=self._gateway if self._gateway in known else _NO_GATEWAY,
+                allow_blank=False,
+            )
+            # The description is the whole point of naming a gateway here --
+            # "MPAD" means nothing on its own. Updated on change by
+            # `_sync_gateway_hint`, same shape as the detail hint above.
+            yield Static("", id="aprs-contact-gateway-hint")
             yield Input(value=self._notes, placeholder="Notes (optional)", id="aprs-contact-notes")
             yield Label("", id="connect-error")
             with Horizontal(id="connect-buttons"):
@@ -1036,6 +1077,7 @@ class AprsContactScreen(ModalScreen[Contact | None]):
 
     def on_mount(self) -> None:
         self._sync_detail_field()
+        self._sync_gateway_hint()
         field = self.query_one("#aprs-contact-name", Input)
         field.focus()
         field.action_end()
@@ -1044,6 +1086,65 @@ class AprsContactScreen(ModalScreen[Contact | None]):
     def _service_changed(self) -> None:
         self._sync_detail_field()
         self._prefill_gateway()
+
+    @on(Select.Changed, "#aprs-contact-gateway")
+    def _gateway_changed(self) -> None:
+        self._sync_gateway_hint()
+        self._prefill_gateway_callsign()
+
+    def _selected_gateway(self) -> str:
+        """The chosen directory id, or `""` for none. Also normalises
+        `Select.NULL` -- reachable if a future edit sets `allow_blank=True`
+        -- so callers never have to compare against a sentinel."""
+        value = self.query_one("#aprs-contact-gateway", Select).value
+        if value in (_NO_GATEWAY, Select.NULL) or not isinstance(value, str):
+            return ""
+        return value
+
+    def _sync_gateway_hint(self) -> None:
+        """Show what the selected service actually is.
+
+        A contact list full of callsigns like `WLNK-1`, `MPAD` and `CQSRVR`
+        is unreadable without this, and the operator is choosing from that
+        list right here -- so the one-line summary from the shipped
+        directory goes directly under the picker rather than being something
+        they have to go and look up.
+        """
+        from ..aprs_services import lookup
+
+        hint = self.query_one("#aprs-contact-gateway-hint", Static)
+        gateway = self._selected_gateway()
+        if not gateway:
+            hint.update(
+                "Not a known gateway -- no command templates will be offered "
+                "for this contact."
+            )
+            return
+        service = lookup(gateway)
+        if service is None:
+            # A saved id from a newer/older kissterm. Say so rather than
+            # silently showing nothing, so "why are there no templates?" is
+            # answerable from the screen.
+            hint.update(f"{gateway}: not in this version's service directory.")
+            return
+        hint.update(f"{service.summary} -- addressed to {service.callsign}.")
+
+    def _prefill_gateway_callsign(self) -> None:
+        """Fill the callsign from the chosen service, while it is still
+        empty. Exactly the rule `_prefill_gateway` already applies for the
+        SMS/email defaults, and for the same reason: a convenience that
+        overwrites something the operator typed is not a convenience."""
+        gateway = self._selected_gateway()
+        if not gateway:
+            return
+        from ..aprs_services import lookup
+
+        service = lookup(gateway)
+        if service is None:
+            return
+        callsign_field = self.query_one("#aprs-contact-callsign", Input)
+        if not callsign_field.value.strip():
+            callsign_field.value = service.callsign
 
     def _prefill_gateway(self) -> None:
         """Pre-fill the callsign field from `Config.aprs_sms_gateway`/
@@ -1090,7 +1191,16 @@ class AprsContactScreen(ModalScreen[Contact | None]):
         if problem:
             self.query_one("#connect-error", Label).update(f"[red]{problem}[/red]")
             return
-        self.dismiss(Contact(name=name, callsign=callsign.upper(), service=service, detail=detail, notes=notes))
+        self.dismiss(
+            Contact(
+                name=name,
+                callsign=callsign.upper(),
+                service=service,
+                detail=detail,
+                notes=notes,
+                gateway=self._selected_gateway(),
+            )
+        )
 
 
 @dataclass(frozen=True)
