@@ -345,12 +345,31 @@ today -- it moved off the F-row before Address Book's own F5/F6 shuffle, see
       a real session -- kissterm will already be logging those (P2). The
       documented entries deserve a check too. **Partially done for
       `bpq32.toml`**: a real `[2026-09-10]` session against WS1EC-15/CCEMA
-      promoted `?`/`B`/`C`/`I`/`N`/`P`/`R`/`U`/`MH`/`BBS`/`CHAT` to
-      `confidence = "verified"` (see CHANGELOG) -- `STATS`/`PING`/`CQ`/`T`
-      stayed `"recalled"` (absent from that one node's `?` output, which
-      proves nothing either way about other nodes) and `tnc2.toml` is
-      completely untouched. **Needs an operator with a real node to connect
-      to** -- not something a coding session can do on its own.
+      promoted `?`/`B`/`C`/`I`/`N`/`P`/`R`/`U`/`MH` to `confidence =
+      "verified"` (see CHANGELOG) -- `STATS`/`PING`/`CQ`/`T` stayed
+      `"recalled"` (absent from that one node's `?` output, which proves
+      nothing either way about other nodes), `BBS`/`CHAT` stayed at the
+      family's `"documented"` default (application names, not node commands),
+      and `tnc2.toml` is completely untouched. **Needs an operator with a
+      real node to connect to** -- not something a coding session can do on
+      its own. Cross-checked `[2026-09-10]` against the sibling `bpq-apps`
+      repo's own node-map crawl (`utilities/nodemap.json`, 15 real captured
+      "?" replies): independently confirmed the same 8 core commands on 12 of
+      15 nodes, and added `RMS` at `confidence = "documented"` (60% of those
+      nodes list it as a configured application -- common enough across
+      independently-run nodes to be worth naming). See `bpq32.toml`'s own
+      provenance comment for the full breakdown.
+- [ ] **Candidate PBBS/AEA-TNC-mailbox family, not yet shipped.** 3 of the 15
+      nodes in that same `nodemap.json` crawl (W1KRP-1, WD1F-1, W1ZE-1) are
+      tagged `"type": "BPQ"` by the crawl's own heuristic but returned
+      single-letter-with-parenthetical-long-form command sets (`B(ye)`,
+      `J(heard)`, `[AEA PK-232M]`) that do not match `bpq32.toml`'s
+      `detect_prompt`/`detect_banner` at all -- they read as a PBBS-style
+      mailbox and an AEA PK-232 TNC mailbox, respectively. Worth a real family
+      of its own eventually, but 2-3 samples from one crawl is not enough to
+      write a confident `detect_prompt` yet -- a wrong family shown
+      confidently is worse than "unknown node". Needs more captured examples
+      before it ships.
 
 Shipped in `[2026-09-10]` (see CHANGELOG, three entries): opt-in harvesting
 from a connected node (`kissterm/harvested.py`, `HarvestConfirmScreen`), a

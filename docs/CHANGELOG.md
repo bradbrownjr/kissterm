@@ -3,6 +3,35 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — bpq32.toml cross-checked against an independent 15-node crawl, RMS added
+
+### Improvements
+- **The `bpq32.toml` core command set is no longer evidenced by one node.**
+  Cross-checked against the sibling `bpq-apps` repo's own node-map crawl
+  (`utilities/nodemap.json`, 15 real captured "?" replies): the same 8 core
+  commands (`CONNECT`/`BYE`/`INFO`/`NODES`/`PORTS`/`ROUTES`/`USERS`/`MHEARD`)
+  independently confirmed, in long form, by 12 of the 15 nodes -- a
+  single-node harvest is now a 13-node one. Full breakdown in the file's own
+  top-of-file provenance comment.
+- **Added `RMS`** at `confidence = "documented"`: 9 of the 15 crawled nodes
+  (60%) list it as a configured application, common enough across
+  independently-run nodes to be worth naming, unlike the clearly node-specific
+  local additions (`CALENDAR`, `GYX`, `EOC`, ...) that stay out of the shipped
+  file on purpose.
+- **Flagged, not shipped: a candidate PBBS/AEA-TNC-mailbox family.** 3 of the
+  15 crawled nodes are tagged `"type": "BPQ"` by the crawl's own heuristic but
+  returned command sets (`B(ye)`, `J(heard)`, `[AEA PK-232M]`) that do not
+  match this family's detection at all. Worth a real family of its own
+  eventually; 2-3 samples from one crawl is not enough to write a confident
+  `detect_prompt` yet. See `docs/ROADMAP.md` P8.
+- **Documented the harvest-to-shipped-data promotion workflow.** Added to
+  `kissterm/nodes/__init__.py`'s module docstring: how to compare a cached
+  harvest against a family's TOML file by hand, when a found command earns
+  `confidence = "verified"`/`"documented"`, and when it is a local
+  `APPLICATION` addition that should stay out of the shipped file.
+  **Files:** `kissterm/nodes/data/bpq32.toml`, `kissterm/nodes/__init__.py`,
+  `docs/ROADMAP.md`.
+
 ## [2026-09-10] — A hop resets node detection only once it is CONFIRMED, and a harvest is filed under the node that answered
 
 ### Improvements

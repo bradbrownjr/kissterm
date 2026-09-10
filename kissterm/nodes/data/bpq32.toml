@@ -21,6 +21,26 @@
 # but a single node's configuration proves nothing about their absence
 # elsewhere, so they stay at "recalled" rather than being downgraded.
 #
+# [2026-09-10, cross-check] The same 8 core commands (CONNECT, BYE, INFO,
+# NODES, PORTS, ROUTES, USERS, MHEARD) were independently confirmed, in
+# their long form, by 12 of 15 real captured "?" replies in the sibling
+# bpq-apps repo's own node-map crawl (utilities/nodemap.json,
+# nodemap_version 1.9.1, 2026-08-25) -- a single-node harvest is now a
+# 13-node one. The other 3 real nodes in that crawl (W1KRP-1, WD1F-1,
+# W1ZE-1) returned single-letter-with-parenthetical-long-form command sets
+# ("B(ye)", "J(heard)", "[AEA PK-232M]") that do not match this family's
+# `detect_prompt`/`detect_banner` at all -- they read as a PBBS-style
+# mailbox and an AEA PK-232 TNC mailbox respectively, not BPQ32, despite
+# being tagged "type": "BPQ" by that crawl's own heuristic. See
+# docs/ROADMAP.md P8's "more families" item: worth a real family of their
+# own eventually, but 2-3 samples from one crawl is not enough to ship one
+# confidently yet (AGENTS.md: "a wrong family shown confidently is worse
+# than 'unknown node'"). RMS is added below as `confidence = "documented"`
+# (same treatment as BBS/CHAT) on the strength of that crawl too: 9 of the
+# 15 real nodes (60%) list it as a configured application, which is common
+# enough across independently-run nodes to be worth naming, unlike the
+# clearly node-specific additions (CALENDAR, GYX, EOC, ...) left out above.
+#
 # Anything marked confidence = "recalled" has NOT been checked against current
 # documentation or a live node. Correct it from a real session rather than
 # from memory -- see docs/ROADMAP.md P8.
@@ -141,3 +161,10 @@ name = "CHAT"
 summary = "Enter the node's chat server, if it has one"
 usage = "CHAT"
 detail = "Application name, not a node command -- present only if the sysop configured it."
+
+[[commands]]
+name = "RMS"
+summary = "Enter the node's Winlink RMS gateway, if it has one"
+usage = "RMS"
+detail = "Application name, not a node command -- present only if the sysop configured it."
+confidence = "documented"

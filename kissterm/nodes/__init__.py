@@ -30,6 +30,26 @@ Provenance is recorded per family and per command (`confidence`), because a
 command reference that quietly mixes documented fact with half-remembered
 syntax is worse than none: an operator types what it says, at 1200 baud, and
 finds out it was wrong. `"recalled"` entries are explicitly flagged in the UI.
+
+Promoting a harvest into one of these shipped files is a manual step, by
+design -- a harvest is one operator's one node on one day, and `confidence =
+"verified"` is a claim about the software, not the station. To do it: connect,
+harvest (`Ctrl+R` while connected, then confirm), then compare the cached
+JSON (`kissterm/harvested.py`'s per-callsign store, in the platformdirs state
+directory) against the family's TOML file by hand. A command already listed
+there, confirmed present in the harvest, earns `confidence = "verified"`. A
+command the harvest found that is not in the shipped file yet is either a
+real addition to the family's stock command set (add it at `"documented"`,
+and say in a comment which real node confirmed it and when) or a local
+`APPLICATION` addition specific to that one node's configuration (leave it
+out of the shipped file entirely -- BBS/CHAT/RMS are the stock names common
+enough across independently-run nodes to name; CALENDAR, WALL, GOPHER and the
+like are one sysop's own menu and do not belong in a file every kissterm user
+gets by default). `bpq32.toml`'s own top-of-file comments are a worked
+example of this cross-check, including one done against a second, independent
+data source (a sibling repo's own node-map crawl) rather than a single
+harvest -- more real nodes agreeing is stronger evidence than one, the same
+reasoning that keeps `confidence` from being an all-or-nothing flag.
 """
 
 from .reference import (
