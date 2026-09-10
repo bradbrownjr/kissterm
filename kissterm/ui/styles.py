@@ -112,6 +112,11 @@ TerminalPane { layout: horizontal; }
 #find-status { width: auto; padding: 1 1 0 1; color: $text-muted; }
 #find-close { margin-left: 1; }
 #session-log { border: round $primary; height: 1fr; }
+/* Hidden until there is something to suggest -- see
+   `TerminalPane._update_suggestions`. Same subordinate, muted treatment as
+   `#find-status`; the top candidate's own bold/dim spans (set in Python,
+   not here) are what actually distinguish it from the rest of the row. */
+#suggestion-strip { height: auto; padding: 0 1; color: $text-muted; display: none; }
 #session-send-row { height: auto; }
 #session-input { border: round $accent; width: 1fr; }
 #session-send { margin-left: 1; }  /* shape comes from the base Button rule above */

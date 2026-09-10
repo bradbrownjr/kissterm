@@ -30,6 +30,17 @@ possibly key the transmitter?" is answerable by reading one method. Suggestions
 and completions may *fill the input*, and the operator still has to commit --
 a completion that transmits on its own would be a defect on a shared channel.
 
+**The suggestion strip is Tab-to-fill, never Tab-to-send.** As the operator
+types, `#suggestion-strip` shows up to `CommandReference.complete`'s limit of
+matching command names for the node currently identified on this session's
+tab; `_SendInput`'s own `tab` binding calls `TerminalPane.accept_suggestion`,
+which routes through `suggest()` like the Ctrl+R command reference already
+did -- so Tab is exactly one more way to reach the one fill path, not a
+second way to reach the air. Tab with nothing suggested falls through to
+`Screen.focus_next()`, reproducing the ordinary un-overridden behaviour, so
+an operator who never triggers a suggestion never notices Tab acts any
+differently than before this existed.
+
 **Lines go out CR-terminated, not LF.** Packet nodes and BBSes are CR-oriented;
 LF makes a BPQ32 node echo a spurious blank line after every command.
 
@@ -225,7 +236,24 @@ class _SendInput(Input):
         Binding("shift+enter", "submit", show=False),
         Binding("ctrl+enter", "submit", show=False),
         Binding("alt+enter", "submit", show=False),
+        Binding("tab", "accept_suggestion", show=False),
     ]
+
+    def action_accept_suggestion(self) -> None:
+        """Tab: fill in the top suggestion if the strip is showing one,
+        otherwise do exactly what a bare Tab always did.
+
+        `Input` itself binds no `tab` key -- `tab`/`shift+tab` are
+        non-priority `Screen` bindings (`focus_next`/`focus_previous`), so
+        this widget-level binding is resolved first and must reproduce that
+        fallback by hand rather than only handling the acceptance case.
+        `App.action_focus_next` is itself nothing but `self.screen.
+        focus_next()`, so calling that directly is not a shortcut around
+        anything -- it is the same call the default binding would have made.
+        """
+        pane = self.app.query_one(TerminalPane)
+        if not pane.accept_suggestion():
+            self.screen.focus_next()
 
     def _on_paste(self, event: events.Paste) -> None:
         """Sanitize a paste before `Input`'s own handler ever sees it.
@@ -313,6 +341,10 @@ class TerminalPane(Container):
         #: Whose session is currently rendered into `#session-log`. `""`
         #: is the pre-connection view -- see the module docstring.
         self.active_session_key: str = ""
+        #: The command `#suggestion-strip` would fill on Tab, or None when
+        #: it has nothing to offer. Recomputed on every keystroke in the
+        #: send line and on every tab switch -- see `_update_suggestions`.
+        self._current_suggestion: str | None = None
 
     def compose(self) -> ComposeResult:
         # The main column holds everything this pane has always shown;
@@ -361,6 +393,11 @@ class TerminalPane(Container):
                     max_lines=5000,
                     auto_scroll=True,
                 )
+                # Hidden whenever there is nothing to suggest -- see
+                # `_update_suggestions`. Sits directly above the send row,
+                # the same "strip anchored to the thing it annotates"
+                # placement `#find-row` uses above the scrollback.
+                yield Static("", id="suggestion-strip")
                 with Horizontal(id="session-send-row"):
                     yield _SendInput(
                         placeholder="not connected -- Ctrl+N to connect",
@@ -527,6 +564,11 @@ class TerminalPane(Container):
         self.query_one("#transcript-note", Static).display = bool(
             self._transcript_notes.get(session_key, "")
         )
+        # The reference this strip suggests from is session-scoped
+        # (`self.app.reference`); recompute it for whatever is still typed
+        # into the (shared) send line, or it would keep offering commands
+        # for the tab just left.
+        self._update_suggestions(self.query_one("#session-input", Input).value)
 
     @on(Tabs.TabActivated, "#terminal-session-tabs")
     def _session_tab_activated(self, event: Tabs.TabActivated) -> None:
@@ -826,11 +868,62 @@ class TerminalPane(Container):
         cursor at the end; the operator still has to commit deliberately.
         Nothing in this method can transmit, and it must stay that way. Not
         session-scoped -- it only ever fills whichever input is showing.
+
+        Assigning `.value` is itself what recomputes the suggestion strip:
+        `Input.value` is a reactive whose `_watch_value` posts `Changed`
+        even for a programmatic assignment, and `_session_input_changed`
+        below is what actually calls `_update_suggestions`.
         """
         field = self.query_one("#session-input", Input)
         field.value = text
         field.action_end()
         field.focus()
+
+    def accept_suggestion(self) -> bool:
+        """`_SendInput`'s Tab target: fill in the current top suggestion.
+
+        Returns whether there was one to accept, so Tab can fall back to
+        ordinary focus-cycling instead of doing nothing when the strip is
+        empty -- see `_SendInput.action_accept_suggestion`.
+        """
+        if self._current_suggestion is None:
+            return False
+        self.suggest(self._current_suggestion)
+        return True
+
+    def _update_suggestions(self, prefix: str) -> None:
+        """Recompute `#suggestion-strip` for `prefix` against the active
+        session's command reference.
+
+        Called on every keystroke in the send line (`_session_input_changed`)
+        and again whenever the operator switches session tabs
+        (`activate_tab`) -- `self.app.reference` is session-scoped, so a
+        strip left over from a different tab's node would offer commands
+        for the wrong station. An empty or no-match prefix hides it rather
+        than leaving stale candidates on screen; `CommandReference.complete`
+        already returns nothing for an empty prefix on its own.
+        """
+        reference = getattr(self.app, "reference", None)
+        matches = reference.complete(prefix) if reference is not None else ()
+        strip = self.query_one("#suggestion-strip", Static)
+        if not matches:
+            self._current_suggestion = None
+            strip.display = False
+            strip.update("")
+            return
+        self._current_suggestion = matches[0].name
+        text = Text(no_wrap=True, overflow="ellipsis")
+        text.append(matches[0].name, style="bold")
+        for command in matches[1:]:
+            text.append("  ")
+            text.append(command.name, style="dim")
+        text.append("   Tab: accept", style="dim italic")
+        strip.update(text)
+        strip.display = True
+
+    @on(Input.Changed, "#session-input")
+    def _session_input_changed(self, event: Input.Changed) -> None:
+        self._update_suggestions(event.value)
 
     @on(Input.Submitted, "#session-input")
     async def _submitted(self, event: Input.Submitted) -> None:

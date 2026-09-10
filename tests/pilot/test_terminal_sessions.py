@@ -26,10 +26,12 @@ isolate()
 import asyncio  # noqa: E402
 
 import pytest  # noqa: E402
+from textual.widgets import Input, Static  # noqa: E402
 
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
 from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
+from kissterm.nodes import CommandReference, load_family  # noqa: E402
 from kissterm.ui.app import KissTermApp  # noqa: E402
 from kissterm.ui.terminal_pane import MAX_TERMINAL_TABS, TerminalPane  # noqa: E402
 from tests.loopback import LoopbackTransport  # noqa: E402
@@ -235,4 +237,42 @@ async def test_two_outgoing_connects_stay_on_separate_tabs():
         pane.activate_tab("W1AW-1")
         await pilot.pause()
         assert app.link is link1, "app.link must follow the tab on screen, not the last bind"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_suggestion_strip_follows_the_active_sessions_reference():
+    """`self.app.reference` is session-scoped (see the module docstring);
+    the suggestion strip must be recomputed on every tab switch or it would
+    keep suggesting the previous tab's node's commands -- see
+    `TerminalPane._update_suggestions`'s call from `activate_tab`.
+    """
+    app, station, ta = await _bare_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await station._on_frame(_sabm(_caller(1)), 0)
+        await station._on_frame(_sabm(_caller(2)), 0)
+        await pilot.pause()
+
+        pane = app.query_one(TerminalPane)
+        strip = pane.query_one("#suggestion-strip", Static)
+        field = pane.query_one("#session-input", Input)
+
+        pane.activate_tab("W1AW-1")
+        await pilot.pause()
+        app.reference = CommandReference(family=load_family("bpq32"))
+        field.value = "c"
+        await pilot.pause()
+        assert strip.display is True, "W1AW-1's own reference should match 'c'"
+
+        pane.activate_tab("W1AW-2")
+        await pilot.pause()
+        assert strip.display is False, (
+            "W1AW-2 has no reference of its own -- the strip must not keep "
+            "showing W1AW-1's matches for it"
+        )
+
+        pane.activate_tab("W1AW-1")
+        await pilot.pause()
+        assert strip.display is True, "switching back must recompute from the input still there"
     station.close()

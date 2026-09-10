@@ -16,7 +16,8 @@ import asyncio  # noqa: E402
 import inspect  # noqa: E402
 
 import pytest  # noqa: E402
-from textual.widgets import Button, Input, RichLog  # noqa: E402
+from textual.geometry import Region  # noqa: E402
+from textual.widgets import Button, Input, RichLog, Static  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
@@ -48,6 +49,14 @@ async def _connected_app():
     config.tx_armed_at_start = True
     app = KissTermApp(config, a)
     return app, a, b, incoming
+
+
+def _plain(widget) -> str:
+    """A widget's currently-rendered plain text -- reading `.renderable`
+    directly is the internals-coupling `kissterm/ui/AGENTS.md` rule 21 warns
+    against once it holds a Rich renderable rather than a bare string."""
+    region = Region(0, 0, widget.size.width or 200, widget.size.height or 5)
+    return "\n".join(strip.text for strip in widget.render_lines(region))
 
 
 # ---------------------------------------------------------------------------
@@ -242,6 +251,116 @@ async def test_suggest_fills_the_input_without_sending():
         assert app.query_one("#session-input", Input).value == "NODES"
         assert len(app.station.transport.sent) == before, "a suggestion transmitted"
         assert far.read_nowait() == b"", "a suggestion reached the far end"
+    a.close()
+    b.close()
+
+
+# ---------------------------------------------------------------------------
+# Inline suggestion strip -- docs/ROADMAP.md's "Inline completion on the
+# send line". Tab fills in the input like `suggest()` above; it must never
+# gain a second transmit path of its own.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_an_empty_or_unmatched_input_shows_no_strip():
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        app.reference = CommandReference(family=load_family("bpq32"))
+        strip = app.query_one("#suggestion-strip", Static)
+        assert strip.display is False, "nothing typed yet -- strip must start hidden"
+
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.press("z", "z", "z", "z")
+        await pilot.pause()
+        assert strip.display is False, "no command starts with ZZZZ"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_typing_a_prefix_shows_matching_commands_without_transmitting():
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()
+        app.reference = CommandReference(family=load_family("bpq32"))
+
+        before = len(app.station.transport.sent)
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.press("c")
+        await pilot.pause()
+
+        strip = app.query_one("#suggestion-strip", Static)
+        assert strip.display is True
+        shown = _plain(strip)
+        # bpq32.toml ships C, CQ and CHAT -- complete() sorts shortest first.
+        assert "C" in shown and "CQ" in shown and "CHAT" in shown
+        assert "Tab" in shown
+
+        assert len(app.station.transport.sent) == before, "showing suggestions transmitted"
+        assert far.read_nowait() == b"", "showing suggestions reached the far end"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_tab_accepts_the_top_suggestion_without_transmitting():
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()
+        app.reference = CommandReference(family=load_family("bpq32"))
+
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.press("c")
+        await pilot.pause()
+
+        before = len(app.station.transport.sent)
+        await pilot.press("tab")
+        await pilot.pause()
+
+        assert field.value == "C", "Tab must fill in the top match (shortest name first)"
+        assert app.focused is field, "accepting a suggestion must leave the input focused"
+        assert len(app.station.transport.sent) == before, "Tab acceptance transmitted"
+        assert far.read_nowait() == b"", "Tab acceptance reached the far end"
+
+        strip = app.query_one("#suggestion-strip", Static)
+        assert strip.display is True, "the accepted text ('C') still matches itself"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_tab_moves_focus_normally_when_nothing_is_suggested():
+    """The override must not trap Tab in an empty box -- see
+    `_SendInput.action_accept_suggestion`'s fallback to `Screen.focus_next()`.
+    """
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.pause()
+        assert app.focused is field
+
+        await pilot.press("tab")
+        await pilot.pause()
+
+        assert app.focused is not field, "Tab with no suggestion must still move focus"
+        assert field.value == ""
     a.close()
     b.close()
 

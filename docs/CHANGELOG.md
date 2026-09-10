@@ -3,6 +3,30 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — Inline command completion on the send line
+
+### New Features
+- **The Terminal pane's send line now offers inline completion**, closing
+  the P2 roadmap item of the same name. `CommandReference.complete()` and
+  `TerminalPane.suggest()` already existed and neither could transmit; what
+  was missing was UI to reach them without opening the full-screen Ctrl+R
+  reference. `#suggestion-strip` shows up to `complete()`'s matches for
+  whatever is currently typed (the top one bold, the rest dim), and
+  `_SendInput`'s new `tab` binding fills in the top match through the same
+  `suggest()` path Ctrl+R already used — never a second way to reach the
+  air. Deliberately a row of candidates rather than Textual's built-in
+  single-candidate ghost-text suggester: a node's `C`/`CQ`/`CHAT` sharing a
+  prefix is routine, and ghost text can only ever offer one. Tab with
+  nothing suggested falls through to ordinary focus-cycling
+  (`Screen.focus_next()`), so an operator who never triggers a suggestion
+  never notices Tab behaves any differently than before. The strip is
+  recomputed on every keystroke and on every session-tab switch, since
+  `self.app.reference` is session-scoped and a stale strip would offer a
+  different node's commands.
+  **Files:** `kissterm/ui/terminal_pane.py`, `kissterm/ui/styles.py`,
+  `tests/pilot/test_terminal_ux.py`, `tests/pilot/test_terminal_sessions.py`,
+  `DESIGN.md`, `docs/ROADMAP.md`.
+
 ## [2026-09-10] — ARISS as a digipeater path preset
 
 ### New Features

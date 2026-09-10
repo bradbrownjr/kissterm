@@ -349,11 +349,6 @@ today -- it moved off the F-row before Address Book's own F5/F6 shuffle, see
       This is what picks up local additions -- the WS1EC-15 node in the sibling
       bpq-apps repo adds CALENDAR, FORMS, WALL, GOPHER, PREDICT and a dozen
       more to a stock BPQ32 via `APPLICATION` lines. Mid effort.
-- [ ] **Inline completion on the send line.** `CommandReference.complete()` and
-      `TerminalPane.suggest()` already exist and neither can transmit; what is
-      missing is the UI -- a suggestion strip above the input, Tab to accept.
-      **Never complete-on-enter**: this is a terminal, and inserting characters
-      the operator did not type into a live BBS session is a defect. Mid.
 - [ ] **A glossary of packet terminology** (digipeater, SSID, paclen, NET/ROM,
       unproto, RMS, gateway, T1/T2/T3, hierarchical addresses...). Aimed at
       someone who knows radio but not packet -- the audience the README already
