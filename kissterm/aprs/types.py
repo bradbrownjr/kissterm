@@ -87,6 +87,15 @@ class Message:
     (``:ack12345`` / ``:rej12345``) from an ordinary message; when either is
     set, ``text`` is empty and ``number`` holds the message ID being
     acknowledged or rejected.
+
+    ``is_telemetry_definition`` marks the other thing that rides the message
+    data type without being one: a station labelling its own `T#...`
+    telemetry channels for other stations' benefit (``PARM.``/``UNIT.``/
+    ``EQNS.``/``BITS.``, per the APRS spec's telemetry chapter), addressed to
+    itself. A real one seen on the air: ``:W1UWS-1  :PARM.Vin,Rx1h,Eff1h,...``.
+    kissterm does not decode telemetry channel labels into anything, so this
+    is treated the same as ack/rej: real traffic, but never filed as a line
+    in a chat log.
     """
 
     addressee: str
@@ -94,6 +103,7 @@ class Message:
     number: str | None = None
     is_ack: bool = False
     is_rej: bool = False
+    is_telemetry_definition: bool = False
 
 
 @dataclass(frozen=True, slots=True)

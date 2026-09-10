@@ -247,6 +247,22 @@ def test_message_reject():
     assert pkt.data.number == "042"
 
 
+def test_telemetry_definition_messages_are_flagged_not_treated_as_chat():
+    # A real one seen on the air, station labelling its own telemetry
+    # channels -- addressed to itself, no message-id, four keywords.
+    for keyword in ("PARM", "UNIT", "EQNS", "BITS"):
+        frame = _ui_frame(
+            "APRS", "W1UWS-1", f":W1UWS-1  :{keyword}.Vin,Rx1h,Eff1h".encode()
+        )
+        pkt = parse_packet(frame)
+        assert pkt.kind == "message"
+        msg = pkt.data
+        assert msg.is_telemetry_definition, f"{keyword}. not recognised"
+        assert not msg.is_ack and not msg.is_rej
+        assert msg.number is None
+        assert msg.text.startswith(f"{keyword}.")
+
+
 # -- status, object, weather, telemetry, third-party ------------------------
 
 

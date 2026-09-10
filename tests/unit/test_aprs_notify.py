@@ -53,6 +53,14 @@ def test_a_reject_is_never_worth_notifying():
     assert evaluate_packet(packet, "W1AW", []) is None
 
 
+def test_a_telemetry_definition_is_never_worth_notifying():
+    # Addressed to itself, matching how a telemetry station really sends
+    # one -- included even though that address would otherwise match.
+    msg = Message(addressee="W1AW", text="PARM.Vin,Rx1h", is_telemetry_definition=True)
+    packet = _packet("message", msg)
+    assert evaluate_packet(packet, "W1AW", []) is None
+
+
 def test_an_emergency_mic_e_flag_is_urgent():
     pos = Position(
         latitude=44.0, longitude=-70.0, symbol_table="/", symbol_code=">",

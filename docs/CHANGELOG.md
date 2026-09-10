@@ -3,6 +3,23 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — APRS telemetry-definition messages no longer clutter the messages view
+
+### Improvements
+- **A telemetry-equipped station labelling its own channels (`PARM.`/
+  `UNIT.`/`EQNS.`/`BITS.`, addressed to itself) no longer shows up as a chat
+  line in the APRS "All" view.** Found from a live screenshot that looked
+  like garbage: lines like `< W1UWS-1: PARM.Vin,Rx1h,Eff1h,...` are real,
+  correctly-decoded APRS traffic -- the APRS spec's telemetry chapter defines
+  these as messages a station sends to itself to label its own `T#...`
+  reports -- not a wrong decode of a non-APRS frame from a dual-mode node.
+  kissterm does not decode telemetry channel labels into anything useful yet,
+  so `aprs.Message.is_telemetry_definition` flags the four keywords the same
+  way `is_ack`/`is_rej` already flag ack/reject, and `_on_aprs_frame` skips
+  recording and notifying on it exactly like it already does for those.
+  **Files:** `kissterm/aprs/types.py`, `kissterm/aprs/messages.py`,
+  `kissterm/ui/app.py`, `kissterm/aprs_notify.py`.
+
 ## [2026-09-10] — bpq32.toml cross-checked against an independent 15-node crawl, RMS added
 
 ### Improvements

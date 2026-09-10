@@ -74,7 +74,7 @@ def evaluate_packet(
 
     if packet.kind == "message" and isinstance(packet.data, Message):
         msg = packet.data
-        if msg.is_ack or msg.is_rej:
+        if msg.is_ack or msg.is_rej or msg.is_telemetry_definition:
             return None
         if not callsign_matches(msg.addressee, mycalls):
             return None

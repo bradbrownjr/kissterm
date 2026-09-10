@@ -1105,7 +1105,7 @@ class KissTermApp(App):
         if packet.kind == "message" and isinstance(packet.data, aprs.Message):
             msg = packet.data
             source = str(packet.source)
-            if not (msg.is_ack or msg.is_rej):
+            if not (msg.is_ack or msg.is_rej or msg.is_telemetry_definition):
                 self.aprs_conversations.record_incoming(source, msg.text, number=msg.number)
                 mycalls = [self.config.mycall, *self.config.mycall_aliases]
                 to_me = callsign_matches(msg.addressee, mycalls)

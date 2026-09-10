@@ -112,6 +112,27 @@ async def test_a_message_to_someone_else_is_not_acked(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_a_telemetry_definition_message_is_not_recorded_as_chat(tmp_path):
+    """A telemetry-equipped station labelling its own channels sends this as
+    a message addressed to itself -- real traffic, but not a line a human
+    wrote, so it must never land in the conversation log or the merged "All"
+    view it feeds. See `kissterm.aprs.types.Message.is_telemetry_definition`.
+    """
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        payload = aprs.message("WS1EC-15", "PARM.Vin,Rx1h,Eff1h", number=None)
+        frame = aprs.beacon_frame(PEER, AX25Address.parse("APRS"), (), payload)
+        await theirs.transport.send_frame(frame, 0)
+        for _ in range(10):
+            await pilot.pause()
+        assert "WS1EC-15" not in app.aprs_conversations.conversations
+        assert "Auto-ack sent" not in _terminal_text(app)
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_no_auto_ack_when_disabled_in_config(tmp_path):
     app, mine, theirs = await _app(tmp_path, aprs_auto_ack=False)
     async with app.run_test(size=(110, 32)) as pilot:

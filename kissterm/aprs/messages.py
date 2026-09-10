@@ -18,6 +18,15 @@ happens to be ``BLNn`` or ``ANn`` padded to 9 characters, so `parse_message`
 handles them without special-casing -- a caller that cares can check
 `Message.addressee` itself.
 
+A telemetry-equipped station labelling its own channels (``PARM.``/``UNIT.``/
+``EQNS.``/``BITS.``, one message each, addressed to itself) is the same
+situation as ack/rej for exactly the same reason: real APRS traffic riding
+the message data type without being a message a human wrote to another
+human. `is_telemetry_definition` flags it so a caller doing two-way
+messaging -- `KissTermApp._on_aprs_frame`, which files ordinary messages
+into a conversation log -- does not have to also know the APRS telemetry
+spec to keep four lines of channel-scaling coefficients out of a chat view.
+
 Total/never-raise applies here exactly as everywhere else in this package:
 these functions are called only from `parse.py`'s `_dispatch`, which is
 wrapped by `parse_packet`'s catch-all, so raising `ValueError` on malformed
@@ -33,6 +42,14 @@ from .types import Message, ObjectReport, Status
 
 __all__ = ["parse_message", "parse_status", "parse_object", "parse_item"]
 
+#: The four telemetry channel-labelling message types, per the APRS spec's
+#: telemetry chapter -- always sent as a message a station addresses to
+#: itself, never text a human typed. Matched on the leading dotted keyword
+#: only, so a genuine chat message that happens to start the same way (very
+#: unlikely -- "PARM." is not an English word) is the one false positive
+#: this accepts in exchange for not needing to also check the addressee.
+_TELEMETRY_DEFINITION_PREFIXES = ("PARM.", "UNIT.", "EQNS.", "BITS.")
+
 
 def parse_message(body: str) -> Message:
     if len(body) < 10 or body[9] != ":":
@@ -43,6 +60,8 @@ def parse_message(body: str) -> Message:
         return Message(addressee=addressee, text="", number=rest[3:].strip() or None, is_ack=True)
     if rest.startswith("rej"):
         return Message(addressee=addressee, text="", number=rest[3:].strip() or None, is_rej=True)
+    if rest.startswith(_TELEMETRY_DEFINITION_PREFIXES):
+        return Message(addressee=addressee, text=rest, is_telemetry_definition=True)
     m = re.search(r"\{([A-Za-z0-9]{1,5})\}?$", rest)
     if m:
         return Message(addressee=addressee, text=rest[: m.start()], number=m.group(1))
