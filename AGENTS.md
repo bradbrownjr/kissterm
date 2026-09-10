@@ -341,6 +341,16 @@ Gotchas that already cost time:
   read returns partial data and blames the state machine for a harness bug —
   this produced exactly one false failure already. `_drain(link, expect=N)`
   waits for a byte count against a hard deadline instead.
+- **`pilot.pause()` costs roughly 100-120ms of real wall time** (a full
+  render per call), not a cheap event-loop yield. A polling loop that calls
+  it alongside a real timing budget (a capture window, a timeout) can eat
+  most of that budget in the polling itself before the thing under test
+  even happens — this produced a flaky-looking harvest-window test that
+  failed with 2-3 seconds of budget silently consumed by ~20-40 calls to
+  `pilot.pause()`. Poll with a bare `asyncio.sleep()` for anything
+  asyncio-level (link callbacks, timers, `_pump`) — it does not need
+  Textual's message pump to make progress — and call `pilot.pause()` at
+  most once, right before reading a widget's state.
 - **At 40% frame loss the transfer completes in about 5 s**, not instantly:
   go-back-N with a 4-frame window collapses under that much loss. That is
   correct behaviour, not a stall. 25% is the stable test point.
