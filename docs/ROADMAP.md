@@ -338,9 +338,14 @@ today -- it moved off the F-row before Address Book's own F5/F6 shuffle, see
       `confidence = "recalled"` in `bpq32.toml` and `tnc2.toml` were written
       from memory, are flagged as such in the UI, and should be corrected from
       a real session -- kissterm will already be logging those (P2). The
-      documented entries deserve a check too. Small, and the highest-value item
-      here. **Needs an operator with a real node to connect to** -- not
-      something a coding session can do on its own.
+      documented entries deserve a check too. **Partially done for
+      `bpq32.toml`**: a real `[2026-09-10]` session against WS1EC-15/CCEMA
+      promoted `?`/`B`/`C`/`I`/`N`/`P`/`R`/`U`/`MH`/`BBS`/`CHAT` to
+      `confidence = "verified"` (see CHANGELOG) -- `STATS`/`PING`/`CQ`/`T`
+      stayed `"recalled"` (absent from that one node's `?` output, which
+      proves nothing either way about other nodes) and `tnc2.toml` is
+      completely untouched. **Needs an operator with a real node to connect
+      to** -- not something a coding session can do on its own.
 
 Shipped in `[2026-09-10]` (see CHANGELOG, three entries): opt-in harvesting
 from a connected node (`kissterm/harvested.py`, `HarvestConfirmScreen`), a

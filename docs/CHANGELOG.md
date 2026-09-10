@@ -3,6 +3,51 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — 10 `bpq32.toml` commands verified against a real CCEMA session
+
+### Improvements
+- **10 `bpq32.toml` commands promoted to `confidence = "verified"`.**
+  A live session against WS1EC-15/CCEMA's real `?` reply (`CCEMA:WS1EC-15}
+  BBS CHAT AI ANTENNA BANDS CALENDAR ...`) confirms `?`/`B`/`C`/`I`/`N`/`P`/
+  `R`/`U`/`MH`/`BBS`/`CHAT` for real, closing part of the P8 "verify shipped
+  references against live nodes" roadmap item. `STATS`/`PING`/`CQ`/`T` stay
+  `"recalled"` -- absent from this one node's menu, which proves nothing
+  about other nodes -- and the node's own `APPLICATION` additions
+  (CALENDAR, FORMS, DX, and the rest) are deliberately left out of this
+  shipped file, since they are local to WS1EC-15 and belong in the
+  per-callsign harvest cache instead.
+  **Files:** `kissterm/nodes/data/bpq32.toml`, `docs/ROADMAP.md`.
+
+## [2026-09-10] — Harvest timeout and terminal noise, found from a live CCEMA session
+
+### Improvements
+- **The harvest capture window no longer cuts off a slow reply.** A real
+  session against WS1EC-15/CCEMA hit the fixed `HARVEST_WINDOW_SECONDS =
+  5.0` window: CCEMA's `?` reply needed three T1 retry/REJ recovery cycles
+  before any of it arrived, landing ~18.8 s after the request went out --
+  legitimate AX.25 behaviour on a lossy link (`AGENTS.md`:
+  "`TIMER_RECOVERY` is not an error state"), not a hang, but the old window
+  had already given up 12 s before the reply started. Replaced with a poll
+  loop: a 90 s hard ceiling (`HARVEST_MAX_WAIT_SECONDS`, matching
+  `describe_airtime(8192)`'s worst case plus headroom this constant's
+  predecessor did not budget for AX.25 recovery time at all) plus a 3 s
+  quiet-exit (`HARVEST_QUIET_SECONDS`) once the buffer has started growing
+  and then stopped, so a short reply still returns promptly. The outgoing
+  `?` is now recorded via `log_sent` like every other automated send, and
+  `HarvestConfirmScreen`'s copy now says a marginal link can run past the
+  airtime estimate and that capture stops on quiet, not on a fixed timer.
+- **Timer-recovery flapping no longer spams the terminal pane.** The same
+  CCEMA session's retry cycles produced repeated inline `*** TIMER_RECOVERY`
+  / `*** CONNECTED` notes in the terminal -- duplicating what the status
+  bar already shows live, every second, per DESIGN.md's "say what is true,
+  in the place the operator is already looking." `_on_link_state` now
+  skips the inline note for a `TIMER_RECOVERY` excursion and for the
+  `CONNECTED` transition that resolves one; genuine state changes
+  (DISCONNECTING, FAILED, DISCONNECTED, and the separate dedicated
+  "Connected to X" note) are unaffected.
+  **Files:** `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+  `tests/pilot/test_terminal_ux.py`.
+
 ## [2026-09-10] — Opt-in command harvesting from a live node
 
 ### New Features

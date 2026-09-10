@@ -553,8 +553,12 @@ async def test_harvesting_learns_commands_and_caches_them_per_callsign():
     # asyncio, not gated on Textual's message pump, and `DataTable.row_count`
     # reflects `add_row` immediately, before the next render. `pilot.pause()`
     # is used only once, before anything is asserted about a widget.
-    original_window = app_module.HARVEST_WINDOW_SECONDS
-    app_module.HARVEST_WINDOW_SECONDS = 2.0
+    original_ceiling = app_module.HARVEST_MAX_WAIT_SECONDS
+    original_quiet = app_module.HARVEST_QUIET_SECONDS
+    original_poll = app_module.HARVEST_POLL_INTERVAL
+    app_module.HARVEST_MAX_WAIT_SECONDS = 3.0
+    app_module.HARVEST_QUIET_SECONDS = 0.2
+    app_module.HARVEST_POLL_INTERVAL = 0.05
     app, a, b, incoming = await _connected_app()
     try:
         async with app.run_test(size=(120, 40)) as pilot:
@@ -588,7 +592,7 @@ async def test_harvesting_learns_commands_and_caches_them_per_callsign():
             await far.send(b"Valid commands are: CALENDAR FORMS WALL\r")
 
             table = screen.query_one("#ref-table")
-            for _ in range(80):
+            for _ in range(150):
                 await asyncio.sleep(0.02)
                 if table.row_count > 0:
                     break
@@ -601,7 +605,98 @@ async def test_harvesting_learns_commands_and_caches_them_per_callsign():
             assert "CALENDAR" in cached and "FORMS" in cached and "WALL" in cached
             await screen.dismiss(None)
     finally:
-        app_module.HARVEST_WINDOW_SECONDS = original_window
+        app_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
+        app_module.HARVEST_QUIET_SECONDS = original_quiet
+        app_module.HARVEST_POLL_INTERVAL = original_poll
+        a.close()
+        b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_delayed_reply_is_still_captured_within_the_ceiling():
+    """The exact bug from the real WS1EC-15/CCEMA report: a reply that takes
+    real time to arrive (T1 retry/REJ recovery on a lossy link) must still
+    be captured as long as it lands before the hard ceiling -- a fixed
+    5-second window (the original, buggy implementation) would have missed
+    this one."""
+    from kissterm.ui import app as app_module
+
+    original_ceiling = app_module.HARVEST_MAX_WAIT_SECONDS
+    original_quiet = app_module.HARVEST_QUIET_SECONDS
+    original_poll = app_module.HARVEST_POLL_INTERVAL
+    app_module.HARVEST_MAX_WAIT_SECONDS = 1.5
+    app_module.HARVEST_QUIET_SECONDS = 0.1
+    app_module.HARVEST_POLL_INTERVAL = 0.02
+    app, a, b, incoming = await _connected_app()
+    try:
+        async with app.run_test(size=(120, 40)):
+            link = await a.connect(AX25Path(PEER, MYCALL))
+            app._bind_link(link)
+            await asyncio.sleep(0.1)
+            far = incoming[0]
+            far.read_nowait()
+
+            async def _delayed_reply():
+                # Deliberately late relative to the 1.5s patched ceiling --
+                # arrives with under a second of margin, well past where a
+                # short fixed window (like the original 5.0s default scaled
+                # down proportionally) would already have given up.
+                await asyncio.sleep(0.6)
+                await far.send(b"Valid commands are: CALENDAR FORMS WALL\r")
+
+            task = asyncio.create_task(_delayed_reply())
+            names = await app.harvest_commands(app._active_key())
+            await task
+
+            assert set(names) == {"CALENDAR", "FORMS", "WALL"}, names
+    finally:
+        app_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
+        app_module.HARVEST_QUIET_SECONDS = original_quiet
+        app_module.HARVEST_POLL_INTERVAL = original_poll
+        a.close()
+        b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_fast_reply_does_not_wait_out_the_full_ceiling():
+    """The quiet-exit exists so a two-line answer doesn't force the operator
+    to sit through the full worst-case ceiling."""
+    from kissterm.ui import app as app_module
+
+    original_ceiling = app_module.HARVEST_MAX_WAIT_SECONDS
+    original_quiet = app_module.HARVEST_QUIET_SECONDS
+    original_poll = app_module.HARVEST_POLL_INTERVAL
+    app_module.HARVEST_MAX_WAIT_SECONDS = 10.0
+    app_module.HARVEST_QUIET_SECONDS = 0.2
+    app_module.HARVEST_POLL_INTERVAL = 0.02
+    app, a, b, incoming = await _connected_app()
+    try:
+        async with app.run_test(size=(120, 40)):
+            link = await a.connect(AX25Path(PEER, MYCALL))
+            app._bind_link(link)
+            await asyncio.sleep(0.1)
+            far = incoming[0]
+            far.read_nowait()
+
+            async def _fast_reply():
+                await asyncio.sleep(0.05)
+                await far.send(b"Valid commands are: CALENDAR\r")
+
+            task = asyncio.create_task(_fast_reply())
+            start = asyncio.get_event_loop().time()
+            names = await app.harvest_commands(app._active_key())
+            elapsed = asyncio.get_event_loop().time() - start
+            await task
+
+            assert "CALENDAR" in names
+            assert elapsed < 2.0, (
+                f"took {elapsed:.2f}s -- quiet-exit did not shortcut the "
+                f"10s ceiling for a reply that arrived almost immediately"
+            )
+    finally:
+        app_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
+        app_module.HARVEST_QUIET_SECONDS = original_quiet
+        app_module.HARVEST_POLL_INTERVAL = original_poll
         a.close()
         b.close()
 
@@ -658,6 +753,64 @@ async def test_harvest_is_refused_while_the_transmit_gate_is_closed():
 
         assert names == ()
         assert far.read_nowait() == b"", "harvesting transmitted with the gate closed"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_timer_recovery_flapping_does_not_clutter_the_terminal():
+    """From a real report: WS1EC-15/CCEMA's link flapped timer-recovery and
+    connected three times waiting out T1/REJ recovery for one reply, and
+    every flap wrote its own line into the scrollback among the node's
+    actual text. The status bar already shows link state live -- this
+    should not be said twice."""
+    from kissterm.transport.base import SessionState
+
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+
+        key = app._active_key()
+        app._on_link_state(key, SessionState.TIMER_RECOVERY)
+        await pilot.pause()
+        app._on_link_state(key, SessionState.CONNECTED)
+        await pilot.pause()
+        app._on_link_state(key, SessionState.TIMER_RECOVERY)
+        await pilot.pause()
+        app._on_link_state(key, SessionState.CONNECTED)
+        await pilot.pause()
+
+        text = _plain(app.query_one("#session-log"))
+        assert "timer-recovery" not in text, text
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_genuine_disconnect_still_shows_inline():
+    """The suppression is specific to timer-recovery churn, not a blanket
+    silencing of every state note -- disconnecting must still be visible
+    inline, since nothing else announces it."""
+    from kissterm.transport.base import SessionState
+
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+
+        key = app._active_key()
+        app._on_link_state(key, SessionState.DISCONNECTING)
+        await pilot.pause()
+
+        text = _plain(app.query_one("#session-log"))
+        assert "disconnecting" in text
     a.close()
     b.close()
 

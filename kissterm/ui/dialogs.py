@@ -2018,6 +2018,12 @@ class HarvestConfirmScreen(ModalScreen[bool]):
     way to know how verbose this particular node's `?` reply will be before
     asking it, so showing a false-precision figure would be worse than
     showing the honest range from `docs/ROADMAP.md`'s own airtime table.
+
+    That range prices wire time only. A real report against WS1EC-15/CCEMA
+    needed three T1 retry/REJ recovery cycles and ~18.8 seconds before a
+    two-line reply even started arriving -- legitimate lossy-link behaviour
+    `describe_airtime` cannot see coming, which is why the copy below also
+    says a marginal link can run past the estimate.
     """
 
     BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
@@ -2037,8 +2043,10 @@ class HarvestConfirmScreen(ModalScreen[bool]):
                 f"This is real airtime on a shared channel -- anywhere from "
                 f"{low} to {high} depending on how verbose the node is, "
                 "during which nobody else on the frequency can transmit. "
-                "The result is cached forever, so this is asked at most "
-                "once per node.",
+                "A marginal or busy link can take longer than that estimate; "
+                "kissterm keeps listening either way and stops as soon as "
+                "the reply looks finished, not on a fixed timer. The result "
+                "is cached forever, so this is asked at most once per node.",
                 id="reminder-detail",
             )
             with Horizontal(id="connect-buttons"):

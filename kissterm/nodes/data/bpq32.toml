@@ -5,6 +5,22 @@
 # shapes are confirmed against a real deployed node configuration (WS1EC-15,
 # NODEALIAS CCEMA) in the sibling bpq-apps repository.
 #
+# [2026-09-10] The commands marked confidence = "verified" below were
+# confirmed for real: a live session against WS1EC-15/CCEMA sent "?" and
+# received "CCEMA:WS1EC-15} BBS CHAT AI ANTENNA BANDS CALENDAR CALLOUT DICT
+# DX FORMS FORTUNE GOPHER GYX NEWS PREDICT REPEATER QRZ RMS SPACE SYSINFO
+# TEST WALL WIKI WX WWW APPS CONNECT BYE INFO NODES PORTS ROUTES USERS
+# MHEARD" -- every shipped core-node command below appears in it under its
+# long form. The names NOT in that list (AI, ANTENNA, BANDS, CALENDAR,
+# CALLOUT, DICT, DX, FORMS, FORTUNE, GOPHER, GYX, NEWS, PREDICT, REPEATER,
+# QRZ, RMS, SPACE, SYSINFO, TEST, WALL, WIKI, WX, WWW, APPS) are this one
+# node's own local `APPLICATION` additions, not stock BPQ32 -- exactly the
+# WS1EC-15 example this package's own docstring already names as what
+# harvesting (not this shipped file) is for, so they are deliberately not
+# added here. STATS/PING/CQ/T were not in that node's "?" output either,
+# but a single node's configuration proves nothing about their absence
+# elsewhere, so they stay at "recalled" rather than being downgraded.
+#
 # Anything marked confidence = "recalled" has NOT been checked against current
 # documentation or a live node. Correct it from a real session rather than
 # from memory -- see docs/ROADMAP.md P8.
@@ -29,12 +45,14 @@ aliases = ["H", "HELP"]
 summary = "List the commands this node accepts"
 usage = "?"
 detail = "Cheap on a node, expensive on a verbose BBS -- see the airtime note in the reference pane."
+confidence = "verified"
 
 [[commands]]
 name = "B"
 aliases = ["BYE"]
 summary = "Disconnect from the node"
 usage = "B"
+confidence = "verified"
 
 [[commands]]
 name = "C"
@@ -42,12 +60,14 @@ aliases = ["CONNECT"]
 summary = "Connect onward to another station or node"
 usage = "C <call>  |  C <port> <call>"
 detail = "With a port number, connects out on that radio port rather than via the node's routing."
+confidence = "verified"
 
 [[commands]]
 name = "I"
 aliases = ["INFO"]
 summary = "Show the node's information text"
 usage = "I"
+confidence = "verified"
 
 [[commands]]
 name = "N"
@@ -55,30 +75,35 @@ aliases = ["NODES"]
 summary = "List known NET/ROM nodes"
 usage = "N  |  N <call>"
 detail = "The bare form can be a long list on a busy network -- several thousand bytes, which is minutes of airtime at 1200 baud. Prefer N <call>."
+confidence = "verified"
 
 [[commands]]
 name = "P"
 aliases = ["PORTS"]
 summary = "List the node's radio ports"
 usage = "P"
+confidence = "verified"
 
 [[commands]]
 name = "R"
 aliases = ["ROUTES"]
 summary = "List neighbour nodes and route quality"
 usage = "R"
+confidence = "verified"
 
 [[commands]]
 name = "U"
 aliases = ["USERS"]
 summary = "Show who is connected to the node right now"
 usage = "U"
+confidence = "verified"
 
 [[commands]]
 name = "MH"
 aliases = ["MHEARD"]
 summary = "Stations the node has heard, most recent first"
 usage = "MH  |  MH <port>"
+confidence = "verified"
 
 [[commands]]
 name = "STATS"

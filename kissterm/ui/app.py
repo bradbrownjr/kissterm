@@ -191,6 +191,11 @@ class _TerminalSession:
     #: duration of its capture window; `_capture_harvest` appends into it.
     #: See `HARVEST_CAPTURE_LIMIT` for why it cannot grow without bound.
     harvest_buffer: str | None = None
+    #: The last state `_on_link_state` actually wrote an inline note for.
+    #: Used only to recognise "returning to CONNECTED from a TIMER_RECOVERY
+    #: excursion we never announced either" so its resolution doesn't get
+    #: announced alone -- see that method's docstring.
+    last_noted_state: "SessionState | None" = None
 
 
 def _status_row(parts: list[str]) -> Table:
@@ -271,12 +276,36 @@ HOP_FAIL_WORDS = ("BUSY", "FAILED", "DISCONNECTED", "TIMEOUT")
 #: that an ordinary node's response time does not trip it on every line.
 REPLY_WAIT_SECONDS = 15.0
 
-#: How long `KissTermApp.harvest_commands` listens for a node's reply to the
-#: harvest "?" before giving up and using whatever arrived. Not adaptive to
-#: the node's actual response time -- kissterm has no way to know that in
-#: advance, which is exactly why `HarvestConfirmScreen` shows a RANGE, not a
-#: number, before any of this runs.
-HARVEST_WINDOW_SECONDS = 5.0
+#: `KissTermApp.harvest_commands` NEVER waits longer than this, no matter
+#: what. From a real report: a fixed 5-second window (this constant's first
+#: value) closed a harvest 12 seconds before WS1EC-15/CCEMA's reply even
+#: started arriving -- its "?" needed three T1 retry/REJ recovery cycles
+#: before the actual text came through, ~18.8 seconds after the request went
+#: out, for a reply of all of two lines. That delay is real AX.25 behaviour
+#: on a lossy link (AGENTS.md: "TIMER_RECOVERY is not an error state"), not
+#: a hang, so the ceiling has to tolerate it -- 90s roughly matches
+#: `describe_airtime(8192)`'s documented worst case plus headroom for
+#: exactly this kind of retry overhead, which `describe_airtime` does not
+#: model at all (it only prices wire time, not link-layer recovery).
+HARVEST_MAX_WAIT_SECONDS = 90.0
+
+#: Once a harvest has received AT LEAST ONE byte, this much silence after
+#: the last one is treated as "the node is done sending" and the capture
+#: ends early -- most replies are short, and nobody should have to wait out
+#: the full 90-second ceiling for a two-line answer. This is deliberately
+#: NOT the same heuristic AGENTS.md's testing section warns against ("do not
+#: drain a lossy link with a went-quiet heuristic"): that warning is about
+#: mistaking a mid-transfer T1 recovery gap for the end of an ongoing,
+#: segmented transfer with no ceiling at all. This is a one-shot
+#: request/reply exchange with a hard ceiling as the backstop, so a quiet
+#: gap AFTER real content has already started arriving is a reasonable
+#: signal, not a guess with no fallback.
+HARVEST_QUIET_SECONDS = 3.0
+
+#: How often `harvest_commands` checks the buffer while waiting. Small
+#: enough that the quiet-exit above doesn't overshoot by much, cheap enough
+#: that polling for up to 90 seconds costs nothing measurable.
+HARVEST_POLL_INTERVAL = 0.5
 
 #: Hard cap on how much text one harvest capture keeps, regardless of how
 #: much the node actually sends. A chatty or verbose node must not turn one
@@ -1475,6 +1504,12 @@ class KissTermApp(App):
         is the one thing a backend or feature must never do. Returns the
         NEWLY learned names (empty if there is no connected link, the gate
         is closed, or nothing recognisable came back).
+
+        The wait is `HARVEST_MAX_WAIT_SECONDS` at most, but exits early
+        after `HARVEST_QUIET_SECONDS` of silence once something has actually
+        arrived -- see that constant's docstring for why a fixed short sleep
+        (this method's original implementation) is a real bug, not just
+        overcautious, on anything but a fast, lossless link.
         """
         session = self._sessions.get(session_key)
         if session is None or session.link is None or not session.link.connected:
@@ -1490,10 +1525,34 @@ class KissTermApp(App):
             log.exception("could not send harvest request to %s", link.peer)
             session.harvest_buffer = None
             return ()
+        # Recorded exactly like any other automated send (`_run_connect_
+        # script`'s pattern) -- the operator sees it in the terminal and it
+        # lands in the transcript, rather than harvesting being the one send
+        # path in this app that leaves no record of what went out.
+        self._to_terminal(session_key, "log", "?\n")
+        self.log_sent(session_key, "?")
         self._to_terminal(
             session_key, "log", "\n*** Asked the node for its command list...\n"
         )
-        await asyncio.sleep(HARVEST_WINDOW_SECONDS)
+        waited = 0.0
+        quiet = 0.0
+        last_length = 0
+        while waited < HARVEST_MAX_WAIT_SECONDS:
+            await asyncio.sleep(HARVEST_POLL_INTERVAL)
+            waited += HARVEST_POLL_INTERVAL
+            buffer = session.harvest_buffer or ""
+            if len(buffer) > last_length:
+                # Still arriving -- reset the quiet clock. Only a buffer
+                # that has stopped GROWING counts toward the quiet exit;
+                # counting mere non-emptiness would end the capture after
+                # exactly `HARVEST_QUIET_SECONDS` regardless of whether the
+                # node was still actively sending more.
+                last_length = len(buffer)
+                quiet = 0.0
+            elif buffer:
+                quiet += HARVEST_POLL_INTERVAL
+                if quiet >= HARVEST_QUIET_SECONDS:
+                    break
         text = session.harvest_buffer or ""
         session.harvest_buffer = None
         names = parse_harvested(text)
@@ -1515,13 +1574,44 @@ class KissTermApp(App):
         return names
 
     def _on_link_state(self, session_key: str, state: SessionState) -> None:
-        self._note(session_key, f"\n*** {state.value}\n")
+        """Note a state change inline in the terminal -- except a
+        TIMER_RECOVERY excursion and its own resolution back to CONNECTED.
+
+        From a real report: WS1EC-15/CCEMA's link flapped timer-recovery /
+        connected three times waiting out T1 retry and REJ recovery for one
+        reply, writing six `***` lines into the scrollback in between actual
+        node text. `TIMER_RECOVERY` is not an error (AGENTS.md is explicit:
+        "a busy 1200-baud channel or a marginal HF path spends real time
+        there and recovers fine") and the status bar already shows live
+        link state at 1Hz -- announcing it inline too is the same fact told
+        twice, which DESIGN.md's "say what is true, in the place the
+        operator is already looking" argues against, once is enough. The
+        INITIAL connect still gets its own distinct "Connected to X" note
+        from a different call site (`action_connect`/`_hop_to`), so this
+        skip never hides that a session started.
+
+        `last_noted_state` (not just "is this TIMER_RECOVERY") is what makes
+        the *return* to CONNECTED skip too: recovering silently and then
+        announcing the recovery's end would still be noise, just delayed by
+        one transition.
+        """
+        session = self._sessions.get(session_key)
+        recovering = state is SessionState.TIMER_RECOVERY
+        recovered = (
+            state is SessionState.CONNECTED
+            and session is not None
+            and session.last_noted_state is SessionState.TIMER_RECOVERY
+        )
+        if not recovering and not recovered:
+            self._note(session_key, f"\n*** {state.value}\n")
+            if session is not None:
+                session.last_noted_state = state
         if state is not SessionState.CONNECTED:
             # Anything other than a plain, steady CONNECTED -- disconnecting,
-            # failed, timer recovery -- already gets its own note above; the
-            # "acknowledged but silent" one below would only repeat that with
-            # less information, or fire after the link is no longer there to
-            # ask a question about.
+            # failed, timer recovery -- means there is nothing to ask "did
+            # they get it and just not answer yet" about; the "acknowledged
+            # but silent" note below would only repeat that with less
+            # information, or fire after the link is no longer there.
             self._cancel_reply_timer(session_key)
         if state is SessionState.DISCONNECTED:
             self._to_terminal(session_key, "set_placeholder", "not connected -- Ctrl+N")
