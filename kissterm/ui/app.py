@@ -266,6 +266,16 @@ HOP_TIMEOUT = 20.0
 #: out, the same heuristic bpq-apps' crawler uses against real BPQ nodes.
 HOP_FAIL_WORDS = ("BUSY", "FAILED", "DISCONNECTED", "TIMEOUT")
 
+#: The first word of an outgoing line that means "connect onward to a
+#: different node" across every shipped family's own command set -- bpq32/
+#: NET-ROM's "C"/"CONNECT" and JNOS's "connect" (its own alias table also
+#: has "c"). `log_sent` re-arms node detection when it sees one of these,
+#: covering both the scripted hop chain (`_hop_to` sends exactly "C
+#: <node>") and an operator typing the same command by hand mid-session --
+#: see `log_sent`'s hop-reset paragraph for why detection otherwise never
+#: notices the switch.
+HOP_COMMAND_WORDS = frozenset({"C", "CONNECT"})
+
 #: How long after sending a line, with nothing back, before saying so
 #: (`KissTermApp._note_if_no_reply`). From a real report: WS1EC-15
 #: acknowledged a line at the AX.25 layer (an RR came back within 3
@@ -1359,18 +1369,41 @@ class KissTermApp(App):
     def log_sent(self, session_key: str, text: str) -> None:
         """Record a line the operator transmitted on `session_key`. Called
         from `TerminalPane.send_line` with `active_session_key` -- the
-        operator can only ever type into whichever tab is on screen.
+        operator can only ever type into whichever tab is on screen -- and
+        from `_hop_to`, which sends its "C <node>" the same way.
 
         The pane echoes it to the scrollback itself; this is the durable
         half -- and this also (re)arms that session's reply-watch timer
         (`_note_if_no_reply`), cancelling any previous one so it is the
         LAST line typed that starts the clock, not the first.
+
+        Also where node detection gets re-armed for a hop. `_sniff_node`
+        locks onto the first family it identifies and never looks again --
+        deliberately, so ordinary mid-conversation text cannot trigger a
+        false match (AGENTS.md: "a wrong family shown confidently is worse
+        than 'unknown node'"). But a real report found the gap that leaves:
+        connect to a BPQ32 node, harvest it, then type "C <other-node>" to
+        hop onward through it -- kissterm's own AX.25 link never changes (it
+        is still connected to the SAME peer; the hop happens entirely at the
+        far node's application layer), so nothing else ever tells this
+        session it might now be talking to a different kind of system. A
+        fresh `CommandReference` here means the very next banner-shaped text
+        gets a clean, un-mixed identification instead of the OLD family (and
+        its now-irrelevant learned commands) sticking around forever. This
+        is deliberately keyed on an OPERATOR-INITIATED command, the same
+        trust model `_arm_for` uses for "confirmed and targeted" actions --
+        not on watching every byte forever, which would reopen the false-
+        match risk `_sniff_node`'s lock exists to close.
         """
         session = self._sessions.get(session_key)
         if session is None:
             return
         if session.transcript is not None:
             session.transcript.sent(text)
+        first_word = text.strip().split(None, 1)[0].upper() if text.strip() else ""
+        if first_word in HOP_COMMAND_WORDS:
+            session.reference = CommandReference()
+            session.detect_buffer = ""
         self._cancel_reply_timer(session_key)
         if session.link is not None and session.link.connected:
             session.reply_timer = self.set_timer(

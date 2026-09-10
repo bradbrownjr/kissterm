@@ -836,6 +836,91 @@ async def test_a_new_connection_forgets_the_previous_node():
 
 
 @pytest.mark.asyncio
+async def test_hopping_onward_forgets_the_node_it_hopped_through():
+    """From a real report: connect to a BPQ32 node, harvest it, then type
+    "C <other-node>" to hop onward -- the AX.25 link never changes (the hop
+    is the far node's own application layer relaying text, invisible to
+    kissterm's link state), so nothing else ever tells this session it
+    might now be talking to a different family. Sending a known
+    connect-onward command must reset detection so the NEXT banner gets a
+    clean read instead of the old family sticking around forever."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        key = app._active_key()
+        app._on_link_data(key, b"Welcome.\rW1AW-7:CCEMA}\r")
+        await pilot.pause()
+        assert app.reference.family is not None and app.reference.family.id == "bpq32"
+
+        app.log_sent(key, "C JNOSNODE")
+        assert app.reference.family is None, "hopping onward kept the old family"
+
+        app._on_link_data(key, b"Welcome to JNOS\r")
+        await pilot.pause()
+        assert app.reference.family is not None and app.reference.family.id == "jnos"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_hopping_onward_also_clears_stale_autocomplete_suggestions():
+    """`_update_suggestions` reads `app.reference` fresh on every keystroke
+    (never a cached copy), so the hop-reset above should already fix this
+    for free -- this pins that down rather than trusting it stays true."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        key = app._active_key()
+        app._on_link_data(key, b"Welcome.\rW1AW-7:CCEMA}\r")
+        await pilot.pause()
+
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.press("c")
+        await pilot.pause()
+        strip = app.query_one("#suggestion-strip", Static)
+        assert strip.display is True, "bpq32's C/CQ/CHAT should suggest before the hop"
+
+        field.value = ""
+        app.log_sent(key, "C JNOSNODE")
+        await pilot.press("c")
+        await pilot.pause()
+        assert strip.display is False, "old node's commands still suggested after hopping"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_command_that_merely_starts_with_c_does_not_reset_detection():
+    """"CQ" (call CQ) and "CHAT" are real bpq32.toml commands -- the
+    hop-reset must match the whole first word, not a prefix, or ordinary
+    node commands would spuriously wipe out a correct identification."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        key = app._active_key()
+        app._on_link_data(key, b"Welcome.\rW1AW-7:CCEMA}\r")
+        await pilot.pause()
+        assert app.reference.family is not None
+
+        app.log_sent(key, "CQ any takers?")
+        assert app.reference.family is not None, "CQ was mistaken for a hop"
+        app.log_sent(key, "CHAT")
+        assert app.reference.family is not None, "CHAT was mistaken for a hop"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
 async def test_writing_to_a_torn_down_terminal_pane_does_not_raise():
     """A link outlives the UI, and its callbacks must survive teardown.
 

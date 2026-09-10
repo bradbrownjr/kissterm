@@ -3,6 +3,29 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — Node detection now survives hopping onward through a node
+
+### Improvements
+- **Connecting to a BPQ32 node, then typing `C <other-node>` to hop onward,
+  no longer leaves Ctrl+R stuck showing the FIRST node's commands.**
+  `_sniff_node` deliberately locks onto the first family it identifies and
+  never looks again (AGENTS.md: "a wrong family shown confidently is worse
+  than 'unknown node'" -- scanning forever would let ordinary chat text
+  cause a false match) -- but that lock meant a hop was invisible to it:
+  kissterm's own AX.25 link never changes on a hop, since the far node
+  relays text onward at ITS application layer, so nothing else ever told
+  the session it might now be a different kind of system. `log_sent` (which
+  already sees both a hand-typed line and `_hop_to`'s own "C <node>", so
+  this covers a scripted hop chain too) now resets node detection whenever
+  the operator sends a recognized connect-onward command (`C`/`CONNECT`,
+  matched as the whole first word so real commands like `CQ`/`CHAT` are
+  never mistaken for one) -- the next banner gets a clean, un-mixed read.
+  **Not changed**: harvesting ("Learn from node") still caches results
+  under the AX.25 link's peer callsign, which stays the FIRST node's the
+  whole time a hop chain is active -- harvesting from a hopped-to node
+  would still mislabel the result. Known, deliberately out of scope here.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_terminal_ux.py`.
+
 ## [2026-09-10] — Visual feedback from a live JNOS-crawl test session
 
 ### Improvements
