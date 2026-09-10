@@ -24,6 +24,15 @@ transport, link timing, APRS:
 
 ![The settings pane](assets/screenshot-settings.png)
 
+**New to packet radio?** The thing that makes a node's command line
+intimidating is that nothing on screen tells you what you can type. kissterm
+reads the banner and prompt a node already sends and matches them against a
+shipped command reference for that software -- no manual to go find, no
+memorizing that one node's "bye" is another node's "B" is a third node's
+"*BYE*". `Ctrl+R` shows you the actual list, for the actual node you are
+actually talking to, before you have spent a single byte finding out by
+guessing.
+
 ## Why this exists
 
 Packet radio on Linux has been stuck with a hard choice: use `linpac`, which
@@ -49,6 +58,20 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
 
 ## Features
 
+- **Context-aware help, so you never face a bare prompt with no idea what is
+  legal.** kissterm identifies the node you connected to -- BPQ32, JNOS, a
+  plain TNC2 command mode -- passively, from the banner and prompt it sends
+  you anyway, never by asking it anything extra. `Ctrl+R` then shows that
+  node's actual command set, with a plain-English glossary of packet jargon
+  in the same pane, and picking one fills your input line without sending it.
+  Connected to a real node with a local menu of its own? "Learn from node"
+  asks it once, tells you what that will cost in airtime first, and caches
+  the answer under that node forever -- you never pay for it twice, and
+  neither does anyone else who pulls this repo, because the common command
+  sets ship as data (`kissterm/nodes/data/`) rather than everyone crawling
+  the same nodes from scratch. Detection is deliberately conservative: a
+  wrong command set shown with confidence is worse than an honest "unknown
+  node", so an unfamiliar banner just says so instead of guessing.
 - **Connect to any packet node or BBS.** Full AX.25 2.2 connected mode with
   retransmission and timer recovery, so a marginal path recovers instead of
   dropping you. Modulo 128 (extended sequence numbers) is supported; modulo 8
@@ -104,12 +127,6 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
 - **APRS.** Positions (uncompressed, compressed, and Mic-E), messages, status,
   objects, weather and telemetry — APRS is just an AX.25 UI frame, so it comes
   almost free on top of the same stack.
-- **Command references built in.** kissterm ships the command sets for common
-  node software and TNCs and identifies the node from its banner, so `Ctrl+R`
-  shows you what you can type before you have spent a byte. It does **not** ask the
-  node for its own help text unless you tell it to: at 1200 baud half-duplex
-  that is around 19 seconds of channel per 2 KB, and over a minute for a
-  verbose node -- time nobody else on the frequency can transmit.
 - **A terminal that only sends when you say so.** The conversation above is
   read-only: scroll it, select and copy from it, click a URL in it. The input
   line at the bottom is the only thing that ever transmits, and only when you
@@ -225,7 +242,7 @@ conversation, and swapping it mid-session would kill the link by timeout.
 |-----|--------|
 | `F1`..`F5` | Terminal / Monitor / Heard / APRS / Settings -- shown as the key right in each tab's label (also `Ctrl+1`..`Ctrl+5`, for a terminal that intercepts function keys) |
 | `Ctrl+G` | Open/close the Address Book (Terminal) or contacts list (APRS) as a slide-out on the right |
-| `Ctrl+R` | Command reference for the detected node |
+| `Ctrl+R` | Command reference and glossary for the node you are actually talking to |
 | `Ctrl+T` | Enable / disable transmit -- the master switch |
 | `Ctrl+Shift+B` | Send one beacon now (see the tmux note below) |
 | `Ctrl+N` | Connect to a station (with a list of stations already tried) |
