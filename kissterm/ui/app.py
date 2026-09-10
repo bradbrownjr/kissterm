@@ -186,6 +186,24 @@ class _TerminalSession:
     detect_buffer: str = ""
     transcript: SessionLog | None = None
     reply_timer: Timer | None = None
+    #: Who the operator is currently, logically, talking to -- starts as
+    #: `str(link.peer)` (the real AX.25 remote station, set in `_bind_link`
+    #: since a dataclass default cannot read another field) and only changes
+    #: once a hop to a different node is CONFIRMED to have succeeded (see
+    #: `KissTermApp._commit_hop`). Distinct from `link.peer`, which never
+    #: changes for the life of a connection even when the operator hops
+    #: through intermediate nodes at the far node's application layer --
+    #: conflating the two is what made `harvest_commands` cache a hopped-to
+    #: node's command list under the FIRST node's callsign, silently
+    #: corrupting that node's real entry in `harvested.py`'s store.
+    current_node: str = ""
+    #: The background watch started by `log_sent` for a hand-typed hop, so
+    #: it can be cancelled -- a second hop sent before the first resolves
+    #: must not leave two watchers racing on the same `link.on_data`. Kept
+    #: as a plain `asyncio.Task` with a manual stop/clear, mirroring
+    #: `reply_timer` above rather than introducing a worker-group pattern
+    #: this file uses nowhere else.
+    hop_watch_task: "asyncio.Task | None" = None
     #: `None` means "not harvesting right now" -- the common case. Set to an
     #: (initially empty) string by `KissTermApp.harvest_commands` for the
     #: duration of its capture window; `_capture_harvest` appends into it.
@@ -269,11 +287,12 @@ HOP_FAIL_WORDS = ("BUSY", "FAILED", "DISCONNECTED", "TIMEOUT")
 #: The first word of an outgoing line that means "connect onward to a
 #: different node" across every shipped family's own command set -- bpq32/
 #: NET-ROM's "C"/"CONNECT" and JNOS's "connect" (its own alias table also
-#: has "c"). `log_sent` re-arms node detection when it sees one of these,
-#: covering both the scripted hop chain (`_hop_to` sends exactly "C
-#: <node>") and an operator typing the same command by hand mid-session --
-#: see `log_sent`'s hop-reset paragraph for why detection otherwise never
-#: notices the switch.
+#: has "c"). `log_sent` starts a confirmation watch when it sees one of
+#: these followed by a target, so an operator typing the command by hand
+#: mid-session gets the same confirm-then-reset treatment the scripted hop
+#: chain already gets from `_hop_to` -- see `log_sent`'s hop paragraph for
+#: why detection otherwise never notices the switch, and `_commit_hop` for
+#: why the reset must wait for the hop to actually come up.
 HOP_COMMAND_WORDS = frozenset({"C", "CONNECT"})
 
 #: How long after sending a line, with nothing back, before saying so
@@ -322,6 +341,63 @@ HARVEST_POLL_INTERVAL = 0.5
 #: opt-in harvest into unbounded memory growth for a session that stays open
 #: for hours.
 HARVEST_CAPTURE_LIMIT = 4096
+
+
+class _HopConfirmation:
+    """Watches one link for a node's own reply to a "C <node>" that has just
+    gone out, and decides whether the hop came up.
+
+    THE one definition of "the hop worked" in this app -- both the scripted
+    hop chain (`KissTermApp._hop_to`) and a hand-typed hop
+    (`KissTermApp.log_sent`'s background watch) go through it, so the two
+    cannot drift apart on, say, whether DISCONNECTED counts as a refusal.
+
+    A small class rather than a plain coroutine for one reason that is not
+    cosmetic: it subscribes to `link.on_data` in `__init__`, SYNCHRONOUSLY.
+    A coroutine can only subscribe once the event loop first runs it, and
+    `log_sent` is a synchronous method that cannot await anything before
+    returning -- so a reply arriving in that window would be fanned out to
+    every other subscriber and missed by this one, and the hop would never
+    be confirmed at all.
+
+    Subscribing is non-destructive: the terminal pane has its own separate
+    subscriber from `_bind_link` and goes on displaying the same bytes, the
+    same one-fan-out-many-subscribers shape as the frame transport's own
+    `subscribe()`. `stop()` must always be called -- a watcher left
+    subscribed goes on matching a later, unrelated hop's traffic.
+    """
+
+    def __init__(self, link, node: str) -> None:
+        self._link = link
+        self._node = node
+        self._seen = bytearray()
+        self.result: asyncio.Future[tuple[bool, str]] = (
+            asyncio.get_event_loop().create_future()
+        )
+        link.on_data.append(self._on_data)
+
+    def _on_data(self, data: bytes) -> None:
+        self._seen.extend(data)
+        # latin-1 for the same reason every other payload decode in this app
+        # uses it: a corrupt frame off a noisy channel must lose the noise,
+        # not the readable part around it.
+        text = self._seen.decode("latin-1", "replace").upper()
+        if "CONNECTED" in text:
+            if not self.result.done():
+                self.result.set_result((True, ""))
+            return
+        for word in HOP_FAIL_WORDS:
+            if word in text:
+                if not self.result.done():
+                    self.result.set_result((False, f"{self._node} answered {word}"))
+                return
+
+    def stop(self) -> None:
+        """Unsubscribe. Idempotent -- it is called from both the awaiting
+        coroutine's `finally` and the watching task's done callback, and
+        either one may get there first."""
+        with contextlib.suppress(ValueError):
+            self._link.on_data.remove(self._on_data)
 
 
 class _SessionLinkAdapter:
@@ -864,6 +940,7 @@ class KissTermApp(App):
         self._unsubscribe_aprs()
         self._close_all_transcripts()
         self._cancel_all_reply_timers()
+        self._cancel_all_hop_watches()
 
     # ------------------------------------------------------------------
     # Hardware hotplug (serial only -- never the network)
@@ -1198,6 +1275,18 @@ class KissTermApp(App):
             session.reference = value
 
     @property
+    def current_node(self) -> str:
+        """Who the ACTIVE tab is logically talking to -- the link's own peer
+        until a hop through it is confirmed, that node afterwards. Same
+        "whichever tab is on screen" scoping as `link` and `reference`
+        above, and the same warning applies: a callback bound to a specific
+        session must read `_TerminalSession.current_node` through its own
+        key instead.
+        """
+        session = self._sessions.get(self._active_key())
+        return session.current_node if session is not None else ""
+
+    @property
     def transcript(self) -> SessionLog | None:
         """Transcript file for whichever session is active, or None."""
         session = self._sessions.get(self._active_key())
@@ -1281,8 +1370,14 @@ class KissTermApp(App):
         """
         key = session_key if session_key is not None else self._session_key(link.peer, link.port)
         self._cancel_reply_timer(key)
+        self._cancel_hop_watch(key)
         self._close_transcript(key)
         session = _TerminalSession(link=link)
+        # A fresh connection is, by definition, talking to the link's own
+        # peer -- any logical peer a previous hop chain established on this
+        # key belonged to the session that just ended. See
+        # `_TerminalSession.current_node` and `_commit_hop`.
+        session.current_node = str(link.peer)
         # Apply anything harvested from THIS peer on a past connect --
         # cached forever, per AGENTS.md's opt-in-harvesting rule, so a
         # reconnect never re-asks and never re-spends the airtime.
@@ -1366,7 +1461,7 @@ class KissTermApp(App):
         if session is not None and session.transcript is not None:
             session.transcript.note(text.strip().lstrip("* "))
 
-    def log_sent(self, session_key: str, text: str) -> None:
+    def log_sent(self, session_key: str, text: str, *, watch_hop: bool = True) -> None:
         """Record a line the operator transmitted on `session_key`. Called
         from `TerminalPane.send_line` with `active_session_key` -- the
         operator can only ever type into whichever tab is on screen -- and
@@ -1377,38 +1472,181 @@ class KissTermApp(App):
         (`_note_if_no_reply`), cancelling any previous one so it is the
         LAST line typed that starts the clock, not the first.
 
-        Also where node detection gets re-armed for a hop. `_sniff_node`
-        locks onto the first family it identifies and never looks again --
-        deliberately, so ordinary mid-conversation text cannot trigger a
-        false match (AGENTS.md: "a wrong family shown confidently is worse
-        than 'unknown node'"). But a real report found the gap that leaves:
-        connect to a BPQ32 node, harvest it, then type "C <other-node>" to
-        hop onward through it -- kissterm's own AX.25 link never changes (it
-        is still connected to the SAME peer; the hop happens entirely at the
-        far node's application layer), so nothing else ever tells this
-        session it might now be talking to a different kind of system. A
-        fresh `CommandReference` here means the very next banner-shaped text
-        gets a clean, un-mixed identification instead of the OLD family (and
-        its now-irrelevant learned commands) sticking around forever. This
-        is deliberately keyed on an OPERATOR-INITIATED command, the same
-        trust model `_arm_for` uses for "confirmed and targeted" actions --
-        not on watching every byte forever, which would reopen the false-
-        match risk `_sniff_node`'s lock exists to close.
+        Also where a HAND-TYPED hop to another node gets noticed.
+        `_sniff_node` locks onto the first family it identifies and never
+        looks again -- deliberately, so ordinary mid-conversation text
+        cannot trigger a false match (AGENTS.md: "a wrong family shown
+        confidently is worse than 'unknown node'"). But a real report found
+        the gap that leaves: connect to a BPQ32 node, harvest it, then type
+        "C <other-node>" to hop onward through it -- kissterm's own AX.25
+        link never changes (it is still connected to the SAME peer; the hop
+        happens entirely at the far node's application layer), so nothing
+        else ever tells this session it might now be talking to a different
+        kind of system.
+
+        **The reset waits for the hop to be CONFIRMED, and that ordering is
+        the whole point.** The first version of this reset detection the
+        instant the command went out, which is wrong in the case that
+        actually matters on a marginal path: a hop that answers BUSY, or
+        that nothing answers at all, leaves the operator still talking to
+        the SAME node they were already correctly identified against -- and
+        blanking the identification there turns a working command reference
+        and working autocomplete into "unknown node" for a node that never
+        went anywhere. Caught in live testing against a real BPQ32 node.
+        So a hop command starts a background watch
+        (`_await_hop_confirmation`) and only a genuine CONNECTED reply
+        reaches `_commit_hop`; a refusal or a timeout touches nothing at
+        all. No note is written for a failed hop -- the node's own
+        BUSY/FAILED text is already in the scrollback, and saying it again
+        in kissterm's voice is the duplication AGENTS.md's "one place for
+        each fact" rule argues against.
+
+        This stays keyed on an OPERATOR-INITIATED command, the same trust
+        model `_arm_for` uses for "confirmed and targeted" actions -- not on
+        watching every byte forever, which would reopen the false-match risk
+        `_sniff_node`'s lock exists to close.
+
+        `watch_hop=False` is for `_hop_to` alone: the scripted hop chain
+        already awaits `_await_hop_confirmation` itself and calls
+        `_commit_hop` from there, so a second watcher started here would be
+        two subscribers racing on the same `link.on_data` bytes for the same
+        hop -- able to commit twice, and able to disagree.
         """
         session = self._sessions.get(session_key)
         if session is None:
             return
         if session.transcript is not None:
             session.transcript.sent(text)
-        first_word = text.strip().split(None, 1)[0].upper() if text.strip() else ""
-        if first_word in HOP_COMMAND_WORDS:
-            session.reference = CommandReference()
-            session.detect_buffer = ""
+        if watch_hop:
+            self._watch_typed_hop(session_key, text)
         self._cancel_reply_timer(session_key)
         if session.link is not None and session.link.connected:
             session.reply_timer = self.set_timer(
                 REPLY_WAIT_SECONDS, lambda: self._note_if_no_reply(session_key)
             )
+
+    # ------------------------------------------------------------------
+    # Hopping onward through a node, at the far end's application layer
+    # ------------------------------------------------------------------
+    def _watch_typed_hop(self, session_key: str, text: str) -> None:
+        """If `text` is a connect-onward command with a target, start (or
+        restart) the background watch that will commit the hop if it comes
+        up. Called from `log_sent`; see its docstring for the ordering
+        argument this exists to enforce.
+
+        A bare "C" with nothing after it names no node to hop to, so there
+        is nothing to confirm and nothing to reset -- it is left alone
+        rather than being treated as a hop to the empty string.
+
+        The target is the LAST word, not the first after the command:
+        bpq32.toml documents two forms, "C <call>" and "C <port> <call>",
+        and taking the first word after "C" would read a port-qualified hop
+        like "C 2 JNOSNODE" as a hop to a node literally named "2" -- wrong
+        in a way that would then confirm against the wrong node's traffic
+        and cache a real harvest under a callsign that does not exist.
+        """
+        parts = text.strip().split(None, 1)
+        if len(parts) < 2 or parts[0].upper() not in HOP_COMMAND_WORDS:
+            return
+        args = parts[1].strip().split()
+        target = args[-1] if args else ""
+        if not target:
+            return
+        session = self._sessions.get(session_key)
+        if session is None or session.link is None:
+            return
+        # A second hop typed before the first resolved replaces it. Leaving
+        # the old watcher subscribed would let it match the NEW hop's
+        # traffic -- an unrelated node's CONNECTED committing the previous
+        # target -- which is exactly the mislabelling this whole change is
+        # about.
+        self._cancel_hop_watch(session_key)
+        # Subscribed HERE, synchronously, not inside the task: a task does
+        # not start running until the event loop next gets a turn, and the
+        # node's reply is fanned out to `link.on_data` the moment it
+        # arrives. Anything received in that window would be invisible to a
+        # watcher that had not subscribed yet, and the hop would never be
+        # confirmed at all. See `_HopConfirmation`.
+        # The link is captured now, not read back off the session later: a
+        # reconnect on this key installs a whole new `_TerminalSession`, and
+        # this watch must stay attached to the link it was started on (that
+        # `_bind_link` cancels it first is belt and braces, not the reason).
+        link = session.link
+        watch = _HopConfirmation(link, target)
+
+        async def _run() -> None:
+            try:
+                ok, _detail = await self._await_hop_confirmation(
+                    link, target, watch=watch
+                )
+                if ok:
+                    self._commit_hop(session_key, target)
+            finally:
+                current = self._sessions.get(session_key)
+                if current is not None and current.hop_watch_task is task:
+                    current.hop_watch_task = None
+
+        task = asyncio.get_event_loop().create_task(
+            _run(), name=f"hop-watch:{session_key}:{target}"
+        )
+        # Unsubscribe on EVERY ending, including a task cancelled before it
+        # ever ran -- that one never enters `_run`'s body, so its `finally`
+        # never fires and the subscriber would be left on the fan-out
+        # matching unrelated traffic for the rest of the session. A done
+        # callback runs in both cases; `_HopConfirmation.stop` is idempotent.
+        task.add_done_callback(lambda _task: watch.stop())
+        session.hop_watch_task = task
+
+    def _cancel_hop_watch(self, session_key: str) -> None:
+        session = self._sessions.get(session_key)
+        if session is not None and session.hop_watch_task is not None:
+            session.hop_watch_task.cancel()
+            session.hop_watch_task = None
+
+    def _cancel_all_hop_watches(self) -> None:
+        """Every session's, on shutdown -- see `on_unmount`. A watcher left
+        running past the UI would be a task holding a reference to a link
+        and a session that are both on their way out."""
+        for key in list(self._sessions):
+            self._cancel_hop_watch(key)
+
+    def _commit_hop(self, session_key: str, node: str) -> None:
+        """Apply a CONFIRMED successful hop to `node`: from here on this
+        session is logically talking to a different station than its AX.25
+        link's fixed peer.
+
+        The ONLY place a hop's success is applied, for both the scripted
+        chain (`_hop_to`) and a hand-typed one (`log_sent`'s watch), so
+        there is one answer to "what changes when a hop works" rather than
+        two copies free to drift apart.
+
+        Re-arms node detection (a fresh `CommandReference` and an empty
+        detect buffer) so the new node's banner gets a clean, un-mixed read
+        instead of the previous node's family and learned commands sticking
+        around -- and re-applies anything already harvested from `node`,
+        mirroring `_bind_link`'s own cache-reapply-on-connect for exactly
+        the same reason: a hop BACK to a node harvested before must not
+        re-spend the airtime AGENTS.md's opt-in-harvesting rule says is
+        paid once and cached forever.
+
+        Never call this for a hop that refused or timed out. The operator is
+        still talking to whatever they were talking to before the attempt,
+        and blanking a correct identification for a hop that never happened
+        is the regression this method's ordering exists to prevent.
+        """
+        session = self._sessions.get(session_key)
+        if session is None:
+            return
+        session.current_node = node
+        cached = self._harvested.for_callsign(node)
+        if cached:
+            session.reference = CommandReference(
+                learned=tuple(Command(name=n, confidence="learned") for n in cached)
+            )
+        else:
+            session.reference = CommandReference()
+        session.detect_buffer = ""
+        self._refresh_status()
 
     def _base_query(self, selector):
         """Query the app's own screen, not whatever modal is on top of it.
@@ -1598,14 +1836,21 @@ class KissTermApp(App):
                 session_key, "log", "\n*** No commands recognised in the reply.\n"
             )
             return ()
-        all_cached = self._harvested.add(str(link.peer), names)
+        # Keyed on the LOGICAL peer, not `link.peer`. After a confirmed hop
+        # the AX.25 link is still to the first node while the `?` was
+        # answered by whatever node the operator hopped to -- keying on the
+        # link's peer wrote the second node's commands into the first one's
+        # cache entry, corrupting a node's real reference with another
+        # node's commands. See `_TerminalSession.current_node`.
+        node = session.current_node or str(link.peer)
+        all_cached = self._harvested.add(node, names)
         session.reference.learned = tuple(
             Command(name=n, confidence="learned") for n in all_cached
         )
         self._to_terminal(
             session_key,
             "log",
-            f"\n*** Learned {len(names)} command(s) from {link.peer}: "
+            f"\n*** Learned {len(names)} command(s) from {node}: "
             f"{', '.join(names)}\n",
         )
         return names
@@ -1658,6 +1903,12 @@ class KissTermApp(App):
             # information, or fire after the link is no longer there.
             self._cancel_reply_timer(session_key)
         if state is SessionState.DISCONNECTED:
+            # Only here, never on TIMER_RECOVERY: a hop over a marginal path
+            # spends real time in recovery and comes back (AGENTS.md), and
+            # cancelling its watch there would lose a hop that was about to
+            # succeed. A link that is genuinely gone has no hop left to
+            # confirm.
+            self._cancel_hop_watch(session_key)
             self._to_terminal(session_key, "set_placeholder", "not connected -- Ctrl+N")
             self._close_transcript(session_key)
 
@@ -2434,53 +2685,89 @@ class KissTermApp(App):
                 return False
         return True
 
-    async def _hop_to(self, link, session_key: str, node: str) -> tuple[bool, str]:
-        """Send ``C <node>`` and wait for that node's own CONNECTED reply.
-
-        Watches everything the link receives from the moment the command
-        goes out, via a temporary `link.on_data` subscriber -- non-
-        destructively: the terminal pane has its own separate subscriber
-        from `_bind_link` and keeps displaying the same bytes normally, the
-        same one-fan-out-many-subscribers shape as the frame transport's own
-        `subscribe()`. Removed again before returning either way, so it
-        cannot keep matching against a later, unrelated hop's traffic.
+    async def _await_hop_confirmation(
+        self,
+        link,
+        node: str,
+        timeout: float | None = None,
+        watch: "_HopConfirmation | None" = None,
+    ) -> tuple[bool, str]:
+        """Wait for `node`'s own CONNECTED reply after a "C <node>" (or
+        JNOS "connect <node>") has just been sent on `link`.
 
         Returns ``(True, "")`` on a CONNECTED reply, or ``(False, detail)``
         on an explicit BUSY/FAILED/DISCONNECTED/TIMEOUT reply (a refusal --
-        `detail` names which word) or on plain silence past `HOP_TIMEOUT`
+        `detail` names which word) or on plain silence past `timeout`
         (`detail` says so) -- two different diagnoses that must not be
         reported with the same words, same reasoning as a DM versus an N2
         timeout one layer down in `AX25Station.connect`.
+
+        Shared by `_hop_to` (the scripted hop chain) and `log_sent`'s
+        hand-typed-hop watch, so there is exactly one place that knows what
+        "the hop worked" means rather than two copies free to drift apart.
+
+        `watch` lets a caller that already subscribed hand its listening
+        `_HopConfirmation` over; either way this method owns stopping it.
+        Both callers do subscribe first, for the same reason spelled out in
+        that class's docstring -- `log_sent` because it is synchronous and
+        cannot await, `_hop_to` because its own "C <node>" send is an await
+        during which a reply could in principle already come back. Making
+        one here is the fallback for a caller with nothing to race.
+
+        `timeout=None` means `HOP_TIMEOUT`, resolved HERE rather than as a
+        default argument value: a default is bound once at import, and
+        `tests/pilot/test_connect_scripts.py` turns the real timeout down by
+        monkeypatching the module constant, which a bound default would
+        silently ignore.
         """
-        seen = bytearray()
-        result: asyncio.Future[tuple[bool, str]] = asyncio.get_event_loop().create_future()
+        if timeout is None:
+            timeout = HOP_TIMEOUT
+        if watch is None:
+            watch = _HopConfirmation(link, node)
+        try:
+            return await asyncio.wait_for(watch.result, timeout=timeout)
+        except asyncio.TimeoutError:
+            return False, f"no response within {timeout:.0f}s"
+        finally:
+            watch.stop()
 
-        def _watch(data: bytes) -> None:
-            seen.extend(data)
-            text = seen.decode("latin-1", "replace").upper()
-            if "CONNECTED" in text:
-                if not result.done():
-                    result.set_result((True, ""))
-                return
-            for word in HOP_FAIL_WORDS:
-                if word in text:
-                    if not result.done():
-                        result.set_result((False, f"{node} answered {word}"))
-                    return
+    async def _hop_to(self, link, session_key: str, node: str) -> tuple[bool, str]:
+        """Send ``C <node>`` and wait for that node's own CONNECTED reply,
+        applying the hop only if it actually comes up.
 
-        link.on_data.append(_watch)
+        `log_sent` is called with `watch_hop=False` because this method owns
+        confirming its own hop: letting `log_sent` start a second watcher
+        for the same command would put two subscribers on the same
+        `link.on_data` bytes, both able to reach `_commit_hop`.
+
+        Returns whatever `_await_hop_confirmation` decided, unchanged, so
+        `_hop_through` can tell a refusal from silence. A failure leaves the
+        session's node identification and logical peer completely untouched
+        -- the operator is still talking to the node they were already
+        connected to, and blanking a correct identification for a hop that
+        never happened is a regression this shipped once already.
+        """
+        # Subscribed before the command goes out, not after: `link.send` is
+        # an await, and a watcher that starts listening only once it returns
+        # has a window -- however small -- in which the node's answer has
+        # already been fanned out to everyone else. Same argument as
+        # `_HopConfirmation`'s docstring makes for `log_sent`.
+        watch = _HopConfirmation(link, node)
         try:
             cmd = f"C {node}"
             await link.send(cmd.encode("latin-1", "replace") + b"\r")
             self._to_terminal(session_key, "log", cmd + "\n")
-            self.log_sent(session_key, cmd)
-            try:
-                return await asyncio.wait_for(result, timeout=HOP_TIMEOUT)
-            except asyncio.TimeoutError:
-                return False, f"no response within {HOP_TIMEOUT:.0f}s"
+            self.log_sent(session_key, cmd, watch_hop=False)
+            ok, detail = await self._await_hop_confirmation(link, node, watch=watch)
         finally:
-            with contextlib.suppress(ValueError):
-                link.on_data.remove(_watch)
+            # Belt and braces: `_await_hop_confirmation` stops it on every
+            # path it reaches, but a send that raises (a closed transport)
+            # never gets there, and a watcher left on the fan-out would go
+            # on matching a later hop's traffic. `stop()` is idempotent.
+            watch.stop()
+        if ok:
+            self._commit_hop(session_key, node)
+        return ok, detail
 
     def _resolve_login(self, credential: str, script_name: str, script: str) -> str:
         """The text to actually send, from the three sources every auto-
@@ -2622,7 +2909,11 @@ class KissTermApp(App):
                 self.reference,
                 session_key=key,
                 can_harvest=link is not None and link.connected,
-                peer=str(link.peer) if link is not None else "",
+                # The LOGICAL peer: "Ask X for its command list?" has to name
+                # the node that will actually answer, which after a confirmed
+                # hop is not the link's own peer -- and it is the same name
+                # `harvest_commands` will file the answer under.
+                peer=self.current_node or (str(link.peer) if link is not None else ""),
             )
         )
         if chosen:
@@ -2697,6 +2988,11 @@ class KissTermApp(App):
         if session_key in self._connecting:
             self.action_disconnect()
             return
+        # Cancel BEFORE the session goes: `_cancel_hop_watch` finds the task
+        # through `_sessions`, so popping first would strand a watcher on a
+        # session that no longer exists.
+        self._cancel_reply_timer(session_key)
+        self._cancel_hop_watch(session_key)
         self._sessions.pop(session_key, None)
         self.query_one(TerminalPane).close_tab(session_key)
 
@@ -2746,7 +3042,17 @@ class KissTermApp(App):
             if mycall:
                 parts.append(mycall)
         if self.link is not None:
-            peer_part = f"{self.link.peer} {self.link.state.value}"
+            # The LOGICAL peer, which is the link's own until a hop through
+            # it is confirmed (`_commit_hop`). After a hop the link is still
+            # to the first node, so showing `link.peer` here left the status
+            # bar naming one node while the family badge beside it described
+            # a different one -- the same confusion the hop-detection work
+            # exists to clear up. `via <link peer>` keeps the real link-layer
+            # peer on screen rather than hiding which station is actually
+            # carrying the session.
+            node = self.current_node or str(self.link.peer)
+            where = node if node == str(self.link.peer) else f"{node} via {self.link.peer}"
+            peer_part = f"{where} {self.link.state.value}"
             family = self.reference.family
             if family is not None:
                 # Short id (e.g. "BPQ32", not the long-form family.name) --

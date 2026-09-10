@@ -61,11 +61,14 @@ def _fresh_book(app, tmp_path) -> AddressBook:
     return app.addressbook
 
 
-def _install_relay(node: AX25Station, replies: dict[str, bytes]) -> None:
+def _install_relay(node: AX25Station, replies: dict[str, bytes], banner: bytes = b"") -> None:
     """Answer "C <NAME>" over the incoming link the way a real node would.
 
     `replies` maps an upper-cased command to the raw bytes to send back --
     a canned `*** CONNECTED to X` or `*** BUSY`, scripted per test.
+    `banner`, when given, is sent the moment the link comes up, the way a
+    real node greets a caller -- which is what kissterm's own passive node
+    detection (`_sniff_node`) reads a family out of.
     """
 
     def _relay(data: bytes) -> None:
@@ -77,7 +80,23 @@ def _install_relay(node: AX25Station, replies: dict[str, bytes]) -> None:
         if link is not None:
             asyncio.get_event_loop().create_task(link.send(reply))
 
-    node.on_incoming.append(lambda link: link.on_data.append(_relay))
+    def _greet(link) -> None:
+        link.on_data.append(_relay)
+        if not banner:
+            return
+
+        async def _send_banner() -> None:
+            # A beat after the UA, not the same instant: the caller's link
+            # object exists as soon as the UA lands, but the APP only
+            # subscribes to it a moment later in `_bind_link`, and bytes
+            # delivered in between reach no subscriber at all. A real node
+            # composing and keying a greeting is not instant either.
+            await asyncio.sleep(0.15)
+            await link.send(banner)
+
+        asyncio.get_event_loop().create_task(_send_banner())
+
+    node.on_incoming.append(_greet)
 
 
 async def _connect_via_history(app, pilot) -> None:
@@ -157,6 +176,48 @@ async def test_a_hop_that_refuses_stops_the_chain_without_logging_in(tmp_path):
         )
         assert app.addressbook.entries[0].connects == 0, (
             "the target was never reached -- must not be recorded as connected"
+        )
+    node.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_refused_hop_leaves_the_node_we_are_still_on_identified(tmp_path):
+    """A failed hop must cost nothing but the hop.
+
+    The chain reporting failure is already covered above; what this pins
+    down is the half found in live testing against a real BPQ32 node: the
+    session is STILL talking to the first-hop node, so its identified
+    family, its logical peer (which is what a later harvest is filed
+    under), and its learned commands all have to survive the attempt
+    untouched. Resetting detection when the command went out -- before
+    anything confirmed the hop -- turned a correctly identified node into
+    "unknown node" every time a hop was refused.
+    """
+    app, station, tb = await _app()
+    book = _fresh_book(app, tmp_path)
+    book.record_attempt("W1LH-6", hops="WS1EC-7")
+
+    node = AX25Station(NODE, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
+    _install_relay(
+        node,
+        {"C W1LH-6": b"*** BUSY\r"},
+        banner=b"Welcome.\rW1AW-7:CCEMA}\r",
+    )
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _connect_via_history(app, pilot)
+        await asyncio.sleep(1.0)
+        await pilot.pause()
+
+        assert "No connection to W1LH-6" in _log_text(app)
+        family = app.reference.family
+        assert family is not None and family.id == "bpq32", (
+            "a refused hop wiped the identification of the node we are still on"
+        )
+        assert app.current_node == str(NODE), (
+            "a refused hop moved the logical peer -- a later harvest would be "
+            "filed under a node that was never reached"
         )
     node.close()
     station.close()

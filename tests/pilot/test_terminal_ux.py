@@ -51,6 +51,38 @@ async def _connected_app():
     return app, a, b, incoming
 
 
+def _feed(link, data: bytes) -> None:
+    """Deliver `data` to every subscriber on `link`, exactly the way
+    `AX25Link` does when a frame arrives.
+
+    Calling `app._on_link_data` directly reaches only the app's own
+    terminal/detection handler -- a hop-confirmation watch
+    (`KissTermApp._await_hop_confirmation`) is a SEPARATE, temporary
+    subscriber on the same fan-out, so a test that fed the app handler
+    alone would silently never confirm a hop and would then "prove" the
+    reset does not happen.
+    """
+    for callback in list(link.on_data):
+        callback(data)
+
+
+async def _hop_settled(app, session_key: str, timeout: float = 2.0) -> None:
+    """Wait for a background hop-confirmation watch to finish.
+
+    Polled with a bare `asyncio.sleep` rather than `pilot.pause()`: the
+    watch is plain asyncio and does not need Textual's message pump to make
+    progress, and AGENTS.md's testing section is explicit that a pause costs
+    ~100ms of real time per call -- enough to dominate any timing budget it
+    is polled inside.
+    """
+    deadline = asyncio.get_event_loop().time() + timeout
+    while asyncio.get_event_loop().time() < deadline:
+        await asyncio.sleep(0.01)
+        session = app._sessions.get(session_key)
+        if session is None or session.hop_watch_task is None:
+            return
+
+
 def _plain(widget) -> str:
     """A widget's currently-rendered plain text -- reading `.renderable`
     directly is the internals-coupling `kissterm/ui/AGENTS.md` rule 21 warns
@@ -841,9 +873,12 @@ async def test_hopping_onward_forgets_the_node_it_hopped_through():
     "C <other-node>" to hop onward -- the AX.25 link never changes (the hop
     is the far node's own application layer relaying text, invisible to
     kissterm's link state), so nothing else ever tells this session it
-    might now be talking to a different family. Sending a known
-    connect-onward command must reset detection so the NEXT banner gets a
-    clean read instead of the old family sticking around forever."""
+    might now be talking to a different family. A CONFIRMED hop must reset
+    detection so the NEXT banner gets a clean read instead of the old
+    family sticking around forever.
+
+    The reset is deliberately NOT immediate -- see the failed-hop and
+    timed-out-hop tests below, which are the other half of this contract."""
     app, a, b, _ = await _connected_app()
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
@@ -851,14 +886,18 @@ async def test_hopping_onward_forgets_the_node_it_hopped_through():
         app._bind_link(link)
         await asyncio.sleep(0.1)
         key = app._active_key()
-        app._on_link_data(key, b"Welcome.\rW1AW-7:CCEMA}\r")
+        _feed(link, b"Welcome.\rW1AW-7:CCEMA}\r")
         await pilot.pause()
         assert app.reference.family is not None and app.reference.family.id == "bpq32"
 
         app.log_sent(key, "C JNOSNODE")
-        assert app.reference.family is None, "hopping onward kept the old family"
+        # The node confirms the hop; only THEN does detection re-arm.
+        _feed(link, b"*** CONNECTED to JNOSNODE\r")
+        await _hop_settled(app, key)
+        assert app.reference.family is None, "a confirmed hop kept the old family"
+        assert app.current_node == "JNOSNODE"
 
-        app._on_link_data(key, b"Welcome to JNOS\r")
+        _feed(link, b"Welcome to JNOS\r")
         await pilot.pause()
         assert app.reference.family is not None and app.reference.family.id == "jnos"
     a.close()
@@ -877,7 +916,7 @@ async def test_hopping_onward_also_clears_stale_autocomplete_suggestions():
         app._bind_link(link)
         await asyncio.sleep(0.1)
         key = app._active_key()
-        app._on_link_data(key, b"Welcome.\rW1AW-7:CCEMA}\r")
+        _feed(link, b"Welcome.\rW1AW-7:CCEMA}\r")
         await pilot.pause()
 
         field = app.query_one("#session-input", Input)
@@ -889,6 +928,8 @@ async def test_hopping_onward_also_clears_stale_autocomplete_suggestions():
 
         field.value = ""
         app.log_sent(key, "C JNOSNODE")
+        _feed(link, b"*** CONNECTED to JNOSNODE\r")
+        await _hop_settled(app, key)
         await pilot.press("c")
         await pilot.pause()
         assert strip.display is False, "old node's commands still suggested after hopping"
@@ -908,7 +949,7 @@ async def test_a_command_that_merely_starts_with_c_does_not_reset_detection():
         app._bind_link(link)
         await asyncio.sleep(0.1)
         key = app._active_key()
-        app._on_link_data(key, b"Welcome.\rW1AW-7:CCEMA}\r")
+        _feed(link, b"Welcome.\rW1AW-7:CCEMA}\r")
         await pilot.pause()
         assert app.reference.family is not None
 
@@ -916,6 +957,235 @@ async def test_a_command_that_merely_starts_with_c_does_not_reset_detection():
         assert app.reference.family is not None, "CQ was mistaken for a hop"
         app.log_sent(key, "CHAT")
         assert app.reference.family is not None, "CHAT was mistaken for a hop"
+        # A bare "C" names no node to hop to, so there is nothing to confirm.
+        app.log_sent(key, "C")
+        assert app._sessions[key].hop_watch_task is None, (
+            "a bare C with no target started a hop watch"
+        )
+        # Nothing above should have started a watch that a later, unrelated
+        # CONNECTED could still commit.
+        _feed(link, b"*** CONNECTED to SOMEWHERE\r")
+        await _hop_settled(app, key)
+        assert app.reference.family is not None, "an ordinary command reset detection"
+        assert app.current_node == str(PEER)
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_port_qualified_hop_targets_the_callsign_not_the_port():
+    """bpq32.toml documents two forms: "C <call>" and "C <port> <call>".
+    The target is the LAST word either way -- taking the first word after
+    "C" would read "C 2 JNOSNODE" as a hop to a node literally named "2",
+    which then confirms against the wrong node's traffic and would cache a
+    real harvest under a callsign that was never actually reached."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        key = app._active_key()
+
+        app.log_sent(key, "C 2 JNOSNODE")
+        _feed(link, b"*** CONNECTED to JNOSNODE\r")
+        await _hop_settled(app, key)
+
+        assert app.current_node == "JNOSNODE", "the port number was taken as the target"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_hop_that_is_refused_leaves_the_node_we_are_still_on_alone():
+    """The regression the confirmation step exists to fix, found in live
+    testing against a real BPQ32 node: the first version of the hop reset
+    fired the instant the command went out. A hop that answers BUSY leaves
+    the operator on the SAME node they were already correctly identified
+    against -- wiping detection there turns a working command reference and
+    working autocomplete into "unknown node" for a node that never went
+    anywhere."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        key = app._active_key()
+        _feed(link, b"Welcome.\rW1AW-7:CCEMA}\r")
+        await pilot.pause()
+        before = app.reference.family
+        assert before is not None and before.id == "bpq32"
+
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.press("c")
+        await pilot.pause()
+        strip = app.query_one("#suggestion-strip", Static)
+        assert strip.display is True
+        field.value = ""
+
+        app.log_sent(key, "C SOMEWHERE")
+        _feed(link, b"*** BUSY from SOMEWHERE\r")
+        await _hop_settled(app, key)
+
+        assert app.reference.family is before, "a refused hop wiped the node we are on"
+        assert app.current_node == str(PEER), "a refused hop moved the logical peer"
+        await pilot.press("c")
+        await pilot.pause()
+        assert strip.display is True, "a refused hop lost the autocomplete we still want"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_hop_that_times_out_leaves_the_node_we_are_still_on_alone():
+    """Silence is the other way a hop fails, and it must be just as
+    harmless as a refusal. `HOP_TIMEOUT` is patched down rather than waited
+    out -- 20 seconds of real time in a unit test is not a test, it is a
+    pause."""
+    from kissterm.ui import app as app_module
+
+    original_timeout = app_module.HOP_TIMEOUT
+    app_module.HOP_TIMEOUT = 0.3
+    app, a, b, _ = await _connected_app()
+    try:
+        async with app.run_test(size=(110, 32)) as pilot:
+            await pilot.pause()
+            link = await a.connect(AX25Path(PEER, MYCALL))
+            app._bind_link(link)
+            await asyncio.sleep(0.1)
+            key = app._active_key()
+            _feed(link, b"Welcome.\rW1AW-7:CCEMA}\r")
+            await pilot.pause()
+            before = app.reference.family
+            assert before is not None
+
+            app.log_sent(key, "C NOWHERE")
+            # Nothing comes back at all -- the node never answers.
+            await _hop_settled(app, key)
+
+            assert app.reference.family is before, "a silent hop wiped detection"
+            assert app.current_node == str(PEER)
+    finally:
+        app_module.HOP_TIMEOUT = original_timeout
+        a.close()
+        b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_second_hop_replaces_the_first_ones_watch():
+    """Two hop commands in flight at once would be two watchers on the same
+    `link.on_data` bytes -- the first one's target committing on the second
+    one's CONNECTED reply, which is exactly the mislabelling the logical
+    peer exists to prevent."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        key = app._active_key()
+
+        app.log_sent(key, "C FIRST")
+        first_watch = app._sessions[key].hop_watch_task
+        app.log_sent(key, "C SECOND")
+        assert app._sessions[key].hop_watch_task is not first_watch
+
+        _feed(link, b"*** CONNECTED to SECOND\r")
+        await _hop_settled(app, key)
+
+        assert first_watch.cancelled(), "the first hop's watcher was left running"
+        assert app.current_node == "SECOND", "the wrong hop was committed"
+        assert app._sessions[key].hop_watch_task is None
+        # The cancelled watcher must also be off the fan-out, or it would go
+        # on matching unrelated traffic for the rest of the session.
+        assert len(link.on_data) == 1, f"stale watchers left subscribed: {link.on_data}"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_harvesting_after_a_hop_caches_under_the_node_that_answered():
+    """The bug this pairs with: `harvest_commands` used to key its cache on
+    `link.peer`, which stays the FIRST node's callsign for the life of a hop
+    chain -- so harvesting a node reached by hopping wrote its commands into
+    a different node's entry, corrupting a real reference with another
+    node's syntax."""
+    from kissterm.harvested import HarvestedCommands
+    from kissterm.ui import app as app_module
+
+    original_ceiling = app_module.HARVEST_MAX_WAIT_SECONDS
+    original_quiet = app_module.HARVEST_QUIET_SECONDS
+    original_poll = app_module.HARVEST_POLL_INTERVAL
+    app_module.HARVEST_MAX_WAIT_SECONDS = 2.0
+    app_module.HARVEST_QUIET_SECONDS = 0.1
+    app_module.HARVEST_POLL_INTERVAL = 0.02
+    app, a, b, _ = await _connected_app()
+    try:
+        async with app.run_test(size=(110, 32)) as pilot:
+            app._harvested = HarvestedCommands(app._harvested.file)
+            await pilot.pause()
+            link = await a.connect(AX25Path(PEER, MYCALL))
+            app._bind_link(link)
+            await asyncio.sleep(0.1)
+            key = app._active_key()
+
+            app.log_sent(key, "C W1LH-6")
+            _feed(link, b"*** CONNECTED to W1LH-6\r")
+            await _hop_settled(app, key)
+            assert app.current_node == "W1LH-6"
+
+            async def _reply():
+                await asyncio.sleep(0.05)
+                _feed(link, b"Valid commands are: CALENDAR FORMS WALL\r")
+
+            task = asyncio.create_task(_reply())
+            names = await app.harvest_commands(key)
+            await task
+
+            assert set(names) == {"CALENDAR", "FORMS", "WALL"}, names
+            assert "CALENDAR" in app._harvested.for_callsign("W1LH-6")
+            assert app._harvested.for_callsign(str(PEER)) == (), (
+                "harvest was filed under the AX.25 peer we merely hopped through"
+            )
+    finally:
+        app_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
+        app_module.HARVEST_QUIET_SECONDS = original_quiet
+        app_module.HARVEST_POLL_INTERVAL = original_poll
+        a.close()
+        b.close()
+
+
+@pytest.mark.asyncio
+async def test_hopping_to_an_already_harvested_node_reapplies_its_cache():
+    """The other half of "cached forever so it is never paid twice"
+    (`test_a_reconnect_applies_the_cache_with_no_new_airtime` covers the
+    connect path): arriving at a known node by hopping is the same arrival,
+    and must not re-spend the airtime either."""
+    from kissterm.harvested import HarvestedCommands
+
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        app._harvested = HarvestedCommands(app._harvested.file)
+        app._harvested.add("W1LH-6", ("CALENDAR", "FORMS"))
+
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()
+        key = app._active_key()
+        assert app.reference.learned == ()
+
+        app.log_sent(key, "C W1LH-6")
+        _feed(link, b"*** CONNECTED to W1LH-6\r")
+        await _hop_settled(app, key)
+
+        learned = {c.name for c in app.reference.learned}
+        assert learned == {"CALENDAR", "FORMS"}, learned
+        assert far.read_nowait() == b"", "applying the cache after a hop transmitted"
     a.close()
     b.close()
 

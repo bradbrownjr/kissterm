@@ -3,6 +3,50 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — A hop resets node detection only once it is CONFIRMED, and a harvest is filed under the node that answered
+
+### Improvements
+- **A hop that fails no longer blanks out the node you are still connected
+  to.** The hop-detection reset shipped earlier today (entry below) fired
+  the instant `C <node>` went out, with nothing yet knowing whether the hop
+  worked. Found in live testing against a real BPQ32 node: when the hop
+  answers BUSY, or nothing answers at all, the operator is still talking to
+  the SAME node -- and a correctly identified node had just been turned into
+  "unknown node", taking Ctrl+R's command list and the send line's
+  autocomplete with it. The reset now waits for that node's own CONNECTED
+  reply. `_hop_to`'s existing watcher (CONNECTED vs BUSY/FAILED/
+  DISCONNECTED/TIMEOUT vs silence past `HOP_TIMEOUT`) was extracted into
+  `_HopConfirmation` plus `_await_hop_confirmation`, so a hand-typed hop and
+  a scripted hop chain share one definition of "the hop worked" rather than
+  two copies free to drift apart, and `_commit_hop` is now the single place
+  a success is applied. A refusal or a timeout changes nothing at all. A
+  second hop typed before the first resolves cancels the first watch, so two
+  watchers can never race to commit different nodes off the same bytes.
+- **"Learn from node" is now cached under the node that actually answered.**
+  Previously keyed on `link.peer` -- the AX.25 link's remote station, which
+  stays the FIRST node's callsign for the life of a hop chain, because the
+  hop happens at the far node's application layer and is invisible to the
+  link layer. Harvesting after hopping therefore wrote the second node's
+  commands into the first node's cache entry, silently corrupting a real
+  node's reference with another node's syntax (noted as known-and-deferred
+  in the entry below; fixed here). `_TerminalSession.current_node` is the new
+  "logical peer": it starts as the link's own peer and moves only on a
+  confirmed hop. Harvesting keys on it, the "Learned N command(s) from X"
+  note and the Ctrl+R harvest prompt name it, and a hop *back* to a node
+  harvested before re-applies that cache immediately -- the same
+  never-pay-twice rule `_bind_link` already follows on a reconnect.
+- **The status bar names the node you are talking to.** After a confirmed
+  hop it reads `W1LH-6 via WS1EC-7 connected BPQ32` rather than showing the
+  first node's callsign next to a family badge describing a different one.
+- **A port-qualified hop no longer targets the port number.** `bpq32.toml`
+  documents two forms, `C <call>` and `C <port> <call>`; reading the target
+  as the first word after `C` took `C 2 JNOSNODE` as a hop to a node
+  literally named `2`, which would then confirm against the wrong node's
+  traffic and cache a real harvest under a callsign that was never reached.
+  The target is now the LAST word either way.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_terminal_ux.py`,
+  `tests/pilot/test_connect_scripts.py`.
+
 ## [2026-09-10] — Node detection now survives hopping onward through a node
 
 ### Improvements
