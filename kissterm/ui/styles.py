@@ -136,13 +136,19 @@ MonitorPane { layout: vertical; }
 HeardPane { layout: vertical; }
 #heard-table { height: 1fr; }
 
-/* Address Book pane */
+/* Address Book pane. No note above the table and no key-hint line below
+   the buttons -- Textual's Footer is the context-aware shortcut bar for
+   `_AddressBookTable.BINDINGS` already (AGENTS.md), and dropping both
+   Statics lines up this pane's button row with the Terminal pane's own
+   input-and-Send row on the other side of the split.
+   `.addressbook-note` stays defined even though this pane no longer yields
+   one -- `AprsPane`'s contacts slide-out reuses the same class for its own
+   caption ("APRS messaging contacts."). */
 AddressBookPane { layout: vertical; padding: 0 2; }
 .addressbook-note { padding: 1 0; color: $text-muted; max-width: 100; }
 #addressbook-table { height: 1fr; }
 .addressbook-actions { height: auto; margin-top: 1; }
 .addressbook-actions Button { margin-right: 1; }
-.addressbook-hint { padding: 1 0; color: $text-muted; }
 
 /* APRS pane */
 AprsPane { height: 1fr; }
@@ -268,14 +274,28 @@ TransportEntryScreen { align: center middle; }
 .placeholder { padding: 1 2; color: $text-muted; }
 
 #ref-box {
-    width: 90%; height: 80%; padding: 1 2;
+    /* 92%, not the 80% every other modal box here uses -- this is the one
+       modal whose whole point is a scrollable list, and on a terminal short
+       enough to matter (a real report: 90x24) the fixed note/mode-row/
+       search chrome above the table already eats ~11 rows on its own,
+       squishing the table to a single row at 80%. `overflow-y: auto` is
+       the backstop: if a still-shorter terminal cannot fit `#ref-table`'s
+       own `min-height` alongside everything else, the BOX scrolls instead
+       of silently clipping the Learn-from-node/Close buttons outside its
+       own border, which is what an unclamped Vertical did here. */
+    width: 90%; height: 92%; padding: 1 2;
     border: thick $primary; background: $surface;
+    overflow-y: auto;
 }
 #ref-title { text-style: bold; color: $accent; }
 #ref-note, #ref-help { color: $text-muted; padding: 0 0 1 0; }
 #ref-mode-row { height: auto; margin-bottom: 1; }
 #ref-mode-row Button { margin-right: 1; }
-#ref-table { height: 1fr; }
+/* min-height, not just `1fr`: on a short terminal `1fr` still shrinks this
+   to a single row once the fixed elements above and below it claim their
+   own space -- see #ref-box's comment. Six rows is enough to see more than
+   one command without scrolling on anything but the smallest terminals. */
+#ref-table { height: 1fr; min-height: 6; }
 
 TranscriptsScreen { align: center middle; }
 #transcripts-box {

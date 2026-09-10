@@ -786,6 +786,11 @@ async def test_timer_recovery_flapping_does_not_clutter_the_terminal():
 
         text = _plain(app.query_one("#session-log"))
         assert "timer-recovery" not in text, text
+        # The bug this test originally missed: suppressing the flap notes
+        # is not the same as suppressing the repeated *resolution* back to
+        # CONNECTED after each one. Two flap cycles must not print "***
+        # connected" twice.
+        assert text.count("*** connected") == 0, text
     a.close()
     b.close()
 

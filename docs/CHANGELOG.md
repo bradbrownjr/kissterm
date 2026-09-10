@@ -3,6 +3,50 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — Visual feedback from a live JNOS-crawl test session
+
+### Improvements
+- **A real repeated-"connected" bug, caught live.** The terminal-noise fix
+  earlier today (`_on_link_state` skipping the TIMER_RECOVERY note and its
+  own resolution) had a bug: `last_noted_state` was only ever set inside the
+  branch that *writes* a note, so it was never actually set to
+  TIMER_RECOVERY -- the one write that branch skips -- and the "did we just
+  recover" check could never see it. Every return to CONNECTED after a real
+  flap got announced anyway. Caught within hours by a live BPQ->JNOS crawl:
+  CCEMA's link recovered three times over 62 real seconds (confirmed in
+  `kissterm.log` -- legitimate T1/REJ recovery, `rc` climbing 0..9 of a
+  10-retry budget each time, never a hang) and the transcript shows exactly
+  three duplicate `* connected` lines for it. Renamed the field to
+  `last_state` and set it on every call, including a suppressed one --
+  `_on_link_state`'s docstring has the full account. The pilot test meant to
+  guard this only checked "timer-recovery" was absent, not that "connected"
+  stopped repeating; it now asserts both.
+- **Node family detection no longer writes an inline `*** Node looks like
+  X` terminal note.** Same duplication reasoning as the TIMER_RECOVERY fix:
+  the status bar already carries the peer callsign and link state, so the
+  detected family's short id (`BPQ32`, `JNOS`, `TNC2`) now appends there
+  instead (`_refresh_status`) -- one place for the fact, not two, and it
+  updates the moment `_sniff_node` identifies the node rather than only
+  once a second later.
+- **The Ctrl+R command reference dialog no longer squishes the command
+  table to one row.** At a real 90x24 terminal, the fixed note/mode-row/
+  search chrome above `#ref-table` already claimed about 11 of the box's
+  15 content rows at the old 80% height, and the Learn-from-node/Close
+  button row was being laid out several rows past the box's own bottom
+  border with no way to reach it. `#ref-box` is now 92% height with
+  `overflow-y: auto` (the box scrolls rather than clipping controls
+  outside its border), and `#ref-table` carries a `min-height: 6` so it
+  never collapses to a single row.
+- **The Address Book pane no longer carries a note above the table or a
+  key-hint line below the buttons.** Both were a second, static copy of
+  facts already available elsewhere: `_AddressBookTable.BINDINGS` are
+  already registered `show=False` specifically so Textual's own Footer is
+  the context-aware shortcut bar for them (AGENTS.md's rule for exactly
+  this). Removing both also lines this pane's button row up with the
+  Terminal pane's input-and-Send row on the other side of the same split.
+  **Files:** `kissterm/ui/app.py`, `kissterm/ui/styles.py`,
+  `kissterm/ui/addressbook_pane.py`, `tests/pilot/test_terminal_ux.py`.
+
 ## [2026-09-10] — JNOS added to the command reference (P8 "more families")
 
 ### New Features

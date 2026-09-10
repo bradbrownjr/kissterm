@@ -64,20 +64,22 @@ class AddressBookPane(Vertical):
     """Every station in `KissTermApp.addressbook`: dial, add, edit, forget."""
 
     def compose(self) -> ComposeResult:
-        yield Static(
-            "Every station you've connected to, or set up in advance.",
-            classes="addressbook-note",
-        )
+        # No note line above the table and no key-hint line below the
+        # buttons: `_AddressBookTable.BINDINGS` are already registered with
+        # `show=False` and Textual's own Footer is the context-aware
+        # shortcut bar for them (AGENTS.md: "A widget's own BINDINGS with
+        # show=True ARE the context-aware shortcut bar" -- a second, static
+        # copy of the same keys here is the duplication that rule already
+        # argues against). Dropping both Statics also puts this pane's
+        # button row at the same vertical position as the Terminal pane's
+        # input-and-Send row, requested directly for visual symmetry
+        # between the two side-by-side panes.
         yield _AddressBookTable(id="addressbook-table", cursor_type="row", zebra_stripes=True)
         with Horizontal(classes="addressbook-actions"):
             yield Button("Connect", variant="primary", id="addressbook-connect")
             yield Button("New", id="addressbook-new")
             yield Button("Edit selected", id="addressbook-edit")
             yield Button("Forget selected", id="addressbook-forget")
-        yield Static(
-            "Insert: new -- Enter: connect -- F2: edit selected -- Delete: forget selected",
-            classes="addressbook-hint",
-        )
 
     def on_mount(self) -> None:
         self.refresh_from(self.app.addressbook)  # type: ignore[attr-defined]

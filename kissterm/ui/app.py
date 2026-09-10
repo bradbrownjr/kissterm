@@ -191,11 +191,11 @@ class _TerminalSession:
     #: duration of its capture window; `_capture_harvest` appends into it.
     #: See `HARVEST_CAPTURE_LIMIT` for why it cannot grow without bound.
     harvest_buffer: str | None = None
-    #: The last state `_on_link_state` actually wrote an inline note for.
-    #: Used only to recognise "returning to CONNECTED from a TIMER_RECOVERY
-    #: excursion we never announced either" so its resolution doesn't get
-    #: announced alone -- see that method's docstring.
-    last_noted_state: "SessionState | None" = None
+    #: The last state `_on_link_state` was actually called with -- set on
+    #: EVERY call, including a suppressed TIMER_RECOVERY one, never only on
+    #: a call that wrote a note. See that method's docstring for why a
+    #: "last state we wrote a note for" version of this field does not work.
+    last_state: "SessionState | None" = None
 
 
 def _status_row(parts: list[str]) -> Table:
@@ -1465,12 +1465,16 @@ class KissTermApp(App):
         # `CommandReference` -- a wholesale replacement here would silently
         # drop any `learned` commands `_bind_link` already pre-populated
         # from a past harvest of this same peer.
+        #
+        # No inline terminal note here -- the family name is shown in the
+        # status bar instead (`_refresh_status`), which already carries the
+        # peer callsign and link state right next to it. Announcing it a
+        # second time in the scrollback is the same duplication AGENTS.md's
+        # "one place for each fact" rule already covers for the tab label
+        # vs. the footer; the operator asked for this one to move the same
+        # way.
         session.reference.family = family
-        self._to_terminal(
-            session_key,
-            "log",
-            f"\n*** Node looks like {family.name} -- Ctrl+R for its commands\n",
-        )
+        self._refresh_status()
 
     def _capture_harvest(self, session_key: str, data: bytes) -> None:
         """Feed one session's harvest capture window, when one is open.
@@ -1590,22 +1594,29 @@ class KissTermApp(App):
         from a different call site (`action_connect`/`_hop_to`), so this
         skip never hides that a session started.
 
-        `last_noted_state` (not just "is this TIMER_RECOVERY") is what makes
-        the *return* to CONNECTED skip too: recovering silently and then
-        announcing the recovery's end would still be noise, just delayed by
-        one transition.
+        Checking the previous state (`last_state`), not just "is this
+        TIMER_RECOVERY", is what makes the *return* to CONNECTED skip too --
+        recovering silently and then announcing the recovery's end would
+        still be noise, just delayed by one transition. `last_state` MUST be
+        recorded on every call, including a suppressed one: an earlier
+        version of this method only set it inside the `if not recovering`
+        branch, which means it was never actually set to TIMER_RECOVERY
+        (that write is the one being skipped) -- so the "did we just recover"
+        check could never see it, and every return to CONNECTED after a real
+        flap was announced anyway. That shipped once already, caught only by
+        watching a live CCEMA session repeat "*** connected" on every T1
+        retry cycle, not by the test that was supposed to guard this exact
+        thing (its assertion checked "timer-recovery" was absent, not that
+        "connected" stopped repeating).
         """
         session = self._sessions.get(session_key)
+        previous = session.last_state if session is not None else None
         recovering = state is SessionState.TIMER_RECOVERY
-        recovered = (
-            state is SessionState.CONNECTED
-            and session is not None
-            and session.last_noted_state is SessionState.TIMER_RECOVERY
-        )
+        recovered = state is SessionState.CONNECTED and previous is SessionState.TIMER_RECOVERY
         if not recovering and not recovered:
             self._note(session_key, f"\n*** {state.value}\n")
-            if session is not None:
-                session.last_noted_state = state
+        if session is not None:
+            session.last_state = state
         if state is not SessionState.CONNECTED:
             # Anything other than a plain, steady CONNECTED -- disconnecting,
             # failed, timer recovery -- means there is nothing to ask "did
@@ -2702,7 +2713,15 @@ class KissTermApp(App):
             if mycall:
                 parts.append(mycall)
         if self.link is not None:
-            parts.append(f"{self.link.peer} {self.link.state.value}")
+            peer_part = f"{self.link.peer} {self.link.state.value}"
+            family = self.reference.family
+            if family is not None:
+                # Short id (e.g. "BPQ32", not the long-form family.name) --
+                # this is a status-bar field next to the callsign and link
+                # state, not a sentence. Replaces the old inline terminal
+                # note `_sniff_node` used to write; see that method.
+                peer_part += f" {family.id.upper()}"
+            parts.append(peer_part)
             # Frame-level counters exist only on the AX.25 tier -- a session
             # transport (Telnet, SSH, VARA, ...) has no frames to count, and
             # showing "tx 0 rx 0" for one would claim a stat that was never
