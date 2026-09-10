@@ -3,6 +3,24 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — JNOS added to the command reference (P8 "more families")
+
+### New Features
+- **`kissterm/nodes/data/jnos.toml`**: a new node family for JNOS, the
+  Phil Karn NOS lineage still widely run as a packet BBS/IP gateway.
+  Deliberately **banner-only detection** (`detect_banner = ["JNOS"]`, no
+  `detect_prompt`) -- JNOS's stock command prompt is commonly left at
+  exactly the string `cmd:`, identical to `tnc2.toml`'s
+  `^cmd:\s*$` pattern, and a wrong family shown confidently is worse than
+  "unknown node" (AGENTS.md P8). Eleven commands
+  (`?`/`bye`/`connect`/`telnet`/`ftp`/`finger`/`who`/`mheard`/`ax25
+  status`/`route`/`ping`), all `confidence = "recalled"` -- written from
+  long-standing JNOS documentation/convention, not checked against a live
+  session yet. Next candidate for the "verify shipped references against
+  live nodes" roadmap item, reachable via a BPQ->JNOS hop.
+  **Files:** `kissterm/nodes/data/jnos.toml` (new),
+  `tests/unit/test_nodes.py`, `docs/ROADMAP.md`.
+
 ## [2026-09-10] — 10 `bpq32.toml` commands verified against a real CCEMA session
 
 ### Improvements

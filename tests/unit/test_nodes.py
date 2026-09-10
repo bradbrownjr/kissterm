@@ -56,6 +56,19 @@ def test_tnc_command_prompt_is_recognised():
     assert family is not None and family.id == "tnc2"
 
 
+def test_jnos_banner_is_recognised():
+    family = identify_family("Welcome to W1AW JNOS 2.0k\n")
+    assert family is not None and family.id == "jnos"
+
+
+def test_jnos_ships_no_detect_prompt():
+    """Deliberate: JNOS's stock prompt can be exactly tnc2.toml's 'cmd:'
+    pattern, so detection here is banner-only -- see jnos.toml's header."""
+    family = load_family("jnos")
+    assert family is not None
+    assert family.detect_prompt == ()
+
+
 def test_completion_needs_a_prefix():
     """An empty prefix must not dump the whole command set into a suggestion."""
     ref = CommandReference(family=load_family("bpq32"))

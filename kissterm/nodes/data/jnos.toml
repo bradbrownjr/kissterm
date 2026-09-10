@@ -1,0 +1,103 @@
+# JNOS command reference -- Phil Karn's NOS lineage, still widely run as a
+# packet BBS/gateway node (telnet, FTP, SMTP-over-AX.25, IP routing) rather
+# than a pure NET/ROM-style node.
+#
+# provenance: JNOS's command set is long-standing Unix-shell-flavoured
+# convention (lowercase verbs, "?" for help) documented across JNOS HOWTOs
+# and FAQs going back to the 1990s. Nothing here has been checked against a
+# live JNOS session yet -- see docs/ROADMAP.md P8's "verify shipped
+# references against live nodes" item. Correct from a real session before
+# trusting the syntax.
+#
+# Deliberately NO detect_prompt: JNOS's default command prompt is commonly
+# left at its stock value, which on many configurations is exactly the
+# string "cmd:" -- identical to tnc2.toml's `^cmd:\s*$` pattern. A sysop can
+# (and often does) customize it to the node's hostname/callsign instead, but
+# nothing here can tell a customized JNOS prompt apart from a customized
+# TNC2 one, and a wrong family shown confidently is worse than "unknown
+# node" (AGENTS.md P8). Detection is banner-only until a real capture shows
+# a JNOS-specific prompt shape worth matching.
+
+[family]
+id = "jnos"
+name = "JNOS"
+confidence = "documented"
+note = """
+Runs as a BBS/gateway more often than a plain node -- expect mail, telnet
+and FTP gatewaying alongside AX.25 connect. Commands are lowercase and
+Unix-shell-flavoured, unlike BPQ32's single-letter node commands.
+"""
+detect_banner = ["JNOS"]
+
+[[commands]]
+name = "?"
+aliases = ["help"]
+summary = "List the commands this session accepts"
+usage = "?  |  ? <command>"
+detail = "A bare '?' lists commands; '? <command>' shows that command's own help, JNOS's equivalent of a man page."
+confidence = "recalled"
+
+[[commands]]
+name = "bye"
+aliases = ["quit"]
+summary = "Disconnect from the node"
+usage = "bye"
+confidence = "recalled"
+
+[[commands]]
+name = "connect"
+aliases = ["c"]
+summary = "Connect onward to another station or node over AX.25"
+usage = "connect <call>  |  connect <port> <call>"
+confidence = "recalled"
+
+[[commands]]
+name = "telnet"
+summary = "Open a Telnet session through the node's IP gateway"
+usage = "telnet <host> [port]"
+detail = "Only works if the sysop has IP gatewaying enabled and routed; airtime for whatever the far end sends comes out of this link same as anything else."
+confidence = "recalled"
+
+[[commands]]
+name = "ftp"
+summary = "Open an FTP session through the node's IP gateway"
+usage = "ftp <host>"
+detail = "Same gatewaying caveat as telnet -- and FTP directory listings and file transfers are exactly the kind of verbose traffic AGENTS.md warns costs real airtime."
+confidence = "recalled"
+
+[[commands]]
+name = "finger"
+summary = "Query a user's finger information, local or remote"
+usage = "finger <user>@<host>  |  finger <user>"
+confidence = "recalled"
+
+[[commands]]
+name = "who"
+summary = "Show who is connected to the node right now"
+usage = "who"
+confidence = "recalled"
+
+[[commands]]
+name = "mheard"
+summary = "Stations the node has heard, most recent first"
+usage = "mheard"
+confidence = "recalled"
+
+[[commands]]
+name = "ax25 status"
+summary = "Show the status of active AX.25 links"
+usage = "ax25 status"
+confidence = "recalled"
+
+[[commands]]
+name = "route"
+summary = "Show or edit the node's IP routing table"
+usage = "route  |  route add <dest> <gateway>"
+detail = "Bare form lists routes; editing a running node's routes remotely is a sysop action most nodes will not have open to a guest session."
+confidence = "recalled"
+
+[[commands]]
+name = "ping"
+summary = "Test IP reachability of another host through the gateway"
+usage = "ping <host>"
+confidence = "recalled"

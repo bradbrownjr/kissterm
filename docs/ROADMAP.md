@@ -329,11 +329,16 @@ detection from the banner and prompt, the command-reference modal (`Ctrl+R`
 today -- it moved off the F-row before Address Book's own F5/F6 shuffle, see
 `kissterm/ui/AGENTS.md` rule 16), and the airtime estimator. Still open:
 
-- [ ] **More families.** FBB, JNOS, TheNet/X1J, KA-Node, DXSpider, Winlink RMS.
+- [ ] **More families.** FBB, TheNet/X1J, KA-Node, DXSpider, Winlink RMS.
       One TOML file each in `kissterm/nodes/data/` -- data, not code. Each needs
       a `detect_prompt`/`detect_banner` that is specific enough not to false-
       match; a wrong family shown confidently is worse than "unknown node",
-      because the operator types its commands. Small per family.
+      because the operator types its commands. Small per family. **JNOS
+      shipped `[2026-09-10]`** (see CHANGELOG): banner-only detection (no
+      `detect_prompt` -- JNOS's stock prompt can collide with tnc2.toml's
+      `cmd:` pattern), all commands `confidence = "recalled"` pending a real
+      session -- next candidate for the "verify against live nodes" item
+      below, reachable via a BPQ->JNOS hop.
 - [ ] **Verify the shipped references against live nodes.** Entries carrying
       `confidence = "recalled"` in `bpq32.toml` and `tnc2.toml` were written
       from memory, are flagged as such in the UI, and should be corrected from
