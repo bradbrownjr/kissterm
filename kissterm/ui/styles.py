@@ -273,6 +273,8 @@ TransportEntryScreen { align: center middle; }
 }
 #ref-title { text-style: bold; color: $accent; }
 #ref-note, #ref-help { color: $text-muted; padding: 0 0 1 0; }
+#ref-mode-row { height: auto; margin-bottom: 1; }
+#ref-mode-row Button { margin-right: 1; }
 #ref-table { height: 1fr; }
 
 TranscriptsScreen { align: center middle; }

@@ -252,6 +252,7 @@ class AddressBook:
         connection_type: str = "",
         paclen: str = "",
         window: str = "",
+        note: str = "",
         original_target: str = "",
     ) -> Entry:
         """Create or hand-edit an entry directly -- the Address Book pane,
@@ -287,6 +288,7 @@ class AddressBook:
         entry.connection_type = connection_type
         entry.paclen = paclen
         entry.window = window
+        entry.note = note
         self.save()
         return entry
 

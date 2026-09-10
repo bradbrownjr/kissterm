@@ -3,6 +3,67 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — Opt-in command harvesting from a live node
+
+### New Features
+- **The command reference (Ctrl+R) can now ask a connected node's own `?`
+  for its command list, once, with the operator's confirmation** — the P8
+  roadmap item, and the last of the three "Terminal assistance" gaps this
+  closes today (glossary and per-node notes are the other two, each its own
+  entry below). `CommandReference.learned` and `confidence = "learned"`
+  already existed with nothing populating them; a "Learn from node" button
+  (shown only on an actually-connected tab) now does, guarded by
+  `HarvestConfirmScreen`, which shows the airtime cost as a RANGE
+  (`nodes.reference.describe_airtime` at 512 B and 8 KB) rather than a false-
+  precision number, since kissterm cannot know a given node's reply size in
+  advance. Sends through the ordinary tx-gated `link.send` — no second send
+  path — captures the reply for a bounded window
+  (`KissTermApp.HARVEST_WINDOW_SECONDS`/`HARVEST_CAPTURE_LIMIT`), and
+  `nodes.reference.parse_harvested` turns it into candidate command names
+  (deliberately excluding single-letter tokens, which the shipped
+  references already cover). Results are cached forever per callsign in the
+  new `kissterm/harvested.py` (same persistence shape as `addressbook.py`),
+  and `_bind_link` re-applies a peer's cache on every later connect with no
+  prompt and no repeated airtime spend.
+  **Files:** `kissterm/harvested.py` (new), `kissterm/nodes/reference.py`,
+  `kissterm/nodes/__init__.py`, `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+  `tests/unit/test_harvested.py` (new), `tests/unit/test_nodes.py`,
+  `tests/pilot/test_terminal_ux.py`, `docs/ROADMAP.md`.
+
+## [2026-09-10] — A packet-terminology glossary, in the command reference pane
+
+### New Features
+- **Ctrl+R (the command reference) now has a Commands/Glossary toggle**,
+  closing the P8 roadmap item asking for a glossary "searchable in the same
+  pane as commands" rather than a second binding or modal. New
+  `kissterm/glossary.py` ships ~28 hardcoded terms (TNC, KISS, AX.25, paclen,
+  T1/T2/T3, digipeater, and the like) aimed at an operator who knows radio
+  but not packet — the audience `README.md` already writes for. Hardcoded
+  Python, not a TOML data file, on purpose: unlike `kissterm/nodes/`'s
+  per-family references this is one fixed list with nothing to hand-edit
+  per node, the same reasoning `ui/themes.py`'s `THEME_CATALOG` already uses.
+  **Files:** `kissterm/glossary.py` (new), `kissterm/ui/dialogs.py`,
+  `kissterm/ui/styles.py`, `tests/unit/test_glossary.py` (new),
+  `tests/pilot/test_terminal_ux.py`, `docs/ROADMAP.md`.
+
+## [2026-09-10] — Per-node notes in the Address Book
+
+### New Features
+- **An Address Book entry can now carry a free-text note, shown on connect**
+  — the P8 roadmap item ("BBS is on -2, chat needs a callsign"). Turned out
+  to be mostly already built: `addressbook.Entry.note` existed in the
+  dataclass and its JSON load/save, but nothing in
+  `AddressBookEntryScreen` ever showed a field for it and nothing ever
+  displayed it — a dead field since before this session. Wired it through
+  `AddressBookEdit`/`AddressBook.upsert`/the editor's own `Input`, and into
+  `RadioReminderScreen`, which now shows on connect whenever an entry has a
+  note even with no frequency or connection type set (previously the
+  reminder never fired on `note` alone).
+  **Files:** `kissterm/addressbook.py`, `kissterm/ui/dialogs.py`,
+  `kissterm/ui/addressbook_pane.py`, `kissterm/ui/app.py`,
+  `tests/pilot/test_addressbook_pane.py`, `tests/pilot/test_connect_scripts.py`,
+  `docs/ROADMAP.md`.
+
 ## [2026-09-10] — Inline command completion on the send line
 
 ### New Features

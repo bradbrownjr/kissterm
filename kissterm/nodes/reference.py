@@ -216,3 +216,64 @@ def describe_airtime(byte_count: int, baud: int = 1200) -> str:
     if seconds < 90:
         return f"about {seconds:.0f} seconds"
     return f"about {seconds / 60:.1f} minutes"
+
+
+# ---------------------------------------------------------------------------
+# Harvesting -- turning a node's own '?' reply into candidate command names
+# ---------------------------------------------------------------------------
+
+#: Ordinary English words a node's banner, prompt or help prose is likely to
+#: contain, filtered out so they never get treated as command names. Not
+#: exhaustive by design -- see `parse_harvested`'s docstring for why this is
+#: a best-effort guess, not a parser, and why that is an acceptable trade.
+_HARVEST_STOPWORDS = frozenset(
+    """
+    THE AND FOR YOU ARE NOT ALL CAN HAS WAS WITH FROM THIS THAT YOUR WILL
+    HAVE PLEASE ENTER TYPE USE TO OF IS IN ON AT BE OR IT AN AS BY IF NO DO
+    SEE GET OUT TRY NODE PORT LINK USER LOGIN NAME CALL CALLSIGN WELCOME
+    HELLO EACH CONTINUE THEN THAN WHEN WHAT WHERE WHICH THERE THEIR THEY
+    THEM SOME MORE MOST LIST VALID COMMAND COMMANDS
+    """.split()
+)
+
+_HARVEST_TOKEN = re.compile(r"[A-Za-z][A-Za-z0-9]{1,9}")
+
+#: Candidate names kept from one harvest, regardless of how much text came
+#: back -- a node that replies with paragraphs of prose instead of a command
+#: list must not turn into a reference with hundreds of bogus "commands".
+HARVEST_MAX_NAMES = 60
+
+
+def parse_harvested(text: str) -> tuple[str, ...]:
+    """A best-effort guess at command names out of a node's raw `?` reply.
+
+    Deliberately crude: node help text has no common format across BPQ32,
+    TNC2, FBB and everything else this might ever talk to, so this looks for
+    word-shaped tokens (2-10 letters/digits, starting with a letter) rather
+    than parsing any specific layout -- the same reasoning
+    `CommandReference.commands`'s docstring already gives for why a harvested
+    entry is "usually just a name". Callers mark the result
+    `confidence = "learned"`, the weakest tier in `CONFIDENCE_ORDER`,
+    precisely because this is a guess, not a parse.
+
+    **Deliberately excludes single-letter tokens**, even though `C`, `B`,
+    `D` and the like are exactly the commands a real BPQ32/TNC2 node uses
+    (see `data/bpq32.toml`). Allowing them would match ordinary prose
+    constantly ("a", "I", "u" abbreviations) for no gain, because those
+    single-letter commands are already the ones the shipped references
+    already cover -- what harvesting actually needs to catch is a node's
+    own longer, non-standard additions (the roadmap's own example: a stock
+    BPQ32 with CALENDAR, FORMS, WALL, GOPHER, PREDICT bolted on via
+    `APPLICATION` lines), which this catches fine.
+    """
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for raw in _HARVEST_TOKEN.findall(text):
+        token = raw.upper()
+        if token in _HARVEST_STOPWORDS or token in seen:
+            continue
+        seen.add(token)
+        tokens.append(token)
+        if len(tokens) >= HARVEST_MAX_NAMES:
+            break
+    return tuple(tokens)

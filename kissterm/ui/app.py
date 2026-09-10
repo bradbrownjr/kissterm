@@ -149,8 +149,9 @@ from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
 from .commands import KeyBindingsProvider, fit_footer_bindings
-from ..nodes import CommandReference
-from ..nodes.reference import identify_family
+from ..harvested import HarvestedCommands
+from ..nodes import Command, CommandReference
+from ..nodes.reference import identify_family, parse_harvested
 from .dialogs import (
     CallsignScreen,
     CommandReferenceScreen,
@@ -185,6 +186,11 @@ class _TerminalSession:
     detect_buffer: str = ""
     transcript: SessionLog | None = None
     reply_timer: Timer | None = None
+    #: `None` means "not harvesting right now" -- the common case. Set to an
+    #: (initially empty) string by `KissTermApp.harvest_commands` for the
+    #: duration of its capture window; `_capture_harvest` appends into it.
+    #: See `HARVEST_CAPTURE_LIMIT` for why it cannot grow without bound.
+    harvest_buffer: str | None = None
 
 
 def _status_row(parts: list[str]) -> Table:
@@ -264,6 +270,19 @@ HOP_FAIL_WORDS = ("BUSY", "FAILED", "DISCONNECTED", "TIMEOUT")
 #: knowing to look for a hidden-by-default supervisory frame. Long enough
 #: that an ordinary node's response time does not trip it on every line.
 REPLY_WAIT_SECONDS = 15.0
+
+#: How long `KissTermApp.harvest_commands` listens for a node's reply to the
+#: harvest "?" before giving up and using whatever arrived. Not adaptive to
+#: the node's actual response time -- kissterm has no way to know that in
+#: advance, which is exactly why `HarvestConfirmScreen` shows a RANGE, not a
+#: number, before any of this runs.
+HARVEST_WINDOW_SECONDS = 5.0
+
+#: Hard cap on how much text one harvest capture keeps, regardless of how
+#: much the node actually sends. A chatty or verbose node must not turn one
+#: opt-in harvest into unbounded memory growth for a session that stays open
+#: for hours.
+HARVEST_CAPTURE_LIMIT = 4096
 
 
 class _SessionLinkAdapter:
@@ -614,6 +633,11 @@ class KissTermApp(App):
         #: startup instead of on every Ctrl+N.
         self.addressbook = AddressBook()
         self.addressbook.load()
+        #: Command names harvested from a node's own `?`, cached forever per
+        #: callsign so the opt-in airtime is never spent twice for the same
+        #: node -- see `kissterm/harvested.py` and `harvest_commands` below.
+        self._harvested = HarvestedCommands()
+        self._harvested.load()
         #: APRS message history, keyed by correspondent -- see
         #: kissterm/aprs_conversations.py. Loaded here rather than by the
         #: APRS pane so a message that arrives before the operator ever
@@ -1210,11 +1234,25 @@ class KissTermApp(App):
         transcript left over from a PRIOR binding of this same key (a
         reconnect to a peer whose tab is still open) is torn down first, so
         neither leaks past the object that owned it.
+
+        The one thing NOT reset from scratch: `harvest_commands` cached
+        commands for this exact peer are re-applied immediately, so a
+        reconnect to a node harvested before never re-asks and never
+        re-spends the airtime -- see `HarvestedCommands.for_callsign`.
         """
         key = session_key if session_key is not None else self._session_key(link.peer, link.port)
         self._cancel_reply_timer(key)
         self._close_transcript(key)
-        self._sessions[key] = _TerminalSession(link=link)
+        session = _TerminalSession(link=link)
+        # Apply anything harvested from THIS peer on a past connect --
+        # cached forever, per AGENTS.md's opt-in-harvesting rule, so a
+        # reconnect never re-asks and never re-spends the airtime.
+        cached = self._harvested.for_callsign(str(link.peer))
+        if cached:
+            session.reference = CommandReference(
+                learned=tuple(Command(name=n, confidence="learned") for n in cached)
+            )
+        self._sessions[key] = session
         self.query_one(TerminalPane).open_tab(key, activate=activate)
         self._start_transcript(key, link)
         link.on_data.append(lambda data: self._on_link_data(key, data))
@@ -1368,6 +1406,7 @@ class KissTermApp(App):
             # `cat` on the file would run them.
             session.transcript.received(sanitize(data))
         self._sniff_node(session_key, data)
+        self._capture_harvest(session_key, data)
 
     def _sniff_node(self, session_key: str, data: bytes) -> None:
         """Identify the node family from what it already sent us, on
@@ -1393,12 +1432,87 @@ class KissTermApp(App):
         family = identify_family(session.detect_buffer)
         if family is None:
             return
-        session.reference = CommandReference(family=family)
+        # Set the `family` field in place rather than replacing the whole
+        # `CommandReference` -- a wholesale replacement here would silently
+        # drop any `learned` commands `_bind_link` already pre-populated
+        # from a past harvest of this same peer.
+        session.reference.family = family
         self._to_terminal(
             session_key,
             "log",
             f"\n*** Node looks like {family.name} -- Ctrl+R for its commands\n",
         )
+
+    def _capture_harvest(self, session_key: str, data: bytes) -> None:
+        """Feed one session's harvest capture window, when one is open.
+
+        A no-op the rest of the time (`harvest_buffer is None` is the
+        overwhelming common case -- harvesting is opt-in and rare), so this
+        adds no cost to ordinary traffic. Bounded by `HARVEST_CAPTURE_LIMIT`
+        regardless of how much the node actually sends back.
+        """
+        session = self._sessions.get(session_key)
+        if session is None or session.harvest_buffer is None:
+            return
+        session.harvest_buffer += sanitize(data)
+        if len(session.harvest_buffer) > HARVEST_CAPTURE_LIMIT:
+            session.harvest_buffer = session.harvest_buffer[:HARVEST_CAPTURE_LIMIT]
+
+    async def harvest_commands(self, session_key: str) -> tuple[str, ...]:
+        """Ask the node's own `?` for its command list, once, and cache
+        whatever comes back forever under its callsign.
+
+        AGENTS.md's opt-in-harvesting rule in full: ask before spending the
+        airtime (that confirm step is `HarvestConfirmScreen`, already done
+        by the time this runs), then cache per node callsign forever so it
+        is never paid twice -- `_bind_link` is the other half of that,
+        re-applying the cache on every later connect to the same peer with
+        no prompt and no airtime spent.
+
+        Reuses `link.send` -- the same tx-gated path every other
+        transmission in this app goes through -- rather than a second one;
+        AGENTS.md is explicit that a new send path around the transmit gate
+        is the one thing a backend or feature must never do. Returns the
+        NEWLY learned names (empty if there is no connected link, the gate
+        is closed, or nothing recognisable came back).
+        """
+        session = self._sessions.get(session_key)
+        if session is None or session.link is None or not session.link.connected:
+            return ()
+        if not self.gate.enabled:
+            self.notify(DISABLED_MESSAGE, severity="warning")
+            return ()
+        link = session.link
+        session.harvest_buffer = ""
+        try:
+            await link.send(b"?\r")
+        except Exception:
+            log.exception("could not send harvest request to %s", link.peer)
+            session.harvest_buffer = None
+            return ()
+        self._to_terminal(
+            session_key, "log", "\n*** Asked the node for its command list...\n"
+        )
+        await asyncio.sleep(HARVEST_WINDOW_SECONDS)
+        text = session.harvest_buffer or ""
+        session.harvest_buffer = None
+        names = parse_harvested(text)
+        if not names:
+            self._to_terminal(
+                session_key, "log", "\n*** No commands recognised in the reply.\n"
+            )
+            return ()
+        all_cached = self._harvested.add(str(link.peer), names)
+        session.reference.learned = tuple(
+            Command(name=n, confidence="learned") for n in all_cached
+        )
+        self._to_terminal(
+            session_key,
+            "log",
+            f"\n*** Learned {len(names)} command(s) from {link.peer}: "
+            f"{', '.join(names)}\n",
+        )
+        return names
 
     def _on_link_state(self, session_key: str, state: SessionState) -> None:
         self._note(session_key, f"\n*** {state.value}\n")
@@ -1906,9 +2020,13 @@ class KissTermApp(App):
         # docstring); `prefill` already IS the entry when dialing, so this
         # only does the lookup for the Ctrl+N path.
         reminder = prefill or self.addressbook.find(request.target)
-        if reminder is not None and (reminder.frequency or reminder.connection_type):
+        if reminder is not None and (
+            reminder.frequency or reminder.connection_type or reminder.note
+        ):
             proceed = await self.push_screen_wait(
-                RadioReminderScreen(reminder.frequency, reminder.connection_type)
+                RadioReminderScreen(
+                    reminder.frequency, reminder.connection_type, reminder.note
+                )
             )
             if not proceed:
                 return
@@ -2353,14 +2471,25 @@ class KissTermApp(App):
         (`Ctrl+G`) and `action_beacon_now` (`Ctrl+Shift+B`) already use, and
         the operator learns one key rather than two. Terminal-pane behaviour
         below is untouched, and every other tab still gets it.
+
+        `can_harvest`/`peer` let the screen offer its "Learn from node"
+        button only when there is an actual connected link to ask -- see
+        `harvest_commands`.
         """
         if self.query_one("#main-tabs", TabbedContent).active == "aprs":
             for pane in self._base_query(AprsPane):
                 pane.show_templates()
                 return
             return
+        key = self._active_key()
+        link = self.link
         chosen = await self.push_screen_wait(
-            CommandReferenceScreen(self.reference)
+            CommandReferenceScreen(
+                self.reference,
+                session_key=key,
+                can_harvest=link is not None and link.connected,
+                peer=str(link.peer) if link is not None else "",
+            )
         )
         if chosen:
             self.action_show_tab("terminal")

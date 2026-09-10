@@ -534,7 +534,10 @@ class AddressBookEdit:
     attempt` never touches them (see that method's docstring). `paclen`/
     `window` are validated by `_validate_link_params` before this is built,
     so by the time `AddressBook.upsert` sees them they are either empty or a
-    string `int()` will accept."""
+    string `int()` will accept. `note` is free text an operator wants to
+    see again on the next connect ("BBS is on -2, chat needs a callsign") --
+    shown by `RadioReminderScreen`, same trigger as `frequency`/
+    `connection_type`."""
 
     target: str
     script: str = ""
@@ -545,6 +548,7 @@ class AddressBookEdit:
     connection_type: str = ""
     paclen: str = ""
     window: str = ""
+    note: str = ""
 
 
 class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
@@ -575,6 +579,11 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
     `ax25.session.LinkParams.paclen`/`window`, so the placeholders describe
     what leaving them blank does (fall back to Settings' global paclen/
     window) rather than repeating field names the operator can already see.
+
+    "Note" is purely informational too, same as frequency and connection
+    type -- free text an operator wants back in front of them right before
+    connecting ("BBS is on -2, chat needs a callsign"), not something
+    kissterm parses or acts on.
     """
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
@@ -590,6 +599,7 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         connection_type: str = "",
         paclen: str = "",
         window: str = "",
+        note: str = "",
         credentials: list[dict] | None = None,
         scripts: list[dict] | None = None,
         transports: list[dict] | None = None,
@@ -604,6 +614,7 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         self._connection_type = connection_type
         self._paclen = paclen
         self._window = window
+        self._note = note
         self.credentials = credentials or []
         self.scripts = scripts or []
         self.transports = transports or []
@@ -644,6 +655,11 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
                     placeholder="Window/k (optional, default from Settings)",
                     id="addressbook-window",
                 )
+            yield Input(
+                value=self._note,
+                placeholder="Note, shown before connecting (e.g. 'BBS is on -2')",
+                id="addressbook-note",
+            )
             yield Label("", id="connect-error")
             yield Label("Auto-login (optional)", id="connect-script-title")
             yield Static(
@@ -768,6 +784,7 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         if link_error:
             self.query_one("#connect-error", Label).update(f"[red]{link_error}[/red]")
             return
+        note = self.query_one("#addressbook-note", Input).value.strip()
         self.dismiss(
             AddressBookEdit(
                 text,
@@ -779,6 +796,7 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
                 connection_type,
                 paclen,
                 window,
+                note,
             )
         )
 
@@ -796,14 +814,22 @@ class RadioReminderScreen(ModalScreen[bool]):
     keystroke: a reminder nobody has to look at is not a reminder. Shown
     only when the entry actually has something to remind about -- most
     connects skip it entirely.
+
+    `note` is the same idea for anything that is not a frequency or a
+    connection type -- "BBS is on -2, chat needs a callsign" is exactly
+    the kind of thing an operator wants back in front of them here, not
+    something they should have to remember on their own between sessions.
     """
 
     BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
 
-    def __init__(self, frequency: str = "", connection_type: str = "") -> None:
+    def __init__(
+        self, frequency: str = "", connection_type: str = "", note: str = ""
+    ) -> None:
         super().__init__()
         self._frequency = frequency
         self._connection_type = connection_type
+        self._note = note
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
@@ -813,6 +839,8 @@ class RadioReminderScreen(ModalScreen[bool]):
                 lines.append(f"Frequency: {self._frequency}")
             if self._connection_type:
                 lines.append(f"Connection: {self._connection_type}")
+            if self._note:
+                lines.append(f"Note: {self._note}")
             yield Static("\n".join(lines), id="reminder-detail")
             yield Label(
                 "Turn on or tune the radio/modem, then Connect.",
@@ -1980,8 +2008,58 @@ def _forget_canned(raw: list[dict], message) -> list[dict]:
     return out
 
 
+class HarvestConfirmScreen(ModalScreen[bool]):
+    """Confirm spending airtime on a node's own command list, once.
+
+    Same reasoning as `RadioReminderScreen`: a cost the operator only learns
+    about after paying it is not a warning, so this blocks
+    `KissTermApp.harvest_commands` until the operator explicitly says to
+    proceed. The estimate is a RANGE, not a single number -- kissterm has no
+    way to know how verbose this particular node's `?` reply will be before
+    asking it, so showing a false-precision figure would be worse than
+    showing the honest range from `docs/ROADMAP.md`'s own airtime table.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
+
+    def __init__(self, peer: str) -> None:
+        super().__init__()
+        self._peer = peer
+
+    def compose(self) -> ComposeResult:
+        from ..nodes.reference import describe_airtime
+
+        low = describe_airtime(512)
+        high = describe_airtime(8192)
+        with Vertical(id="connect-box"):
+            yield Label(f"Ask {self._peer} for its command list?", id="connect-title")
+            yield Static(
+                f"This is real airtime on a shared channel -- anywhere from "
+                f"{low} to {high} depending on how verbose the node is, "
+                "during which nobody else on the frequency can transmit. "
+                "The result is cached forever, so this is asked at most "
+                "once per node.",
+                id="reminder-detail",
+            )
+            with Horizontal(id="connect-buttons"):
+                yield Button("Ask", variant="primary", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#connect-go", Button).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#connect-go")
+    def _go(self) -> None:
+        self.dismiss(True)
+
+
 class CommandReferenceScreen(ModalScreen[str | None]):
-    """The shipped command reference for the node we are talking to.
+    """The shipped command reference for the node we are talking to, plus a
+    glossary of packet terminology in the same pane.
 
     Exists because asking the node itself is expensive: at 1200 baud
     half-duplex, a couple of kilobytes of help text is roughly twenty seconds
@@ -1991,15 +2069,39 @@ class CommandReferenceScreen(ModalScreen[str | None]):
 
     Selecting a command **fills the input line and does not send it**. The
     operator still commits deliberately -- see `TerminalPane.send_line`, which
-    is the only path to the air.
+    is the only path to the air. Selecting a glossary term does nothing --
+    there is nothing to send a definition to -- so `on_data_table_row_
+    selected` only dismisses while in Commands mode.
+
+    Commands and glossary share one search box and one table
+    (`docs/ROADMAP.md`'s own wording: a glossary should be "searchable in the
+    same pane as commands") rather than a second binding or a second modal --
+    switching modes just repaints the same table with different columns.
+
+    **"Learn from node"** (only shown when `can_harvest` -- an actual
+    connected link exists to ask) is the opt-in harvesting AGENTS.md
+    describes: confirmed via `HarvestConfirmScreen` first, sent and cached
+    by `KissTermApp.harvest_commands`, never by this screen directly.
     """
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Close")]
 
-    def __init__(self, reference, detected: str = "") -> None:
+    def __init__(
+        self,
+        reference,
+        detected: str = "",
+        *,
+        session_key: str = "",
+        can_harvest: bool = False,
+        peer: str = "",
+    ) -> None:
         super().__init__()
         self._reference = reference
         self._detected = detected
+        self._mode = "commands"
+        self._session_key = session_key
+        self._can_harvest = can_harvest
+        self._peer = peer
 
     def compose(self) -> ComposeResult:
         from textual.widgets import DataTable, Static
@@ -2007,6 +2109,9 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         with Vertical(id="ref-box"):
             yield Label(self._title(), id="ref-title")
             yield Static(self._note(), id="ref-note")
+            with Horizontal(id="ref-mode-row"):
+                yield Button("Commands", variant="primary", id="ref-mode-commands")
+                yield Button("Glossary", id="ref-mode-glossary")
             yield Input(placeholder="search commands", id="ref-search")
             yield DataTable(id="ref-table", cursor_type="row", zebra_stripes=True)
             yield Static(
@@ -2015,13 +2120,19 @@ class CommandReferenceScreen(ModalScreen[str | None]):
                 id="ref-help",
             )
             with Horizontal(id="connect-buttons"):
+                if self._can_harvest:
+                    yield Button("Learn from node", id="ref-harvest")
                 yield Button("Close", id="ref-close")
 
     def _title(self) -> str:
+        if self._mode == "glossary":
+            return "Glossary -- packet radio terms"
         family = self._reference.family
         return f"Commands -- {family.name}" if family else "Commands -- unknown node"
 
     def _note(self) -> str:
+        if self._mode == "glossary":
+            return "Aimed at an operator who knows radio but not packet."
         family = self._reference.family
         if family is None:
             return (
@@ -2038,14 +2149,65 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         return " ".join(p for p in parts if p)
 
     def on_mount(self) -> None:
-        from textual.widgets import DataTable
-
-        table = self.query_one("#ref-table", DataTable)
-        table.add_columns("Command", "Usage", "What it does", "Source")
+        self._render_columns()
         self._populate("")
         self.query_one("#ref-search", Input).focus()
 
+    def _render_columns(self) -> None:
+        from textual.widgets import DataTable
+
+        table = self.query_one("#ref-table", DataTable)
+        table.clear(columns=True)
+        if self._mode == "glossary":
+            table.add_columns("Term", "Definition")
+        else:
+            table.add_columns("Command", "Usage", "What it does", "Source")
+
+    @on(Button.Pressed, "#ref-mode-commands")
+    def _show_commands(self) -> None:
+        self._switch_mode("commands")
+
+    @on(Button.Pressed, "#ref-mode-glossary")
+    def _show_glossary(self) -> None:
+        self._switch_mode("glossary")
+
+    def _switch_mode(self, mode: str) -> None:
+        if mode == self._mode:
+            return
+        self._mode = mode
+        self.query_one("#ref-mode-commands", Button).variant = (
+            "primary" if mode == "commands" else "default"
+        )
+        self.query_one("#ref-mode-glossary", Button).variant = (
+            "primary" if mode == "glossary" else "default"
+        )
+        self.query_one("#ref-title", Label).update(self._title())
+        self.query_one("#ref-note", Static).update(self._note())
+        search = self.query_one("#ref-search", Input)
+        search.placeholder = "search glossary" if mode == "glossary" else "search commands"
+        self._render_columns()
+        self._populate(search.value)
+        if self._can_harvest:
+            # Nothing to harvest from a glossary -- hide the button rather
+            # than leave it sitting there doing nothing while browsing terms.
+            self.query_one("#ref-harvest", Button).display = mode != "glossary"
+
     def _populate(self, needle: str) -> None:
+        if self._mode == "glossary":
+            self._populate_glossary(needle)
+        else:
+            self._populate_commands(needle)
+
+    def _populate_glossary(self, needle: str) -> None:
+        from .. import glossary
+        from textual.widgets import DataTable
+
+        table = self.query_one("#ref-table", DataTable)
+        table.clear()
+        for term in glossary.search(needle):
+            table.add_row(term.name, term.definition, key=term.name)
+
+    def _populate_commands(self, needle: str) -> None:
         from textual.widgets import DataTable
 
         table = self.query_one("#ref-table", DataTable)
@@ -2073,8 +2235,32 @@ class CommandReferenceScreen(ModalScreen[str | None]):
     def _close(self) -> None:
         self.dismiss(None)
 
+    @on(Button.Pressed, "#ref-harvest")
+    async def _harvest(self) -> None:
+        """Confirm the airtime cost, then ask `KissTermApp.harvest_commands`
+        to do the actual send-and-capture -- this screen never touches the
+        link itself, same separation `_edit_message` above uses for pushing
+        a nested modal from within one already open.
+
+        `self._reference` and the app's session both point at the SAME
+        `CommandReference` instance (`KissTermApp.reference`'s property
+        getter returns it directly, not a copy), so once `harvest_commands`
+        sets `.learned` on it, repainting this table with the search box's
+        current text is enough to show the result -- no extra plumbing back
+        from the app needed.
+        """
+        proceed = await self.app.push_screen_wait(HarvestConfirmScreen(self._peer))
+        if not proceed:
+            return
+        await self.app.harvest_commands(self._session_key)  # type: ignore[attr-defined]
+        self._populate(self.query_one("#ref-search", Input).value)
+
     def on_data_table_row_selected(self, event) -> None:
-        """Hand the command back to the app, which fills the input line."""
+        """Hand the command back to the app, which fills the input line.
+        Glossary mode has nothing to hand back -- a definition is not
+        something `TerminalPane.send_line` could ever do anything with."""
+        if self._mode == "glossary":
+            return
         self.dismiss(str(event.row_key.value or ""))
 
 

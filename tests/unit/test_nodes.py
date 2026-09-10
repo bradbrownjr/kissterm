@@ -133,6 +133,64 @@ def test_airtime_includes_framing_not_just_baud():
 def test_a_verbose_help_text_is_expensive_enough_to_warn_about():
     """The number that justifies shipping references instead of asking."""
     assert airtime_seconds(2048) > 10, "2 KB should be well over ten seconds"
+
+
+# ---------------------------------------------------------------------------
+# Harvesting -- turning a raw '?' reply into candidate command names
+# ---------------------------------------------------------------------------
+
+
+def test_parse_harvested_finds_the_bpq_apps_example():
+    """The exact roadmap example: a stock BPQ32 with local APPLICATION
+    additions, none of which any shipped table could know about."""
+    from kissterm.nodes.reference import parse_harvested
+
+    text = (
+        "Valid commands are:\n"
+        "CALENDAR FORMS WALL GOPHER PREDICT\n"
+    )
+    names = parse_harvested(text)
+    for expected in ("CALENDAR", "FORMS", "WALL", "GOPHER", "PREDICT"):
+        assert expected in names
+
+
+def test_parse_harvested_excludes_single_letter_tokens():
+    """Single-letter commands (C, B, D...) are already covered by the
+    shipped references -- see the function's own docstring for why
+    catching them here would just be matching ordinary prose."""
+    from kissterm.nodes.reference import parse_harvested
+
+    assert parse_harvested("C B D I") == ()
+
+
+def test_parse_harvested_filters_ordinary_prose():
+    from kissterm.nodes.reference import parse_harvested
+
+    text = "Welcome to the node. Please enter your callsign to continue."
+    names = parse_harvested(text)
+    assert "WELCOME" not in names
+    assert "PLEASE" not in names
+    assert "CALLSIGN" not in names
+
+
+def test_parse_harvested_deduplicates_and_uppercases():
+    from kissterm.nodes.reference import parse_harvested
+
+    names = parse_harvested("stats STATS Stats")
+    assert names == ("STATS",)
+
+
+def test_parse_harvested_caps_the_result():
+    from kissterm.nodes.reference import HARVEST_MAX_NAMES, parse_harvested
+
+    text = " ".join(f"cmd{i}" for i in range(HARVEST_MAX_NAMES + 20))
+    assert len(parse_harvested(text)) == HARVEST_MAX_NAMES
+
+
+def test_parse_harvested_empty_text_yields_nothing():
+    from kissterm.nodes.reference import parse_harvested
+
+    assert parse_harvested("") == ()
     assert airtime_seconds(8192) > 60, "8 KB should be over a minute"
 
 

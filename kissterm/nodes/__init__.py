@@ -40,6 +40,7 @@ from .reference import (
     available_families,
     load_family,
     load_all,
+    parse_harvested,
 )
 
 __all__ = [
@@ -50,4 +51,5 @@ __all__ = [
     "available_families",
     "load_family",
     "load_all",
+    "parse_harvested",
 ]

@@ -205,6 +205,7 @@ class AddressBookPane(Vertical):
                 connection_type=entry.connection_type if entry else "",
                 paclen=entry.paclen if entry else "",
                 window=entry.window if entry else "",
+                note=entry.note if entry else "",
                 credentials=config.credentials,
                 scripts=config.scripts,
                 transports=config.transports,
@@ -222,6 +223,7 @@ class AddressBookPane(Vertical):
             connection_type=result.connection_type,
             paclen=result.paclen,
             window=result.window,
+            note=result.note,
             original_target=target or "",
         )
         self.refresh_from(book)

@@ -424,6 +424,245 @@ async def test_reference_screen_opens_and_lists_commands():
 
 
 @pytest.mark.asyncio
+async def test_glossary_toggle_shares_the_command_reference_pane():
+    """docs/ROADMAP.md asks for a glossary "searchable in the same pane as
+    commands" -- this is that pane, not a second modal or a second key."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.reference = CommandReference(family=load_family("bpq32"))
+        await pilot.press("ctrl+r")
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, CommandReferenceScreen)
+        commands_rows = screen.query_one("#ref-table").row_count
+        assert commands_rows > 0
+
+        await pilot.click("#ref-mode-glossary")
+        await pilot.pause()
+
+        assert screen._mode == "glossary"
+        table = screen.query_one("#ref-table")
+        # The glossary has its own term set, distinct from the node's commands.
+        from kissterm import glossary
+
+        assert table.row_count == len(glossary.TERMS)
+
+        # Selecting a glossary row must never dismiss the screen with a
+        # value -- there is nothing for the terminal input to do with a
+        # definition, unlike a command name.
+        table.move_cursor(row=0)
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen is screen, "selecting a glossary row closed the screen"
+
+        await pilot.click("#ref-mode-commands")
+        await pilot.pause()
+        assert screen._mode == "commands"
+        assert screen.query_one("#ref-table").row_count == commands_rows
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_harvest_button_only_appears_with_a_connected_link():
+    """Nothing to ask a node's `?` of when there is no live link -- the
+    button must simply not be there, not be there-and-disabled."""
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+r")
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, CommandReferenceScreen)
+        assert len(screen.query("#ref-harvest")) == 0
+        await screen.dismiss(None)
+        await pilot.pause()
+
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+        await pilot.press("ctrl+r")
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+
+        screen2 = app.screen
+        assert isinstance(screen2, CommandReferenceScreen)
+        assert len(screen2.query("#ref-harvest")) == 1
+        await screen2.dismiss(None)
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_cancelling_the_harvest_confirm_sends_nothing():
+    from kissterm.ui.dialogs import HarvestConfirmScreen
+
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()  # drain the connect handshake
+
+        await pilot.press("ctrl+r")
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, CommandReferenceScreen)
+
+        screen.query_one("#ref-harvest").press()
+        await pilot.pause()
+        assert isinstance(app.screen, HarvestConfirmScreen)
+        await app.screen.dismiss(False)
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+
+        assert far.read_nowait() == b"", "cancelling the harvest still transmitted"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_harvesting_learns_commands_and_caches_them_per_callsign():
+    """The full opt-in-harvesting contract: confirm shows first, `?` goes
+    out through the ordinary tx-gated send path, the node's reply is parsed
+    into learned commands visible in the SAME table, and the result is
+    cached under the peer's callsign so a reconnect gets it back for free."""
+    from kissterm.ui import app as app_module
+    from kissterm.ui.dialogs import HarvestConfirmScreen
+
+    # `pilot.pause()` costs roughly 100ms of real wall time in this harness
+    # (rendering a full frame each call) -- using it inside a tight polling
+    # loop here silently ate most of the harvest window before `far.send`
+    # even ran, which is what made this test flaky the first time it was
+    # written. Polling with a bare `asyncio.sleep` is cheap and correct:
+    # `harvest_commands` and the link's `on_data` callbacks are plain
+    # asyncio, not gated on Textual's message pump, and `DataTable.row_count`
+    # reflects `add_row` immediately, before the next render. `pilot.pause()`
+    # is used only once, before anything is asserted about a widget.
+    original_window = app_module.HARVEST_WINDOW_SECONDS
+    app_module.HARVEST_WINDOW_SECONDS = 2.0
+    app, a, b, incoming = await _connected_app()
+    try:
+        async with app.run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            link = await a.connect(AX25Path(PEER, MYCALL))
+            app._bind_link(link)
+            await asyncio.sleep(0.1)
+            far = incoming[0]
+            far.read_nowait()  # drain the connect handshake
+
+            await pilot.press("ctrl+r")
+            await pilot.pause()
+            await asyncio.sleep(0.2)
+            await pilot.pause()
+            screen = app.screen
+            assert isinstance(screen, CommandReferenceScreen)
+
+            screen.query_one("#ref-harvest").press()
+            await pilot.pause()
+            assert isinstance(app.screen, HarvestConfirmScreen)
+            await app.screen.dismiss(True)
+
+            sent = b""
+            for _ in range(40):
+                await asyncio.sleep(0.02)
+                sent += far.read_nowait()
+                if b"?\r" in sent:
+                    break
+            assert b"?\r" in sent, "confirming did not send '?'"
+
+            await far.send(b"Valid commands are: CALENDAR FORMS WALL\r")
+
+            table = screen.query_one("#ref-table")
+            for _ in range(80):
+                await asyncio.sleep(0.02)
+                if table.row_count > 0:
+                    break
+            await pilot.pause()
+
+            rows = {str(table.get_row_at(i)[0]) for i in range(table.row_count)}
+            assert "CALENDAR" in rows, f"harvest never completed, rows={rows}"
+
+            cached = app._harvested.for_callsign(str(PEER))
+            assert "CALENDAR" in cached and "FORMS" in cached and "WALL" in cached
+            await screen.dismiss(None)
+    finally:
+        app_module.HARVEST_WINDOW_SECONDS = original_window
+        a.close()
+        b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_reconnect_applies_the_cache_with_no_new_airtime():
+    """AGENTS.md: cached forever so it is never paid twice -- a second
+    connect to the same callsign must show the learned commands immediately,
+    with no harvest button interaction and no '?' sent."""
+    from kissterm.harvested import HarvestedCommands
+
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        app._harvested = HarvestedCommands(app._harvested.file)
+        app._harvested.add(str(PEER), ("CALENDAR", "FORMS"))
+
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()
+
+        await pilot.press("ctrl+r")
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, CommandReferenceScreen)
+
+        table = screen.query_one("#ref-table")
+        rows = {str(table.get_row_at(i)[0]) for i in range(table.row_count)}
+        assert "CALENDAR" in rows and "FORMS" in rows
+        assert far.read_nowait() == b"", "applying the cache transmitted something"
+        await screen.dismiss(None)
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_harvest_is_refused_while_the_transmit_gate_is_closed():
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()
+        app.gate.set(False)
+
+        names = await app.harvest_commands(app._active_key())
+        await asyncio.sleep(0.1)
+
+        assert names == ()
+        assert far.read_nowait() == b"", "harvesting transmitted with the gate closed"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
 async def test_a_new_connection_forgets_the_previous_node():
     """Offering the last node's commands for a different one would mislead."""
     app, a, b, _ = await _connected_app()

@@ -339,23 +339,13 @@ today -- it moved off the F-row before Address Book's own F5/F6 shuffle, see
       from memory, are flagged as such in the UI, and should be corrected from
       a real session -- kissterm will already be logging those (P2). The
       documented entries deserve a check too. Small, and the highest-value item
-      here.
-- [ ] **Opt-in harvesting from the node**, replacing nothing. Ask before
-      spending the airtime, showing the estimate from
-      `nodes.reference.describe_airtime`, then cache per node callsign forever
-      so it is never paid twice. Harvested entries already have a home
-      (`CommandReference.learned`) and are marked `confidence = "learned"`;
-      shipped entries win on a name collision because they carry usage text.
-      This is what picks up local additions -- the WS1EC-15 node in the sibling
-      bpq-apps repo adds CALENDAR, FORMS, WALL, GOPHER, PREDICT and a dozen
-      more to a stock BPQ32 via `APPLICATION` lines. Mid effort.
-- [ ] **A glossary of packet terminology** (digipeater, SSID, paclen, NET/ROM,
-      unproto, RMS, gateway, T1/T2/T3, hierarchical addresses...). Aimed at
-      someone who knows radio but not packet -- the audience the README already
-      writes for. Plain data file, searchable in the same pane as commands.
-- [ ] **Per-node notes.** Let the operator annotate a node ("BBS is on -2,
-      chat needs a callsign") and show it on connect. Cheap, and it is the
-      thing an operator actually wants to remember between sessions.
+      here. **Needs an operator with a real node to connect to** -- not
+      something a coding session can do on its own.
+
+Shipped in `[2026-09-10]` (see CHANGELOG, three entries): opt-in harvesting
+from a connected node (`kissterm/harvested.py`, `HarvestConfirmScreen`), a
+packet-terminology glossary sharing the Ctrl+R pane (`kissterm/glossary.py`),
+and per-node notes in the Address Book, shown on connect.
 
 ## P9 — Unattended operation: mailbox, file drop, and alerts
 

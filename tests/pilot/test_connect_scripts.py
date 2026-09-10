@@ -310,6 +310,34 @@ async def test_acknowledging_the_radio_reminder_proceeds_with_the_connect(tmp_pa
 
 
 @pytest.mark.asyncio
+async def test_a_note_alone_also_triggers_the_reminder(tmp_path):
+    """`Entry.note` is the same kind of thing as frequency/connection type --
+    something the operator wrote down for next time -- so it must trigger
+    the same pre-connect checkpoint even with no frequency or connection
+    type set, and its text must actually be shown."""
+    from kissterm.ui.dialogs import RadioReminderScreen
+
+    app, station, tb = await _app()
+    book = _fresh_book(app, tmp_path)
+    book.upsert("WS1EC-7", note="BBS is on -2, chat needs a callsign")
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _connect_via_history(app, pilot)
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+
+        assert isinstance(app.screen, RadioReminderScreen), type(app.screen).__name__
+        assert app.screen._note == "BBS is on -2, chat needs a callsign"
+
+        await app.screen.dismiss(False)  # Cancel
+        await pilot.pause()
+        await asyncio.sleep(0.3)
+
+        assert not station.transport.sent, "cancelling the reminder still transmitted"
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_no_reminder_when_neither_frequency_nor_connection_type_is_set(tmp_path):
     from kissterm.ui.dialogs import RadioReminderScreen
 

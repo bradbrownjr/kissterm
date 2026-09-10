@@ -156,6 +156,44 @@ async def test_new_entry_via_the_dialog(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_note_round_trips_through_the_editor(tmp_path):
+    """`Entry.note` existed in storage before anything in the editor could
+    set it -- this guards that the field the operator types into actually
+    reaches the saved entry, and that re-opening the editor shows it back."""
+    app, station, ta, tb = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        book = _fresh_book(app, tmp_path)
+        await _addressbook_tab(app, pilot)
+
+        app.query_one(AddressBookPane)._new_entry()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        from kissterm.ui.dialogs import AddressBookEdit, AddressBookEntryScreen
+
+        assert isinstance(app.screen, AddressBookEntryScreen)
+        await app.screen.dismiss(
+            AddressBookEdit("W1LH-6", note="BBS is on -2, chat needs a callsign")
+        )
+        await pilot.pause()
+
+        entry = book.entries[0]
+        assert entry.note == "BBS is on -2, chat needs a callsign"
+
+        table = app.query_one("#addressbook-table", DataTable)
+        table.move_cursor(row=0)
+        await pilot.pause()
+        app.query_one(AddressBookPane)._edit_selected()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        assert isinstance(app.screen, AddressBookEntryScreen)
+        assert app.screen._note == "BBS is on -2, chat needs a callsign"
+        await app.screen.dismiss(None)
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_editing_without_renaming_preserves_counters(tmp_path):
     app, station, ta, tb = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
