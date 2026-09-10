@@ -314,7 +314,7 @@ async def test_ctrl_d_cancels_a_stuck_connect_instead_of_saying_not_connected():
         await asyncio.sleep(0.05)
 
         assert app.link is None, "there was never a UA -- nothing came up to bind"
-        assert app._connect_target is None, "the cancelled attempt is still tracked as in-flight"
+        assert app._connecting == {}, "the cancelled attempt is still tracked as in-flight"
 
         # If cancellation only stopped the *UI* and not the retry timer, more
         # SABMs would still be queued to go out; wait past where the next

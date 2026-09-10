@@ -88,6 +88,21 @@ event an operator most wants to watch.
 of this class. That is what lets a VARA link and a KISS link render
 identically, and it is why `AX25Station.session_for` exists.
 
+**`self.link`/`self.reference`/`self.transcript` mean "whichever session is
+on screen right now", not "the only session".** The Terminal pane can hold
+several simultaneous frame-tier connections at once, one per tab (see
+`terminal_pane.py`'s module docstring for the tab strip itself); these three
+are read-only properties backed by `self._sessions`, a dict keyed by session
+identity (`_session_key`) with a permanent `""` entry for the pre-connection
+view. Code reacting to a SPECIFIC link's own callback (`_on_link_data`,
+`_on_link_state`, the reply-watch timer, `_sniff_node`) must never read
+these properties -- the callback is bound to one session, not to whichever
+one happens to be active when it fires, so it threads that session's key
+through explicitly instead. Session-tier transports (Telnet, SSH, VARA,
+Mercury, kernel AX.25) never have more than one session -- see
+`terminal_pane.py` and the approved scope of this feature -- so for them
+"the active session" and "the only session" are simply the same thing.
+
 Keys deliberately avoid `Ctrl+C` for anything but quit, and avoid single-letter
 bindings while the input line has focus: this is a *terminal*, and a key that
 does something other than type a character into a live BBS session is a bug the
@@ -99,6 +114,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from rich.table import Table
@@ -147,9 +163,28 @@ from .heard_pane import HeardPane
 from .monitor_pane import MonitorPane
 from .settings_pane import SettingsPane
 from .styles import APP_CSS
-from .terminal_pane import TerminalPane
+from .terminal_pane import MAX_TERMINAL_TABS, TerminalPane
 
 log = logging.getLogger(__name__)
+
+
+@dataclass
+class _TerminalSession:
+    """Everything `KissTermApp` tracks for one Terminal-pane tab.
+
+    Keyed in `KissTermApp._sessions` by `_session_key` (a peer's callsign,
+    plus port if not 0). `link` is `None` only for the permanent `""` entry
+    -- the pre-connection view, which has no link at all. A fresh instance
+    IS the reset a reconnect to the same peer needs (a new node's banner
+    must not be read against the last one's command reference) -- see
+    `KissTermApp._bind_link`, which replaces rather than mutates.
+    """
+
+    link: object = None
+    reference: "CommandReference" = field(default_factory=CommandReference)
+    detect_buffer: str = ""
+    transcript: SessionLog | None = None
+    reply_timer: Timer | None = None
 
 
 def _status_row(parts: list[str]) -> Table:
@@ -558,16 +593,20 @@ class KissTermApp(App):
         #: `on_mount` replaces it, so shutdown never has to ask whether
         #: mount happened.
         self._unsubscribe_aprs = lambda: None
-        #: The one active link, if any. Panes read this off `self.app` rather
-        #: than tracking their own copy -- see this module's docstring.
-        self.link = None
-        #: The peer of a connect attempt still in the SABM/retry phase, or
-        #: None. Set only for that window -- see `action_connect` and
-        #: `action_disconnect`. Needed because `self.link` is not bound until
-        #: the attempt SUCCEEDS, so without this Ctrl+D during a stuck connect
-        #: has nothing to act on and can only say "Not connected", leaving
-        #: the operator to wait out N2 retries with no way to stop them.
-        self._connect_target = None
+        #: Per-session state (link, node reference, transcript, reply-watch
+        #: timer), keyed by `_session_key`. The permanent `""` entry is the
+        #: pre-connection view -- see the module docstring and
+        #: `_TerminalSession`'s. `self.link`/`self.reference`/`self.transcript`
+        #: below are read-only properties over whichever entry is active.
+        self._sessions: dict[str, _TerminalSession] = {"": _TerminalSession()}
+        #: Targets of connect attempts still in the SABM/retry phase,
+        #: session key -> the peer address. Needed because a session's
+        #: `_sessions` entry does not exist until the attempt SUCCEEDS, so
+        #: without this Ctrl+D during a stuck connect has nothing to act on
+        #: and can only say "Not connected", leaving the operator to wait
+        #: out N2 retries with no way to stop them. See `action_connect` and
+        #: `action_disconnect`.
+        self._connecting: dict[str, AX25Address] = {}
         self._status = "starting"
         #: Stations already tried, offered in the connect dialog. Owned here
         #: rather than by the dialog so a successful connect can be recorded
@@ -589,23 +628,11 @@ class KissTermApp(App):
         #: Watches local serial ports only. The network is never scanned on a
         #: timer -- see kissterm/hotplug.py for the cost argument.
         self.port_watcher = SerialPortWatcher()
-        #: Shipped command reference for whatever node we are talking to.
-        #: Populated by sniffing the banner -- never by asking the node, which
-        #: costs real airtime (see kissterm/nodes/__init__.py).
-        self.reference = CommandReference()
-        self._detect_buffer = ""
         #: (source callsign, matched callsign) pairs already surfaced by
         #: `_check_mail_for`, so a beacon repeating on its own interval does
         #: not re-notify the operator every time it is heard again -- the
         #: point is "you have not seen this yet", not a running tally.
         self._mail_notified: set[tuple[str, str]] = set()
-        #: Transcript for the current session, or None. Owned here rather
-        #: than by the pane: it records what crossed the *link*, and the pane
-        #: is only one of the things watching that.
-        self.transcript: SessionLog | None = None
-        #: Armed by `log_sent`, cancelled by `_on_link_data` or a state
-        #: change -- see `_note_if_no_reply` and `REPLY_WAIT_SECONDS`.
-        self._reply_timer: Timer | None = None
         #: Plain-text beacon. Constructed unconditionally so there is one
         #: object to ask "is this station transmitting on a timer?"; it does
         #: nothing at all until `start()` succeeds, and `start()` refuses
@@ -695,8 +722,9 @@ class KissTermApp(App):
             self.station.on_incoming.append(self._on_incoming_link)
             self._status = f"{self.station.transport.info.detail}"
         self.query_one(TerminalPane).log(
+            "",
             f"kissterm {__version__} -- Ctrl+N to connect, Ctrl+R for commands, "
-            "Ctrl+O for past transcripts.\n"
+            "Ctrl+O for past transcripts.\n",
         )
         self.apply_runtime_settings()
 
@@ -741,7 +769,7 @@ class KissTermApp(App):
         it did is exactly what the opt-in exists to prevent. This is the
         record of it, not a debug aid.
         """
-        self._to_terminal("log", f"\n*** Beacon sent to {frame.path.destination}\n")
+        self._to_terminal(self._active_key(), "log", f"\n*** Beacon sent to {frame.path.destination}\n")
 
     @work
     async def _restart_aprs_beacon(self) -> None:
@@ -758,7 +786,7 @@ class KissTermApp(App):
 
     def _on_aprs_beacon_sent(self, frame: AX25Frame) -> None:
         """Same rule as `_on_beacon_sent`: every transmission is visible."""
-        self._to_terminal("log", "\n*** APRS position beacon sent\n")
+        self._to_terminal(self._active_key(), "log", "\n*** APRS position beacon sent\n")
 
     def on_unmount(self) -> None:
         """Disarm the beacons as the app goes away.
@@ -771,8 +799,8 @@ class KissTermApp(App):
         self.aprs_beaconer.cancel()
         self._unsubscribe_monitor()
         self._unsubscribe_aprs()
-        self._close_transcript()
-        self._cancel_reply_timer()
+        self._close_all_transcripts()
+        self._cancel_all_reply_timers()
 
     # ------------------------------------------------------------------
     # Hardware hotplug (serial only -- never the network)
@@ -796,7 +824,7 @@ class KissTermApp(App):
                 log.info("serial port appeared: %s (%s)", event.device, event.note)
                 return
             self._to_terminal(
-                "log", f"\n*** Plugged in: {event.device} -- {event.detail}\n"
+                self._active_key(), "log", f"\n*** Plugged in: {event.device} -- {event.detail}\n"
             )
             self.notify(
                 f"{event.device} looks like a TNC ({event.detail}). "
@@ -808,7 +836,7 @@ class KissTermApp(App):
 
         # Removed. Only worth shouting about if it is the one in use.
         if self._active_device() == event.device:
-            self._to_terminal("log", f"\n*** {event.device} was unplugged\n")
+            self._to_terminal(self._active_key(), "log", f"\n*** {event.device} was unplugged\n")
             self.notify(
                 f"{event.device} -- the transport in use -- was unplugged.",
                 severity="error",
@@ -877,7 +905,9 @@ class KissTermApp(App):
             return
         self._mail_notified.add(key)
         self._to_terminal(
-            "log", f"\n*** {source} is holding mail for {matched} (heard on the channel)\n"
+            self._active_key(),
+            "log",
+            f"\n*** {source} is holding mail for {matched} (heard on the channel)\n",
         )
         self.notify(f"{source} has mail waiting for {matched}.", severity="information")
         self._notify_mail_desktop(source, matched)
@@ -1026,7 +1056,7 @@ class KissTermApp(App):
             log.debug("APRS auto-ack to %s not sent: %s", addressee, exc)
             return
         self.aprs_conversations.record_outgoing(addressee, f"ack{number}", number=None)
-        self._to_terminal("log", f"\n*** Auto-ack sent to {addressee} (msg {number})\n")
+        self._to_terminal(self._active_key(), "log", f"\n*** Auto-ack sent to {addressee} (msg {number})\n")
 
     async def _send_aprs_message(
         self, addressee: str, text: str, number: str, *, port: int = 0, retry: bool = False
@@ -1062,24 +1092,81 @@ class KissTermApp(App):
             log.debug("APRS message to %s not sent: %s", addressee, exc)
             return False
         verb = "Resent" if retry else "Sent"
-        self._to_terminal("log", f"\n*** {verb} APRS message {number} to {addressee}\n")
+        self._to_terminal(self._active_key(), "log", f"\n*** {verb} APRS message {number} to {addressee}\n")
         return True
 
+    def _session_key(self, peer, port: int = 0) -> str:
+        """The identity a Terminal-pane tab is keyed on. Plain callsign for
+        the overwhelmingly common `port=0` case, so tab labels stay exactly
+        what an operator expects; the port is only appended when it would
+        otherwise collide (two different ports genuinely can reach two
+        different stations sharing a displayed callsign+SSID)."""
+        return str(peer) if port == 0 else f"{peer}:{port}"
+
+    def _active_key(self) -> str:
+        for pane in self._base_query(TerminalPane):
+            return pane.active_session_key
+        return ""
+
+    @property
+    def link(self):
+        """The link of whichever Terminal-pane tab is on screen right now,
+        or None -- see the module docstring's `self.link` paragraph. Never
+        read this from a callback bound to a SPECIFIC link (`_on_link_data`
+        and friends thread their session's key through explicitly instead);
+        it is only correct for "what is the operator looking at".
+        """
+        session = self._sessions.get(self._active_key())
+        return session.link if session is not None else None
+
+    @property
+    def reference(self) -> CommandReference:
+        """Shipped command reference for whichever session is active.
+        Populated by `_sniff_node` sniffing the banner -- never by asking
+        the node, which costs real airtime (see kissterm/nodes/__init__.py).
+        """
+        session = self._sessions.get(self._active_key())
+        return session.reference if session is not None else CommandReference()
+
+    @reference.setter
+    def reference(self, value: CommandReference) -> None:
+        session = self._sessions.get(self._active_key())
+        if session is not None:
+            session.reference = value
+
+    @property
+    def transcript(self) -> SessionLog | None:
+        """Transcript file for whichever session is active, or None."""
+        session = self._sessions.get(self._active_key())
+        return session.transcript if session is not None else None
+
+    @transcript.setter
+    def transcript(self, value: SessionLog | None) -> None:
+        session = self._sessions.get(self._active_key())
+        if session is not None:
+            session.transcript = value
+
     def _on_incoming_link(self, link) -> None:
-        self._to_terminal("log", f"\n*** Incoming connection from {link.peer}\n")
+        pane = self.query_one(TerminalPane)
+        had_none = pane.session_count == 0
+        key = self._bind_link(link, activate=had_none)
+        if not had_none:
+            # Opened a tab, did not steal the view -- see the module and
+            # terminal_pane.py docstrings' "never steal the view" rule.
+            pane.mark_unread(key)
+        self._to_terminal(key, "log", f"\n*** Incoming connection from {link.peer}\n")
         if not self.gate.enabled:
             # The UA never went out, so the caller is talking to nobody. Say
             # so: "somebody called and you could not answer" is exactly the
             # thing an operator wants to find in the scrollback later.
             self._to_terminal(
+                key,
                 "log",
                 f"*** Could not answer {link.peer} -- transmit is disabled (Ctrl+T)\n",
             )
             self.notify(
                 f"{link.peer} called, but transmit is disabled.", severity="warning"
             )
-        if self.link is None or not self.link.connected:
-            self._bind_link(link)
         self._send_banner(link)
         self.notify(f"Connection from {link.peer}", severity="information")
 
@@ -1105,18 +1192,36 @@ class KissTermApp(App):
         except Exception:
             log.exception("could not send connect banner to %s", link.peer)
 
-    def _bind_link(self, link) -> None:
-        # A new conversation may be a different node; forget the last one's
-        # identification rather than offering its commands for this one.
-        self.reference = CommandReference()
-        self._detect_buffer = ""
-        self._cancel_reply_timer()
-        self.link = link
-        self._start_transcript(link)
-        link.on_data.append(self._on_link_data)
-        link.on_state.append(self._on_link_state)
-        link.on_error.append(lambda why: self._note(f"\n*** {why}\n"))
-        self._to_terminal("set_placeholder", f"connected to {link.peer}")
+    def _bind_link(self, link, session_key: str | None = None, *, activate: bool = True) -> str:
+        """Wire a connected link into its `_TerminalSession` bookkeeping
+        (transcript, node reference, reply-watch) and its Terminal-pane tab.
+
+        `session_key` is computed from `link.peer`/`link.port` when not
+        given -- every caller except `action_connect` needs exactly that,
+        since that one must know the key before the link exists (to open
+        the tab and show "Connecting..." first, and to let Ctrl+D find a
+        still-connecting attempt). `activate` lets `_on_incoming_link` open
+        a tab WITHOUT stealing the view when another session is already on
+        screen -- see the module and terminal_pane.py docstrings.
+
+        A fresh `_TerminalSession()` is what resets the node reference and
+        detect buffer for a new conversation -- no separate reset needed,
+        unlike the single-session version this replaced. Any reply timer or
+        transcript left over from a PRIOR binding of this same key (a
+        reconnect to a peer whose tab is still open) is torn down first, so
+        neither leaks past the object that owned it.
+        """
+        key = session_key if session_key is not None else self._session_key(link.peer, link.port)
+        self._cancel_reply_timer(key)
+        self._close_transcript(key)
+        self._sessions[key] = _TerminalSession(link=link)
+        self.query_one(TerminalPane).open_tab(key, activate=activate)
+        self._start_transcript(key, link)
+        link.on_data.append(lambda data: self._on_link_data(key, data))
+        link.on_state.append(lambda state: self._on_link_state(key, state))
+        link.on_error.append(lambda why: self._note(key, f"\n*** {why}\n"))
+        self._to_terminal(key, "set_placeholder", f"connected to {link.peer}")
+        return key
 
     def _transcript_directory(self) -> Path:
         """Where transcripts are read from AND written to.
@@ -1132,8 +1237,9 @@ class KissTermApp(App):
     # ------------------------------------------------------------------
     # Transcript
     # ------------------------------------------------------------------
-    def _start_transcript(self, link) -> None:
-        """Open a transcript for this session, and say where it is.
+    def _start_transcript(self, session_key: str, link) -> None:
+        """Open a transcript for `session_key`, and say where it is, on ITS
+        tab -- not necessarily the one on screen.
 
         The path goes on screen -- as a fixed header above the scrollback,
         not a line inside it (`TerminalPane.set_transcript_note`) -- because a
@@ -1144,7 +1250,7 @@ class KissTermApp(App):
         path to keep showing, and then forgotten about -- see `session_log.py`
         on why a failed log must never be allowed to disturb a live link.
         """
-        self._close_transcript()
+        self._close_transcript(session_key)
         if not getattr(self.config, "log_sessions", True):
             return
         directory = self._transcript_directory()
@@ -1157,36 +1263,52 @@ class KissTermApp(App):
         )
         transcript = SessionLog(directory, mycall, str(link.peer))
         if not transcript.open():
-            self._to_terminal("log", f"\n*** No transcript: {transcript.failed}\n")
+            self._to_terminal(session_key, "log", f"\n*** No transcript: {transcript.failed}\n")
             return
-        self.transcript = transcript
-        self._to_terminal("set_transcript_note", f"Transcript: {transcript.path}")
+        session = self._sessions.get(session_key)
+        if session is not None:
+            session.transcript = transcript
+        self._to_terminal(session_key, "set_transcript_note", f"Transcript: {transcript.path}")
 
-    def _close_transcript(self) -> None:
-        if self.transcript is not None:
-            self.transcript.close()
-            self.transcript = None
-            self._to_terminal("set_transcript_note", "")
+    def _close_transcript(self, session_key: str) -> None:
+        session = self._sessions.get(session_key)
+        if session is not None and session.transcript is not None:
+            session.transcript.close()
+            session.transcript = None
+            self._to_terminal(session_key, "set_transcript_note", "")
 
-    def _note(self, text: str) -> None:
-        """A local note: to the terminal pane, and to the transcript."""
-        self._to_terminal("log", text)
-        if self.transcript is not None:
-            self.transcript.note(text.strip().lstrip("* "))
+    def _close_all_transcripts(self) -> None:
+        """Every session's, on shutdown -- see `on_unmount`."""
+        for key in list(self._sessions):
+            self._close_transcript(key)
 
-    def log_sent(self, text: str) -> None:
-        """Record a line the operator transmitted. Called from `send_line`.
+    def _note(self, session_key: str, text: str) -> None:
+        """A local note for one session: to its tab, and to its transcript."""
+        self._to_terminal(session_key, "log", text)
+        session = self._sessions.get(session_key)
+        if session is not None and session.transcript is not None:
+            session.transcript.note(text.strip().lstrip("* "))
+
+    def log_sent(self, session_key: str, text: str) -> None:
+        """Record a line the operator transmitted on `session_key`. Called
+        from `TerminalPane.send_line` with `active_session_key` -- the
+        operator can only ever type into whichever tab is on screen.
 
         The pane echoes it to the scrollback itself; this is the durable
-        half -- and this also (re)arms the reply-watch timer (`_note_if_no_
-        reply`), cancelling any previous one so it is the LAST line typed
-        that starts the clock, not the first.
+        half -- and this also (re)arms that session's reply-watch timer
+        (`_note_if_no_reply`), cancelling any previous one so it is the
+        LAST line typed that starts the clock, not the first.
         """
-        if self.transcript is not None:
-            self.transcript.sent(text)
-        self._cancel_reply_timer()
-        if self.link is not None and self.link.connected:
-            self._reply_timer = self.set_timer(REPLY_WAIT_SECONDS, self._note_if_no_reply)
+        session = self._sessions.get(session_key)
+        if session is None:
+            return
+        if session.transcript is not None:
+            session.transcript.sent(text)
+        self._cancel_reply_timer(session_key)
+        if session.link is not None and session.link.connected:
+            session.reply_timer = self.set_timer(
+                REPLY_WAIT_SECONDS, lambda: self._note_if_no_reply(session_key)
+            )
 
     def _base_query(self, selector):
         """Query the app's own screen, not whatever modal is on top of it.
@@ -1209,8 +1331,9 @@ class KissTermApp(App):
             return ()
         return stack[0].query(selector)
 
-    def _to_terminal(self, method: str, *args) -> None:
-        """Call a `TerminalPane` method, tolerating the pane not existing.
+    def _to_terminal(self, session_key: str, method: str, *args) -> None:
+        """Call a per-session `TerminalPane` method, tolerating the pane not
+        existing.
 
         A link outlives the UI. On shutdown `__main__` exits the app first and
         *then* calls `station.close()`, which fires every link's state callback
@@ -1219,26 +1342,38 @@ class KissTermApp(App):
         quit with a live link into a traceback. `query()` returns an empty
         result set instead of raising, so a torn-down UI is simply nothing to
         write to.
+
+        `session_key` names WHICH tab the write belongs to -- it is passed
+        through to `pane.<method>`, never resolved to "the active one" here,
+        because half of this method's callers are per-link callbacks that
+        must stay correct for a session sitting in the background. Callers
+        that genuinely mean "wherever the operator is looking" (a global
+        status note -- transmit toggled, a device unplugged) pass
+        `self._active_key()` explicitly, same as any other caller.
         """
         for pane in self._base_query(TerminalPane):
-            getattr(pane, method)(*args)
+            getattr(pane, method)(session_key, *args)
             return
 
-    def _on_link_data(self, data: bytes) -> None:
+    def _on_link_data(self, session_key: str, data: bytes) -> None:
         # Any data back answers the "did they get it" question the reply
         # timer exists for -- see `_note_if_no_reply`.
-        self._cancel_reply_timer()
-        self._to_terminal("write_incoming", data)
-        if self.transcript is not None:
+        self._cancel_reply_timer(session_key)
+        self._to_terminal(session_key, "write_incoming", data)
+        session = self._sessions.get(session_key)
+        if session is not None and session.transcript is not None:
             # Sanitized, never raw. A transcript is read later by a person in
             # a terminal, so wire bytes with escape sequences in them would
             # reintroduce exactly the problem the pane's filter solves --
             # `cat` on the file would run them.
-            self.transcript.received(sanitize(data))
-        self._sniff_node(data)
+            session.transcript.received(sanitize(data))
+        self._sniff_node(session_key, data)
 
-    def _sniff_node(self, data: bytes) -> None:
-        """Identify the node family from what it already sent us.
+    def _sniff_node(self, session_key: str, data: bytes) -> None:
+        """Identify the node family from what it already sent us, on
+        `session_key`'s own reference -- never `self.reference`, which
+        means "whichever tab is active" and this callback does not know
+        that it is.
 
         Passive on purpose. Asking a node for its command list with `?` costs
         roughly twenty seconds of a 1200-baud channel for a couple of
@@ -1249,42 +1384,54 @@ class KissTermApp(App):
         itself in its greeting or not at all, and scanning the whole session
         forever would let ordinary message text trigger a false match.
         """
-        if self.reference.family is not None or len(self._detect_buffer) > 2048:
+        session = self._sessions.get(session_key)
+        if session is None or session.reference.family is not None or len(session.detect_buffer) > 2048:
             return
         from ..monitor import sanitize
 
-        self._detect_buffer += sanitize(data)
-        family = identify_family(self._detect_buffer)
+        session.detect_buffer += sanitize(data)
+        family = identify_family(session.detect_buffer)
         if family is None:
             return
-        self.reference = CommandReference(family=family)
+        session.reference = CommandReference(family=family)
         self._to_terminal(
-            "log", f"\n*** Node looks like {family.name} -- Ctrl+R for its commands\n"
+            session_key,
+            "log",
+            f"\n*** Node looks like {family.name} -- Ctrl+R for its commands\n",
         )
 
-    def _on_link_state(self, state: SessionState) -> None:
-        self._note(f"\n*** {state.value}\n")
+    def _on_link_state(self, session_key: str, state: SessionState) -> None:
+        self._note(session_key, f"\n*** {state.value}\n")
         if state is not SessionState.CONNECTED:
             # Anything other than a plain, steady CONNECTED -- disconnecting,
             # failed, timer recovery -- already gets its own note above; the
             # "acknowledged but silent" one below would only repeat that with
             # less information, or fire after the link is no longer there to
             # ask a question about.
-            self._cancel_reply_timer()
+            self._cancel_reply_timer(session_key)
         if state is SessionState.DISCONNECTED:
-            self._to_terminal("set_placeholder", "not connected -- Ctrl+N")
-            self._close_transcript()
+            self._to_terminal(session_key, "set_placeholder", "not connected -- Ctrl+N")
+            self._close_transcript(session_key)
 
     # ------------------------------------------------------------------
     # Reply watch -- "they got it, are they just not answering?"
     # ------------------------------------------------------------------
-    def _cancel_reply_timer(self) -> None:
-        if self._reply_timer is not None:
-            self._reply_timer.stop()
-            self._reply_timer = None
+    def _cancel_reply_timer(self, session_key: str) -> None:
+        session = self._sessions.get(session_key)
+        if session is not None and session.reply_timer is not None:
+            session.reply_timer.stop()
+            session.reply_timer = None
 
-    def _note_if_no_reply(self) -> None:
-        """Fired `REPLY_WAIT_SECONDS` after a send with nothing back since.
+    def _cancel_all_reply_timers(self) -> None:
+        """Every session's, on shutdown -- see `on_unmount`."""
+        for key in list(self._sessions):
+            self._cancel_reply_timer(key)
+
+    def _note_if_no_reply(self, session_key: str) -> None:
+        """Fired `REPLY_WAIT_SECONDS` after a send with nothing back since,
+        on `session_key` -- bound with that key at the moment `log_sent`
+        armed this timer, so switching tabs in the meantime cannot make it
+        report on the wrong session.
 
         Only says anything when the AX.25 layer has nothing outstanding
         (`link.va == link.vs`) -- i.e. the far end already acknowledged the
@@ -1295,11 +1442,15 @@ class KissTermApp(App):
         nothing for 22 more, and the only place that ACK showed up was an RR
         frame the Monitor tab hides by default.
         """
-        self._reply_timer = None
-        link = self.link
+        session = self._sessions.get(session_key)
+        if session is None:
+            return
+        session.reply_timer = None
+        link = session.link
         if link is None or not link.connected or link.va != link.vs:
             return
         self._to_terminal(
+            session_key,
             "log",
             f"\n*** {link.peer} acknowledged that -- no reply yet. See "
             "Monitor (F2) for what has come back since.\n",
@@ -1334,14 +1485,14 @@ class KissTermApp(App):
         enabled = self.gate.toggle()
         if enabled:
             self.notify("Transmit ENABLED. This station can now key the radio.")
-            self._to_terminal("log", "\n*** Transmit enabled\n")
+            self._to_terminal(self._active_key(), "log", "\n*** Transmit enabled\n")
         else:
             blocked = ""
             self.notify(
                 "Transmit DISABLED. Nothing will be sent." + blocked,
                 severity="warning",
             )
-            self._to_terminal("log", "\n*** Transmit disabled\n")
+            self._to_terminal(self._active_key(), "log", "\n*** Transmit disabled\n")
         self._refresh_status()
 
     def _arm_for(self, what: str) -> None:
@@ -1370,7 +1521,7 @@ class KissTermApp(App):
             return
         self.gate.set(True)
         self._to_terminal(
-            "log", f"\n*** Transmit enabled automatically for: {what}\n"
+            self._active_key(), "log", f"\n*** Transmit enabled automatically for: {what}\n"
         )
         self.notify(f"Transmit ENABLED for {what}. Ctrl+T turns it back off.")
         self._refresh_status()
@@ -1528,7 +1679,7 @@ class KissTermApp(App):
         if active == "monitor":
             self.query_one(MonitorPane).clear()
         else:
-            self.query_one(TerminalPane).clear()
+            self.query_one(TerminalPane).clear_active()
 
     def action_find_in_terminal(self) -> None:
         """Ctrl+F: find in the Terminal pane's scrollback.
@@ -1772,6 +1923,25 @@ class KissTermApp(App):
         hop_names = [h.strip() for h in request.hops.split(",") if h.strip()]
         chain = hop_names + [target] if hop_names else [target]
         path = parse_path(chain[0])
+        # Computed before anything else here: the tab this whole attempt
+        # belongs to, whether it comes up or not. An existing tab for this
+        # exact peer (a reconnect) always counts as room, no matter how
+        # many OTHER tabs are open -- see `TerminalPane.has_room_for`.
+        key = self._session_key(path.destination)
+        pane = self.query_one(TerminalPane)
+        if not pane.has_room_for(key):
+            self.notify(
+                f"Close a session first -- {MAX_TERMINAL_TABS} connections are "
+                "already open.",
+                severity="warning",
+            )
+            return
+        # This session's own tab, opened and put on screen before anything
+        # below writes to it, including the TNC-link check right after --
+        # a reconnect to a peer whose tab is still open reuses it (and its
+        # history) rather than wiping it, which is what the old
+        # single-session version had to do instead.
+        pane.open_tab(key, activate=True)
         # The TNC link, before the RF link. Sending six SABMs into a socket
         # that is down produces "no answer from WS1EC-15" -- a diagnosis
         # pointing at the antenna when the fault is in the room. Unlike a
@@ -1781,6 +1951,7 @@ class KissTermApp(App):
         if state is not TransportState.OPEN:
             where = self.station.transport.info.detail
             self._to_terminal(
+                key,
                 "log",
                 f"\n*** Not connecting: the link to the TNC at {where} is "
                 f"{state.value}, so nothing would reach the air. This is not "
@@ -1797,17 +1968,12 @@ class KissTermApp(App):
         # is the operator asking to transmit, and refusing it here left them
         # with a dead end that only reads as "the far station is not there".
         self._arm_for(f"connect to {path.destination}")
-        # A fresh screen for a fresh session. Without this, the top of the
-        # scrollback is whatever the LAST station sent -- a new connect
-        # attempt scrolling in below an old, unrelated conversation reads as
-        # one continuous session when it is not.
-        self.query_one(TerminalPane).clear()
-        self.query_one(TerminalPane).log(f"\n*** Connecting to {path.destination}...\n")
+        self._to_terminal(key, "log", f"\n*** Connecting to {path.destination}...\n")
         # Set before the await, not after: `AX25Station.connect` registers the
         # link synchronously before it awaits anything, so by the time this
         # coroutine yields control the link is already reachable by peer
         # address -- which is what lets Ctrl+D find and cancel it mid-attempt.
-        self._connect_target = path.destination
+        self._connecting[key] = path.destination
         try:
             link = await self.station.connect(
                 path,
@@ -1818,12 +1984,12 @@ class KissTermApp(App):
             self.notify(str(exc), severity="error")
             return
         finally:
-            self._connect_target = None
+            self._connecting.pop(key, None)
         if link is None:
             failed = self.station.link_to(path.destination)
             reason = getattr(failed, "last_error", "") if failed else ""
             if reason == CANCELLED_REASON:
-                self._to_terminal("log", f"*** Connect to {path.destination} cancelled.\n")
+                self._to_terminal(key, "log", f"*** Connect to {path.destination} cancelled.\n")
                 return
             # Say WHY. "No connection" alone cannot be acted on: a DM means
             # the node heard us and refused, which is a configuration problem
@@ -1833,9 +1999,10 @@ class KissTermApp(App):
             # diagnosis, and it is already known here.
             attempts = getattr(failed, "rc", 0) if failed else 0
             detail = f" -- {reason}" if reason else ""
-            self._to_terminal("log", f"*** No connection to {path.destination}{detail}\n")
+            self._to_terminal(key, "log", f"*** No connection to {path.destination}{detail}\n")
             if attempts:
                 self._to_terminal(
+                    key,
                     "log",
                     f"*** {attempts} attempt(s) sent. Check the Monitor tab (F2) "
                     "for what went out and what came back.\n",
@@ -1846,6 +2013,7 @@ class KissTermApp(App):
             # operator spends the evening on an antenna that is fine.
             if self.station.transport.state is not TransportState.OPEN:
                 self._to_terminal(
+                    key,
                     "log",
                     "*** The link to the TNC dropped during this attempt, so "
                     "some of those frames never reached the radio. Fix that "
@@ -1855,7 +2023,7 @@ class KissTermApp(App):
                 f"Could not connect to {path.destination}{detail}", severity="warning"
             )
             return
-        self._bind_link(link)
+        self._bind_link(link, key)
         # Explicit, not left to the `on_state` callback `_bind_link` just
         # registered: `AX25Station.connect` already ran the SABM/UA exchange
         # to completion before returning this link, so the transition INTO
@@ -1877,15 +2045,20 @@ class KissTermApp(App):
         # late to see this first transition either, so writing straight to
         # the terminal pane fixed what the operator watched live but left
         # the durable transcript with the same hole.
-        self._note(f"\n*** Connected to {link.peer}\n")
-        self.query_one(TerminalPane).focus_input()
+        self._note(key, f"\n*** Connected to {link.peer}\n")
+        if pane.active_session_key == key:
+            # Only if the operator is still looking at this tab -- a long
+            # SABM retry (or an HF hop chain below) can outlast several
+            # tab switches, and stealing focus back would be exactly the
+            # "steal the view" rule the module docstring forbids.
+            pane.focus_input()
         reached_target = True
         if len(chain) > 1:
             # The AX.25 link is only to the FIRST node -- everything past
             # it is that node's own onward routing, invisible to kissterm's
             # state machine and driven purely by watching what comes back
             # over this one link. See `_hop_through`.
-            reached_target = await self._hop_through(link, chain[1:])
+            reached_target = await self._hop_through(link, key, chain[1:])
         if not reached_target:
             # Left connected to whichever node was last reached -- the
             # operator can continue by hand from there, or Ctrl+D. Neither
@@ -1901,7 +2074,7 @@ class KissTermApp(App):
             request.credential, request.script_name, request.script
         )
         if login_text.strip():
-            self._run_connect_script(link, login_text)
+            self._run_connect_script(link, key, login_text)
 
     async def _connect_session_transport(self) -> None:
         """Connect through a session-tier transport (Telnet, SSH, VARA,
@@ -1931,25 +2104,31 @@ class KissTermApp(App):
         cancel a connect attempt that hangs here (a slow or unreachable
         host) short of waiting for it to time out or fail on its own --
         see docs/ROADMAP.md's Telnet/SSH entry.
+
+        Always binds into the permanent `""` session key rather than one
+        derived from the peer, unlike the frame-tier path -- this tier
+        never has more than one session (out of scope for the tabbed
+        terminal; see `terminal_pane.py`'s module docstring), so there is
+        never a second tab to distinguish it from.
         """
         transport = self.session_transport
         if self.link is not None and self.link.connected:
             self.notify("Already connected.", severity="warning")
             return
         self._arm_for(f"connect via {transport.info.detail}")
-        self.query_one(TerminalPane).clear()
-        self.query_one(TerminalPane).log(f"\n*** Connecting to {transport.info.detail}...\n")
+        self.query_one(TerminalPane).clear("")
+        self._to_terminal("", "log", f"\n*** Connecting to {transport.info.detail}...\n")
         try:
             session = await transport.connect()
         except TransportError as exc:
-            self._to_terminal("log", f"*** Could not connect: {exc}\n")
+            self._to_terminal("", "log", f"*** Could not connect: {exc}\n")
             self.notify(str(exc), severity="error")
             return
         link = _SessionLinkAdapter(session)
-        self._bind_link(link)
+        self._bind_link(link, "")
         # Same gap as the frame-tier connect above (`action_connect`) and
         # the same fix -- see the comment there.
-        self._note(f"\n*** Connected to {link.peer}\n")
+        self._note("", f"\n*** Connected to {link.peer}\n")
         self.query_one(TerminalPane).focus_input()
         # Same auto-login as the address-book flow above (`request.script`/
         # `request.credential`/`request.script_name`), just sourced from the
@@ -1960,9 +2139,9 @@ class KissTermApp(App):
             transport.credential, transport.script_name, transport.script
         )
         if login_text.strip():
-            self._run_connect_script(link, login_text)
+            self._run_connect_script(link, "", login_text)
 
-    async def _hop_through(self, link, nodes: list[str]) -> bool:
+    async def _hop_through(self, link, session_key: str, nodes: list[str]) -> bool:
         """Walk a chain of node-to-node hops over an already-open link.
 
         For a station reached only by connecting through intermediate
@@ -1975,6 +2154,12 @@ class KissTermApp(App):
         walks a short chain the operator typed by hand, not an open-ended
         auto-discovery crawl.
 
+        `session_key` is passed explicitly rather than derived from `link`
+        -- this can run for several seconds to minutes across several hops,
+        and the operator is free to switch to (or open) another tab while it
+        runs. Every note here must keep landing on the ORIGINAL tab, not on
+        whatever happens to be on screen when a given hop's reply arrives.
+
         Stops and reports on the first hop that does not come up, leaving
         the link connected to whichever node was last reached rather than
         tearing anything down -- the operator can continue by hand from
@@ -1984,20 +2169,20 @@ class KissTermApp(App):
         """
         for node in nodes:
             if not link.connected:
-                self._to_terminal("log", "*** Hop chain stopped: no longer connected.\n")
+                self._to_terminal(session_key, "log", "*** Hop chain stopped: no longer connected.\n")
                 return False
             if not self.gate.enabled:
-                self._to_terminal("log", "*** Hop chain stopped: transmit is off.\n")
+                self._to_terminal(session_key, "log", "*** Hop chain stopped: transmit is off.\n")
                 return False
-            ok, detail = await self._hop_to(link, node)
+            ok, detail = await self._hop_to(link, session_key, node)
             if not ok:
                 extra = f" -- {detail}" if detail else ""
-                self._to_terminal("log", f"*** No connection to {node}{extra}\n")
+                self._to_terminal(session_key, "log", f"*** No connection to {node}{extra}\n")
                 self.notify(f"Hop to {node} did not connect{extra}", severity="warning")
                 return False
         return True
 
-    async def _hop_to(self, link, node: str) -> tuple[bool, str]:
+    async def _hop_to(self, link, session_key: str, node: str) -> tuple[bool, str]:
         """Send ``C <node>`` and wait for that node's own CONNECTED reply.
 
         Watches everything the link receives from the moment the command
@@ -2035,8 +2220,8 @@ class KissTermApp(App):
         try:
             cmd = f"C {node}"
             await link.send(cmd.encode("latin-1", "replace") + b"\r")
-            self._to_terminal("log", cmd + "\n")
-            self.log_sent(cmd)
+            self._to_terminal(session_key, "log", cmd + "\n")
+            self.log_sent(session_key, cmd)
             try:
                 return await asyncio.wait_for(result, timeout=HOP_TIMEOUT)
             except asyncio.TimeoutError:
@@ -2060,7 +2245,7 @@ class KissTermApp(App):
         return script
 
     @work
-    async def _run_connect_script(self, link, script: str) -> None:
+    async def _run_connect_script(self, link, session_key: str, script: str) -> None:
         """Send a station's saved auto-login script, one line at a time.
 
         Runs only right after a connect the operator just named and
@@ -2069,6 +2254,10 @@ class KissTermApp(App):
         re-confirm anything itself; it rides the one the connect already
         got, the same way answering a poll rides an established link's own
         authorization rather than asking again per frame.
+
+        `session_key` is explicit for the same reason `_hop_through` takes
+        one -- this runs across several awaited sends and the operator may
+        have switched tabs by the time a later line goes out.
 
         Every line is echoed into the terminal log and the session
         transcript exactly the way `TerminalPane.send_line` echoes a typed
@@ -2081,33 +2270,35 @@ class KissTermApp(App):
         lines = [ln for ln in script.splitlines() if ln.strip()]
         if not lines:
             return
-        self._to_terminal("log", f"\n*** Auto-login: sending {len(lines)} line(s)...\n")
+        self._to_terminal(session_key, "log", f"\n*** Auto-login: sending {len(lines)} line(s)...\n")
         for line in lines:
             if not link.connected:
-                self._to_terminal("log", "*** Auto-login stopped: no longer connected.\n")
+                self._to_terminal(session_key, "log", "*** Auto-login stopped: no longer connected.\n")
                 return
             if not self.gate.enabled:
-                self._to_terminal("log", "*** Auto-login stopped: transmit is off.\n")
+                self._to_terminal(session_key, "log", "*** Auto-login stopped: transmit is off.\n")
                 return
             await link.send(line.encode("latin-1", "replace") + b"\r")
-            self._to_terminal("log", line + "\n")
-            self.log_sent(line)
+            self._to_terminal(session_key, "log", line + "\n")
+            self.log_sent(session_key, line)
             await asyncio.sleep(CONNECT_SCRIPT_LINE_DELAY)
 
     @work
     async def action_set_callsign(self) -> None:
         """Change the station callsign and persist it, without a restart.
 
-        Refused while a link is up: the callsign is in the address field of
-        every frame of an established conversation, and swapping it mid-session
-        would make our own traffic unrecognisable to the peer -- it would keep
-        answering the old call while we transmitted under the new one, and the
-        link would die by N2 timeout rather than by anything the operator could
-        diagnose. Disconnecting first is the honest requirement.
+        Refused while ANY session is up, not just the active tab: the
+        callsign is in the address field of every frame of every established
+        conversation, and swapping it mid-session would make our own traffic
+        unrecognisable to every one of those peers -- each would keep
+        answering the old call while we transmitted under the new one, and
+        every link would die by N2 timeout rather than by anything the
+        operator could diagnose. Disconnecting first is the honest
+        requirement.
         """
-        if self.link is not None and self.link.connected:
+        if any(s.link is not None and s.link.connected for s in self._sessions.values()):
             self.notify(
-                "Disconnect before changing callsign.", severity="warning"
+                "Disconnect every session before changing callsign.", severity="warning"
             )
             return
 
@@ -2129,7 +2320,7 @@ class KissTermApp(App):
         self.query_one(SettingsPane).render_settings(self.config)
         where = "saved" if saved else "applied for this session only (could not write config)"
         self.notify(f"Callsign is now {new_call} -- {where}.")
-        self.query_one(TerminalPane).log(f"\n*** Callsign changed to {new_call}\n")
+        self._to_terminal(self._active_key(), "log", f"\n*** Callsign changed to {new_call}\n")
 
     def _save_config(self) -> bool:
         """Persist config, reporting failure rather than raising.
@@ -2173,7 +2364,7 @@ class KissTermApp(App):
         )
         if chosen:
             self.action_show_tab("terminal")
-            self._to_terminal("suggest", chosen)
+            self.query_one(TerminalPane).suggest(chosen)
 
     @work
     async def action_show_transcripts(self) -> None:
@@ -2188,31 +2379,63 @@ class KissTermApp(App):
 
     @work
     async def action_disconnect(self) -> None:
-        if self.link is not None and self.link.connected:
+        """Ctrl+Shift+D / Ctrl+D -- disconnect whichever tab is on screen.
+
+        Also the DISC half of `Delete` on the session-tab strip's focused
+        tab (`disconnect_or_close_tab`), since `Delete` there only ever
+        fires for the active tab -- see `terminal_pane.py`'s module
+        docstring on why closing a session is two `Delete`s, not one.
+        """
+        await self._disconnect_session(self._active_key())
+
+    async def _disconnect_session(self, session_key: str) -> None:
+        session = self._sessions.get(session_key)
+        if session is not None and session.link is not None and session.link.connected:
             # Same reasoning as connect, and more so: a DISC is how a link is
             # ended politely. Refusing to send it leaves the far station
             # holding a session open until ITS timers give up, which is a
             # worse outcome for the channel than the transmission we would
             # be avoiding.
-            self._arm_for(f"disconnect from {self.link.peer}")
-            self.query_one(TerminalPane).log("\n*** Disconnecting...\n")
-            await self.link.disconnect()
+            self._arm_for(f"disconnect from {session.link.peer}")
+            self._to_terminal(session_key, "log", "\n*** Disconnecting...\n")
+            await session.link.disconnect()
             return
         # No established link -- but a connect attempt may still be working
         # through its SABM retries. Without this, the only way off a stuck
         # attempt was to wait out N2 in full: Ctrl+D said "Not connected"
         # (true, but useless) while the radio kept keying up on its own.
-        if self._connect_target is not None and self.station is not None:
-            connecting = self.station.link_to(self._connect_target)
+        target = self._connecting.get(session_key)
+        if target is not None and self.station is not None:
+            connecting = self.station.link_to(target)
             if connecting is not None and not connecting.connected:
-                self.query_one(TerminalPane).log(
+                self._to_terminal(
+                    session_key,
+                    "log",
                     f"\n*** Cancelling connect to {connecting.peer} -- no "
-                    "further SABMs will be sent.\n"
+                    "further SABMs will be sent.\n",
                 )
                 connecting.close(reason=CANCELLED_REASON)
                 self.notify(f"Cancelled connect to {connecting.peer}.")
                 return
         self.notify("Not connected.", severity="warning")
+
+    def disconnect_or_close_tab(self, session_key: str) -> None:
+        """`Delete` on the focused session tab. Disconnects a live session;
+        removes an already-disconnected (or still-connecting) tab outright.
+        Two keystrokes rather than one for a connected session, so the
+        "*** Disconnecting..." note stays readable instead of the tab
+        vanishing out from under it -- see `terminal_pane.py`'s module
+        docstring.
+        """
+        session = self._sessions.get(session_key)
+        if session is not None and session.link is not None and session.link.connected:
+            self.action_disconnect()
+            return
+        if session_key in self._connecting:
+            self.action_disconnect()
+            return
+        self._sessions.pop(session_key, None)
+        self.query_one(TerminalPane).close_tab(session_key)
 
     # ------------------------------------------------------------------
     # Periodic UI refresh

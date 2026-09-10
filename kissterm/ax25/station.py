@@ -51,12 +51,21 @@ class AX25Station:
         *,
         aliases: tuple[AX25Address, ...] = (),
         accept_incoming: bool = True,
+        max_links: int | None = None,
     ) -> None:
         self.mycall = mycall
         self.transport = transport
         self.params = params or LinkParams()
         self.aliases = aliases
         self.accept_incoming = accept_incoming
+        #: Ceiling on CONNECTED links this station will hold at once, or
+        #: `None` for no limit. Checked only against incoming calls
+        #: (`_on_incoming_connect`) -- an outgoing `connect()` is something
+        #: the operator just asked for by name, and the UI is in a better
+        #: position to say why than a bare refusal here would be. `None` by
+        #: default so a script, a test, or `--doctor` building a bare
+        #: station never trips over a limit it did not ask for.
+        self.max_links = max_links
 
         self.links: dict[LinkKey, AX25Link] = {}
         self.on_incoming: list[Callable[[AX25Link], None]] = []
@@ -214,10 +223,24 @@ class AX25Station:
 
         await link.handle(frame)
 
+    def _connected_count(self) -> int:
+        """CONNECTED links right now -- never the size of `self.links`.
+
+        A link is never removed from `self.links` on disconnect (see
+        `link_to`'s docstring: a failed or finished attempt's detail is
+        worth keeping on screen), so the dict grows for the life of the
+        station. Counting it directly would make `max_links` a one-way
+        ratchet that refuses every call after the Nth ever, connected or
+        not.
+        """
+        return sum(1 for link in self.links.values() if link.connected)
+
     async def _on_incoming_connect(
         self, frame: AX25Frame, port: int, key: LinkKey
     ) -> None:
-        if not self.accept_incoming:
+        if not self.accept_incoming or (
+            self.max_links is not None and self._connected_count() >= self.max_links
+        ):
             await self.transport.send_frame(
                 AX25Frame.u_frame(
                     frame.path.reply(command=False), UType.DM, pf=frame.pf, command=False

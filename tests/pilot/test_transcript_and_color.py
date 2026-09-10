@@ -187,7 +187,7 @@ async def test_colour_is_kept_but_cursor_control_is_not(tmp_path):
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         pane = app.query_one(TerminalPane)
-        pane.write_incoming(b"\x1b[2J\x1b[31mMENU\x1b[0m\x1b]0;pwned\x07")
+        pane.write_incoming(pane.active_session_key, b"\x1b[2J\x1b[31mMENU\x1b[0m\x1b]0;pwned\x07")
         # No trailing newline in that chunk, so TerminalPane holds it back
         # (see `_flush_incoming`) until its idle timer fires.
         await pilot.pause(0.3)
@@ -206,7 +206,7 @@ async def test_colour_off_still_shows_the_text(tmp_path):
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         pane = app.query_one(TerminalPane)
-        pane.write_incoming(b"\x1b[31mMENU\x1b[0m")
+        pane.write_incoming(pane.active_session_key, b"\x1b[31mMENU\x1b[0m")
         # No trailing newline in that chunk -- see the comment in the sibling
         # test above.
         await pilot.pause(0.3)

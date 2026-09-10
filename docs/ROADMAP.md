@@ -33,22 +33,6 @@ the original version of this section are done -- see CHANGELOG's
       is the part most likely to matter and least likely to have been
       exercised. Small.
 
-## P2 — Multi-session and terminal quality
-
-- [ ] **Multiple simultaneous connections in tabs.** Each tab owns one
-  `Session`; the monitor pane and heard list stay global across all of them
-  since they read from the transport, not from any one session. Touches
-  `kissterm/ui/app.py` (tab management) and probably a `SessionManager` to
-  keep `ax25/session.py` from needing to know about the UI. Medium-large.
-  **The APRS pane's conversation strip is the pattern to copy** -- requested
-  directly, "we'll be doing that with the packet terminal soon". A `Tabs`
-  strip inside the pane, one `RichLog` repainted on `TabActivated`, unread
-  marked with `*` plus `$warning`, `Delete` to close: see
-  `kissterm/ui/aprs_pane.py` and `DESIGN.md`'s "a second tab strip inside a
-  pane". The difference is that each terminal tab owns a live `Session`
-  rather than a slice of a message store, so closing one is a disconnect and
-  needs to say so.
-
 ## P3 — Transports
 
 - [ ] **AGWPE completion — `kissterm/transport/agwpe.py`.** Raw-frame mode

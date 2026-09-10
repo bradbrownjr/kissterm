@@ -3,6 +3,57 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — Tabbed packet terminal: multiple simultaneous connections
+
+### New Features
+- **The Terminal pane can now hold several simultaneous connections at
+  once, one tab each** — the P2 roadmap item ("we'll be doing that with the
+  packet terminal soon"), built on the APRS pane's already-shipped
+  conversation-strip pattern (`_ConvoTabs` / DESIGN.md's "A second tab strip
+  inside a pane") rather than re-deriving it. `AX25Station.links` was always
+  a dict keyed by peer; what was missing was the UI, where `KissTermApp.link`/
+  `.reference`/`.transcript` were single slots that a second connection
+  silently clobbered. They are now read-only properties over whichever tab
+  is on screen, backed by a `_TerminalSession` per session key
+  (`kissterm/ui/app.py`); every link callback (`_on_link_data`,
+  `_on_link_state`, the reply-watch timer, the hop-chain and auto-login
+  loops) threads its own session's key through explicitly instead, so a
+  background tab's own conversation, node reference and transcript stay
+  correct no matter which tab the operator is actually looking at.
+  `terminal_pane.py`'s new `#terminal-session-tabs` strip is one shared
+  `#session-log`, repainted from a per-session replay buffer on
+  `Tabs.TabActivated` — never a live widget per tab, same reasoning APRS's
+  strip already established. No strip at all below two sessions, so a
+  single connection looks exactly like it always has. An operator-initiated
+  connect opens and activates its own tab; an incoming call accepted while
+  another session is on screen opens a tab and marks it unread without
+  moving the view. `Delete` on the focused tab disconnects a live session
+  first and only removes the tab on a second `Delete`, once it reads
+  DISCONNECTED — closing a live link is not the same action as tidying away
+  a finished one. `MAX_TERMINAL_TABS` (8) caps how many tabs can be open at
+  once; `AX25Station.max_links` (new, wired to the same number in
+  `__main__.py`) enforces the same cap for incoming calls at the station
+  layer, with a DM refusal rather than silence — "answer DM to traffic you
+  do not have" applies here too, now that there is a real ceiling to hit.
+  No new tabs for a live cap breach get evicted the way APRS's read
+  conversations do: a terminal tab holds a live link with real resources
+  (timers, an open transcript file), and silently disconnecting one to make
+  room would be worse than refusing the new connection.
+- **Out of scope, on purpose**: session-tier transports (Telnet, SSH, VARA,
+  Mercury, kernel AX.25) still hold exactly one connection — `Session` has
+  no per-peer keying the way `AX25Station.links` does, and building that is
+  a separate, riskier change against transports already flagged unverified
+  against real hardware (docs/ROADMAP.md and AGENTS.md §8).
+
+**Files:** `kissterm/ax25/station.py`, `kissterm/ui/app.py`,
+`kissterm/ui/terminal_pane.py`, `kissterm/ui/styles.py`, `kissterm/__main__.py`,
+`DESIGN.md`, `docs/ROADMAP.md`, `tests/unit/test_station_max_links.py`,
+`tests/pilot/test_terminal_sessions.py`, plus signature fixes in
+`tests/pilot/test_terminal_ux.py`, `test_terminal_find.py`,
+`test_transcript_and_color.py`, `test_app_mounts.py`, `test_transmit_gate.py`,
+`test_transcripts_screen.py` for the now session-keyed `TerminalPane`/
+`KissTermApp` methods.
+
 ## [2026-09-10] — Bearing/distance for plain packet nodes too, and MAIL FOR made a headline feature
 
 ### New Features

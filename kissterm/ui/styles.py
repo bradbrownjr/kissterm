@@ -96,6 +96,16 @@ TerminalPane { layout: horizontal; }
    the note on `#aprs-contacts-column` below. */
 #terminal-addressbook-column { width: 58%; border-left: solid $panel; }
 #transcript-note { height: auto; padding: 0 1; color: $text-muted; }
+/* The session tab strip -- one tab per simultaneous connection, hidden
+   below two sessions (`TerminalPane._sync_strip_visibility`). Same
+   subordinate-to-the-F-key-bar treatment as `#aprs-convo-tabs` above, for
+   the identical reason: a second row of tabs that looked like the first
+   would read as two competing navigations rather than a hierarchy. */
+#terminal-session-tabs { height: 2; margin-bottom: 1; }
+#terminal-session-tabs Tab { color: $text-muted; }
+#terminal-session-tabs Tab.-active { color: $accent; text-style: bold; }
+#terminal-session-tabs Tab.-unread { color: $warning; text-style: bold; }
+#terminal-session-tabs Underline > .underline--bar { color: $panel; }
 /* Hidden until Ctrl+F -- see TerminalPane.open_find. */
 #find-row { height: auto; display: none; }
 #find-input { border: round $accent; width: 1fr; }

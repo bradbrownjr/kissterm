@@ -85,7 +85,7 @@ async def test_search_filters_by_content_not_just_by_callsign(tmp_path):
         link = await a.connect(AX25Path(PEER, MYCALL))
         app._bind_link(link)
         await asyncio.sleep(0.1)
-        app._note("a very particular phrase")
+        app._note(app._active_key(), "a very particular phrase")
         app.transcript.close()  # flush + stop, so the search reads a settled file
         app.transcript = None
 

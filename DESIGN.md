@@ -301,6 +301,30 @@ hierarchy.
   like every other panel key. Not `Ctrl+W` — `Input` already claims that for
   delete-word and the compose box is right there.
 
+**The Terminal pane's session strip (`#terminal-session-tabs`) is the same
+recipe, requested directly ("we'll be doing that with the packet terminal
+soon") for multiple simultaneous connections, with three deliberate
+differences from the APRS strip above** — see `kissterm/ui/terminal_pane.py`'s
+module docstring for the full reasoning:
+
+- **No "All"-equivalent, and no strip at all below two sessions.** A
+  conversation strip always has somewhere useful to land; a terminal with
+  one connection (or none) looks exactly like it always has — there is no
+  channel-monitor view for a private, point-to-point session to fall back
+  to, so a lone session simply has no tab shown at all.
+- **A tab is never evicted to make room for a new one.** APRS's cap discards
+  the least recently read conversation, which is fine — the history is still
+  in `ConversationStore`. A terminal tab owns a LIVE link with a transcript
+  file and timers still running; silently disconnecting it to free a slot
+  would throw away an open conversation, so the cap (`MAX_TERMINAL_TABS`)
+  refuses a new connection instead of evicting an old one.
+- **Closing a connected tab is two `Delete`s, not one.** The first sends the
+  disconnect and leaves the tab showing it happened; the second, once the
+  tab reads DISCONNECTED, removes it. A single keystroke that did both would
+  erase the "*** Disconnecting" note before anyone could read it — the same
+  reasoning that keeps a beacon or a disconnect from ever being silent
+  elsewhere in this app.
+
 ---
 
 ## 6. The bottom two rows

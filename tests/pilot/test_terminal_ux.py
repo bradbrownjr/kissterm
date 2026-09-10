@@ -104,7 +104,7 @@ async def test_incoming_text_is_still_sanitized_before_linkifying():
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         pane = app.query_one(TerminalPane)
-        pane.write_incoming(b"\x1b[2J\x1b]0;pwned\x07go to http://example.com/x\r\n")
+        pane.write_incoming("", b"\x1b[2J\x1b]0;pwned\x07go to http://example.com/x\r\n")
         await pilot.pause()
         rendered = "\n".join(str(line) for line in app.query_one("#session-log").lines)
         assert "http://example.com/x" in rendered
@@ -277,7 +277,7 @@ async def test_node_family_is_detected_passively_from_its_banner():
         await asyncio.sleep(0.1)
 
         before = len(app.station.transport.sent)
-        app._on_link_data(b"Welcome to the node.\rW1AW-7:CCEMA}\r")
+        app._on_link_data(app._active_key(), b"Welcome to the node.\rW1AW-7:CCEMA}\r")
         await pilot.pause()
         assert app.reference.family is not None
         assert app.reference.family.id == "bpq32"
@@ -337,6 +337,6 @@ async def test_writing_to_a_torn_down_terminal_pane_does_not_raise():
         await pane.query("#session-log").remove()
 
         # Both callback-reachable write paths, neither of which may raise.
-        pane.log("*** Disconnected")
-        pane.write_incoming(b"hello from the far end\r\n")
-        pane._flush_incoming(final=True)
+        pane.log("", "*** Disconnected")
+        pane.write_incoming("", b"hello from the far end\r\n")
+        pane._flush_incoming("", final=True)

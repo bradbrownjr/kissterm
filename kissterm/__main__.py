@@ -330,6 +330,7 @@ async def _amain(args) -> int:
     from .app import KissTermApp
     from .transport import build_transport
     from .transport.base import FrameTransport, TransportError
+    from .ui.terminal_pane import MAX_TERMINAL_TABS
 
     try:
         transport = build_transport(entry)
@@ -356,6 +357,10 @@ async def _amain(args) -> int:
             ),
             aliases=tuple(AX25Address.parse(a) for a in config.mycall_aliases),
             accept_incoming=config.accept_incoming,
+            # Kept in lockstep with the Terminal pane's own tab cap -- see
+            # `terminal_pane.py`'s module docstring -- so the two never
+            # disagree about how many simultaneous connections are usable.
+            max_links=MAX_TERMINAL_TABS,
         )
 
     # A log that does not say what it is a log OF is guesswork later. This

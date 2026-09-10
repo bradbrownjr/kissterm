@@ -137,7 +137,7 @@ async def test_remote_escape_sequences_never_reach_the_widget():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
         pane = app.query_one(TerminalPane)
-        pane.write_incoming(b"\x1b[2J\x1b]0;pwned\x07NODE ready\r\n")
+        pane.write_incoming(pane.active_session_key, b"\x1b[2J\x1b]0;pwned\x07NODE ready\r\n")
         await pilot.pause()
         text = "\n".join(str(line) for line in app.query_one("#session-log").lines)
         assert "NODE ready" in text
