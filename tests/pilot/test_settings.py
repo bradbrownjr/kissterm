@@ -1033,6 +1033,29 @@ async def test_picking_a_preset_after_custom_saves_the_preset_not_the_old_text()
     station.close()
 
 
+@pytest.mark.asyncio
+async def test_ariss_is_a_selectable_preset_not_a_custom_entry():
+    """ISS/ARISS is a digipeat path, not a contact -- docs/ROADMAP.md's P4
+    item on this. A satellite pass wants a preset, not hand-typed text."""
+    cfg = Config(mycall=str(MYCALL))
+    cfg.aprs.path = "ARISS"
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 60)) as pilot:
+        await _settings_tab(app, pilot)
+        select = app.query_one("#set-aprs-path", Select)
+        custom = app.query_one("#set-aprs-path-custom", Input)
+        assert select.value == "ARISS"
+        assert custom.display is False
+        select.value = "WIDE1-1"
+        await pilot.pause()
+        select.value = "ARISS"
+        await pilot.pause()
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.aprs.path == "ARISS"
+    station.close()
+
+
 # ---------------------------------------------------------------------------
 # APRS symbol picker (filtered_choice)
 # ---------------------------------------------------------------------------

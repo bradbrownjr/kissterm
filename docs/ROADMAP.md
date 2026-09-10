@@ -115,18 +115,6 @@ with ack/retry, and SMS/email compose forms -- all shipped 2026-09-08 and
 never-transmits template picker on `Ctrl+R`); see CHANGELOG for the dated
 entries. What's still open:
 
-- [ ] **ISS and the other APRS satellites, as a PATH rather than a
-  contact.** Deliberately left out of `kissterm/aprs_services/`:
-  `RS0ISS`/`ARISS`/`APRSAT` are a digipeater path you route *through*, not
-  a bot you send commands *to*, and shipping one as a service entry would
-  have taught an operator something false. The real feature is a saved
-  digipeat path (`ARISS` in place of `WIDE1-1,WIDE2-1`) plus the awareness
-  that a satellite pass wants short messages and a narrow time window --
-  which overlaps the beacon path picker already in Settings
-  (`aprs.path`'s `custom_choice` field) far more than it overlaps
-  messaging. Pass prediction is a separate, larger thing and probably
-  belongs to whoever asks for it with a use case. Small, if scoped to the
-  path preset alone.
 - [ ] **Keeping the service directory current.** It ships with a `checked`
   date per service and is explicitly a snapshot, not a liveness probe --
   several entries were reported down by a third-party health check the day

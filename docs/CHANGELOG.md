@@ -3,6 +3,27 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — ARISS as a digipeater path preset
+
+### New Features
+- **The APRS beacon path picker (Settings) now offers ARISS as a preset**,
+  alongside WIDE1-1,WIDE2-1 / WIDE1-1 / WIDE2-2 / Direct — the P4 roadmap
+  item on the ISS and other APRS satellites, scoped to just the path
+  preset (pass prediction and anything larger stayed out, per that item's
+  own note). ISS digipeats anything carrying `ARISS` in its path; that is
+  a route you send *through*, not a station you send commands *to*, which
+  is why this lives in the existing `aprs.path` `custom_choice` picker
+  (`kissterm/ui/settings_schema.py`) rather than as a new entry in
+  `kissterm/aprs_services/`'s gateway-service directory — the distinction
+  that item's own text called out for not shipping it there instead.
+  `parse_path` already treats a bare token like `ARISS` as an ordinary
+  single-element digipeater list, same as `WIDE1-1`, so no changes were
+  needed in `kissterm/aprs_beacon.py` or `kissterm/ax25/address.py` — this
+  is a one-entry addition to an already-generic preset picker.
+
+**Files:** `kissterm/ui/settings_schema.py`, `docs/ROADMAP.md`,
+`tests/pilot/test_settings.py`.
+
 ## [2026-09-10] — Tabbed packet terminal: multiple simultaneous connections
 
 ### New Features

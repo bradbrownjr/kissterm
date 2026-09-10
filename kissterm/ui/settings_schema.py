@@ -268,10 +268,16 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "WIDE1-1,WIDE2-1 is the normal path. Longer paths clog the "
                 "network for everyone and are considered poor practice.",
                 apply="live",
+                # ARISS is a path, not a contact: the ISS digipeater answers
+                # anything carrying it, so it belongs in this preset list
+                # rather than kissterm/aprs_services/ (docs/ROADMAP.md P4).
+                # A pass is a narrow time window at a fixed elevation, so an
+                # operator picking this preset should keep messages short.
                 choices=(
                     ("WIDE1-1,WIDE2-1 (recommended)", "WIDE1-1,WIDE2-1"),
                     ("WIDE1-1 (single hop)", "WIDE1-1"),
                     ("WIDE2-2 (two hop, no fill-in)", "WIDE2-2"),
+                    ("ARISS (ISS digipeater, satellite pass)", "ARISS"),
                     ("Direct (no path)", ""),
                 ),
                 placeholder="e.g. WIDE1-1,WIDE1-1",
