@@ -89,13 +89,12 @@ _COMPOSE_ROOM_FOR_TEMPLATES = 60
 #: The merged view's tab id. Every other tab is `convo-<CALLSIGN>`.
 _ALL_TAB = "convo-ALL"
 
-#: What the title line says while the merged view is showing. Short enough
-#: to fit one line of the narrowest conversation column the width rule
-#: allows (40 cells), because a title that wraps pushes the tab strip down
-#: and the strip should not move as tabs are switched. The tab already says
-#: "All"; this says the one thing about that view nobody could guess, which
-#: is that it carries other people's traffic too.
-_ALL_TITLE = "Every message heard -- not only yours."
+#: The merged view's title. Empty on purpose -- the "All" tab already says
+#: "All", so the title line stays reserved for what it is for everywhere
+#: else, naming who a conversation is with (see `_show_conversation_for`),
+#: and is hidden rather than filled with a sentence explaining the view for
+#: this one tab (requested directly: no descriptive text on any tab).
+_ALL_TITLE = ""
 
 #: Conversation tabs kept open at once, not counting "All". Twelve is already
 #: more than fits across a normal terminal before the strip starts scrolling,
@@ -311,7 +310,6 @@ class AprsPane(Horizontal):
                 yield Button("Templates", id="aprs-templates-button")
                 yield Button("Send", variant="primary", id="aprs-send-button")
         with Vertical(id="aprs-contacts-column"):
-            yield Static("APRS messaging contacts.", classes="addressbook-note")
             yield _AprsContactTable(id="aprs-contact-table", cursor_type="row", zebra_stripes=True)
             # No hint line under these. The keys live in the Footer, which
             # already tracks focus -- see `_AprsContactTable`'s docstring.
@@ -581,7 +579,9 @@ class AprsPane(Horizontal):
         """
         self._shown_callsign = ""
         self._shown_title = _ALL_TITLE
-        self.query_one("#aprs-conversation-title", Static).update(_ALL_TITLE)
+        title_widget = self.query_one("#aprs-conversation-title", Static)
+        title_widget.update(_ALL_TITLE)
+        title_widget.display = False
         log = self.query_one("#aprs-conversation-log", RichLog)
         log.clear()
         store = self.app.aprs_conversations  # type: ignore[attr-defined]
@@ -942,7 +942,9 @@ class AprsPane(Horizontal):
         # than only correcting itself the next time they click a contact.
         self._shown_callsign = callsign
         self._shown_title = title
-        self.query_one("#aprs-conversation-title", Static).update(title)
+        title_widget = self.query_one("#aprs-conversation-title", Static)
+        title_widget.update(title)
+        title_widget.display = True
         log = self.query_one("#aprs-conversation-log", RichLog)
         log.clear()
         store = self.app.aprs_conversations  # type: ignore[attr-defined]

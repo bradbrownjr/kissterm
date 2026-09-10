@@ -3,6 +3,21 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — APRS pane: no more descriptive text on any tab
+
+### Improvements
+- **Removed the "Every message heard -- not only yours." sentence from the
+  top of the "All" tab, and the "APRS messaging contacts." caption from the
+  contacts slide-out.** Requested directly, matching the Address Book pane's
+  own note removal earlier today: the tab is already labelled "All", and a
+  slide-out titled by its own button doesn't need a caption repeating that.
+  The title line is not gone -- it still names who a per-callsign
+  conversation is with (e.g. "Jim (K1ABC-9)"), which is real information the
+  tab label alone does not carry; it is only ever blank, and hidden, on the
+  merged view.
+  **Files:** `kissterm/ui/aprs_pane.py`, `kissterm/ui/styles.py` (the
+  now-unused `.addressbook-note` CSS rule follows it out), `assets/*.png`.
+
 ## [2026-09-10] — APRS telemetry-definition messages no longer clutter the messages view
 
 ### Improvements

@@ -140,12 +140,10 @@ HeardPane { layout: vertical; }
    the buttons -- Textual's Footer is the context-aware shortcut bar for
    `_AddressBookTable.BINDINGS` already (AGENTS.md), and dropping both
    Statics lines up this pane's button row with the Terminal pane's own
-   input-and-Send row on the other side of the split.
-   `.addressbook-note` stays defined even though this pane no longer yields
-   one -- `AprsPane`'s contacts slide-out reuses the same class for its own
-   caption ("APRS messaging contacts."). */
+   input-and-Send row on the other side of the split. `AprsPane`'s contacts
+   slide-out dropped its own matching caption the same way -- see that
+   module's `compose`. */
 AddressBookPane { layout: vertical; padding: 0 2; }
-.addressbook-note { padding: 1 0; color: $text-muted; max-width: 100; }
 #addressbook-table { height: 1fr; }
 .addressbook-actions { height: auto; margin-top: 1; }
 .addressbook-actions Button { margin-right: 1; }
