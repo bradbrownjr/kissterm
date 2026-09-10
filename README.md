@@ -88,8 +88,19 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   Getting on the air should not require reading a manual first.
 - **A real monitor pane.** Every frame on the channel, decoded the way `listen`
   and BPQ show it, with filtering by callsign or payload text.
-- **Heard list.** Who you have heard, when, how often, by what path, and
-  whether you heard them directly or through a digipeater.
+- **Heard list, with a bearing and distance to almost everyone in it.** Who
+  you have heard, when, how often, by what path, and whether you heard them
+  directly or through a digipeater — and once you've told kissterm where you
+  are, which way to point a beam and how far for any station reporting a
+  position, whether that came from an APRS beacon or an ordinary packet
+  node's plain-text sign-off ("de W1AW FN31pr"). kissterm reads a grid square
+  out of an everyday BTEXT/BBS banner too, not just out of APRS — a station
+  never has to speak APRS at all to show up with a bearing.
+- **Notices mail waiting for you, without connecting to check.** Nodes
+  running the W0RLI/FBB "MAIL FOR" convention beacon the callsigns they're
+  holding mail for; kissterm watches every beacon on the channel for yours in
+  that list and tells you — in the log and as a notification — the moment it
+  hears one, with nothing to poll and no connection spent finding out.
 - **APRS.** Positions (uncompressed, compressed, and Mic-E), messages, status,
   objects, weather and telemetry — APRS is just an AX.25 UI frame, so it comes
   almost free on top of the same stack.

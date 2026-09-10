@@ -154,9 +154,11 @@ entries. What's still open:
 
 - [ ] **A heard-stations position/map view.** The bearing/distance-list v1
   shipped `[2026-09-09]` (see CHANGELOG: `kissterm/geo.py`, the Heard pane's
-  Distance/Bearing columns, sortable by header click) -- what's still open is
-  the map itself, see the "text-mode map" item below, now narrowed to just
-  that.
+  Distance/Bearing columns, sortable by header click) and was extended
+  `[2026-09-10]` to cover a plain packet node's grid square in its own
+  beacon text, not just APRS positions (`kissterm.locator.find_grid_in_text`)
+  -- what's still open is the map itself, see the "text-mode map" item below,
+  now narrowed to just that.
 - [ ] **GPS integration.** Everything shipped `[2026-09-09]` (see
   CHANGELOG) covers a *fixed* station: static decimal-degree or
   Maidenhead-grid-square position entry in Settings, with a real

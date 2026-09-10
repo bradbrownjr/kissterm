@@ -325,6 +325,31 @@ async def test_a_position_frame_enriches_the_heard_table():
 
 
 @pytest.mark.asyncio
+async def test_a_plain_beacon_with_a_grid_square_enriches_the_heard_table_too():
+    """Not every station beacons APRS -- a great many ordinary packet-node
+    and BBS beacons just say their grid square in plain text. This is the
+    `_on_aprs_frame`'s ``kind == "unparsed"`` -> `find_grid_in_text` path,
+    the plain-packet counterpart to the APRS position test above."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        path = AX25Path(AX25Address.parse("BEACON"), AX25Address.parse("N1ABC-9"))
+        await tb.send_frame(
+            AX25Frame.u_frame(path, UType.UI, info=b"N1ABC-9 BBS de FN31pr QRV 145.030")
+        )
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+
+        entry = app.heard.get("N1ABC-9")
+        assert entry is not None, "beacon frame did not reach the heard table at all"
+        assert entry.last_position is not None, "plain-text grid square was not picked up"
+        lat, lon = entry.last_position
+        assert lat == pytest.approx(41.7, abs=0.5)
+        assert lon == pytest.approx(-72.7, abs=1.0)
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_heard_table_shows_bearing_and_distance_once_own_position_is_set():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 32)) as pilot:

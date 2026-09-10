@@ -124,6 +124,7 @@ from .. import desktop_notify
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
 from ..hotplug import PortEvent, SerialPortWatcher
+from ..locator import find_grid_in_text
 from ..monitor import MonitorFilter, callsign_matches, format_frame, mail_waiting_for, sanitize
 from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError, TransportState
@@ -916,6 +917,20 @@ class KissTermApp(App):
             # one place that feeds it a position. Feeds the Heard pane's
             # bearing/distance columns.
             self.heard.set_position(str(packet.source), packet.data.latitude, packet.data.longitude)
+        elif packet.kind == "unparsed":
+            # A UI/PID-0xF0 frame that is not APRS at all -- most often an
+            # ordinary packet-node or BBS beacon, which by long-standing
+            # convention (predating APRS, and still common alongside it)
+            # often signs off with its own grid square in plain text ("de
+            # W1AW FN31pr"). `find_grid_in_text` is a deliberately
+            # conservative heuristic (see its own docstring); a real APRS
+            # position above is never second-guessed by it. This is what
+            # lets the Heard pane's Distance/Bearing columns work for a
+            # plain packet node too, not just APRS stations.
+            found = find_grid_in_text(sanitize(packet.info, keep_newlines=False))
+            if found is not None:
+                _grid, lat, lon = found
+                self.heard.set_position(str(packet.source), lat, lon)
 
         if packet.kind == "message" and isinstance(packet.data, aprs.Message):
             msg = packet.data

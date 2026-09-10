@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from kissterm.locator import LocatorError, from_grid, to_grid
+from kissterm.locator import LocatorError, find_grid_in_text, from_grid, to_grid
 
 # ARRL HQ, Newington CT -- widely cited as grid square FN31pr.
 ARRL_LAT, ARRL_LON = 41.7148, -72.7273
@@ -77,3 +77,44 @@ def test_out_of_range_coordinates_are_refused(lat, lon):
 def test_malformed_grid_strings_are_refused(text):
     with pytest.raises(LocatorError):
         from_grid(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "de W1AW FN31pr",
+        "N1ABC BBS -- QTH: FN31pr -- QRV 145.030",
+        "de W1AW FN31pr 73",
+        "FN31pr",  # the whole string, not just embedded in a longer line
+    ],
+)
+def test_a_grid_square_is_found_in_a_plain_beacon_line(text):
+    found = find_grid_in_text(text)
+    assert found is not None, f"no grid found in {text!r}"
+    grid, lat, lon = found
+    assert grid.upper() == "FN31PR"
+    assert lat == pytest.approx(41.7, abs=0.5)
+    assert lon == pytest.approx(-72.7, abs=1.0)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "",
+        "73 de KC1XYZ",
+        "CQ CQ de KB1QRP",
+        "N1ABC-9 BBS v2.1, type H for help",
+        "WIDE1-1,WIDE2-1",
+        "no grid square anywhere in this sentence",
+    ],
+)
+def test_no_grid_square_is_found_in_ordinary_beacon_text(text):
+    assert find_grid_in_text(text) is None
+
+
+def test_a_token_that_only_starts_like_a_grid_square_does_not_match():
+    # "FN31pr" is a valid 6-char grid, but immediately followed by more
+    # word characters it is a longer token that only looks like one --
+    # e.g. a version string -- and must not match a truncated prefix of
+    # itself.
+    assert find_grid_in_text("build FN31prXYZ99 failed") is None

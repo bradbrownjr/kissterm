@@ -3,6 +3,32 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-10] — Bearing/distance for plain packet nodes too, and MAIL FOR made a headline feature
+
+### New Features
+- **A plain (non-APRS) packet-node beacon can now feed the Heard pane's
+  Distance/Bearing columns too.** Requested directly — a great many ordinary
+  BBS/node beacons predate APRS and just say their grid square in plain text
+  ("de W1AW FN31pr"), by long-standing convention rather than any protocol.
+  `kissterm.locator.find_grid_in_text` is a deliberately conservative scan
+  (see its docstring for the false-positive tradeoff, and why it never
+  overrides a real APRS position) for a Maidenhead token bounded on both
+  sides by `\b`, wired into `KissTermApp._on_aprs_frame` for exactly the case
+  `aprs.parse_packet` already flags as "UI/PID-0xF0 but not APRS"
+  (`kind == "unparsed"`) -- a real APRS position is read from its own precise
+  field and never second-guessed by a text scan.
+
+### Improvements
+- **README's Features list now says out loud that kissterm watches for
+  W0RLI/FBB "MAIL FOR" beacons** (`KissTermApp._check_mail_for`, shipped
+  earlier and, as far as this project is aware, not something any other
+  packet terminal does) and that the Heard pane's bearing/distance now
+  covers plain packet nodes as well as APRS stations -- both were real,
+  working capabilities that the README never actually mentioned.
+
+**Files:** `kissterm/locator.py`, `kissterm/heard.py`, `kissterm/ui/app.py`,
+`tests/unit/test_locator.py`, `tests/pilot/test_app_mounts.py`, `README.md`.
+
 ## [2026-09-09] — Heard pane: bearing and distance to every position-bearing station
 
 ### New Features

@@ -150,9 +150,11 @@ class HeardTable:
         return entry
 
     def set_position(self, callsign: str, lat: float, lon: float) -> None:
-        """Attach a last-known position to an existing entry. Fed by the APRS
-        layer after it decodes a position report -- `HeardTable` never
-        decodes APRS itself, so it cannot derive this on its own.
+        """Attach a last-known position to an existing entry. Fed by
+        `KissTermApp._on_aprs_frame` after it decodes an APRS position
+        report, or finds a grid square in an otherwise-plain packet-node
+        beacon (`kissterm.locator.find_grid_in_text`) -- `HeardTable` decodes
+        neither itself, so it cannot derive this on its own either way.
         """
         entry = self._entries.get(callsign)
         if entry is None:

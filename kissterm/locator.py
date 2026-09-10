@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["LocatorError", "to_grid", "from_grid"]
+__all__ = ["LocatorError", "to_grid", "from_grid", "find_grid_in_text"]
 
 #: Field letters run A-R (18 of them: 18*20=360 for longitude, 18*10=180
 #: for latitude). Subsquare letters run A-X (24 of them: 24 subsquares per
@@ -37,6 +37,19 @@ _FIELD_LETTERS = "ABCDEFGHIJKLMNOPQR"
 _SUBSQUARE_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWX"
 
 _GRID_RE = re.compile(r"^[A-Ra-r]{2}(?:\d{2}(?:[A-Xa-x]{2}(?:\d{2})?)?)?$")
+
+#: Same shape as `_GRID_RE` but for finding a grid token *inside* a longer
+#: line of free text rather than validating a whole string -- what a plain
+#: packet-node beacon or sign-off line actually looks like ("de W1AW FN31pr",
+#: "BBS QTH: FN31pr QRV 145.030"). The leading 2-char field-only form is
+#: excluded here too (see `to_grid`'s docstring for why), which also keeps
+#: this from matching a bare 2-letter word. `\b` on both ends is what stops
+#: a longer alphanumeric token like "FN31pr74XY" (a callsign-shaped or
+#: version-like string that only happens to start with a valid grid) from
+#: matching a truncated prefix of itself -- Python's `re` backtracks the
+#: optional inner groups on a failed trailing boundary, but can never make
+#: the match end mid-token.
+_EMBEDDED_GRID_RE = re.compile(r"\b([A-Ra-r]{2}\d{2}(?:[A-Xa-x]{2}(?:\d{2})?)?)\b")
 
 
 class LocatorError(ValueError):
@@ -125,3 +138,40 @@ def from_grid(grid: str) -> tuple[float, float]:
     lon_center = lon + lon_width / 2 - 180.0
     lat_center = lat + lat_width / 2 - 90.0
     return lat_center, lon_center
+
+
+def find_grid_in_text(text: str) -> tuple[str, float, float] | None:
+    """Find the first Maidenhead grid square mentioned in free text, e.g. a
+    plain packet-node beacon's sign-off line ("de W1AW FN31pr"), and return
+    its `(grid, lat, lon)` -- or `None` if nothing in the text looks like one.
+
+    This is the plain-packet counterpart to APRS's own position report:
+    APRS stations transmit lat/lon directly, but a great many ordinary
+    node/BBS beacons that predate APRS (and plenty that do not) just say
+    their grid square in the free-text banner instead, by long-standing
+    convention rather than any protocol. `kissterm.ui.app.KissTermApp.
+    _on_aprs_frame` calls this only when a UI frame did NOT decode as APRS
+    (`AprsPacket.kind == "unparsed"`) so a genuine APRS position is always
+    read from its own precise field and never second-guessed by a text scan.
+
+    HEURISTIC, deliberately conservative rather than clever: only a 4, 6, or
+    8-character token bounded by `\\b` on both sides (see `_EMBEDDED_GRID_RE`)
+    counts, with no requirement for a nearby keyword like "grid" or "QTH" --
+    requiring one would miss the common bare "de CALL GRIDSQ" sign-off, and
+    the character-class restriction alone (field letters only A-R, subsquare
+    only A-X) already rules out the large majority of ordinary words and
+    callsign-shaped tokens. It can still be fooled by an unrelated token that
+    happens to fit the shape (a software version string, a random 4-6
+    character code) -- there is no way to fully rule that out from text
+    alone, which is exactly why this is a fallback for plain beacons and not
+    used anywhere a real APRS position is available instead.
+    """
+    match = _EMBEDDED_GRID_RE.search(text)
+    if match is None:
+        return None
+    grid = match.group(1)
+    try:
+        lat, lon = from_grid(grid)
+    except LocatorError:
+        return None
+    return grid, lat, lon
