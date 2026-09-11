@@ -1023,6 +1023,24 @@ again after a Settings save or a config reload.
   reopened, so a message still "sent"/"retry N" when the app closes is
   correctly reported as `no ack` after a restart, not silently retried
   again.
+- **`Ctrl+L` ("Clear") means something different on every pane it touches,
+  and `KissTermApp.action_clear_log` has to route to the right one rather
+  than have a fallback silently catch a pane nobody added a case for.** It
+  used to: everything except Monitor fell through to
+  `TerminalPane.clear_active`, so Ctrl+L on the APRS pane cleared the
+  (off-screen) Terminal session log and left APRS looking untouched.
+  `AprsPane.clear_active` is genuinely more than a widget-clear: because
+  every conversation log is redrawn straight from `ConversationStore` on
+  every repaint (including the retry timer's own periodic one), "All"
+  drops only the ephemeral non-message packet buffer (never a
+  correspondent's persisted history -- "All" merges every open
+  conversation, so clearing it from there would wipe history for every
+  contact at once), while a conversation tab actually deletes that one
+  correspondent's history (`ConversationStore.forget`) and its pending
+  retries (`PendingAcks.discard_for`) -- anything less reappears within
+  `_RETRY_CHECK_INTERVAL` seconds and looks like the key did nothing. A
+  future pane added to `action_clear_log`'s dispatch needs a real case, not
+  the `else` branch.
 - **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
   documents YAPP as a dead end because BPQ32's terminal emulation filters the
   control characters it needs — that limitation applies to apps running *under*

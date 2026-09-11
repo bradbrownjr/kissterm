@@ -331,6 +331,61 @@ async def test_restores_a_tab_for_every_conversation_already_on_disk(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_ctrl_l_on_all_clears_packet_lines_but_not_conversations(tmp_path):
+    """`action_clear_log` used to fall through to `TerminalPane.clear_active`
+    for every tab except Monitor, so Ctrl+L on APRS silently cleared the
+    (invisible) Terminal pane instead of anything on screen. On "All" it
+    must only drop the ephemeral, non-message packet buffer -- real chat
+    history stays, because "All" merges every open conversation and wiping
+    it from here would delete history for every contact at once.
+    """
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        payload = aprs.position_report(49.05, -72.0175, "/", ">", comment="mobile")
+        frame = aprs.beacon_frame(
+            AX25Address.parse("WS1EC-15"), AX25Address.parse("APRS"), (), payload
+        )
+        await theirs.transport.send_frame(frame, 0)
+        await _settle(pilot)
+        await _send_message(theirs, "WS1EC-15", "N1ABC", "are you there")
+        await _settle(pilot)
+        assert any("49.0500" in line for line in _log_lines(app))
+
+        app.action_clear_log()
+        await _settle(pilot)
+
+        lines = _log_lines(app)
+        assert not any("49.0500" in line for line in lines)
+        assert "WS1EC-15" in app.aprs_conversations.conversations
+        assert any("are you there" in line for line in lines)
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_l_on_a_conversation_tab_deletes_only_that_conversation(tmp_path):
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        await _send_message(theirs, "WS1EC-15", "N1ABC", "are you there")
+        await _settle(pilot)
+        app.aprs_conversations.record_incoming("K1XYZ", "hello from someone else", number=None)
+        app.query_one(AprsPane).select_conversation("WS1EC-15", "WS1EC-15")
+        await _settle(pilot)
+
+        app.action_clear_log()
+        await _settle(pilot)
+
+        assert "WS1EC-15" not in app.aprs_conversations.conversations
+        assert "K1XYZ" in app.aprs_conversations.conversations
+        lines = _log_lines(app)
+        assert any("no messages yet" in line for line in lines)
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_a_position_beacon_shows_as_a_readable_line_in_all(tmp_path):
     """A non-message packet (a position report here) has no correspondent
     and so never enters `ConversationStore` -- but it must still show up

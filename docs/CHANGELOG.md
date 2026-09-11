@@ -3,6 +3,27 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — Ctrl+L clears the APRS pane instead of the invisible Terminal pane
+
+### Bug Fixes
+- **`Ctrl+L` on the APRS pane cleared the Terminal pane instead** --
+  `KissTermApp.action_clear_log` only special-cased the Monitor tab and
+  fell through to `TerminalPane.clear_active` for everything else,
+  including APRS, so pressing Clear while looking at a chat tab silently
+  wiped the (off-screen) Terminal session log and left the APRS view
+  untouched. Now routed to a new `AprsPane.clear_active`: on "All" it drops
+  only the in-memory, non-message packet buffer (never a correspondent's
+  persisted history -- "All" merges every open conversation by timestamp,
+  so clearing it from there would wipe chat history for every contact at
+  once); on a conversation tab it deletes that one correspondent's history
+  (`ConversationStore.forget`, new) and any of its still-pending retries
+  (`PendingAcks.discard_for`, new) -- anything less would have the log
+  redrawn right back by the periodic retry-check repaint within ten
+  seconds and look like Ctrl+L did nothing.
+  **Files:** `kissterm/ui/app.py`, `kissterm/ui/aprs_pane.py`,
+  `kissterm/aprs_conversations.py`, `tests/pilot/test_aprs_conversation_tabs.py`,
+  `tests/unit/test_aprs_conversations.py`.
+
 ## [2026-09-11] — Third-party-relayed APRS messages (WHO-IS, WXBOT) now ack and file correctly; conversation tabs survive a restart
 
 ### Bug Fixes

@@ -171,6 +171,18 @@ class ConversationStore:
         self._append(callsign, entry)
         return entry
 
+    def forget(self, callsign: str) -> None:
+        """Delete one correspondent's entire history.
+
+        `AprsPane.clear_active`'s Ctrl+L on a conversation tab -- the chat
+        equivalent of `TerminalPane.clear`'s own Ctrl+L wiping a session's
+        buffer, deliberately scoped to the one conversation on screen rather
+        than "All", which merges every correspondent by timestamp (see that
+        method's docstring). A no-op for a callsign with no history.
+        """
+        if self.conversations.pop(callsign.strip().upper(), None) is not None:
+            self.save()
+
     def mark_acked(self, callsign: str, number: str) -> bool:
         """Flag the outgoing message `number` in `callsign`'s conversation as
         acked. Returns whether a matching message was found."""
@@ -239,6 +251,16 @@ class PendingAcks:
 
     def discard(self, callsign: str, number: str) -> None:
         self._pending.pop((callsign.strip().upper(), number), None)
+
+    def discard_for(self, callsign: str) -> None:
+        """Drop every pending entry for `callsign`, regardless of message
+        number -- used when its whole conversation is cleared
+        (`ConversationStore.forget`), so a retry does not keep transmitting
+        into a chat log that no longer shows the message it is resending.
+        """
+        callsign = callsign.strip().upper()
+        for key in [k for k in self._pending if k[0] == callsign]:
+            del self._pending[key]
 
     def discard_acked(self, store: ConversationStore) -> None:
         """Drop any pending entry the store already shows acked.

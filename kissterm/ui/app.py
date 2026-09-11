@@ -2255,6 +2255,8 @@ class KissTermApp(App):
         active = self.query_one("#main-tabs", TabbedContent).active
         if active == "monitor":
             self.query_one(MonitorPane).clear()
+        elif active == "aprs":
+            self.query_one(AprsPane).clear_active()
         else:
             self.query_one(TerminalPane).clear_active()
 

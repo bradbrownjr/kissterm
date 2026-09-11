@@ -476,6 +476,37 @@ class AprsPane(Horizontal):
         """Whose conversation the strip is on, or None for the "All" tab."""
         return self._tab_callsigns.get(self._tabs().active)
 
+    def clear_active(self) -> None:
+        """`Ctrl+L` -- clear whichever view is on screen right now, the same
+        key `TerminalPane.clear_active` and `MonitorPane.clear` already use
+        for their own on-screen log.
+
+        "All" merges EVERY open conversation by timestamp (`_show_all`), so
+        clearing it must never delete a correspondent's persisted history --
+        that would wipe chat history for every contact from one keystroke on
+        the one tab that happens to show them all at once. Only the
+        in-memory, non-message packet buffer (`_packet_lines`) is dropped
+        there, the same ephemeral-buffer-wipe `MonitorPane.clear` already
+        does for its own decoded-frame log.
+
+        A conversation tab instead deletes ITS OWN persisted history
+        (`ConversationStore.forget`) and any of its still-pending retries
+        (`PendingAcks.discard_for`) -- the log on screen is redrawn straight
+        from that store on every repaint (`_show_conversation_for`),
+        including the retry timer's own periodic one, so anything less than
+        actually deleting the underlying messages would silently reappear
+        within `_RETRY_CHECK_INTERVAL` seconds and look like Ctrl+L did
+        nothing at all.
+        """
+        callsign = self._active_callsign()
+        if callsign is None:
+            self._packet_lines.clear()
+            self._show_all()
+            return
+        self.app.aprs_conversations.forget(callsign)  # type: ignore[attr-defined]
+        self._pending.discard_for(callsign)
+        self._show_conversation_for(callsign, self._tab_titles.get(callsign, callsign))
+
     def _touch(self, callsign: str) -> None:
         if callsign in self._recent:
             self._recent.remove(callsign)
