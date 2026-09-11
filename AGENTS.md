@@ -1061,11 +1061,37 @@ again after a Settings save or a config reload.
   station is configured. "A message addressed to my bare call should
   still reach me while I run an SSID" is already handled correctly, and
   in exactly one place: `callsign_matches` strips SSID before `to_me` is
-  decided in `_on_aprs_frame`. Whatever was actually causing the
-  retries seen live (most likely digipeat path or the ack never reaching
-  an igate onto APRS-IS, not identity) is still open -- but the fix is
-  not spoofing the ack's transmitted identity. Do not reintroduce a
+  decided in `_on_aprs_frame`. **Confirmed against a real LinBPQ station
+  afterward, direct RF, via the debug log**: a message addressed to this
+  station's bare call, acked from `KC1JMH-5` (this station's configured
+  identity), was reported Failed by LinBPQ's own delivery tracker; the
+  same exchange addressed to `KC1JMH-5` exactly was Acked. LinBPQ's own
+  message-tracking DOES require an exact address match, SSID included --
+  that is real, confirmed behaviour of a widely-used node package, not a
+  hypothesis. The fix for it is still on the addressing side (whoever
+  messages this station must use its exact configured identity), never
+  by having `_send_aprs_ack` spoof one. Do not reintroduce a
   `heard_as`-shaped parameter to `_send_aprs_ack`.
+- **A blocked auto-ack is reported to the operator, not just correctly
+  withheld.** Found live, same session as the LinBPQ investigation above:
+  a message arrived on a station whose transmit gate had not been
+  re-armed since its last launch (closed by default -- see the
+  transmit-gate rules), `_send_aprs_ack` correctly declined to send
+  anything, and there was NO visible sign of this anywhere on screen --
+  only the debug log recorded it. The sender retried the same message
+  four times over several minutes and gave up with no way for the
+  operator to have known why. This is the same "arming is never silent" /
+  "a failure the operator cannot diagnose is a bug" territory the gate
+  rules already cover for a beacon; a closed gate silently eating an
+  auto-ack was the one place that check was missing. `_send_aprs_ack` now
+  raises a `self.notify(..., severity="warning")` toast AND writes a
+  terminal-pane line, in plain language a newcomer would understand ("...
+  Transmit is OFF ... Press Ctrl+T ...") rather than protocol jargon like
+  "TX BLOCKED". `_aprs_ack_blocked_cooldown` (separate from
+  `_aprs_notify_cooldown`, which governs the unrelated desktop
+  "message addressed to me" notice) keys on `(addressee, number)` so a
+  sender's own retries -- typically every 30-90 seconds -- do not
+  repaint the same warning on top of itself.
 - **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
   documents YAPP as a dead end because BPQ32's terminal emulation filters the
   control characters it needs — that limitation applies to apps running *under*

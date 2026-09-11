@@ -125,6 +125,61 @@ async def test_auto_ack_transmits_under_the_configured_aprs_ssid_not_the_address
 
 
 @pytest.mark.asyncio
+async def test_a_blocked_auto_ack_notifies_the_operator_instead_of_dropping_silently(tmp_path):
+    """Found live: a message arrived on a station whose transmit gate had
+    not been re-armed since its last launch (closed by default). The ack
+    was correctly never sent -- but nothing on screen said so, and the
+    sender retried the same message four times over several minutes before
+    giving up, with no way for the operator to have known why short of
+    reading the debug log after the fact. A closed gate must be reported
+    the same way a beacon's own closed-gate check already is.
+    """
+    app, mine, theirs = await _app(tmp_path, tx_armed=False)
+    seen = []
+    app.notify = lambda message, *args, **kwargs: seen.append(message)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await _send_message(theirs, "N1ABC", "hello", "1")
+        for _ in range(20):
+            if seen or "needs an ack" in _terminal_text(app):
+                break
+            await pilot.pause()
+        assert not any(b":ack1" in f.info for f in mine.transport.sent)
+        assert any("Transmit is OFF" in m for m in seen)
+        terminal_text = _terminal_text(app)
+        assert "needs an ack, but" in terminal_text
+        assert "Transmit is OFF" in terminal_text
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_a_blocked_auto_ack_does_not_repaint_the_same_warning_on_every_retry(tmp_path):
+    """A sender retrying its own unacked message every 30-90 seconds must
+    not stack up a fresh toast each time -- `_aprs_ack_blocked_cooldown`
+    is the guard. `app.notify` also carries the pre-existing "message
+    addressed to me" notice (`_note_aprs_incoming`), already cooled down
+    on its own -- this test only cares that OUR warning does not repeat.
+    """
+    app, mine, theirs = await _app(tmp_path, tx_armed=False)
+    seen = []
+    app.notify = lambda message, *args, **kwargs: seen.append(message)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await _send_message(theirs, "N1ABC", "hello", "1")
+        await _send_message(theirs, "N1ABC", "hello", "1")
+        for _ in range(20):
+            if seen:
+                break
+            await pilot.pause()
+        await pilot.pause()
+        blocked_notices = [m for m in seen if "Transmit is OFF" in m]
+        assert len(blocked_notices) == 1, seen
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_matches_our_ssid_alias_even_when_the_message_addressee_has_none(tmp_path):
     """Same SSID-stripping rule as MAIL FOR -- our own callsign here carries
     an SSID the message never mentions."""

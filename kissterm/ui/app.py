@@ -767,6 +767,14 @@ class KissTermApp(App):
         #: reason) pair within its window -- see kissterm/aprs_notify.py.
         #: An Emergency Mic-E flag always bypasses it.
         self._aprs_notify_cooldown = Cooldown()
+        #: Suppresses a repeat "could not ack -- transmit is off" toast for
+        #: the same (addressee, number) pair -- a sender that retries an
+        #: unacked message every 30-90 seconds must not repaint the same
+        #: warning on top of itself each time. Separate instance from
+        #: `_aprs_notify_cooldown` above: this is "did the ack go out",
+        #: not "should a desktop notification fire", and the two must not
+        #: consume each other's window.
+        self._aprs_ack_blocked_cooldown = Cooldown()
         #: Watches local serial ports only. The network is never scanned on a
         #: timer -- see kissterm/hotplug.py for the cost argument.
         self.port_watcher = SerialPortWatcher()
@@ -1280,6 +1288,21 @@ class KissTermApp(App):
         claim" hazard AGENTS.md warns about elsewhere, and it made the ack
         path the only outgoing APRS traffic on a different identity than
         everything else this station sends. Do not reintroduce that.
+
+        A closed gate is reported, not just silently obeyed. Found live: a
+        station whose transmit gate had not been re-armed since its last
+        launch (closed by default -- see the transmit-gate rules) received
+        four retries of the same message over several minutes with no
+        visible sign anything was wrong; the sender's own delivery tracker
+        eventually gave up, and the only way to have known why was to read
+        this app's debug log after the fact. "A failure the operator
+        cannot diagnose is a bug" applies here exactly as much as it does
+        to a dropped frame -- the difference from a beacon's version of the
+        same check is that nobody just pressed a key to trigger this, so
+        there is no natural moment for the warning except the message
+        itself arriving. `_aprs_ack_blocked_cooldown` keeps a sender's own
+        retries (every 30-90 seconds, typically) from repainting the same
+        toast on top of itself.
         """
         if self.station is None:
             return
@@ -1291,6 +1314,20 @@ class KissTermApp(App):
         # transmission as a sent one.
         gate = getattr(self.station.transport, "gate", None)
         if gate is not None and not gate.enabled:
+            if self._aprs_ack_blocked_cooldown.allow((addressee, number)):
+                self.notify(
+                    f"{addressee} sent a message that needs an acknowledgment, but "
+                    "Transmit is OFF, so nothing was sent back. Press Ctrl+T to turn "
+                    "Transmit on.",
+                    severity="warning",
+                    timeout=10,
+                )
+                self._to_terminal(
+                    self._active_key(),
+                    "log",
+                    f"\n*** Message from {addressee} needs an ack, but Transmit is OFF "
+                    "-- press Ctrl+T\n",
+                )
             return
         source = self.config.aprs.source_for(str(self.station.mycall))
         try:

@@ -3,6 +3,29 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — A blocked auto-ack now tells the operator, instead of only the debug log
+
+### New Features
+- **A message that needs an ack but arrives while transmit is off now
+  raises a warning toast and a terminal-pane line, instead of nothing at
+  all.** Found live: a station relaunched (transmit gate closed by
+  default, per the transmit-gate rules) and the first message to arrive
+  needed an ack that never went out; the sender retried it four times
+  over several minutes and gave up, with no visible sign on screen that
+  anything was wrong -- only the debug log recorded it. The gate must
+  stay closed by default and nothing about an incoming message may arm
+  it (that would be exactly the unattended-transmission case the gate
+  exists to prevent), but the operator not being told is a separate
+  failure -- "a failure the operator cannot diagnose is a bug" applies
+  here the same as it already does to a blocked beacon. The message is
+  plain language aimed at a newcomer ("... Transmit is OFF ... Press
+  Ctrl+T ...") rather than protocol jargon like "TX BLOCKED".
+  `_aprs_ack_blocked_cooldown` keeps a sender's own retries (typically
+  every 30-90 seconds) from repainting the same warning on top of
+  itself.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_aprs_messaging.py`,
+  `AGENTS.md`.
+
 ## [2026-09-11] — Auto-ack correction: transmit under the station's own APRS identity, not the addressee text
 
 ### Bug Fixes
