@@ -3,6 +3,22 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — Glossary and terminal scrollback fit the available width
+
+### UX
+- **Glossary definitions now wrap instead of disappearing behind a horizontal
+  scrollbar.** Commands retain their selectable `DataTable`; the read-only
+  Glossary view uses a Rich table in `WrapLog`, which gives its definition
+  column the width of the modal and wraps prose naturally.
+- **Opening or closing the Terminal pane's Address Book now rewraps existing
+  scrollback.** The pane replays its bounded per-session source buffer only
+  after Textual has laid out the new column width, so past output and future
+  output agree. It preserves an operator's approximate place in a scrolled
+  transcript rather than forcing the log to the bottom.
+  **Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/styles.py`,
+  `kissterm/ui/terminal_pane.py`, `tests/pilot/test_terminal_ux.py`,
+  `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-11] — AGWPE engines recover after a restart
 
 ### Improvements

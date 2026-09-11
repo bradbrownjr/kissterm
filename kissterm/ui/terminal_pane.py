@@ -345,6 +345,11 @@ class TerminalPane(Container):
         #: it has nothing to offer. Recomputed on every keystroke in the
         #: send line and on every tab switch -- see `_update_suggestions`.
         self._current_suggestion: str | None = None
+        # A slide-out changes the scrollback's usable width after this pane's
+        # Resize handler runs.  A generation lets the one post-layout replay
+        # for the newest resize win when a window is dragged continuously.
+        self._reflow_generation = 0
+        self._reflow_width = -1
 
     def compose(self) -> ComposeResult:
         # The main column holds everything this pane has always shown;
@@ -432,6 +437,50 @@ class TerminalPane(Container):
         )
         if self._slideout.open and not was_open:
             self.query_one(AddressBookPane).refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
+        self._request_scrollback_reflow()
+
+    def _request_scrollback_reflow(self) -> None:
+        """Replay the visible session after layout has chosen its new width.
+
+        `RichLog` wraps only when a line is written; its old display strips do
+        not react when Ctrl+G adds or removes the Address Book column.  The
+        pane already owns a bounded source buffer for session-tab replay, so
+        use that source rather than trying to reverse-engineer wrapped strips.
+        Deferring until after refresh is essential: before then the log still
+        reports the width it had before the column changed.
+        """
+        self._reflow_generation += 1
+        generation = self._reflow_generation
+        self.call_after_refresh(lambda: self._reflow_scrollback(generation))
+
+    def _reflow_scrollback(self, generation: int) -> None:
+        if generation != self._reflow_generation:
+            return
+        log = self._scrollback()
+        if log is None:
+            return
+        width = log.scrollable_content_region.width
+        if width <= 0 or width == self._reflow_width:
+            return
+        self._reflow_width = width
+        old_max = log.max_scroll_y
+        old_y = log.scroll_y
+        at_end = old_y >= old_max - 1
+        log.min_width = width
+        log.clear()
+        for renderable, expand in self._buffers[self.active_session_key]:
+            log.write(renderable, expand=expand)
+        if not at_end and old_max > 0:
+            # Preserve the reader's approximate place through the transcript.
+            # Absolute line numbers no longer mean the same thing after a
+            # word-wrap width changes, while this relative position does.
+            fraction = old_y / old_max
+            self.call_after_refresh(
+                lambda: log.scroll_to(
+                    y=round(log.max_scroll_y * fraction), animate=False, immediate=True
+                )
+            )
+        self._recompute_matches(self.query_one("#find-input", Input).value.strip())
 
     # ------------------------------------------------------------------
     # Session tabs
@@ -788,6 +837,7 @@ class TerminalPane(Container):
             self.query_one("#addressbook-table", DataTable).focus()
         else:
             self.focus_input()
+        self._request_scrollback_reflow()
 
     def _recompute_matches(self, needle: str) -> None:
         """Rebuild the match list only when the needle actually changed, so

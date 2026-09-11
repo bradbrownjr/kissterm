@@ -277,7 +277,7 @@ TransportEntryScreen { align: center middle; }
        enough to matter (a real report: 90x24) the fixed note/mode-row/
        search chrome above the table already eats ~11 rows on its own,
        squishing the table to a single row at 80%. `overflow-y: auto` is
-       the backstop: if a still-shorter terminal cannot fit `#ref-table`'s
+   the backstop: if a still-shorter terminal cannot fit the reference list's
        own `min-height` alongside everything else, the BOX scrolls instead
        of silently clipping the Learn-from-node/Close buttons outside its
        own border, which is what an unclamped Vertical did here. */
@@ -298,7 +298,7 @@ TransportEntryScreen { align: center middle; }
    to a single row once the fixed elements above and below it claim their
    own space -- see #ref-box's comment. Six rows is enough to see more than
    one command without scrolling on anything but the smallest terminals. */
-#ref-table { height: 1fr; min-height: 6; }
+#ref-table, #ref-glossary { height: 1fr; min-height: 6; }
 
 TranscriptsScreen { align: center middle; }
 #transcripts-box {

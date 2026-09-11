@@ -91,6 +91,17 @@ def _plain(widget) -> str:
     return "\n".join(strip.text for strip in widget.render_lines(region))
 
 
+def _sent_data_frames(transport) -> list:
+    """Outbound user data, excluding link-layer acknowledgements.
+
+    The tests below are about text typed into the terminal.  An RR may be
+    emitted later by the real AX.25 link's T2 timer while the UI is being
+    exercised, and is neither a terminal send nor a payload the far end can
+    mistake for operator input.
+    """
+    return [frame for frame in transport.sent if frame.kind == "I"]
+
+
 # ---------------------------------------------------------------------------
 # Read-only, selectable, linkable
 # ---------------------------------------------------------------------------
@@ -253,14 +264,14 @@ async def test_typing_alone_never_transmits():
         app._bind_link(link)
         await asyncio.sleep(0.1)
 
-        before = len(ta_sent := app.station.transport.sent)
+        before = _sent_data_frames(app.station.transport)
         app.query_one("#session-input", Input).focus()
         for key in ("b", "y", "e"):
             await pilot.press(key)
         await pilot.pause()
         await asyncio.sleep(0.2)
         assert app.query_one("#session-input", Input).value == "bye"
-        assert len(ta_sent) == before, "typing put frames on the air"
+        assert _sent_data_frames(app.station.transport) == before, "typing put frames on the air"
     a.close()
     b.close()
 
@@ -276,12 +287,12 @@ async def test_suggest_fills_the_input_without_sending():
         far = incoming[0]
         far.read_nowait()
 
-        before = len(app.station.transport.sent)
+        before = _sent_data_frames(app.station.transport)
         app.query_one(TerminalPane).suggest("NODES")
         await pilot.pause()
         await asyncio.sleep(0.2)
         assert app.query_one("#session-input", Input).value == "NODES"
-        assert len(app.station.transport.sent) == before, "a suggestion transmitted"
+        assert _sent_data_frames(app.station.transport) == before, "a suggestion transmitted"
         assert far.read_nowait() == b"", "a suggestion reached the far end"
     a.close()
     b.close()
@@ -324,7 +335,7 @@ async def test_typing_a_prefix_shows_matching_commands_without_transmitting():
         far.read_nowait()
         app.reference = CommandReference(family=load_family("bpq32"))
 
-        before = len(app.station.transport.sent)
+        before = _sent_data_frames(app.station.transport)
         field = app.query_one("#session-input", Input)
         field.focus()
         await pilot.press("c")
@@ -337,7 +348,7 @@ async def test_typing_a_prefix_shows_matching_commands_without_transmitting():
         assert "C" in shown and "CQ" in shown and "CHAT" in shown
         assert "Tab" in shown
 
-        assert len(app.station.transport.sent) == before, "showing suggestions transmitted"
+        assert _sent_data_frames(app.station.transport) == before, "showing suggestions transmitted"
         assert far.read_nowait() == b"", "showing suggestions reached the far end"
     a.close()
     b.close()
@@ -360,13 +371,13 @@ async def test_tab_accepts_the_top_suggestion_without_transmitting():
         await pilot.press("c")
         await pilot.pause()
 
-        before = len(app.station.transport.sent)
+        before = _sent_data_frames(app.station.transport)
         await pilot.press("tab")
         await pilot.pause()
 
         assert field.value == "C", "Tab must fill in the top match (shortest name first)"
         assert app.focused is field, "accepting a suggestion must leave the input focused"
-        assert len(app.station.transport.sent) == before, "Tab acceptance transmitted"
+        assert _sent_data_frames(app.station.transport) == before, "Tab acceptance transmitted"
         assert far.read_nowait() == b"", "Tab acceptance reached the far end"
 
         strip = app.query_one("#suggestion-strip", Static)
@@ -479,24 +490,50 @@ async def test_glossary_toggle_shares_the_command_reference_pane():
 
         assert screen._mode == "glossary"
         table = screen.query_one("#ref-table")
-        # The glossary has its own term set, distinct from the node's commands.
+        glossary_log = screen.query_one("#ref-glossary")
+        # The glossary has its own term set, distinct from the node's commands,
+        # and uses a wrapping Rich table rather than DataTable's one-line cells.
         from kissterm import glossary
 
-        assert table.row_count == len(glossary.TERMS)
+        assert not table.display
+        assert glossary_log.display
+        assert glossary_log.lines
+        rendered = "\n".join(str(line) for line in glossary_log.lines)
+        assert "Terminal Node Controller." in rendered
+        assert "hardware (or software, for a soundcard" in rendered
 
         # Selecting a glossary row must never dismiss the screen with a
         # value -- there is nothing for the terminal input to do with a
         # definition, unlike a command name.
-        table.move_cursor(row=0)
-        await pilot.pause()
-        await pilot.press("enter")
-        await pilot.pause()
-        assert app.screen is screen, "selecting a glossary row closed the screen"
-
         await pilot.click("#ref-mode-commands")
         await pilot.pause()
         assert screen._mode == "commands"
         assert screen.query_one("#ref-table").row_count == commands_rows
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_existing_scrollback_rewraps_when_the_addressbook_closes():
+    """A width change must replay old lines, not only wrap future output."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(100, 32)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        log = pane.query_one("#session-log", RichLog)
+        assert app.query_one("#terminal-addressbook-column").display
+        pane.clear("")
+        pane.log("", "one long old line " * 20)
+        await pilot.pause()
+        narrow_lines = len(log.lines)
+
+        await pilot.press("ctrl+g")
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+
+        assert not app.query_one("#terminal-addressbook-column").display
+        assert len(log.lines) < narrow_lines
+        assert "one long old line" in "\n".join(str(line) for line in log.lines)
     a.close()
     b.close()
 
@@ -522,7 +559,7 @@ async def test_reference_mode_switch_clears_the_other_views_search_filter():
         await pilot.pause()
 
         assert search.value == ""
-        assert screen.query_one("#ref-table").row_count > 0
+        assert screen.query_one("#ref-glossary", RichLog).lines
     a.close()
     b.close()
 

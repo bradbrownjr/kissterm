@@ -244,15 +244,6 @@ entries. What's still open:
 Operator feedback on the terminal pane and glossary rendering, from a real
 session, not yet acted on:
 
-- [ ] **Glossary's Definition column needs word-wrap, not horizontal
-      scroll.** `CommandReferenceScreen`'s `DataTable` (`kissterm/ui/
-      dialogs.py`) renders `glossary.search()` results as fixed-width rows;
-      a long definition runs off the right edge behind a horizontal
-      scrollbar instead of wrapping, which is unreadable in normal use.
-      `DataTable` cells do not wrap by design -- this likely needs either a
-      pre-wrapped `Text` value per cell (rewrapped on resize, the same
-      problem `WrapLog` below solves for logs) or swapping the Definition
-      column for a different widget entirely. Small-medium.
 - [ ] **`LM`/`LB` (and likely any multi-line node reply) render with a
       spurious blank line between every pair of real lines.** Reported
       directly from a real BBS session. The likely cause is in
@@ -277,18 +268,6 @@ session, not yet acted on:
       (`auto_scroll=True` in `terminal_pane.py`'s compose). Needs the same
       real byte capture as the item above before attempting a fix --
       likely the same root cause, not two bugs. Small-medium once diagnosed.
-- [ ] **Hiding and re-revealing the contacts (Address Book) slide-out does
-      not reflow already-wrapped scrollback.** This is `WrapLog`'s
-      documented, deliberate limitation (`kissterm/ui/wraplog.py`'s module
-      docstring: "This only affects lines written *after* the resize --
-      `RichLog` never re-wraps what it has already rendered, and reflowing
-      the whole scrollback on every resize is not worth it") -- requested
-      directly as a real papercut, not a hypothetical. Revisiting means
-      re-rendering the buffered `(renderable, expand)` pairs `TerminalPane`
-      already keeps per session (`_buffers`/`_append`, same module) into the
-      log on every resize instead of only appending forward. Needs to be
-      cheap enough not to stutter on a wide resize with a full scrollback --
-      profile before committing to it. Medium.
 - [ ] **ASCII-safe mode.** `Config.ascii_safe` and its Settings toggle
   already exist, and `doctor.py` already suggests turning it on for a
   non-UTF-8 locale -- but no code anywhere reads `config.ascii_safe` to

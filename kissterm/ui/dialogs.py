@@ -29,6 +29,7 @@ from ..aprs_contacts import (
     validate_contact,
 )
 from ..ax25 import parse_path
+from .wraplog import WrapLog
 
 
 @dataclass(frozen=True)
@@ -2124,6 +2125,18 @@ class CommandReferenceScreen(ModalScreen[str | None]):
             )
             yield Input(placeholder="search commands", id="ref-search")
             yield DataTable(id="ref-table", cursor_type="row", zebra_stripes=True)
+            # DataTable deliberately keeps every cell to one physical line.
+            # That is useful for commands, whose rows can be selected, but a
+            # glossary definition is prose and must remain readable in a
+            # normal-width terminal.  The glossary view therefore uses the
+            # same wrapping scrollback primitive as the operational panes.
+            yield WrapLog(
+                id="ref-glossary",
+                wrap=True,
+                markup=False,
+                highlight=False,
+                auto_scroll=False,
+            )
             yield Static(
                 "Enter puts a command in the input line. It is not sent until "
                 "you press Enter there or click Send.",
@@ -2169,8 +2182,11 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         table = self.query_one("#ref-table", DataTable)
         table.clear(columns=True)
         if self._mode == "glossary":
-            table.add_columns("Term", "Definition")
+            table.display = False
+            self.query_one("#ref-glossary", WrapLog).display = True
         else:
+            table.display = True
+            self.query_one("#ref-glossary", WrapLog).display = False
             table.add_columns("Command", "Usage", "What it does", "Source")
 
     @on(Tabs.TabActivated, "#ref-mode-tabs")
@@ -2206,12 +2222,21 @@ class CommandReferenceScreen(ModalScreen[str | None]):
 
     def _populate_glossary(self, needle: str) -> None:
         from .. import glossary
-        from textual.widgets import DataTable
+        from rich.table import Column, Table
 
-        table = self.query_one("#ref-table", DataTable)
-        table.clear()
+        log = self.query_one("#ref-glossary", WrapLog)
+        log.clear()
+        table = Table(
+            Column("Term", style="bold", no_wrap=True),
+            Column("Definition", ratio=1, overflow="fold"),
+            expand=True,
+            header_style="bold",
+            show_edge=False,
+            pad_edge=False,
+        )
         for term in glossary.search(needle):
-            table.add_row(term.name, term.definition, key=term.name)
+            table.add_row(term.name, term.definition)
+        log.write(table, expand=True)
 
     def _populate_commands(self, needle: str) -> None:
         from textual.widgets import DataTable
