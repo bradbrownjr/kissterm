@@ -287,8 +287,13 @@ TransportEntryScreen { align: center middle; }
 }
 #ref-title { text-style: bold; color: $accent; }
 #ref-note, #ref-help { color: $text-muted; padding: 0 0 1 0; }
-#ref-mode-row { height: auto; margin-bottom: 1; }
-#ref-mode-row Button { margin-right: 1; }
+/* Commands and glossary are two views of one reference, so use the same
+   compact subordinate tab treatment as the APRS conversation strip rather
+   than a pair of action-looking buttons. */
+#ref-mode-tabs { height: 2; margin-bottom: 1; }
+#ref-mode-tabs Tab { color: $text-muted; }
+#ref-mode-tabs Tab.-active { color: $accent; text-style: bold; }
+#ref-mode-tabs Underline > .underline--bar { color: $panel; }
 /* min-height, not just `1fr`: on a short terminal `1fr` still shrinks this
    to a single row once the fixed elements above and below it claim their
    own space -- see #ref-box's comment. Six rows is enough to see more than

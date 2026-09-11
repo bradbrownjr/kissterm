@@ -18,7 +18,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Footer, Input, Label, Select, Static, TextArea
+from textual.widgets import Button, Footer, Input, Label, Select, Static, Tab, Tabs, TextArea
 
 from ..addressbook import AddressBook
 from ..aprs_contacts import (
@@ -2117,9 +2117,11 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         with Vertical(id="ref-box"):
             yield Label(self._title(), id="ref-title")
             yield Static(self._note(), id="ref-note")
-            with Horizontal(id="ref-mode-row"):
-                yield Button("Commands", variant="primary", id="ref-mode-commands")
-                yield Button("Glossary", id="ref-mode-glossary")
+            yield Tabs(
+                Tab("Commands", id="ref-mode-commands"),
+                Tab("Glossary", id="ref-mode-glossary"),
+                id="ref-mode-tabs",
+            )
             yield Input(placeholder="search commands", id="ref-search")
             yield DataTable(id="ref-table", cursor_type="row", zebra_stripes=True)
             yield Static(
@@ -2171,30 +2173,26 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         else:
             table.add_columns("Command", "Usage", "What it does", "Source")
 
-    @on(Button.Pressed, "#ref-mode-commands")
-    def _show_commands(self) -> None:
-        self._switch_mode("commands")
-
-    @on(Button.Pressed, "#ref-mode-glossary")
-    def _show_glossary(self) -> None:
-        self._switch_mode("glossary")
+    @on(Tabs.TabActivated, "#ref-mode-tabs")
+    def _mode_tab_activated(self, event: Tabs.TabActivated) -> None:
+        event.stop()
+        self._switch_mode(
+            "glossary" if event.tab.id == "ref-mode-glossary" else "commands"
+        )
 
     def _switch_mode(self, mode: str) -> None:
         if mode == self._mode:
             return
         self._mode = mode
-        self.query_one("#ref-mode-commands", Button).variant = (
-            "primary" if mode == "commands" else "default"
-        )
-        self.query_one("#ref-mode-glossary", Button).variant = (
-            "primary" if mode == "glossary" else "default"
-        )
         self.query_one("#ref-title", Label).update(self._title())
         self.query_one("#ref-note", Static).update(self._note())
         search = self.query_one("#ref-search", Input)
         search.placeholder = "search glossary" if mode == "glossary" else "search commands"
+        # A filter belongs to the view where it was typed. Carrying it across
+        # silently makes an unrelated view look empty.
+        search.value = ""
         self._render_columns()
-        self._populate(search.value)
+        self._populate("")
         if self._can_harvest:
             # Nothing to harvest from a glossary -- hide the button rather
             # than leave it sitting there doing nothing while browsing terms.

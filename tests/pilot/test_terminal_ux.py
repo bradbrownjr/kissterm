@@ -17,7 +17,7 @@ import inspect  # noqa: E402
 
 import pytest  # noqa: E402
 from textual.geometry import Region  # noqa: E402
-from textual.widgets import Button, Input, RichLog, Static  # noqa: E402
+from textual.widgets import Button, Input, RichLog, Static, Tabs  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
@@ -470,6 +470,7 @@ async def test_glossary_toggle_shares_the_command_reference_pane():
 
         screen = app.screen
         assert isinstance(screen, CommandReferenceScreen)
+        assert isinstance(screen.query_one("#ref-mode-tabs"), Tabs)
         commands_rows = screen.query_one("#ref-table").row_count
         assert commands_rows > 0
 
@@ -496,6 +497,32 @@ async def test_glossary_toggle_shares_the_command_reference_pane():
         await pilot.pause()
         assert screen._mode == "commands"
         assert screen.query_one("#ref-table").row_count == commands_rows
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_reference_mode_switch_clears_the_other_views_search_filter():
+    """A command filter must not make the unrelated glossary look empty."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.reference = CommandReference(family=load_family("bpq32"))
+        await pilot.press("ctrl+r")
+        await pilot.pause()
+
+        screen = app.screen
+        assert isinstance(screen, CommandReferenceScreen)
+        search = screen.query_one("#ref-search", Input)
+        search.value = "not-a-command"
+        await pilot.pause()
+        assert screen.query_one("#ref-table").row_count == 0
+
+        await pilot.click("#ref-mode-glossary")
+        await pilot.pause()
+
+        assert search.value == ""
+        assert screen.query_one("#ref-table").row_count > 0
     a.close()
     b.close()
 

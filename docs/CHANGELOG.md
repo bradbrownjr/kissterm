@@ -3,6 +3,17 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — Command reference modes now behave like the rest of the UI
+
+### UX
+- **Replaced Commands/Glossary mode buttons with a compact `Tabs` strip and
+  clear the search field when changing modes.** The two views are navigation,
+  not actions, so they now match the established terminal and APRS tab
+  language. A command search can no longer make the glossary appear empty
+  after a mode switch.
+  **Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/styles.py`,
+  `tests/pilot/test_terminal_ux.py`, `docs/CHANGELOG.md`.
+
 ## [2026-09-11] — Cited protocol development baseline
 
 ### Documentation
