@@ -114,6 +114,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -133,7 +134,7 @@ from .. import aprs
 from ..aprs_conversations import ConversationStore
 from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import AX25Station, parse_path
-from ..ax25.address import AX25Address
+from ..ax25.address import AX25Address, AX25AddressError
 from ..aprs_beacon import AprsBeaconer
 from ..beacon import Beaconer
 from ..config import AprsConfig, BeaconConfig, find_credential, find_script
@@ -761,7 +762,7 @@ class KissTermApp(App):
         #: is built and loaded before any pane asks for it.
         self.aprs_conversations = ConversationStore()
         self.aprs_conversations.load()
-        self._purge_stale_telemetry_definitions()
+        self._purge_stale_synthetic_messages()
         #: Suppresses a repeat desktop notification for the same (source,
         #: reason) pair within its window -- see kissterm/aprs_notify.py.
         #: An Emergency Mic-E flag always bypasses it.
@@ -1138,7 +1139,7 @@ class KissTermApp(App):
                 to_me = callsign_matches(msg.addressee, mycalls)
                 if to_me:
                     if getattr(self.config, "aprs_auto_ack", True) and msg.number:
-                        await self._send_aprs_ack(source, msg.number, port)
+                        await self._send_aprs_ack(source, msg.number, port, heard_as=msg.addressee)
                 # `to_me` decides whether this opens a tab and raises an
                 # unread marker, or is only recorded. Every message packet is
                 # recorded either way -- see `AprsPane.note_incoming`.
@@ -1213,26 +1214,38 @@ class KissTermApp(App):
             pane.note_packet(line, time.time())
             return
 
-    def _purge_stale_telemetry_definitions(self) -> None:
+    def _purge_stale_synthetic_messages(self) -> None:
         """One-time cleanup for `self.aprs_conversations` right after
-        loading it: drop any already-persisted incoming message whose text
-        is a telemetry-definition line (`PARM.`/`UNIT.`/`EQNS.`/`BITS.`).
+        loading it: drop already-persisted lines that were never something
+        a human (or a correspondent) typed, from a build that recorded them
+        before the check that now excludes them existed.
 
-        `_on_aprs_frame` has excluded these from chat since 2026-09-10 (see
-        `aprs.is_telemetry_definition_text`), but that check only stops
-        *new* ones from being recorded -- a history file written by an
-        older build still has them sitting in `aprs_messages.json` forever
-        otherwise, four raw lines of channel-scaling coefficients per
-        telemetry-equipped station, indistinguishable on screen from
-        something a human typed. Runs on every launch; once purged there is
-        nothing left to find, so this is cheap after the first run.
+        Two shapes, both fixed by a real-world report rather than found in
+        review, so a history file written before either fix still carries
+        them forever otherwise:
+
+        * An incoming **telemetry-definition** line (`PARM.`/`UNIT.`/
+          `EQNS.`/`BITS.`) -- excluded since 2026-09-10
+          (`aprs.is_telemetry_definition_text`).
+        * An outgoing **auto-ack recorded as a chat line** (`"ack407"`,
+          with `number=None`) -- excluded since 2026-09-11; an incoming ack
+          was never filed as a message either (`_on_aprs_frame` routes
+          `msg.is_ack` to `mark_acked`, not `record_incoming`), so this
+          brought the outgoing side in line with that rule.
+
+        Runs on every launch; once purged there is nothing left to find, so
+        this is cheap after the first run.
         """
+        ack_number_re = re.compile(r"^ack[A-Za-z0-9]{1,5}$")
         changed = False
         for convo in self.aprs_conversations.conversations.values():
             kept = [
                 m
                 for m in convo.messages
                 if not (m.direction == "in" and aprs.is_telemetry_definition_text(m.text))
+                and not (
+                    m.direction == "out" and m.number is None and ack_number_re.match(m.text)
+                )
             ]
             if len(kept) != len(convo.messages):
                 convo.messages = kept
@@ -1240,7 +1253,9 @@ class KissTermApp(App):
         if changed:
             self.aprs_conversations.save()
 
-    async def _send_aprs_ack(self, addressee: str, number: str, port: int) -> None:
+    async def _send_aprs_ack(
+        self, addressee: str, number: str, port: int, *, heard_as: str
+    ) -> None:
         """Auto-ack an APRS message addressed to us -- see
         `Config.aprs_auto_ack`'s docstring for why this defaults on and is
         still just as gated by the transmit switch as everything else this
@@ -1248,6 +1263,19 @@ class KissTermApp(App):
         rule a beacon or a connect-script line follows: a station that
         transmits without the operator being able to see that it did is
         exactly what that rule exists to prevent.
+
+        `heard_as` is `Message.addressee` exactly as the incoming message
+        named it (a bare call, an SSID, or an alias) -- **not** the
+        separately configured APRS-SSID identity (`Config.aprs.source_for`)
+        that a message or beacon *we* originate uses. Seen live: a peer
+        addressed its message to a bare callsign while this station's own
+        APRS traffic transmits under a different SSID; acking under that
+        SSID instead of the one actually addressed left the peer's own
+        message-tracking never recognizing the ack as an answer, so it kept
+        retrying the same message. An ack has to come from the exact
+        identity the message went to, or the far end cannot match it up --
+        a beacon or a fresh outgoing message has no such identity to match,
+        which is why only this path differs from the SSID override.
         """
         if self.station is None:
             return
@@ -1261,14 +1289,17 @@ class KissTermApp(App):
         if gate is not None and not gate.enabled:
             return
         try:
+            source = AX25Address.parse(heard_as)
+        except AX25AddressError:
+            # Should not happen -- `to_me` already required `heard_as` to
+            # look enough like a callsign to match against `config.mycall`
+            # -- but a malformed addressee must degrade to *some* identity
+            # rather than drop the ack outright.
+            source = self.config.aprs.source_for(str(self.station.mycall))
+        try:
             payload = aprs.ack(addressee, number)
             dest = AX25Address.parse("APRS")
-            # The APRS SSID override again -- an ack has to come from the
-            # same address the message it answers went to, or the far end
-            # cannot match it up.
-            outframe = aprs.beacon_frame(
-                self.config.aprs.source_for(str(self.station.mycall)), dest, (), payload
-            )
+            outframe = aprs.beacon_frame(source, dest, (), payload)
             await self.station.transport.send_frame(outframe, port)
         except Exception as exc:  # never let an ack failure disturb the link
             log.debug("APRS auto-ack to %s not sent: %s", addressee, exc)

@@ -1046,6 +1046,18 @@ again after a Settings save or a config reload.
   pane added to `action_clear_log`'s dispatch needs a real case, not the
   `else` branch, and should not assume "All"-shaped views are safe to
   spare by default -- ask what "clear" should mean there before shipping it.
+- **`Config.aprs.source_for` (the separately configured APRS-SSID identity)
+  must NEVER be applied to an outgoing ack.** Found live: a real igate
+  addressed its message to this station's bare callsign while `Config.
+  aprs.ssid` was set, and `_send_aprs_ack` used to transmit the ack under
+  that SSID instead -- an identity the igate never sent anything to, so
+  its own message-tracking never recognized the ack as an answer and kept
+  retrying the same message. `_send_aprs_ack` now transmits from
+  `Message.addressee` exactly as the incoming message named it (`heard_as`
+  param), falling back to `source_for` only if that somehow fails to parse
+  as a callsign. A beacon or a message this station originates has no such
+  prior "addressed to" identity to match, which is why only the ack path
+  differs -- do not "simplify" this back to one shared call.
 - **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
   documents YAPP as a dead end because BPQ32's terminal emulation filters the
   control characters it needs — that limitation applies to apps running *under*

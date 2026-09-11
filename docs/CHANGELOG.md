@@ -3,6 +3,32 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — Auto-ack now transmits under the addressed identity, not the configured APRS SSID
+
+### Bug Fixes
+- **An auto-ack transmitted under the separately configured APRS-SSID
+  identity (`Config.aprs.ssid`) instead of whichever identity the incoming
+  message was actually addressed to.** Found live: a real igate addressed
+  its message to this station's bare callsign while the operator had also
+  set an APRS SSID for traffic this station originates; the ack went out
+  under that SSID, an identity the igate never sent anything to, so its
+  own message-tracking never recognized the ack as an answer and kept
+  retrying the same message every few minutes indefinitely. `_send_aprs_ack`
+  now transmits from `Message.addressee` exactly as received, falling back
+  to the SSID override only if that somehow fails to parse as a callsign.
+  A message or beacon this station originates is unaffected -- it has no
+  prior "addressed to" identity to match, which is the whole reason the
+  SSID override exists there.
+- **Purging stale synthetic chat lines now also covers the legacy
+  auto-ack-as-message entries** the previous commit stopped creating going
+  forward (`"ack407"`, recorded with no message number) --
+  `_purge_stale_telemetry_definitions` is renamed
+  `_purge_stale_synthetic_messages` and covers both shapes in one pass, so
+  a history file written before either fix does not carry the clutter
+  forever.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_aprs_messaging.py`,
+  `AGENTS.md`.
+
 ## [2026-09-11] — Ctrl+L on APRS "All" now clears every conversation; auto-acks no longer clutter the chat log
 
 ### Improvements

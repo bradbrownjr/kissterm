@@ -94,6 +94,36 @@ async def test_a_message_addressed_to_me_is_recorded_and_auto_acked(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_auto_ack_transmits_from_the_addressed_identity_not_the_aprs_ssid(tmp_path):
+    """An ack has to come from the exact identity the message was addressed
+    to, or the far end's own message-tracking never recognizes it as an
+    answer and keeps retrying the same message -- seen live: a real igate
+    addressed its message to a bare callsign while this station's own
+    outgoing APRS traffic transmits under a separately configured SSID
+    (`Config.aprs.ssid`), and acking under that SSID instead of the one
+    actually addressed left the ack unrecognized. Only the ack path
+    differs from the SSID override -- a beacon or a message this station
+    originates has no prior "addressed to" identity to match.
+    """
+    app, mine, theirs = await _app(tmp_path)
+    app.config.aprs.ssid = "5"
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        # Bare "N1ABC" -- neither `mine`'s own AX.25 identity (N1ABC-1) nor
+        # the configured APRS SSID (N1ABC-5).
+        await _send_message(theirs, "N1ABC", "hello", "1")
+        for _ in range(20):
+            if "Auto-ack sent" in _terminal_text(app):
+                break
+            await pilot.pause()
+        acks = [f for f in mine.transport.sent if b":ack1" in f.info]
+        assert len(acks) == 1, mine.transport.sent
+        assert str(acks[0].path.source) == "N1ABC"
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_matches_our_ssid_alias_even_when_the_message_addressee_has_none(tmp_path):
     """Same SSID-stripping rule as MAIL FOR -- our own callsign here carries
     an SSID the message never mentions."""
@@ -152,17 +182,36 @@ async def test_a_telemetry_definition_message_is_not_recorded_as_chat(tmp_path):
 async def test_purge_removes_legacy_telemetry_definition_lines_but_keeps_real_chat(tmp_path):
     """`_on_aprs_frame` has kept telemetry-definition lines out of chat since
     2026-09-10, but a history file written by an older build still has them
-    sitting in it -- `KissTermApp._purge_stale_telemetry_definitions` (run
-    once at startup, right after `ConversationStore.load()`) is the
-    one-time cleanup for exactly that. A real human message in the same
-    conversation must survive the purge untouched."""
+    sitting in it -- `KissTermApp._purge_stale_synthetic_messages` (run once
+    at startup, right after `ConversationStore.load()`) is the one-time
+    cleanup for exactly that. A real human message in the same conversation
+    must survive the purge untouched."""
     app, mine, theirs = await _app(tmp_path)
     store = app.aprs_conversations
     store.record_incoming("W1UWS-1", "PARM.Vin,Rx1h,Eff1h", number=None)
     store.record_incoming("W1UWS-1", "hello from a human", number=None)
-    app._purge_stale_telemetry_definitions()
+    app._purge_stale_synthetic_messages()
     convo = store.conversations["W1UWS-1"]
     assert [m.text for m in convo.messages] == ["hello from a human"]
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_purge_removes_legacy_auto_ack_lines_but_keeps_a_real_outgoing_ack1(tmp_path):
+    """Before this session's fix, `_send_aprs_ack` recorded its own ack as
+    an outgoing chat line (`"ack407"`, `number=None`) -- indistinguishable
+    from something an operator typed. A real outgoing message that happens
+    to say literally "ack1" but carries an actual message `number` (so it
+    was sent through the compose row, not the auto-ack path) must survive.
+    """
+    app, mine, theirs = await _app(tmp_path)
+    store = app.aprs_conversations
+    store.record_outgoing("W1UWS-1", "ack407", number=None)
+    store.record_outgoing("W1UWS-1", "ack1", number="9")
+    app._purge_stale_synthetic_messages()
+    convo = store.conversations["W1UWS-1"]
+    assert [(m.text, m.number) for m in convo.messages] == [("ack1", "9")]
     mine.close()
     theirs.close()
 
