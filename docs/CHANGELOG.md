@@ -3,6 +3,39 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — Non-message APRS packets decoded into the "All" tab; stale telemetry-definition lines purged
+
+### New Features
+- **Positions, weather reports, status/capability/query lines, telemetry
+  readings, and object/item reports now show up as human-readable lines in
+  the APRS pane's "All" tab**, not just text messages. Every such packet was
+  already decoded (`aprs.parse_packet` feeds the Heard pane's position
+  columns) but never displayed anywhere -- an operator watching the "All"
+  tab as a channel monitor saw messages only, with position beacons and
+  telemetry simply invisible. `aprs.format_packet` already existed for
+  exactly this (built, exported, never called) and needed no changes;
+  `KissTermApp._on_aprs_frame` now calls it for every packet kind except
+  `message` (its own path, unchanged) and `unparsed` (nothing to show), and
+  forwards the line to the new `AprsPane.note_packet`. These lines are
+  **in-memory only, never written to `aprs_messages.json`** -- they have no
+  correspondent to file them under, unlike a message.
+  **Files:** `kissterm/ui/app.py`, `kissterm/ui/aprs_pane.py`,
+  `tests/pilot/test_aprs_conversation_tabs.py`, `AGENTS.md`.
+
+### Bug Fixes
+- **Telemetry-definition lines (`PARM.`/`UNIT.`/`EQNS.`/`BITS.`) already
+  recorded into `aprs_messages.json` by a build older than 2026-09-10 are
+  now purged at startup.** The 2026-09-10 fix stopped *new* ones from being
+  recorded but did nothing for history a pre-fix build had already written
+  to disk, so the raw lines a live screenshot first caught kept reappearing
+  in the "All" tab every launch. `KissTermApp._purge_stale_telemetry_definitions`
+  runs once right after `ConversationStore.load()`, using the same
+  `aprs.is_telemetry_definition_text` check `_on_aprs_frame` already applies
+  to new traffic (now a shared, exported function instead of a private
+  constant, so the two call sites cannot drift apart on the definition).
+  **Files:** `kissterm/aprs/messages.py`, `kissterm/aprs/__init__.py`,
+  `kissterm/ui/app.py`, `tests/pilot/test_aprs_messaging.py`.
+
 ## [2026-09-10] — APRS pane: no more descriptive text on any tab
 
 ### Improvements

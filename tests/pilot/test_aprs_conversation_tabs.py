@@ -307,3 +307,30 @@ async def test_an_unread_contact_is_starred_in_the_contact_table(tmp_path):
         assert str(table.get_cell_at((0, 0))) == "WS1EC-15"
     mine.close()
     theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_a_position_beacon_shows_as_a_readable_line_in_all(tmp_path):
+    """A non-message packet (a position report here) has no correspondent
+    and so never enters `ConversationStore` -- but it must still show up
+    somewhere as more than raw bytes. `AprsPane.note_packet`, fed from
+    `KissTermApp._on_aprs_frame` via `aprs.format_packet`, is that path; this
+    drives a real position frame off the loopback rather than calling
+    `note_packet` directly, so the whole decode-to-display chain is checked."""
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        payload = aprs.position_report(49.05, -72.0175, "/", ">", comment="mobile")
+        frame = aprs.beacon_frame(
+            AX25Address.parse("WS1EC-15"), AX25Address.parse("APRS"), (), payload
+        )
+        await theirs.transport.send_frame(frame, 0)
+        await _settle(pilot)
+
+        lines = _log_lines(app)
+        assert any("WS1EC-15" in line and "49.0500" in line for line in lines), lines
+        # Never written to the persisted message store -- it has no
+        # correspondent to be filed under.
+        assert app.aprs_conversations.conversations == {}
+    mine.close()
+    theirs.close()

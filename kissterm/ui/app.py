@@ -114,6 +114,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -760,6 +761,7 @@ class KissTermApp(App):
         #: is built and loaded before any pane asks for it.
         self.aprs_conversations = ConversationStore()
         self.aprs_conversations.load()
+        self._purge_stale_telemetry_definitions()
         #: Suppresses a repeat desktop notification for the same (source,
         #: reason) pair within its window -- see kissterm/aprs_notify.py.
         #: An Emergency Mic-E flag always bypasses it.
@@ -1125,6 +1127,20 @@ class KissTermApp(App):
                 # through?", and an operator watching the screen for it
                 # should not see a stale "sent" for another ten seconds.
                 self._repaint_aprs_conversation()
+        elif packet.kind != "unparsed":
+            # Everything that is not a person-to-person message (or an
+            # undecodable frame the Monitor pane already shows raw) --
+            # position, weather, status, telemetry readings, objects/items,
+            # third-party relays. `ConversationStore` is chat history with a
+            # correspondent and stays that way; these have no correspondent,
+            # so they are shown in the "All" tab only, in memory only, via
+            # `AprsPane.note_packet` -- never written to
+            # `kissterm/aprs_conversations.py`'s persisted JSON. One decode
+            # (`aprs.parse_packet`, already run above) feeds both this and
+            # the heard-table enrichment above; `format_packet` is the one
+            # place that turns any `AprsPacket` into a line, so a new packet
+            # kind only ever needs a case added there (AGENTS.md sec. 2b).
+            self._note_aprs_packet(aprs.format_packet(packet))
 
         decision = evaluate_packet(packet, self.config.mycall, self.config.mycall_aliases)
         if decision is None:
@@ -1161,6 +1177,43 @@ class KissTermApp(App):
         for pane in self._base_query(AprsPane):
             pane.note_incoming(callsign, to_me=to_me)
             return
+
+    def _note_aprs_packet(self, line: str) -> None:
+        """Forward one formatted non-message APRS line (a position, weather
+        report, telemetry reading, status, or object/item) to the APRS
+        pane's "All" tab. Tolerates the pane not being mounted, for the same
+        reason `_note_aprs_incoming` does.
+        """
+        for pane in self._base_query(AprsPane):
+            pane.note_packet(line, time.time())
+            return
+
+    def _purge_stale_telemetry_definitions(self) -> None:
+        """One-time cleanup for `self.aprs_conversations` right after
+        loading it: drop any already-persisted incoming message whose text
+        is a telemetry-definition line (`PARM.`/`UNIT.`/`EQNS.`/`BITS.`).
+
+        `_on_aprs_frame` has excluded these from chat since 2026-09-10 (see
+        `aprs.is_telemetry_definition_text`), but that check only stops
+        *new* ones from being recorded -- a history file written by an
+        older build still has them sitting in `aprs_messages.json` forever
+        otherwise, four raw lines of channel-scaling coefficients per
+        telemetry-equipped station, indistinguishable on screen from
+        something a human typed. Runs on every launch; once purged there is
+        nothing left to find, so this is cheap after the first run.
+        """
+        changed = False
+        for convo in self.aprs_conversations.conversations.values():
+            kept = [
+                m
+                for m in convo.messages
+                if not (m.direction == "in" and aprs.is_telemetry_definition_text(m.text))
+            ]
+            if len(kept) != len(convo.messages):
+                convo.messages = kept
+                changed = True
+        if changed:
+            self.aprs_conversations.save()
 
     async def _send_aprs_ack(self, addressee: str, number: str, port: int) -> None:
         """Auto-ack an APRS message addressed to us -- see

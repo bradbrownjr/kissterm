@@ -972,10 +972,19 @@ again after a Settings save or a config reload.
   desktop notification, plus auto-ack). The contacts CRUD pane, a
   conversation view per contact, sending with ack/retry, SMS/email compose,
   and a periodic position beacon (`kissterm/aprs_beacon.py`) have all
-  shipped since. The Monitor pane still shows the *raw sanitized frame
-  text* for APRS traffic, not a decoded position -- what P4 still needs is
-  a dedicated station list/map or bearing-distance view, now that the
-  decode subscriber and message store it would depend on both exist.
+  shipped since. As of 2026-09-11 the APRS pane's "All" tab also renders
+  every non-message packet kind (position, weather, status, telemetry,
+  object/item, third-party) as one `aprs.format_packet` line, in memory
+  only, merged by timestamp with the message log (`AprsPane.note_packet`,
+  fed from `KissTermApp._note_aprs_packet`) -- so a position beacon reads as
+  `WS1EC-15 pos 49.0500,-72.0175 car` instead of not appearing in this pane
+  at all. **The Monitor pane is unchanged and still shows the raw sanitized
+  frame text** for APRS traffic (and everything else) by design -- it is the
+  wire-level view across all frame kinds, not an APRS-aware one. What P4
+  still needs is a dedicated station list/map or bearing-distance view; the
+  decode subscriber and message store it would depend on both exist, and the
+  "All" tab above proves the missing half was human-readable output, not a
+  second decode path.
 - **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
   documents YAPP as a dead end because BPQ32's terminal emulation filters the
   control characters it needs — that limitation applies to apps running *under*

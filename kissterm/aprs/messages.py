@@ -40,7 +40,13 @@ import re
 from .position import parse_position_field
 from .types import Message, ObjectReport, Status
 
-__all__ = ["parse_message", "parse_status", "parse_object", "parse_item"]
+__all__ = [
+    "parse_message",
+    "parse_status",
+    "parse_object",
+    "parse_item",
+    "is_telemetry_definition_text",
+]
 
 #: The four telemetry channel-labelling message types, per the APRS spec's
 #: telemetry chapter -- always sent as a message a station addresses to
@@ -49,6 +55,17 @@ __all__ = ["parse_message", "parse_status", "parse_object", "parse_item"]
 #: unlikely -- "PARM." is not an English word) is the one false positive
 #: this accepts in exchange for not needing to also check the addressee.
 _TELEMETRY_DEFINITION_PREFIXES = ("PARM.", "UNIT.", "EQNS.", "BITS.")
+
+
+def is_telemetry_definition_text(text: str) -> bool:
+    """Same prefix check `parse_message` uses, exposed for callers that
+    already have a `Message.text` in hand and need the same answer outside
+    a fresh parse -- `KissTermApp` uses it once at startup to purge
+    telemetry-definition lines a pre-2026-09-10 build recorded into chat
+    history before this check existed at all. One definition, so the two
+    call sites can never drift apart on what counts as one of these.
+    """
+    return text.startswith(_TELEMETRY_DEFINITION_PREFIXES)
 
 
 def parse_message(body: str) -> Message:
@@ -60,7 +77,7 @@ def parse_message(body: str) -> Message:
         return Message(addressee=addressee, text="", number=rest[3:].strip() or None, is_ack=True)
     if rest.startswith("rej"):
         return Message(addressee=addressee, text="", number=rest[3:].strip() or None, is_rej=True)
-    if rest.startswith(_TELEMETRY_DEFINITION_PREFIXES):
+    if is_telemetry_definition_text(rest):
         return Message(addressee=addressee, text=rest, is_telemetry_definition=True)
     m = re.search(r"\{([A-Za-z0-9]{1,5})\}?$", rest)
     if m:

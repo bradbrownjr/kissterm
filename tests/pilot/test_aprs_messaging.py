@@ -133,6 +133,25 @@ async def test_a_telemetry_definition_message_is_not_recorded_as_chat(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_purge_removes_legacy_telemetry_definition_lines_but_keeps_real_chat(tmp_path):
+    """`_on_aprs_frame` has kept telemetry-definition lines out of chat since
+    2026-09-10, but a history file written by an older build still has them
+    sitting in it -- `KissTermApp._purge_stale_telemetry_definitions` (run
+    once at startup, right after `ConversationStore.load()`) is the
+    one-time cleanup for exactly that. A real human message in the same
+    conversation must survive the purge untouched."""
+    app, mine, theirs = await _app(tmp_path)
+    store = app.aprs_conversations
+    store.record_incoming("W1UWS-1", "PARM.Vin,Rx1h,Eff1h", number=None)
+    store.record_incoming("W1UWS-1", "hello from a human", number=None)
+    app._purge_stale_telemetry_definitions()
+    convo = store.conversations["W1UWS-1"]
+    assert [m.text for m in convo.messages] == ["hello from a human"]
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_no_auto_ack_when_disabled_in_config(tmp_path):
     app, mine, theirs = await _app(tmp_path, aprs_auto_ack=False)
     async with app.run_test(size=(110, 32)) as pilot:

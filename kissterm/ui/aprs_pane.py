@@ -53,6 +53,7 @@ active at launch, and deliberately shows third-party traffic too -- see
 from __future__ import annotations
 
 import re
+from collections import deque
 from dataclasses import dataclass
 
 from rich.text import Text
@@ -282,6 +283,15 @@ class AprsPane(Horizontal):
         #: what `_make_room_for_a_tab` evicts from, and the reason a tab is
         #: moved to the end every time it is activated.
         self._recent: list[str] = []
+        #: Non-message APRS traffic (position, weather, status, telemetry,
+        #: object/item, third-party) formatted for display -- **in memory
+        #: only**, unlike `ConversationStore`. None of it is correspondence
+        #: with anyone, so there is no conversation to file it under and
+        #: nothing worth persisting across a restart; it exists purely to
+        #: merge into the "All" tab, capped the same as that view
+        #: (`_ALL_TAB_LINES`) so a busy channel cannot grow it forever.
+        #: Fed by `note_packet`, called from `KissTermApp._note_aprs_packet`.
+        self._packet_lines: deque[tuple[float, str]] = deque(maxlen=_ALL_TAB_LINES)
 
     def compose(self) -> ComposeResult:
         # Conversation first -- this is the main, always-visible column.
@@ -566,7 +576,8 @@ class AprsPane(Horizontal):
         self._activate(callsign)
 
     def _show_all(self) -> None:
-        """The merged view: every conversation in one log, oldest line first.
+        """The merged view: every conversation, plus every other decoded
+        packet kind, in one log, oldest line first.
 
         **It includes traffic between other stations, deliberately.**
         `KissTermApp._on_aprs_frame` records every message packet it decodes
@@ -576,6 +587,14 @@ class AprsPane(Horizontal):
         message monitor. The per-callsign tabs are the ones that stay quiet
         unless something was addressed to this station; if the recording rule
         ever needs to change, it changes in `_on_aprs_frame`, not here.
+
+        Messages are one source; `self._packet_lines` (positions, weather,
+        status, telemetry, object/item, third-party -- everything
+        `note_packet` has been fed) is the other. Both are merged into plain
+        `(timestamp, text)` pairs before sorting, on purpose: sorting the raw
+        message tuples would fall through to comparing two `MessageEntry`
+        objects whenever two share a timestamp, which raises, and packets
+        decoded from the same burst share one readily.
         """
         self._shown_callsign = ""
         self._shown_title = _ALL_TITLE
@@ -585,25 +604,36 @@ class AprsPane(Horizontal):
         log = self.query_one("#aprs-conversation-log", RichLog)
         log.clear()
         store = self.app.aprs_conversations  # type: ignore[attr-defined]
-        entries = [
-            (entry.timestamp, callsign, entry)
-            for callsign, convo in store.conversations.items()
-            for entry in convo.messages
-        ]
-        if not entries:
+        lines: list[tuple[float, str]] = list(self._packet_lines)
+        for callsign, convo in store.conversations.items():
+            for entry in convo.messages:
+                if entry.direction == "in":
+                    lines.append((entry.timestamp, f"< {callsign}: {entry.text}"))
+                else:
+                    status = self._outgoing_status(callsign, entry)
+                    lines.append((entry.timestamp, f"> {callsign}: {entry.text}  [{status}]"))
+        if not lines:
             log.write("(no messages yet)")
             return
-        # Keyed on the timestamp ALONE. Sorting the tuples themselves would
-        # fall through to comparing two `MessageEntry` objects whenever two
-        # messages share a timestamp, which raises -- and two packets
-        # decoded from the same burst share one readily.
-        entries.sort(key=lambda item: item[0])
-        for _, callsign, entry in entries[-_ALL_TAB_LINES:]:
-            if entry.direction == "in":
-                log.write(f"< {callsign}: {entry.text}")
-            else:
-                status = self._outgoing_status(callsign, entry)
-                log.write(f"> {callsign}: {entry.text}  [{status}]")
+        lines.sort(key=lambda item: item[0])
+        for _, text in lines[-_ALL_TAB_LINES:]:
+            log.write(text)
+
+    def note_packet(self, line: str, timestamp: float) -> None:
+        """A non-message APRS packet was decoded into one human-readable
+        `line` (a position, weather report, status, telemetry reading, or
+        object/item -- see `format_packet`). Kept in `self._packet_lines`
+        only; repaints the "All" tab immediately if it is the one on screen,
+        the same way an incoming message does.
+        """
+        self._packet_lines.append((timestamp, line))
+        try:
+            if self._tabs().active == _ALL_TAB:
+                self._show_all()
+        except NoMatches:
+            # Off the frame fan-out, which outlives the widget tree -- same
+            # tolerance `note_incoming` applies.
+            return
 
     def note_incoming(self, callsign: str, *, to_me: bool) -> None:
         """A message was decoded. Open a tab for it and mark it unread.
