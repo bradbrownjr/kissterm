@@ -3,6 +3,26 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — Third-party APRS relays with a non-callsign source no longer display as "NOCALL"
+
+### Bug Fixes
+- **`format_packet` showed `NOCALL` instead of the real relay identity for a
+  third-party (`}`) packet whose header source is not a legal AX.25
+  callsign** -- found live: a WHO-IS lookup service's own reply (relayed
+  through an igate) uses `WHO-IS` as its transmit identity, which
+  `AX25Address.parse` rejects (the hyphen is not a valid SSID separator
+  there), so the synthetic inner `AprsPacket` `_parse_third_party` builds
+  fell back to the generic `NOCALL` placeholder for display -- read by the
+  operator as "I'm transmitting under NOCALL to my own callsign", when the
+  packet was in fact incoming and never touched kissterm's transmit path at
+  all (outgoing APRS traffic always sends from `station.mycall` via
+  `Config.aprs.source_for`, never a placeholder). `format_packet`'s
+  per-kind formatting is now `_format_body(src, kind, data)`, a plain
+  string-in helper reused by the third-party branch with `tp.source` (the
+  header's own text, already kept verbatim per `ThirdParty`'s docstring)
+  instead of the inner packet's coerced `AX25Address`.
+  **Files:** `kissterm/aprs/parse.py`, `tests/unit/test_aprs.py`.
+
 ## [2026-09-11] — Sending a message with the transmit gate closed arms it, instead of refusing
 
 ### Improvements

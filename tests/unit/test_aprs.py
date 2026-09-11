@@ -344,6 +344,26 @@ def test_third_party_traffic():
     assert "N1ABC" in format_packet(pkt)
 
 
+def test_third_party_traffic_with_a_non_callsign_relay_identity():
+    # A message-relay/gateway service (WHO-IS, and plenty of APRS-IS traffic
+    # generally) uses a third-party header source that is not a legal AX.25
+    # callsign -- the hyphen mid-string makes `AX25Address.parse` raise.
+    # `format_packet` must still show that real text, never the internal
+    # `NOCALL` placeholder `_safe_address` falls back to for the synthetic
+    # inner `AprsPacket` it cannot legally construct.
+    frame = _ui_frame(
+        "APRS", "WS1EC-15", b"}WHO-IS>APJIW4,WIDE2-1::KC1JMH-5 :ack1"
+    )
+    pkt = parse_packet(frame)
+    assert pkt.kind == "third-party"
+    tp = pkt.data
+    assert isinstance(tp, ThirdParty)
+    assert tp.source == "WHO-IS"
+    line = format_packet(pkt)
+    assert "NOCALL" not in line
+    assert line == "WS1EC-15 3rd-party WHO-IS>APJIW4: WHO-IS ack to KC1JMH-5 #1"
+
+
 # -- station capabilities / query -------------------------------------------
 
 

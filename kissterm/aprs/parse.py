@@ -195,26 +195,49 @@ def _format_position(src: str, p: Position) -> str:
 
 def format_packet(pkt: AprsPacket) -> str:
     """One clean, ASCII-only human line for the APRS pane."""
-    src = str(pkt.source)
+    if pkt.kind == "third-party" and isinstance(pkt.data, ThirdParty):
+        tp = pkt.data
+        # `tp.source` is the third-party header's own text, kept verbatim
+        # (see `ThirdParty`'s docstring: it is not guaranteed to be valid
+        # AX.25). The inner packet's `.source`/`.destination` were forced
+        # into `AX25Address` at parse time regardless, so a real-world
+        # relay identity like a WHO-IS/message-relay service's "WHO-IS"
+        # (not a legal callsign -- the hyphen makes `AX25Address.parse`
+        # raise) collapses to the generic `NOCALL` placeholder there. Using
+        # `tp.source` for the inner line's own "src" avoids ever showing
+        # that placeholder for a source we actually have real text for.
+        return f"{str(pkt.source)} 3rd-party {tp.source}>{tp.destination}: " + _format_body(
+            tp.source, tp.inner.kind, tp.inner.data
+        )
+    if pkt.kind == "unparsed":
+        return f"{str(pkt.source)} unparsed ({len(pkt.info)} bytes)"
+    return _format_body(str(pkt.source), pkt.kind, pkt.data)
 
-    if pkt.kind in ("position", "mic-e") and isinstance(pkt.data, Position):
-        return _format_position(src, pkt.data)
-    if pkt.kind == "status" and isinstance(pkt.data, Status):
-        return f'{src} status "{pkt.data.text}"'
-    if pkt.kind == "capabilities" and isinstance(pkt.data, Status):
-        return f'{src} caps "{pkt.data.text}"'
-    if pkt.kind == "query" and isinstance(pkt.data, Status):
-        return f'{src} query "{pkt.data.text}"'
-    if pkt.kind == "message" and isinstance(pkt.data, Message):
-        m = pkt.data
+
+def _format_body(src: str, kind: str, data: object | None) -> str:
+    """The part of `format_packet` that only needs a display source string
+    and a decoded body -- split out so the third-party case above can reuse
+    it with the third-party header's own text instead of the (possibly
+    placeholder) `AX25Address` on the synthetic inner `AprsPacket`.
+    """
+    if kind in ("position", "mic-e") and isinstance(data, Position):
+        return _format_position(src, data)
+    if kind == "status" and isinstance(data, Status):
+        return f'{src} status "{data.text}"'
+    if kind == "capabilities" and isinstance(data, Status):
+        return f'{src} caps "{data.text}"'
+    if kind == "query" and isinstance(data, Status):
+        return f'{src} query "{data.text}"'
+    if kind == "message" and isinstance(data, Message):
+        m = data
         if m.is_ack:
             return f"{src} ack to {m.addressee} #{m.number}"
         if m.is_rej:
             return f"{src} rej to {m.addressee} #{m.number}"
         tail = f" {{{m.number}}}" if m.number else ""
         return f'{src} msg to {m.addressee}: "{m.text}"{tail}'
-    if pkt.kind == "weather" and isinstance(pkt.data, WeatherReport):
-        w = pkt.data
+    if kind == "weather" and isinstance(data, WeatherReport):
+        w = data
         bits = [src, "wx"]
         if w.temperature_f is not None:
             bits.append(f"{w.temperature_f}F")
@@ -223,19 +246,22 @@ def format_packet(pkt: AprsPacket) -> str:
         if w.humidity_pct is not None:
             bits.append(f"{w.humidity_pct}%RH")
         return " ".join(bits)
-    if pkt.kind in ("object", "item") and isinstance(pkt.data, ObjectReport):
-        o = pkt.data
+    if kind in ("object", "item") and isinstance(data, ObjectReport):
+        o = data
         state = "alive" if o.alive else "killed"
-        line = f"{src} {pkt.kind} {o.name} ({state})"
+        line = f"{src} {kind} {o.name} ({state})"
         if o.position is not None:
             line += f" {o.position.latitude:.4f},{o.position.longitude:.4f}"
         return line
-    if pkt.kind == "telemetry" and isinstance(pkt.data, Telemetry):
-        t = pkt.data
+    if kind == "telemetry" and isinstance(data, Telemetry):
+        t = data
         return f"{src} telemetry #{t.sequence} " + ",".join(f"{a:g}" for a in t.analog)
-    if pkt.kind == "third-party" and isinstance(pkt.data, ThirdParty):
-        tp = pkt.data
-        return f"{src} 3rd-party {tp.source}>{tp.destination}: {format_packet(tp.inner)}"
-    if pkt.kind == "unparsed":
-        return f"{src} unparsed ({len(pkt.info)} bytes)"
-    return f"{src} {pkt.kind}"
+    if kind == "third-party" and isinstance(data, ThirdParty):
+        # A third-party packet nested inside another one -- vanishingly
+        # rare, but `format_packet` recurses through this same helper so
+        # it is handled rather than silently mis-rendered.
+        tp = data
+        return f"{src} 3rd-party {tp.source}>{tp.destination}: " + _format_body(
+            tp.source, tp.inner.kind, tp.inner.data
+        )
+    return f"{src} {kind}"
