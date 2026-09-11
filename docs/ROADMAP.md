@@ -241,6 +241,54 @@ entries. What's still open:
 
 ## P6 — UX
 
+Operator feedback on the terminal pane and glossary rendering, from a real
+session, not yet acted on:
+
+- [ ] **Glossary's Definition column needs word-wrap, not horizontal
+      scroll.** `CommandReferenceScreen`'s `DataTable` (`kissterm/ui/
+      dialogs.py`) renders `glossary.search()` results as fixed-width rows;
+      a long definition runs off the right edge behind a horizontal
+      scrollbar instead of wrapping, which is unreadable in normal use.
+      `DataTable` cells do not wrap by design -- this likely needs either a
+      pre-wrapped `Text` value per cell (rewrapped on resize, the same
+      problem `WrapLog` below solves for logs) or swapping the Definition
+      column for a different widget entirely. Small-medium.
+- [ ] **`LM`/`LB` (and likely any multi-line node reply) render with a
+      spurious blank line between every pair of real lines.** Reported
+      directly from a real BBS session. The likely cause is in
+      `TerminalPane._flush_incoming` (`kissterm/ui/terminal_pane.py`):
+      `split = max(buf.rfind(b"\n"), buf.rfind(b"\r"))` treats `\r` and `\n`
+      as independent line terminators, so a `\r\n` pair arriving (or
+      splitting) across two flushes can be counted as two line ends instead
+      of one, rendering an empty line between every real one. Needs a real
+      capture of the actual bytes a BBS list command sends (`--log-level
+      debug` logs both directions) to confirm before changing the split
+      logic -- guess-fixing CR/LF handling here risks reintroducing the
+      mid-word split bug this same method's docstring describes fixing.
+      Small once the actual byte sequence is captured.
+- [ ] **A pager prompt (`<A>bort, <CR> Continue...`) can go missing off the
+      bottom of the log until Enter is pressed**, reported directly as the
+      last row of output appearing twice and the pager prompt itself
+      invisible until a keystroke -- read by the operator as the connection
+      having died. Likely related to the same `_flush_incoming`/CR-handling
+      area above (a no-trailing-newline prompt sits in the pending buffer
+      until the 0.2 s idle timer or `final=True` flush fires) rather than
+      `RichLog` auto-scroll, which is already on
+      (`auto_scroll=True` in `terminal_pane.py`'s compose). Needs the same
+      real byte capture as the item above before attempting a fix --
+      likely the same root cause, not two bugs. Small-medium once diagnosed.
+- [ ] **Hiding and re-revealing the contacts (Address Book) slide-out does
+      not reflow already-wrapped scrollback.** This is `WrapLog`'s
+      documented, deliberate limitation (`kissterm/ui/wraplog.py`'s module
+      docstring: "This only affects lines written *after* the resize --
+      `RichLog` never re-wraps what it has already rendered, and reflowing
+      the whole scrollback on every resize is not worth it") -- requested
+      directly as a real papercut, not a hypothetical. Revisiting means
+      re-rendering the buffered `(renderable, expand)` pairs `TerminalPane`
+      already keeps per session (`_buffers`/`_append`, same module) into the
+      log on every resize instead of only appending forward. Needs to be
+      cheap enough not to stutter on a wide resize with a full scrollback --
+      profile before committing to it. Medium.
 - [ ] **ASCII-safe mode.** `Config.ascii_safe` and its Settings toggle
   already exist, and `doctor.py` already suggests turning it on for a
   non-UTF-8 locale -- but no code anywhere reads `config.ascii_safe` to
@@ -266,6 +314,16 @@ entries. What's still open:
   browser via `textual serve`, useful for operating a home-station TNC from
   elsewhere. Small — mostly confirming nothing in the transport layer assumes
   a local TTY.
+- [ ] **Named, switchable config profiles.** Outpost stores its settings as
+  named "Profiles" (e.g. `Outpost`, `Personal`, `Winlink`) switchable from a
+  dropdown on the main toolbar, with a per-switch save policy (always /
+  prompt / never) so a shared EOC-station install does not clobber another
+  operator's setup by accident. kissterm currently has exactly one
+  `config.toml`. Useful for the same reason it is in Outpost: a station PC
+  shared across operators or between a home setup and a tactical/EOC setup.
+  Lower priority than the items above — a real request would sharpen the
+  shape (multiple files vs. named sections in one file, whether Address
+  Book/transports are per-profile or shared). Medium.
 
 ## P7 — Packaging
 
@@ -368,6 +426,68 @@ Shipped in `[2026-09-10]` (see CHANGELOG, three entries): opt-in harvesting
 from a connected node (`kissterm/harvested.py`, `HarvestConfirmScreen`), a
 packet-terminology glossary sharing the Ctrl+R pane (`kissterm/glossary.py`),
 and per-node notes in the Address Book, shown on connect.
+
+Operator feedback on the shipped Ctrl+R pane, not yet acted on:
+
+- [ ] **Commands/Glossary should be tabs, not buttons.** `CommandReferenceScreen`
+      (`kissterm/ui/dialogs.py`) switches `self._mode` via two plain `Button`s
+      (`#ref-mode-commands`/`#ref-mode-glossary`) styled primary/default to show
+      which is active. Every other multi-view pane in this app uses a `Tabs`
+      strip for exactly this job (`_SessionTabs` in `terminal_pane.py`,
+      `_ConvoTabs` in `aprs_pane.py`) -- this screen is the odd one out and
+      should match. Small.
+- [ ] **Switching Commands/Glossary should clear the search filter.**
+      `CommandReferenceScreen._switch_mode` re-populates the table with
+      `search.value` carried over from the mode just left (`kissterm/ui/
+      dialogs.py`) -- a filter typed while looking for a command (say "help")
+      silently narrows the glossary too when the operator flips modes, and
+      it is not obvious why the list looks empty or wrong. Reset the `Input`
+      (and re-populate unfiltered) on every mode switch. Small.
+- [ ] **"Learn from node" gives no feedback while it runs, or after.**
+      `CommandReferenceScreen._harvest` (`kissterm/ui/dialogs.py`) awaits
+      `KissTermApp.harvest_commands` with nothing on screen to say a request
+      is in flight, and reported directly: the operator has no way to see
+      the node's actual reply short of switching to the Terminal or Monitor
+      tab, which defeats harvesting from inside this modal at all. Needs (1)
+      a visible "asking node..." state on the harvest button/row for the
+      round trip, and (2) the raw text the node sent back shown somewhere in
+      this screen -- even a collapsible raw-output area -- rather than only
+      the parsed table rows once caching finishes. Small-medium.
+- [ ] **Harvested BBS commands are shown mixed in with node-level commands,
+      with nothing to tell them apart.** Reported directly after a real
+      harvest: BBS commands (mail read/list/send) learned from inside a BBS
+      session landed in the same flat table as the node's own connect/link
+      commands, with no visual separation. This is the harvesting-time
+      version of the gap `bpq32.toml`'s own provenance comment already
+      flags for the *shipped* reference (`BBS`/`CHAT` are application names
+      sitting alongside real node commands at `"documented"` confidence) --
+      but harvesting makes it worse because the operator did not curate
+      which prompt they harvested from. `kissterm/harvested.py`'s stored
+      commands need a source/context field (node-level vs. an entered BBS
+      or other sub-application), and `_populate_commands`
+      (`kissterm/ui/dialogs.py`) needs to group or label rows by it rather
+      than one undifferentiated list. Medium.
+
+Feedback on the Tab-autocomplete strip shipped with the harvesting work:
+
+- [ ] **Tab should cycle through multiple matches, not just fill the one
+      top suggestion.** `TerminalPane.accept_suggestion`/`_current_suggestion`
+      (`kissterm/ui/terminal_pane.py`) track a single suggestion computed by
+      `_update_suggestions`; typing `B` and pressing Tab repeatedly has
+      nothing to cycle to even when several commands share that prefix
+      (`B`, `BBS`, `BYE`). Wants the classic shell-completion behaviour --
+      repeated Tab presses step through every match sharing the current
+      prefix before wrapping back to the first. Medium: needs the
+      suggestion state to hold an ordered candidate list and a cursor
+      into it, reset whenever the underlying prefix changes.
+- [ ] **Show a short description alongside each autocomplete candidate**,
+      e.g. "LM: List Mine", "LB: List bulletins" -- the shipped command
+      references already carry a `summary` field per command
+      (`kissterm/nodes/data/*.toml`, rendered as the "What it does" column
+      in `CommandReferenceScreen`), so this is surfacing data that already
+      exists in `#suggestion-strip`'s rendering
+      (`TerminalPane._update_suggestions`), not sourcing anything new.
+      Small.
 
 ## P9 — Unattended operation: mailbox, file drop, and alerts
 
@@ -586,3 +706,218 @@ operator's own callsign and licence. So:
       of headers over different stores; Files is a list too. One widget with
       a column spec beats three that drift apart -- the same argument that
       made `settings_schema.py` worth having. Mid.
+
+## P11 — Served-agency messaging: forms, traffic, tactical identity
+
+Researched from Outpost Packet Message Manager (`outpostpm.org`), the
+Windows application ARES/RACES/MARS teams already standardize on for
+exactly this niche -- source documents: `Ics213320UG.pdf` (ICS-213
+messaging), `OutpostQuickStart.pdf` (v3.7.0), and the site's own feature
+list. This phase is not "catch up to Outpost" for its own sake: served
+agencies (county OES, Red Cross, hospitals) expect specific, recognizable
+artifacts -- a filled ICS-213, a numbered radiogram -- out of whatever
+software a volunteer operator is running, and a net mixing kissterm and
+Outpost stations is a real scenario this project should not make harder.
+Producing a message an Outpost operator can read as the form it claims to
+be (and reading one Outpost sends the same way) is the actual goal, not
+merely having "a form feature" of kissterm's own invention.
+
+**Correction to an earlier version of this section**, which claimed no
+product named "PMX" existed. It does:
+**OutpostPMX** (`outpostpm.org/outpostx/indexopx.php`) is the successor
+suite, in public beta (`v2026.09.2-beta` as of this research) as two
+programs -- **OutpostX** (messaging, functionally the replacement for
+classic Outpost PM) and **OptermX** (a unified terminal covering Serial,
+Telnet, and AGWPE -- the same three-transport spread kissterm's own frame
+tier already covers). Written in modern Python and Qt, shipped as
+stand-alone executables needing no separate Python install, storing
+messages in SQLite, and -- unlike classic Outpost PM -- natively
+cross-platform: Windows 10/11, Linux x86-64, Linux ARM64 (Raspberry Pi
+OS), and macOS (Intel and ARM). Tested against JNOS, BPQMailChat, Winlink
+CMS packet gateways, and the Kantronics PBBS family. **Forms/ICS-213
+support is explicitly NOT yet in OutpostPMX either -- "ICS 213 Message
+Maker" is on its own planned-additions list, same as it is here.** That
+makes the forms work below a genuine opportunity, not just catch-up: a
+kissterm operator on a mixed net may have working forms before an
+OutpostPMX one does, not after.
+
+- [ ] **A form template system, modeled directly on the sibling `bpq-apps`
+      repo's `apps/forms.py` and `apps/forms/*.frm` -- port the design, not
+      just the idea.** That app is a *working, in-use* fillable-forms system
+      for a BPQ32 BBS: a `.frm` file is one JSON document (`id`, `title`,
+      `version`, `description`, `fields: [...]`), each field a `name` /
+      `label` / `type` / `required` / `description`, optionally
+      `max_length`, `default`, `default_now` (a `strftime` pattern for
+      auto-filled dates), `auto_fill: "callsign"`, and a `validate` rule
+      (`callsign`, `us_zip`, `phone`, `email`, `hhmm`, `city_state`,
+      `hx_code`, `nts_number` are all already implemented). Field types:
+      `text`, `textarea` (terminated by typing `/EX`, matching this
+      codebase's own YAPP/autobin-adjacent packet conventions), `yesno`
+      (Y/N/NA), and `choice` (a numbered pick-list). This is the same
+      "data, not code" pattern `kissterm/nodes/` and
+      `kissterm/aprs_services/` already use in this codebase for exactly
+      the same reason -- ship the form set as data, add one file per form,
+      never hand-write a screen per form. `kissterm/nodes/data/ics213.frm`
+      and `.../forms/ics309.frm` already exist in `bpq-apps` as a starting
+      field list (ICS-309 is a communications log, not covered anywhere in
+      this file before now) -- copy and adapt them rather than re-deriving
+      the ICS-213 field list from Outpost's PDF guide a second time. **Do
+      not port `forms.py`'s GitHub auto-download-on-every-launch
+      behaviour** -- that fits a script running on someone else's BBS shell
+      account with no local persistence story; it does not fit this
+      project's "ship it, cache it, never fetch it automatically" rule
+      already established for `nodes/` and `aprs_services/`. Ship the forms
+      as static package data and let an operator drop in a custom `.frm`
+      file locally, the same way a custom node reference would work.
+      Depends on the P10 Mail tab existing as somewhere to compose from and
+      land replies. Large.
+- [ ] **ICS-213 as the first shipped form**, using the field list above:
+      Incident Name, To/Position, From/Position, Subject, Message
+      (free-text), Priority, and (matching Outpost's own `Ics213mm.exe`
+      more closely than `bpq-apps`' flatter version) a linked Reply half
+      with its own Signature/Position/Date -- one message and its reply
+      share a single record, not two independent messages, and only the
+      half the local operator is producing is ever editable: a received
+      message's Message area is read-only, and the Reply area is editable
+      only after the operator explicitly starts a reply. Medium, once the
+      template system above exists.
+- [ ] **Strip-mode forms (MARS/SHARES convention) -- a capability Outpost
+      itself does not have, worth keeping.** `bpq-apps`' `strip.frm` and
+      `fill_strip_form` handle a different shape entirely: a
+      slash-separated "information request strip" (`ROSTER/CALL/NAME/
+      LOCATION//`) that the operator either pastes verbatim or picks from a
+      form's own built-in `template` field, then answers field-by-field,
+      producing a matching `TITLE/answer1/answer2//` response strip. Worth
+      its own field `type: "strip"` in the template schema (the roadmap
+      item above scopes `text`/`textarea`/`yesno`/`choice`; add this as a
+      fifth) rather than skipping it because Outpost has no equivalent --
+      it is real, still-used net-check traffic in MARS/SHARES circles.
+      Small once the template system exists.
+- [ ] **Plain-text output now; PackItForms/Winlink-Express wire compatibility
+      is a separate, later, lower-priority question.** `bpq-apps`'
+      `format_as_bpq_message` does not attempt to match Outpost's or
+      Winlink Express's PackItForms tagged-block encoding -- it renders a
+      filled form as an ordinary, human-readable text message body (field:
+      value pairs, or -- for NTS -- the standard radiogram layout below),
+      which is readable by *any* BBS mail client, PackItForms-aware or not.
+      That is the right first target here too: it is what was actually
+      asked for (a forms feature in kissterm's own BBS mail client, in the
+      same spirit as the never-transmit-on-selection APRS service-template
+      picker already shipped -- `AprsServiceScreen`, `kissterm/ui/
+      dialogs.py`), and it needs no reverse-engineering of a format neither
+      this project nor `bpq-apps` has ever captured a real sample of.
+      **If bit-for-bit PackItForms compatibility is wanted later** (so an
+      Outpost or Winlink Express operator's client renders the message as
+      a recognized form rather than plain text), that is its own future
+      item and this repo's usual rule still applies: source the actual
+      field-tag/delimiter format from PackItForms' own published templates
+      or a captured real message before writing an encoder, and mark
+      anything unconfirmed `# UNVERIFIED:`. Do not block the item above on
+      it.
+- [ ] **NTS / ARRL Radiogram format -- a working reference implementation
+      already exists in `bpq-apps`, port it rather than re-deriving it.**
+      `apps/forms.py`'s `format_nts_radiogram`, `normalize_nts_text`
+      (ARRL/Winlink prosign substitution: `,`/`!`/`;` -> `X`, `?` -> `INT`,
+      `&` -> `AND`, decimal points between digits -> `R`, hyphens between
+      words -> `X`), `count_nts_check` (the word-count check, including the
+      ARRL rule that a pure-digit group over 5 characters counts as
+      `ceil(len/5)` words), and the address-block sanitizer (`#` -> `NR`,
+      hyphens -> `DASH`, per NTS punctuation rules) are a complete,
+      already-in-use encoder for the numbered radiogram (station of
+      origin, check, place of origin, time filed, date, precedence, `BT`
+      breaks, 5-word-per-line body) plus its own ARL canned-message
+      catalog (`forms/arl_messages.json`, browsable by group) for the
+      common boilerplate messages. This is a different, older, and
+      equally-live standard from ICS-213 -- rigid fixed fields with a
+      word-count integrity check, vs. free text -- and Outpost's own
+      Message Settings treats it as a distinct message type for exactly
+      that reason (its own "skip NTS messages that I sent" BBS retrieval
+      filter). Porting working, already-field-tested Python beats
+      re-deriving the ARRL rules from documentation a second time; still
+      worth a real-traffic sanity check before calling it done, same as
+      every other unverified-on-the-air item in this file. Medium,
+      independent of the ICS-213 work above -- and with most of the actual
+      research risk already retired by the existing implementation.
+- [ ] **Tactical call / assignment identity.** Outpost's "Setups for
+      Tactical Operations" is a distinct, well-established ARES/RACES
+      convention worth its own item, not a variant of the P9 mailbox
+      alt-SSID idea: an operator logs into the BBS and addresses traffic
+      under an assignment name (`CUPEOC`, `K6SJC-1`) rather than their
+      personal callsign, so the *assignment* keeps a stable identity across
+      shift changes without every operator re-teaching the net their own
+      call. This is a real station-identification question, not a cosmetic
+      label: the TNC's MYCALL is set to the tactical call for BBS
+      interaction, and the *actual* licensed callsign still has to be
+      legally identified on the air periodically -- Outpost does this with
+      a scheduled unproto transmission of the real call. **Read this
+      project's own P9 regulatory-constraint note before building this** --
+      the same "needs checking against current rules by someone qualified"
+      caveat applies, and the periodic legal-ID transmission has to follow
+      every rule this file already has for unattended transmission
+      (opt-in, visible status marker, never silent, re-checked at send time
+      -- `kissterm/beacon.py` is the existing pattern to copy, not
+      reinvent). `Config.mycall_aliases`/`AX25Station.aliases`, already
+      used for P9's alt-SSID mailbox, is the wrong precedent to reach for
+      here -- that is a second *reachable* identity on the same station,
+      while a tactical call is what the *primary* connect and
+      mail-addressing identity resolves to until the operator changes it,
+      layered on top of (not replacing) the real MYCALL the state machine
+      still identifies with. Needs scoping against `ax25/session.py`'s
+      handling of `mycall` before estimating size. Medium-large.
+- [ ] **Message-ID numbering convention.** Outpost tags every outbound
+      subject line with a short prefix (3 characters, defaulting to the
+      last 3 of the callsign, or a tactical-call-derived prefix when one is
+      active), a sequence number, and an optional type-suffix letter (e.g.
+      `P` for Private), e.g. `6PE-2032P: Stevens Creek Dam Status` -- purely
+      a subject-line convention for human traceability across relays and
+      BBS forwarding, not a protocol field. Belongs in the P9/P10 mailbox
+      work as a formatting rule on outgoing mail (forms and radiograms
+      above need their own numbering fields regardless, per their own
+      standards) rather than a new subsystem. Small once the mailbox
+      exists.
+- [ ] **Delivery and read receipts.** Outpost can request, and
+      auto-answer, a Delivery Receipt (message was retrieved) and a Read
+      Receipt (message was opened) between two Outpost stations. A useful
+      mailbox feature independent of forms -- a net controller wants to
+      know traffic actually reached someone, not just that it left the
+      BBS. Fold into the P9/P10 mailbox item as an outgoing-message option
+      and an auto-reply rule, following the same "never silently suppress,
+      log what was sent" discipline as every other auto-transmission in
+      this file. Small-medium once the mailbox exists.
+
+### Adjacent nuance for the existing BBS/mailbox items above
+
+- **Scheduled, unattended send/receive.** Outpost's most-used feature in
+  practice is not manual Send/Receive -- it is a timer that connects to a
+  configured BBS every N minutes (or at fixed minutes past the hour),
+  sends queued outgoing mail, collects incoming mail per the retrieval
+  filters below, and disconnects, entirely without the operator present.
+  This is P9's existing "Auto-collect mail once a mailbox exists" item,
+  specifically automated on a timer rather than triggered only by a
+  "MAIL FOR" notice -- both should probably share one
+  connect-and-run-the-mail-script code path. Treat it exactly like the
+  beacon and answering-incoming features already in this file: **opt-in,
+  an enforced minimum interval (Outpost's own floor is 1 minute, but this
+  project's airtime rules argue for something closer to the beacon's
+  10-minute floor for anything that holds a connected-mode session, not
+  just an unproto frame), a visible status-bar marker for as long as it is
+  armed, and every line of the session logged as it happens** -- an
+  unattended SABM the operator did not witness is exactly the case
+  AGENTS.md's "Unattended transmission" section already exists to cover;
+  extend that section's rules to this case rather than writing new ones.
+  Depends on P5's BBS session helpers. Medium.
+- **BBS retrieval filtering, more specifically than P5 currently scopes
+  it.** Outpost's per-BBS retrieval setup separates Private / NTS /
+  Bulletin retrieval, can skip bulletins or NTS traffic the station itself
+  originated (so a station does not re-download its own outgoing mail),
+  offers three bulletin-retrieval modes (all new, a filtered keyword list
+  against the BBS's `List Filtered` command, or raw custom list commands
+  for BBS software -- JNOS named specifically -- whose listing commands do
+  not match the common convention), and defaults to *deleting* retrieved
+  private messages from the BBS (a documented real-world surprise for an
+  operator who expected the BBS to double as shared storage -- keeping
+  messages on the BBS after retrieval is an explicit opt-out, not the
+  default). Worth folding into P5's "BBS session helpers" item as the
+  concrete filter shape once that item is scoped, including which way
+  kissterm's own default should go, rather than building one
+  undifferentiated "get everything" collector.
