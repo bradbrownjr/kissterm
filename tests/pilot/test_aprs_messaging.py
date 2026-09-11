@@ -52,6 +52,19 @@ async def _send_message(theirs: AX25Station, addressee: str, text: str, number: 
     await theirs.transport.send_frame(frame, 0)
 
 
+async def _send_third_party(theirs: AX25Station, inner_source: str, inner_payload: bytes) -> None:
+    """`inner_payload` (already-encoded, e.g. `aprs.message(...)`/`aprs.ack(...)`)
+    wrapped in a third-party (`}`) relay header, the shape a message-relay
+    service with no RF presence of its own (WHO-IS, WXBOT) actually replies
+    in -- its own callsign never touches RF, only the igate's does.
+    `inner_source` deliberately need not be a legal AX.25 callsign (`WHO-IS`
+    is not one): that is exactly the case this unwrapping has to handle.
+    """
+    payload = b"}" + f"{inner_source}>APJIW4:".encode("ascii") + inner_payload
+    frame = aprs.beacon_frame(PEER, AX25Address.parse("APRS"), (), payload)
+    await theirs.transport.send_frame(frame, 0)
+
+
 def _terminal_text(app: KissTermApp) -> str:
     return "\n".join(
         str(line) for line in app.query_one(TerminalPane).query_one("#session-log").lines
@@ -201,6 +214,53 @@ async def test_an_ack_reply_marks_our_own_outgoing_message_acked(tmp_path):
         assert any(m.number == "42" and m.acked for m in convo.messages)
         # An ack is never itself worth an unattended notification.
         assert ("WS1EC-15", "message") not in app._aprs_notify_cooldown._last_fired
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_a_third_party_relayed_message_addressed_to_us_is_recorded_and_acked(tmp_path):
+    """WHO-IS/WXBOT-style services have no RF presence of their own: their
+    reply reaches us only wrapped in a third-party relay header (an igate's
+    callsign as the outer frame source, the service's own non-callsign
+    identity -- "WHO-IS" -- inside it). Before this, `_on_aprs_frame` only
+    ever matched `packet.kind == "message"` at the top level, so a wrapped
+    reply was never recorded or acked even though it decoded and displayed
+    fine in the "All" tab -- an answered query looked stuck retrying
+    forever. Source is the relay header's own text ("WHO-IS"), not the
+    igate that carried it, so the reply files under the same contact the
+    query was sent to.
+    """
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await _send_third_party(theirs, "WHO-IS", aprs.message("N1ABC-1", "found it", "9"))
+        for _ in range(20):
+            if "Auto-ack sent" in _terminal_text(app):
+                break
+            await pilot.pause()
+        convo = app.aprs_conversations.conversations["WHO-IS"]
+        assert convo.messages[0].direction == "in"
+        assert convo.messages[0].text == "found it"
+        assert any(m.direction == "out" and m.text == "ack9" for m in convo.messages)
+        assert "Auto-ack sent to WHO-IS (msg 9)" in _terminal_text(app)
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_a_third_party_relayed_ack_stops_a_pending_retry(tmp_path):
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        app.aprs_conversations.record_outgoing("WHO-IS", "N1ABC", number="7")
+        await _send_third_party(theirs, "WHO-IS", aprs.ack("N1ABC-1", "7"))
+        for _ in range(20):
+            convo = app.aprs_conversations.conversations.get("WHO-IS")
+            if convo and any(m.acked for m in convo.messages):
+                break
+            await pilot.pause()
+        assert any(m.number == "7" and m.acked for m in convo.messages)
     mine.close()
     theirs.close()
 

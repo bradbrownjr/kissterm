@@ -1104,9 +1104,34 @@ class KissTermApp(App):
                 _grid, lat, lon = found
                 self.heard.set_position(str(packet.source), lat, lon)
 
-        if packet.kind == "message" and isinstance(packet.data, aprs.Message):
-            msg = packet.data
-            source = str(packet.source)
+        # A message-relay service (WHO-IS, WXBOT, and message traffic
+        # generally crossing between RF and APRS-IS) commonly has no RF
+        # presence of its own: its ack and its reply reach us only as a
+        # third-party relay wrapping the real message, with the relay
+        # station (an igate) as the *outer* frame's source. Unwrapping it
+        # here is what `AprsPane.note_incoming`'s own docstring already
+        # promises -- "every message packet on the channel is recorded,
+        # third-party traffic included" -- but nothing before this actually
+        # did it: treating a wrapped ack/reply as "not a message" left an
+        # answered query stuck retrying forever, even though it decoded
+        # fine for the "All" tab's raw display below. `tp.source` (plain
+        # text, not `tp.inner.source`) is used as the correspondent identity
+        # for the same reason `format_packet` uses it for display -- the
+        # inner `AprsPacket.source` a third-party header without a valid
+        # AX.25 callsign (e.g. "WHO-IS") coerces to is the `NOCALL`
+        # placeholder, which would file the reply under the wrong contact.
+        message_packet, message_source = packet, str(packet.source)
+        if (
+            packet.kind == "third-party"
+            and isinstance(packet.data, aprs.ThirdParty)
+            and packet.data.inner.kind == "message"
+            and isinstance(packet.data.inner.data, aprs.Message)
+        ):
+            message_packet, message_source = packet.data.inner, packet.data.source
+
+        if message_packet.kind == "message" and isinstance(message_packet.data, aprs.Message):
+            msg = message_packet.data
+            source = message_source
             if not (msg.is_ack or msg.is_rej or msg.is_telemetry_definition):
                 self.aprs_conversations.record_incoming(source, msg.text, number=msg.number)
                 mycalls = [self.config.mycall, *self.config.mycall_aliases]

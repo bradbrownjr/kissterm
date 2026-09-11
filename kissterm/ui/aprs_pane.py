@@ -45,9 +45,11 @@ no mark at all and "who has written to me?" was answerable only from a toast
 that had already gone. A tab appears when the operator picks a contact,
 sends to a callsign, or receives a message **addressed to this station**
 (`note_incoming`); an unread one is marked `*` both on its tab and beside
-the callsign in the contacts table. The "All" tab is always left-most and
-active at launch, and deliberately shows third-party traffic too -- see
-`_show_all`.
+the callsign in the contacts table. Every conversation already on disk also
+gets its tab back at launch (`_restore_tabs`), unread markers aside -- the
+history in "All" outlives the process and the tabs above it should too. The
+"All" tab is always left-most and active at launch, and deliberately shows
+third-party traffic too -- see `_show_all`.
 """
 
 from __future__ import annotations
@@ -337,6 +339,42 @@ class AprsPane(Horizontal):
         )
         self.query_one("#aprs-contacts-column").display = False
         self.set_interval(_RETRY_CHECK_INTERVAL, self._check_retries)
+        self._restore_tabs()
+
+    def _restore_tabs(self) -> None:
+        """Reopen a tab for every conversation already on disk, oldest last
+        message first.
+
+        `self.app.aprs_conversations` is loaded from disk before the app
+        ever mounts a widget, but the tabs above it are pure session state --
+        so a station closing and reopening kissterm mid-conversation landed
+        back on a bare "All" with the history reachable only by re-picking
+        the contact, even though "the conversation remains in All" the whole
+        time. Restored via `_open_tab`, never `select_conversation`, so
+        nothing is activated and "All" stays the tab on screen at launch
+        (`compose`'s note on why that matters); oldest-last-activity first so
+        `_touch`'s ordering inside `_open_tab` leaves the most recently
+        active conversation as the most-recently-viewed one, exactly as if
+        the operator had just been looking at it. Capped by the same
+        `_make_room_for_a_tab` a live session already uses, so a station
+        with a long history does not restore more tabs than the strip is
+        meant to hold.
+        """
+        store = self.app.aprs_conversations  # type: ignore[attr-defined]
+        convos = sorted(
+            (c for c in store.conversations.values() if c.messages),
+            key=lambda c: c.last_activity,
+        )
+        for convo in convos:
+            callsign = convo.callsign
+            contact = self._contact_for(callsign)
+            if contact is not None:
+                title = f"{contact.name} ({contact.callsign})"
+            else:
+                service = aprs_services.lookup_callsign(callsign)
+                title = f"{service.name} ({service.callsign})" if service is not None else callsign
+            self._tab_titles[callsign] = title
+            self._open_tab(callsign)
 
     def on_resize(self) -> None:
         """Re-decide whether the contacts column is showing, and how wide.

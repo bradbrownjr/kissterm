@@ -3,6 +3,35 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — Third-party-relayed APRS messages (WHO-IS, WXBOT) now ack and file correctly; conversation tabs survive a restart
+
+### Bug Fixes
+- **A reply from a message-relay service with no RF presence of its own
+  (WHO-IS, WXBOT) was never recorded or acked, even though it decoded and
+  displayed fine in the "All" tab.** Those services reach RF only wrapped in
+  a third-party (`}`) relay header -- an igate's callsign as the outer
+  frame's source, the service's own identity (e.g. `WHO-IS`, not a legal
+  AX.25 callsign) inside it. `KissTermApp._on_aprs_frame` only ever matched
+  `packet.kind == "message"` at the top level, so a wrapped ack or reply
+  fell through to the generic "All"-tab-only display path instead of
+  `record_incoming`/`mark_acked` -- an answered query looked stuck retrying
+  forever in its own conversation tab, though "All" plainly showed the
+  reply. Now unwrapped the same way `format_packet` already unwraps for
+  display, filed under the relay header's own text (`WHO-IS`), and acked
+  exactly like a direct message. **Files:** `kissterm/ui/app.py`,
+  `tests/pilot/test_aprs_messaging.py`.
+
+### New Features
+- **APRS conversation tabs are restored from persisted history at launch.**
+  `ConversationStore` is a JSON file that outlives the process; the
+  per-callsign tabs above it did not, so restarting kissterm mid-conversation
+  landed back on a bare "All" with that same history reachable only by
+  re-picking the contact. `AprsPane._restore_tabs` (called from `on_mount`)
+  reopens a tab for every conversation already on disk, oldest last-activity
+  first, without activating any of them -- "All" stays the tab on screen at
+  launch, same as it does for a fresh incoming message.
+  **Files:** `kissterm/ui/aprs_pane.py`, `tests/pilot/test_aprs_conversation_tabs.py`.
+
 ## [2026-09-11] — Third-party APRS relays with a non-callsign source no longer display as "NOCALL"
 
 ### Bug Fixes

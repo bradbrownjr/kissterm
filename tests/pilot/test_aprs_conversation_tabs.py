@@ -310,6 +310,27 @@ async def test_an_unread_contact_is_starred_in_the_contact_table(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_restores_a_tab_for_every_conversation_already_on_disk(tmp_path):
+    """`ConversationStore` is persisted JSON and outlives the process; the
+    tabs above it did not, before `_restore_tabs` -- a station closing and
+    reopening kissterm mid-conversation landed back on a bare "All" with
+    that history reachable only by re-picking the contact, even though "the
+    conversation remains in All" the whole time. Restoring must not steal
+    "All" as the tab on screen at launch, the same rule an incoming message
+    already follows.
+    """
+    app, mine, theirs = await _app(tmp_path)
+    app.aprs_conversations.record_incoming("WHO-IS", "found it", number="1")
+    app.aprs_conversations.record_outgoing("WHO-IS", "KC1JMH", number="1")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        assert "WHO-IS" in _labels(app), _labels(app)
+        assert _tabs(app).active == _ALL_TAB
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_a_position_beacon_shows_as_a_readable_line_in_all(tmp_path):
     """A non-message packet (a position report here) has no correspondent
     and so never enters `ConversationStore` -- but it must still show up

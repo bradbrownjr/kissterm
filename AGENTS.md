@@ -996,6 +996,33 @@ again after a Settings save or a config reload.
   decode subscriber and message store it would depend on both exist, and the
   "All" tab above proves the missing half was human-readable output, not a
   second decode path.
+- **A third-party-wrapped message is unwrapped for ack-matching, not just
+  for display.** A message-relay service with no RF presence of its own
+  (WHO-IS, WXBOT, and message traffic generally crossing between RF and
+  APRS-IS) replies only wrapped in a third-party (`}`) relay header -- the
+  igate's own callsign as the outer frame's source, the service's identity
+  (`WHO-IS`, not a legal AX.25 callsign) as the header's own source text.
+  `_on_aprs_frame` checks `packet.data.inner` when `packet.kind ==
+  "third-party"` and its inner packet is a message, using `tp.source`
+  (plain text) as the correspondent rather than the outer frame's source or
+  the inner `AprsPacket.source` (which a non-callsign header text like
+  `WHO-IS` coerces to the `NOCALL` placeholder -- same reasoning
+  `format_packet` uses it for display, see the caveat below). This shipped
+  because treating a wrapped reply as "not a message" left an answered
+  query stuck retrying forever in its own conversation tab while "All"
+  plainly showed the reply landing. Any future per-kind handling keyed on
+  `packet.kind` at the top of `_on_aprs_frame` needs the same check, or it
+  silently only ever fires for direct RF traffic.
+- **APRS conversation tabs are restored from `ConversationStore` at
+  launch** (`AprsPane._restore_tabs`, called from `on_mount`), oldest
+  last-activity first, without activating any of them -- persisted history
+  outlives the process and the tabs above it should too. The retry queue
+  (`PendingAcks`) deliberately does NOT do the same and stays in-memory
+  only (see `aprs_conversations`'s own docstring): kissterm must never
+  resume transmitting into an old conversation just because it was
+  reopened, so a message still "sent"/"retry N" when the app closes is
+  correctly reported as `no ack` after a restart, not silently retried
+  again.
 - **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
   documents YAPP as a dead end because BPQ32's terminal emulation filters the
   control characters it needs — that limitation applies to apps running *under*
