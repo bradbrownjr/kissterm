@@ -60,8 +60,9 @@ ACTION_META: dict[str, ActionMeta] = {
     "find_in_terminal": ActionMeta("Terminal", 7),
     "clear_log": ActionMeta("Terminal", 8),
     "show_transcripts": ActionMeta("Terminal", 9),
-    "quit": ActionMeta("App", 10),
-    "show_tab": ActionMeta("Panes", 11),
+    "toggle_aprs_ssid_filter": ActionMeta("APRS", 10),
+    "quit": ActionMeta("App", 11),
+    "show_tab": ActionMeta("Panes", 12),
 }
 
 #: Used only as a runtime safety net (a crash rendering the Footer would take

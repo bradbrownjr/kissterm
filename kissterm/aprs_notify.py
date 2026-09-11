@@ -37,7 +37,7 @@ import time
 from dataclasses import dataclass
 
 from .aprs import AprsPacket, Message, Position
-from .monitor import callsign_matches
+from .monitor import aprs_message_matches
 
 __all__ = ["NotifyDecision", "evaluate_packet", "Cooldown"]
 
@@ -61,22 +61,46 @@ class NotifyDecision:
 
 
 def evaluate_packet(
-    packet: AprsPacket, mycall: str, aliases: list[str]
+    packet: AprsPacket,
+    mycall: str,
+    aliases: list[str],
+    *,
+    filter_by_ssid: bool = False,
+    active_identity: str = "",
 ) -> NotifyDecision | None:
     """A `NotifyDecision` for `packet`, or `None` if it warrants nothing.
 
     Callers pass every decoded packet through this; most return `None`
     immediately (an ordinary position report, a message to someone else, a
     non-Emergency Mic-E beacon) and that is the expected, common case.
+
+    `filter_by_ssid`/`active_identity` are `Config.aprs.filter_by_ssid`
+    and `Config.aprs.source_for(mycall)` (stringified) -- see
+    `kissterm.monitor.aprs_message_matches`'s docstring for what they
+    decide. Passed through so a desktop notification never fires for a
+    message the pane/auto-ack path just correctly decided was not for
+    THIS station's SSID. **Defaults to the OLD, SSID-agnostic behaviour**
+    (`False`) rather than `Config.aprs.filter_by_ssid`'s own product
+    default of `True` -- this is a pure function with no `Config` of its
+    own to read, and `kissterm/ui/app.py`'s real call site always passes
+    both explicitly from the live config. The default here only governs a
+    caller with no config handy at all (a test, a REPL), and must keep
+    matching what it always has rather than silently start filtering
+    messages a caller never asked to filter.
     """
     source = str(packet.source)
-    mycalls = [mycall, *aliases]
 
     if packet.kind == "message" and isinstance(packet.data, Message):
         msg = packet.data
         if msg.is_ack or msg.is_rej or msg.is_telemetry_definition:
             return None
-        if not callsign_matches(msg.addressee, mycalls):
+        if not aprs_message_matches(
+            msg.addressee,
+            mycall,
+            aliases,
+            filter_by_ssid=filter_by_ssid,
+            active_identity=active_identity,
+        ):
             return None
         return NotifyDecision(
             title=f"APRS message from {source}",

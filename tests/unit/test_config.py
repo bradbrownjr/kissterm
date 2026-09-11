@@ -55,6 +55,7 @@ def test_defaults_load_with_no_file(tmp_path):
     assert cfg.theme == "tokyo-night"
     assert cfg.ascii_safe is False
     assert cfg.aprs.enabled is False
+    assert cfg.aprs.filter_by_ssid is True
     assert cfg.aprs.path == "WIDE1-1,WIDE2-1"
     assert cfg.autoconnect == []
 
@@ -187,6 +188,17 @@ def test_save_load_round_trips_every_field(tmp_path):
     assert loaded.aprs == original.aprs
     assert loaded.autoconnect == original.autoconnect
     assert loaded.credentials == original.credentials
+
+
+def test_aprs_ssid_filter_can_be_disabled_and_round_trips(tmp_path):
+    """The compatibility opt-out is a real persisted operator preference."""
+    path = tmp_path / "config.toml"
+    cfg = kconfig.Config()
+    cfg.aprs.filter_by_ssid = False
+
+    kconfig.save_config(cfg, path=path)
+
+    assert kconfig.load_config(path=path).aprs.filter_by_ssid is False
 
 
 def test_atomic_save_leaves_no_temp_file_behind(tmp_path):

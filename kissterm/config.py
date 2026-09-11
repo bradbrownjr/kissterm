@@ -135,6 +135,21 @@ class AprsConfig:
     #: degrades to empty with a warning rather than putting an illegal
     #: address on the air.
     ssid: str = ""
+    #: Whether an incoming APRS message must be addressed to this
+    #: station's EXACT identity (base call plus `ssid` above, or one of
+    #: `Config.mycall_aliases` verbatim) to count as "for me" -- deciding
+    #: whether it opens a tab, gets auto-acked, or raises a notification.
+    #: On by default: confirmed against a real station (see
+    #: `kissterm.monitor.aprs_message_matches`'s docstring) that this is
+    #: how APRS clients actually behave, and matches what most operators
+    #: expect -- a message to a DIFFERENT SSID of the same base call is a
+    #: different logical persona (a mobile "-9" while this session runs
+    #: "-5", say), not this one. Off falls back to the SSID-agnostic
+    #: leniency `callsign_matches` still uses everywhere else (MAIL FOR
+    #: beacons, an operator's other stated identity checks) -- an explicit
+    #: opt-out for an operator who wants every message to any SSID of
+    #: their call answered from one running session.
+    filter_by_ssid: bool = True
 
     def source_for(self, mycall: str):
         """The `AX25Address` APRS traffic should be sent from.
@@ -859,6 +874,7 @@ def _load_aprs(value: Any, warnings: list[str]) -> AprsConfig:
     aprs.grid_square = _load_str(value, "grid_square", default.grid_square, warnings)
     aprs.winlink_check = _load_bool(value, "winlink_check", default.winlink_check, warnings)
     aprs.ssid = _load_aprs_ssid(value, warnings)
+    aprs.filter_by_ssid = _load_bool(value, "filter_by_ssid", default.filter_by_ssid, warnings)
 
     return aprs
 

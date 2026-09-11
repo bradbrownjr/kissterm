@@ -306,6 +306,13 @@ port = 0
 [aprs]
 enabled = false
 
+# Only auto-ack, open a conversation, or notify for messages addressed to
+# this station's exact APRS identity (including SSID). This prevents a session
+# running as N0CALL-5 from answering traffic intended for N0CALL-9, which is a
+# different on-air persona. Set false only when one session deliberately
+# handles messages for every SSID of this callsign.
+filter_by_ssid = true
+
 # How often to send a position beacon, in minutes. Every 30 minutes is a
 # reasonable default for a fixed station; a mobile station moving quickly
 # should beacon more often, but beaconing too often on a shared frequency is

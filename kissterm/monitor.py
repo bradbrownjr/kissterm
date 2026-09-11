@@ -163,6 +163,54 @@ def callsign_matches(candidate: str, callsigns: Iterable[str]) -> bool:
     return candidate in wanted_full or candidate.split("-")[0] in wanted_base
 
 
+def aprs_message_matches(
+    addressee: str,
+    mycall: str,
+    aliases: Iterable[str],
+    *,
+    filter_by_ssid: bool,
+    active_identity: str,
+) -> bool:
+    """Whether an incoming APRS message's addressee field is meant for
+    THIS station, as opposed to `callsign_matches`'s general "is this
+    callsign one of mine" question above.
+
+    Confirmed live against a real LinBPQ station (direct RF, cross-checked
+    against its own delivery log): a real APRS client's own message
+    tracking requires an EXACT address match, SSID included -- a message
+    to this station's bare call while it runs an SSID override is Failed
+    by the sender's tracker even once kissterm answers it, because the
+    sender is watching for a reply from the identity it actually sent to,
+    not from "any SSID of the same base call". `callsign_matches`'s own
+    SSID-stripping leniency (still exactly right for `mail_waiting_for`,
+    an entirely different question -- "is a MAIL FOR beacon talking about
+    me at all") is the wrong default here for the same reason: if this
+    session runs as `KC1JMH-5`, a message addressed to `KC1JMH-9` is
+    someone else's mobile persona, not this one, and answering it under an
+    identity it was never sent to is the exact cross-talk a typical APRS
+    client's own SSID filtering exists to prevent.
+
+    `filter_by_ssid=True` (`Config.aprs.filter_by_ssid`, on by default)
+    requires `addressee` to exactly equal `active_identity` -- this
+    station's real, currently-transmitted APRS identity
+    (`Config.aprs.source_for`) -- or one of `aliases` verbatim (an alias
+    is a deliberately declared second identity, e.g. a mailbox on `-1`
+    while the main session runs bare -- see `Config.mycall_aliases` --
+    and is matched exactly for the same reason, not SSID-stripped).
+    `filter_by_ssid=False` falls back to `callsign_matches`'s leniency,
+    kept as an explicit opt-out for an operator who wants to see
+    everything sent to any SSID of their call.
+    """
+    if filter_by_ssid:
+        candidate = addressee.strip().upper()
+        if not candidate:
+            return False
+        wanted = {active_identity.strip().upper()}
+        wanted.update(a.strip().upper() for a in aliases if a)
+        return candidate in wanted
+    return callsign_matches(addressee, [mycall, *aliases])
+
+
 def mail_waiting_for(text: str, callsigns: Iterable[str]) -> str | None:
     """The matched callsign if `text` announces mail waiting for one of them.
 

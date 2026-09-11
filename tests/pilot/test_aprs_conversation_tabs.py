@@ -107,7 +107,7 @@ async def test_a_message_to_us_opens_a_tab_and_marks_it_unread(tmp_path):
     app, mine, theirs = await _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
-        await _send_message(theirs, "WS1EC-15", "N1ABC", "are you there")
+        await _send_message(theirs, "WS1EC-15", "N1ABC-1", "are you there")
         await _settle(pilot)
 
         assert "*WS1EC-15" in _labels(app), _labels(app)
@@ -145,7 +145,7 @@ async def test_activating_a_tab_clears_the_mark_and_shows_that_conversation(tmp_
     app, mine, theirs = await _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
-        await _send_message(theirs, "WS1EC-15", "N1ABC", "are you there")
+        await _send_message(theirs, "WS1EC-15", "N1ABC-1", "are you there")
         await _settle(pilot)
         assert "*WS1EC-15" in _labels(app)
 
@@ -173,7 +173,7 @@ async def test_a_message_from_the_station_on_screen_is_not_unread(tmp_path):
         app.query_one(AprsPane).select_conversation("WS1EC-15", "WS1EC-15")
         await _settle(pilot, 5)
 
-        await _send_message(theirs, "WS1EC-15", "N1ABC", "still here")
+        await _send_message(theirs, "WS1EC-15", "N1ABC-1", "still here")
         await _settle(pilot)
 
         assert app.query_one(AprsPane)._unread == set()
@@ -188,7 +188,7 @@ async def test_the_all_tab_merges_more_than_one_callsign(tmp_path):
     app, mine, theirs = await _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
-        await _send_message(theirs, "WS1EC-15", "N1ABC", "first one", number="1")
+        await _send_message(theirs, "WS1EC-15", "N1ABC-1", "first one", number="1")
         await _settle(pilot, 8)
         await _send_message(theirs, "K1XYZ-7", "N1ABC", "second one", number="2")
         await _settle(pilot)
@@ -297,7 +297,7 @@ async def test_an_unread_contact_is_starred_in_the_contact_table(tmp_path):
         table = app.query_one("#aprs-contact-table", DataTable)
         assert str(table.get_cell_at((0, 0))) == "WS1EC-15"
 
-        await _send_message(theirs, "WS1EC-15", "N1ABC", "are you there")
+        await _send_message(theirs, "WS1EC-15", "N1ABC-1", "are you there")
         await _settle(pilot)
 
         assert str(table.get_cell_at((0, 0))) == "*WS1EC-15"
@@ -352,7 +352,7 @@ async def test_ctrl_l_on_all_clears_packet_lines_and_every_conversation(tmp_path
         )
         await theirs.transport.send_frame(frame, 0)
         await _settle(pilot)
-        await _send_message(theirs, "WS1EC-15", "N1ABC", "are you there")
+        await _send_message(theirs, "WS1EC-15", "N1ABC-1", "are you there")
         await _settle(pilot)
         assert any("49.0500" in line for line in _log_lines(app))
 
@@ -372,7 +372,7 @@ async def test_ctrl_l_on_a_conversation_tab_deletes_only_that_conversation(tmp_p
     app, mine, theirs = await _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
-        await _send_message(theirs, "WS1EC-15", "N1ABC", "are you there")
+        await _send_message(theirs, "WS1EC-15", "N1ABC-1", "are you there")
         await _settle(pilot)
         app.aprs_conversations.record_incoming("K1XYZ", "hello from someone else", number=None)
         app.query_one(AprsPane).select_conversation("WS1EC-15", "WS1EC-15")

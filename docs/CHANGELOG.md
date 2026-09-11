@@ -3,6 +3,33 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — APRS messages are now filtered to your exact SSID by default
+
+### New Features
+- **An incoming APRS message only counts as "addressed to me" if it
+  matches this station's exact configured identity (SSID included), on
+  by default.** Requested directly, after a real-station investigation
+  turned up a BULLETIN addressed to a `-9` SSID this session was not
+  running as: "APRS applications typically filter out messages not
+  destined for that SSID." Before this, any SSID (or none) of your
+  callsign was treated as "for me" -- correct for a MAIL FOR beacon, but
+  not for a message, where a different SSID is usually a different
+  logical persona (a mobile "-9" while this session runs "-5", say). A
+  message that does not match is still recorded (every message packet
+  always is, visible in the "All" tab) but is not auto-acked, does not
+  open a tab, and raises no notification. Off (**Ctrl+Shift+F**, or the
+  new Settings checkbox) restores the old, lenient behaviour for an
+  operator who wants one session to answer for every SSID of their
+  call. `kissterm.monitor.aprs_message_matches` is the single place this
+  decision lives, shared by the auto-ack/tab path and the desktop-
+  notification path so the two can never disagree.
+  **Files:** `kissterm/monitor.py`, `kissterm/config.py`,
+  `kissterm/aprs_notify.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/commands.py`, `kissterm/ui/settings_schema.py`,
+  `config.toml.example`, `tests/unit/test_aprs_message_matches.py`,
+  `tests/unit/test_config.py`, `tests/pilot/test_aprs_messaging.py`,
+  `tests/pilot/test_aprs_conversation_tabs.py`, `AGENTS.md`.
+
 ## [2026-09-11] — A blocked auto-ack now tells the operator, instead of only the debug log
 
 ### New Features

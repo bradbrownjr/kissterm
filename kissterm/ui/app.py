@@ -134,7 +134,7 @@ from .. import aprs
 from ..aprs_conversations import ConversationStore
 from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import AX25Station, parse_path
-from ..ax25.address import AX25Address
+from ..ax25.address import AX25Address, AX25AddressError
 from ..aprs_beacon import AprsBeaconer
 from ..beacon import Beaconer
 from ..config import AprsConfig, BeaconConfig, find_credential, find_script
@@ -143,7 +143,7 @@ from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
 from ..hotplug import PortEvent, SerialPortWatcher
 from ..locator import find_grid_in_text
-from ..monitor import MonitorFilter, callsign_matches, format_frame, mail_waiting_for, sanitize
+from ..monitor import MonitorFilter, aprs_message_matches, format_frame, mail_waiting_for, sanitize
 from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError, TransportState
 from ..tx import DISABLED_MESSAGE, TransmitGate
@@ -684,6 +684,17 @@ class KissTermApp(App):
         Binding("ctrl+o", "show_transcripts", "Transcripts"),
         # The universal "Find" mnemonic (every browser, every editor).
         Binding("ctrl+f", "find_in_terminal", "Find"),
+        # Ctrl+SHIFT+F, not plain Ctrl+F, because plain Ctrl+F is "Find"
+        # right above -- same reason Beacon/Disconnect use Ctrl+Shift+
+        # rather than collide with an existing key. UNLIKE those two,
+        # there is no safe hidden legacy fallback to add here: on a
+        # terminal without the kitty/CSI-u enhanced keyboard protocol,
+        # Ctrl+Shift+F collapses to the same byte as Ctrl+F, and a
+        # fallback bound to "ctrl+f" would just steal Find's key instead
+        # of adding this one. On such a terminal this toggle is reachable
+        # only through Settings -- same trade-off already accepted for
+        # Ctrl+K (Callsign) above, not worth solving until reported.
+        Binding("ctrl+shift+f", "toggle_aprs_ssid_filter", "SSID Filter", key_display="^F"),
     ]
 
     def __init__(
@@ -1076,6 +1087,22 @@ class KissTermApp(App):
     # ------------------------------------------------------------------
     # APRS: message history, auto-ack, and Emergency/message notification
     # ------------------------------------------------------------------
+    def _active_aprs_identity(self) -> str:
+        """This station's real, currently-transmitted APRS identity
+        (`Config.aprs.source_for`, stringified) -- what `aprs_message_matches`
+        requires an exact match against when `Config.aprs.filter_by_ssid`
+        is on. Falls back to the bare configured callsign on a parse
+        failure rather than raising: this runs from the frame fan-out,
+        and a malformed `mycall` must not take the whole handler down
+        with it (AGENTS.md's "never let a decode error raise out of a
+        background task" rule).
+        """
+        mycall = str(self.station.mycall) if self.station is not None else self.config.mycall
+        try:
+            return str(self.config.aprs.source_for(mycall))
+        except AX25AddressError:
+            return mycall
+
     async def _on_aprs_frame(self, frame: AX25Frame, port: int = 0) -> None:
         """Decode one frame as APRS, if it is APRS at all.
 
@@ -1143,8 +1170,13 @@ class KissTermApp(App):
             source = message_source
             if not (msg.is_ack or msg.is_rej or msg.is_telemetry_definition):
                 self.aprs_conversations.record_incoming(source, msg.text, number=msg.number)
-                mycalls = [self.config.mycall, *self.config.mycall_aliases]
-                to_me = callsign_matches(msg.addressee, mycalls)
+                to_me = aprs_message_matches(
+                    msg.addressee,
+                    self.config.mycall,
+                    self.config.mycall_aliases,
+                    filter_by_ssid=self.config.aprs.filter_by_ssid,
+                    active_identity=self._active_aprs_identity(),
+                )
                 if to_me:
                     if getattr(self.config, "aprs_auto_ack", True) and msg.number:
                         await self._send_aprs_ack(source, msg.number, port)
@@ -1176,7 +1208,13 @@ class KissTermApp(App):
             # kind only ever needs a case added there (AGENTS.md sec. 2b).
             self._note_aprs_packet(aprs.format_packet(packet))
 
-        decision = evaluate_packet(packet, self.config.mycall, self.config.mycall_aliases)
+        decision = evaluate_packet(
+            packet,
+            self.config.mycall,
+            self.config.mycall_aliases,
+            filter_by_ssid=self.config.aprs.filter_by_ssid,
+            active_identity=self._active_aprs_identity(),
+        )
         if decision is None:
             return
         if not self._aprs_notify_cooldown.allow(decision.key, urgent=decision.urgent):
@@ -1274,13 +1312,15 @@ class KissTermApp(App):
         other piece of APRS traffic this station originates uses -- and
         deliberately NOT from whatever text the sender happened to put in
         the addressee field. A station has one consistent on-air identity;
-        "a message to my bare call should still reach me when I run an
-        SSID" is already handled on the *receiving* side, by
-        `callsign_matches` stripping SSID before `to_me` is even decided
-        (see `_on_aprs_frame` above) -- that is the one place the SSID
-        forgiveness belongs. An earlier version of this method instead
-        transmitted the ack under `Message.addressee` verbatim, reasoning
-        that a peer's own message-tracking must be matching the ack's
+        whether a message not addressed to that exact identity still
+        counts as "for me" at all is `aprs_message_matches`'s decision
+        (`_on_aprs_frame` above, gated on `Config.aprs.filter_by_ssid`) --
+        that is the one place any SSID forgiveness belongs, and by
+        default (as of `filter_by_ssid`'s introduction) there is none: an
+        exact match is required, matching how a real APRS client's own
+        message-tracking behaves. An earlier version of this method
+        instead transmitted the ack under `Message.addressee` verbatim,
+        reasoning that a peer's own message-tracking must be matching the ack's
         source callsign+SSID against exactly what it addressed. That
         reasoning does not hold: it made kissterm transmit under an
         identity (an arbitrary SSID, or none) that is not actually this
@@ -2247,6 +2287,30 @@ class KissTermApp(App):
         if self.config.aprs.enabled and not self.gate.enabled:
             message += " Ctrl+T to transmit."
         self.notify(message)
+
+    def action_toggle_aprs_ssid_filter(self) -> None:
+        """Flip `Config.aprs.filter_by_ssid` (Ctrl+Shift+F) -- see
+        `aprs_message_matches`'s docstring for what it decides. A plain
+        toggle, not a transmission, so none of the transmit-gate rules
+        apply -- this only changes which already-received messages count
+        as "for me".
+
+        Named in plain language the operator asked for by name -- "an
+        exact SSID match" and "TX BLOCKED" mean nothing to someone new to
+        packet, so the toast says who this station currently answers as.
+        """
+        self.config.aprs.filter_by_ssid = not self.config.aprs.filter_by_ssid
+        self._save_config()
+        if self.config.aprs.filter_by_ssid:
+            self.notify(
+                f"APRS SSID filter ON -- only answering messages addressed to "
+                f"{self._active_aprs_identity()} exactly."
+            )
+        else:
+            self.notify(
+                "APRS SSID filter OFF -- answering messages addressed to any "
+                f"SSID of {self.config.mycall}."
+            )
 
     #: Where focus goes when a tab is opened, so the operator can act
     #: immediately: type at the node, type a message, search the monitor.

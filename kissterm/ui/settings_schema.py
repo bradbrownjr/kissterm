@@ -212,6 +212,19 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 placeholder="e.g. 9",
             ),
             Field(
+                "aprs.filter_by_ssid",
+                "Only answer messages to my exact SSID",
+                "bool",
+                "On by default, matching how most APRS apps behave: a "
+                "message addressed to a different SSID of your callsign "
+                "(someone else's mobile or handheld persona, say) is "
+                "ignored by this session rather than answered under an "
+                "identity it was never sent to. Turn off to answer a "
+                "message sent to ANY SSID of your callsign -- Ctrl+Shift+F "
+                "toggles this without opening Settings.",
+                apply="live",
+            ),
+            Field(
                 "aprs.beacon_interval_minutes",
                 "Beacon every (min)",
                 "int",

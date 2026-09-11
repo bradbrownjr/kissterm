@@ -1092,6 +1092,36 @@ again after a Settings save or a config reload.
   "message addressed to me" notice) keys on `(addressee, number)` so a
   sender's own retries -- typically every 30-90 seconds -- do not
   repaint the same warning on top of itself.
+- **`Config.aprs.filter_by_ssid` (on by default) requires an incoming
+  APRS message to match this station's EXACT identity to count as "for
+  me" -- a message to a different SSID of the same base call is a
+  different logical persona and is recorded (every message packet
+  always is) but not auto-acked, tabbed, or notified.**
+  `kissterm.monitor.aprs_message_matches` is the one place this
+  decision lives, called from both `_on_aprs_frame`'s `to_me` and
+  `aprs_notify.evaluate_packet` so the pane/auto-ack path and the
+  desktop-notification path can never disagree about what "addressed to
+  me" means. Requested directly, prompted by the LinBPQ investigation
+  above turning up a BULLETIN log entry addressed to a `-9` SSID this
+  session was not running as: "APRS applications typically filter out
+  messages not destined for that SSID" -- most real APRS clients only
+  ever run one identity at a time and naturally behave this way; this
+  station previously did not, because `callsign_matches`'s SSID-
+  stripping leniency (still exactly correct for MAIL FOR beacons, an
+  unrelated question) was also being applied here as the ONLY option.
+  `filter_by_ssid=False` is the explicit, still-supported opt-out for an
+  operator who wants one running session to answer for every SSID of
+  their call. Toggled live with **Ctrl+Shift+F** (`action_toggle_
+  aprs_ssid_filter`) -- not plain Ctrl+F, which is already "Find"; unlike
+  Beacon/Disconnect's Ctrl+Shift+ pattern there is no safe hidden legacy
+  fallback to add for a terminal that collapses the two, since a
+  fallback bound to plain `ctrl+f` would just steal Find's key -- same
+  accepted trade-off as Ctrl+K (Callsign) elsewhere in this file. A
+  desktop-notify caller with no `Config` at all (a test, a REPL) still
+  gets the OLD SSID-agnostic default if it does not pass
+  `filter_by_ssid`/`active_identity` explicitly -- `evaluate_packet`'s
+  own function-level default is deliberately the opposite of
+  `Config.aprs.filter_by_ssid`'s product default, see its docstring.
 - **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
   documents YAPP as a dead end because BPQ32's terminal emulation filters the
   control characters it needs — that limitation applies to apps running *under*

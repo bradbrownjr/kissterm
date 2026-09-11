@@ -76,7 +76,10 @@ async def test_a_message_addressed_to_me_is_recorded_and_auto_acked(tmp_path):
     app, mine, theirs = await _app(tmp_path)
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        await _send_message(theirs, "N1ABC", "hello there", "1")
+        # "N1ABC-1" exactly -- MYCALL, with no `aprs.ssid` override set, so
+        # this station's active APRS identity is its bare AX.25 one.
+        # `filter_by_ssid` defaults on, requiring an exact match.
+        await _send_message(theirs, "N1ABC-1", "hello there", "1")
         for _ in range(20):
             if "Auto-ack sent" in _terminal_text(app):
                 break
@@ -99,19 +102,20 @@ async def test_auto_ack_transmits_under_the_configured_aprs_ssid_not_the_address
     originates -- an ack must transmit under `Config.aprs.source_for`, the
     same identity a beacon or a fresh outgoing message uses, regardless of
     what SSID (or lack of one) the sender happened to address the message
-    to. "A message to my bare call should still reach me when I run an
-    SSID" is handled entirely on the receiving side, by `callsign_matches`
-    stripping SSID before `to_me` is decided -- it must never make the ack
-    transmit under a different identity than this station actually has.
+    to. With `filter_by_ssid` off (an operator opting into the lenient,
+    SSID-agnostic match), "a message to my bare call should still reach
+    me when I run an SSID" must never also steer the ack's own
+    transmitted identity.
     """
     app, mine, theirs = await _app(tmp_path)
     app.config.aprs.ssid = "5"
+    app.config.aprs.filter_by_ssid = False
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         # Bare "N1ABC" -- neither `mine`'s own AX.25 identity (N1ABC-1) nor
         # the configured APRS SSID (N1ABC-5) -- still matches via
-        # `callsign_matches`'s SSID stripping, but must not steer the ack's
-        # own transmitted identity.
+        # `aprs_message_matches`'s SSID-agnostic fallback with the filter
+        # off, but must not steer the ack's own transmitted identity.
         await _send_message(theirs, "N1ABC", "hello", "1")
         for _ in range(20):
             if "Auto-ack sent" in _terminal_text(app):
@@ -139,7 +143,7 @@ async def test_a_blocked_auto_ack_notifies_the_operator_instead_of_dropping_sile
     app.notify = lambda message, *args, **kwargs: seen.append(message)
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        await _send_message(theirs, "N1ABC", "hello", "1")
+        await _send_message(theirs, "N1ABC-1", "hello", "1")
         for _ in range(20):
             if seen or "needs an ack" in _terminal_text(app):
                 break
@@ -166,8 +170,8 @@ async def test_a_blocked_auto_ack_does_not_repaint_the_same_warning_on_every_ret
     app.notify = lambda message, *args, **kwargs: seen.append(message)
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        await _send_message(theirs, "N1ABC", "hello", "1")
-        await _send_message(theirs, "N1ABC", "hello", "1")
+        await _send_message(theirs, "N1ABC-1", "hello", "1")
+        await _send_message(theirs, "N1ABC-1", "hello", "1")
         for _ in range(20):
             if seen:
                 break
@@ -277,7 +281,7 @@ async def test_no_auto_ack_when_disabled_in_config(tmp_path):
     app, mine, theirs = await _app(tmp_path, aprs_auto_ack=False)
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        await _send_message(theirs, "N1ABC", "hello", "1")
+        await _send_message(theirs, "N1ABC-1", "hello", "1")
         for _ in range(10):
             await pilot.pause()
         convo = app.aprs_conversations.conversations["WS1EC-15"]
@@ -295,7 +299,7 @@ async def test_a_closed_transmit_gate_blocks_the_ack_and_never_reports_it_sent(t
     app, mine, theirs = await _app(tmp_path, tx_armed=False)
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        await _send_message(theirs, "N1ABC", "hello", "1")
+        await _send_message(theirs, "N1ABC-1", "hello", "1")
         for _ in range(10):
             await pilot.pause()
         convo = app.aprs_conversations.conversations["WS1EC-15"]
@@ -410,5 +414,63 @@ async def test_an_emergency_mic_e_beacon_fires_the_notification_cooldown_key(tmp
                 break
             await pilot.pause()
         assert calls == [("APRS EMERGENCY -- WS1EC-15", "Mobile", True)]
+    mine.close()
+    theirs.close()
+
+
+# -- Config.aprs.filter_by_ssid (Ctrl+Shift+F) --------------------------
+
+
+@pytest.mark.asyncio
+async def test_filter_on_by_default_ignores_a_message_to_a_different_ssid(tmp_path):
+    """Confirmed against a real LinBPQ station (see AGENTS.md): this is
+    real APRS behaviour, not a hypothesis. `mine` runs as N1ABC-1; a
+    message to bare N1ABC is a different logical identity and must not be
+    auto-acked, even though it is still recorded (every message packet is,
+    regardless of who it is addressed to)."""
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await _send_message(theirs, "N1ABC", "hello", "1")
+        for _ in range(10):
+            await pilot.pause()
+        assert "Auto-ack sent" not in _terminal_text(app)
+        convo = app.aprs_conversations.conversations["WS1EC-15"]
+        assert convo.messages[0].direction == "in"
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_shift_f_toggles_the_filter_and_notifies_in_plain_language(tmp_path):
+    app, mine, theirs = await _app(tmp_path)
+    assert app.config.aprs.filter_by_ssid is True
+    seen = []
+    app.notify = lambda message, *args, **kwargs: seen.append(message)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+shift+f")
+        assert app.config.aprs.filter_by_ssid is False
+        assert any("SSID filter OFF" in m for m in seen)
+        seen.clear()
+        await pilot.press("ctrl+shift+f")
+        assert app.config.aprs.filter_by_ssid is True
+        assert any("SSID filter ON" in m for m in seen)
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_turning_the_filter_off_lets_a_message_to_a_different_ssid_get_acked(tmp_path):
+    app, mine, theirs = await _app(tmp_path)
+    app.config.aprs.filter_by_ssid = False
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await _send_message(theirs, "N1ABC", "hello", "1")
+        for _ in range(20):
+            if "Auto-ack sent" in _terminal_text(app):
+                break
+            await pilot.pause()
+        assert "Auto-ack sent to WS1EC-15 (msg 1)" in _terminal_text(app)
     mine.close()
     theirs.close()
