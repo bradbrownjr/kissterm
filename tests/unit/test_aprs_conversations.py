@@ -71,6 +71,13 @@ def test_forget_on_an_unknown_callsign_is_a_no_op(store):
     assert store.conversations == {}
 
 
+def test_clear_all_deletes_every_conversation(store):
+    store.record_outgoing("K1ABC-9", "hello", number="1")
+    store.record_incoming("K1XYZ", "hi", number=None)
+    store.clear_all()
+    assert store.conversations == {}
+
+
 def test_persistence_round_trips(tmp_path):
     file = tmp_path / "aprs_messages.json"
     a = ConversationStore(file)
@@ -160,6 +167,14 @@ def test_discard_for_drops_every_number_for_that_callsign_only():
     pending.add("K1XYZ", "1", "unrelated", now=0.0)
     pending.discard_for("K1ABC-9")
     assert pending.due(now=100.0) == [("K1XYZ", "1", "unrelated")]
+
+
+def test_clear_drops_every_pending_entry():
+    pending = PendingAcks(retry_seconds=10.0)
+    pending.add("K1ABC-9", "1", "hello", now=0.0)
+    pending.add("K1XYZ", "1", "unrelated", now=0.0)
+    pending.clear()
+    assert pending.due(now=100.0) == []
 
 
 def test_discard_acked_stops_a_retry_once_the_store_shows_it_acked(tmp_path):

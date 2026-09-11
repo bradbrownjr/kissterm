@@ -3,6 +3,33 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — Ctrl+L on APRS "All" now clears every conversation; auto-acks no longer clutter the chat log
+
+### Improvements
+- **`Ctrl+L` on the APRS "All" tab now deletes every conversation's history
+  (`ConversationStore.clear_all`), not just the ephemeral packet buffer.**
+  Requested directly, after the previous commit's more conservative version
+  left history untouched there and it looked unresponsive: with
+  third-party-relayed replies (WHO-IS, WXBOT) now filed as real chat
+  instead of raw packet lines, most of what "All" shows *is* conversation
+  content, so sparing it left almost nothing visibly cleared. No
+  confirmation step -- pressing Clear on the one tab that shows every
+  conversation at once is the confirmation. `PendingAcks.clear` drops every
+  still-pending retry alongside it, for the same reason `discard_for`
+  already accompanies a single conversation's `forget`.
+  **Files:** `kissterm/ui/aprs_pane.py`, `kissterm/aprs_conversations.py`,
+  `AGENTS.md`, `tests/pilot/test_aprs_conversation_tabs.py`,
+  `tests/unit/test_aprs_conversations.py`.
+
+### Bug Fixes
+- **An auto-ack kissterm sends back was recorded as if it were a typed
+  chat message** (`"ack407"`, with a confusing "no ack requested" status
+  next to it), even though an *incoming* ack has never been filed as a
+  chat line -- only a `mark_acked` flip. `_send_aprs_ack` no longer calls
+  `record_outgoing` for its own ack; the terminal-pane "Auto-ack sent to
+  ..." line already carries the transmission record.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_aprs_messaging.py`.
+
 ## [2026-09-11] — Ctrl+L clears the APRS pane instead of the invisible Terminal pane
 
 ### Bug Fixes

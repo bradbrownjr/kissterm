@@ -84,7 +84,10 @@ async def test_a_message_addressed_to_me_is_recorded_and_auto_acked(tmp_path):
         convo = app.aprs_conversations.conversations["WS1EC-15"]
         assert convo.messages[0].direction == "in"
         assert convo.messages[0].text == "hello there"
-        assert any(m.direction == "out" and m.text == "ack1" for m in convo.messages)
+        # The auto-ack transmits (the terminal line below is its record) but
+        # is never filed as a chat line -- same as an incoming ack, which is
+        # only ever a `mark_acked` flip, never a `record_incoming` message.
+        assert not any(m.direction == "out" for m in convo.messages)
         assert "Auto-ack sent to WS1EC-15 (msg 1)" in _terminal_text(app)
     mine.close()
     theirs.close()
@@ -242,7 +245,7 @@ async def test_a_third_party_relayed_message_addressed_to_us_is_recorded_and_ack
         convo = app.aprs_conversations.conversations["WHO-IS"]
         assert convo.messages[0].direction == "in"
         assert convo.messages[0].text == "found it"
-        assert any(m.direction == "out" and m.text == "ack9" for m in convo.messages)
+        assert not any(m.direction == "out" for m in convo.messages)
         assert "Auto-ack sent to WHO-IS (msg 9)" in _terminal_text(app)
     mine.close()
     theirs.close()

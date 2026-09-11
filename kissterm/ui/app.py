@@ -1273,7 +1273,15 @@ class KissTermApp(App):
         except Exception as exc:  # never let an ack failure disturb the link
             log.debug("APRS auto-ack to %s not sent: %s", addressee, exc)
             return
-        self.aprs_conversations.record_outgoing(addressee, f"ack{number}", number=None)
+        # Deliberately NOT `self.aprs_conversations.record_outgoing(...)`.
+        # An incoming ack is never filed as a chat line either (`_on_
+        # aprs_frame` routes `msg.is_ack` to `mark_acked`, not `record_
+        # incoming`) -- a protocol ack is not conversation content, and
+        # showing "ack407" as if it were a message someone typed answered
+        # nothing an operator asked and only invited "what does this mean?"
+        # The terminal-pane line below is the transmission record; the gate
+        # rule above (never claim a suppressed send went out) covers it the
+        # same way a real message would be covered.
         self._to_terminal(self._active_key(), "log", f"\n*** Auto-ack sent to {addressee} (msg {number})\n")
 
     async def _send_aprs_message(

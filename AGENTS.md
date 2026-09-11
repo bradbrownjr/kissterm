@@ -1031,16 +1031,21 @@ again after a Settings save or a config reload.
   (off-screen) Terminal session log and left APRS looking untouched.
   `AprsPane.clear_active` is genuinely more than a widget-clear: because
   every conversation log is redrawn straight from `ConversationStore` on
-  every repaint (including the retry timer's own periodic one), "All"
-  drops only the ephemeral non-message packet buffer (never a
-  correspondent's persisted history -- "All" merges every open
-  conversation, so clearing it from there would wipe history for every
-  contact at once), while a conversation tab actually deletes that one
-  correspondent's history (`ConversationStore.forget`) and its pending
-  retries (`PendingAcks.discard_for`) -- anything less reappears within
+  every repaint (including the retry timer's own periodic one), anything
+  less than deleting the underlying data reappears within
   `_RETRY_CHECK_INTERVAL` seconds and looks like the key did nothing. A
-  future pane added to `action_clear_log`'s dispatch needs a real case, not
-  the `else` branch.
+  conversation tab deletes that one correspondent's history
+  (`ConversationStore.forget`) and its pending retries
+  (`PendingAcks.discard_for`). **"All" deletes EVERY conversation
+  (`ConversationStore.clear_all`) and every pending retry
+  (`PendingAcks.clear`), with no confirmation step** -- requested directly
+  after a first version that only swept "All"'s ephemeral packet buffer:
+  with third-party-relayed replies now filed as real chat history rather
+  than raw packet lines, most of what "All" shows *is* conversation
+  content, so sparing it looked unresponsive rather than careful. A future
+  pane added to `action_clear_log`'s dispatch needs a real case, not the
+  `else` branch, and should not assume "All"-shaped views are safe to
+  spare by default -- ask what "clear" should mean there before shipping it.
 - **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
   documents YAPP as a dead end because BPQ32's terminal emulation filters the
   control characters it needs — that limitation applies to apps running *under*

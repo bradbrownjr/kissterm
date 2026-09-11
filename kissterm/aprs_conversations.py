@@ -183,6 +183,19 @@ class ConversationStore:
         if self.conversations.pop(callsign.strip().upper(), None) is not None:
             self.save()
 
+    def clear_all(self) -> None:
+        """Delete EVERY correspondent's history -- `AprsPane.clear_active`'s
+        Ctrl+L on "All", requested directly: with third-party-relayed
+        replies filed here as real chat rather than raw packet lines, most
+        of what "All" shows is conversation content, and a clear that left
+        it untouched looked unresponsive. There is no confirmation step;
+        the operator pressing Clear on the one tab that shows every
+        conversation at once is the confirmation.
+        """
+        if self.conversations:
+            self.conversations = {}
+            self.save()
+
     def mark_acked(self, callsign: str, number: str) -> bool:
         """Flag the outgoing message `number` in `callsign`'s conversation as
         acked. Returns whether a matching message was found."""
@@ -261,6 +274,13 @@ class PendingAcks:
         callsign = callsign.strip().upper()
         for key in [k for k in self._pending if k[0] == callsign]:
             del self._pending[key]
+
+    def clear(self) -> None:
+        """Drop every pending entry, for every callsign -- the counterpart
+        to `ConversationStore.clear_all`, so wiping every conversation from
+        "All" does not leave a retry timer resending into a chat log with
+        nothing left in it."""
+        self._pending.clear()
 
     def discard_acked(self, store: ConversationStore) -> None:
         """Drop any pending entry the store already shows acked.

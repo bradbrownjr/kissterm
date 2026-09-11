@@ -481,26 +481,30 @@ class AprsPane(Horizontal):
         key `TerminalPane.clear_active` and `MonitorPane.clear` already use
         for their own on-screen log.
 
-        "All" merges EVERY open conversation by timestamp (`_show_all`), so
-        clearing it must never delete a correspondent's persisted history --
-        that would wipe chat history for every contact from one keystroke on
-        the one tab that happens to show them all at once. Only the
-        in-memory, non-message packet buffer (`_packet_lines`) is dropped
-        there, the same ephemeral-buffer-wipe `MonitorPane.clear` already
-        does for its own decoded-frame log.
-
-        A conversation tab instead deletes ITS OWN persisted history
+        A conversation tab deletes ITS OWN persisted history
         (`ConversationStore.forget`) and any of its still-pending retries
-        (`PendingAcks.discard_for`) -- the log on screen is redrawn straight
-        from that store on every repaint (`_show_conversation_for`),
-        including the retry timer's own periodic one, so anything less than
-        actually deleting the underlying messages would silently reappear
-        within `_RETRY_CHECK_INTERVAL` seconds and look like Ctrl+L did
-        nothing at all.
+        (`PendingAcks.discard_for`). "All" clears everything merged into it
+        -- every conversation (`ConversationStore.clear_all`), every pending
+        retry, and the in-memory non-message packet buffer
+        (`_packet_lines`) -- requested directly after the first version left
+        conversation history untouched there: with third-party-relayed
+        replies now filed as real chat history rather than raw packet lines
+        (see `_on_aprs_frame`'s unwrapping), most of what "All" shows *is*
+        conversation content, so a Ctrl+L that only swept the packet buffer
+        looked like it barely responded. Either way, the log on screen is
+        redrawn straight from the store on every repaint
+        (`_show_conversation_for`/`_show_all`), including the retry timer's
+        own periodic one, so anything less than actually deleting the
+        underlying data would silently reappear within
+        `_RETRY_CHECK_INTERVAL` seconds and look like Ctrl+L did nothing at
+        all -- **there is no confirmation step before "All" wipes every
+        correspondent's history; the operator asked for exactly that.**
         """
         callsign = self._active_callsign()
         if callsign is None:
             self._packet_lines.clear()
+            self.app.aprs_conversations.clear_all()  # type: ignore[attr-defined]
+            self._pending.clear()
             self._show_all()
             return
         self.app.aprs_conversations.forget(callsign)  # type: ignore[attr-defined]

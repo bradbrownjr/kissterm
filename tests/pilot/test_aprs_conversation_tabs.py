@@ -331,13 +331,17 @@ async def test_restores_a_tab_for_every_conversation_already_on_disk(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_ctrl_l_on_all_clears_packet_lines_but_not_conversations(tmp_path):
+async def test_ctrl_l_on_all_clears_packet_lines_and_every_conversation(tmp_path):
     """`action_clear_log` used to fall through to `TerminalPane.clear_active`
     for every tab except Monitor, so Ctrl+L on APRS silently cleared the
-    (invisible) Terminal pane instead of anything on screen. On "All" it
-    must only drop the ephemeral, non-message packet buffer -- real chat
-    history stays, because "All" merges every open conversation and wiping
-    it from here would delete history for every contact at once.
+    (invisible) Terminal pane instead of anything on screen.
+
+    On "All", Ctrl+L clears everything merged into it -- requested directly
+    after an earlier version left conversation history untouched there and
+    it looked unresponsive: with third-party-relayed replies filed as real
+    chat rather than raw packet lines, most of what "All" shows *is*
+    conversation content, so sparing it left barely anything visibly
+    cleared. There is deliberately no confirmation step.
     """
     app, mine, theirs = await _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
@@ -357,8 +361,8 @@ async def test_ctrl_l_on_all_clears_packet_lines_but_not_conversations(tmp_path)
 
         lines = _log_lines(app)
         assert not any("49.0500" in line for line in lines)
-        assert "WS1EC-15" in app.aprs_conversations.conversations
-        assert any("are you there" in line for line in lines)
+        assert app.aprs_conversations.conversations == {}
+        assert not any("are you there" in line for line in lines)
     mine.close()
     theirs.close()
 
