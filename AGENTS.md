@@ -386,6 +386,14 @@ Gotchas that already cost time:
 ## 7. ALWAYS / NEVER rules
 
 ### Airtime is the scarce resource
+- **Commits and pushes are pre-approved.** Commit and push completed, tested
+  work without asking for a separate confirmation. The operator prefers the
+  recoverability and durable backup of the remote history to an approval pause.
+- **System-wide read-only commands are pre-approved.** Inspecting host state,
+  installed tools, logs, configuration, and other non-mutating system data does
+  not need an escalation request. Continue to request approval for system-wide
+  writes, package installs, service changes, or other mutations outside the
+  workspace unless separately authorized.
 - **Never spend channel time to populate the UI.** At 1200 baud half-duplex,
   2 KB is ~19 seconds and 8 KB is over a minute during which nobody else on the
   frequency can transmit. Command references therefore **ship** as data in
