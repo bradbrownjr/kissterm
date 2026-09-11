@@ -3,29 +3,34 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
-## [2026-09-11] — Auto-ack now transmits under the addressed identity, not the configured APRS SSID
+## [2026-09-11] — Auto-ack correction: transmit under the station's own APRS identity, not the addressee text
 
 ### Bug Fixes
-- **An auto-ack transmitted under the separately configured APRS-SSID
-  identity (`Config.aprs.ssid`) instead of whichever identity the incoming
-  message was actually addressed to.** Found live: a real igate addressed
-  its message to this station's bare callsign while the operator had also
-  set an APRS SSID for traffic this station originates; the ack went out
-  under that SSID, an identity the igate never sent anything to, so its
-  own message-tracking never recognized the ack as an answer and kept
-  retrying the same message every few minutes indefinitely. `_send_aprs_ack`
-  now transmits from `Message.addressee` exactly as received, falling back
-  to the SSID override only if that somehow fails to parse as a callsign.
-  A message or beacon this station originates is unaffected -- it has no
-  prior "addressed to" identity to match, which is the whole reason the
-  SSID override exists there.
+- **Reverted a same-day change that made an auto-ack transmit under
+  `Message.addressee` verbatim instead of this station's own configured
+  APRS identity (`Config.aprs.source_for`).** That change was itself a
+  fix for a real live symptom -- a message addressed to this station's
+  bare callsign, while the operator also had an APRS SSID configured,
+  kept retrying even after the ack went out -- but the reasoning behind
+  it did not hold up: it made the ack the only outgoing APRS traffic
+  transmitting under an identity other than the station's own configured
+  one (an arbitrary SSID, or none, taken from whatever the sender typed),
+  which is a "callsign is a claim" hazard, not a fix. "A message to my
+  bare call should still reach me while I run an SSID" is already handled
+  correctly and in exactly one place -- `callsign_matches` stripping SSID
+  before `to_me` is decided -- and does not need the *transmitted*
+  identity to change too. `_send_aprs_ack` transmits from
+  `Config.aprs.source_for` again, matching every other outgoing APRS
+  packet this station originates. Whatever actually caused the retries
+  seen live (most likely a digipeat-path or igate-relay issue, not
+  identity) remains open.
 - **Purging stale synthetic chat lines now also covers the legacy
-  auto-ack-as-message entries** the previous commit stopped creating going
+  auto-ack-as-message entries** an earlier commit stopped creating going
   forward (`"ack407"`, recorded with no message number) --
   `_purge_stale_telemetry_definitions` is renamed
   `_purge_stale_synthetic_messages` and covers both shapes in one pass, so
   a history file written before either fix does not carry the clutter
-  forever.
+  forever. Unaffected by the revert above.
   **Files:** `kissterm/ui/app.py`, `tests/pilot/test_aprs_messaging.py`,
   `AGENTS.md`.
 

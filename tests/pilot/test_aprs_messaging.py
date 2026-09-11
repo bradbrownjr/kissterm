@@ -94,23 +94,24 @@ async def test_a_message_addressed_to_me_is_recorded_and_auto_acked(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_auto_ack_transmits_from_the_addressed_identity_not_the_aprs_ssid(tmp_path):
-    """An ack has to come from the exact identity the message was addressed
-    to, or the far end's own message-tracking never recognizes it as an
-    answer and keeps retrying the same message -- seen live: a real igate
-    addressed its message to a bare callsign while this station's own
-    outgoing APRS traffic transmits under a separately configured SSID
-    (`Config.aprs.ssid`), and acking under that SSID instead of the one
-    actually addressed left the ack unrecognized. Only the ack path
-    differs from the SSID override -- a beacon or a message this station
-    originates has no prior "addressed to" identity to match.
+async def test_auto_ack_transmits_under_the_configured_aprs_ssid_not_the_addressee_text(tmp_path):
+    """A station has one consistent on-air identity for everything it
+    originates -- an ack must transmit under `Config.aprs.source_for`, the
+    same identity a beacon or a fresh outgoing message uses, regardless of
+    what SSID (or lack of one) the sender happened to address the message
+    to. "A message to my bare call should still reach me when I run an
+    SSID" is handled entirely on the receiving side, by `callsign_matches`
+    stripping SSID before `to_me` is decided -- it must never make the ack
+    transmit under a different identity than this station actually has.
     """
     app, mine, theirs = await _app(tmp_path)
     app.config.aprs.ssid = "5"
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         # Bare "N1ABC" -- neither `mine`'s own AX.25 identity (N1ABC-1) nor
-        # the configured APRS SSID (N1ABC-5).
+        # the configured APRS SSID (N1ABC-5) -- still matches via
+        # `callsign_matches`'s SSID stripping, but must not steer the ack's
+        # own transmitted identity.
         await _send_message(theirs, "N1ABC", "hello", "1")
         for _ in range(20):
             if "Auto-ack sent" in _terminal_text(app):
@@ -118,7 +119,7 @@ async def test_auto_ack_transmits_from_the_addressed_identity_not_the_aprs_ssid(
             await pilot.pause()
         acks = [f for f in mine.transport.sent if b":ack1" in f.info]
         assert len(acks) == 1, mine.transport.sent
-        assert str(acks[0].path.source) == "N1ABC"
+        assert str(acks[0].path.source) == "N1ABC-5"
     mine.close()
     theirs.close()
 

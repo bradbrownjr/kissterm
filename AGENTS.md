@@ -1047,17 +1047,25 @@ again after a Settings save or a config reload.
   `else` branch, and should not assume "All"-shaped views are safe to
   spare by default -- ask what "clear" should mean there before shipping it.
 - **`Config.aprs.source_for` (the separately configured APRS-SSID identity)
-  must NEVER be applied to an outgoing ack.** Found live: a real igate
-  addressed its message to this station's bare callsign while `Config.
-  aprs.ssid` was set, and `_send_aprs_ack` used to transmit the ack under
-  that SSID instead -- an identity the igate never sent anything to, so
-  its own message-tracking never recognized the ack as an answer and kept
-  retrying the same message. `_send_aprs_ack` now transmits from
-  `Message.addressee` exactly as the incoming message named it (`heard_as`
-  param), falling back to `source_for` only if that somehow fails to parse
-  as a callsign. A beacon or a message this station originates has no such
-  prior "addressed to" identity to match, which is why only the ack path
-  differs -- do not "simplify" this back to one shared call.
+  is used for an outgoing ack too, exactly like every other piece of APRS
+  traffic this station originates.** A brief, incorrect version of
+  `_send_aprs_ack` transmitted the ack under `Message.addressee` verbatim
+  instead -- reasoning that a real igate's own message-tracking must be
+  matching the ack's source callsign+SSID against exactly what it
+  addressed, since a message addressed to this station's bare callsign
+  kept retrying even after the ack went out. That reasoning does not
+  hold: it made the ack the only outgoing APRS traffic transmitting under
+  an identity other than this station's own configured one, which is the
+  exact "callsign is a claim" hazard described elsewhere in this file --
+  presenting an SSID (or lack of one) that is not actually how this
+  station is configured. "A message addressed to my bare call should
+  still reach me while I run an SSID" is already handled correctly, and
+  in exactly one place: `callsign_matches` strips SSID before `to_me` is
+  decided in `_on_aprs_frame`. Whatever was actually causing the
+  retries seen live (most likely digipeat path or the ack never reaching
+  an igate onto APRS-IS, not identity) is still open -- but the fix is
+  not spoofing the ack's transmitted identity. Do not reintroduce a
+  `heard_as`-shaped parameter to `_send_aprs_ack`.
 - **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
   documents YAPP as a dead end because BPQ32's terminal emulation filters the
   control characters it needs — that limitation applies to apps running *under*

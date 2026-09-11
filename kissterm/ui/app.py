@@ -134,7 +134,7 @@ from .. import aprs
 from ..aprs_conversations import ConversationStore
 from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import AX25Station, parse_path
-from ..ax25.address import AX25Address, AX25AddressError
+from ..ax25.address import AX25Address
 from ..aprs_beacon import AprsBeaconer
 from ..beacon import Beaconer
 from ..config import AprsConfig, BeaconConfig, find_credential, find_script
@@ -1139,7 +1139,7 @@ class KissTermApp(App):
                 to_me = callsign_matches(msg.addressee, mycalls)
                 if to_me:
                     if getattr(self.config, "aprs_auto_ack", True) and msg.number:
-                        await self._send_aprs_ack(source, msg.number, port, heard_as=msg.addressee)
+                        await self._send_aprs_ack(source, msg.number, port)
                 # `to_me` decides whether this opens a tab and raises an
                 # unread marker, or is only recorded. Every message packet is
                 # recorded either way -- see `AprsPane.note_incoming`.
@@ -1253,9 +1253,7 @@ class KissTermApp(App):
         if changed:
             self.aprs_conversations.save()
 
-    async def _send_aprs_ack(
-        self, addressee: str, number: str, port: int, *, heard_as: str
-    ) -> None:
+    async def _send_aprs_ack(self, addressee: str, number: str, port: int) -> None:
         """Auto-ack an APRS message addressed to us -- see
         `Config.aprs_auto_ack`'s docstring for why this defaults on and is
         still just as gated by the transmit switch as everything else this
@@ -1264,18 +1262,24 @@ class KissTermApp(App):
         transmits without the operator being able to see that it did is
         exactly what that rule exists to prevent.
 
-        `heard_as` is `Message.addressee` exactly as the incoming message
-        named it (a bare call, an SSID, or an alias) -- **not** the
-        separately configured APRS-SSID identity (`Config.aprs.source_for`)
-        that a message or beacon *we* originate uses. Seen live: a peer
-        addressed its message to a bare callsign while this station's own
-        APRS traffic transmits under a different SSID; acking under that
-        SSID instead of the one actually addressed left the peer's own
-        message-tracking never recognizing the ack as an answer, so it kept
-        retrying the same message. An ack has to come from the exact
-        identity the message went to, or the far end cannot match it up --
-        a beacon or a fresh outgoing message has no such identity to match,
-        which is why only this path differs from the SSID override.
+        Transmits from `Config.aprs.source_for` -- the SAME identity every
+        other piece of APRS traffic this station originates uses -- and
+        deliberately NOT from whatever text the sender happened to put in
+        the addressee field. A station has one consistent on-air identity;
+        "a message to my bare call should still reach me when I run an
+        SSID" is already handled on the *receiving* side, by
+        `callsign_matches` stripping SSID before `to_me` is even decided
+        (see `_on_aprs_frame` above) -- that is the one place the SSID
+        forgiveness belongs. An earlier version of this method instead
+        transmitted the ack under `Message.addressee` verbatim, reasoning
+        that a peer's own message-tracking must be matching the ack's
+        source callsign+SSID against exactly what it addressed. That
+        reasoning does not hold: it made kissterm transmit under an
+        identity (an arbitrary SSID, or none) that is not actually this
+        station's configured identity, which is the exact "callsign is a
+        claim" hazard AGENTS.md warns about elsewhere, and it made the ack
+        path the only outgoing APRS traffic on a different identity than
+        everything else this station sends. Do not reintroduce that.
         """
         if self.station is None:
             return
@@ -1288,14 +1292,7 @@ class KissTermApp(App):
         gate = getattr(self.station.transport, "gate", None)
         if gate is not None and not gate.enabled:
             return
-        try:
-            source = AX25Address.parse(heard_as)
-        except AX25AddressError:
-            # Should not happen -- `to_me` already required `heard_as` to
-            # look enough like a callsign to match against `config.mycall`
-            # -- but a malformed addressee must degrade to *some* identity
-            # rather than drop the ack outright.
-            source = self.config.aprs.source_for(str(self.station.mycall))
+        source = self.config.aprs.source_for(str(self.station.mycall))
         try:
             payload = aprs.ack(addressee, number)
             dest = AX25Address.parse("APRS")
