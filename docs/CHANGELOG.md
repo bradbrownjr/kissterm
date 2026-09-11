@@ -3,6 +3,19 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — Cited protocol development baseline
+
+### Documentation
+- **Added `docs/PROTOCOL_GUIDE.md`, the single cited starting point for AX.25,
+  KISS, and APRS protocol work.** It distinguishes the layers and connected
+  versus UI operation; links the AX.25 2.2 specification, KISS paper, APRS
+  1.0.1 reference, approved 1.1 addendum, and proposed 1.2 material; records
+  the project’s receive/transmit and airtime expectations; and gives a
+  source/fixture/interoperability checklist for future protocol changes. In
+  particular it makes explicit that APRS 1.2 is not a blanket approved
+  replacement for the 1.0.1+1.1 baseline.
+  **Files:** `docs/PROTOCOL_GUIDE.md`, `README.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-11] — APRS messages are now filtered to your exact SSID by default
 
 ### New Features

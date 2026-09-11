@@ -515,6 +515,11 @@ changing anything. Each package also has its own short contract file
 (`kissterm/ax25/AGENTS.md`, `kissterm/transport/AGENTS.md`, and so on) so a
 single-file change does not require reading the whole repo.
 
+For any wire-format or RF-behaviour change, start with the cited
+[protocol guide](docs/PROTOCOL_GUIDE.md). It distinguishes the AX.25, KISS,
+and APRS layers and identifies the primary specifications rather than treating
+existing code or another client as the authority.
+
 ```bash
 .venv/bin/pip install -e ".[dev]"
 git config core.hooksPath hooks     # once per clone: version bump + dep resync
