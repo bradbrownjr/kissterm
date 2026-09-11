@@ -3,6 +3,30 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — Sending a message with the transmit gate closed arms it, instead of refusing
+
+### Improvements
+- **Pressing Enter or Send on the Terminal pane's send line, or the APRS
+  pane's compose row, now arms a closed transmit gate instead of refusing
+  the send.** Requested directly: an operator should not have to remember
+  to press Ctrl+T before typing to someone, but the gate must still hold
+  back anything unattended. Both paths reuse `KissTermApp._arm_for` --
+  already the mechanism a confirmed Connect uses for exactly this reason
+  (AGENTS.md's transmit-gate rules) -- so arming stays visible the same way:
+  a terminal log line, a notification, and a status-bar update, never
+  silent. Each path arms only once it knows the send has somewhere to go
+  (`TerminalPane.send_line` checks `link.connected`, `AprsPane._send_compose`
+  checks `self.app.station`), so a send with nothing connected still leaves
+  the gate shut. **The distinction that matters: this only applies to a
+  fresh, operator-committed send.** `AprsPane._retry_worker`'s unattended
+  resend of an unacked message calls `_send_aprs_message` directly, bypassing
+  `_send_compose` and therefore `_arm_for`, so closing the gate mid-session
+  still stops retries dead rather than have the timer quietly reopen it --
+  the same reasoning that already keeps the beacon timer from self-arming.
+  **Files:** `kissterm/ui/terminal_pane.py`, `kissterm/ui/aprs_pane.py`,
+  `AGENTS.md`, `tests/pilot/test_transmit_gate.py`,
+  `tests/pilot/test_aprs_send.py`.
+
 ## [2026-09-11] — Non-message APRS packets decoded into the "All" tab; stale telemetry-definition lines purged
 
 ### New Features

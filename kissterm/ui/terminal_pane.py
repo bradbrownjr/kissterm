@@ -954,18 +954,26 @@ class TerminalPane(Container):
         # immediately, mouse or keyboard.
         field.focus()
         link = getattr(self.app, "link", None)
-        gate = getattr(self.app, "gate", None)
-        if gate is not None and not gate.enabled:
-            # Keep what they typed. The transport would drop this silently --
-            # clearing the field as well would look exactly like a successful
-            # send, which is the worst possible feedback for "nothing went
-            # out". The refusal is a courtesy; kissterm/tx.py is the interlock.
-            self.app.notify(DISABLED_MESSAGE, severity="warning")
-            return
-        field.value = ""
         if link is None or not link.connected:
             self.app.notify("Not connected.", severity="warning")
             return
+        gate = getattr(self.app, "gate", None)
+        if gate is not None and not gate.enabled:
+            # A line the operator just typed and committed with Enter or
+            # Send, to a station they are already connected to, is exactly
+            # the "confirmed, targeted" shape `KissTermApp._arm_for` exists
+            # for -- refusing it with DISABLED_MESSAGE would be the same
+            # dead end AGENTS.md calls out for Connect: the one thing the
+            # operator asked for is the one thing the refusal would not do.
+            # Checked only after `link.connected` above, so a closed gate on
+            # a session with nothing to send to never arms anything.
+            arm_for = getattr(self.app, "_arm_for", None)
+            if arm_for is not None:
+                arm_for(f"sending to {self.active_session_key}")
+            else:
+                self.app.notify(DISABLED_MESSAGE, severity="warning")
+                return
+        field.value = ""
         # latin-1, not UTF-8: packet is byte-oriented, and a character the
         # operator pasted must not fail to encode mid-session. CR, not LF --
         # see the module docstring.

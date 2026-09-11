@@ -370,3 +370,62 @@ async def test_ctrl_shift_d_disconnects_even_with_the_outgoing_box_focused():
         assert not link.connected, "Ctrl+Shift+D did not reach action_disconnect"
     station.close()
     peer_station.close()
+
+
+@pytest.mark.asyncio
+async def test_sending_a_line_with_a_closed_gate_arms_it_instead_of_refusing():
+    """The same "confirmed, targeted" reasoning `_arm_for` already applies to
+    a confirmed Connect applies here: a line the operator typed, to a station
+    they are already connected to, committed with Enter or Send. Refusing it
+    with DISABLED_MESSAGE would be the identical dead end -- the one thing
+    the operator just asked for is the one thing the refusal would not do."""
+    from kissterm.ax25 import AX25Path
+
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    config = Config(mycall=str(MYCALL), tx_armed_at_start=True)
+    config.log_sessions = False
+    peer = AX25Address.parse("WS1EC-7")
+    station = AX25Station(MYCALL, ta, LinkParams(t1=0.2, t2=0.05, t3=5.0))
+    peer_station = AX25Station(peer, tb, LinkParams(t1=0.2, t2=0.05, t3=5.0))
+    app = KissTermApp(config, station)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await station.connect(AX25Path(peer, MYCALL), timeout=2.0)
+        assert link is not None and link.connected
+        app._bind_link(link)
+        await pilot.pause()
+
+        # A confirmed connect already armed the gate above; close it again --
+        # the same as pressing Ctrl+T mid-session -- before proving Send
+        # re-arms it rather than being refused by it.
+        app.gate.set(False)
+        pane = app.query_one(TerminalPane)
+        await pane.send_line("hello there")
+        await pilot.pause()
+
+        assert app.gate.enabled is True, "sending a line did not re-arm a closed gate"
+        assert ta.sent, "the line never reached the wire after arming"
+        assert "Transmit enabled automatically" in "\n".join(
+            str(line) for line in pane.query_one("#session-log").lines
+        )
+    station.close()
+    peer_station.close()
+
+
+@pytest.mark.asyncio
+async def test_sending_a_line_while_disconnected_never_touches_the_gate():
+    """Arming for a send that has nothing to go out on would open the gate
+    for nothing -- `send_line` checks `link.connected` before it ever looks
+    at the gate, the same guard `AprsPane._send_compose` applies against
+    `self.app.station`."""
+    app, station, ta = await _app(tx_armed_at_start=False)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        await pane.send_line("hello")
+        await pilot.pause()
+        assert app.gate.enabled is False, "a send with nothing connected armed the gate anyway"
+        assert ta.sent == []
+    station.close()

@@ -466,18 +466,29 @@ Gotchas that already cost time:
   an operator already knows. With it closed, nothing keys the radio -- not a
   beacon, not answering, not connecting, not the terminal send line.
 - **A confirmed, targeted request ARMS the gate; it is not refused by it.**
-  `KissTermApp._arm_for` is the only way this happens, and `Ctrl+N` (after
-  the operator names a station and confirms the dialog) and Disconnect
+  `KissTermApp._arm_for` is the only way this happens. Its callers: `Ctrl+N`
+  (after the operator names a station and confirms the dialog); Disconnect
   (`Ctrl+Shift+D`, or plain `Ctrl+D` when nothing has shadowed it -- see
-  `kissterm/ui/app.py`'s BINDINGS) are its only callers. The gate exists to
-  stop transmissions the operator did not
-  initiate -- a timer, an incoming call -- and it was never meant to veto one
-  they just asked for by name. Refusing a connect with "transmit is disabled"
-  is a dead end: the only thing the operator wanted is the only thing the
-  message will not do, and on a marginal path it reads like the far station
-  is missing. Disconnecting matters for the channel too -- a DISC we refuse to
-  send leaves the far station holding a session open until its own timers
-  give up.
+  `kissterm/ui/app.py`'s BINDINGS); `TerminalPane.send_line` (Enter or the
+  Send button, but only once `link.connected` is true -- arming for a send
+  that has nothing to go out on would open the gate for nothing); and
+  `AprsPane._send_compose` (Enter or the Send button in the APRS compose
+  row, guarded the same way on `self.app.station is not None`). The gate
+  exists to stop transmissions the operator did not initiate -- a timer, an
+  incoming call -- and it was never meant to veto one they just asked for by
+  name. Refusing a connect, or a message the operator just typed and
+  committed, with "transmit is disabled" is a dead end: the only thing the
+  operator wanted is the only thing the message will not do, and on a
+  marginal path it reads like the far station is missing. Disconnecting
+  matters for the channel too -- a DISC we refuse to send leaves the far
+  station holding a session open until its own timers give up.
+  **The distinction that matters when adding a new send path: a fresh,
+  operator-committed send arms; an unattended resend of the same content
+  never does.** `AprsPane._retry_worker` calls `_send_aprs_message` directly,
+  bypassing `_send_compose` and therefore `_arm_for`, on purpose -- a message
+  still unacked when the gate closes must stop retrying rather than have the
+  timer quietly reopen the gate on the operator's behalf. Same reasoning as
+  the beacon timer below.
 - **A bare keystroke never arms it.** The manual beacon (`Ctrl+Shift+B`) has
   no confirmation step and no target, which is exactly the shape of an
   accidental transmission; it still reports the closed gate and sends

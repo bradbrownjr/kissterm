@@ -106,17 +106,57 @@ async def test_sending_with_no_addressee_is_refused_without_transmitting(tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_a_closed_transmit_gate_refuses_the_send_and_records_nothing(tmp_path):
+async def test_pressing_send_with_a_closed_gate_arms_it_instead_of_refusing(tmp_path):
+    """Typing a message, naming a "To:", and pressing Send is exactly the
+    "confirmed, targeted" shape `KissTermApp._arm_for` exists for -- the same
+    reasoning already covers a confirmed Connect (AGENTS.md's transmit-gate
+    rules). Refusing the send here would be the identical dead end: the one
+    thing the operator just asked for is the one thing the refusal would not
+    do. See `test_the_retry_timer_never_arms_the_gate` for the other half --
+    an *unattended* resend must never do this."""
     app, mine, theirs, ta = await _app(tmp_path, tx_armed=False)
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
+        assert app.gate.enabled is False
         app.query_one("#aprs-to-input", Input).value = "WS1EC-15"
         app.query_one("#aprs-compose-input", Input).value = "hello"
         await pilot.click("#aprs-send-button")
         await pilot.pause()
-        assert not ta.sent
-        assert app.aprs_conversations.conversations == {}
-        assert "Sent APRS message" not in _terminal_text(app)
+        assert app.gate.enabled is True
+        assert ta.sent
+        assert app.aprs_conversations.conversations["WS1EC-15"].messages[0].text == "hello"
+        assert "Sent APRS message" in _terminal_text(app)
+        assert "Transmit enabled automatically" in _terminal_text(app)
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_the_retry_timer_never_arms_the_gate(tmp_path):
+    """The retry timer is unattended -- exactly what the gate exists to hold
+    back -- so closing the gate after a first send must stop retries dead
+    rather than have the timer quietly re-open it on the operator's behalf.
+    `AprsPane._retry_worker` calls `_send_aprs_message` directly, never
+    through `_send_compose`, so it never reaches `_arm_for` at all."""
+    app, mine, theirs, ta = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        pane = app.query_one(AprsPane)
+        pane._pending = PendingAcks(retry_seconds=0.1, max_retries=5)
+
+        app.query_one("#aprs-to-input", Input).value = "WS1EC-15"
+        app.query_one("#aprs-compose-input", Input).value = "hello"
+        await pilot.click("#aprs-send-button")
+        await pilot.pause()
+        assert ta.sent, "the first, operator-initiated send never went out"
+
+        app.gate.set(False)
+        ta.sent.clear()
+        for _ in range(15):
+            await asyncio.sleep(0.05)
+            await pilot.pause()
+        assert app.gate.enabled is False, "the retry timer re-armed a gate the operator closed"
+        assert not ta.sent, "a retry went out while the gate was closed"
     mine.close()
     theirs.close()
 

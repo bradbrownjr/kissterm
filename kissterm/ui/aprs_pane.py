@@ -1228,6 +1228,18 @@ class AprsPane(Horizontal):
             email_template=getattr(config, "aprs_email_template", ""),
         )
         number = self._next_number()
+        # A confirmed connect arms the gate rather than being refused by it
+        # (`KissTermApp._arm_for`); typing a message, naming a "To:", and
+        # pressing Enter or Send is the same shape of request -- refusing it
+        # with "transmit is disabled" would be the identical dead end.
+        # **Never called from `_retry_worker`**: an automatic retry is
+        # unattended, exactly what the gate exists to hold back, so it goes
+        # straight to `_send_aprs_message` and stays silently dropped while
+        # the gate is closed. Guarded on `self.app.station` the same way
+        # `TerminalPane.send_line` guards on `link.connected` -- arming for a
+        # send that has nothing to go out on would open the gate for nothing.
+        if self.app.station is not None:  # type: ignore[attr-defined]
+            self.app._arm_for(f"sending to {addressee}")  # type: ignore[attr-defined]
         ok = await self.app._send_aprs_message(addressee, wire_text, number)  # type: ignore[attr-defined]
         if not ok:
             self.app.notify(  # type: ignore[attr-defined]
