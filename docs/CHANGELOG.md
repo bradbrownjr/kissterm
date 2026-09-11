@@ -3,6 +3,21 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — AGWPE engines recover after a restart
+
+### Improvements
+- **AGWPE raw-frame transports now reconnect with bounded exponential backoff
+  after the engine closes or loses its TCP socket.** The transport reports
+  `OPENING` while reconnecting, re-enables raw-frame monitoring after every
+  new connection, and exposes the engine's fresh `G` port-information reply
+  through `ports` and `port_descriptions`. A malformed port table is counted
+  and logged without taking down valid raw-frame reception. The loopback test
+  exercises an engine restart and verifies both setup requests and refreshed
+  two-port metadata.
+  **Files:** `kissterm/transport/agwpe.py`, `config.toml.example`,
+  `tests/unit/test_agwpe_transport.py`, `docs/ROADMAP.md`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-11] — Command reference modes now behave like the rest of the UI
 
 ### UX

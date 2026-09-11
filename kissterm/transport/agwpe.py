@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import struct
 
 from ..ax25.address import AX25AddressError
@@ -73,6 +74,13 @@ _KIND_RAW_FRAME = b"K"  # 'K': one raw AX.25 frame, port-byte prefixed
 # Connected-mode DataKinds, listed only so the docstring's claim not to use
 # them is checkable against something concrete -- never sent or parsed here.
 _UNUSED_CONNECTED_KINDS = (b"C", b"D", b"d", b"X", b"x")
+
+# Kept in step with TCP KISS: a restarted packet engine is commonly back in
+# under a second, while an absent one must not be retried in a tight loop.
+_INITIAL_BACKOFF = 0.5
+_MAX_BACKOFF = 30.0
+
+log = logging.getLogger(__name__)
 
 
 #: 'R': ask the engine its version. A pure query -- it asks the SOFTWARE a
@@ -104,6 +112,34 @@ def parse_header(data: bytes) -> tuple[int, bytes, int]:
         raise ValueError(f"AGWPE header is {HEADER_LEN} bytes, got {len(data)}")
     port, _r1, kind_byte, _r2, _pid, _r3, _from, _to, data_len, _user = _HEADER.unpack(data)
     return port, bytes([kind_byte]), data_len
+
+
+def parse_port_info(payload: bytes) -> tuple[int, tuple[str, ...]]:
+    """Parse an AGWPE ``'G'`` reply into its count and per-port labels.
+
+    The AGWPE API specifies a semicolon-delimited ASCII payload: the port
+    count followed by one ``Port<n> description`` field for each port.  Some
+    engines pad the advertised length with NUL bytes, so remove those only at
+    the end; replacing malformed characters lets a slightly odd description
+    remain visible without risking the receive loop.
+    """
+    fields = payload.rstrip(b"\x00").decode("ascii", "replace").split(";")
+    try:
+        count = int(fields[0].strip())
+    except (IndexError, ValueError) as exc:
+        raise ValueError("AGWPE port info has no valid port count") from exc
+    if count < 1:
+        raise ValueError(f"AGWPE port info has invalid port count {count}")
+
+    advertised = [field.strip() for field in fields[1:] if field.strip()]
+    # Preserve the count even when an engine omits a description.  The setup
+    # UI can still offer every radio port, using a truthful generic label for
+    # the missing entries rather than silently hiding them.
+    labels = tuple(
+        advertised[index] if index < len(advertised) else f"Port {index + 1}"
+        for index in range(count)
+    )
+    return count, labels
 
 
 def _build_header(
@@ -138,32 +174,86 @@ class AgwpeTransport(FrameTransport):
         self.port = port
 
         self.decode_errors = 0
+        self.port_info_errors = 0
+        #: Engine-provided labels, indexed by AGWPE's zero-based radio port.
+        #: Updated after each reconnect because AGWPE says its port table must
+        #: be queried again after a new TCP connection.
+        self.port_descriptions: tuple[str, ...] = tuple(
+            f"Port {index + 1}" for index in range(ports)
+        )
+        self.reconnects = 0
 
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
-        self._read_task: asyncio.Task[None] | None = None
+        self._connection_task: asyncio.Task[None] | None = None
+        self._closing = False
+        self._first_attempt: asyncio.Event = asyncio.Event()
 
     async def open(self) -> None:
         self.state = TransportState.OPENING
         self._error = ""
-        try:
-            self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
-        except OSError as exc:
-            self.state = TransportState.ERROR
-            self._error = str(exc)
-            raise TransportError(f"could not connect to AGWPE at {self.host}:{self.port}: {exc}") from exc
-
-        # Ask the engine to start delivering raw frames and monitored traffic,
-        # and ask for its port table (the reply is informational only here --
-        # kissterm already knows how many ports it configured).
-        await self._send(_build_header(0, _KIND_MONITOR_ON))
-        await self._send(_build_header(0, _KIND_RAW_ON))
-        await self._send(_build_header(0, _KIND_PORT_INFO))
-
-        self._read_task = asyncio.create_task(
-            self._read_loop(), name=f"agwpe-read:{self.host}:{self.port}"
+        self._closing = False
+        self._first_attempt = asyncio.Event()
+        self._connection_task = asyncio.create_task(
+            self._connection_loop(), name=f"agwpe:{self.host}:{self.port}"
         )
-        self.state = TransportState.OPEN
+        await self._first_attempt.wait()
+        if self.state is TransportState.ERROR:
+            raise TransportError(self._error or f"could not connect to AGWPE at {self.host}:{self.port}")
+
+    async def _connection_loop(self) -> None:
+        """Reconnect after an engine restart without making RF look dead."""
+        backoff = _INITIAL_BACKOFF
+        first = True
+        while not self._closing:
+            try:
+                self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
+                # These are software-control requests only.  No request here
+                # can key the transmitter; raw-frame mode merely delivers
+                # frames to this client.
+                await self._send(_build_header(0, _KIND_MONITOR_ON))
+                await self._send(_build_header(0, _KIND_RAW_ON))
+                await self._send(_build_header(0, _KIND_PORT_INFO))
+            except (OSError, TransportError) as exc:
+                self._error = f"connect to AGWPE at {self.host}:{self.port} failed: {exc}"
+                log.warning("%s", self._error)
+                await self._close_socket()
+                if first:
+                    self.state = TransportState.ERROR
+                    self._first_attempt.set()
+                    return
+                self.state = TransportState.OPENING
+                await self._sleep_backoff(backoff)
+                backoff = min(backoff * 2, _MAX_BACKOFF)
+                continue
+
+            self.state = TransportState.OPEN
+            self._error = ""
+            if first:
+                first = False
+                self._first_attempt.set()
+                log.info("connected to AGWPE at %s:%d", self.host, self.port)
+            else:
+                self.reconnects += 1
+                log.warning("reconnected to AGWPE at %s:%d (reconnect %d)", self.host, self.port, self.reconnects)
+            connected_at = asyncio.get_running_loop().time()
+
+            try:
+                await self._read_until_closed()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 -- keep reconnecting after a bad socket
+                self._error = f"AGWPE read loop failed: {exc}"
+
+            log.warning("lost AGWPE connection to %s:%d: %s", self.host, self.port, self._error or "closed")
+            await self._close_socket()
+            if self._closing:
+                return
+            if asyncio.get_running_loop().time() - connected_at >= _MAX_BACKOFF:
+                backoff = _INITIAL_BACKOFF
+            self.state = TransportState.OPENING
+            await self._sleep_backoff(backoff)
+            backoff = min(backoff * 2, _MAX_BACKOFF)
 
     async def _send(self, data: bytes) -> None:
         if self._writer is None:
@@ -171,30 +261,33 @@ class AgwpeTransport(FrameTransport):
         self._writer.write(data)
         await self._writer.drain()
 
-    async def _read_loop(self) -> None:
+    async def _sleep_backoff(self, backoff: float) -> None:
+        with contextlib.suppress(asyncio.CancelledError):
+            await asyncio.sleep(backoff)
+
+    async def _read_until_closed(self) -> None:
         assert self._reader is not None
-        try:
-            while True:
+        while True:
+            try:
                 header = await self._reader.readexactly(HEADER_LEN)
                 port, kind, data_len = parse_header(header)
-                payload = (
-                    await self._reader.readexactly(data_len) if data_len else b""
-                )
-                await self._handle_message(port, kind, payload)
-        except asyncio.IncompleteReadError:
-            self.state = TransportState.ERROR
-            self._error = "AGWPE connection closed by peer"
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:  # noqa: BLE001 -- a dead read loop must not crash the app
-            self.state = TransportState.ERROR
-            self._error = f"AGWPE read loop failed: {exc}"
+                payload = await self._reader.readexactly(data_len) if data_len else b""
+            except asyncio.IncompleteReadError:
+                self._error = "AGWPE connection closed by peer"
+                return
+            await self._handle_message(port, kind, payload)
 
     async def _handle_message(self, port: int, kind: bytes, payload: bytes) -> None:
+        if kind == _KIND_PORT_INFO:
+            try:
+                self.ports, self.port_descriptions = parse_port_info(payload)
+            except ValueError as exc:
+                self.port_info_errors += 1
+                log.warning("invalid AGWPE port info from %s:%d: %s", self.host, self.port, exc)
+            return
         if kind != _KIND_RAW_FRAME:
-            # Port info ('G'), version ('R'), monitor strings ('U'/'I'/...),
-            # and anything else the engine sends unprompted are not needed:
-            # kissterm gets everything it needs from the raw frame stream.
+            # Version ('R'), monitor strings ('U'/'I'/...), and anything else
+            # the engine sends unprompted are not needed for raw-frame mode.
             return
         if not payload:
             return
@@ -225,15 +318,19 @@ class AgwpeTransport(FrameTransport):
         await self._send(header + payload)
 
     async def close(self) -> None:
-        if self._read_task is not None:
-            self._read_task.cancel()
+        self._closing = True
+        if self._connection_task is not None:
+            self._connection_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
-                await self._read_task
-            self._read_task = None
+                await self._connection_task
+            self._connection_task = None
+        await self._close_socket()
+        self.state = TransportState.CLOSED
+
+    async def _close_socket(self) -> None:
         if self._writer is not None:
             with contextlib.suppress(Exception):
                 self._writer.close()
                 await self._writer.wait_closed()
             self._writer = None
         self._reader = None
-        self.state = TransportState.CLOSED

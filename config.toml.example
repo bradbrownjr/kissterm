@@ -369,10 +369,9 @@ host = "127.0.0.1"
 port = 8001
 
 # agwpe: AGWPE's raw-frame TCP protocol, as exposed by SoundModem, UZ7HO
-# SoundModem, BPQ32, and Direwolf's AGW-compatible port. Not yet backed by a
-# transport implementation in every kissterm build -- `kissterm --doctor`
-# reports this kind as "skipped" rather than tested until one lands, but the
-# shape below is what it will expect.
+# SoundModem, BPQ32, and Direwolf's AGW-compatible port. The transport
+# reconnects automatically if the engine restarts and learns its port labels
+# when it reconnects.
 [[transports]]
 name = "bpq32-agw"
 kind = "agwpe"

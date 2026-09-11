@@ -35,13 +35,6 @@ the original version of this section are done -- see CHANGELOG's
 
 ## P3 — Transports
 
-- [ ] **AGWPE completion — `kissterm/transport/agwpe.py`.** Raw-frame mode
-  (DataKind `'K'`) against Direwolf and UZ7HO SoundModem already works. What's
-  missing relative to `tcp_kiss.py`: reconnect-with-backoff on a dropped
-  socket (today a lost AGWPE connection just goes to `ERROR` and stays
-  there), and actually parsing the port-info reply (`'G'`) instead of
-  discarding it, so a multi-port AGW engine's port count and descriptions
-  reach the setup wizard. Small-to-medium.
 - [ ] **BLE (GATT) — new `kissterm/transport/ble_kiss.py`.** The Mobilinkd
   TNC4's BLE mode does not go through `/dev/rfcomm*` — it needs `bleak`
   (already an optional dependency, see `pyproject.toml`'s `ble` extra) and
