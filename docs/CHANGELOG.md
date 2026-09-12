@@ -3,6 +3,27 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-11] — On-demand APRS position reports and clean relay replies
+
+### New Features
+
+- **`Ctrl+Alt+B` now sends one APRS position beacon immediately.** It uses
+  the configured APRS identity, symbol, comment, and path, works while the
+  periodic APRS beacon timer is off, and leaves that timer untouched. Because
+  this is an explicit operator request rather than autonomous activity, it
+  automatically enables TX when needed and records that arming visibly.
+  **Files:** `kissterm/ui/app.py`, `kissterm/ui/commands.py`,
+- **Repeated APRS messages now appear once in their conversation, while an
+  addressed duplicate is still auto-acknowledged.** This handles a WXBOT
+  reply or another message arriving by both a retry and a relay path without
+  making the sender retry longer because its first acknowledgment was lost.
+  The short-lived deduplication cache is not persisted, so a later, genuine
+  message using a recycled APRS message number remains visible.
+  **Files:** `kissterm/aprs_conversations.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/commands.py`, `tests/unit/test_aprs_conversations.py`,
+  `tests/pilot/test_aprs_messaging.py`, `tests/pilot/test_beacon_key_dispatch.py`,
+  `AGENTS.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-11] — Glossary and terminal scrollback fit the available width
 
 ### UX

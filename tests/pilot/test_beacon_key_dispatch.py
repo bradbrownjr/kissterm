@@ -3,6 +3,9 @@ Ctrl+G (`action_toggle_contacts`). Terminal pane: unchanged, sends one
 BTEXT beacon immediately (see `test_beacon_wiring.py` for that half in
 full). APRS pane: toggles `config.aprs.enabled`, the quick-access
 equivalent of the Settings checkbox plus Save.
+
+Ctrl+Alt+B is deliberately separate: it sends one APRS position report now,
+without changing that periodic setting.
 """
 
 from __future__ import annotations
@@ -135,6 +138,37 @@ async def test_the_toggle_never_arms_a_closed_transmit_gate():
         assert app.config.aprs.enabled is True
         assert app.gate.enabled is False, "the toggle must not arm the gate"
         assert ta.sent == []
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_alt_b_sends_one_position_and_arms_tx_without_starting_the_timer():
+    """A deliberate position report is not unattended beaconing.
+
+    It must work with periodic APRS beaconing off, use the configured APRS
+    path, and leave the timer off afterwards.  Starting with TX closed proves
+    the action, rather than test setup, is what armed it.
+    """
+    app, station, ta = await _app()
+    app.config.aprs.latitude = 41.7
+    app.config.aprs.longitude = -72.7
+    app.config.aprs.path = "WIDE1-1"
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        assert app.gate.enabled is False
+        assert app.config.aprs.enabled is False
+
+        await pilot.press("ctrl+alt+b")
+        await asyncio.sleep(0.15)
+
+        assert app.gate.enabled is True
+        assert app.config.aprs.enabled is False
+        assert app.aprs_beaconer.running is False
+        assert len(ta.sent) == 1
+        frame = ta.sent[0]
+        assert str(frame.path.destination) == "APRS"
+        assert [str(repeater) for repeater in frame.path.repeaters] == ["WIDE1-1"]
+        assert str(frame.path.source) == "N1ABC-1"
     station.close()
 
 

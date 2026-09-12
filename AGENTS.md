@@ -497,11 +497,15 @@ Gotchas that already cost time:
   still unacked when the gate closes must stop retrying rather than have the
   timer quietly reopen the gate on the operator's behalf. Same reasoning as
   the beacon timer below.
-- **A bare keystroke never arms it.** The manual beacon (`Ctrl+Shift+B`) has
-  no confirmation step and no target, which is exactly the shape of an
-  accidental transmission; it still reports the closed gate and sends
-  nothing. The rule is *confirmed and targeted*, not *the operator pressed
-  something*.
+- **A timer toggle never arms it.** The periodic beacon toggle
+  (`Ctrl+Shift+B` on APRS) has no transmission in it and never opens TX. The
+  BTEXT one-shot on that key also still reports a closed gate and sends
+  nothing. **`Ctrl+Alt+B` is the explicit exception:** it is a direct,
+  operator-committed APRS position report to the fixed APRS destination, so
+  it arms TX and sends once even while periodic APRS beaconing is off. The
+  gate is for autonomous activity, not a dead end in front of a deliberate
+  one-shot send; `_arm_for` keeps that auto-arm visible in the log, toast,
+  and status bar.
 - **Arming is never silent.** `_arm_for` writes a line into the terminal log,
   raises a notification, and refreshes the status bar. "Did this thing start
   transmitting behind my back?" has to stay answerable from the screen, or
@@ -1100,6 +1104,13 @@ again after a Settings save or a config reload.
   "message addressed to me" notice) keys on `(addressee, number)` so a
   sender's own retries -- typically every 30-90 seconds -- do not
   repaint the same warning on top of itself.
+- **A repeated APRS message is shown once, but acknowledged every time.** RF
+  retries and duplicate relay paths are normal, not a reason to turn one
+  WXBOT forecast into several chat lines. `MessageDeduplicator` compares the
+  sender, addressee, text, and message number for a bounded in-memory retry
+  window; it never persists that cache because message numbers may be reused.
+  The receive path still sends an auto-ack for every duplicate addressed to
+  us -- suppressing that ack is what would make the far end keep retrying.
 - **`Config.aprs.filter_by_ssid` (on by default) requires an incoming
   APRS message to match this station's EXACT identity to count as "for
   me" -- a message to a different SSID of the same base call is a

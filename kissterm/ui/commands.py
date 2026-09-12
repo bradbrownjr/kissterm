@@ -56,13 +56,14 @@ ACTION_META: dict[str, ActionMeta] = {
     "toggle_contacts": ActionMeta("Contacts", 3),
     "command_reference": ActionMeta("Connection", 4),
     "beacon_now": ActionMeta("Transmit", 5),
-    "set_callsign": ActionMeta("Connection", 6),
-    "find_in_terminal": ActionMeta("Terminal", 7),
-    "clear_log": ActionMeta("Terminal", 8),
-    "show_transcripts": ActionMeta("Terminal", 9),
-    "toggle_aprs_ssid_filter": ActionMeta("APRS", 10),
-    "quit": ActionMeta("App", 11),
-    "show_tab": ActionMeta("Panes", 12),
+    "aprs_beacon_now": ActionMeta("Transmit", 6),
+    "set_callsign": ActionMeta("Connection", 7),
+    "find_in_terminal": ActionMeta("Terminal", 8),
+    "clear_log": ActionMeta("Terminal", 9),
+    "show_transcripts": ActionMeta("Terminal", 10),
+    "toggle_aprs_ssid_filter": ActionMeta("APRS", 11),
+    "quit": ActionMeta("App", 12),
+    "show_tab": ActionMeta("Panes", 13),
 }
 
 #: Used only as a runtime safety net (a crash rendering the Footer would take

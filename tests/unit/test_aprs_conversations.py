@@ -13,6 +13,7 @@ import pytest  # noqa: E402
 from kissterm.aprs_conversations import (  # noqa: E402
     MAX_MESSAGES_PER_CONVERSATION,
     ConversationStore,
+    MessageDeduplicator,
     PendingAcks,
 )
 
@@ -20,6 +21,17 @@ from kissterm.aprs_conversations import (  # noqa: E402
 @pytest.fixture
 def store(tmp_path):
     return ConversationStore(tmp_path / "aprs_messages.json")
+
+
+def test_message_deduplicator_uses_the_full_message_fingerprint():
+    dedup = MessageDeduplicator(window_seconds=120)
+    assert not dedup.is_duplicate("WXBOT", "N1ABC-1", "Clear, 60 F", "7", now=100)
+    assert dedup.is_duplicate("wxbot", "N1ABC-1", "Clear, 60 F", "7", now=101)
+    # A service can send several different forecast lines under the same
+    # message number; they are separate messages, not duplicates.
+    assert not dedup.is_duplicate("WXBOT", "N1ABC-1", "Rain after noon", "7", now=102)
+    # Reusing a message number after the bounded retry window is legitimate.
+    assert not dedup.is_duplicate("WXBOT", "N1ABC-1", "Clear, 60 F", "7", now=221)
 
 
 def test_an_outgoing_message_is_recorded(store):

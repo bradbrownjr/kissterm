@@ -47,6 +47,52 @@ MAX_MESSAGES_PER_CONVERSATION = 200
 #: Conversations kept in total, oldest (by `last_activity`) dropped first.
 MAX_CONVERSATIONS = 200
 
+#: An APRS sender normally retries an unacknowledged message over the next
+#: minute or two; a copy may also arrive through more than one RF/IGate path.
+#: Keep an identical packet out of the chat history during that window, but
+#: do not persist this short-lived reception state across a restart.
+MESSAGE_DEDUP_SECONDS = 120.0
+
+
+class MessageDeduplicator:
+    """Recognize a recently repeated APRS message without doing any I/O.
+
+    A message number alone is not enough: some services omit it, and a
+    sender is allowed to reuse one later. The fingerprint therefore includes
+    source, addressee, text, and number. The timestamp is intentionally not
+    refreshed by a duplicate, so a genuinely new identical message can be
+    shown after one bounded retry window rather than being hidden forever by
+    a faulty station repeating it continuously.
+    """
+
+    def __init__(self, window_seconds: float = MESSAGE_DEDUP_SECONDS) -> None:
+        self.window_seconds = window_seconds
+        self._seen: dict[tuple[str, str, str, str], float] = {}
+
+    def is_duplicate(
+        self,
+        source: str,
+        addressee: str,
+        text: str,
+        number: str | None,
+        *,
+        now: float | None = None,
+    ) -> bool:
+        """Return whether this exact message was received in the recent window."""
+        now = time.monotonic() if now is None else now
+        key = (source.strip().upper(), addressee.strip().upper(), text, number or "")
+        previous = self._seen.get(key)
+        if previous is not None and now - previous < self.window_seconds:
+            return True
+        self._seen[key] = now
+        # Bound memory even on an APRS frequency with sustained, unrelated
+        # traffic. The cache is only an operational retry window, so expired
+        # entries have no value after it closes.
+        for old_key, seen_at in list(self._seen.items()):
+            if now - seen_at >= self.window_seconds:
+                del self._seen[old_key]
+        return False
+
 
 @dataclass(slots=True)
 class MessageEntry:

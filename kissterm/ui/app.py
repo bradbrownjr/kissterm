@@ -131,7 +131,7 @@ from textual.widgets._footer import FooterKey
 from .. import __version__
 from ..addressbook import AddressBook
 from .. import aprs
-from ..aprs_conversations import ConversationStore
+from ..aprs_conversations import ConversationStore, MessageDeduplicator
 from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import AX25Station, parse_path
 from ..ax25.address import AX25Address, AX25AddressError
@@ -652,6 +652,11 @@ class KissTermApp(App):
         # This costs nothing under a multiplexer, which consumes Ctrl+B before
         # the app ever sees it.
         Binding("ctrl+b", "beacon_now", "Beacon", show=False),
+        # A one-shot APRS position report is a different action from both the
+        # context-aware Ctrl+Shift+B beacon shortcut and its periodic timer.
+        # Ctrl+Alt+B makes that distinction reachable without moving focus to
+        # the APRS pane or editing any settings.
+        Binding("ctrl+alt+b", "aprs_beacon_now", "Position now"),
         Binding("ctrl+n", "connect", "Connect"),
         # Ctrl+SHIFT+D, not plain Ctrl+D, for the same reason as Ctrl+Shift+B
         # above: Textual's `Input` and `TextArea` both bind plain `ctrl+d` to
@@ -774,6 +779,11 @@ class KissTermApp(App):
         self.aprs_conversations = ConversationStore()
         self.aprs_conversations.load()
         self._purge_stale_synthetic_messages()
+        #: Keeps an RF retry or a second copy from another relay path out of
+        #: the conversation twice. It is deliberately in-memory-only: APRS
+        #: message numbers may be reused, so a restart starts a new reception
+        #: window instead of suppressing a later real message from history.
+        self._aprs_message_deduplicator = MessageDeduplicator()
         #: Suppresses a repeat desktop notification for the same (source,
         #: reason) pair within its window -- see kissterm/aprs_notify.py.
         #: An Emergency Mic-E flag always bypasses it.
@@ -1169,7 +1179,6 @@ class KissTermApp(App):
             msg = message_packet.data
             source = message_source
             if not (msg.is_ack or msg.is_rej or msg.is_telemetry_definition):
-                self.aprs_conversations.record_incoming(source, msg.text, number=msg.number)
                 to_me = aprs_message_matches(
                     msg.addressee,
                     self.config.mycall,
@@ -1177,9 +1186,18 @@ class KissTermApp(App):
                     filter_by_ssid=self.config.aprs.filter_by_ssid,
                     active_identity=self._active_aprs_identity(),
                 )
+                duplicate = self._aprs_message_deduplicator.is_duplicate(
+                    source, msg.addressee, msg.text, msg.number
+                )
                 if to_me:
                     if getattr(self.config, "aprs_auto_ack", True) and msg.number:
+                        # A sender may be retrying precisely because our first
+                        # ack was lost. A duplicate belongs only once in the
+                        # transcript, but it still deserves another ack.
                         await self._send_aprs_ack(source, msg.number, port)
+                if duplicate:
+                    return
+                self.aprs_conversations.record_incoming(source, msg.text, number=msg.number)
                 # `to_me` decides whether this opens a tab and raises an
                 # unread marker, or is only recorded. Every message packet is
                 # recorded either way -- see `AprsPane.note_incoming`.
@@ -2251,6 +2269,27 @@ class KissTermApp(App):
             self.notify("Beacon sent.")
         else:
             self.notify("Beacon not sent.", severity="warning")
+
+    @work
+    async def action_aprs_beacon_now(self) -> None:
+        """Ctrl+Alt+B -- transmit one APRS position report immediately.
+
+        This is an operator-committed transmission to the well-defined APRS
+        destination, not an unattended timer action.  It therefore arms the
+        transmit gate when necessary, just as a committed APRS message does.
+        It deliberately does *not* enable, restart, or otherwise alter the
+        periodic APRS beacon setting: ``force=True`` waives only that timer
+        setting inside :meth:`AprsBeaconer.send_once`.
+        """
+        self._arm_for("APRS position beacon")
+        why = self.aprs_beaconer.problem()
+        if why and why != "APRS beaconing is off":
+            self.notify(f"APRS position beacon not sent: {why}", severity="warning")
+            return
+        if await self.aprs_beaconer.send_once(force=True):
+            self.notify("APRS position beacon sent.")
+        else:
+            self.notify("APRS position beacon not sent.", severity="warning")
 
     async def _toggle_aprs_beacon_quick(self) -> None:
         """Flip `config.aprs.enabled` from the APRS pane's Ctrl+Shift+B,

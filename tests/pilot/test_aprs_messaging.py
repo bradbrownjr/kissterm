@@ -97,6 +97,32 @@ async def test_a_message_addressed_to_me_is_recorded_and_auto_acked(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_a_relayed_duplicate_is_shown_once_but_acked_each_time(tmp_path):
+    """WXBOT-style replies can arrive twice through relay paths or retries.
+
+    The chat should contain one human-readable reply, while repeating the
+    acknowledgment gives the sender a chance to stop its retry loop if our
+    first ack was the packet that got lost.
+    """
+    app, mine, theirs = await _app(tmp_path)
+    payload = aprs.message("N1ABC-1", "Portland: clear, 60 F", number="wx1")
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await _send_third_party(theirs, "WXBOT", payload)
+        await _send_third_party(theirs, "WXBOT", payload)
+        for _ in range(20):
+            if len([f for f in mine.transport.sent if b":ackwx1" in f.info]) == 2:
+                break
+            await pilot.pause()
+        convo = app.aprs_conversations.conversations["WXBOT"]
+        assert len(convo.messages) == 1
+        assert convo.messages[0].text == "Portland: clear, 60 F"
+        assert len([f for f in mine.transport.sent if b":ackwx1" in f.info]) == 2
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_auto_ack_transmits_under_the_configured_aprs_ssid_not_the_addressee_text(tmp_path):
     """A station has one consistent on-air identity for everything it
     originates -- an ack must transmit under `Config.aprs.source_for`, the
