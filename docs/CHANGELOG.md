@@ -3,6 +3,17 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-12] — APRS compose Enter commits a message
+
+### Improvements
+
+- **Pressing Enter in the APRS Message field now follows the same deliberate
+  send path as the Send button.** The keyboard commit sends the composed APRS
+  message, clears the field after success, and applies the same visible
+  operator-initiated TX arming rule as a button click.
+  **Files:** `kissterm/ui/aprs_pane.py`, `tests/pilot/test_aprs_send.py`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-11] — On-demand APRS position reports and clean relay replies
 
 ### New Features

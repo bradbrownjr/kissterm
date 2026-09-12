@@ -92,6 +92,32 @@ async def test_sending_composes_and_transmits_a_real_frame(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_enter_in_the_compose_field_sends_a_real_frame(tmp_path):
+    """Enter in the message field is the same deliberate send as its button."""
+    app, mine, theirs, ta = await _app(tmp_path, tx_armed=False)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        app.query_one("#aprs-to-input", Input).value = "WS1EC-15"
+        compose = app.query_one("#aprs-compose-input", Input)
+        compose.value = "hello by enter"
+        compose.focus()
+        await pilot.press("enter")
+
+        for _ in range(20):
+            if "WS1EC-15" in app.aprs_conversations.conversations:
+                break
+            await asyncio.sleep(0.05)
+
+        assert app.gate.enabled is True
+        convo = app.aprs_conversations.conversations["WS1EC-15"]
+        assert convo.messages[0].text == "hello by enter"
+        assert [frame for frame in ta.sent if frame.info.startswith(b":WS1EC-15")]
+        assert compose.value == ""
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_sending_with_no_addressee_is_refused_without_transmitting(tmp_path):
     app, mine, theirs, ta = await _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
@@ -332,7 +358,7 @@ async def test_the_conversation_shows_sent_then_ack(tmp_path):
 
         app.query_one("#aprs-to-input", Input).value = "WLNK-1"
         app.query_one("#aprs-compose-input", Input).value = "L"
-        pane._send_pressed()
+        await pane._send_pressed()
         await pilot.pause()
         await asyncio.sleep(0.2)
 

@@ -1274,16 +1274,18 @@ class AprsPane(Horizontal):
                 return Contact.from_dict(raw)
         return None
 
-    @on(Button.Pressed, "#aprs-send-button")
     @on(Input.Submitted, "#aprs-compose-input")
-    def _send_pressed(self) -> None:
-        self._send_compose()
+    async def _compose_submitted(self, event: Input.Submitted) -> None:
+        await self._send_compose(event.value)
 
-    @work
-    async def _send_compose(self) -> None:
+    @on(Button.Pressed, "#aprs-send-button")
+    async def _send_pressed(self) -> None:
+        await self._send_compose(self.query_one("#aprs-compose-input", Input).value)
+
+    async def _send_compose(self, text: str) -> None:
         addressee = self.query_one("#aprs-to-input", Input).value.strip()
         text_field = self.query_one("#aprs-compose-input", Input)
-        text = text_field.value.strip()
+        text = text.strip()
         if not addressee:
             self.app.notify("Type a callsign to send to.", severity="warning")  # type: ignore[attr-defined]
             return
