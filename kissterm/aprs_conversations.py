@@ -48,10 +48,11 @@ MAX_MESSAGES_PER_CONVERSATION = 200
 MAX_CONVERSATIONS = 200
 
 #: An APRS sender normally retries an unacknowledged message over the next
-#: minute or two; a copy may also arrive through more than one RF/IGate path.
-#: Keep an identical packet out of the chat history during that window, but
-#: do not persist this short-lived reception state across a restart.
-MESSAGE_DEDUP_SECONDS = 120.0
+#: minute or two, but a service reply relayed through APRS-IS can arrive much
+#: later than the final RF retry. Keep an identical packet out of the chat
+#: history for ten minutes; this covers that delivery lag without turning the
+#: cache into persistent history or suppressing a later real message.
+MESSAGE_DEDUP_SECONDS = 600.0
 
 
 class MessageDeduplicator:
@@ -61,8 +62,8 @@ class MessageDeduplicator:
     sender is allowed to reuse one later. The fingerprint therefore includes
     source, addressee, text, and number. The timestamp is intentionally not
     refreshed by a duplicate, so a genuinely new identical message can be
-    shown after one bounded retry window rather than being hidden forever by
-    a faulty station repeating it continuously.
+    shown after one bounded delivery window rather than being hidden forever
+    by a faulty station repeating it continuously.
     """
 
     def __init__(self, window_seconds: float = MESSAGE_DEDUP_SECONDS) -> None:

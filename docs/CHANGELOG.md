@@ -3,6 +3,20 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-12] — Late APRS service replies no longer duplicate chats
+
+### Bug Fixes
+
+- **The APRS message deduplication window now covers late relay/service
+  delivery, not just the initial RF retry period.** A live WXBOT forecast
+  arrived again more than six minutes after the first identical reply because
+  WXBOT did not ACK the numbered request; the ten-minute in-memory window
+  keeps that second copy out of the conversation while distinct forecast text
+  still appears. The cache remains non-persistent, so it cannot hide a later
+  legitimate message after a restart.
+  **Files:** `kissterm/aprs_conversations.py`,
+  `tests/unit/test_aprs_conversations.py`, `docs/CHANGELOG.md`.
+
 ## [2026-09-12] — APRS compose Enter commits a message
 
 ### Improvements

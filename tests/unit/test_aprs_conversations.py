@@ -12,6 +12,7 @@ import pytest  # noqa: E402
 
 from kissterm.aprs_conversations import (  # noqa: E402
     MAX_MESSAGES_PER_CONVERSATION,
+    MESSAGE_DEDUP_SECONDS,
     ConversationStore,
     MessageDeduplicator,
     PendingAcks,
@@ -32,6 +33,16 @@ def test_message_deduplicator_uses_the_full_message_fingerprint():
     assert not dedup.is_duplicate("WXBOT", "N1ABC-1", "Rain after noon", "7", now=102)
     # Reusing a message number after the bounded retry window is legitimate.
     assert not dedup.is_duplicate("WXBOT", "N1ABC-1", "Clear, 60 F", "7", now=221)
+
+
+def test_default_dedup_window_covers_a_late_relayed_service_reply():
+    """A WXBOT reply seen six minutes after the original remains one reply."""
+    dedup = MessageDeduplicator()
+    assert not dedup.is_duplicate("WXBOT", "N1ABC-1", "Clear, 60 F", None, now=100)
+    assert dedup.is_duplicate("WXBOT", "N1ABC-1", "Clear, 60 F", None, now=460)
+    assert not dedup.is_duplicate(
+        "WXBOT", "N1ABC-1", "Clear, 60 F", None, now=100 + MESSAGE_DEDUP_SECONDS
+    )
 
 
 def test_an_outgoing_message_is_recorded(store):
