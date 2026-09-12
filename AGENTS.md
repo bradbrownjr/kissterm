@@ -323,13 +323,13 @@ the code on the air.
 machine versus roughly 15 serial, same tests, same result. Safe because
 `_isolate.isolate()` gives every test file its own `tempfile.mkdtemp()`
 config directory and xdist workers are separate processes, so there is no
-shared state to collide on. Run the full suite before every commit
-(non-negotiable — see §7's "always commit tested work" rule); it no longer
-has to be the thing you dread doing that often. For fast iteration on one
-piece, run just its own test file(s) directly (still parallelized, just
-across fewer files) rather than the whole suite, and save the full run for
-right before `git commit`. Pass `-n0` if you need un-interleaved output to
-debug a single failing test.
+shared state to collide on. Run the tests proportionate to the change before every commit. Focused tests
+for the affected module or interaction are the default; do not run the full
+suite merely because a commit is being made. Reserve the full suite for
+cross-cutting or high-risk changes (transport, AX.25 state machine, shared
+configuration, broad UI architecture, dependency upgrades), or when focused
+tests expose a possible wider regression. Pass `-n0` if you need
+un-interleaved output to debug a single failing test.
 
 Gotchas that already cost time:
 
@@ -829,6 +829,10 @@ Gotchas that already cost time:
 - **ALWAYS** update `docs/CHANGELOG.md` and `docs/ROADMAP.md` when something
   ships. New capabilities go under "New Features"; "Improvements" is only for
   making existing things better. Remove a roadmap item the moment it ships.
+- **Use focused tests by default.** Requested directly: do not run the full
+  test suite merely for every commit. Test the affected module or interaction;
+  reserve the full suite for cross-cutting or high-risk changes, dependency
+  upgrades, or evidence of a wider regression.
 - **ALWAYS commit finished, tested work rather than leaving it sitting
   uncommitted.** Requested directly: "so we have history and snapshots to
   roll back to" -- an uncommitted working tree has no rollback point if the
