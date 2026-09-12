@@ -52,6 +52,34 @@ def _build_parser() -> argparse.ArgumentParser:
         help="scan for TNCs and modems, print what was found, and exit",
     )
     parser.add_argument(
+        "--capture-precalc-range",
+        action="store_true",
+        help="receive APRS-IS traffic until a compressed range packet is captured, then exit",
+    )
+    parser.add_argument(
+        "--aprs-is-host",
+        default="rotate.aprs2.net",
+        help="APRS-IS filtered-feed host for --capture-precalc-range (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--aprs-is-port",
+        type=int,
+        default=14580,
+        help="APRS-IS filtered-feed port for --capture-precalc-range (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--capture-radius-km",
+        type=float,
+        default=100.0,
+        help="APRS-IS receive filter radius in km (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--capture-timeout",
+        type=float,
+        default=300.0,
+        help="seconds to wait for a range packet (default: %(default)s)",
+    )
+    parser.add_argument(
         "--transport",
         metavar="NAME",
         help="open this configured transport instead of the saved default",
@@ -314,6 +342,51 @@ async def _amain(args) -> int:
         from .doctor import format_report, run_diagnostics
 
         print(format_report(await run_diagnostics(config)))
+        return 0
+
+    if args.capture_precalc_range:
+        if not 0 < args.capture_radius_km <= 2_000:
+            print("--capture-radius-km must be greater than 0 and no more than 2000.", file=sys.stderr)
+            return 2
+        if args.capture_timeout <= 0:
+            print("--capture-timeout must be greater than 0.", file=sys.stderr)
+            return 2
+        if not 1 <= args.aprs_is_port <= 65535:
+            print("--aprs-is-port must be between 1 and 65535.", file=sys.stderr)
+            return 2
+
+        from .aprs_is_capture import capture_precalculated_range
+
+        print(
+            "Listening to APRS-IS receive-only feed "
+            f"within {args.capture_radius_km:g} km of "
+            f"{config.aprs.latitude:.5f},{config.aprs.longitude:.5f} "
+            f"for up to {args.capture_timeout:g} seconds..."
+        )
+        try:
+            capture = await capture_precalculated_range(
+                host=args.aprs_is_host,
+                port=args.aprs_is_port,
+                callsign=config.mycall,
+                latitude=config.aprs.latitude,
+                longitude=config.aprs.longitude,
+                radius_km=args.capture_radius_km,
+                timeout_seconds=args.capture_timeout,
+            )
+        except TimeoutError:
+            print("Timed out opening the APRS-IS receive-only feed.", file=sys.stderr)
+            return 3
+        except OSError as exc:
+            print(f"Could not open APRS-IS receive-only feed: {exc}", file=sys.stderr)
+            return 3
+        if capture is None:
+            print("No compressed range packet arrived before the timeout.")
+            return 1
+        print("Captured a real compressed pre-calculated radio-range packet:")
+        print(f"  source: {capture.source!r}")
+        print(f"  range:  {capture.range_mi:.2f} mi")
+        print(f"  raw:    {capture.raw_line!r}")
+        print("Preserve this line and its capture time as the regression-fixture provenance.")
         return 0
 
     if args.setup or not config.mycall:

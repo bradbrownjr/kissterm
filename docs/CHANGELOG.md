@@ -3,6 +3,21 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-12] — Receive-only capture for rare APRS range packets
+
+### New Features
+
+- **The capture-precalc-range CLI command can collect real evidence for the
+  compressed-position range field without an APRS passcode or any
+  transmission.** It uses APRS-IS's unverified pass -1 login and a bounded
+  geographic feed filter around the configured station position, then prints
+  the first matching TNC2 line and decoded range for a literal regression
+  fixture. The command sends only its receive-only login line, which its
+  loopback test records exactly.
+  **Files:** kissterm/aprs_is_capture.py, kissterm/__main__.py,
+  tests/unit/test_aprs_is_capture.py, docs/PROTOCOL_GUIDE.md,
+  docs/ROADMAP.md, docs/CHANGELOG.md.
+
 ## [2026-09-12] — Late APRS service replies no longer duplicate chats
 
 ### Bug Fixes

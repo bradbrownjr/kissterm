@@ -129,6 +129,11 @@ Mic-E characters before `mice.py` sees them.
 - The compressed `csT` fields carry multiple meanings. The `{` range form is
   a pre-calculated radio range, not altitude. Keep unimplemented T-byte
   semantics visible as unsupported rather than inventing a value.
+- To verify that rare range form against real traffic without transmitting,
+  run the capture-precalc-range CLI command. It uses the configured APRS
+  position as a geographic receive filter, logs into APRS-IS with pass -1,
+  and emits the first matching raw TNC2 line plus its decoded range. Preserve
+  that raw line and capture time before turning it into a regression fixture.
 - Mic-E's latitude/status data is split between destination address and
   payload. Any Mic-E edit requires independent fixtures: the official examples
   and a cross-check against a mature independent decoder or a real capture.

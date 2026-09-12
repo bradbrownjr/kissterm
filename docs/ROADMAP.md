@@ -23,9 +23,13 @@ the original version of this section are done -- see CHANGELOG's
 `[2026-09-08]` entries ("Connected mode verified against real hardware" and
 "Mic-E verified against real traffic..."). What is still open:
 
-- [ ] **Verify the compressed-position `{` cs-byte** (implemented as a
-      pre-calculated range in `Position.precalc_range_mi`, not as altitude)
-      against a live APRS-IS feed. `kissterm/aprs/position.py`. Small.
+- [ ] **Verify the compressed-position range cs-byte** (implemented as a
+      pre-calculated range in Position.precalc_range_mi, not as altitude)
+      against a live APRS-IS feed. The new capture command logs in with
+      APRS-IS pass -1, waits for a matching real packet, and prints its raw
+      TNC2 line and decoded range for a literal test fixture. Preserve the
+      line, capture time, source, and an independent decoder cross-check
+      before completing this item. Small.
 - [ ] **Exercise the modulo-128 fallback path on the air.** `Config.modulo`
       accepts 128 and the window ceiling scales with it, covered by
       `test_modulo_128_link` on the loopback. Almost nothing on the air speaks
