@@ -106,7 +106,10 @@ async def capture_precalculated_range(
             remaining = deadline - asyncio.get_running_loop().time()
             if remaining <= 0:
                 return None
-            line = await asyncio.wait_for(reader.readline(), timeout=remaining)
+            try:
+                line = await asyncio.wait_for(reader.readline(), timeout=remaining)
+            except TimeoutError:
+                return None
             if not line:
                 return None
             capture = find_precalculated_range(line.decode("latin-1"))

@@ -52,6 +52,34 @@ async def test_capture_bounds_connection_setup(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_capture_returns_none_when_no_matching_packet_arrives():
+    async def handler(reader, writer):
+        await reader.readline()
+        writer.write(b"# logresp N1ABC unverified, server test\r\n")
+        await writer.drain()
+        await asyncio.sleep(1)
+        writer.close()
+
+    server = await asyncio.start_server(handler, "127.0.0.1", 0)
+    try:
+        port = server.sockets[0].getsockname()[1]
+        capture = await capture_precalculated_range(
+            host="127.0.0.1",
+            port=port,
+            callsign="N1ABC",
+            latitude=42.0,
+            longitude=-71.0,
+            radius_km=75,
+            timeout_seconds=0.01,
+        )
+    finally:
+        server.close()
+        await server.wait_closed()
+
+    assert capture is None
+
+
+@pytest.mark.asyncio
 async def test_capture_uses_an_unverified_login_and_never_sends_a_packet():
     login_lines: list[bytes] = []
 

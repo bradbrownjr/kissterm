@@ -14,6 +14,10 @@ touched and any breaking notes.
   the first matching TNC2 line and decoded range for a literal regression
   fixture. The command sends only its receive-only login line, which its
   loopback test records exactly.
+- **An exhausted capture interval now reports that no matching packet arrived,
+  rather than incorrectly calling the completed feed connection a timeout.**
+  **Files:** kissterm/aprs_is_capture.py, tests/unit/test_aprs_is_capture.py,
+  docs/CHANGELOG.md.
   **Files:** kissterm/aprs_is_capture.py, kissterm/__main__.py,
   tests/unit/test_aprs_is_capture.py, docs/PROTOCOL_GUIDE.md,
   docs/ROADMAP.md, docs/CHANGELOG.md.
