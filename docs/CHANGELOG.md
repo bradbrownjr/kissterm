@@ -9,7 +9,7 @@ touched and any breaking notes.
 
 - **The APRS message deduplication window now covers late relay/service
   delivery, not just the initial RF retry period.** A live WXBOT forecast
-  arrived again more than six minutes after the first identical reply because
+  arrived again almost six minutes after the first identical reply because
   WXBOT did not ACK the numbered request; the ten-minute in-memory window
   keeps that second copy out of the conversation while distinct forecast text
   still appears. The cache remains non-persistent, so it cannot hide a later
