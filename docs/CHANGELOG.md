@@ -13,8 +13,9 @@ touched and any breaking notes.
   Backends must safely clean up a partly-open connection; VARA additionally
   sends its `ABORT` command so an over-the-air connect request is withdrawn.
   **Files:** kissterm/ui/app.py, kissterm/transport/base.py,
-  kissterm/transport/vara.py, tests/pilot/test_session_transport.py,
-  tests/unit/test_vara_transport.py, docs/ROADMAP.md, docs/CHANGELOG.md.
+  kissterm/transport/vara.py, kissterm/transport/kernel_ax25.py,
+  tests/pilot/test_session_transport.py, tests/unit/test_vara_transport.py,
+  docs/ROADMAP.md, docs/CHANGELOG.md.
 
 ## [2026-09-13] — APRS bulletins
 

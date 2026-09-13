@@ -125,6 +125,14 @@ class KernelAx25Transport(SessionTransport):
             # live kernel AX.25 stack; verify against a real kissattach
             # setup before relying on it.
             await loop.sock_connect(sock, (self.ax25_port, str(path.destination)))
+        except asyncio.CancelledError:
+            # Ctrl+D cancels SessionTransport.connect() while the nonblocking
+            # socket may already exist. Do not leave that half-open kernel
+            # socket behind when propagating cancellation to the app.
+            if sock is not None:
+                sock.close()
+            session.set_state(SessionState.FAILED)
+            raise
         except OSError as exc:
             if sock is not None:
                 sock.close()
