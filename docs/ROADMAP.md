@@ -169,11 +169,6 @@ entries. What's still open:
   list of heard stations -- shipped `[2026-09-09]` as Heard-pane columns; what
   remains is a full map rendering, or a crude ASCII-art radar-style view as a
   lighter stretch goal than a real map. Medium.
-- [ ] **Weather and telemetry display.** Decoding is already done --
-  `kissterm/aprs/telemetry.py`'s `parse_weather`/`parse_telemetry` and
-  `aprs.parse_packet`'s `"weather"`/`"telemetry"` `kind`s -- what's missing
-  is a pane that renders a `WeatherReport`/`Telemetry` value at all; nothing
-  in `kissterm/ui/` references either type today. Medium.
 - [ ] **Sending object reports, with an object selector.** Requested
   directly, for after the beacon Settings work `[2026-09-09]` ships.
   Decoding already exists (`kissterm/aprs/messages.py::parse_object` ->

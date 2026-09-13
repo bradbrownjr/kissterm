@@ -3,6 +3,24 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-13] — Compact APRS weather and telemetry readout
+
+### New Features
+
+- **The APRS pane now keeps the latest weather report and telemetry reading in
+  a compact, two-line strip above its log.** Each direct reading carries its
+  source callsign and explicit units where APRS defines them; telemetry stays
+  as raw analog channels and digital bits until channel-definition labels are
+  available, rather than inventing units. The strip is hidden until traffic
+  supplies a reading, is not persisted, and the All log still retains the
+  chronological packet lines. The existing app-level APRS decode is passed to
+  the pane directly, so this adds no second decode path.
+  **Files:** kissterm/ui/app.py, kissterm/ui/aprs_pane.py,
+  kissterm/ui/styles.py, tests/pilot/test_aprs_conversation_tabs.py,
+  assets/screenshot-aprs.png, assets/screenshot-aprs.svg,
+  assets/screenshot-aprs-contacts.png, assets/screenshot-aprs-contacts.svg,
+  docs/ROADMAP.md, docs/CHANGELOG.md.
+
 ## [2026-09-13] — P1 protocol verification completed on the air
 
 ### Verification

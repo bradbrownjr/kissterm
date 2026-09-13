@@ -1224,7 +1224,7 @@ class KissTermApp(App):
             # the heard-table enrichment above; `format_packet` is the one
             # place that turns any `AprsPacket` into a line, so a new packet
             # kind only ever needs a case added there (AGENTS.md sec. 2b).
-            self._note_aprs_packet(aprs.format_packet(packet))
+            self._note_aprs_packet(packet)
 
         decision = evaluate_packet(
             packet,
@@ -1268,14 +1268,14 @@ class KissTermApp(App):
             pane.note_incoming(callsign, to_me=to_me)
             return
 
-    def _note_aprs_packet(self, line: str) -> None:
+    def _note_aprs_packet(self, packet: aprs.AprsPacket) -> None:
         """Forward one formatted non-message APRS line (a position, weather
         report, telemetry reading, status, or object/item) to the APRS
         pane's "All" tab. Tolerates the pane not being mounted, for the same
         reason `_note_aprs_incoming` does.
         """
         for pane in self._base_query(AprsPane):
-            pane.note_packet(line, time.time())
+            pane.note_packet(aprs.format_packet(packet), time.time(), packet)
             return
 
     def _purge_stale_synthetic_messages(self) -> None:

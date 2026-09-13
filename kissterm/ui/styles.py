@@ -180,6 +180,10 @@ AprsPane { height: 1fr; }
    these two rules cannot fight over the same tab. */
 #aprs-convo-tabs Tab.-unread { color: $warning; text-style: bold; }
 #aprs-convo-tabs Underline > .underline--bar { color: $panel; }
+#aprs-sensor-summary {
+    display: none; height: auto; margin-bottom: 1; padding: 0 1;
+    border: round $panel; color: $text-muted;
+}
 #aprs-conversation-log { height: 1fr; border: solid $panel; }
 #aprs-compose-row { height: auto; margin-top: 1; }
 #aprs-to-input { border: round $accent; width: 12; margin-right: 1; }

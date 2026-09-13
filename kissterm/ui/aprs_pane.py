@@ -67,6 +67,7 @@ from textual.css.query import NoMatches
 from textual.widgets import Button, DataTable, Input, RichLog, Static, Tab, Tabs
 
 from .. import aprs_services
+from ..aprs import AprsPacket, Telemetry, WeatherReport
 from ..aprs_contacts import Contact, build_message_body, canned_messages_for
 from ..aprs_conversations import PendingAcks
 from . import slideouts
@@ -109,6 +110,48 @@ _MAX_CONVO_TABS = 12
 #: conversations, and a repaint runs on every arriving frame, so it is capped
 #: at roughly a few screens of scrollback rather than everything ever heard.
 _ALL_TAB_LINES = 500
+
+
+def _weather_summary(source: str, weather: WeatherReport) -> str:
+    """One compact, unit-labelled line for a decoded weather report.
+
+    Weather reports often omit fields, so this renders only readings actually
+    present rather than inventing a zero or a placeholder that could be read
+    as a sensor value. The source stays on the line because the APRS channel
+    can carry several weather stations at once; a bare 72F is not useful
+    operational information when it has lost who measured it.
+    """
+    bits = [f"WX {source}"]
+    if weather.temperature_f is not None:
+        bits.append(f"{weather.temperature_f}F")
+    if weather.wind_course is not None and weather.wind_speed_mph is not None:
+        bits.append(f"wind {weather.wind_course}deg/{weather.wind_speed_mph}mph")
+    elif weather.wind_speed_mph is not None:
+        bits.append(f"wind {weather.wind_speed_mph}mph")
+    if weather.wind_gust_mph is not None:
+        bits.append(f"gust {weather.wind_gust_mph}mph")
+    if weather.humidity_pct is not None:
+        bits.append(f"RH {weather.humidity_pct}%")
+    if weather.pressure_tenths_mb is not None:
+        bits.append(f"{weather.pressure_tenths_mb / 10:.1f}mb")
+    if weather.rain_1h_hundredths_in is not None:
+        bits.append(f"rain {weather.rain_1h_hundredths_in / 100:.2f}in/1h")
+    return " | ".join(bits)
+
+
+def _telemetry_summary(source: str, telemetry: Telemetry) -> str:
+    """One compact telemetry line without pretending analog values have units.
+
+    APRS telemetry definitions arrive separately and are not yet stored, so
+    attaching guessed labels or units here would be worse than showing the
+    original numeric channels. The sequence number and digital bits make a
+    changing reading distinguishable from a repeated one at a glance.
+    """
+    analog = ",".join(f"{value:g}" for value in telemetry.analog)
+    bits = [f"TEL {source} #{telemetry.sequence}", analog]
+    if telemetry.digital:
+        bits.append(telemetry.digital)
+    return " | ".join(bits)
 
 
 def _tab_id(callsign: str) -> str:
@@ -294,6 +337,11 @@ class AprsPane(Horizontal):
         #: (`_ALL_TAB_LINES`) so a busy channel cannot grow it forever.
         #: Fed by `note_packet`, called from `KissTermApp._note_aprs_packet`.
         self._packet_lines: deque[tuple[float, str]] = deque(maxlen=_ALL_TAB_LINES)
+        # Latest direct readings, not a history and never persisted. The compact
+        # strip is a current channel readout; the All log remains the
+        # chronological record for earlier values.
+        self._latest_weather: tuple[str, WeatherReport] | None = None
+        self._latest_telemetry: tuple[str, Telemetry] | None = None
 
     def compose(self) -> ComposeResult:
         # Conversation first -- this is the main, always-visible column.
@@ -307,6 +355,7 @@ class AprsPane(Horizontal):
             # what it just added, which would yank the view to whichever
             # stranger transmitted first.
             yield _ConvoTabs(Tab("All", id=_ALL_TAB), id="aprs-convo-tabs")
+            yield Static(id="aprs-sensor-summary")
             # `WrapLog`, not a plain `RichLog`: with the contact list open
             # this column is narrower than `RichLog`'s 78-cell `min_width`,
             # and the tail a plain one would hide is the `[ack]` status.
@@ -340,6 +389,7 @@ class AprsPane(Horizontal):
         self.query_one("#aprs-contacts-column").display = False
         self.set_interval(_RETRY_CHECK_INTERVAL, self._check_retries)
         self._restore_tabs()
+        self._refresh_sensor_summary()
 
     def _restore_tabs(self) -> None:
         """Reopen a tab for every conversation already on disk, oldest last
@@ -692,21 +742,51 @@ class AprsPane(Horizontal):
         for _, text in lines[-_ALL_TAB_LINES:]:
             log.write(text)
 
-    def note_packet(self, line: str, timestamp: float) -> None:
-        """A non-message APRS packet was decoded into one human-readable
-        `line` (a position, weather report, status, telemetry reading, or
-        object/item -- see `format_packet`). Kept in `self._packet_lines`
-        only; repaints the "All" tab immediately if it is the one on screen,
-        the same way an incoming message does.
+    def note_packet(self, line: str, timestamp: float, packet: AprsPacket) -> None:
+        """Record one decoded non-message packet and refresh current sensors.
+
+        The chronological All log keeps every non-message APRS packet. Weather
+        and telemetry additionally replace their respective one-line current
+        reading, so a new report is easy to scan without pretending the strip
+        is a history or a second decoder.
         """
         self._packet_lines.append((timestamp, line))
+        if packet.kind == "weather" and isinstance(packet.data, WeatherReport):
+            self._latest_weather = (str(packet.source), packet.data)
+        elif packet.kind == "telemetry" and isinstance(packet.data, Telemetry):
+            self._latest_telemetry = (str(packet.source), packet.data)
+        self._refresh_sensor_summary()
         try:
             if self._tabs().active == _ALL_TAB:
                 self._show_all()
         except NoMatches:
             # Off the frame fan-out, which outlives the widget tree -- same
-            # tolerance `note_incoming` applies.
+            # tolerance note_incoming applies.
             return
+
+    def _refresh_sensor_summary(self) -> None:
+        """Render the latest decoded sensor values, or reclaim the row.
+
+        This is deliberately separate from _show_all: switching among
+        conversations repaints the scrollback often, while the strip changes
+        only when a new weather or telemetry packet is decoded. Keeping the
+        two lifecycles apart prevents a tab change from looking like a fresh
+        sensor reading.
+        """
+        try:
+            summary = self.query_one("#aprs-sensor-summary", Static)
+        except NoMatches:
+            return
+        lines: list[str] = []
+        if self._latest_weather is not None:
+            source, weather = self._latest_weather
+            lines.append(_weather_summary(source, weather))
+        if self._latest_telemetry is not None:
+            source, telemetry = self._latest_telemetry
+            lines.append(_telemetry_summary(source, telemetry))
+        summary.display = bool(lines)
+        if lines:
+            summary.update("\n".join(lines))
 
     def note_incoming(self, callsign: str, *, to_me: bool) -> None:
         """A message was decoded. Open a tab for it and mark it unread.

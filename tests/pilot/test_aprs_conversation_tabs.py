@@ -390,6 +390,50 @@ async def test_ctrl_l_on_a_conversation_tab_deletes_only_that_conversation(tmp_p
 
 
 @pytest.mark.asyncio
+async def test_latest_weather_and_telemetry_are_compactly_visible(tmp_path):
+    """Real positionless sensor frames update the compact APRS strip.
+
+    This drives the existing frame fan-out into the pane. It must not invoke
+    a second parser or call note_packet directly: the display is only useful
+    if the production decoded-packet handoff delivers both packet kinds.
+    """
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        weather = aprs.beacon_frame(
+            AX25Address.parse("W1WX-1"),
+            AX25Address.parse("APRS"),
+            (),
+            b"_10090556c220s004g005t077r000p000P000h50b09900",
+        )
+        await theirs.transport.send_frame(weather, 0)
+        await _settle(pilot)
+
+        summary = app.query_one("#aprs-sensor-summary")
+        assert summary.display
+        assert "WX W1WX-1" in str(summary.content)
+        assert "77F" in str(summary.content)
+        assert "wind 220deg/4mph" in str(summary.content)
+        assert "RH 50%" in str(summary.content)
+        assert "990.0mb" in str(summary.content)
+
+        telemetry = aprs.beacon_frame(
+            AX25Address.parse("W1TEL-1"),
+            AX25Address.parse("APRS"),
+            (),
+            b"T#005,123,045,067,000,255,00000000",
+        )
+        await theirs.transport.send_frame(telemetry, 0)
+        await _settle(pilot)
+
+        rendered = str(summary.content)
+        assert "WX W1WX-1" in rendered
+        assert "TEL W1TEL-1 #005 | 123,45,67,0,255 | 00000000" in rendered
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_a_position_beacon_shows_as_a_readable_line_in_all(tmp_path):
     """A non-message packet (a position report here) has no correspondent
     and so never enters `ConversationStore` -- but it must still show up
