@@ -234,6 +234,13 @@ class SessionTransport(Transport):
     access -- these modems do not expose one, and pretending otherwise is how
     you end up with a KISS abstraction that lies about VARA.
 
+    ``connect()`` must be safe to cancel while it waits for a remote endpoint.
+    The app uses cancellation for Ctrl+D during an in-flight session-tier
+    connection, just as it stops a pending SABM attempt in the frame tier. A
+    backend that has already asked a modem to connect must undo that request
+    before propagating ``CancelledError``; a socket backend must release any
+    partly opened socket.
+
     `path` is optional: VARA, Mercury and the kernel AX.25 stack all dial a
     specific AX.25 callsign, so they need a real one. Telnet and SSH do not
     -- their destination is the transport's own configured host and port,

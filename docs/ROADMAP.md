@@ -67,11 +67,6 @@ compressed-range reference and the recorded on-air modulo-128 fallback test.
   see `ssh.py`'s module docstring for why that is a real gap, not an
   oversight). Needs either a trust-on-first-use prompt or a config field to
   pin the expected key.
-- [ ] **Cancelling a hung session-transport connect.** The FrameTransport
-  path has `_connect_target`/Ctrl+D cancellation for a stuck SABM retry
-  loop; `KissTermApp._connect_session_transport` (Telnet, SSH, VARA,
-  Mercury, kernel AX.25) has no equivalent yet -- a slow or unreachable
-  host has to time out or fail on its own. Small once someone wants it.
 - [ ] **AX/IP — a different, lower-priority ask.** Carries actual AX.25
   *frames* over UDP (BPQ32's convention for linking nodes to each other
   over the Internet), so architecturally it is a `FrameTransport` like

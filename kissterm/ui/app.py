@@ -759,6 +759,11 @@ class KissTermApp(App):
         #: out N2 retries with no way to stop them. See `action_connect` and
         #: `action_disconnect`.
         self._connecting: dict[str, AX25Address] = {}
+        #: The one in-flight SessionTransport.connect() call, if any. Session
+        #: transports have no AX.25 link for Ctrl+D to close during setup, so
+        #: the task itself is the cancellation handle. It is set only while
+        #: awaiting connect(), not for an established session or login script.
+        self._session_connect_task: asyncio.Task[object] | None = None
         self._status = "starting"
         #: Stations already tried, offered in the connect dialog. Owned here
         #: rather than by the dialog so a successful connect can be recorded
@@ -2869,11 +2874,6 @@ class KissTermApp(App):
         "C <node>" exactly like a hand-typed hop, so one saved script both
         logs in and reaches the actual node from the shell SSH lands in.
 
-        Known gap: unlike the FrameTransport path, there is no way to
-        cancel a connect attempt that hangs here (a slow or unreachable
-        host) short of waiting for it to time out or fail on its own --
-        see docs/ROADMAP.md's Telnet/SSH entry.
-
         Always binds into the permanent `""` session key rather than one
         derived from the peer, unlike the frame-tier path -- this tier
         never has more than one session (out of scope for the tabbed
@@ -2887,12 +2887,25 @@ class KissTermApp(App):
         self._arm_for(f"connect via {transport.info.detail}")
         self.query_one(TerminalPane).clear("")
         self._to_terminal("", "log", f"\n*** Connecting to {transport.info.detail}...\n")
+        connect_task = asyncio.current_task()
+        assert connect_task is not None
+        self._session_connect_task = connect_task
         try:
             session = await transport.connect()
+        except asyncio.CancelledError:
+            # Ctrl+D is an operator decision, not a failed connection.
+            # SessionTransport implementations clean up their partly-open
+            # connection before propagating this cancellation.
+            self._to_terminal("", "log", "*** Connect cancelled by operator.\n")
+            self.notify("Cancelled connect.")
+            return
         except TransportError as exc:
             self._to_terminal("", "log", f"*** Could not connect: {exc}\n")
             self.notify(str(exc), severity="error")
             return
+        finally:
+            if self._session_connect_task is connect_task:
+                self._session_connect_task = None
         link = _SessionLinkAdapter(session)
         self._bind_link(link, "")
         # Same gap as the frame-tier connect above (`action_connect`) and
@@ -3237,6 +3250,19 @@ class KissTermApp(App):
                 connecting.close(reason=CANCELLED_REASON)
                 self.notify(f"Cancelled connect to {connecting.peer}.")
                 return
+        session_connect_task = self._session_connect_task
+        if (
+            session_key == ""
+            and session_connect_task is not None
+            and not session_connect_task.done()
+        ):
+            self._to_terminal(
+                session_key,
+                "log",
+                "\n*** Cancelling session transport connect...\n",
+            )
+            session_connect_task.cancel()
+            return
         self.notify("Not connected.", severity="warning")
 
     def disconnect_or_close_tab(self, session_key: str) -> None:

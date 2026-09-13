@@ -20,6 +20,11 @@ import pytest  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.config import Config  # noqa: E402
+from kissterm.transport.base import (  # noqa: E402
+    SessionTransport,
+    TransportInfo,
+    TransportState,
+)
 from kissterm.transport.telnet import TelnetTransport  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
 
@@ -93,6 +98,52 @@ async def test_ctrl_n_arms_the_gate_instead_of_being_refused_by_it():
         await transport.close()
         server.close()
         await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_d_cancels_a_hanging_session_transport_connect():
+    """Ctrl+D cancels the connect task before a Session exists to close."""
+
+    class HangingTransport(SessionTransport):
+        def __init__(self) -> None:
+            super().__init__(TransportInfo("test", "hanging", "hanging", "session"))
+            self.started = asyncio.Event()
+            self.cancelled = asyncio.Event()
+
+        async def open(self) -> None:
+            self.state = TransportState.OPEN
+
+        async def close(self) -> None:
+            self.state = TransportState.CLOSED
+
+        async def connect(self, path=None):
+            self.started.set()
+            try:
+                await asyncio.Event().wait()
+            except asyncio.CancelledError:
+                self.cancelled.set()
+                raise
+
+    transport = HangingTransport()
+    await transport.open()
+    app = KissTermApp(Config(mycall="N1ABC-1"), station=None, session_transport=transport)
+    try:
+        async with app.run_test(size=(110, 32)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+n")
+            await asyncio.wait_for(transport.started.wait(), timeout=1)
+
+            await pilot.press("ctrl+d")
+            await asyncio.wait_for(transport.cancelled.wait(), timeout=1)
+            await pilot.pause()
+
+            assert app._session_connect_task is None
+            assert app.link is None
+            text = _log_text(app)
+            assert "cancelled by operator" in text.lower(), text
+            assert "could not connect" not in text.lower(), text
+    finally:
+        await transport.close()
 
 
 @pytest.mark.asyncio

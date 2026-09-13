@@ -3,6 +3,19 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-13] — Cancel session-transport connects
+
+### Improvements
+
+- **Ctrl+D now cancels an in-progress Telnet, SSH, VARA, Mercury, or kernel
+  AX.25 connection.** The terminal reports a deliberate cancellation rather
+  than a failed connection, and does not bind a session after cancellation.
+  Backends must safely clean up a partly-open connection; VARA additionally
+  sends its `ABORT` command so an over-the-air connect request is withdrawn.
+  **Files:** kissterm/ui/app.py, kissterm/transport/base.py,
+  kissterm/transport/vara.py, tests/pilot/test_session_transport.py,
+  tests/unit/test_vara_transport.py, docs/ROADMAP.md, docs/CHANGELOG.md.
+
 ## [2026-09-13] — APRS bulletins
 
 ### New Features

@@ -341,6 +341,14 @@ class VaraTransport(SessionTransport):
 
         try:
             await asyncio.wait_for(self._connected_event.wait(), timeout=self.connect_timeout)
+        except asyncio.CancelledError:
+            # Ctrl+D cancels the app task awaiting SessionTransport.connect().
+            # VARA has already received CONNECT, so explicitly withdraw that
+            # over-the-air request before letting cancellation propagate.
+            with contextlib.suppress(TransportError):
+                await self._send_command(_CMD_ABORT)
+            session.set_state(SessionState.FAILED)
+            raise
         except asyncio.TimeoutError:
             with contextlib.suppress(TransportError):
                 await self._send_command(_CMD_ABORT)
