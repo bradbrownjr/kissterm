@@ -3,6 +3,16 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-13] — Correct Ctrl+R roadmap status
+
+### Documentation
+
+- **Removed two stale Ctrl+R roadmap items that already shipped.** Commands
+  and Glossary have used a tab strip, with a cleared filter on mode changes,
+  since `211d33e`; the remaining roadmap entries now describe only unshipped
+  feedback.
+  **Files:** docs/ROADMAP.md, docs/CHANGELOG.md.
+
 ## [2026-09-13] — Cancel session-transport connects
 
 ### Improvements

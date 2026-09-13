@@ -373,22 +373,7 @@ from a connected node (`kissterm/harvested.py`, `HarvestConfirmScreen`), a
 packet-terminology glossary sharing the Ctrl+R pane (`kissterm/glossary.py`),
 and per-node notes in the Address Book, shown on connect.
 
-Operator feedback on the shipped Ctrl+R pane, not yet acted on:
-
-- [ ] **Commands/Glossary should be tabs, not buttons.** `CommandReferenceScreen`
-      (`kissterm/ui/dialogs.py`) switches `self._mode` via two plain `Button`s
-      (`#ref-mode-commands`/`#ref-mode-glossary`) styled primary/default to show
-      which is active. Every other multi-view pane in this app uses a `Tabs`
-      strip for exactly this job (`_SessionTabs` in `terminal_pane.py`,
-      `_ConvoTabs` in `aprs_pane.py`) -- this screen is the odd one out and
-      should match. Small.
-- [ ] **Switching Commands/Glossary should clear the search filter.**
-      `CommandReferenceScreen._switch_mode` re-populates the table with
-      `search.value` carried over from the mode just left (`kissterm/ui/
-      dialogs.py`) -- a filter typed while looking for a command (say "help")
-      silently narrows the glossary too when the operator flips modes, and
-      it is not obvious why the list looks empty or wrong. Reset the `Input`
-      (and re-populate unfiltered) on every mode switch. Small.
+Remaining operator feedback on the shipped Ctrl+R pane:
 - [ ] **"Learn from node" gives no feedback while it runs, or after.**
       `CommandReferenceScreen._harvest` (`kissterm/ui/dialogs.py`) awaits
       `KissTermApp.harvest_commands` with nothing on screen to say a request
