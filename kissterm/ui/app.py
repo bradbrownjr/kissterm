@@ -211,6 +211,13 @@ class _TerminalSession:
     #: duration of its capture window; `_capture_harvest` appends into it.
     #: See `HARVEST_CAPTURE_LIMIT` for why it cannot grow without bound.
     harvest_buffer: str | None = None
+    #: Sanitized text from the most recent completed harvest on this live
+    #: session. The Ctrl+R screen shows it after parsing so the operator can
+    #: judge what the node actually said, rather than trusting a terse list
+    #: of names extracted from an opaque exchange. It is deliberately
+    #: per-session and in-memory: it is diagnostic context, not a second
+    #: command cache or a new persistence promise.
+    last_harvest_text: str = ""
     #: The last state `_on_link_state` was actually called with -- set on
     #: EVERY call, including a suppressed TIMER_RECOVERY one, never only on
     #: a call that wrote a note. See that method's docstring for why a
@@ -2017,6 +2024,9 @@ class KissTermApp(App):
             self.notify(DISABLED_MESSAGE, severity="warning")
             return ()
         link = session.link
+        # Do not let a second, unanswered harvest make the Ctrl+R screen
+        # present the previous request's reply as though it were current.
+        session.last_harvest_text = ""
         session.harvest_buffer = ""
         try:
             await link.send(b"?\r")
@@ -2054,6 +2064,7 @@ class KissTermApp(App):
                     break
         text = session.harvest_buffer or ""
         session.harvest_buffer = None
+        session.last_harvest_text = text
         names = parse_harvested(text)
         if not names:
             self._to_terminal(
@@ -2078,6 +2089,16 @@ class KissTermApp(App):
             f"{', '.join(names)}\n",
         )
         return names
+
+    def last_harvest_text(self, session_key: str) -> str:
+        """The sanitized reply captured by this session's latest harvest.
+
+        Kept behind the app boundary rather than having `CommandReferenceScreen`
+        reach into `_sessions`: the dialog owns presentation, while this app
+        owns link-scoped state and its lifetime.
+        """
+        session = self._sessions.get(session_key)
+        return session.last_harvest_text if session is not None else ""
 
     def _on_link_state(self, session_key: str, state: SessionState) -> None:
         """Note a state change inline in the terminal -- except a

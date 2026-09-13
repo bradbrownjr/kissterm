@@ -298,6 +298,9 @@ TransportEntryScreen { align: center middle; }
 #ref-mode-tabs Tab { color: $text-muted; }
 #ref-mode-tabs Tab.-active { color: $accent; text-style: bold; }
 #ref-mode-tabs Underline > .underline--bar { color: $panel; }
+#ref-harvest-status { color: $text-muted; padding: 1 0 0 0; display: none; }
+#ref-harvest-output { height: 8; min-height: 4; margin-top: 1; display: none; }
+#ref-show-harvest { display: none; }
 /* min-height, not just `1fr`: on a short terminal `1fr` still shrinks this
    to a single row once the fixed elements above and below it claim their
    own space -- see #ref-box's comment. Six rows is enough to see more than

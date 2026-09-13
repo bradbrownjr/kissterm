@@ -374,16 +374,6 @@ packet-terminology glossary sharing the Ctrl+R pane (`kissterm/glossary.py`),
 and per-node notes in the Address Book, shown on connect.
 
 Remaining operator feedback on the shipped Ctrl+R pane:
-- [ ] **"Learn from node" gives no feedback while it runs, or after.**
-      `CommandReferenceScreen._harvest` (`kissterm/ui/dialogs.py`) awaits
-      `KissTermApp.harvest_commands` with nothing on screen to say a request
-      is in flight, and reported directly: the operator has no way to see
-      the node's actual reply short of switching to the Terminal or Monitor
-      tab, which defeats harvesting from inside this modal at all. Needs (1)
-      a visible "asking node..." state on the harvest button/row for the
-      round trip, and (2) the raw text the node sent back shown somewhere in
-      this screen -- even a collapsible raw-output area -- rather than only
-      the parsed table rows once caching finishes. Small-medium.
 - [ ] **Harvested BBS commands are shown mixed in with node-level commands,
       with nothing to tell them apart.** Reported directly after a real
       harvest: BBS commands (mail read/list/send) learned from inside a BBS

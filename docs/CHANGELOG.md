@@ -3,6 +3,18 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-13] — Make command harvesting inspectable
+
+### Improvements
+
+- **Ctrl+R now shows “Asking node...” while an approved command harvest is in
+  progress, then reports the capture size and learned-command count.** “Show
+  captured reply” reveals the exact sanitized node output in the same screen,
+  so parsing remains inspectable without switching to Terminal or Monitor.
+  The confirm step and ordinary transmit-gated `?` send path are unchanged.
+  **Files:** kissterm/ui/app.py, kissterm/ui/dialogs.py, kissterm/ui/styles.py,
+  tests/pilot/test_terminal_ux.py, docs/ROADMAP.md, docs/CHANGELOG.md.
+
 ## [2026-09-13] — Correct Ctrl+R roadmap status
 
 ### Documentation

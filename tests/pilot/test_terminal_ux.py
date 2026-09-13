@@ -677,6 +677,14 @@ async def test_harvesting_learns_commands_and_caches_them_per_callsign():
             assert isinstance(app.screen, HarvestConfirmScreen)
             await app.screen.dismiss(True)
 
+            for _ in range(40):
+                await asyncio.sleep(0.02)
+                harvest = screen.query_one("#ref-harvest", Button)
+                if harvest.disabled:
+                    break
+            assert harvest.disabled
+            assert str(harvest.label) == "Asking node..."
+
             sent = b""
             for _ in range(40):
                 await asyncio.sleep(0.02)
@@ -699,6 +707,20 @@ async def test_harvesting_learns_commands_and_caches_them_per_callsign():
 
             cached = app._harvested.for_callsign(str(PEER))
             assert "CALENDAR" in cached and "FORMS" in cached and "WALL" in cached
+            status = screen.query_one("#ref-harvest-status", Static)
+            assert status.display
+            assert "Captured" in str(status.render())
+            show = screen.query_one("#ref-show-harvest", Button)
+            assert show.display
+            show.press()
+            output = screen.query_one("#ref-harvest-output", RichLog)
+            for _ in range(50):
+                await asyncio.sleep(0.02)
+                if output.lines:
+                    break
+            await pilot.pause()
+            assert output.display
+            assert "CALENDAR FORMS WALL" in "\n".join(str(line) for line in output.lines)
             await screen.dismiss(None)
     finally:
         app_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling

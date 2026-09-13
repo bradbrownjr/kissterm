@@ -2137,6 +2137,14 @@ class CommandReferenceScreen(ModalScreen[str | None]):
                 highlight=False,
                 auto_scroll=False,
             )
+            yield Static("", id="ref-harvest-status")
+            yield WrapLog(
+                id="ref-harvest-output",
+                wrap=True,
+                markup=False,
+                highlight=False,
+                auto_scroll=False,
+            )
             yield Static(
                 "Enter puts a command in the input line. It is not sent until "
                 "you press Enter there or click Send.",
@@ -2145,6 +2153,7 @@ class CommandReferenceScreen(ModalScreen[str | None]):
             with Horizontal(id="connect-buttons"):
                 if self._can_harvest:
                     yield Button("Learn from node", id="ref-harvest")
+                    yield Button("Show captured reply", id="ref-show-harvest")
                 yield Button("Close", id="ref-close")
 
     def _title(self) -> str:
@@ -2283,8 +2292,55 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         proceed = await self.app.push_screen_wait(HarvestConfirmScreen(self._peer))
         if not proceed:
             return
-        await self.app.harvest_commands(self._session_key)  # type: ignore[attr-defined]
+        harvest = self.query_one("#ref-harvest", Button)
+        harvest.label = "Asking node..."
+        harvest.disabled = True
+        names = await self.app.harvest_commands(self._session_key)  # type: ignore[attr-defined]
+        text = self.app.last_harvest_text(self._session_key)  # type: ignore[attr-defined]
+        status = self.query_one("#ref-harvest-status", Static)
+        status.update(
+            f"Captured {len(text)} byte(s); learned {len(names)} command(s)."
+            if text
+            else "No reply was captured from the node."
+        )
+        status.display = True
+        show = self.query_one("#ref-show-harvest", Button)
+        show.display = True
+        harvest.label = "Learn from node"
+        harvest.disabled = False
         self._populate(self.query_one("#ref-search", Input).value)
+
+    @on(Button.Pressed, "#ref-show-harvest")
+    def _toggle_harvest_output(self) -> None:
+        """Reveal the exact sanitized reply behind the parsed command list.
+
+        Parsing a node's menu necessarily throws information away (headings,
+        errors, local application entries), so an operator needs to inspect
+        the capture without leaving the reference screen. This is a view
+        toggle only; it cannot ask the node again or transmit anything.
+        """
+        output = self.query_one("#ref-harvest-output", WrapLog)
+        show = self.query_one("#ref-show-harvest", Button)
+        output.display = not output.display
+        if output.display:
+            show.label = "Hide captured reply"
+            # A just-revealed WrapLog has no laid-out width until Textual has
+            # completed its visibility/layout pass. Writing now makes
+            # RichLog render at zero width and lose the reply; a brief timer
+            # puts the write after that pass, rather than relying on whether
+            # this button press happened to coincide with a refresh.
+            self.set_timer(0.05, self._write_harvest_output)
+        else:
+            show.label = "Show captured reply"
+
+    def _write_harvest_output(self) -> None:
+        """Write the capture only after its revealed log has real geometry."""
+        output = self.query_one("#ref-harvest-output", WrapLog)
+        if not output.display:
+            return
+        output.clear()
+        text = self.app.last_harvest_text(self._session_key)  # type: ignore[attr-defined]
+        output.write(text or "No reply was captured.")
 
     def on_data_table_row_selected(self, event) -> None:
         """Hand the command back to the app, which fills the input line.
