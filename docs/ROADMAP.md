@@ -18,24 +18,10 @@ monitor pane, the heard list, the first-run wizard with autodiscovery, and
 `--doctor`. See docs/CHANGELOG.md `[2026-09-04]` for what was built and how it
 was verified.
 
-Both hardware verification and the Mic-E real-capture check called out in
-the original version of this section are done -- see CHANGELOG's
-`[2026-09-08]` entries ("Connected mode verified against real hardware" and
-"Mic-E verified against real traffic..."). What is still open:
+Both hardware verification and the remaining protocol checks are complete.
+See CHANGELOG's 2026-09-13 verification entry for the authoritative
+compressed-range reference and the recorded on-air modulo-128 fallback test.
 
-- [ ] **Verify the compressed-position range cs-byte** (implemented as a
-      pre-calculated range in Position.precalc_range_mi, not as altitude)
-      against a live APRS-IS feed. The new capture command logs in with
-      APRS-IS pass -1, waits for a matching real packet, and prints its raw
-      TNC2 line and decoded range for a literal test fixture. Preserve the
-      line, capture time, source, and an independent decoder cross-check
-      before completing this item. Small.
-- [ ] **Exercise the modulo-128 fallback path on the air.** `Config.modulo`
-      accepts 128 and the window ceiling scales with it, covered by
-      `test_modulo_128_link` on the loopback. Almost nothing on the air speaks
-      SABME, so the DM-answering-SABME fallback in `ax25/session.py::_on_dm`
-      is the part most likely to matter and least likely to have been
-      exercised. Small.
 
 ## P3 — Transports
 

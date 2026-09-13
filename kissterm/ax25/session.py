@@ -53,8 +53,9 @@ Modulo 8 vs modulo 128
 kissterm asks for modulo 128 with SABME only when configured to; the default
 is SABM/modulo 8, because it is what every BPQ32, KA-Node and TNC2-class
 station on the air actually implements. A station that does not understand
-SABME answers DM or FRMR, and `_on_dm` falls back to SABM once before giving
-up -- that fallback is why the default is safe to change.
+SABME can answer DM or FRMR: the DM handler switches directly to SABM, while
+the ordinary FRMR re-establish path sends SABM. The latter was verified against
+WS1EC-15 on 2026-09-13. Those fallbacks are why the default is safe to change.
 
 Everything here is asyncio and single-threaded per link. No lock is taken and
 none is needed; if you ever call into an `AX25Link` from a thread, that

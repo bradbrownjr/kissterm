@@ -3,6 +3,24 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-13] — P1 protocol verification completed on the air
+
+### Verification
+
+- **The compressed-position range cs-byte is documented rather than inferred.**
+  APRS 1.0.1 specifies that a compressed c value of { means the cs pair is a
+  pre-calculated radio range with range = 2 x 1.08 to the power of s; it is not
+  an altitude. A 30-minute, 1,000 km receive-only APRS-IS capture found no
+  active example, so the authoritative protocol reference is the verification
+  record rather than an unnecessarily broad global subscription.
+- **Modulo-128 compatibility fallback succeeded with WS1EC-15.** At
+  2026-09-13 15:29:59 UTC, KC1JMH sent SABME with modulo 128 configured;
+  WS1EC-15 returned FRMR at 15:30:01. kissterm re-established with SABM,
+  received UA at 15:30:02, and entered the connected state. This proves the
+  real FRMR compatibility path; the normal modulo-8 default was restored
+  immediately afterwards.
+  **Files:** docs/ROADMAP.md, docs/CHANGELOG.md, kissterm/ax25/session.py.
+
 ## [2026-09-12] — Receive-only capture for rare APRS range packets
 
 ### New Features
