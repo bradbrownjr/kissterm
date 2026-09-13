@@ -180,19 +180,6 @@ entries. What's still open:
   a second one. Not scoped further yet -- where in the APRS pane this
   lives, and how an object's own position (not necessarily the operator's
   own) gets entered, are still open questions. Medium-large.
-- [ ] **Sending APRS bulletins.** Also requested for after the beacon
-  Settings work ships. **Do not confuse this with P10's Mail/Bulletins/
-  Files "Bulletins tab"** -- that is BBS-style store-and-forward mail
-  reached over an AX.25 connected-mode session; this is the APRS
-  convention of a message addressed to `BLNn`/`ANn` (n = 0-9) instead of a
-  callsign, sent unproto the same way a position beacon is.
-  `kissterm/aprs/messages.py`'s own docstring already notes decode needs
-  no special-casing for this ("a message whose addressee happens to be
-  BLNn"); `encode.py`'s `message()` likely already produces a valid
-  bulletin frame if given a `BLNn`-shaped addressee, unverified. What's
-  missing is entirely UI: composing one, and a place to read ones heard
-  from other stations that is not just raw APRS-messaging conversation
-  history. Small-medium once scoped.
 - [ ] **Igate-adjacent features are explicitly out of scope.** kissterm is a
   terminal for a human operator, not an unattended relay — running it as an
   RF-to-APRS-IS igate or a digipeater is a different problem (unattended

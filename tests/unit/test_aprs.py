@@ -28,6 +28,7 @@ from kissterm.aprs.parse import (
     format_packet,
     parse_packet,
 )
+from kissterm.aprs.messages import is_bulletin_addressee
 from kissterm.heard import HeardTable
 
 
@@ -261,6 +262,14 @@ def test_telemetry_definition_messages_are_flagged_not_treated_as_chat():
         assert not msg.is_ack and not msg.is_rej
         assert msg.number is None
         assert msg.text.startswith(f"{keyword}.")
+
+
+def test_bulletin_and_announcement_addressees_are_exact():
+    assert is_bulletin_addressee("BLN0")
+    assert is_bulletin_addressee("an9")
+    assert not is_bulletin_addressee("BLN10")
+    assert not is_bulletin_addressee("BLNA")
+    assert not is_bulletin_addressee("BLN")
 
 
 # -- status, object, weather, telemetry, third-party ------------------------

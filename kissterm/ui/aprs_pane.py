@@ -67,7 +67,7 @@ from textual.css.query import NoMatches
 from textual.widgets import Button, DataTable, Input, RichLog, Static, Tab, Tabs
 
 from .. import aprs_services
-from ..aprs import AprsPacket, Telemetry, WeatherReport
+from ..aprs import AprsPacket, Telemetry, WeatherReport, is_bulletin_addressee
 from ..aprs_contacts import Contact, build_message_body, canned_messages_for
 from ..aprs_conversations import PendingAcks
 from . import slideouts
@@ -92,6 +92,9 @@ _COMPOSE_ROOM_FOR_TEMPLATES = 60
 
 #: The merged view's tab id. Every other tab is `convo-<CALLSIGN>`.
 _ALL_TAB = "convo-ALL"
+
+#: Channel-wide APRS bulletin/announcement view, not a conversation.
+_BULLETINS_TAB = "aprs-bulletins"
 
 #: The merged view's title. Empty on purpose -- the "All" tab already says
 #: "All", so the title line stays reserved for what it is for everywhere
@@ -300,6 +303,7 @@ class AprsPane(Horizontal):
 
     BINDINGS = [
         Binding("escape", "close_contacts", show=False),
+        Binding("ctrl+shift+u", "compose_bulletin", "Bulletin"),
     ]
 
     def __init__(self, *args, **kwargs) -> None:
@@ -337,6 +341,8 @@ class AprsPane(Horizontal):
         #: (`_ALL_TAB_LINES`) so a busy channel cannot grow it forever.
         #: Fed by `note_packet`, called from `KissTermApp._note_aprs_packet`.
         self._packet_lines: deque[tuple[float, str]] = deque(maxlen=_ALL_TAB_LINES)
+        # Heard bulletins are channel announcements, not correspondence.
+        self._bulletin_lines: deque[tuple[float, str]] = deque(maxlen=_ALL_TAB_LINES)
         # Latest direct readings, not a history and never persisted. The compact
         # strip is a current channel readout; the All log remains the
         # chronological record for earlier values.
@@ -354,7 +360,9 @@ class AprsPane(Horizontal):
             # called on an empty strip: an add to an empty `Tabs` activates
             # what it just added, which would yank the view to whichever
             # stranger transmitted first.
-            yield _ConvoTabs(Tab("All", id=_ALL_TAB), id="aprs-convo-tabs")
+            yield _ConvoTabs(
+                Tab("All", id=_ALL_TAB), Tab("Bulletins", id=_BULLETINS_TAB), id="aprs-convo-tabs"
+            )
             yield Static(id="aprs-sensor-summary")
             # `WrapLog`, not a plain `RichLog`: with the contact list open
             # this column is narrower than `RichLog`'s 78-cell `min_width`,
@@ -369,6 +377,7 @@ class AprsPane(Horizontal):
                 # feature reachable only by a key nobody has been told about
                 # is not discoverable.
                 yield Button("Templates", id="aprs-templates-button")
+                yield Button("Bulletin", id="aprs-bulletin-button")
                 yield Button("Send", variant="primary", id="aprs-send-button")
         with Vertical(id="aprs-contacts-column"):
             yield _AprsContactTable(id="aprs-contact-table", cursor_type="row", zebra_stripes=True)
@@ -470,6 +479,7 @@ class AprsPane(Horizontal):
         room = slideouts.split(total).main if self._slideout.open else total
         wide = room >= _COMPOSE_ROOM_FOR_TEMPLATES
         self.query_one("#aprs-templates-button", Button).display = wide
+        self.query_one("#aprs-bulletin-button", Button).display = wide
         self.query_one("#aprs-to-input", Input).styles.width = 12 if wide else 10
 
     # -- contacts slide-out ---------------------------------------------------
@@ -550,9 +560,14 @@ class AprsPane(Horizontal):
         all -- **there is no confirmation step before "All" wipes every
         correspondent's history; the operator asked for exactly that.**
         """
+        if self._tabs().active == _BULLETINS_TAB:
+            self._bulletin_lines.clear()
+            self._show_bulletins()
+            return
         callsign = self._active_callsign()
         if callsign is None:
             self._packet_lines.clear()
+            self._bulletin_lines.clear()
             self.app.aprs_conversations.clear_all()  # type: ignore[attr-defined]
             self._pending.clear()
             self._show_all()
@@ -608,6 +623,11 @@ class AprsPane(Horizontal):
 
     def _close_tab(self, callsign: str) -> None:
         tab_id = _tab_id(callsign)
+        if self._tabs().active == tab_id:
+            # Keep the long-standing close destination stable. With the
+            # permanent Bulletins tab now beside All, Textual's default
+            # adjacent-tab fallback would otherwise change based on tab order.
+            self._tabs().active = _ALL_TAB
         self._tabs().remove_tab(tab_id)
         self._tab_callsigns.pop(tab_id, None)
         self._tab_titles.pop(callsign, None)
@@ -689,6 +709,9 @@ class AprsPane(Horizontal):
         if tab_id == _ALL_TAB:
             self._show_all()
             return
+        if tab_id == _BULLETINS_TAB:
+            self._show_bulletins()
+            return
         callsign = self._tab_callsigns.get(tab_id)
         if callsign is None:
             return
@@ -741,6 +764,28 @@ class AprsPane(Horizontal):
         lines.sort(key=lambda item: item[0])
         for _, text in lines[-_ALL_TAB_LINES:]:
             log.write(text)
+
+    def _show_bulletins(self) -> None:
+        """Show heard BLNn/ANn announcements without treating them as chat."""
+        self._shown_callsign = ""
+        self._shown_title = ""
+        self.query_one("#aprs-conversation-title", Static).display = False
+        log = self.query_one("#aprs-conversation-log", RichLog)
+        log.clear()
+        if not self._bulletin_lines:
+            log.write("(no bulletins heard yet)")
+            return
+        for _, line in self._bulletin_lines:
+            log.write(line)
+
+    def note_bulletin(self, source: str, addressee: str, text: str, timestamp: float) -> None:
+        """Record one heard channel bulletin and repaint its readout."""
+        self._bulletin_lines.append((timestamp, f"{addressee}  {source}: {text}"))
+        try:
+            if self._tabs().active == _BULLETINS_TAB:
+                self._show_bulletins()
+        except NoMatches:
+            return
 
     def note_packet(self, line: str, timestamp: float, packet: AprsPacket) -> None:
         """Record one decoded non-message packet and refresh current sensors.
@@ -1362,6 +1407,15 @@ class AprsPane(Horizontal):
     async def _send_pressed(self) -> None:
         await self._send_compose(self.query_one("#aprs-compose-input", Input).value)
 
+    def action_compose_bulletin(self) -> None:
+        """Prepare a generic bulletin; filling the form never transmits it."""
+        self.query_one("#aprs-to-input", Input).value = "BLN0"
+        self.query_one("#aprs-compose-input", Input).focus()
+
+    @on(Button.Pressed, "#aprs-bulletin-button")
+    def _bulletin_pressed(self) -> None:
+        self.action_compose_bulletin()
+
     async def _send_compose(self, text: str) -> None:
         addressee = self.query_one("#aprs-to-input", Input).value.strip()
         text_field = self.query_one("#aprs-compose-input", Input)
@@ -1382,7 +1436,8 @@ class AprsPane(Horizontal):
             sms_template=getattr(config, "aprs_sms_template", ""),
             email_template=getattr(config, "aprs_email_template", ""),
         )
-        number = self._next_number()
+        bulletin = is_bulletin_addressee(addressee)
+        number = None if bulletin else self._next_number()
         # A confirmed connect arms the gate rather than being refused by it
         # (`KissTermApp._arm_for`); typing a message, naming a "To:", and
         # pressing Enter or Send is the same shape of request -- refusing it
@@ -1400,6 +1455,12 @@ class AprsPane(Horizontal):
             self.app.notify(  # type: ignore[attr-defined]
                 "Message not sent -- transmit is disabled (Ctrl+T).", severity="warning"
             )
+            return
+        if bulletin:
+            # APRS bulletins are unacknowledged channel announcements, not
+            # personal correspondence. A retry would be unattended traffic
+            # with no peer acknowledgment to stop it.
+            text_field.value = ""
             return
         # The conversation log keeps what the operator actually typed, not
         # the templated wire body -- readable history, not a wire dump.

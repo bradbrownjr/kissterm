@@ -46,6 +46,7 @@ __all__ = [
     "parse_object",
     "parse_item",
     "is_telemetry_definition_text",
+    "is_bulletin_addressee",
 ]
 
 #: The four telemetry channel-labelling message types, per the APRS spec's
@@ -66,6 +67,11 @@ def is_telemetry_definition_text(text: str) -> bool:
     call sites can never drift apart on what counts as one of these.
     """
     return text.startswith(_TELEMETRY_DEFINITION_PREFIXES)
+
+
+def is_bulletin_addressee(addressee: str) -> bool:
+    """Return whether an addressee is a BLNn bulletin or ANn announcement."""
+    return bool(re.fullmatch(r"(?:BLN|AN)[0-9]", addressee.strip().upper()))
 
 
 def parse_message(body: str) -> Message:

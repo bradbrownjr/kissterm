@@ -30,7 +30,7 @@ from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.aprs_conversations import ConversationStore  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
-from kissterm.ui.aprs_pane import _ALL_TAB, _MAX_CONVO_TABS, AprsPane, _tab_id  # noqa: E402
+from kissterm.ui.aprs_pane import _ALL_TAB, _BULLETINS_TAB, _MAX_CONVO_TABS, AprsPane, _tab_id  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
 MYCALL = AX25Address.parse("N1ABC-1")
@@ -96,8 +96,23 @@ async def test_all_is_the_left_most_tab_and_the_one_active_at_launch(tmp_path):
     app, mine, theirs = await _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
-        assert _labels(app) == ["All"]
+        assert _labels(app) == ["All", "Bulletins"]
         assert _tabs(app).active == _ALL_TAB
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_bulletins_have_their_own_readout_not_a_conversation(tmp_path):
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        await _send_message(theirs, "W1AW", "BLN3", "net at 1900 local", number=None)
+        await _settle(pilot)
+        assert app.aprs_conversations.conversations == {}
+        _tabs(app).active = _BULLETINS_TAB
+        await _settle(pilot)
+        assert any("BLN3" in line and "W1AW" in line and "net at 1900" in line for line in _log_lines(app))
     mine.close()
     theirs.close()
 
@@ -131,7 +146,7 @@ async def test_a_third_party_message_opens_no_tab_and_marks_nothing(tmp_path):
         await _send_message(theirs, "WS1EC-15", "K1XYZ", "nothing to do with us")
         await _settle(pilot)
 
-        assert _labels(app) == ["All"], _labels(app)
+        assert _labels(app) == ["All", "Bulletins"], _labels(app)
         assert app.query_one(AprsPane)._unread == set()
         # Still recorded, and still visible in "All" -- that is the point.
         assert "WS1EC-15" in app.aprs_conversations.conversations
@@ -232,14 +247,14 @@ async def test_delete_closes_the_active_tab_but_never_all(tmp_path):
 
         pane.close_active_tab()
         await _settle(pilot, 5)
-        assert _labels(app) == ["All"]
+        assert _labels(app) == ["All", "Bulletins"]
         assert _tabs(app).active == _ALL_TAB
 
         # "All" is the fallback `remove_tab` lands on and the only view that
         # is always available; closing it would leave nothing to repaint.
         pane.close_active_tab()
         await _settle(pilot, 5)
-        assert _labels(app) == ["All"]
+        assert _labels(app) == ["All", "Bulletins"]
     mine.close()
     theirs.close()
 
@@ -259,7 +274,7 @@ async def test_the_cap_evicts_a_read_tab_and_never_an_unread_one(tmp_path):
             pane.select_conversation(f"K{i}ABC", f"K{i}ABC")
             await pilot.pause()
         await _settle(pilot, 5)
-        assert len(_labels(app)) == _MAX_CONVO_TABS + 1  # plus "All"
+        assert len(_labels(app)) == _MAX_CONVO_TABS + 2  # All plus Bulletins
 
         # K0ABC is the least recently viewed and has nothing unread.
         pane.select_conversation("W1AW", "W1AW")
@@ -267,7 +282,7 @@ async def test_the_cap_evicts_a_read_tab_and_never_an_unread_one(tmp_path):
         labels = _labels(app)
         assert "K0ABC" not in labels, labels
         assert "W1AW" in labels
-        assert len(labels) == _MAX_CONVO_TABS + 1
+        assert len(labels) == _MAX_CONVO_TABS + 2  # All plus Bulletins
 
         # Now make every remaining conversation unread and confirm nothing is
         # thrown away to make room.
@@ -276,7 +291,9 @@ async def test_the_cap_evicts_a_read_tab_and_never_an_unread_one(tmp_path):
         await _settle(pilot, 5)
         labels = _labels(app)
         assert "K9ZZZ" in labels
-        assert len(labels) == _MAX_CONVO_TABS + 2, labels
+        # The cap yields rather than evicting unread traffic: thirteen
+        # conversations plus the two permanent tabs.
+        assert len(labels) == _MAX_CONVO_TABS + 3, labels
     mine.close()
     theirs.close()
 

@@ -7,7 +7,7 @@ See `kissterm.aprs.parse` for why that fact makes this package small, and
 from __future__ import annotations
 
 from .encode import ack, beacon_frame, message, position_report, status
-from .messages import is_telemetry_definition_text
+from .messages import is_bulletin_addressee, is_telemetry_definition_text
 from .parse import (
     AprsPacket,
     Message,
@@ -33,6 +33,7 @@ __all__ = [
     "parse_packet",
     "format_packet",
     "is_telemetry_definition_text",
+    "is_bulletin_addressee",
     "ack",
     "beacon_frame",
     "message",

@@ -118,6 +118,41 @@ async def test_enter_in_the_compose_field_sends_a_real_frame(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_bulletin_helper_only_prefills_the_compose_form(tmp_path):
+    app, mine, theirs, ta = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        app.query_one(AprsPane).action_compose_bulletin()
+        assert app.query_one("#aprs-to-input", Input).value == "BLN0"
+        assert not ta.sent
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_sending_a_bulletin_is_unnumbered_and_never_retried(tmp_path):
+    app, mine, theirs, ta = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        app.query_one("#aprs-to-input", Input).value = "AN4"
+        app.query_one("#aprs-compose-input", Input).value = "road closed"
+        await pilot.click("#aprs-send-button")
+        await asyncio.sleep(0.05)
+        await pilot.pause()
+
+        sent = [frame for frame in ta.sent if frame.info.startswith(b":AN4")]
+        assert sent
+        packet = aprs.parse_packet(sent[-1])
+        assert packet.data.text == "road closed"
+        assert packet.data.number is None
+        assert app.aprs_conversations.conversations == {}
+        pane = app.query_one(AprsPane)
+        assert pane._pending.due(now=time.monotonic() + 1000) == []
+    mine.close()
+    theirs.close()
+
+
+@pytest.mark.asyncio
 async def test_sending_with_no_addressee_is_refused_without_transmitting(tmp_path):
     app, mine, theirs, ta = await _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:

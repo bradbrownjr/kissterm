@@ -1178,6 +1178,9 @@ class KissTermApp(App):
         if message_packet.kind == "message" and isinstance(message_packet.data, aprs.Message):
             msg = message_packet.data
             source = message_source
+            if aprs.is_bulletin_addressee(msg.addressee):
+                self._note_aprs_bulletin(source, msg.addressee, msg.text)
+                return
             if not (msg.is_ack or msg.is_rej or msg.is_telemetry_definition):
                 to_me = aprs_message_matches(
                     msg.addressee,
@@ -1276,6 +1279,12 @@ class KissTermApp(App):
         """
         for pane in self._base_query(AprsPane):
             pane.note_packet(aprs.format_packet(packet), time.time(), packet)
+            return
+
+    def _note_aprs_bulletin(self, source: str, addressee: str, text: str) -> None:
+        """Forward one BLNn/ANn channel announcement to the APRS pane."""
+        for pane in self._base_query(AprsPane):
+            pane.note_bulletin(source, addressee, text, time.time())
             return
 
     def _purge_stale_synthetic_messages(self) -> None:
@@ -1408,7 +1417,7 @@ class KissTermApp(App):
         self._to_terminal(self._active_key(), "log", f"\n*** Auto-ack sent to {addressee} (msg {number})\n")
 
     async def _send_aprs_message(
-        self, addressee: str, text: str, number: str, *, port: int = 0, retry: bool = False
+        self, addressee: str, text: str, number: str | None, *, port: int = 0, retry: bool = False
     ) -> bool:
         """Encode and transmit one APRS message frame -- the shared send
         primitive for both a fresh send from the APRS pane and a retry of
@@ -1441,7 +1450,8 @@ class KissTermApp(App):
             log.debug("APRS message to %s not sent: %s", addressee, exc)
             return False
         verb = "Resent" if retry else "Sent"
-        self._to_terminal(self._active_key(), "log", f"\n*** {verb} APRS message {number} to {addressee}\n")
+        kind = "bulletin" if number is None else f"message {number}"
+        self._to_terminal(self._active_key(), "log", f"\n*** {verb} APRS {kind} to {addressee}\n")
         return True
 
     def _session_key(self, peer, port: int = 0) -> str:

@@ -3,6 +3,23 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-13] — APRS bulletins
+
+### New Features
+
+- **APRS `BLN0`–`BLN9` bulletins and `AN0`–`AN9` announcements now have their
+  own APRS-pane readout.** Heard announcements are not filed as personal
+  conversations, do not create unread markers, and remain in memory only. The
+  `Bulletin` button (or `Ctrl+Shift+U`) prepares `BLN0` in the compose form;
+  it never sends by itself. Sending a bulletin is an explicit, unnumbered
+  transmit with no acknowledgment or automatic retry.
+  **Files:** kissterm/aprs/messages.py, kissterm/aprs/__init__.py,
+  kissterm/ui/app.py, kissterm/ui/aprs_pane.py,
+  tests/pilot/test_aprs_conversation_tabs.py, tests/pilot/test_aprs_send.py,
+  tests/unit/test_aprs.py, assets/screenshot-aprs.png, assets/screenshot-aprs.svg,
+  assets/screenshot-aprs-contacts.png, assets/screenshot-aprs-contacts.svg,
+  docs/ROADMAP.md, docs/CHANGELOG.md.
+
 ## [2026-09-13] — Compact APRS weather and telemetry readout
 
 ### New Features
