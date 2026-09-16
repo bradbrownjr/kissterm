@@ -401,14 +401,6 @@ Feedback on the Tab-autocomplete strip shipped with the harvesting work:
       prefix before wrapping back to the first. Medium: needs the
       suggestion state to hold an ordered candidate list and a cursor
       into it, reset whenever the underlying prefix changes.
-- [ ] **Show a short description alongside each autocomplete candidate**,
-      e.g. "LM: List Mine", "LB: List bulletins" -- the shipped command
-      references already carry a `summary` field per command
-      (`kissterm/nodes/data/*.toml`, rendered as the "What it does" column
-      in `CommandReferenceScreen`), so this is surfacing data that already
-      exists in `#suggestion-strip`'s rendering
-      (`TerminalPane._update_suggestions`), not sourcing anything new.
-      Small.
 
 ## P9 — Unattended operation: mailbox, file drop, and alerts
 

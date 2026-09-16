@@ -343,9 +343,13 @@ async def test_typing_a_prefix_shows_matching_commands_without_transmitting():
 
         strip = app.query_one("#suggestion-strip", Static)
         assert strip.display is True
-        shown = _plain(strip)
+        shown = " ".join(_plain(strip).split())
         # bpq32.toml ships C, CQ and CHAT -- complete() sorts shortest first.
-        assert "C" in shown and "CQ" in shown and "CHAT" in shown
+        # The strip must say what the choices do, not just make a newcomer
+        # infer their meaning from two-letter node jargon.
+        assert "C: Connect onward to another station or node" in shown
+        assert "CQ: Call CQ to other users connected to the node" in shown
+        assert "CHAT: Enter the node's chat server, if it has one" in shown
         assert "Tab" in shown
 
         assert _sent_data_frames(app.station.transport) == before, "showing suggestions transmitted"

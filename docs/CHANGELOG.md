@@ -3,6 +3,17 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-16] — Explain autocomplete candidates
+
+### Improvements
+
+- **Terminal Tab suggestions now include each command's short explanation.**
+  The top command remains bold, the other choices muted, and the strip wraps
+  on a narrow terminal rather than hiding candidates. Tab still fills only
+  the top candidate; it does not transmit.
+  **Files:** DESIGN.md, kissterm/ui/terminal_pane.py,
+  tests/pilot/test_terminal_ux.py, docs/ROADMAP.md, docs/CHANGELOG.md.
+
 ## [2026-09-13] — Make command harvesting inspectable
 
 ### Improvements

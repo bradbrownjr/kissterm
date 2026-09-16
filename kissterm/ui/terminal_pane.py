@@ -32,14 +32,14 @@ a completion that transmits on its own would be a defect on a shared channel.
 
 **The suggestion strip is Tab-to-fill, never Tab-to-send.** As the operator
 types, `#suggestion-strip` shows up to `CommandReference.complete`'s limit of
-matching command names for the node currently identified on this session's
-tab; `_SendInput`'s own `tab` binding calls `TerminalPane.accept_suggestion`,
-which routes through `suggest()` like the Ctrl+R command reference already
-did -- so Tab is exactly one more way to reach the one fill path, not a
-second way to reach the air. Tab with nothing suggested falls through to
-`Screen.focus_next()`, reproducing the ordinary un-overridden behaviour, so
-an operator who never triggers a suggestion never notices Tab acts any
-differently than before this existed.
+matching commands and their short explanations for the node currently
+identified on this session's tab; `_SendInput`'s own `tab` binding calls
+`TerminalPane.accept_suggestion`, which routes through `suggest()` like the
+Ctrl+R command reference already did -- so Tab is exactly one more way to
+reach the one fill path, not a second way to reach the air. Tab with nothing
+suggested falls through to `Screen.focus_next()`, reproducing the ordinary
+un-overridden behaviour, so an operator who never triggers a suggestion never
+notices Tab acts any differently than before this existed.
 
 **Lines go out CR-terminated, not LF.** Packet nodes and BBSes are CR-oriented;
 LF makes a BPQ32 node echo a spurious blank line after every command.
@@ -962,11 +962,20 @@ class TerminalPane(Container):
             strip.update("")
             return
         self._current_suggestion = matches[0].name
-        text = Text(no_wrap=True, overflow="ellipsis")
-        text.append(matches[0].name, style="bold")
-        for command in matches[1:]:
-            text.append("  ")
-            text.append(command.name, style="dim")
+        # Command names alone make a new operator guess at exactly the point
+        # they are looking for help. The shipped reference already carries a
+        # concise summary for each one, so surface it here instead of asking
+        # the node (which would cost airtime) or hiding candidates past the
+        # right edge. Let the small strip wrap on a narrow terminal: losing a
+        # candidate to an ellipsis is worse than giving the scrollback one
+        # less row while the operator chooses deliberately.
+        text = Text(overflow="fold")
+        for index, command in enumerate(matches):
+            if index:
+                text.append("  ")
+            text.append(command.name, style="bold" if index == 0 else "dim")
+            if command.summary:
+                text.append(f": {command.summary}", style="dim")
         text.append("   Tab: accept", style="dim italic")
         strip.update(text)
         strip.display = True

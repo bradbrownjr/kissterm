@@ -214,15 +214,17 @@ tab existed to expect it.
 - **The send-line suggestion strip is a row, not ghost text, and Tab is its
   only key.** `#suggestion-strip` (`kissterm/ui/terminal_pane.py`) shows up
   to `CommandReference.complete`'s matches for what is currently typed —
-  the top one bold, the rest dim, both muted like `#find-status` — rather
-  than Textual's built-in single inline-ghost-text suggester, because more
-  than one candidate is routinely useful (a node's `C`, `CQ` and `CHAT`
-  all share a prefix) and ghost text can only ever show one. Tab fills in
-  the top match and leaves the strip open — the operator can keep typing
-  to narrow further, or press Enter to send, same as any other suggestion
-  on this screen. Tab with nothing suggested falls through to ordinary
-  focus-cycling, so an operator who never triggers a suggestion never
-  notices Tab behaves any differently than before this existed.
+  the top command bold and the rest dim, each followed by its short muted
+  explanation — rather than Textual's built-in single inline-ghost-text
+  suggester, because more than one candidate is routinely useful (a node's
+  `C`, `CQ` and `CHAT` all share a prefix) and ghost text can only ever show
+  one. The row wraps rather than hiding a choice past an ellipsis on a narrow
+  terminal. Tab fills in the top match and leaves the strip open — the
+  operator can keep typing to narrow further, or press Enter to send, same as
+  any other suggestion on this screen. Tab with nothing suggested falls
+  through to ordinary focus-cycling, so an operator who never triggers a
+  suggestion never notices Tab behaves any differently than before this
+  existed.
 
 ### Slide-out panels
 
