@@ -226,10 +226,12 @@ From there you have two options:
   other.
 
 A Mobilinkd TNC4 running in **BLE** mode instead of classic Bluetooth is a
-different case entirely — it does not show up as a serial device at all, and
-needs the `ble` extra (`bleak`) and GATT-level support that is not yet
-implemented (ROADMAP P3). If your TNC supports both modes, classic Bluetooth
-is the one to use with kissterm today.
+different case entirely — it does not show up as a serial device at all. Pair
+it with the operating system first, install `pip install "kissterm[ble]"`,
+then add a `kind = "ble"` entry with its address (the worked example in
+`config.toml.example` uses Mobilinkd's default GATT UUIDs). If your device
+uses another BLE-UART service, set its documented `notify_uuid` and
+`write_uuid` on that entry.
 
 ## 5. VARA HF/FM on Linux under Wine
 

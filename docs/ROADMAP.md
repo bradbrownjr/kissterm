@@ -25,12 +25,6 @@ compressed-range reference and the recorded on-air modulo-128 fallback test.
 
 ## P3 — Transports
 
-- [ ] **BLE (GATT) — new `kissterm/transport/ble_kiss.py`.** The Mobilinkd
-  TNC4's BLE mode does not go through `/dev/rfcomm*` — it needs `bleak`
-  (already an optional dependency, see `pyproject.toml`'s `ble` extra) and
-  real GATT characteristic discovery/subscription work, since KISS bytes
-  arrive as BLE notifications rather than a byte stream. Medium-large; no
-  reference implementation to lean on yet.
 - [ ] **Linux kernel AF_AX25 verification against real hardware.**
   `kissterm/transport/kernel_ax25.py` is implemented (`SessionTransport`,
   for users who already run `ax25d`/`kissattach` and want kissterm as a

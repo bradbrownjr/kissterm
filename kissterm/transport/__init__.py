@@ -60,6 +60,7 @@ KIND_LABELS: dict[str, str] = {
     "tcp": "TCP KISS",
     "agwpe": "AGWPE",
     "bluetooth": "Bluetooth KISS",
+    "ble": "Bluetooth LE KISS",
     "kernel": "Kernel AX.25",
     "vara": "VARA HF",
     "varafm": "VARA FM",
@@ -78,7 +79,7 @@ KIND_LABELS: dict[str, str] = {
 #: TIERS while running needs monitor/heard/beacon/status-bar all rewired to
 #: a different kind of thing entirely, which nothing here supports doing
 #: live -- only a restart does, with the new one selected.
-FRAME_TIER_KINDS = frozenset({"serial", "tcp", "agwpe", "bluetooth"})
+FRAME_TIER_KINDS = frozenset({"serial", "tcp", "agwpe", "bluetooth", "ble"})
 SESSION_TIER_KINDS = frozenset({"kernel", "vara", "varafm", "mercury", "telnet", "ssh"})
 
 #: Keys that describe the config ENTRY rather than the transport, and so must
@@ -108,6 +109,7 @@ _VALID_KINDS = (
     "tcp",
     "agwpe",
     "bluetooth",
+    "ble",
     "kernel",
     "vara",
     "varafm",
@@ -167,6 +169,11 @@ def build_transport(config: dict[str, Any]) -> Transport:
         from .bluetooth import BluetoothKissTransport
 
         return _named(BluetoothKissTransport(**kwargs), label, script, credential, script_name)
+
+    if kind == "ble":
+        from .bluetooth import BleKissTransport
+
+        return _named(BleKissTransport(**kwargs), label, script, credential, script_name)
 
     if kind == "kernel":
         from .kernel_ax25 import KernelAx25Transport

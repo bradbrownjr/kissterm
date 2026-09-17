@@ -3,6 +3,23 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-17] — Add BLE GATT KISS transport
+
+### New Features
+
+- **Mobilinkd TNC4 BLE mode now works as a `kind = "ble"` frame transport.**
+  It uses the Mobilinkd KISS GATT service's notify/write characteristics,
+  incrementally decodes notification fragments, and splits writes to the
+  negotiated BLE command-write size. The optional `bleak` dependency remains
+  lazy; `kissterm[ble]` is only required when this transport opens. Other
+  KISS BLE-UART bridges can supply their own `notify_uuid` and `write_uuid`.
+  **Files:** SETUP.md, config.toml.example, docs/ROADMAP.md,
+  kissterm/doctor.py, kissterm/transport/AGENTS.md,
+  kissterm/transport/__init__.py, kissterm/transport/bluetooth.py,
+  kissterm/ui/dialogs.py, kissterm/ui/settings_pane.py,
+  tests/unit/test_ble_transport.py, tests/unit/test_transport_factory.py,
+  docs/CHANGELOG.md.
+
 ## [2026-09-17] — Cycle terminal completion and label harvested contexts
 
 ### Improvements

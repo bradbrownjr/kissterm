@@ -1211,7 +1211,7 @@ class SettingsPane(Vertical):
             return
 
         kind = entry.get("kind", "")
-        if kind in ("serial", "bluetooth", "kernel"):
+        if kind in ("serial", "bluetooth", "ble", "kernel"):
             # A serial probe opens the port exclusively, so running one while
             # the app holds it open would report a failure it caused itself.
             detail.update(

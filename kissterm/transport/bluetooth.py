@@ -164,36 +164,118 @@ class BluetoothKissTransport(FrameTransport):
         self.state = TransportState.CLOSED
 
 
+# Mobilinkd's documented KISS TNC service. Keep these configurable because a
+# BLE-UART bridge can expose KISS with different UUIDs.
+MOBILINKD_KISS_SERVICE_UUID = "00000001-ba2a-46c9-ae49-01b0961f68bb"
+MOBILINKD_KISS_NOTIFY_UUID = "00000002-ba2a-46c9-ae49-01b0961f68bb"
+MOBILINKD_KISS_WRITE_UUID = "00000003-ba2a-46c9-ae49-01b0961f68bb"
+
+
 class BleKissTransport(FrameTransport):
-    """Not implemented: BLE (GATT) TNCs such as the Mobilinkd TNC4 family.
+    """KISS over a BLE GATT UART service, including Mobilinkd TNC4.
 
-    TNC4-class devices drop classic Bluetooth/RFCOMM entirely and speak KISS
-    framed over a vendor GATT service (a characteristic for TX, one for RX,
-    typically driven with notify/write-without-response) instead of a serial
-    profile. That needs a BLE stack in Python -- realistically `bleak`, since
-    it is the only actively-maintained cross-platform option -- plus the
-    vendor's specific service/characteristic UUIDs, which have not been
-    looked up here. Rather than guess at UUIDs and produce something that
-    silently fails to find its characteristics on real hardware, this is
-    left as an explicit stub.
-
-    Roadmapped, not built: see docs/ROADMAP.md.
+    ``address`` is a paired device address on Linux/Windows or the UUID that
+    CoreBluetooth reports on macOS. The default UUIDs are Mobilinkd's KISS TNC
+    service; ``notify_uuid`` and ``write_uuid`` allow another KISS BLE-UART
+    bridge to be configured explicitly. Pairing remains the operating
+    system's job -- opening this transport never starts a scan or transmits.
     """
 
-    _NOT_IMPLEMENTED = (
-        "BLE GATT KISS TNCs (e.g. Mobilinkd TNC4) are not implemented yet "
-        "-- this needs a 'bleak' dependency and vendor GATT UUIDs. "
-        "See docs/ROADMAP.md."
-    )
-
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        raise NotImplementedError(self._NOT_IMPLEMENTED)
+    def __init__(
+        self,
+        address: str,
+        *,
+        notify_uuid: str = MOBILINKD_KISS_NOTIFY_UUID,
+        write_uuid: str = MOBILINKD_KISS_WRITE_UUID,
+        ports: int = 1,
+    ) -> None:
+        info = TransportInfo(
+            kind="ble",
+            name=address,
+            detail=f"{address} (BLE GATT)",
+            tier="frame",
+        )
+        super().__init__(info, ports=ports)
+        self.address = address
+        self.notify_uuid = notify_uuid
+        self.write_uuid = write_uuid
+        self.decode_errors = 0
+        self._client: object | None = None
+        self._decoder = KissDecoder()
 
     async def open(self) -> None:
-        raise NotImplementedError(self._NOT_IMPLEMENTED)
+        # Bleak must stay lazy: constructing every configured transport at
+        # startup cannot make TCP-only installations require its BLE extra.
+        try:
+            from bleak import BleakClient
+        except ImportError as exc:
+            self.state = TransportState.ERROR
+            self._error = "Bleak is not installed"
+            raise TransportError(
+                "BLE KISS support needs the optional bleak dependency; "
+                "install it with 'pip install kissterm[ble]'"
+            ) from exc
 
-    async def close(self) -> None:
-        raise NotImplementedError(self._NOT_IMPLEMENTED)
+        self.state = TransportState.OPENING
+        self._error = ""
+        client = BleakClient(self.address)
+        try:
+            await client.connect()
+            if not client.is_connected:
+                raise TransportError(f"BLE device {self.address} did not connect")
+            await client.start_notify(self.notify_uuid, self._notification)
+        except Exception as exc:
+            with contextlib.suppress(Exception):
+                await client.disconnect()
+            self.state = TransportState.ERROR
+            self._error = str(exc)
+            if isinstance(exc, TransportError):
+                raise
+            raise TransportError(f"BLE connect to {self.address} failed: {exc}") from exc
+
+        self._client = client
+        self.state = TransportState.OPEN
+
+    async def _notification(self, _sender: object, data: bytearray) -> None:
+        """Decode notifications incrementally; BLE may split a KISS frame."""
+        try:
+            for port, command, payload in self._decoder.feed(bytes(data)):
+                if command != KissCommand.DATA:
+                    continue
+                try:
+                    frame = AX25Frame.decode(payload)
+                except (AX25FrameError, AX25AddressError):
+                    self.decode_errors += 1
+                    continue
+                await self.dispatch(frame, port)
+        except Exception as exc:  # A malformed notification must not stop BLE RX.
+            self.decode_errors += 1
+            self._error = f"BLE notification processing failed: {exc}"
 
     async def _send_frame(self, frame: AX25Frame, port: int = 0) -> None:
-        raise NotImplementedError(self._NOT_IMPLEMENTED)
+        client = self._client
+        if client is None or self.state is not TransportState.OPEN:
+            raise TransportError("BLE transport is not open")
+
+        packet = encode(frame.encode(), port)
+        # Bleak exposes the negotiated command-write size on the resolved
+        # characteristic. The BLE minimum is 20 bytes, a safe fallback for
+        # fake/older backends which do not expose that property.
+        services = getattr(client, "services", None)
+        characteristic = services.get_characteristic(self.write_uuid) if services else None
+        chunk_size = getattr(characteristic, "max_write_without_response_size", 20) or 20
+        for start in range(0, len(packet), chunk_size):
+            await client.write_gatt_char(
+                self.write_uuid, packet[start : start + chunk_size], response=False
+            )
+
+    async def close(self) -> None:
+        client = self._client
+        self._client = None
+        if client is not None:
+            with contextlib.suppress(Exception):
+                await client.stop_notify(self.notify_uuid)
+            with contextlib.suppress(Exception):
+                await client.disconnect()
+        self._decoder.reset()
+        self.state = TransportState.CLOSED

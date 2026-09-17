@@ -93,15 +93,9 @@ def _check_python_version() -> Check:
 
 
 #: (module name, what it unlocks, pip package, is the feature actually built?)
-#:
-#: The last flag exists because `bleak` unlocks nothing today: `BleKissTransport`
-#: is a marked stub that raises. Telling an operator to `pip install bleak` to
-#: "unlock BLE TNC support" would send them installing a dependency and then
-#: wondering why their TNC4 still does not work -- a diagnostic that creates
-#: the confusion it exists to remove. Reported as "skip", with the truth.
 _OPTIONAL_DEPS: tuple[tuple[str, str, str, bool], ...] = (
     ("serial", "USB/local serial TNC support", "pyserial", True),
-    ("bleak", "Bluetooth LE TNC support", "bleak", False),
+    ("bleak", "Bluetooth LE TNC support", "kissterm[ble]", True),
 )
 
 #: The async serial backends are ALTERNATIVES, not a checklist.

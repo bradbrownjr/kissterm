@@ -41,7 +41,7 @@ split exists to prevent.
 | `serial_kiss.py` | frame | KISS over a serial port |
 | `tcp_kiss.py` | frame | KISS over TCP (Direwolf et al.), auto-reconnecting |
 | `agwpe.py` | frame | AGW Packet Engine raw-frame mode |
-| `bluetooth.py` | frame | RFCOMM socket; `BleKissTransport` is a marked stub |
+| `bluetooth.py` | frame | RFCOMM socket and BLE GATT KISS (Mobilinkd TNC4) |
 | `kernel_ax25.py` | session | Linux `AF_AX25` sockets |
 | `vara.py` | session | VARA HF/FM — command port + data port |
 | `mercury.py` | session | Honest stub; raises from `open()` |

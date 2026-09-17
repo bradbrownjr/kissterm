@@ -388,6 +388,15 @@ name = "mobilinkd-tnc4"
 kind = "bluetooth"
 address = "AA:BB:CC:DD:EE:FF"
 
+# ble: a paired BLE/GATT KISS TNC such as a Mobilinkd TNC4 in BLE mode.
+# Install the optional dependency first: pip install "kissterm[ble]". The
+# default UUIDs are Mobilinkd's KISS service; set notify_uuid/write_uuid only
+# for a different BLE-UART bridge that documents other characteristic UUIDs.
+[[transports]]
+name = "mobilinkd-tnc4-ble"
+kind = "ble"
+address = "AA:BB:CC:DD:EE:FF"
+
 # kernel: the Linux kernel's own AF_AX25 socket stack, for a station that
 # already has a kernel AX.25 configuration (axports, kissattach) set up and
 # wants kissterm to use it instead of managing its own AX.25 state machine.

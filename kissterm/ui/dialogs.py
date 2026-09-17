@@ -1277,6 +1277,9 @@ _TRANSPORT_KINDS: dict[str, tuple[bool, tuple[_TransportField, ...]]] = {
         _TransportField("address", "Bluetooth address", "e.g. 00:11:22:33:44:55"),
         _TransportField("channel", "RFCOMM channel", default="1", numeric=True),
     )),
+    "ble": (False, (
+        _TransportField("address", "Bluetooth address", "e.g. 00:11:22:33:44:55"),
+    )),
     "kernel": (True, (
         _TransportField("ax25_port", "AX.25 port", "e.g. radio0, from /etc/ax25/axports"),
         _TransportField("mycall", "Callsign for this port", "e.g. N1ABC-1"),

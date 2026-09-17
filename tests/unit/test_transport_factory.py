@@ -46,6 +46,7 @@ ENTRIES: dict[str, dict] = {
     "tcp": {"kind": "tcp", "name": "10.6.26.5:8001", "host": "10.6.26.5", "port": 8001},
     "agwpe": {"kind": "agwpe", "name": "10.6.26.3:8000", "host": "10.6.26.3", "port": 8000},
     "bluetooth": {"kind": "bluetooth", "name": "TNC3", "address": "00:11:22:33:44:55"},
+    "ble": {"kind": "ble", "name": "TNC4 BLE", "address": "00:11:22:33:44:55"},
     "kernel": {"kind": "kernel", "name": "ax0", "ax25_port": "ax0", "mycall": "N1ABC-1"},
     "vara": {"kind": "vara", "name": "VARA HF", "host": "127.0.0.1", "mycall": "N1ABC-1"},
     "varafm": {"kind": "varafm", "name": "VARA FM", "host": "127.0.0.1", "mycall": "N1ABC-1"},
