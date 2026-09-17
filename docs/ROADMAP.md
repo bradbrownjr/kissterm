@@ -44,10 +44,11 @@ compressed-range reference and the recorded on-air modulo-128 fallback test.
   `SessionTransport` implementation is planned, but nothing has been tested
   against an actual VARA modem and radio yet — treat any implementation as
   unverified until it has. Effort unknown until that testing happens.
-- [ ] **Mercury protocol research.** Mercury (the newer HF soundcard modem
-  from the VARA author) has no public protocol documentation as thorough as
-  VARA's; this item is "go find out what's actually on the wire" before any
-  implementation work can be scoped.
+- [ ] **Mercury HF verification against real hardware.** Mercury v2's
+  documented VARA-compatible TCP TNC interface is implemented and covered by
+  a local control/data socket integration test. Verify an actual ARQ contact
+  before treating it as field-ready; this validates radio/audio/PTT setup and
+  the modem's live status behavior, which a loopback cannot exercise.
 - [ ] **SSH key-based authentication.** `kissterm/transport/ssh.py` supports
   password auth only (shipped -- see docs/CHANGELOG.md). Some hosts require
   a key; needs deciding where a key path and passphrase live in config

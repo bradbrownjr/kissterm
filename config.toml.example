@@ -417,6 +417,14 @@ host = "127.0.0.1"
 command_port = 8300
 data_port = 8301
 
+# mercury: the Mercury v2 HF modem exposes the documented VARA-compatible
+# TCP TNC interface. Its control port defaults to 8300 and data is port + 1.
+[[transports]]
+name = "mercury-hf"
+kind = "mercury"
+host = "127.0.0.1"
+port = 8300
+
 # telnet: an Internet-reachable node's own telnet server (most commonly
 # BPQ32/LinBPQ's telnet listener). No AX.25 framing on this wire at all --
 # the remote node runs its own link layer on its own RF ports and just

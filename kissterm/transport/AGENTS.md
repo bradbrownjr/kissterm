@@ -44,7 +44,7 @@ split exists to prevent.
 | `bluetooth.py` | frame | RFCOMM socket and BLE GATT KISS (Mobilinkd TNC4) |
 | `kernel_ax25.py` | session | Linux `AF_AX25` sockets |
 | `vara.py` | session | VARA HF/FM — command port + data port |
-| `mercury.py` | session | Honest stub; raises from `open()` |
+| `mercury.py` | session | Mercury v2's documented VARA-compatible TCP TNC interface |
 | `telnet.py` | session | Plain TCP telnet — no AX.25 on the wire at all |
 | `ssh.py` | session | SSH to a login shell; needs the optional `asyncssh` extra |
 | `__init__.py` | — | `build_transport(config)` factory, lazy imports |

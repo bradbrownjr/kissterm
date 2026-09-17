@@ -228,11 +228,9 @@ async def _check_transports(config: Config) -> list[Check]:
 
 #: Kinds whose *connectivity* check is not meaningful yet. Construction is
 #: still checked for these -- a config entry that cannot even be built is a
-#: real finding -- but nothing is opened, because there is no honest result to
-#: report. `mercury` raises from `open()` by design (its wire protocol is
-#: unresearched, see kissterm/transport/mercury.py) and reporting that as a
-#: FAIL would blame the operator's config for a gap in this program.
-_NO_CONNECTIVITY_CHECK = frozenset({"mercury"})
+#: real finding -- but nothing is opened because there is no honest result to
+#: report.
+_NO_CONNECTIVITY_CHECK = frozenset()
 
 
 def _build_transport(entry: dict[str, Any]) -> Any:

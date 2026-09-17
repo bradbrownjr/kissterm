@@ -3,6 +3,20 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-17] — Add Mercury HF session transport
+
+### New Features
+
+- **Mercury v2 is now a working `kind = "mercury"` session transport.** Its
+  documented VARA-compatible control/data TCP interface reuses the existing
+  session lifecycle, with a default control/data port pair of 8300/8301. The
+  local protocol test covers configuration, connection, and data exchange;
+  real-radio verification remains on the roadmap.
+  **Files:** SETUP.md, config.toml.example, docs/ROADMAP.md,
+  kissterm/doctor.py, kissterm/transport/AGENTS.md,
+  kissterm/transport/mercury.py, kissterm/ui/dialogs.py,
+  tests/unit/test_mercury_transport.py, docs/CHANGELOG.md.
+
 ## [2026-09-17] — Select ports on multi-port TNCs
 
 ### Improvements

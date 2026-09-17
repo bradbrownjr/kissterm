@@ -1315,7 +1315,7 @@ _TRANSPORT_KINDS: dict[str, tuple[bool, tuple[_TransportField, ...]]] = {
     )),
     "mercury": (True, (
         _TransportField("host", "Host", "e.g. 127.0.0.1"),
-        _TransportField("port", "Port", numeric=True),
+        _TransportField("port", "Port", default="8300", numeric=True),
         _TransportField("mycall", "Callsign", "e.g. N1ABC-1"),
     )),
     "telnet": (True, (

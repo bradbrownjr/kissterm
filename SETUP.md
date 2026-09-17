@@ -267,6 +267,25 @@ Until this is verified against real hardware, treat any kissterm-VARA
 connection issue as equally likely to be a Wine/audio-routing problem as a
 kissterm bug.
 
+## 6. Mercury HF
+
+Mercury v2 exposes a documented, VARA-compatible TCP TNC interface. Start its
+ARQ service, then configure its control port in kissterm; the data port is one
+higher by default:
+
+```toml
+[[transports]]
+name = "mercury-hf"
+kind = "mercury"
+host = "127.0.0.1"
+port = 8300
+```
+
+Mercury owns the ARQ link, so kissterm treats this as a session transport and
+does not run its AX.25 state machine over it. A local socket-level test covers
+the documented TNC interface, but this setup still needs real-radio
+verification.
+
 ## 6. Linux kernel AX.25 as an alternative
 
 If you already have a working `kissattach`/`ax25d` setup — an `axports`
