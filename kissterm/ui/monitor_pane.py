@@ -22,7 +22,7 @@ from __future__ import annotations
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
-from textual.widgets import Button, Input, RichLog
+from textual.widgets import Button, Input, RichLog, Select
 
 from .wraplog import WrapLog
 
@@ -33,6 +33,15 @@ class MonitorPane(Container):
     def compose(self) -> ComposeResult:
         with Horizontal(id="monitor-filter"):
             yield Input(placeholder="filter: callsign or text", id="monitor-query")
+            ports = getattr(getattr(self.app, "station", None), "transport", None)
+            port_count = getattr(ports, "ports", 1)
+            if port_count > 1:
+                yield Select(
+                    [("All ports", "all"), *((f"Port {port}", str(port)) for port in range(port_count))],
+                    value="all",
+                    id="monitor-port",
+                    allow_blank=False,
+                )
             yield Button(self._supervisory_label(), id="monitor-toggle-s")
         # `WrapLog` -- see `kissterm/ui/wraplog.py` for why a plain `RichLog`
         # cuts the end off every line on an 80-column terminal.
@@ -86,3 +95,8 @@ class MonitorPane(Container):
         monitor_filter = self.app.monitor_filter  # type: ignore[attr-defined]
         monitor_filter.show_supervisory = not monitor_filter.show_supervisory
         self._refresh_supervisory_button()
+
+    @on(Select.Changed, "#monitor-port")
+    def _select_port(self, event: Select.Changed) -> None:
+        monitor_filter = self.app.monitor_filter  # type: ignore[attr-defined]
+        monitor_filter.ports = () if event.value == "all" else (int(event.value),)

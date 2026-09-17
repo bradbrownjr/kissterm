@@ -3,6 +3,19 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-17] — Select ports on multi-port TNCs
+
+### Improvements
+
+- **KISS and AGW transports with more than one radio port now expose a
+  per-connect port picker and an All ports / individual-port Monitor filter.**
+  The selected port reaches `AX25Station`, so simultaneous links to the same
+  callsign on separate channels remain distinct; the Monitor continues to use
+  the existing frame fan-out.
+  **Files:** docs/ROADMAP.md, kissterm/ui/app.py, kissterm/ui/dialogs.py,
+  kissterm/ui/monitor_pane.py, kissterm/ui/styles.py,
+  tests/pilot/test_app_mounts.py, docs/CHANGELOG.md.
+
 ## [2026-09-17] — Add BLE GATT KISS transport
 
 ### New Features

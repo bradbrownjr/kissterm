@@ -765,7 +765,7 @@ class KissTermApp(App):
         #: and can only say "Not connected", leaving the operator to wait
         #: out N2 retries with no way to stop them. See `action_connect` and
         #: `action_disconnect`.
-        self._connecting: dict[str, AX25Address] = {}
+        self._connecting: dict[str, tuple[AX25Address, int]] = {}
         #: The one in-flight SessionTransport.connect() call, if any. Session
         #: transports have no AX.25 link for Ctrl+D to close during setup, so
         #: the task itself is the cancellation handle. It is set only while
@@ -2669,6 +2669,7 @@ class KissTermApp(App):
                     self.config.scripts,
                     transports=self._frame_tier_transports(),
                     active_transport_name=self.config.active_transport,
+                    ports=self.station.transport.ports,
                 )
             )
             if not request:
@@ -2731,7 +2732,11 @@ class KissTermApp(App):
         # belongs to, whether it comes up or not. An existing tab for this
         # exact peer (a reconnect) always counts as room, no matter how
         # many OTHER tabs are open -- see `TerminalPane.has_room_for`.
-        key = self._session_key(path.destination)
+        port = request.port
+        if port < 0 or port >= self.station.transport.ports:
+            self.notify(f"Radio port {port} is not available on this transport.", severity="error")
+            return
+        key = self._session_key(path.destination, port)
         pane = self.query_one(TerminalPane)
         if not pane.has_room_for(key):
             self.notify(
@@ -2772,15 +2777,16 @@ class KissTermApp(App):
         # is the operator asking to transmit, and refusing it here left them
         # with a dead end that only reads as "the far station is not there".
         self._arm_for(f"connect to {path.destination}")
-        self._to_terminal(key, "log", f"\n*** Connecting to {path.destination}...\n")
+        self._to_terminal(key, "log", f"\n*** Connecting to {path.destination} on port {port}...\n")
         # Set before the await, not after: `AX25Station.connect` registers the
         # link synchronously before it awaits anything, so by the time this
         # coroutine yields control the link is already reachable by peer
         # address -- which is what lets Ctrl+D find and cancel it mid-attempt.
-        self._connecting[key] = path.destination
+        self._connecting[key] = (path.destination, port)
         try:
             link = await self.station.connect(
                 path,
+                port=port,
                 paclen=_entry_link_override(reminder.paclen) if reminder else None,
                 window=_entry_link_override(reminder.window) if reminder else None,
             )
@@ -2790,7 +2796,7 @@ class KissTermApp(App):
         finally:
             self._connecting.pop(key, None)
         if link is None:
-            failed = self.station.link_to(path.destination)
+            failed = self.station.link_to(path.destination, port)
             reason = getattr(failed, "last_error", "") if failed else ""
             if reason == CANCELLED_REASON:
                 self._to_terminal(key, "log", f"*** Connect to {path.destination} cancelled.\n")
@@ -3267,9 +3273,10 @@ class KissTermApp(App):
         # through its SABM retries. Without this, the only way off a stuck
         # attempt was to wait out N2 in full: Ctrl+D said "Not connected"
         # (true, but useless) while the radio kept keying up on its own.
-        target = self._connecting.get(session_key)
-        if target is not None and self.station is not None:
-            connecting = self.station.link_to(target)
+        pending = self._connecting.get(session_key)
+        if pending is not None and self.station is not None:
+            target, port = pending
+            connecting = self.station.link_to(target, port)
             if connecting is not None and not connecting.connected:
                 self._to_terminal(
                     session_key,

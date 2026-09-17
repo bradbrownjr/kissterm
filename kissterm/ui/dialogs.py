@@ -71,6 +71,10 @@ class ConnectRequest:
     #: duplicating it) before resolving the login, because a dialog has no
     #: business mutating `Config` itself -- see `_resolve_login`.
     new_credential_text: str = ""
+    #: KISS/AGW radio port selected for this attempt.  This is deliberately
+    #: per-attempt rather than an Address Book property: the same node may be
+    #: reachable on different channels as the operator changes the station.
+    port: int = 0
 
 
 def _validate_target_and_hops(text: str, hops: str) -> tuple[object | None, str]:
@@ -198,6 +202,7 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         scripts: list[dict] | None = None,
         transports: list[dict] | None = None,
         active_transport_name: str = "",
+        ports: int = 1,
     ) -> None:
         super().__init__()
         if book is None:
@@ -214,6 +219,7 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         # it is decoration.
         self.transports = transports or []
         self.active_transport_name = active_transport_name
+        self.ports = max(1, ports)
         # NOT read from `#connect-address-book`'s own `.value` at forget
         # time -- `Select.set_options` unconditionally resets `.value` to
         # blank, and picking a row does exactly that a moment later by
@@ -244,6 +250,13 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
                         else options[0][1]
                     ),
                     id="connect-transport",
+                    allow_blank=False,
+                )
+            if self.ports > 1:
+                yield Select(
+                    [(f"Radio port {port}", port) for port in range(self.ports)],
+                    value=0,
+                    id="connect-port",
                     allow_blank=False,
                 )
             yield Input(
@@ -512,6 +525,9 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         transport_name = ""
         if len(self.transports) > 1:
             transport_name = str(self.query_one("#connect-transport", Select).value)
+        port = 0
+        if self.ports > 1:
+            port = int(self.query_one("#connect-port", Select).value)
         self.book.record_attempt(text, script, hops, credential, script_name)
         self.dismiss(
             ConnectRequest(
@@ -522,6 +538,7 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
                 script_name,
                 transport_name,
                 new_credential_text=new_credential_text,
+                port=port,
             )
         )
 

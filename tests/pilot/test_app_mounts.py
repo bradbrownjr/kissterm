@@ -132,6 +132,46 @@ async def test_connect_dialog_opens():
 
 
 @pytest.mark.asyncio
+async def test_multiport_connect_uses_the_selected_radio_port():
+    """A port choice must reach the station, not merely decorate the dialog."""
+    app, ta, tb, station = await _app()
+    ta.ports = tb.ports = 2
+    far = AX25Station(PEER, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, ConnectScreen)
+        screen.query_one("#connect-port", Select).value = 1
+        target = screen.query_one("#connect-target", Input)
+        target.value = str(PEER)
+        await pilot.press("enter")
+        await asyncio.sleep(0.2)
+        assert station.link_to(PEER, 1) is not None
+        assert station.link_to(PEER, 1).connected
+        assert station.link_to(PEER, 0) is None
+    station.close()
+    far.close()
+
+
+@pytest.mark.asyncio
+async def test_monitor_port_picker_filters_a_multiport_transport():
+    app, ta, tb, station = await _app()
+    ta.ports = tb.ports = 2
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("monitor")
+        await pilot.pause()
+        picker = app.query_one("#monitor-port", Select)
+        picker.value = "1"
+        await pilot.pause()
+        assert app.monitor_filter.ports == (1,)
+        picker.value = "all"
+        await pilot.pause()
+        assert app.monitor_filter.ports == ()
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_remote_escape_sequences_never_reach_the_widget():
     """The sanitize rule, proven at the pane boundary rather than in a unit test."""
     app, ta, tb, station = await _app()

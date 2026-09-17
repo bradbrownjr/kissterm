@@ -130,6 +130,7 @@ MonitorPane { layout: vertical; }
    against `screenshot-monitor.png` from before this fix: the button was
    already missing there, independent of anything else changed alongside it. */
 #monitor-query { width: 1fr; }
+#monitor-port { width: 16; margin-left: 1; }
 #monitor-log { border: round $primary; height: 1fr; }
 
 /* Heard pane */

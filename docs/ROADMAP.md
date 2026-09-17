@@ -48,11 +48,6 @@ compressed-range reference and the recorded on-air modulo-128 fallback test.
   from the VARA author) has no public protocol documentation as thorough as
   VARA's; this item is "go find out what's actually on the wire" before any
   implementation work can be scoped.
-- [ ] **Multi-port TNC handling.** `FrameTransport.ports` already models one
-  transport exposing several KISS/AGW ports (Direwolf's `CHANNEL 0`/`CHANNEL
-  1`); what's missing is UI to pick which port a new connection or the
-  monitor pane uses when more than one is configured. Small, blocked on the
-  app shell (P1) existing.
 - [ ] **SSH key-based authentication.** `kissterm/transport/ssh.py` supports
   password auth only (shipped -- see docs/CHANGELOG.md). Some hosts require
   a key; needs deciding where a key path and passphrase live in config
