@@ -21,11 +21,26 @@ from __future__ import annotations
 import json
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 from .config import state_path
 
 log = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True, slots=True)
+class HarvestedCommand:
+    """One learned name and the prompt context it came from.
+
+    A BBS command can look perfectly plausible beside a node command while
+    doing something entirely different.  Keep the operator's chosen context
+    with the name instead of making a later command picker guess from the
+    spelling of ``LIST`` or ``SEND``.
+    """
+
+    name: str
+    context: str = "node"
 
 
 def path() -> Path:
@@ -40,7 +55,7 @@ class HarvestedCommands:
 
     def __init__(self, file: Path | None = None) -> None:
         self.file = file or path()
-        self._by_callsign: dict[str, tuple[str, ...]] = {}
+        self._by_callsign: dict[str, tuple[HarvestedCommand, ...]] = {}
 
     def load(self) -> None:
         """Read the file. A missing or corrupt one leaves the cache empty --
@@ -55,13 +70,30 @@ class HarvestedCommands:
         if not isinstance(raw, dict):
             log.warning("harvested-command cache at %s is not an object; ignoring", self.file)
             return
-        result: dict[str, tuple[str, ...]] = {}
-        for callsign, names in raw.items():
-            if not isinstance(names, list):
+        result: dict[str, tuple[HarvestedCommand, ...]] = {}
+        for callsign, entries in raw.items():
+            # Version-one caches were lists of names.  They had no context,
+            # so preserve them as node-level rather than pretending they came
+            # from a BBS or discarding an operator's paid-for harvest.
+            if isinstance(entries, list) and all(isinstance(n, str) for n in entries):
+                entries = [{"name": n, "context": "node"} for n in entries]
+            if not isinstance(entries, list):
                 continue
-            cleaned = tuple(str(n).strip().upper() for n in names if str(n).strip())
-            if cleaned:
-                result[str(callsign).strip().upper()] = cleaned
+            commands: list[HarvestedCommand] = []
+            seen: set[tuple[str, str]] = set()
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                name = str(entry.get("name", "")).strip().upper()
+                context = str(entry.get("context", "node")).strip().lower()
+                if not name or context not in {"node", "bbs", "application"}:
+                    continue
+                key = (name, context)
+                if key not in seen:
+                    commands.append(HarvestedCommand(*key))
+                    seen.add(key)
+            if commands:
+                result[str(callsign).strip().upper()] = tuple(commands)
         self._by_callsign = result
 
     def save(self) -> None:
@@ -70,7 +102,14 @@ class HarvestedCommands:
         try:
             self.file.parent.mkdir(parents=True, exist_ok=True)
             temporary = self.file.with_suffix(".json.tmp")
-            temporary.write_text(json.dumps(self._by_callsign, indent=2), "utf-8")
+            raw = {
+                callsign: [
+                    {"name": command.name, "context": command.context}
+                    for command in commands
+                ]
+                for callsign, commands in self._by_callsign.items()
+            }
+            temporary.write_text(json.dumps(raw, indent=2), "utf-8")
             os.replace(temporary, self.file)
         except OSError as exc:
             log.warning("could not save harvested-command cache to %s: %s", self.file, exc)
@@ -79,23 +118,32 @@ class HarvestedCommands:
         """Whatever is already cached for `callsign`, or empty -- read-only,
         used to silently pre-populate a session's reference on connect
         without spending any airtime or asking again."""
+        return tuple(command.name for command in self.records_for_callsign(callsign))
+
+    def records_for_callsign(self, callsign: str) -> tuple[HarvestedCommand, ...]:
+        """Cached commands with their node/BBS/application context intact."""
         return self._by_callsign.get(callsign.strip().upper(), ())
 
-    def add(self, callsign: str, names: tuple[str, ...]) -> tuple[str, ...]:
+    def add(
+        self, callsign: str, names: tuple[str, ...], *, context: str = "node"
+    ) -> tuple[str, ...]:
         """Merge `names` into whatever is already cached for `callsign`,
         save, and return the full merged set -- the caller applies this
         directly to `CommandReference.learned` rather than just the new
         names, so a second harvest of the same node adds to the first
         instead of replacing it."""
         key = callsign.strip().upper()
+        if context not in {"node", "bbs", "application"}:
+            context = "node"
         existing = list(self._by_callsign.get(key, ()))
-        seen = set(existing)
+        seen = {(command.name, command.context) for command in existing}
         for name in names:
             cleaned = name.strip().upper()
-            if cleaned and cleaned not in seen:
-                existing.append(cleaned)
-                seen.add(cleaned)
+            record = (cleaned, context)
+            if cleaned and record not in seen:
+                existing.append(HarvestedCommand(*record))
+                seen.add(record)
         merged = tuple(existing)
         self._by_callsign[key] = merged
         self.save()
-        return merged
+        return tuple(command.name for command in merged)

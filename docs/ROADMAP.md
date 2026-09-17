@@ -373,35 +373,6 @@ from a connected node (`kissterm/harvested.py`, `HarvestConfirmScreen`), a
 packet-terminology glossary sharing the Ctrl+R pane (`kissterm/glossary.py`),
 and per-node notes in the Address Book, shown on connect.
 
-Remaining operator feedback on the shipped Ctrl+R pane:
-- [ ] **Harvested BBS commands are shown mixed in with node-level commands,
-      with nothing to tell them apart.** Reported directly after a real
-      harvest: BBS commands (mail read/list/send) learned from inside a BBS
-      session landed in the same flat table as the node's own connect/link
-      commands, with no visual separation. This is the harvesting-time
-      version of the gap `bpq32.toml`'s own provenance comment already
-      flags for the *shipped* reference (`BBS`/`CHAT` are application names
-      sitting alongside real node commands at `"documented"` confidence) --
-      but harvesting makes it worse because the operator did not curate
-      which prompt they harvested from. `kissterm/harvested.py`'s stored
-      commands need a source/context field (node-level vs. an entered BBS
-      or other sub-application), and `_populate_commands`
-      (`kissterm/ui/dialogs.py`) needs to group or label rows by it rather
-      than one undifferentiated list. Medium.
-
-Feedback on the Tab-autocomplete strip shipped with the harvesting work:
-
-- [ ] **Tab should cycle through multiple matches, not just fill the one
-      top suggestion.** `TerminalPane.accept_suggestion`/`_current_suggestion`
-      (`kissterm/ui/terminal_pane.py`) track a single suggestion computed by
-      `_update_suggestions`; typing `B` and pressing Tab repeatedly has
-      nothing to cycle to even when several commands share that prefix
-      (`B`, `BBS`, `BYE`). Wants the classic shell-completion behaviour --
-      repeated Tab presses step through every match sharing the current
-      prefix before wrapping back to the first. Medium: needs the
-      suggestion state to hold an ordered candidate list and a cursor
-      into it, reset whenever the underlying prefix changes.
-
 ## P9 — Unattended operation: mailbox, file drop, and alerts
 
 The answering half of this phase shipped in `[2026-09-04]` (see CHANGELOG):

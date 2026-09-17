@@ -66,4 +66,25 @@ def test_written_as_valid_json(tmp_path):
     file = tmp_path / "harvested.json"
     HarvestedCommands(file).add("WS1EC-15", ("CALENDAR",))
     raw = json.loads(file.read_text("utf-8"))
-    assert raw == {"WS1EC-15": ["CALENDAR"]}
+    assert raw == {"WS1EC-15": [{"name": "CALENDAR", "context": "node"}]}
+
+
+def test_loads_the_old_name_only_cache_as_node_commands(tmp_path):
+    file = tmp_path / "harvested.json"
+    file.write_text('{"WS1EC-15": ["CALENDAR"]}', "utf-8")
+    cache = HarvestedCommands(file)
+    cache.load()
+    assert [(command.name, command.context) for command in cache.records_for_callsign("WS1EC-15")] == [
+        ("CALENDAR", "node")
+    ]
+
+
+def test_keeps_bbs_commands_separate_from_node_commands(tmp_path):
+    cache = HarvestedCommands(tmp_path / "harvested.json")
+    cache.add("WS1EC-15", ("CONNECT",), context="node")
+    cache.add("WS1EC-15", ("LIST", "SEND"), context="bbs")
+    assert [(command.name, command.context) for command in cache.records_for_callsign("WS1EC-15")] == [
+        ("CONNECT", "node"),
+        ("LIST", "bbs"),
+        ("SEND", "bbs"),
+    ]

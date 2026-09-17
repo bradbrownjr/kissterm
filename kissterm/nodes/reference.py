@@ -31,6 +31,10 @@ class Command:
     detail: str = ""
     aliases: tuple[str, ...] = ()
     confidence: str = "documented"
+    #: Where this command is meaningful.  Shipped references are node-level
+    #: by default; a command learned while the operator is inside a BBS keeps
+    #: that distinct context all the way to the command picker.
+    context: str = "node"
 
     @property
     def names(self) -> tuple[str, ...]:

@@ -341,10 +341,11 @@ class TerminalPane(Container):
         #: Whose session is currently rendered into `#session-log`. `""`
         #: is the pre-connection view -- see the module docstring.
         self.active_session_key: str = ""
-        #: The command `#suggestion-strip` would fill on Tab, or None when
-        #: it has nothing to offer. Recomputed on every keystroke in the
-        #: send line and on every tab switch -- see `_update_suggestions`.
-        self._current_suggestion: str | None = None
+        #: Ordered candidates and the one Tab will choose next. Kept apart
+        #: from the input text so successive Tabs can walk a shared prefix.
+        self._suggestion_matches: tuple = ()
+        self._suggestion_index = 0
+        self._cycling_value: str | None = None
         # A slide-out changes the scrollback's usable width after this pane's
         # Resize handler runs.  A generation lets the one post-layout replay
         # for the newest resize win when a window is dragged continuously.
@@ -930,15 +931,20 @@ class TerminalPane(Container):
         field.focus()
 
     def accept_suggestion(self) -> bool:
-        """`_SendInput`'s Tab target: fill in the current top suggestion.
+        """`_SendInput`'s Tab target: fill the next matching command.
 
         Returns whether there was one to accept, so Tab can fall back to
         ordinary focus-cycling instead of doing nothing when the strip is
         empty -- see `_SendInput.action_accept_suggestion`.
         """
-        if self._current_suggestion is None:
+        if not self._suggestion_matches:
             return False
-        self.suggest(self._current_suggestion)
+        command = self._suggestion_matches[self._suggestion_index]
+        # Retain the original candidate list after this programmatic fill,
+        # then visibly mark what the next Tab will choose.
+        self._cycling_value = command.name
+        self._suggestion_index = (self._suggestion_index + 1) % len(self._suggestion_matches)
+        self.suggest(command.name)
         return True
 
     def _update_suggestions(self, prefix: str) -> None:
@@ -954,14 +960,21 @@ class TerminalPane(Container):
         already returns nothing for an empty prefix on its own.
         """
         reference = getattr(self.app, "reference", None)
-        matches = reference.complete(prefix) if reference is not None else ()
+        if prefix == self._cycling_value and self._suggestion_matches:
+            matches = self._suggestion_matches
+        else:
+            matches = reference.complete(prefix) if reference is not None else ()
+            self._suggestion_matches = matches
+            self._suggestion_index = 0
+            self._cycling_value = None
         strip = self.query_one("#suggestion-strip", Static)
         if not matches:
-            self._current_suggestion = None
+            self._suggestion_matches = ()
+            self._suggestion_index = 0
+            self._cycling_value = None
             strip.display = False
             strip.update("")
             return
-        self._current_suggestion = matches[0].name
         # Command names alone make a new operator guess at exactly the point
         # they are looking for help. The shipped reference already carries a
         # concise summary for each one, so surface it here instead of asking
@@ -973,10 +986,10 @@ class TerminalPane(Container):
         for index, command in enumerate(matches):
             if index:
                 text.append("  ")
-            text.append(command.name, style="bold" if index == 0 else "dim")
+            text.append(command.name, style="bold" if index == self._suggestion_index else "dim")
             if command.summary:
                 text.append(f": {command.summary}", style="dim")
-        text.append("   Tab: accept", style="dim italic")
+        text.append("   Tab: cycle", style="dim italic")
         strip.update(text)
         strip.display = True
 

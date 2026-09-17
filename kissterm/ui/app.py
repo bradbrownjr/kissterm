@@ -1612,10 +1612,13 @@ class KissTermApp(App):
         # Apply anything harvested from THIS peer on a past connect --
         # cached forever, per AGENTS.md's opt-in-harvesting rule, so a
         # reconnect never re-asks and never re-spends the airtime.
-        cached = self._harvested.for_callsign(str(link.peer))
+        cached = self._harvested.records_for_callsign(str(link.peer))
         if cached:
             session.reference = CommandReference(
-                learned=tuple(Command(name=n, confidence="learned") for n in cached)
+                learned=tuple(
+                    Command(name=command.name, confidence="learned", context=command.context)
+                    for command in cached
+                )
             )
         self._sessions[key] = session
         self.query_one(TerminalPane).open_tab(key, activate=activate)
@@ -1869,10 +1872,13 @@ class KissTermApp(App):
         if session is None:
             return
         session.current_node = node
-        cached = self._harvested.for_callsign(node)
+        cached = self._harvested.records_for_callsign(node)
         if cached:
             session.reference = CommandReference(
-                learned=tuple(Command(name=n, confidence="learned") for n in cached)
+                learned=tuple(
+                    Command(name=command.name, confidence="learned", context=command.context)
+                    for command in cached
+                )
             )
         else:
             session.reference = CommandReference()
@@ -1993,7 +1999,9 @@ class KissTermApp(App):
         if len(session.harvest_buffer) > HARVEST_CAPTURE_LIMIT:
             session.harvest_buffer = session.harvest_buffer[:HARVEST_CAPTURE_LIMIT]
 
-    async def harvest_commands(self, session_key: str) -> tuple[str, ...]:
+    async def harvest_commands(
+        self, session_key: str, *, context: str = "node"
+    ) -> tuple[str, ...]:
         """Ask the node's own `?` for its command list, once, and cache
         whatever comes back forever under its callsign.
 
@@ -2078,9 +2086,10 @@ class KissTermApp(App):
         # cache entry, corrupting a node's real reference with another
         # node's commands. See `_TerminalSession.current_node`.
         node = session.current_node or str(link.peer)
-        all_cached = self._harvested.add(node, names)
+        self._harvested.add(node, names, context=context)
         session.reference.learned = tuple(
-            Command(name=n, confidence="learned") for n in all_cached
+            Command(name=command.name, confidence="learned", context=command.context)
+            for command in self._harvested.records_for_callsign(node)
         )
         self._to_terminal(
             session_key,

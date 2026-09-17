@@ -22,7 +22,7 @@ from textual.widgets import Button, Input, RichLog, Static, Tabs  # noqa: E402
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
-from kissterm.nodes import CommandReference, load_family  # noqa: E402
+from kissterm.nodes import Command, CommandReference, load_family  # noqa: E402
 from kissterm.ui import terminal_pane as tp  # noqa: E402
 from kissterm.ui.dialogs import CommandReferenceScreen  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane, linkify  # noqa: E402
@@ -386,6 +386,38 @@ async def test_tab_accepts_the_top_suggestion_without_transmitting():
 
         strip = app.query_one("#suggestion-strip", Static)
         assert strip.display is True, "the accepted text ('C') still matches itself"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_tab_cycles_all_matches_without_transmitting():
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()
+        app.reference = CommandReference(
+            learned=tuple(Command(name=name, confidence="learned") for name in ("B", "BBS", "BYE"))
+        )
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.press("b")
+        await pilot.pause()
+        before = _sent_data_frames(app.station.transport)
+
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.press("tab")
+        await pilot.pause()
+
+        assert field.value == "B", "the fourth Tab must wrap to the first match"
+        assert _sent_data_frames(app.station.transport) == before
+        assert far.read_nowait() == b"", "completion cycling reached the far end"
     a.close()
     b.close()
 
@@ -854,6 +886,27 @@ async def test_a_reconnect_applies_the_cache_with_no_new_airtime():
         assert "CALENDAR" in rows and "FORMS" in rows
         assert far.read_nowait() == b"", "applying the cache transmitted something"
         await screen.dismiss(None)
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_command_picker_labels_harvested_bbs_commands():
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.reference = CommandReference(
+            learned=(Command(name="LIST", confidence="learned", context="bbs"),)
+        )
+        await pilot.press("ctrl+r")
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, CommandReferenceScreen)
+        table = screen.query_one("#ref-table")
+        row = table.get_row_at(0)
+        assert row[0] == "LIST"
+        assert row[3] == "BBS"
+        assert row[4] == "learned"
     a.close()
     b.close()
 

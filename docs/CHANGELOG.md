@@ -3,6 +3,22 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-17] — Cycle terminal completion and label harvested contexts
+
+### Improvements
+
+- **Repeated Tab now cycles every command sharing the typed prefix and wraps
+  back to the first; completion still only fills the input.** The suggestion
+  strip highlights the command the next Tab will choose.
+- **Harvested commands now retain an operator-selected Node, BBS, or
+  Application context.** Ctrl+R displays that context alongside confidence,
+  so BBS mail commands no longer appear as unexplained node commands. Older
+  name-only caches remain readable as Node entries.
+  **Files:** DESIGN.md, docs/ROADMAP.md, kissterm/harvested.py,
+  kissterm/nodes/reference.py, kissterm/ui/app.py, kissterm/ui/dialogs.py,
+  kissterm/ui/terminal_pane.py, tests/pilot/test_terminal_ux.py,
+  tests/unit/test_harvested.py, docs/CHANGELOG.md.
+
 ## [2026-09-16] — Explain autocomplete candidates
 
 ### Improvements

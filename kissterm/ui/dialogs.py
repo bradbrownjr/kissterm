@@ -2009,7 +2009,7 @@ def _forget_canned(raw: list[dict], message) -> list[dict]:
     return out
 
 
-class HarvestConfirmScreen(ModalScreen[bool]):
+class HarvestConfirmScreen(ModalScreen[str | None]):
     """Confirm spending airtime on a node's own command list, once.
 
     Same reasoning as `RadioReminderScreen`: a cost the operator only learns
@@ -2027,7 +2027,7 @@ class HarvestConfirmScreen(ModalScreen[bool]):
     says a marginal link can run past the estimate.
     """
 
-    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
     def __init__(self, peer: str) -> None:
         super().__init__()
@@ -2050,6 +2050,16 @@ class HarvestConfirmScreen(ModalScreen[bool]):
                 "is cached forever, so this is asked at most once per node.",
                 id="reminder-detail",
             )
+            yield Select(
+                [
+                    ("Node commands", "node"),
+                    ("BBS commands", "bbs"),
+                    ("Other application commands", "application"),
+                ],
+                value="node",
+                allow_blank=False,
+                id="harvest-context",
+            )
             with Horizontal(id="connect-buttons"):
                 yield Button("Ask", variant="primary", id="connect-go")
                 yield Button("Cancel", id="connect-cancel")
@@ -2059,11 +2069,11 @@ class HarvestConfirmScreen(ModalScreen[bool]):
 
     @on(Button.Pressed, "#connect-cancel")
     def _cancel(self) -> None:
-        self.dismiss(False)
+        self.dismiss(None)
 
     @on(Button.Pressed, "#connect-go")
     def _go(self) -> None:
-        self.dismiss(True)
+        self.dismiss(str(self.query_one("#harvest-context", Select).value))
 
 
 class CommandReferenceScreen(ModalScreen[str | None]):
@@ -2111,6 +2121,10 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         self._session_key = session_key
         self._can_harvest = can_harvest
         self._peer = peer
+        # A command can be valid in both a node and its BBS application.
+        # DataTable row keys must stay unique, while selecting either row
+        # still needs to return only the text the operator wants to type.
+        self._command_row_values: dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
         from textual.widgets import DataTable, Static
@@ -2196,7 +2210,7 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         else:
             table.display = True
             self.query_one("#ref-glossary", WrapLog).display = False
-            table.add_columns("Command", "Usage", "What it does", "Source")
+            table.add_columns("Command", "Usage", "What it does", "Context", "Source")
 
     @on(Tabs.TabActivated, "#ref-mode-tabs")
     def _mode_tab_activated(self, event: Tabs.TabActivated) -> None:
@@ -2252,19 +2266,25 @@ class CommandReferenceScreen(ModalScreen[str | None]):
 
         table = self.query_one("#ref-table", DataTable)
         table.clear()
-        for command in self._reference.find(needle):
+        self._command_row_values.clear()
+        for index, command in enumerate(self._reference.find(needle)):
             names = command.name
             if command.aliases:
                 names += " / " + " / ".join(command.aliases)
+            row_key = f"{index}:{command.context}:{command.name}"
+            self._command_row_values[row_key] = command.name
             table.add_row(
                 names,
                 command.usage or command.name,
                 command.summary,
+                {"node": "Node", "bbs": "BBS", "application": "Application"}.get(
+                    command.context, command.context.title()
+                ),
                 # Say where each line came from. A reference that silently
                 # mixes documented fact with half-remembered syntax is worse
                 # than none: the operator types it, at 1200 baud, and finds out.
                 command.confidence,
-                key=command.name,
+                key=row_key,
             )
 
     @on(Input.Changed, "#ref-search")
@@ -2289,13 +2309,15 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         current text is enough to show the result -- no extra plumbing back
         from the app needed.
         """
-        proceed = await self.app.push_screen_wait(HarvestConfirmScreen(self._peer))
-        if not proceed:
+        context = await self.app.push_screen_wait(HarvestConfirmScreen(self._peer))
+        if not context:
             return
         harvest = self.query_one("#ref-harvest", Button)
         harvest.label = "Asking node..."
         harvest.disabled = True
-        names = await self.app.harvest_commands(self._session_key)  # type: ignore[attr-defined]
+        names = await self.app.harvest_commands(  # type: ignore[attr-defined]
+            self._session_key, context=context
+        )
         text = self.app.last_harvest_text(self._session_key)  # type: ignore[attr-defined]
         status = self.query_one("#ref-harvest-status", Static)
         status.update(
@@ -2348,7 +2370,7 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         something `TerminalPane.send_line` could ever do anything with."""
         if self._mode == "glossary":
             return
-        self.dismiss(str(event.row_key.value or ""))
+        self.dismiss(self._command_row_values.get(str(event.row_key.value), ""))
 
 
 def _human_size(n: int) -> str:

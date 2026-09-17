@@ -219,8 +219,9 @@ tab existed to expect it.
   suggester, because more than one candidate is routinely useful (a node's
   `C`, `CQ` and `CHAT` all share a prefix) and ghost text can only ever show
   one. The row wraps rather than hiding a choice past an ellipsis on a narrow
-  terminal. Tab fills in the top match and leaves the strip open — the
-  operator can keep typing to narrow further, or press Enter to send, same as
+  terminal. Tab fills in the highlighted match and leaves the strip open;
+  repeated Tab presses cycle through every match sharing the original prefix.
+  The operator can keep typing to narrow further, or press Enter to send, same as
   any other suggestion on this screen. Tab with nothing suggested falls
   through to ordinary focus-cycling, so an operator who never triggers a
   suggestion never notices Tab behaves any differently than before this
