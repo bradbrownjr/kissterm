@@ -49,10 +49,6 @@ compressed-range reference and the recorded on-air modulo-128 fallback test.
   a local control/data socket integration test. Verify an actual ARQ contact
   before treating it as field-ready; this validates radio/audio/PTT setup and
   the modem's live status behavior, which a loopback cannot exercise.
-- [ ] **SSH host-key verification.** Currently off (`known_hosts=None` --
-  see `ssh.py`'s module docstring for why that is a real gap, not an
-  oversight). Needs either a trust-on-first-use prompt or a config field to
-  pin the expected key.
 - [ ] **AX/IP — a different, lower-priority ask.** Carries actual AX.25
   *frames* over UDP (BPQ32's convention for linking nodes to each other
   over the Internet), so architecturally it is a `FrameTransport` like

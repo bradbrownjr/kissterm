@@ -451,9 +451,13 @@ port = 8010
 # understand; see kissterm/transport/ssh.py. Set `password` for password
 # authentication, or `client_key` to offer exactly that private key. kissterm
 # never silently searches ~/.ssh for identities. `key_passphrase` is needed
-# only when that key is encrypted. These values sit here in plain text like
-# every other config.toml secret in this file -- protect this file with normal
-# filesystem permissions the same way you would an SSH key.
+# only when that key is encrypted. `known_hosts` is required: point it to an
+# operator-maintained OpenSSH known-hosts file containing this host's verified
+# public key. It is not secret and is deliberately not inferred from ~/.ssh,
+# so verify and add the key out of band before connecting. These values sit
+# here in plain text like every other config.toml secret in this file --
+# protect this file with normal filesystem permissions the same way you would
+# an SSH key.
 #
 # `script` here is a second, later login: the SSH password above only gets
 # you the shell account; WS1EC's shell then runs its own local telnet into
@@ -470,6 +474,7 @@ username = "packet"
 password = ""
 # client_key = "/home/you/.ssh/id_ed25519"
 # key_passphrase = ""
+known_hosts = "/home/you/.ssh/kissterm_known_hosts"
 script = "MYCALL\nMYPASS\nC BBS"
 
 # --- Saved connect targets -------------------------------------------------

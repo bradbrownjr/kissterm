@@ -14,14 +14,12 @@ or set `client_key` to the private-key file to offer that key. An encrypted
 key additionally needs `key_passphrase`. kissterm never searches `~/.ssh` or
 silently selects an identity: the configured file is the one it offers.
 
-**Host-key verification is off (`known_hosts=None`).** A real gap, not an
-oversight -- pinning a host key needs either a first-connect trust-on-first-
-use prompt or a config field to hold the expected key, and neither is built
-yet. Until one is, a network path to the host is trusted the same way a
-brand-new `ssh` client asking "are you sure you want to continue connecting"
-and getting an unconditional "yes" would be. Flagged here, in
-docs/ROADMAP.md, and worth a status-bar or log line the day this matters
-enough to fix.
+**Host-key verification is explicit and fail-closed.** Set `known_hosts` to
+an operator-maintained OpenSSH `known_hosts` file containing the expected
+server key. The transport reads that exact file before connecting and passes
+the parsed entries to AsyncSSH; it never trusts an ambient `~/.ssh/known_hosts`
+file or accepts a first-seen key. A missing, unreadable, malformed, unknown,
+or changed key raises `TransportError` before an interactive session exists.
 
 Needs the optional `asyncssh` dependency (``pip install kissterm[ssh]``),
 imported lazily inside `connect()` -- never at module import time, so a
@@ -58,6 +56,7 @@ class SshTransport(SessionTransport):
         port: int = 22,
         client_key: str = "",
         key_passphrase: str = "",
+        known_hosts: str = "",
     ) -> None:
         info = TransportInfo(
             kind="ssh",
@@ -72,6 +71,7 @@ class SshTransport(SessionTransport):
         self.password = password
         self.client_key = client_key
         self.key_passphrase = key_passphrase
+        self.known_hosts = known_hosts
         self._connection = None
         self._process = None
         self._pump_task: asyncio.Task[None] | None = None
@@ -103,6 +103,23 @@ class SshTransport(SessionTransport):
                 "install with 'pip install kissterm[ssh]'"
             ) from exc
 
+        if not self.known_hosts.strip():
+            raise TransportError(
+                "SSH host-key verification requires a configured 'known_hosts' "
+                "file containing this server's expected key"
+            )
+        try:
+            known_hosts = asyncssh.read_known_hosts(self.known_hosts)
+        except (OSError, UnicodeError, ValueError) as exc:
+            raise TransportError(
+                f"could not read SSH known-hosts file {self.known_hosts!r}: {exc}"
+            ) from exc
+        if not any(known_hosts.match(self.host, "", self.port)):
+            raise TransportError(
+                f"SSH known-hosts file {self.known_hosts!r} has no valid entry "
+                f"for {self.host}:{self.port}"
+            )
+
         try:
             connect_options = dict(
                 host=self.host,
@@ -115,9 +132,9 @@ class SshTransport(SessionTransport):
                 client_keys=[self.client_key] if self.client_key else None,
                 agent_path=None,
                 config=None,
-                # UNVERIFIED / deliberate gap -- see the module docstring's
-                # host-key-verification note.
-                known_hosts=None,
+                # The pre-parsed, explicitly configured entries prevent
+                # AsyncSSH from consulting ambient known-hosts files.
+                known_hosts=known_hosts,
             )
             if self.client_key:
                 # AsyncSSH accepts paths here and loads precisely these keys.
@@ -137,6 +154,11 @@ class SshTransport(SessionTransport):
             self._process = await self._connection.create_process(
                 term_type="ansi", encoding=None
             )
+        except asyncssh.HostKeyNotVerifiable as exc:
+            raise TransportError(
+                f"SSH host-key verification failed for {self.host}:{self.port}: {exc}. "
+                "Check that 'known_hosts' contains this server's current key."
+            ) from exc
         except TransportError:
             raise
         except Exception as exc:

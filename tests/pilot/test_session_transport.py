@@ -325,7 +325,8 @@ async def test_ssh_works_through_the_same_adapter_as_telnet(tmp_path):
         process.exit(0)
 
     key_path = tmp_path / "host_key"
-    asyncssh.generate_private_key("ssh-rsa").write_private_key(str(key_path))
+    host_key = asyncssh.generate_private_key("ssh-rsa")
+    host_key.write_private_key(str(key_path))
     server = await asyncssh.listen(
         "127.0.0.1", 0,
         server_host_keys=[str(key_path)],
@@ -334,7 +335,14 @@ async def test_ssh_works_through_the_same_adapter_as_telnet(tmp_path):
         encoding=None,
     )
     port = server.sockets[0].getsockname()[1]
-    transport = SshTransport("127.0.0.1", "packet", "secret", port=port)
+    known_hosts_path = tmp_path / "known_hosts"
+    known_hosts_path.write_bytes(
+        f"[127.0.0.1]:{port} ".encode() + host_key.export_public_key()
+    )
+    transport = SshTransport(
+        "127.0.0.1", "packet", "secret", port=port,
+        known_hosts=str(known_hosts_path),
+    )
     await transport.open()
     config = Config(mycall="N1ABC-1")
     config.tx_armed_at_start = True

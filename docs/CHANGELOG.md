@@ -3,6 +3,20 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-18] — Verify SSH server host keys explicitly
+
+### Security
+
+- **SSH transports now require an explicit OpenSSH known-hosts file.** The
+  configured `known_hosts` file is parsed before connection and is the only
+  host-verification source: kissterm neither accepts first-seen keys nor reads
+  ambient SSH configuration. Missing, unreadable, malformed, unknown, and
+  changed keys fail with an actionable transport error before an interactive
+  shell starts.
+  **Files:** config.toml.example, docs/ROADMAP.md, docs/CHANGELOG.md,
+  kissterm/transport/ssh.py, kissterm/ui/dialogs.py, SETUP.md,
+  tests/unit/test_ssh_transport.py.
+
 ## [2026-09-18] — Add explicit SSH key authentication
 
 ### New Features

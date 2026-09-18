@@ -1329,6 +1329,7 @@ _TRANSPORT_KINDS: dict[str, tuple[bool, tuple[_TransportField, ...]]] = {
         _TransportField("password", "Password", password=True),
         _TransportField("client_key", "Private key file", "e.g. ~/.ssh/id_ed25519", optional=True),
         _TransportField("key_passphrase", "Key passphrase", password=True, optional=True),
+        _TransportField("known_hosts", "Known-hosts file", "e.g. /home/you/.ssh/kissterm_known_hosts"),
         _TransportField("port", "Port", default="22", numeric=True),
     )),
 }

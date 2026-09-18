@@ -336,14 +336,17 @@ host = "ws1ec.mainepacketradio.org"
 port = 4122
 username = "packet"
 password = ""
+known_hosts = "/home/you/.ssh/kissterm_known_hosts"
 ```
 
 SSH needs the optional `asyncssh` package: `pip install kissterm[ssh]` (or
 `kissterm[all]`). Set `password` for password authentication, or set
 `client_key` to an explicit private-key path. Add `key_passphrase` only for
 an encrypted private key; kissterm does not silently search `~/.ssh` for
-identities. Host-key verification is not yet implemented; treat an SSH node
-the way you would any new host whose key you have not verified out of band.
+identities. `known_hosts` is required and names an explicit OpenSSH
+known-hosts file containing the server key you verified out of band. kissterm
+never consults ambient SSH configuration or accepts a first-seen key; a
+missing, malformed, unknown, or changed key stops before the login shell.
 
 ```toml
 [[transports]]
@@ -353,6 +356,7 @@ host = "node.example.org"
 username = "packet"
 client_key = "/home/you/.ssh/id_ed25519"
 key_passphrase = ""
+known_hosts = "/home/you/.ssh/kissterm_known_hosts"
 ```
 
 Once one of these is the active transport, `Ctrl+N` connects directly —
