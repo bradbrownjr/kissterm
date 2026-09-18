@@ -5,6 +5,12 @@ Update this file as items are completed — move the completed item's entry
 into CHANGELOG.md under a new dated section (`## [YYYY-MM-DD]`) instead of
 just checking it off here, so ROADMAP.md only ever shows what's still open.
 
+Dependency dispositions for every open checklist item are maintained in
+[`ROADMAP_DEPENDENCIES.md`](ROADMAP_DEPENDENCIES.md). That audit distinguishes
+repository-actionable work from work that needs operator-controlled hardware,
+an authorized peer or account, publication authority, external source material,
+or qualified regulatory review; it is planning evidence, not field evidence.
+
 Phase numbers are labels, not a strict work order. The one real ordering
 constraint is that **P1's remaining verification-against-hardware items outrank
 everything else** -- the whole stack is proven only against a software loopback
