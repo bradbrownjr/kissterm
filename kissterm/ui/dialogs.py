@@ -203,6 +203,7 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         transports: list[dict] | None = None,
         active_transport_name: str = "",
         ports: int = 1,
+        target: str = "",
     ) -> None:
         super().__init__()
         if book is None:
@@ -220,6 +221,10 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         self.transports = transports or []
         self.active_transport_name = active_transport_name
         self.ports = max(1, ports)
+        # A passive discovery may offer a claimed callsign to inspect here.
+        # It is only a prefill: this screen still requires the operator to
+        # deliberately confirm Connect before any transmit-capable work.
+        self.target = target
         # NOT read from `#connect-address-book`'s own `.value` at forget
         # time -- `Select.set_options` unconditionally resets `.value` to
         # blank, and picking a row does exactly that a moment later by
@@ -309,7 +314,9 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         self._render_credentials()
         self._render_scripts()
         self._sync_login_controls()
-        self.query_one("#connect-target", Input).focus()
+        target = self.query_one("#connect-target", Input)
+        target.value = self.target
+        target.focus()
 
     def _render_credentials(self) -> None:
         select = self.query_one("#connect-credential", Select)

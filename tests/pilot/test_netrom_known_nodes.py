@@ -12,6 +12,7 @@ from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams
 from kissterm.ax25.frame import AX25Frame, PID_NETROM, UType
 from kissterm.config import Config
 from kissterm.ui.addressbook_pane import AddressBookPane
+from kissterm.ui.dialogs import ConnectScreen
 from tests.loopback import loopback_pair
 
 
@@ -25,7 +26,7 @@ def _broadcast() -> AX25Frame:
 
 
 @pytest.mark.asyncio
-async def test_received_broadcast_populates_picker_and_use_only_fills_input():
+async def test_received_broadcast_prefills_connect_dialog_without_dialing():
     ta, tb = loopback_pair()
     await ta.open()
     await tb.open()
@@ -38,9 +39,14 @@ async def test_received_broadcast_populates_picker_and_use_only_fills_input():
         await pilot.pause()
         table = app.query_one("#known-nodes-table", DataTable)
         assert table.row_count == 1
+        send_input = app.query_one("#session-input", Input)
+        send_input.value = "unrelated session text"
         app.query_one(AddressBookPane)._use_claimed_node()
         await pilot.pause()
-        assert app.query_one("#session-input", Input).value == "W1AW-1"
+        assert isinstance(app.screen, ConnectScreen)
+        assert app.screen.query_one("#connect-target", Input).value == "W1AW-1"
+        assert send_input.value == "unrelated session text"
         assert app.link is None
         assert not app.gate.enabled
+        assert ta.sent == []
     station.close()

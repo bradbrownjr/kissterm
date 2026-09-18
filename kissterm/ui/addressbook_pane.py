@@ -106,10 +106,10 @@ class AddressBookPane(Vertical):
             self.app.notify("Select a claimed node first.", severity="warning")  # type: ignore[attr-defined]
             return
         row_key, _column_key = table.coordinate_to_cell_key(table.cursor_coordinate)
-        # This fills the existing send input and cannot connect or send.
-        field = self.app.query_one("#session-input", Input)  # type: ignore[attr-defined]
-        field.value = str(row_key.value)
-        field.focus()
+        # A received callsign is an untrusted claim, so offer it only in the
+        # existing deliberate Connect dialog. It must never land in a live
+        # session's send line, where a later Enter could transmit it as text.
+        self.app.action_connect(target=str(row_key.value))  # type: ignore[attr-defined]
 
     @on(Button.Pressed, "#known-nodes-use")
     def _use_claimed_node_pressed(self) -> None:

@@ -2621,7 +2621,7 @@ class KissTermApp(App):
         return True
 
     @work
-    async def action_connect(self, prefill=None) -> None:
+    async def action_connect(self, prefill=None, target: str = "") -> None:
         """Connect to a station, via the dialog or dialed directly.
 
         `prefill` is an `addressbook.Entry`, passed by `AddressBookPane`
@@ -2629,7 +2629,8 @@ class KissTermApp(App):
         Ctrl+N -- everything past this point is the same flow either way:
         the transmit gate, the transport check, the hop chain, the login.
         Dialing is a faster way to reach this method, never a second,
-        lighter-weight path into it.
+        lighter-weight path into it. `target` only prepopulates the dialog
+        for a passive NET/ROM claim; it never dials or arms the transmit gate.
         """
         if self.station is None:
             if self.session_transport is not None:
@@ -2680,6 +2681,7 @@ class KissTermApp(App):
                     transports=self._frame_tier_transports(),
                     active_transport_name=self.config.active_transport,
                     ports=self.station.transport.ports,
+                    target=target,
                 )
             )
             if not request:
