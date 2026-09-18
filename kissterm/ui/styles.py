@@ -146,6 +146,8 @@ HeardPane { layout: vertical; }
    module's `compose`. */
 AddressBookPane { layout: vertical; padding: 0 2; }
 #addressbook-table { height: 1fr; }
+#known-nodes-note { height: auto; margin-top: 1; color: $warning; }
+#known-nodes-table { height: 12; }
 .addressbook-actions { height: auto; margin-top: 1; }
 .addressbook-actions Button { margin-right: 1; }
 

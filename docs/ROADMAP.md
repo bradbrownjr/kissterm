@@ -172,13 +172,6 @@ entries. What's still open:
 
 ## P5 — Node and BBS workflow
 
-- [ ] **NET/ROM awareness.** Recognize and display NET/ROM routing broadcasts
-  and node lists (`PID_NETROM` in `kissterm/ax25/frame.py` already exists)
-  so the UI can offer a "known nodes" picker instead of requiring every
-  destination to be typed by hand. Would pair naturally with the node-hop
-  chain that already shipped (`AddressBook.Entry.hops`) -- this is what
-  would let an operator pick hops from a discovered list instead of typing
-  callsigns they already know. Medium.
 - [ ] **BBS session helpers** — mail read/send macros for the common
   packet-BBS command dialects (read commands, list-new, send-to-callsign),
   as scriptable macros (see P6) rather than hardcoded parsing, since BBS

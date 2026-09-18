@@ -835,10 +835,16 @@ class TerminalPane(Container):
         """
         if self._slideout.toggle():
             self.query_one(AddressBookPane).refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
+            self.query_one(AddressBookPane).refresh_known_nodes(self.app.known_nodes)  # type: ignore[attr-defined]
             self.query_one("#addressbook-table", DataTable).focus()
         else:
             self.focus_input()
         self._request_scrollback_reflow()
+
+    def refresh_known_nodes(self) -> None:
+        """Refresh passive NET/ROM claims when the slide-out is visible."""
+        if self.query_one("#terminal-addressbook-column").display:
+            self.query_one(AddressBookPane).refresh_known_nodes(self.app.known_nodes)  # type: ignore[attr-defined]
 
     def _recompute_matches(self, needle: str) -> None:
         """Rebuild the match list only when the needle actually changed, so

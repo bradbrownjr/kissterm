@@ -130,6 +130,7 @@ from textual.widgets._footer import FooterKey
 
 from .. import __version__
 from ..addressbook import AddressBook
+from ..netrom import KnownNodes
 from .. import aprs
 from ..aprs_conversations import ConversationStore, MessageDeduplicator
 from ..aprs_notify import Cooldown, evaluate_packet
@@ -783,6 +784,7 @@ class KissTermApp(App):
         #: startup instead of on every Ctrl+N.
         self.addressbook = AddressBook()
         self.addressbook.load()
+        self.known_nodes = KnownNodes()
         #: Command names harvested from a node's own `?`, cached forever per
         #: callsign so the opt-in airtime is never spent twice for the same
         #: node -- see `kissterm/harvested.py` and `harvest_commands` below.
@@ -1055,6 +1057,9 @@ class KissTermApp(App):
         self.heard.record(frame, port)
         self._monitor(frame, port, outgoing=False)
         self._check_mail_for(frame)
+        if self.known_nodes.observe(frame):
+            for pane in self._base_query(TerminalPane):
+                pane.refresh_known_nodes()
 
     def _on_sent_frame(self, frame: AX25Frame, port: int = 0) -> None:
         """Every frame that got past the transmit gate. Monitor only --

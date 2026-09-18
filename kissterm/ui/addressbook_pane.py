@@ -29,7 +29,7 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, DataTable, Static
+from textual.widgets import Button, DataTable, Input, Static
 
 
 class _AddressBookTable(DataTable):
@@ -60,6 +60,10 @@ class _AddressBookTable(DataTable):
         self.app.query_one(AddressBookPane)._forget_selected()  # type: ignore[attr-defined]
 
 
+class _KnownNodesTable(DataTable):
+    """Passive NET/ROM claims; selecting a row never dials it."""
+
+
 class AddressBookPane(Vertical):
     """Every station in `KissTermApp.addressbook`: dial, add, edit, forget."""
 
@@ -80,9 +84,36 @@ class AddressBookPane(Vertical):
             yield Button("New", id="addressbook-new")
             yield Button("Edit selected", id="addressbook-edit")
             yield Button("Forget selected", id="addressbook-forget")
+        yield Static("Known NET/ROM nodes — unverified received claims", id="known-nodes-note")
+        yield _KnownNodesTable(id="known-nodes-table", cursor_type="row", zebra_stripes=True)
+        with Horizontal(classes="addressbook-actions"):
+            yield Button("Use claimed callsign", id="known-nodes-use")
 
     def on_mount(self) -> None:
         self.refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
+        self.refresh_known_nodes(self.app.known_nodes)  # type: ignore[attr-defined]
+
+    def refresh_known_nodes(self, known_nodes) -> None:
+        table = self.query_one("#known-nodes-table", DataTable)
+        table.clear(columns=True)
+        table.add_columns("Claimed node", "Alias", "Via", "Quality", "Broadcast by")
+        for node in known_nodes.entries():
+            table.add_row(node.callsign, node.alias, node.via, str(node.quality), node.broadcaster, key=node.callsign)
+
+    def _use_claimed_node(self) -> None:
+        table = self.query_one("#known-nodes-table", DataTable)
+        if table.row_count == 0 or table.cursor_coordinate is None:
+            self.app.notify("Select a claimed node first.", severity="warning")  # type: ignore[attr-defined]
+            return
+        row_key, _column_key = table.coordinate_to_cell_key(table.cursor_coordinate)
+        # This fills the existing send input and cannot connect or send.
+        field = self.app.query_one("#session-input", Input)  # type: ignore[attr-defined]
+        field.value = str(row_key.value)
+        field.focus()
+
+    @on(Button.Pressed, "#known-nodes-use")
+    def _use_claimed_node_pressed(self) -> None:
+        self._use_claimed_node()
 
     def refresh_from(self, book) -> None:
         """Repaint the table from `book`. Safe to call repeatedly -- the
