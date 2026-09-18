@@ -22,7 +22,7 @@ hardware, live-node, publication, release, or regulatory evidence.
 - **Smart beaconing — dependent.** Missing: the shipped GPS position/speed/course source and a real mobile GPS validation environment. Evidence: controlled live source changes produce the intended interval behavior without autonomous gate arming. Resume: complete GPS integration, then an operator validates with a real receiver under visible, opt-in beacon controls.
 - **Text-mode map — actionable.** It can be designed and tested from existing decoded positions without a live service claim.
 - **Object reports — actionable.** Encoder and deliberate-send UI work can be scoped and tested locally; any later RF interoperability result remains separate.
-- **Igate-adjacent features — out of scope.** No implementation or external evidence is sought; resume only through an explicit decision to create a separate tool.
+- **Igate-adjacent features — dependent (explicitly out of scope).** Missing: an explicit operator-approved scope change to create a separate tool. Evidence: that approved scope decision; no radio, Internet-gating, or field result is implied. Resume: create the separate-tool work only after that decision.
 
 ## P5 — Node and BBS workflow
 
