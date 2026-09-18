@@ -1,0 +1,87 @@
+# TheNet X-1J release 4 node command reference.
+#
+# provenance: G8KBB's "User Guide for TheNet X-1J release 4", mirrored at
+# https://datenfunk.org/X1J4/userguid.htm (consulted 2026-09-18), lists these
+# user commands and documents their behavior.  The guide says a sysop may
+# disable commands or customise the command list, so this file intentionally
+# omits sysop/configuration commands and qualifies locally configured services.
+#
+# No command is marked "verified": this is documentation-based coverage only,
+# not a session with a live node.
+#
+# Deliberately NO detection patterns.  The cited user guide gives neither a
+# unique banner nor a stable prompt grammar, and its example prompt contains a
+# configurable node callsign/alias.  Guessing from a generic NET/ROM-shaped
+# prompt could displace BPQ32, TNC2, JNOS, or an unknown node.
+
+[family]
+id = "thenet-x1j"
+name = "TheNet X-1J"
+confidence = "documented"
+note = """
+TheNet X-1J release 4 NET/ROM node. The sysop can disable or customise
+commands; BBS and HOST are locally configured services. It is intentionally
+not auto-detected until a safely distinguishing banner or prompt is sourced.
+"""
+
+[[commands]]
+name = "CONNECT"
+summary = "Connect to the local BBS or onward to a station or node"
+usage = "CONNECT  |  CONNECT <call>"
+detail = "With no argument the node may connect to its local BBS; a callsign asks it to connect onward. The guide says digipeaters may be accepted while downlinking, but does not specify their argument form."
+confidence = "documented"
+
+[[commands]]
+name = "INFO"
+summary = "Show the node information text"
+usage = "INFO"
+detail = "Displays information stored in the EPROM together with text entered by the sysop."
+confidence = "documented"
+
+[[commands]]
+name = "NODES"
+summary = "List reachable NET/ROM nodes or inspect one node's routes"
+usage = "NODES  |  NODES *  |  NODES <call-or-alias>"
+detail = "The bare form lists reachable nodes; '*' includes hidden nodes when permitted; a known callsign or alias shows routes to it."
+confidence = "documented"
+
+[[commands]]
+name = "ROUTES"
+summary = "Show neighbouring nodes and route quality"
+usage = "ROUTES"
+confidence = "documented"
+
+[[commands]]
+name = "USERS"
+summary = "Show users and through connections on the node"
+usage = "USERS"
+confidence = "documented"
+
+[[commands]]
+name = "MHEARD"
+summary = "Show the node's recent heard-station list"
+usage = "MHEARD"
+detail = "Available only when enabled by the sysop; list length and retention are locally configured."
+confidence = "documented"
+
+[[commands]]
+name = "BYE"
+aliases = ["QUIT"]
+summary = "Disconnect from the node"
+usage = "BYE  |  QUIT"
+detail = "The user guide says QUIT does the same as BYE."
+confidence = "documented"
+
+[[commands]]
+name = "BBS"
+summary = "Connect to the configured local bulletin board"
+usage = "BBS  |  BBS ?"
+detail = "Only works when the sysop has configured the BBS service; 'BBS ?' displays its current setting."
+confidence = "documented"
+
+[[commands]]
+name = "HOST"
+summary = "Connect to the configured host service"
+usage = "HOST  |  HOST ?"
+detail = "Only works when enabled by the sysop; it may point to the BBS or another host service."
+confidence = "documented"

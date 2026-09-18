@@ -69,6 +69,29 @@ def test_jnos_ships_no_detect_prompt():
     assert family.detect_prompt == ()
 
 
+def test_thenet_x1j_loads_with_documented_commands():
+    family = load_family("thenet-x1j")
+    assert family is not None
+    assert family.name == "TheNet X-1J"
+    assert family.confidence == "documented"
+    assert {command.name for command in family.commands} >= {
+        "CONNECT", "INFO", "NODES", "ROUTES", "USERS", "MHEARD", "BYE",
+    }
+    assert all(command.confidence == "documented" for command in family.commands)
+
+
+def test_thenet_x1j_is_deliberately_not_auto_detected():
+    """The sourced guide has no unique prompt/banner; unknown is safer."""
+    family = load_family("thenet-x1j")
+    assert family is not None
+    assert family.detect_prompt == ()
+    assert family.detect_banner == ()
+    assert identify_family("THENET:G8KBB-5>") is None
+    assert identify_family("W1AW-7:CCEMA}").id == "bpq32"
+    assert identify_family("cmd:").id == "tnc2"
+    assert identify_family("Welcome to W1AW JNOS 2.0k\n").id == "jnos"
+
+
 def test_completion_needs_a_prefix():
     """An empty prefix must not dump the whole command set into a suggestion."""
     ref = CommandReference(family=load_family("bpq32"))

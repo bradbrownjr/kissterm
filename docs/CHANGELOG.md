@@ -3,6 +3,23 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-18] — Add a sourced TheNet X-1J command reference
+
+### New Features
+
+- **TheNet X-1J release 4 reference.** Adds documentation-backed CONNECT,
+  INFO, NODES, ROUTES, USERS, MHEARD, BYE/QUIT, BBS, and HOST commands from
+  G8KBB's user guide. Every command is `confidence = "documented"`; none is
+  represented as live-node verified. BBS and HOST explicitly remain subject
+  to local sysop configuration.
+- **No automatic family detection.** The cited guide does not establish a
+  unique banner or stable prompt, so the new family deliberately remains
+  undetected rather than risking a false match with BPQ32, TNC2, JNOS, or an
+  unknown node. The P8 live-node verification work and remaining families
+  remain open.
+  **Files:** `kissterm/nodes/data/thenet-x1j.toml`, `tests/unit/test_nodes.py`,
+  `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-18] — Verify SSH server host keys explicitly
 
 ### Security
