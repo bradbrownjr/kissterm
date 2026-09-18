@@ -429,7 +429,11 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #aprs-to-input,
 .-ascii-safe #aprs-compose-input,
 .-ascii-safe #aprs-service-search,
-.-ascii-safe #aprs-conversation-log {
+.-ascii-safe #aprs-conversation-log,
+/* Login script fields are application-owned dialog controls too.  Their
+   ID-specific round borders otherwise outrank the generic TextArea rule. */
+.-ascii-safe #connect-script,
+.-ascii-safe #transport-script {
     border: ascii $primary;
 }
 .-ascii-safe Underline { display: none; }

@@ -26,7 +26,11 @@ from kissterm.config import Config  # noqa: E402
 from kissterm.monitor import sanitize  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.ui.commands import ACTION_META, KeyBindingsProvider, _action_base  # noqa: E402
-from kissterm.ui.dialogs import CallsignScreen, ConnectScreen  # noqa: E402
+from kissterm.ui.dialogs import (  # noqa: E402
+    CallsignScreen,
+    ConnectScreen,
+    TransportEntryScreen,
+)
 from textual.widgets import TabbedContent  # noqa: E402
 from textual.widgets import Input, Select, TextArea  # noqa: E402
 
@@ -95,7 +99,9 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
     config = Config(mycall=str(MYCALL), ascii_safe=True)
     station = AX25Station(MYCALL, ta, LinkParams(t1=0.3, t2=0.05, t3=5.0))
     app = KissTermApp(config, station)
-    async with app.run_test(size=(100, 30)) as pilot:
+    # The modal coverage needs enough rows to render the transport login
+    # script rather than merely mounting it below a clipped scroll region.
+    async with app.run_test(size=(100, 64)) as pilot:
         # Border glyphs belong to the application stylesheet. Textual's
         # focus cursor and Footer separator are framework-owned and remain
         # outside this presentation-only substitution boundary.
@@ -105,6 +111,21 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
             await pilot.pause()
             svg = app.export_screenshot()
             assert not ({char for char in svg if char in app_owned_glyphs}), tab
+
+        # Both login-script TextAreas carry ID-specific round borders, so
+        # inspect their actual modal renders instead of treating the main tabs
+        # as evidence for supported dialog paths.
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        assert isinstance(app.screen, ConnectScreen)
+        assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
+        await app.screen.dismiss(None)
+        await pilot.pause()
+
+        app.push_screen(TransportEntryScreen({"kind": "telnet"}))
+        await pilot.pause()
+        assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
+        await app.screen.dismiss(None)
         assert sanitize(b"remote\x1b[2Jtext") == "remotetext"
     station.close()
 
