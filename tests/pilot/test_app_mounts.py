@@ -96,11 +96,15 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
     station = AX25Station(MYCALL, ta, LinkParams(t1=0.3, t2=0.05, t3=5.0))
     app = KissTermApp(config, station)
     async with app.run_test(size=(100, 30)) as pilot:
-        app.action_show_tab("settings")
-        await pilot.pause()
-        svg = app.export_screenshot()
-        app_owned_glyphs = "╭╮╰╯─│┌┐└┘━┃█▀▄▁▔▎▊"
-        assert not ({char for char in svg if char in app_owned_glyphs})
+        # Border glyphs belong to the application stylesheet. Textual's
+        # focus cursor and Footer separator are framework-owned and remain
+        # outside this presentation-only substitution boundary.
+        app_owned_glyphs = "╭╮╰╯─│┌┐└┘━┃"
+        for tab in ("terminal", "monitor", "aprs", "settings"):
+            app.action_show_tab(tab)
+            await pilot.pause()
+            svg = app.export_screenshot()
+            assert not ({char for char in svg if char in app_owned_glyphs}), tab
         assert sanitize(b"remote\x1b[2Jtext") == "remotetext"
     station.close()
 

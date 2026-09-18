@@ -417,7 +417,19 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #ref-box,
 .-ascii-safe #transcripts-box,
 .-ascii-safe #transcripts-preview,
-.-ascii-safe #settings-bar {
+.-ascii-safe #settings-bar,
+/* These ID selectors normally define the three scrollback borders.  They
+   need the ASCII-mode class too, otherwise their higher specificity beats
+   the generic RichLog rule above. */
+.-ascii-safe #session-log,
+.-ascii-safe #session-input,
+.-ascii-safe #monitor-log,
+.-ascii-safe #find-input,
+.-ascii-safe #monitor-query,
+.-ascii-safe #aprs-to-input,
+.-ascii-safe #aprs-compose-input,
+.-ascii-safe #aprs-service-search,
+.-ascii-safe #aprs-conversation-log {
     border: ascii $primary;
 }
 .-ascii-safe Underline { display: none; }
