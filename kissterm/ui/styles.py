@@ -436,6 +436,12 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #transport-script {
     border: ascii $primary;
 }
+/* Disabled scripts deliberately use the muted panel colour. Their
+   ID-plus-pseudo-class rules outrank the enabled override above. */
+.-ascii-safe #connect-script:disabled,
+.-ascii-safe #transport-script:disabled,
+.-ascii-safe .settings-swatch { border: ascii $panel; }
+.-ascii-safe .settings-swatch.-invalid { border: ascii $error; }
 .-ascii-safe Underline { display: none; }
 .-ascii-safe WrapLog,
 .-ascii-safe .settings-tab-scroll,

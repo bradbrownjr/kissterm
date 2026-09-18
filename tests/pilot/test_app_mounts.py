@@ -96,7 +96,11 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
     ta, tb = loopback_pair()
     await ta.open()
     await tb.open()
-    config = Config(mycall=str(MYCALL), ascii_safe=True)
+    config = Config(
+        mycall=str(MYCALL),
+        ascii_safe=True,
+        credentials=[{"name": "Saved login", "text": "password"}],
+    )
     station = AX25Station(MYCALL, ta, LinkParams(t1=0.3, t2=0.05, t3=5.0))
     app = KissTermApp(config, station)
     # The modal coverage needs enough rows to render the transport login
@@ -118,14 +122,42 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
         await pilot.press("ctrl+n")
         await pilot.pause()
         assert isinstance(app.screen, ConnectScreen)
+        # A saved credential disables the literal editor. Its
+        # ID-plus-pseudo-class CSS is more specific than the ordinary
+        # TextArea rule, so render this actual saved-credential state.
+        app.screen.query_one("#connect-credential", Select).value = "Saved login"
+        await pilot.pause()
+        connect_script = app.screen.query_one("#connect-script", TextArea)
+        await pilot.pause()
+        assert connect_script.disabled
         assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
         await app.screen.dismiss(None)
         await pilot.pause()
 
-        app.push_screen(TransportEntryScreen({"kind": "telnet"}))
+        app.push_screen(
+            TransportEntryScreen(
+                {"kind": "telnet"}, credentials=[{"name": "Saved login", "text": "password"}]
+            )
+        )
         await pilot.pause()
+        app.screen.query_one("#transport-credential", Select).value = "Saved login"
+        await pilot.pause()
+        transport_script = app.screen.query_one("#transport-script", TextArea)
+        assert transport_script.disabled
         assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
         await app.screen.dismiss(None)
+        await pilot.pause()
+
+        # Custom-theme colour previews are local Settings chrome too. Scroll
+        # one into view so this assertion inspects its rendered border rather
+        # than merely the widget tree.
+        app.action_show_tab("settings")
+        app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-appearance"
+        await pilot.pause()
+        swatch = app.query_one(".settings-swatch")
+        swatch.scroll_visible(immediate=True)
+        await pilot.pause()
+        assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
         assert sanitize(b"remote\x1b[2Jtext") == "remotetext"
     station.close()
 
