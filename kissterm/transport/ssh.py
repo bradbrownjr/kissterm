@@ -9,9 +9,10 @@ open it is byte-for-byte the same thing `telnet.py` already handles: no
 AX.25 framing, no SABM/UA, the byte stream *is* the session. See that
 module's docstring for the `SessionTransport` reasoning this shares.
 
-**Password authentication only, for now.** Matches WS1EC's login and is the
-simplest case to wire into the Connect flow; key-based auth is a documented
-follow-up in docs/ROADMAP.md, not silently unsupported.
+**Authentication is explicit.** Set `password` for password authentication,
+or set `client_key` to the private-key file to offer that key. An encrypted
+key additionally needs `key_passphrase`. kissterm never searches `~/.ssh` or
+silently selects an identity: the configured file is the one it offers.
 
 **Host-key verification is off (`known_hosts=None`).** A real gap, not an
 oversight -- pinning a host key needs either a first-connect trust-on-first-
@@ -49,7 +50,15 @@ class SshTransport(SessionTransport):
     why that specific shape matches WS1EC's setup and is not just a stand-in
     for a raw Telnet-over-SSH tunnel."""
 
-    def __init__(self, host: str, username: str, password: str = "", port: int = 22) -> None:
+    def __init__(
+        self,
+        host: str,
+        username: str,
+        password: str = "",
+        port: int = 22,
+        client_key: str = "",
+        key_passphrase: str = "",
+    ) -> None:
         info = TransportInfo(
             kind="ssh",
             name=f"{username}@{host}:{port}",
@@ -61,6 +70,8 @@ class SshTransport(SessionTransport):
         self.port = port
         self.username = username
         self.password = password
+        self.client_key = client_key
+        self.key_passphrase = key_passphrase
         self._connection = None
         self._process = None
         self._pump_task: asyncio.Task[None] | None = None
@@ -93,15 +104,27 @@ class SshTransport(SessionTransport):
             ) from exc
 
         try:
-            self._connection = await asyncssh.connect(
-                self.host,
+            connect_options = dict(
+                host=self.host,
                 port=self.port,
                 username=self.username,
                 password=self.password or None,
+                # An explicit None prevents AsyncSSH from loading default
+                # identity files. `agent_path=None` keeps an ambient
+                # ssh-agent from offering unrelated keys, too.
+                client_keys=[self.client_key] if self.client_key else None,
+                agent_path=None,
+                config=None,
                 # UNVERIFIED / deliberate gap -- see the module docstring's
                 # host-key-verification note.
                 known_hosts=None,
             )
+            if self.client_key:
+                # AsyncSSH accepts paths here and loads precisely these keys.
+                # Do not let an unconfigured transport search ~/.ssh: an
+                # operator must name the identity kissterm is allowed to use.
+                connect_options["passphrase"] = self.key_passphrase or None
+            self._connection = await asyncssh.connect(**connect_options)
             # No command: an interactive login shell, matching a bare
             # `ssh user@host` -- the remote end's own profile is what runs
             # `telnet` into the actual node for WS1EC's setup. `encoding=

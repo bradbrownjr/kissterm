@@ -339,11 +339,21 @@ password = ""
 ```
 
 SSH needs the optional `asyncssh` package: `pip install kissterm[ssh]` (or
-`kissterm[all]`). Password authentication only for now — see
-`kissterm/transport/ssh.py`'s module docstring for the current limits,
-including that host-key verification is not yet implemented; treat an SSH
-node the way you would any new host whose key you have not verified out of
-band.
+`kissterm[all]`). Set `password` for password authentication, or set
+`client_key` to an explicit private-key path. Add `key_passphrase` only for
+an encrypted private key; kissterm does not silently search `~/.ssh` for
+identities. Host-key verification is not yet implemented; treat an SSH node
+the way you would any new host whose key you have not verified out of band.
+
+```toml
+[[transports]]
+name = "key-only-node"
+kind = "ssh"
+host = "node.example.org"
+username = "packet"
+client_key = "/home/you/.ssh/id_ed25519"
+key_passphrase = ""
+```
 
 Once one of these is the active transport, `Ctrl+N` connects directly —
 there is exactly one destination this kind of transport can reach (the

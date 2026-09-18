@@ -3,6 +3,19 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-18] — Add explicit SSH key authentication
+
+### New Features
+
+- **SSH transports can authenticate with one configured private-key file.**
+  Encrypted keys use an optional configured passphrase. The transport form and
+  configuration example expose `client_key` and `key_passphrase`; blank values
+  preserve password authentication and never trigger an implicit `~/.ssh` key
+  search.
+  **Files:** config.toml.example, docs/ROADMAP.md, kissterm/transport/ssh.py,
+  kissterm/ui/dialogs.py, SETUP.md, tests/unit/test_ssh_transport.py,
+  docs/CHANGELOG.md.
+
 ## [2026-09-17] — Add Mercury HF session transport
 
 ### New Features

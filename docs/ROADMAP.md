@@ -49,10 +49,6 @@ compressed-range reference and the recorded on-air modulo-128 fallback test.
   a local control/data socket integration test. Verify an actual ARQ contact
   before treating it as field-ready; this validates radio/audio/PTT setup and
   the modem's live status behavior, which a loopback cannot exercise.
-- [ ] **SSH key-based authentication.** `kissterm/transport/ssh.py` supports
-  password auth only (shipped -- see docs/CHANGELOG.md). Some hosts require
-  a key; needs deciding where a key path and passphrase live in config
-  before building it, not guessing a default silently.
 - [ ] **SSH host-key verification.** Currently off (`known_hosts=None` --
   see `ssh.py`'s module docstring for why that is a real gap, not an
   oversight). Needs either a trust-on-first-use prompt or a config field to

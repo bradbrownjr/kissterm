@@ -512,6 +512,29 @@ async def test_transport_dialog_hides_autologin_for_a_frame_transport():
 
 
 @pytest.mark.asyncio
+async def test_ssh_transport_dialog_offers_explicit_optional_key_fields():
+    """An SSH key must be named by the operator, never inferred from ~/.ssh."""
+    from kissterm.ui.dialogs import TransportEntryScreen
+
+    app, station = await _app(Config(mycall=str(MYCALL)))
+    async with app.run_test(size=(120, 50)) as pilot:
+        app.query_one(SettingsPane)._new_transport()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, TransportEntryScreen)
+
+        app.screen.query_one("#transport-kind", Select).value = "ssh"
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        assert app.screen.query_one("#transport-field-client_key", Input).value == ""
+        passphrase = app.screen.query_one("#transport-field-key_passphrase", Input)
+        assert passphrase.value == ""
+        assert passphrase.password is True
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_transport_dialog_requires_a_name():
     from kissterm.ui.dialogs import TransportEntryScreen
 

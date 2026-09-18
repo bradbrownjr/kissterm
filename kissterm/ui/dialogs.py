@@ -1266,6 +1266,7 @@ class _TransportField:
     default: str = ""
     numeric: bool = False
     password: bool = False
+    optional: bool = False
 
 
 #: Which fields each kind needs, and whether it is a session transport --
@@ -1326,6 +1327,8 @@ _TRANSPORT_KINDS: dict[str, tuple[bool, tuple[_TransportField, ...]]] = {
         _TransportField("host", "Host", "e.g. ws1ec.mainepacketradio.org"),
         _TransportField("username", "Username", "e.g. packet"),
         _TransportField("password", "Password", password=True),
+        _TransportField("client_key", "Private key file", "e.g. ~/.ssh/id_ed25519", optional=True),
+        _TransportField("key_passphrase", "Key passphrase", password=True, optional=True),
         _TransportField("port", "Port", default="22", numeric=True),
     )),
 }
@@ -1560,7 +1563,7 @@ class TransportEntryScreen(ModalScreen[dict | None]):
                 except ValueError:
                     error.update(f"[red]{field.label} must be a number.[/red]")
                     return
-            elif not raw and not field.password:
+            elif not raw and not (field.password or field.optional):
                 error.update(f"[red]{field.label} is required.[/red]")
                 return
             else:

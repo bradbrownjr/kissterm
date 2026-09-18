@@ -448,10 +448,12 @@ port = 8010
 # hands you a telnet session to the real node, entirely on the remote end
 # (Maine Packet Radio's WS1EC is exactly this: `ssh packet@host -p 4122`).
 # SSH is purely the transport here, not a second protocol kissterm needs to
-# understand; see kissterm/transport/ssh.py. Password auth only for now.
-# `password` sits here in plain text like every other config.toml secret in
-# this file (there is nowhere else for it to live yet) -- protect this file
-# with normal filesystem permissions the same way you would an SSH key.
+# understand; see kissterm/transport/ssh.py. Set `password` for password
+# authentication, or `client_key` to offer exactly that private key. kissterm
+# never silently searches ~/.ssh for identities. `key_passphrase` is needed
+# only when that key is encrypted. These values sit here in plain text like
+# every other config.toml secret in this file -- protect this file with normal
+# filesystem permissions the same way you would an SSH key.
 #
 # `script` here is a second, later login: the SSH password above only gets
 # you the shell account; WS1EC's shell then runs its own local telnet into
@@ -466,6 +468,8 @@ host = "ws1ec.mainepacketradio.org"
 port = 4122
 username = "packet"
 password = ""
+# client_key = "/home/you/.ssh/id_ed25519"
+# key_passphrase = ""
 script = "MYCALL\nMYPASS\nC BBS"
 
 # --- Saved connect targets -------------------------------------------------
