@@ -11,9 +11,9 @@ touched and any breaking notes.
   decoded from the documented signature and fixed records into in-memory,
   explicitly unverified claims. The Terminal Contacts slide-out displays the
   claimed destination, alias, broadcaster, neighbour, and quality; choosing a
-  row fills the existing terminal input only. It never connects, transmits,
-  selects a route, or persists a contact. Malformed, truncated, and non-UI
-  packets are ignored.
+  row opens the existing Connect dialog with the claimed callsign prefilled.
+  It never connects, transmits, selects a route, or persists a contact.
+  Malformed, truncated, and non-UI packets are ignored.
   **Files:** `kissterm/netrom.py`, `kissterm/ui/app.py`,
   `kissterm/ui/addressbook_pane.py`, `kissterm/ui/terminal_pane.py`,
   `kissterm/ui/styles.py`, `tests/unit/test_netrom.py`,
