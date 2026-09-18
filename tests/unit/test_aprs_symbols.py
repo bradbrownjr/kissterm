@@ -70,3 +70,10 @@ def test_every_symbol_has_a_stable_two_character_key():
         assert s.key[0] == s.table
         assert s.key[1] == s.code
         assert len(s.key) == 2
+
+
+def test_ascii_safe_labels_omit_cosmetic_emoji_only():
+    car = lookup("/", ">")
+    assert car is not None
+    assert car.display_label(ascii_safe=True) == "Car (/>)"
+    assert car.display_label(ascii_safe=False) == car.label

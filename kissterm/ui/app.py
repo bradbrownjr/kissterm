@@ -718,6 +718,11 @@ class KissTermApp(App):
     ) -> None:
         super().__init__(**kwargs)
         self.config = config
+        if config.ascii_safe:
+            # The stylesheet supplies ASCII alternatives only within this
+            # application.  Do not mutate Textual's process-wide glyph tables:
+            # other apps (and parallel tests) may be rendering at the same time.
+            self.add_class("-ascii-safe")
         # Applied before the rest of __init__ so the very first frame paints
         # in the configured theme rather than Textual's own default and then
         # visibly flashing over to the right one a moment later.

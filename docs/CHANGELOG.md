@@ -3,6 +3,23 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-18] — Add ASCII-safe terminal rendering
+
+### New Features
+
+- **ASCII-safe mode now changes local presentation.** With `ascii_safe =
+  true`, application-owned bordered controls use `+`, `-`, and `|`; tab
+  underlines are replaced by the existing bold active-tab label; the header
+  icon becomes `*`; and the APRS symbol picker omits its cosmetic emoji. The
+  setting remains restart-applied and schema-generated. Remote payloads,
+  ANSI filtering, transport behaviour, and transmit behaviour are unchanged.
+  Textual-owned scrollbar thumbs remain terminal-framework rendering rather
+  than application glyphs.
+  **Files:** `kissterm/ui/app.py`, `kissterm/ui/clock.py`,
+  `kissterm/ui/settings_pane.py`, `kissterm/ui/styles.py`,
+  `kissterm/aprs/symbols.py`, `tests/pilot/test_app_mounts.py`,
+  `tests/unit/test_aprs_symbols.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-18] — Add a sourced TheNet X-1J command reference
 
 ### New Features

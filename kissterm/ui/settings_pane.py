@@ -287,7 +287,10 @@ class SettingsPane(Vertical):
                         classes="settings-filtered-choice-filter",
                     )
                     yield Select(
-                        [(s.label, s.key) for s in symbols.SYMBOLS],
+                        [
+                            (s.display_label(ascii_safe=self.app.config.ascii_safe), s.key)
+                            for s in symbols.SYMBOLS
+                        ],
                         id=wid,
                         allow_blank=False,
                     )
@@ -534,19 +537,23 @@ class SettingsPane(Vertical):
         select = self.query_one("#set-aprs-symbol", Select)
         current = select.value
         matches = symbols.filter_symbols(event.value)
-        options = [(s.label, s.key) for s in matches]
+        ascii_safe = self.app.config.ascii_safe
+        options = [(s.display_label(ascii_safe=ascii_safe), s.key) for s in matches]
 
         current_key = current if isinstance(current, str) else ""
         if current_key and current_key not in {s.key for s in matches}:
             pinned = symbols.lookup(current_key[0], current_key[1:]) if len(current_key) >= 2 else None
             if pinned is not None:
-                options.insert(0, (pinned.label, pinned.key))
+                options.insert(0, (pinned.display_label(ascii_safe=ascii_safe), pinned.key))
 
         if not options:
             # Only reachable when the stored symbol is not in the table at
             # all (a hand-edited config.toml) AND the filter matches nothing.
             # Showing everything beats showing nothing, and beats crashing.
-            options = [(s.label, s.key) for s in symbols.SYMBOLS]
+            options = [
+                (s.display_label(ascii_safe=ascii_safe), s.key)
+                for s in symbols.SYMBOLS
+            ]
 
         select.set_options(options)
         if current_key in {key for _, key in options}:

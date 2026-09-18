@@ -167,6 +167,10 @@ class KissTermHeader(Header):
         event.prevent_default()
 
     def compose(self) -> ComposeResult:
+        # The Textual default icon is a Unicode ring. Keep the command-palette
+        # affordance in ASCII-safe mode without changing the header geometry.
+        if getattr(self.app.config, "ascii_safe", False):
+            self.icon = "*"
         yield HeaderIcon().data_bind(Header.icon)
         yield HeaderTitle()
         yield KissTermClock() if self._show_clock else HeaderClockSpace()

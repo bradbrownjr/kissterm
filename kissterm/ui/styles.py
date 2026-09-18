@@ -395,4 +395,35 @@ SettingsPane { layout: vertical; }
    default 46 so the pair fits the same column a single field would. */
 .settings-decimal-pair { height: auto; }
 .settings-decimal-pair Input { width: 22; margin-right: 1; }
+
+/* ASCII-safe mode is deliberately a stylesheet concern: unlike mutating
+   Textual's global border table it cannot leak into another mounted app or a
+   parallel test. The application-owned glyph inventory is: round/solid/thick
+   panel borders -> +, -, |; tab underline -> no glyph (the bold accent label
+   remains the selected-tab marker); header icon -> * (clock.py); and APRS
+   picker emoji -> no glyph (symbols.py). These are the application's bordered
+   controls and panels; remote text still reaches them through the existing
+   sanitizer. Textual's Unicode-only Bar is hidden rather than patched. */
+.-ascii-safe Button,
+.-ascii-safe Input,
+.-ascii-safe TextArea,
+.-ascii-safe Select,
+.-ascii-safe RichLog,
+.-ascii-safe #terminal-addressbook-column,
+.-ascii-safe #aprs-contacts-column,
+.-ascii-safe #aprs-sensor-summary,
+.-ascii-safe #connect-box,
+.-ascii-safe #transport-box,
+.-ascii-safe #ref-box,
+.-ascii-safe #transcripts-box,
+.-ascii-safe #transcripts-preview,
+.-ascii-safe #settings-bar {
+    border: ascii $primary;
+}
+.-ascii-safe Underline { display: none; }
+.-ascii-safe WrapLog,
+.-ascii-safe .settings-tab-scroll,
+.-ascii-safe #ref-box,
+.-ascii-safe #transcripts-box { scrollbar-visibility: hidden; }
+
 """

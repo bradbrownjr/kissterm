@@ -49,6 +49,16 @@ class Symbol:
         glyph = f"{self.emoji}  " if self.emoji else ""
         return f"{glyph}{name} ({self.key})"
 
+    def display_label(self, *, ascii_safe: bool) -> str:
+        """Return the picker label without cosmetic glyphs when requested.
+
+        The APRS table+code stays the stored and transmitted value; this only
+        controls the Settings form's local presentation.
+        """
+        if ascii_safe:
+            return f"{self.description or 'Unassigned'} ({self.key})"
+        return self.label
+
 
 # (code, description, emoji) -- table selector is added when building SYMBOLS below.
 _PRIMARY: tuple[tuple[str, str, str | None], ...] = (

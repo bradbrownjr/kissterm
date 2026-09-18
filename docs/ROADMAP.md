@@ -223,14 +223,6 @@ session, not yet acted on:
       (`auto_scroll=True` in `terminal_pane.py`'s compose). Needs the same
       real byte capture as the item above before attempting a fix --
       likely the same root cause, not two bugs. Small-medium once diagnosed.
-- [ ] **ASCII-safe mode.** `Config.ascii_safe` and its Settings toggle
-  already exist, and `doctor.py` already suggests turning it on for a
-  non-UTF-8 locale -- but no code anywhere reads `config.ascii_safe` to
-  actually change what gets drawn. The real work -- swapping kissterm's own
-  Unicode box-drawing/symbols for 7-bit ASCII when it's set -- is still
-  entirely unbuilt; the config plumbing is a shell around nothing yet. Does
-  not affect what a remote station sends (see P2's ANSI sanitization, a
-  different concern). Small-medium.
 - [ ] **Macro/scripting system — Python plugins.** Deliberately not
   linpac's Lisp-ish macro language: a documented plugin API (hook points for
   "on connect", "on line received", "on line typed") that lets a user write

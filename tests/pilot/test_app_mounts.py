@@ -23,6 +23,7 @@ from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
 from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
+from kissterm.monitor import sanitize  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.ui.commands import ACTION_META, KeyBindingsProvider, _action_base  # noqa: E402
 from kissterm.ui.dialogs import CallsignScreen, ConnectScreen  # noqa: E402
@@ -82,6 +83,36 @@ async def test_app_mounts_with_every_pane():
     async with app.run_test(size=(120, 40)):
         for pane in (TerminalPane, MonitorPane, HeardPane, SettingsPane):
             assert app.query_one(pane) is not None, f"{pane.__name__} did not mount"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filters():
+    """ASCII mode changes local chrome, not the terminal's remote-text path."""
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    config = Config(mycall=str(MYCALL), ascii_safe=True)
+    station = AX25Station(MYCALL, ta, LinkParams(t1=0.3, t2=0.05, t3=5.0))
+    app = KissTermApp(config, station)
+    async with app.run_test(size=(100, 30)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        svg = app.export_screenshot()
+        app_owned_glyphs = "╭╮╰╯─│┌┐└┘━┃█▀▄▁▔▎▊"
+        assert not ({char for char in svg if char in app_owned_glyphs})
+        assert sanitize(b"remote\x1b[2Jtext") == "remotetext"
+    station.close()
+
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    station = AX25Station(MYCALL, ta, LinkParams(t1=0.3, t2=0.05, t3=5.0))
+    app = KissTermApp(Config(mycall=str(MYCALL)), station)
+    async with app.run_test(size=(100, 30)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        assert "╭" in app.export_screenshot()
     station.close()
 
 
