@@ -29,6 +29,7 @@ _isolate.isolate()
 
 from kissterm import config as kconfig  # noqa: E402
 from kissterm import discovery  # noqa: E402
+from kissterm import __main__ as main  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -217,6 +218,121 @@ def test_save_creates_missing_parent_directories(tmp_path):
     assert path.exists()
     loaded = kconfig.load_config(path=path)
     assert loaded.mycall == "N0CALL-1"
+
+
+def test_named_profile_round_trip_isolated_from_default(tmp_path, monkeypatch):
+    monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
+    default = kconfig.Config(mycall="N0CALL-1")
+    named = kconfig.Config(mycall="W1AW-2", profile_name="field")
+
+    kconfig.save_config(default)
+    kconfig.save_config(named)
+
+    assert kconfig.config_path() == tmp_path / "config.toml"
+    assert kconfig.config_path("field") == tmp_path / "profiles" / "field.toml"
+    assert kconfig.load_config().mycall == "N0CALL-1"
+    assert kconfig.load_config(profile="field").mycall == "W1AW-2"
+
+
+@pytest.mark.parametrize("name", ["", "Field", "../default", "field/name", "field.toml"])
+def test_unsafe_profile_names_cannot_choose_or_write_paths(name, tmp_path, monkeypatch):
+    monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
+    with pytest.raises(ValueError):
+        kconfig.config_path(name)
+    cfg = kconfig.Config(mycall="W1AW", profile_name=name)
+    with pytest.raises(ValueError):
+        kconfig.save_config(cfg)
+    assert not list(tmp_path.rglob("*.toml"))
+
+
+def test_mismatched_or_malformed_named_profile_never_loads_another_profile(tmp_path, monkeypatch):
+    monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
+    path = kconfig.config_path("field")
+    path.parent.mkdir()
+    path.write_text('profile = "other"\nmycall = "N0CALL"\n', encoding="utf-8")
+
+    loaded = kconfig.load_config(profile="field")
+
+    assert loaded.mycall == ""
+    assert any("does not identify profile" in warning for warning in loaded.warnings)
+    assert kconfig.config_path().exists() is False
+
+
+def test_symlinked_profiles_directory_cannot_redirect_a_named_save(tmp_path, monkeypatch):
+    monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
+    default_path = tmp_path / "config.toml"
+    default_path.write_text('mycall = "N0CALL"\n', encoding="utf-8")
+    (tmp_path / "profiles").symlink_to(tmp_path, target_is_directory=True)
+
+    with pytest.raises(OSError, match="unsafe profiles directory"):
+        kconfig.save_config(kconfig.Config(mycall="W1AW", profile_name="field"))
+
+    assert default_path.read_text(encoding="utf-8") == 'mycall = "N0CALL"\n'
+
+
+def test_symlinked_or_case_colliding_named_profiles_fail_safely(tmp_path, monkeypatch):
+    monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
+    profiles = tmp_path / "profiles"
+    profiles.mkdir()
+    default_path = tmp_path / "config.toml"
+    default_path.write_text('mycall = "N0CALL"\n', encoding="utf-8")
+    (profiles / "field.toml").symlink_to(default_path)
+
+    with pytest.raises(OSError, match="unsafe profile path"):
+        kconfig.save_config(kconfig.Config(mycall="W1AW", profile_name="field"))
+    loaded = kconfig.load_config(profile="field")
+    assert loaded.mycall == ""
+    assert any("could not read safely" in warning for warning in loaded.warnings)
+    assert default_path.read_text(encoding="utf-8") == 'mycall = "N0CALL"\n'
+
+    (profiles / "field.toml").unlink()
+    (profiles / "Field.toml").write_text('profile = "field"\nmycall = "W1AW"\n', encoding="utf-8")
+    with pytest.raises(OSError, match="case-colliding"):
+        kconfig.config_path("field")
+    loaded = kconfig.load_config(profile="field")
+    assert loaded.mycall == ""
+    assert any("could not read safely" in warning for warning in loaded.warnings)
+
+
+def test_profile_cli_selects_only_the_named_configuration(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
+    args = main._build_parser().parse_args(["--profile", "field", "--callsign", "W1AW"])
+
+    assert asyncio.run(main._amain(args)) == 0
+
+    assert kconfig.load_config(profile="field").mycall == "W1AW"
+    assert kconfig.load_config().mycall == ""
+    assert str(kconfig.config_path("field")) in capsys.readouterr().out
+
+
+def test_profile_cli_rejects_a_symlinked_profiles_directory(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
+    (tmp_path / "profiles").symlink_to(tmp_path, target_is_directory=True)
+    args = main._build_parser().parse_args(["--profile", "field", "--callsign", "W1AW"])
+
+    assert asyncio.run(main._amain(args)) == 2
+
+    assert "Invalid --profile" in capsys.readouterr().err
+    assert not (tmp_path / "config.toml").exists()
+
+
+def test_named_profile_interrupted_save_keeps_previous_complete_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
+    cfg = kconfig.Config(mycall="N0CALL", profile_name="field")
+    kconfig.save_config(cfg)
+    path = kconfig.config_path("field")
+    before = path.read_text(encoding="utf-8")
+
+    def interrupted(_source, _destination):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(kconfig.os, "replace", interrupted)
+    cfg.mycall = "W1AW"
+    with pytest.raises(KeyboardInterrupt):
+        kconfig.save_config(cfg)
+
+    assert path.read_text(encoding="utf-8") == before
+    assert kconfig.load_config(profile="field").mycall == "N0CALL"
 
 
 # ---------------------------------------------------------------------------

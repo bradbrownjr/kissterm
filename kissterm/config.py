@@ -65,6 +65,8 @@ import platformdirs
 from .ax25.address import AX25Address, AX25AddressError
 
 APP_NAME = "kissterm"
+DEFAULT_PROFILE = "default"
+_PROFILE_NAME_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
 
 logger = logging.getLogger(__name__)
 
@@ -475,6 +477,9 @@ class Config:
     #: Populated by `load_config()`; never written to the file. See the
     #: module docstring for why this exists instead of an exception.
     warnings: list[str] = field(default_factory=list, repr=False, compare=False)
+    #: Selected only before startup.  This is path-routing metadata, never a
+    #: setting in the TOML payload, so a Settings save cannot switch profiles.
+    profile_name: str = field(default=DEFAULT_PROFILE, repr=False, compare=False)
 
 
 # ---------------------------------------------------------------------------
@@ -491,9 +496,57 @@ _STATE_DIR = Path(platformdirs.user_state_dir(APP_NAME))
 _DATA_DIR = Path(platformdirs.user_data_dir(APP_NAME))
 
 
-def config_path() -> Path:
-    """Where `config.toml` lives (or will be created)."""
-    return _CONFIG_DIR / "config.toml"
+def validate_profile_name(name: str) -> str:
+    """Return a conservative named profile, or reject unsafe input.
+
+    Lowercase ASCII names make path mapping one-to-one on case-insensitive
+    filesystems.  ``default`` is deliberately reserved for the historical
+    ``config.toml`` path rather than being a file in the profiles directory.
+    """
+    if not isinstance(name, str) or not _PROFILE_NAME_RE.fullmatch(name):
+        raise ValueError("profile names use lowercase letters, digits, _ and - (1-32 chars)")
+    return name
+
+
+def _profile_directory() -> Path:
+    """Return the named-profile directory only when it is a real directory.
+
+    A profile name cannot introduce a path component, but a symlinked
+    ``profiles`` directory could still redirect it onto the default config or
+    another file. Named profiles refuse that indirection.
+    """
+    directory = _CONFIG_DIR / "profiles"
+    if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+        raise OSError(f"refusing unsafe profiles directory: {directory}")
+    return directory
+
+
+def _named_profile_path(name: str) -> Path:
+    """Return a safe, unambiguous TOML path for a named profile.
+
+    Lowercase input prevents an operator from creating two names that differ
+    only by case, but an existing mixed-case file can still collide on a
+    case-insensitive filesystem.  Refuse that ambiguity rather than reading
+    or replacing whichever file the filesystem happens to select.
+    """
+    directory = _profile_directory()
+    filename = f"{name}.toml"
+    if directory.exists():
+        for entry in directory.iterdir():
+            if entry.name.casefold() == filename.casefold() and entry.name != filename:
+                raise OSError(f"refusing case-colliding profile path: {entry}")
+    path = directory / filename
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise OSError(f"refusing unsafe profile path: {path}")
+    return path
+
+
+def config_path(profile: str = DEFAULT_PROFILE) -> Path:
+    """Where a selected profile lives; default preserves ``config.toml``."""
+    if profile == DEFAULT_PROFILE:
+        return _CONFIG_DIR / "config.toml"
+    name = validate_profile_name(profile)
+    return _named_profile_path(name)
 
 
 def log_path() -> Path:
@@ -543,7 +596,7 @@ def find_script(config: Config, name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def load_config(path: Path | None = None) -> Config:
+def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> Config:
     """Load `Config` from TOML at `path` (default `config_path()`).
 
     Never raises. A missing file yields plain defaults with no warnings (a
@@ -554,9 +607,19 @@ def load_config(path: Path | None = None) -> Config:
     independently, so one typo does not take the rest of a working config
     down with it.
     """
-    path = path or config_path()
+    if path is not None and profile != DEFAULT_PROFILE:
+        raise ValueError("pass either path or profile, not both")
     warnings: list[str] = []
     raw: dict[str, Any] = {}
+
+    if path is None:
+        try:
+            path = config_path(profile)
+        except OSError as exc:
+            cfg = Config(profile_name=profile)
+            cfg.warnings.append(f"named profile {profile!r}: could not read safely ({exc})")
+            logger.warning("config: %s", cfg.warnings[0])
+            return cfg
 
     if path.exists():
         try:
@@ -573,7 +636,13 @@ def load_config(path: Path | None = None) -> Config:
         else:
             warnings.append(f"{path}: top level is not a table; using defaults")
 
-    cfg = Config()
+    cfg = Config(profile_name=profile)
+    if profile != DEFAULT_PROFILE:
+        marker = raw.get("profile")
+        if marker != profile:
+            if path.exists():
+                warnings.append(f"{path}: does not identify profile {profile!r}; using defaults")
+            raw = {}
     cfg.mycall = _load_callsign(raw.get("mycall", ""), "mycall", warnings)
     cfg.mycall_aliases = _load_callsign_list(raw.get("mycall_aliases", []), warnings)
     cfg.transports = _load_dict_list(raw.get("transports", []), "transports", warnings)
@@ -982,11 +1051,21 @@ def save_config(config: Config, path: Path | None = None) -> None:
     single interrupted save into the exact "config file is broken" case
     `load_config()` has to recover from.
     """
-    path = path or config_path()
+    profile = config.profile_name
+    if path is not None and profile != DEFAULT_PROFILE:
+        raise ValueError("an explicit path cannot save a selected profile")
+    path = path or config_path(profile)
+    if profile != DEFAULT_PROFILE:
+        _profile_directory()
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise OSError(f"refusing to replace unsafe profile path: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
 
     data = dataclasses.asdict(config)
     data.pop("warnings", None)
+    data.pop("profile_name", None)
+    if profile != DEFAULT_PROFILE:
+        data["profile"] = profile
     text = _dump_toml(data)
 
     fd, tmp_name = tempfile.mkstemp(

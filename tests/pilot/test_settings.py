@@ -79,6 +79,9 @@ NOT_IN_SCHEMA = {
     # for it would be a list of ids with no context.
     "aprs_hidden_services",
     "warnings",
+    # Chosen before startup by the CLI. Exposing it here would create a live
+    # profile switch, which must not change an established session.
+    "profile_name",
     "aprs",
     # Nested dataclasses. Their fields ARE in the schema, as dotted paths --
     # covered field-by-field by the nested tests below, which is stricter

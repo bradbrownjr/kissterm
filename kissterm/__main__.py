@@ -85,6 +85,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="open this configured transport instead of the saved default",
     )
     parser.add_argument(
+        "--profile",
+        metavar="NAME",
+        default="default",
+        help="use named profile NAME for this launch (default: %(default)s)",
+    )
+    parser.add_argument(
         "--connect",
         metavar="CALL",
         help="connect to this station once the app is up, e.g. WS1EC-7",
@@ -309,9 +315,20 @@ def _select_transport_entry(config, name: str | None) -> dict | None:
 
 
 async def _amain(args) -> int:
-    from .config import load_config, save_config
+    from .config import config_path, load_config, save_config, validate_profile_name
 
-    config = load_config()
+    try:
+        profile = validate_profile_name(args.profile) if args.profile != "default" else "default"
+        # Check the named path before any startup action.  ``load_config`` is
+        # deliberately forgiving for library callers, but a CLI selection
+        # must fail visibly rather than proceed with defaults after rejecting
+        # an unsafe profile directory, file, or case collision.
+        if profile != "default":
+            config_path(profile)
+        config = load_config(profile=profile)
+    except (ValueError, OSError) as exc:
+        print(f"Invalid --profile: {exc}", file=sys.stderr)
+        return 2
     for warning in config.warnings:
         print(f"config: {warning}", file=sys.stderr)
 
@@ -331,7 +348,7 @@ async def _amain(args) -> int:
         save_config(config)
         from .config import config_path
 
-        print(f"Callsign set to {config.mycall} in {config_path()}")
+        print(f"Callsign set to {config.mycall} in {config_path(config.profile_name)}")
         return 0
 
     if args.discover:
@@ -392,7 +409,7 @@ async def _amain(args) -> int:
     if args.setup or not config.mycall:
         if not await _run_wizard(config, args.no_discover):
             return 1
-        config = load_config()
+        config = load_config(profile=profile)
 
     entry = _select_transport_entry(config, args.transport)
     if entry is None:

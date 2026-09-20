@@ -918,16 +918,16 @@ class SettingsPane(Vertical):
         from ..config import load_config
 
         try:
-            fresh = load_config()
+            fresh = load_config(profile=self.app.config.profile_name)  # type: ignore[attr-defined]
         except Exception:
             log.exception("could not reload config")
-            self.app.notify("Could not read config.toml.", severity="error")
+            self.app.notify("Could not read the selected configuration.", severity="error")
             return
         self.app.config = fresh  # type: ignore[attr-defined]
         if hasattr(self.app, "apply_theme"):
             self.app.apply_theme()  # type: ignore[attr-defined]
         self.render_settings(fresh)
-        self.query_one("#settings-footer", Static).update("Reloaded from config.toml.")
+        self.query_one("#settings-footer", Static).update("Reloaded selected configuration.")
 
     @on(Select.Changed, "#set-active-transport")
     def _transport_changed(self) -> None:
