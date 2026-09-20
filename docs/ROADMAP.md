@@ -233,17 +233,6 @@ session, not yet acted on:
   browser via `textual serve`, useful for operating a home-station TNC from
   elsewhere. Small — mostly confirming nothing in the transport layer assumes
   a local TTY.
-- [ ] **Named, switchable config profiles.** Outpost stores its settings as
-  named "Profiles" (e.g. `Outpost`, `Personal`, `Winlink`) switchable from a
-  dropdown on the main toolbar, with a per-switch save policy (always /
-  prompt / never) so a shared EOC-station install does not clobber another
-  operator's setup by accident. kissterm currently has exactly one
-  `config.toml`. Useful for the same reason it is in Outpost: a station PC
-  shared across operators or between a home setup and a tactical/EOC setup.
-  Lower priority than the items above — a real request would sharpen the
-  shape (multiple files vs. named sections in one file, whether Address
-  Book/transports are per-profile or shared). Medium.
-
 ## P7 — Packaging
 
 - [ ] **PyPI release.** Register `kissterm` on PyPI, wire up a release build

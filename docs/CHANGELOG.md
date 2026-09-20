@@ -3,6 +3,24 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-20] — Add startup-only named configuration profiles
+
+### New Features
+
+- **Named configuration profiles.** `--profile NAME` selects one validated,
+  isolated TOML file before startup; the existing `config.toml` remains the
+  compatible default. Profile metadata is not a Settings field, so Settings
+  reloads and saves remain within the launch-selected profile rather than
+  switching a running session. Invalid, traversal-like, case-colliding, or
+  symlinked profile paths fail safely, and named saves retain the existing
+  atomic-write behavior. Address Book and all other non-configuration state
+  remain shared. This adds no network, discovery, connection, send, beacon,
+  gate-arming, node, release, or RF behavior.
+  **Files:** `kissterm/__main__.py`, `kissterm/config.py`,
+  `kissterm/ui/settings_pane.py`, `tests/unit/test_config.py`,
+  `tests/pilot/test_settings.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`,
+  `docs/ROADMAP_DEPENDENCIES.md`.
+
 ## [2026-09-18] — Add read-only NET/ROM routing awareness
 
 ### New Features

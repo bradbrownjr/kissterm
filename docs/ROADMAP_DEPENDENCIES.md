@@ -37,7 +37,6 @@ hardware, live-node, publication, release, or regulatory evidence.
 - **ASCII-safe mode — actionable.** Existing configuration and rendering code can be audited and tested locally.
 - **Python plugin macros — actionable.** Security design and implementation can proceed, subject to repository safety rules; no external authority is implied.
 - **`textual serve` access — actionable.** Local compatibility assessment can proceed without treating browser access as a radio or field result.
-- **Named profiles — actionable.** Repository design and tests can proceed.
 
 ## P7 — Packaging
 
@@ -91,3 +90,11 @@ AF_AX25, VARA, and Mercury entries retain the detailed no-hardware procedure
 in the settled `kissterm-p3-field-verification-readiness` task record. No
 hardware, live node, peer, service, registry, publisher, or qualified
 authority was contacted for this audit.
+
+## Historical delivered dispositions
+
+- **Named configuration profiles — delivered 2026-09-20.** This former P6
+  actionable item is no longer open in `ROADMAP.md`. The dated changelog entry
+  “Add startup-only named configuration profiles” records isolated TOML files,
+  the compatible default configuration, and launch-only selection; it makes
+  no live switching, connection, transmit, node, release, or RF claim.
