@@ -239,6 +239,9 @@ def test_unsafe_profile_names_cannot_choose_or_write_paths(name, tmp_path, monke
     monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
     with pytest.raises(ValueError):
         kconfig.config_path(name)
+    loaded = kconfig.load_config(profile=name)
+    assert loaded.mycall == ""
+    assert loaded.warnings
     cfg = kconfig.Config(mycall="W1AW", profile_name=name)
     with pytest.raises(ValueError):
         kconfig.save_config(cfg)

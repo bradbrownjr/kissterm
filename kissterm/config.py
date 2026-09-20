@@ -615,7 +615,7 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
     if path is None:
         try:
             path = config_path(profile)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             cfg = Config(profile_name=profile)
             cfg.warnings.append(f"named profile {profile!r}: could not read safely ({exc})")
             logger.warning("config: %s", cfg.warnings[0])
