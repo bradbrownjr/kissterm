@@ -8,6 +8,8 @@ closed-gate auto-arm rule, and the configured APRS digipeater path together.
 from __future__ import annotations
 
 import asyncio
+import logging
+import re
 
 from kissterm._isolate import isolate
 
@@ -40,8 +42,9 @@ async def _app():
 
 
 @pytest.mark.asyncio
-async def test_object_composer_sends_its_own_position_and_arms_tx():
+async def test_object_composer_sends_its_own_position_and_arms_tx(caplog):
     app, station, transport = await _app()
+    caplog.set_level(logging.DEBUG, logger="kissterm.ui.app")
     async with app.run_test(size=(120, 44)) as pilot:
         assert app.gate.enabled is False
         app.action_show_tab("aprs")
@@ -78,6 +81,15 @@ async def test_object_composer_sends_its_own_position_and_arms_tx():
         assert packet.data.position.latitude == pytest.approx(42.1)
         assert packet.data.position.longitude == pytest.approx(-71.2)
         assert packet.data.position.comment == "Red Cross"
+        records = [
+            record.message
+            for record in caplog.records
+            if record.name == "kissterm.ui.app"
+            and record.message.startswith("APRS object transmission accepted:")
+        ]
+        assert len(records) == 1
+        assert records[0].startswith("APRS object transmission accepted: N1ABC-1>APRS,WIDE1-1:;SHELTER  *")
+        assert re.search(r";SHELTER  \*\d{6}z4206\.00N/07112\.00W\+Red Cross$", records[0])
     station.close()
 
 

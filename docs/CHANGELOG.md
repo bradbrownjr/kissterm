@@ -5,6 +5,16 @@ touched and any breaking notes.
 
 ## [2026-09-21] — Add APRS-IS Watch diagnostics
 
+### Diagnostics
+
+- **Object reports have an inspectable transmit record.** After SoundModem or
+  another configured frame transport accepts an APRS object, debug logging now
+  records its complete strict-ASCII APRS line. This separates local encoding
+  and transport acceptance from RF reception, iGate forwarding, and remote
+  object-list behavior.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_aprs_object_send.py`,
+  `docs/CHANGELOG.md`.
+
 ### New Features
 
 - **Object reports accept common field coordinate formats.** The APRS object

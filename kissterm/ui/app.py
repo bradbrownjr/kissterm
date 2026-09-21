@@ -1825,6 +1825,12 @@ class KissTermApp(App):
         except Exception as exc:
             log.debug("APRS object %s not sent: %s", request.name, exc)
             return False
+        # This is deliberately after ``send_frame``: the transport only
+        # returns once its backend accepted the frame. The object payload is
+        # strict printable ASCII, so retaining it verbatim gives an
+        # independently inspectable on-air record without logging arbitrary
+        # received bytes.
+        log.debug("APRS object transmission accepted: %s:%s", outframe.path, payload.decode("ascii"))
         state = "live" if request.alive else "killed"
         self._to_terminal(self._active_key(), "log", f"\n*** Sent {state} APRS object {request.name.strip()}\n")
         return True
