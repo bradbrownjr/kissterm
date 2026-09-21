@@ -97,6 +97,23 @@ class AprsConfig:
     #: Empty uses the fixed position above. A configured GPS requires a live
     #: fix rather than ever falling back to a stale saved coordinate.
     gps_device: str = ""
+    #: Use a GPS fix's speed and course to shorten the beacon interval while
+    #: moving and report significant turns. This is deliberately off until
+    #: an operator opts in: fixed stations retain the predictable cadence
+    #: above, and no setting can make an unattended beacon bypass TX gating.
+    smart_beaconing: bool = False
+    #: SmartBeaconing's moving and stopped rates, plus the speeds that bound
+    #: the inverse-speed interpolation. Speeds are knots because NMEA RMC
+    #: reports knots directly; no unit conversion should be hidden here.
+    smart_fast_rate_seconds: int = 180
+    smart_slow_rate_minutes: int = 30
+    smart_fast_speed_knots: int = 60
+    smart_slow_speed_knots: int = 5
+    #: Corner pegging sends a position after a heading change above
+    #: ``angle + slope / speed``, never more often than this many seconds.
+    smart_turn_angle_degrees: int = 30
+    smart_turn_slope: int = 255
+    smart_min_turn_seconds: int = 15
     comment: str = ""
     #: Default digipeater path. WIDE1-1,WIDE2-1 is the conventional "new
     #: N-paradigm" path that gets a beacon out one hop then two wide hops
@@ -962,6 +979,28 @@ def _load_aprs(value: Any, warnings: list[str]) -> AprsConfig:
         aprs.longitude = clamped
 
     aprs.gps_device = _load_str(value, "gps_device", default.gps_device, warnings).strip()
+    aprs.smart_beaconing = _load_bool(value, "smart_beaconing", default.smart_beaconing, warnings)
+    for key, minimum, maximum in (
+        ("smart_fast_rate_seconds", 15, 3600),
+        ("smart_slow_rate_minutes", 1, 1440),
+        ("smart_fast_speed_knots", 1, 300),
+        ("smart_slow_speed_knots", 0, 299),
+        ("smart_turn_angle_degrees", 1, 180),
+        ("smart_turn_slope", 0, 720),
+        ("smart_min_turn_seconds", 15, 3600),
+    ):
+        loaded = _load_int(value, key, getattr(default, key), warnings)
+        clamped = max(minimum, min(maximum, loaded))
+        if clamped != loaded:
+            warnings.append(f"aprs.{key} {loaded} out of range {minimum}..{maximum}; using {clamped}")
+        setattr(aprs, key, clamped)
+    if aprs.smart_slow_speed_knots >= aprs.smart_fast_speed_knots:
+        corrected = max(0, aprs.smart_fast_speed_knots - 1)
+        warnings.append(
+            "aprs.smart_slow_speed_knots must be below smart_fast_speed_knots; "
+            f"using {corrected}"
+        )
+        aprs.smart_slow_speed_knots = corrected
 
     aprs.grid_square = _load_str(value, "grid_square", default.grid_square, warnings)
     aprs.winlink_check = _load_bool(value, "winlink_check", default.winlink_check, warnings)

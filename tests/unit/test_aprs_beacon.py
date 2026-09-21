@@ -10,6 +10,7 @@ frame that actually encoded and decoded.
 from __future__ import annotations
 
 import asyncio
+import time
 
 from kissterm import _isolate
 
@@ -18,11 +19,16 @@ _isolate.isolate()
 import pytest  # noqa: E402
 
 from kissterm.aprs.parse import parse_packet  # noqa: E402
-from kissterm.aprs_beacon import AprsBeaconer, MIN_INTERVAL_MINUTES  # noqa: E402
+from kissterm.aprs_beacon import (  # noqa: E402
+    MIN_INTERVAL_MINUTES,
+    MIN_SMART_INTERVAL_SECONDS,
+    AprsBeaconer,
+)
 from kissterm.ax25.address import AX25Address  # noqa: E402
 from kissterm.ax25.frame import PID_NO_LAYER3, UType  # noqa: E402
 from kissterm.ax25.station import AX25Station  # noqa: E402
 from kissterm.config import AprsConfig, Config, load_config, save_config  # noqa: E402
+from kissterm.gps import GpsFix  # noqa: E402
 
 from tests.loopback import loopback_pair  # noqa: E402
 
@@ -252,6 +258,72 @@ def test_interval_floor_is_enforced_in_code_not_only_in_the_config_loader():
     assert beacon.interval_seconds == MIN_INTERVAL_MINUTES * 60
 
 
+def test_smart_beacon_interval_scales_with_live_gps_speed():
+    fix = GpsFix(41.7, -72.7, speed_knots=30, course_degrees=90)
+    beacon = AprsBeaconer(
+        None,
+        _config(smart_beaconing=True),
+        motion_source=lambda: fix,
+    )
+    # At 30 kt, conventional inverse-speed timing is 180 s * 60 kt / 30 kt.
+    assert beacon.interval_seconds == 360
+    fix = GpsFix(41.7, -72.7, speed_knots=60, course_degrees=90)
+    assert beacon.interval_seconds == 180
+    fix = GpsFix(41.7, -72.7, speed_knots=5, course_degrees=90)
+    assert beacon.interval_seconds == 30 * 60
+    beacon.config.smart_fast_rate_seconds = 1
+    fix = GpsFix(41.7, -72.7, speed_knots=60, course_degrees=90)
+    assert beacon.interval_seconds == MIN_SMART_INTERVAL_SECONDS
+
+
+@pytest.mark.asyncio
+async def test_smart_beacon_corner_peg_uses_the_existing_gated_send_path():
+    station, ta, _ = await _station()
+    fix = GpsFix(41.7, -72.7, speed_knots=60, course_degrees=0)
+    beacon = AprsBeaconer(
+        station,
+        _config(
+            smart_beaconing=True,
+            smart_turn_slope=0,
+            smart_turn_angle_degrees=30,
+            smart_min_turn_seconds=15,
+        ),
+        position_source=lambda: (fix.latitude, fix.longitude),
+        motion_source=lambda: fix,
+    )
+    try:
+        assert beacon.start() == ""
+        beacon._last_sent_at = time.monotonic() - 16
+        beacon._last_course = 0.0
+        fix = GpsFix(41.7, -72.7, speed_knots=60, course_degrees=90)
+        beacon.note_fix(fix)
+        await asyncio.sleep(0.05)
+        assert len(ta.sent) == 1
+    finally:
+        await beacon.stop()
+
+
+@pytest.mark.asyncio
+async def test_smart_beacon_corner_peg_cannot_open_the_transmit_gate():
+    station, ta, _ = await _station()
+    station.transport.gate.set(False)
+    fix = GpsFix(41.7, -72.7, speed_knots=60, course_degrees=0)
+    beacon = AprsBeaconer(
+        station,
+        _config(smart_beaconing=True, smart_turn_slope=0),
+        position_source=lambda: (fix.latitude, fix.longitude),
+        motion_source=lambda: fix,
+    )
+    beacon._last_sent_at = time.monotonic() - 16
+    beacon._last_course = 0.0
+    fix = GpsFix(41.7, -72.7, speed_knots=60, course_degrees=90)
+    beacon.note_fix(fix)
+    await asyncio.sleep(0)
+    assert ta.sent == []
+    assert station.transport.gate.enabled is False
+    assert beacon.start() == "transmit is disabled"
+
+
 def test_grid_square_and_winlink_check_round_trip_through_save_and_load(tmp_path):
     path = tmp_path / "config.toml"
     cfg = Config(mycall="W1AW-1")
@@ -271,6 +343,22 @@ def test_config_loader_clamps_the_interval_and_says_so(tmp_path):
     loaded = load_config(path)
     assert loaded.aprs.beacon_interval_minutes == MIN_INTERVAL_MINUTES
     assert any("minimum" in w for w in loaded.warnings)
+
+
+def test_smart_beacon_settings_round_trip_and_invalid_speed_order_is_repaired(tmp_path):
+    path = tmp_path / "config.toml"
+    cfg = Config(mycall="W1AW-1")
+    cfg.aprs = _config(smart_beaconing=True, smart_fast_rate_seconds=90)
+    save_config(cfg, path)
+    loaded = load_config(path)
+    assert loaded.aprs.smart_beaconing is True
+    assert loaded.aprs.smart_fast_rate_seconds == 90
+
+    cfg.aprs.smart_slow_speed_knots = cfg.aprs.smart_fast_speed_knots
+    save_config(cfg, path)
+    loaded = load_config(path)
+    assert loaded.aprs.smart_slow_speed_knots == loaded.aprs.smart_fast_speed_knots - 1
+    assert any("must be below" in warning for warning in loaded.warnings)
 
 
 @pytest.mark.asyncio

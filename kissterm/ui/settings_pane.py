@@ -842,6 +842,22 @@ class SettingsPane(Vertical):
                     failed = True
                     failed_sections.add(section.title)
 
+        # These two values have a relationship no one Field can express. Do
+        # it before mutating Config so an invalid pair gets the same all-or-
+        # nothing save behavior as every individual field.
+        slow_speed = pending.get("aprs.smart_slow_speed_knots")
+        fast_speed = pending.get("aprs.smart_fast_speed_knots")
+        if (
+            isinstance(slow_speed, int)
+            and isinstance(fast_speed, int)
+            and slow_speed >= fast_speed
+        ):
+            message = "Must be below Smart fast speed."
+            self._set_error("set-aprs-smart_slow_speed_knots", message)
+            self._set_error("set-aprs-smart_fast_speed_knots", message)
+            failed = True
+            failed_sections.add("APRS")
+
         if failed:
             # Nothing is written. A partial save leaves the operator unable to
             # tell which values took -- worse than refusing outright. Naming

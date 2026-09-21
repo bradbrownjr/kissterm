@@ -96,10 +96,6 @@ entries. What's still open:
   (`rfcomm`) receivers before calling GPS support fully green; no radio or
   receiver was available to make that claim during implementation. Smart
   beaconing is unblocked by the reader's position/speed/course fix model.
-- [ ] **Smart beaconing.** Speed/heading-aware beacon interval adjustment
-  (the SmartBeaconing algorithm most APRS trackers use) — needs the GPS
-  integration item above as its position/speed source first. Medium once
-  that exists.
 - [ ] **Igate-adjacent features are explicitly out of scope.** kissterm is a
   terminal for a human operator, not an unattended relay — running it as an
   RF-to-APRS-IS igate or a digipeater is a different problem (unattended

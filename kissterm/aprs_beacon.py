@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 
 from .aprs import encode as aprs_encode
@@ -27,6 +28,7 @@ from .aprs.encode import _MAX_COMMENT
 from .ax25.address import AX25AddressError, AX25Path, parse_path
 from .ax25.frame import AX25Frame
 from .config import MIN_BEACON_INTERVAL_MINUTES, AprsConfig
+from .gps import GpsFix
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +47,12 @@ _WINLINK_TOKEN = "WINLINK"
 #: talked out of. Enforced here AND in `config._load_aprs`, because a
 #: `Config` built in code bypasses the loader.
 MIN_INTERVAL_MINUTES = MIN_BEACON_INTERVAL_MINUTES
+
+# SmartBeaconing is permitted to be more frequent than a fixed station's
+# ten-minute beacon, but never below this hard floor. Keep this enforcement in
+# the sender as well as the config loader: callers can construct AprsConfig
+# directly, and a shared RF channel deserves the same protection either way.
+MIN_SMART_INTERVAL_SECONDS = 15
 
 #: The conventional APRS destination callsign. Not configurable -- unlike the
 #: plain-text beacon's `destination` (BEACON/ID/CQ are all legitimate
@@ -71,12 +79,18 @@ class AprsBeaconer:
         *,
         on_sent: Callable[[AX25Frame], None] | None = None,
         position_source: Callable[[], tuple[float, float] | None] | None = None,
+        motion_source: Callable[[], GpsFix | None] | None = None,
     ) -> None:
         self.station = station
         self.config = config
         self.on_sent = on_sent
         self.position_source = position_source
+        self.motion_source = motion_source
         self._task: asyncio.Task | None = None
+        self._wake = asyncio.Event()
+        self._last_sent_at: float | None = None
+        self._last_course: float | None = None
+        self._corner_pending = False
         self.sent_count = 0
 
     # ------------------------------------------------------------------
@@ -92,7 +106,63 @@ class AprsBeaconer:
         both deliberately, because a `Config` built in code bypasses the
         loader.
         """
-        return max(MIN_INTERVAL_MINUTES, self.config.beacon_interval_minutes) * 60.0
+        if not self._smart_active:
+            return max(MIN_INTERVAL_MINUTES, self.config.beacon_interval_minutes) * 60.0
+        fast_rate = max(MIN_SMART_INTERVAL_SECONDS, self.config.smart_fast_rate_seconds)
+        slow_rate = max(60.0, self.config.smart_slow_rate_minutes * 60.0)
+        fix = self.motion_source()
+        if fix is None or fix.speed_knots is None:
+            return slow_rate
+        speed = fix.speed_knots
+        if speed <= self.config.smart_slow_speed_knots:
+            return slow_rate
+        if speed >= self.config.smart_fast_speed_knots:
+            return float(fast_rate)
+        # SmartBeaconing's conventional variable-rate formula.  The slow
+        # cap prevents a rate below the low-speed setting from stretching a
+        # stopped beacon beyond the operator's selected slow rate.
+        return min(
+            slow_rate,
+            max(
+                float(fast_rate),
+                fast_rate * self.config.smart_fast_speed_knots / speed,
+            ),
+        )
+
+    @property
+    def _smart_active(self) -> bool:
+        """Smart timing only makes sense with a current live GPS fix."""
+        return self.config.smart_beaconing and self.motion_source is not None
+
+    def note_fix(self, fix: GpsFix | None) -> None:
+        """Reconsider the next timer and queue a safe corner-peg request.
+
+        Called by the local GPS reader, never a radio callback.  It merely
+        wakes this beacon's existing task; ``send_once`` remains the one
+        actual transmit path and rechecks the master gate immediately before
+        a frame goes to the transport.
+        """
+        self._wake.set()
+        if (
+            not self._smart_active
+            or fix is None
+            or fix.speed_knots is None
+            or fix.course_degrees is None
+            or self._last_sent_at is None
+            or self._last_course is None
+            or fix.speed_knots <= self.config.smart_slow_speed_knots
+        ):
+            return
+        elapsed = time.monotonic() - self._last_sent_at
+        threshold = min(
+            120.0,
+            self.config.smart_turn_angle_degrees
+            + self.config.smart_turn_slope / max(fix.speed_knots, 0.1),
+        )
+        turn = abs((fix.course_degrees - self._last_course + 180.0) % 360.0 - 180.0)
+        if elapsed >= self.config.smart_min_turn_seconds and turn >= threshold:
+            self._corner_pending = True
+            self._wake.set()
 
     def problem(self) -> str:
         """Why this beacon cannot transmit, or `""` if it can.
@@ -214,6 +284,9 @@ class AprsBeaconer:
             log.warning("APRS beacon not sent: %s", exc)
             return False
         self.sent_count += 1
+        self._last_sent_at = time.monotonic()
+        fix = self.motion_source() if self.motion_source is not None else None
+        self._last_course = fix.course_degrees if fix is not None else None
         if self.on_sent is not None:
             self.on_sent(frame)
         return True
@@ -225,6 +298,7 @@ class AprsBeaconer:
         why = self.problem()
         if why:
             return why
+        self._last_sent_at = time.monotonic()
         self._task = asyncio.create_task(self._run(), name="kissterm-aprs-beacon")
         return ""
 
@@ -252,5 +326,14 @@ class AprsBeaconer:
     async def _run(self) -> None:
         while True:
             # Sleep FIRST. Starting the app is not a request to transmit.
-            await asyncio.sleep(self.interval_seconds)
-            await self.send_once()
+            elapsed = time.monotonic() - (self._last_sent_at or time.monotonic())
+            delay = max(0.0, self.interval_seconds - elapsed)
+            try:
+                await asyncio.wait_for(self._wake.wait(), timeout=delay)
+                self._wake.clear()
+            except asyncio.TimeoutError:
+                await self.send_once()
+                continue
+            if self._corner_pending:
+                self._corner_pending = False
+                await self.send_once()

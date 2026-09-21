@@ -335,6 +335,18 @@ longitude = 0.0
 # untouched. Bluetooth GPS pucks bound with rfcomm are serial devices here.
 gps_device = ""
 
+# Optional SmartBeaconing for a moving station. It needs gps_device above and
+# adjusts the APRS interval from GPS speed; a qualifying turn can report a
+# corner after smart_min_turn_seconds. It never bypasses the TX gate.
+smart_beaconing = false
+smart_fast_rate_seconds = 180
+smart_slow_rate_minutes = 30
+smart_fast_speed_knots = 60
+smart_slow_speed_knots = 5
+smart_turn_angle_degrees = 30
+smart_turn_slope = 255
+smart_min_turn_seconds = 15
+
 comment = "kissterm packet station"
 
 # Digipeater path for outgoing beacons. WIDE1-1,WIDE2-1 is the standard

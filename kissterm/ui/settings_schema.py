@@ -278,6 +278,83 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 custom_render=True,
             ),
             Field(
+                "aprs.smart_beaconing",
+                "Use SmartBeaconing",
+                "bool",
+                "With a live GPS, shortens position-report timing while moving "
+                "and reports significant turns. It never arms transmit; the "
+                "normal TX gate still controls every automatic beacon.",
+                apply="live",
+            ),
+            Field(
+                "aprs.smart_fast_rate_seconds",
+                "Smart fast rate (s)",
+                "int",
+                "Moving at or above the fast speed uses this interval. Fifteen "
+                "seconds is the enforced floor for shared-channel courtesy.",
+                minimum=15,
+                maximum=3600,
+                apply="live",
+            ),
+            Field(
+                "aprs.smart_slow_rate_minutes",
+                "Smart slow rate (min)",
+                "int",
+                "At or below the slow speed, use this parked/low-speed interval.",
+                minimum=1,
+                maximum=1440,
+                apply="live",
+            ),
+            Field(
+                "aprs.smart_fast_speed_knots",
+                "Smart fast speed (kt)",
+                "int",
+                "At or above this GPS speed, use the fast rate. GPS reports knots.",
+                minimum=1,
+                maximum=300,
+                apply="live",
+            ),
+            Field(
+                "aprs.smart_slow_speed_knots",
+                "Smart slow speed (kt)",
+                "int",
+                "At or below this GPS speed, use the slow rate; it must be below "
+                "the fast speed.",
+                minimum=0,
+                maximum=299,
+                apply="live",
+            ),
+            Field(
+                "aprs.smart_turn_angle_degrees",
+                "Smart turn angle (deg)",
+                "int",
+                "Base heading change that can report a corner. The threshold grows "
+                "at low speed to reject GPS course jitter.",
+                minimum=1,
+                maximum=180,
+                apply="live",
+            ),
+            Field(
+                "aprs.smart_turn_slope",
+                "Smart turn slope",
+                "int",
+                "Extra turn threshold divided by speed in knots. Higher values make "
+                "low-speed corner reports less sensitive.",
+                minimum=0,
+                maximum=720,
+                apply="live",
+            ),
+            Field(
+                "aprs.smart_min_turn_seconds",
+                "Smart minimum turn (s)",
+                "int",
+                "Minimum time between any position report and a corner report; "
+                "enforced to avoid flooding winding roads.",
+                minimum=15,
+                maximum=3600,
+                apply="live",
+            ),
+            Field(
                 "aprs.symbol",
                 "Map symbol",
                 "filtered_choice",

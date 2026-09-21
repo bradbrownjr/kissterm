@@ -3,6 +3,21 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-21] — Add GPS SmartBeaconing
+
+### New Features
+
+- **Speed-aware APRS position timing.** An opt-in SmartBeaconing profile uses
+  a live GPS fix's NMEA speed in knots for conventional inverse-speed timing,
+  and corner pegs a report after a configurable heading change and minimum
+  gap. It is GPS-only, leaves fixed beaconing unchanged, wakes the existing
+  beacon task rather than adding a transmit path, and every transmission still
+  rechecks the master TX gate.
+  **Files:** `kissterm/config.py`, `kissterm/aprs_beacon.py`,
+  `kissterm/ui/app.py`, `kissterm/ui/settings_schema.py`,
+  `config.toml.example`, `tests/unit/test_aprs_beacon.py`, `SETUP.md`,
+  `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add live GPS positions to APRS beacons
 
 ### New Features

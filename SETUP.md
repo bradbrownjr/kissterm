@@ -201,6 +201,13 @@ never a fallback to a possibly stale location.
 A Bluetooth GPS puck bound with `rfcomm` is also an ordinary serial device;
 choose its `/dev/rfcomm*` path after pairing and binding it as described below.
 
+For a mobile station, Settings > APRS can also enable SmartBeaconing. It uses
+the GPS's NMEA speed (knots) to shorten the position-report interval while
+moving and adds a corner report only after a meaningful course change and a
+minimum time gap. It is off by default, remains subject to the master TX gate,
+and requires a live GPS receiver; fixed-position beaconing keeps its configured
+interval.
+
 ## 4. Bluetooth TNC pairing (Mobilinkd and similar)
 
 A Mobilinkd TNC3/TNC4 in its classic-Bluetooth (SPP) mode pairs like any

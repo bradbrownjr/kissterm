@@ -854,6 +854,7 @@ class KissTermApp(App):
             station, getattr(config, "aprs", None) or AprsConfig(),
             on_sent=self._on_aprs_beacon_sent,
             position_source=self._gps_position if config.aprs.gps_device.strip() else None,
+            motion_source=self._gps_fix if config.aprs.gps_device.strip() else None,
         )
         #: A GPS reader is optional and wholly local; it never participates in
         #: the AX.25/KISS transport fan-out.
@@ -1001,6 +1002,10 @@ class KissTermApp(App):
         fix = self.gps_reader.fix if self.gps_reader is not None else None
         return (fix.latitude, fix.longitude) if fix is not None else None
 
+    def _gps_fix(self):
+        """The live GPS motion record, never persisted or transmitted alone."""
+        return self.gps_reader.fix if self.gps_reader is not None else None
+
     def _on_gps_fix(self, fix) -> None:
         """Start a waiting periodic beacon when a receiver first fixes."""
         had_fix, self._gps_had_fix = self._gps_had_fix, fix is not None
@@ -1010,6 +1015,9 @@ class KissTermApp(App):
         # timer that would only keep discovering it has no position.
         if fix is not None and not had_fix:
             self._restart_aprs_beacon()
+        # This only changes the existing beaconer's next deadline or queues
+        # a corner peg. It never arms TX; its send path rechecks the gate.
+        self.aprs_beaconer.note_fix(fix)
 
     @work
     async def _restart_gps(self) -> None:
@@ -1034,6 +1042,9 @@ class KissTermApp(App):
         self.aprs_beaconer.config = getattr(self.config, "aprs", None) or AprsConfig()
         self.aprs_beaconer.position_source = (
             self._gps_position if self.aprs_beaconer.config.gps_device.strip() else None
+        )
+        self.aprs_beaconer.motion_source = (
+            self._gps_fix if self.aprs_beaconer.config.gps_device.strip() else None
         )
         why = self.aprs_beaconer.start()
         if why and self.aprs_beaconer.config.enabled and why != "transmit is disabled":
