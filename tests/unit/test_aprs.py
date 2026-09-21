@@ -15,8 +15,11 @@ encoder happened to produce.
 
 from __future__ import annotations
 
+import pytest
+
 from kissterm.ax25.address import AX25Address, AX25Path
 from kissterm.ax25.frame import AX25Frame, PID_NO_LAYER3, UType
+from kissterm.aprs import object_report
 from kissterm.aprs.parse import (
     Message,
     ObjectReport,
@@ -300,6 +303,42 @@ def test_object_report_killed():
     frame = _ui_frame("APRS", "N1ABC-9", b";LEADER   _092345z4903.50N/07201.75W>Gone")
     pkt = parse_packet(frame)
     assert pkt.data.alive is False
+
+
+def test_object_encoder_round_trips_a_live_report_without_changing_its_name():
+    """The fixed-width name is padded, never silently truncated."""
+    info = object_report(
+        "LEADER",
+        True,
+        "092345z",
+        49 + 3.50 / 60,
+        -(72 + 1.75 / 60),
+        "/",
+        ">",
+        "Leading the pack",
+    )
+    assert info == b";LEADER   *092345z4903.50N/07201.75W>Leading the pack"
+    packet = parse_packet(_ui_frame("APRS", "N1ABC-9", info))
+    assert packet.kind == "object"
+    assert packet.data.name == "LEADER"
+    assert packet.data.alive is True
+    assert packet.data.timestamp == "092345z"
+    assert packet.data.position is not None
+    assert packet.data.position.comment == "Leading the pack"
+
+
+@pytest.mark.parametrize(
+    ("name", "timestamp", "latitude", "comment"),
+    [
+        ("TOO-LONG-10", "092345z", 49.0, ""),
+        ("LEADER", "not-time", 49.0, ""),
+        ("LEADER", "092345z", float("nan"), ""),
+        ("LEADER", "092345z", 49.0, "non-ascii: é"),
+    ],
+)
+def test_object_encoder_rejects_invalid_wire_fields(name, timestamp, latitude, comment):
+    with pytest.raises(ValueError):
+        object_report(name, True, timestamp, latitude, -72.0, "/", ">", comment)
 
 
 def test_item_report():

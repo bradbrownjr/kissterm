@@ -54,6 +54,7 @@ from .settings_schema import (
     get_value,
     set_value,
 )
+from .symbol_picker import SymbolPicker
 
 log = logging.getLogger(__name__)
 
@@ -281,19 +282,10 @@ class SettingsPane(Vertical):
                 # static (unlike Transports' dynamic list), so it is
                 # composed here directly rather than populated at render
                 # time; typing in the filter Input narrows it live.
-                with Vertical(classes="settings-filtered-choice"):
-                    yield Input(
-                        id=f"{wid}-filter", placeholder="Filter by name...",
-                        classes="settings-filtered-choice-filter",
-                    )
-                    yield Select(
-                        [
-                            (s.display_label(ascii_safe=self.app.config.ascii_safe), s.key)
-                            for s in symbols.SYMBOLS
-                        ],
-                        id=wid,
-                        allow_blank=False,
-                    )
+                yield SymbolPicker(
+                    picker_id=f"{wid}-picker", select_id=wid,
+                    ascii_safe=self.app.config.ascii_safe,
+                )
             elif spec.kind == "color":
                 yield Input(
                     id=wid, placeholder=spec.placeholder or "#1A1B26",
@@ -442,11 +434,7 @@ class SettingsPane(Vertical):
     def _set_symbol_value(self, wid: str, value) -> None:
         """Same tolerate-an-unknown-value rule as `_set_select_value`,
         against the symbol table instead of a schema's own `Field.choices`."""
-        select = self.query_one(f"#{wid}", Select)
-        known = {s.key for s in symbols.SYMBOLS}
-        select.value = value if value in known else (
-            symbols.SYMBOLS[0].key if symbols.SYMBOLS else Select.NULL
-        )
+        self.query_one(f"#{wid}-picker", SymbolPicker).set_value(str(value))
 
     def _set_select_value(self, wid: str, spec: Field, value) -> None:
         """Set a Select's value, tolerating one that is not among its options.

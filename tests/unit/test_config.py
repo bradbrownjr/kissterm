@@ -159,6 +159,15 @@ def _fully_populated_config() -> kconfig.Config:
         comment="test station",
         path="WIDE2-1",
     )
+    cfg.watched_callsigns = kconfig.WatchedCallsignConfig(
+        enabled=True,
+        callsigns=["W1AW-2", "N1ABC"],
+        cooldown_minutes=15,
+        hourly_cap=6,
+        quiet_start_hour=22,
+        quiet_end_hour=7,
+        active_suppression_seconds=90,
+    )
     cfg.autoconnect = [{"target": "W1AW-1", "path": "WIDE1-1", "transport": "direwolf"}]
     cfg.credentials = [{"name": "Personal BBS login", "text": "CLYDE\nMYPASS"}]
     return cfg
@@ -187,6 +196,7 @@ def test_save_load_round_trips_every_field(tmp_path):
     assert loaded.theme == original.theme
     assert loaded.ascii_safe == original.ascii_safe
     assert loaded.aprs == original.aprs
+    assert loaded.watched_callsigns == original.watched_callsigns
     assert loaded.autoconnect == original.autoconnect
     assert loaded.credentials == original.credentials
 
@@ -200,6 +210,37 @@ def test_aprs_ssid_filter_can_be_disabled_and_round_trips(tmp_path):
     kconfig.save_config(cfg, path=path)
 
     assert kconfig.load_config(path=path).aprs.filter_by_ssid is False
+
+
+def test_watched_callsigns_are_disabled_by_default_and_invalid_controls_degrade_safely(tmp_path):
+    """A hand-edited alert table must never quietly enable or unbound alerts."""
+    path = tmp_path / "config.toml"
+    path.write_text(
+        "[watched_callsigns]\n"
+        "enabled = true\n"
+        'callsigns = ["n1abc-2", "not a callsign", 7]\n'
+        "cooldown_minutes = -1\n"
+        "hourly_cap = -2\n"
+        "quiet_start_hour = 24\n"
+        "quiet_end_hour = -1\n"
+        "active_suppression_seconds = -3\n",
+        encoding="utf-8",
+    )
+
+    defaults = kconfig.Config().watched_callsigns
+    assert defaults.enabled is False
+    assert defaults.callsigns == []
+
+    loaded = kconfig.load_config(path)
+    watched = loaded.watched_callsigns
+    assert watched.enabled is True
+    assert watched.callsigns == ["N1ABC-2"]
+    assert watched.cooldown_minutes == defaults.cooldown_minutes
+    assert watched.hourly_cap == defaults.hourly_cap
+    assert watched.quiet_start_hour == -1
+    assert watched.quiet_end_hour == -1
+    assert watched.active_suppression_seconds == defaults.active_suppression_seconds
+    assert loaded.warnings
 
 
 def test_atomic_save_leaves_no_temp_file_behind(tmp_path):
@@ -572,15 +613,18 @@ def test_only_one_async_serial_backend_is_required():
         assert backend[0].status == "ok"
 
 
-def test_unimplemented_optional_deps_are_skipped_not_warned():
-    """Telling someone to install bleak to 'unlock' a stub sends them
-    installing a package and then wondering why nothing works."""
+def test_implemented_optional_deps_report_how_to_enable_them():
+    """BLE KISS is real support, so a missing dependency is actionable."""
     from kissterm import doctor
 
     checks = {c.name: c for c in doctor._check_optional_deps()}
     bleak = checks["dependency: bleak"]
-    assert bleak.status == "skip"
-    assert not bleak.remedy, "a skipped check must not tell the user to install it"
+    if doctor._module_present("bleak"):
+        assert bleak.status == "ok"
+        assert not bleak.remedy
+    else:
+        assert bleak.status == "warn"
+        assert bleak.remedy == "pip install kissterm[ble]"
 
 
 # ---------------------------------------------------------------------------

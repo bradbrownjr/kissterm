@@ -90,13 +90,6 @@ entries. What's still open:
   honest answer; a "last checked" column in the picker already tells an
   operator how stale the claim is. Revisit if entries start rotting.
 
-- [ ] **A heard-stations position/map view.** The bearing/distance-list v1
-  shipped `[2026-09-09]` (see CHANGELOG: `kissterm/geo.py`, the Heard pane's
-  Distance/Bearing columns, sortable by header click) and was extended
-  `[2026-09-10]` to cover a plain packet node's grid square in its own
-  beacon text, not just APRS positions (`kissterm.locator.find_grid_in_text`)
-  -- what's still open is the map itself, see the "text-mode map" item below,
-  now narrowed to just that.
 - [ ] **GPS integration.** Everything shipped `[2026-09-09]` (see
   CHANGELOG) covers a *fixed* station: static decimal-degree or
   Maidenhead-grid-square position entry in Settings, with a real
@@ -148,21 +141,17 @@ entries. What's still open:
   (the SmartBeaconing algorithm most APRS trackers use) — needs the GPS
   integration item above as its position/speed source first. Medium once
   that exists.
-- [ ] **A text-mode map.** The realistic v1 -- a sorted bearing/distance-from-me
-  list of heard stations -- shipped `[2026-09-09]` as Heard-pane columns; what
-  remains is a full map rendering, or a crude ASCII-art radar-style view as a
-  lighter stretch goal than a real map. Medium.
 - [ ] **Sending object reports, with an object selector.** Requested
   directly, for after the beacon Settings work `[2026-09-09]` ships.
   Decoding already exists (`kissterm/aprs/messages.py::parse_object` ->
-  `ObjectReport`) but `kissterm/aprs/encode.py` has no matching encoder,
-  and there is no UI for picking which of the ~184 symbols in
-  `kissterm/aprs/symbols.py` an object should use -- the new filterable
-  symbol picker built for the beacon Settings section (`kissterm/ui/
-  settings_pane.py`) is the natural widget to reuse rather than building
-  a second one. Not scoped further yet -- where in the APRS pane this
-  lives, and how an object's own position (not necessarily the operator's
-  own) gets entered, are still open questions. Medium-large.
+  `ObjectReport`) and the strict uncompressed encoder shipped
+  `[2026-09-21]` (`kissterm/aprs/encode.py::object_report`), but there is no
+  deliberate-send UI yet. The filterable `SymbolPicker` is shared with the
+  beacon Settings control, so an object composer will use the same sourced
+  choices rather than creating a second symbol selector. Not scoped further
+  yet -- where in the APRS pane this lives, and how an object's own position
+  (not necessarily the operator's own) gets entered, are still open questions.
+  Medium-large.
 - [ ] **Igate-adjacent features are explicitly out of scope.** kissterm is a
   terminal for a human operator, not an unattended relay — running it as an
   RF-to-APRS-IS igate or a digipeater is a different problem (unattended
@@ -434,23 +423,6 @@ of the beacon work is the half that needs a mailbox behind it:
       limitation is BPQ32's stdio terminal filter eating control characters,
       which does not apply to a native binary-transparent AX.25 link. See P5.
       Large effort.
-- [ ] **Notify when a watched callsign is heard.** Hangs off the existing frame
-      fan-out and `HeardTable` -- no new decode path. A watchlist in config,
-      matched on any frame's source, digipeater path included.
-      Rate limiting is the substance of this item, not an afterthought: a
-      friend running APRS beacons every minute would otherwise generate a
-      notification every minute, and the operator will disable the whole
-      feature rather than tune it. Needs, at minimum:
-      - a per-callsign cooldown (default on the order of an hour), so "heard
-        again" is only reported once per visit rather than once per beacon;
-      - a global cap on notifications per hour, so a band opening does not
-        produce a wall of toasts;
-      - optional quiet hours;
-      - suppression while the operator is actively using the app, since a toast
-        for a station already visible in the monitor pane is noise.
-      Delivery via the existing in-app notification plus optional OS
-      notification (`notify-send` / `terminal-notifier`), degrading silently
-      where no notifier exists. Mid effort.
 - [ ] **Notify on incoming connection and on new mail**, same rate-limiting
       machinery. Small once the above exists.
 

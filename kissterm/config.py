@@ -219,6 +219,22 @@ class BeaconConfig:
 
 
 @dataclass
+class WatchedCallsignConfig:
+    """Passive local alerts for address claims heard in received frames."""
+
+    enabled: bool = False
+    callsigns: list[str] = field(default_factory=list)
+    cooldown_minutes: int = 60
+    hourly_cap: int = 12
+    #: Local-clock hours; leave either unset to disable quiet hours.
+    #: -1 disables the corresponding quiet-hours boundary (TOML has no null).
+    quiet_start_hour: int = -1
+    quiet_end_hour: int = -1
+    #: A recent key/mouse action means the operator is already looking here.
+    active_suppression_seconds: int = 60
+
+
+@dataclass
 class CustomThemeConfig:
     """Exact hex colors for the `"custom"` theme (`kissterm.ui.themes`).
 
@@ -471,6 +487,7 @@ class Config:
     slideouts_auto_open: bool = True
     aprs: AprsConfig = field(default_factory=AprsConfig)
     beacon: BeaconConfig = field(default_factory=BeaconConfig)
+    watched_callsigns: WatchedCallsignConfig = field(default_factory=WatchedCallsignConfig)
     #: Saved connect targets: dicts with at least a "target" callsign and
     #: optionally a "path" (digipeater route) and a "transport" name.
     autoconnect: list[dict[str, Any]] = field(default_factory=list)
@@ -689,6 +706,7 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
     )
     cfg.aprs = _load_aprs(raw.get("aprs", {}), warnings)
     cfg.beacon = _load_beacon(raw.get("beacon", {}), warnings)
+    cfg.watched_callsigns = _load_watched_callsigns(raw.get("watched_callsigns", {}), warnings)
     cfg.autoconnect = _load_dict_list(raw.get("autoconnect", []), "autoconnect", warnings)
 
     cfg.warnings = warnings
@@ -988,6 +1006,39 @@ def _load_beacon(value: Any, warnings: list[str]) -> BeaconConfig:
             "transmitted. An empty beacon is pure channel occupancy."
         )
     return beacon
+
+
+def _load_watched_callsigns(value: Any, warnings: list[str]) -> WatchedCallsignConfig:
+    """Load the passive watchlist, discarding unsafe or malformed controls."""
+    default = WatchedCallsignConfig()
+    if not isinstance(value, dict):
+        if value not in ({}, None):
+            warnings.append(f"'watched_callsigns' should be a table, got {value!r}; using defaults")
+        return default
+    watched = WatchedCallsignConfig()
+    watched.enabled = _load_bool(value, "enabled", default.enabled, warnings)
+    watched.callsigns = _load_callsign_list(value.get("callsigns", []), warnings)
+    watched.cooldown_minutes = _load_int(
+        value, "cooldown_minutes", default.cooldown_minutes, warnings
+    )
+    watched.hourly_cap = _load_int(value, "hourly_cap", default.hourly_cap, warnings)
+    watched.active_suppression_seconds = _load_int(
+        value, "active_suppression_seconds", default.active_suppression_seconds, warnings
+    )
+    for attr in ("cooldown_minutes", "hourly_cap", "active_suppression_seconds"):
+        if getattr(watched, attr) < 0:
+            warnings.append(f"watched_callsigns.{attr} must not be negative; using default")
+            setattr(watched, attr, getattr(default, attr))
+    for attr in ("quiet_start_hour", "quiet_end_hour"):
+        raw = value.get(attr)
+        if raw is None or raw == -1:
+            setattr(watched, attr, -1)
+        elif isinstance(raw, int) and not isinstance(raw, bool) and 0 <= raw <= 23:
+            setattr(watched, attr, raw)
+        else:
+            warnings.append(f"watched_callsigns.{attr} must be an hour from 0 to 23; disabled")
+            setattr(watched, attr, -1)
+    return watched
 
 
 #: A Textual-acceptable hex color: 6 or 3 hex digits, always `#`-prefixed.

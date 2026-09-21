@@ -210,15 +210,21 @@ async def main() -> int:
             "terminal": "screenshot.svg",
             "monitor": "screenshot-monitor.svg",
             "heard": "screenshot-heard.svg",
+            "heard-radar": "screenshot-heard-radar.svg",
             "aprs": "screenshot-aprs.svg",
             "settings": "screenshot-settings.svg",
         }
         written = []
         for tab, name in shots.items():
-            app.action_show_tab(tab)
+            app.action_show_tab("heard" if tab == "heard-radar" else tab)
             await pilot.pause()
             await asyncio.sleep(0.15)
             await pilot.pause()
+            if tab == "heard-radar":
+                from kissterm.ui.heard_pane import HeardPane
+
+                app.query_one(HeardPane)._toggle_radar()
+                await pilot.pause()
             if tab == "aprs":
                 from kissterm.ui.aprs_pane import AprsPane
 
@@ -232,6 +238,35 @@ async def main() -> int:
                 await pilot.pause()
             app.save_screenshot(str(ASSETS / name))
             written.append(ASSETS / name)
+
+        # Capture both states of the passive watchlist controls.  The normal
+        # Settings screenshot shows the rest of the form; these focused shots
+        # make the off-by-default and configured wording reviewable without
+        # any desktop-notification endpoint or received-frame activity.
+        from kissterm.ui.settings_pane import SettingsPane
+        from textual.widgets import TabbedContent
+
+        app.action_show_tab("settings")
+        settings_tabs = app.query_one("#settings-tabs", TabbedContent)
+        settings_tabs.active = "settings-tab-watched-callsigns"
+        await pilot.pause()
+        watch_disabled = ASSETS / "screenshot-watched-callsigns-disabled.svg"
+        app.save_screenshot(str(watch_disabled))
+        written.append(watch_disabled)
+
+        app.config.watched_callsigns.enabled = True
+        app.config.watched_callsigns.callsigns = ["W1AW-2", "N1ABC"]
+        app.config.watched_callsigns.cooldown_minutes = 30
+        app.config.watched_callsigns.hourly_cap = 6
+        app.config.watched_callsigns.quiet_start_hour = 22
+        app.config.watched_callsigns.quiet_end_hour = 7
+        app.config.watched_callsigns.active_suppression_seconds = 90
+        app.query_one(SettingsPane).render_settings(app.config)
+        settings_tabs.active = "settings-tab-watched-callsigns"
+        await pilot.pause()
+        watch_configured = ASSETS / "screenshot-watched-callsigns-configured.svg"
+        app.save_screenshot(str(watch_configured))
+        written.append(watch_configured)
 
         # The APRS contacts slide-out, where the shipped gateway directory is
         # actually read. Captured on its own because that list -- saved

@@ -117,6 +117,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 
 from rich.table import Table
@@ -148,6 +149,7 @@ from ..monitor import MonitorFilter, aprs_message_matches, format_frame, mail_wa
 from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError, TransportState
 from ..tx import DISABLED_MESSAGE, TransmitGate
+from ..watched_notify import WatchNotifier, claimed_callsigns, normalize_callsigns
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
@@ -823,6 +825,10 @@ class KissTermApp(App):
         #: not re-notify the operator every time it is heard again -- the
         #: point is "you have not seen this yet", not a running tally.
         self._mail_notified: set[tuple[str, str]] = set()
+        #: Monotonic time of local interaction.  This intentionally means
+        #: active use, not merely an app window that happens to be open.
+        self._last_operator_activity = time.monotonic()
+        self._watch_notifier = self._make_watch_notifier()
         #: Plain-text beacon. Constructed unconditionally so there is one
         #: object to ask "is this station transmitting on a timer?"; it does
         #: nothing at all until `start()` succeeds, and `start()` refuses
@@ -932,6 +938,20 @@ class KissTermApp(App):
             pane.remote_color = getattr(self.config, "remote_color", True)
         self._restart_beacon()
         self._restart_aprs_beacon()
+        self._watch_notifier = self._make_watch_notifier()
+
+    def _make_watch_notifier(self) -> WatchNotifier:
+        watched = self.config.watched_callsigns
+        return WatchNotifier(
+            cooldown_seconds=watched.cooldown_minutes * 60,
+            hourly_cap=watched.hourly_cap,
+            quiet_start_hour=watched.quiet_start_hour if watched.quiet_start_hour >= 0 else None,
+            quiet_end_hour=watched.quiet_end_hour if watched.quiet_end_hour >= 0 else None,
+        )
+
+    def on_key(self, event: events.Key) -> None:
+        """Mark deliberate local use so a visible frame does not raise a toast."""
+        self._last_operator_activity = time.monotonic()
 
     @work
     async def _restart_beacon(self) -> None:
@@ -1057,9 +1077,33 @@ class KissTermApp(App):
         self.heard.record(frame, port)
         self._monitor(frame, port, outgoing=False)
         self._check_mail_for(frame)
+        self._check_watched_callsigns(frame)
         if self.known_nodes.observe(frame):
             for pane in self._base_query(TerminalPane):
                 pane.refresh_known_nodes()
+
+    def _check_watched_callsigns(self, frame: AX25Frame) -> None:
+        """Surface configured source/repeater *claims* from the existing fan-out."""
+        watched = self.config.watched_callsigns
+        if not watched.enabled or not watched.callsigns:
+            return
+        claimed = claimed_callsigns(frame.path)
+        wanted = normalize_callsigns(watched.callsigns)
+        active = time.monotonic() - self._last_operator_activity < watched.active_suppression_seconds
+        now_local = datetime.now().astimezone()
+        for callsign in sorted(claimed & wanted):
+            if not self._watch_notifier.allow(
+                callsign, now_monotonic=time.monotonic(), now_local=now_local, app_active=active
+            ):
+                continue
+            title = f"Watched callsign claim: {callsign}"
+            body = "Claim carried in a received AX.25 frame; not authenticated identity."
+            self.notify(f"{title}. {body}", severity="information")
+            self._notify_watched_desktop(title, body)
+
+    @work
+    async def _notify_watched_desktop(self, title: str, body: str) -> None:
+        await desktop_notify.notify_any(title, body)
 
     def _on_sent_frame(self, frame: AX25Frame, port: int = 0) -> None:
         """Every frame that got past the transmit gate. Monitor only --

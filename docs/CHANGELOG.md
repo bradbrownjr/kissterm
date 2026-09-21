@@ -3,6 +3,22 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-21] — Prepare strict APRS object-report encoding
+
+### Improvements
+
+- **Object-report encoder groundwork.** The APRS package now exports a strict,
+  tested encoder for uncompressed object reports: it validates fixed-width
+  names, timestamps, coordinates, symbols, and ASCII comments, and preserves
+  object identity rather than truncating a long name. The existing Settings
+  symbol control is now a reusable picker so a future object composer uses the
+  same sourced symbol choices. This does not add an object-send UI; the
+  roadmap's remaining interaction and deliberate-transmit design work stays
+  open.
+  **Files:** `kissterm/aprs/__init__.py`, `kissterm/aprs/encode.py`,
+  `kissterm/ui/symbol_picker.py`, `kissterm/ui/settings_pane.py`,
+  `tests/unit/test_aprs.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-20] — Add startup-only named configuration profiles
 
 ### New Features
@@ -20,6 +36,42 @@ touched and any breaking notes.
   `kissterm/ui/settings_pane.py`, `tests/unit/test_config.py`,
   `tests/pilot/test_settings.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`,
   `docs/ROADMAP_DEPENDENCIES.md`.
+
+## [2026-09-20] — Add passive watched-callsign notifications
+
+### New Features
+
+- **Watched callsign alerts.** An off-by-default local watchlist observes
+  source and digipeater claims from the existing received-frame fan-out. It
+  normalizes valid callsigns and applies per-callsign cooldowns, a global
+  hourly cap, optional local quiet hours, and active-operator suppression.
+  Alerts identify received callsigns as unauthenticated claims, use the
+  existing in-app/optional desktop-notification seam, and never decode again,
+  connect, transmit, arm the gate, or make a live-node or RF claim.
+  **Files:** `kissterm/watched_notify.py`, `kissterm/config.py`,
+  `kissterm/ui/app.py`, `kissterm/ui/settings_schema.py`,
+  `tests/unit/test_watched_notify.py`,
+  `tests/pilot/test_watched_notifications.py`,
+  `tests/unit/test_config.py`, `tests/pilot/test_settings.py`,
+  `scripts/generate_screenshot.py`, `docs/ROADMAP.md`,
+  `docs/CHANGELOG.md`, `docs/ROADMAP_DEPENDENCIES.md`.
+
+## [2026-09-18] — Add read-only heard-stations ASCII radar
+
+### New Features
+
+- **Heard radar view.** The Heard pane can switch from its existing table to
+  a compact ASCII radar built only from cached received position claims and
+  the configured fixed station position. It labels the scale, marks stale
+  observations and stations without a known position, and never guesses a
+  coordinate or identifies a claim as verified. The view is receive-only:
+  it reuses the existing decoded-position and MHEARD snapshot, without a new
+  frame decode, connection, network lookup, persistence path, or transmit
+  behavior. GPS integration and live/field verification remain open.
+  **Files:** `kissterm/ui/heard_pane.py`, `kissterm/ui/styles.py`,
+  `tests/unit/test_heard_radar.py`, `tests/pilot/test_app_mounts.py`,
+  `scripts/generate_screenshot.py`,
+  `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
 
 ## [2026-09-18] — Add read-only NET/ROM routing awareness
 

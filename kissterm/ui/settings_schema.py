@@ -583,6 +583,33 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         ),
     ),
     Section(
+        "Watched callsigns",
+        "Passive local alerts for callsign claims carried by received frames. "
+        "A claim is not an authenticated identity; alerts never transmit or connect.",
+        (
+            Field("watched_callsigns.enabled", "Enable watched callsigns", "bool",
+                  "Off by default. Uses the existing receive path only.", apply="live"),
+            Field("watched_callsigns.callsigns", "Watch callsigns", "calllist",
+                  "Comma-separated callsign claims to watch in a frame source or digipeater path.",
+                  apply="live", placeholder="N1ABC, W1AW-2"),
+            Field("watched_callsigns.cooldown_minutes", "Repeat cooldown (min)", "int",
+                  "One alert per callsign claim during this interval.", minimum=0, maximum=1440,
+                  apply="live"),
+            Field("watched_callsigns.hourly_cap", "Alerts per hour", "int",
+                  "Global cap across watched callsigns; resets on the local clock hour.", minimum=0,
+                  maximum=120, apply="live"),
+            Field("watched_callsigns.quiet_start_hour", "Quiet hours start", "int",
+                  "Local hour 0-23; use -1 with the end hour to disable quiet hours.",
+                  minimum=-1, maximum=23, apply="live"),
+            Field("watched_callsigns.quiet_end_hour", "Quiet hours end", "int",
+                  "Local hour 0-23; quiet hours can cross midnight. Use -1 to disable.", minimum=-1, maximum=23,
+                  apply="live"),
+            Field("watched_callsigns.active_suppression_seconds", "Suppress while active (s)", "int",
+                  "After local keyboard use, skip alerts because the monitor is already visible; 0 disables.",
+                  minimum=0, maximum=3600, apply="live"),
+        ),
+    ),
+    Section(
         "Clock",
         "Three independent toggles for the title bar. Amateur radio runs on "
         "UTC while you live in local time, so showing both is a real "

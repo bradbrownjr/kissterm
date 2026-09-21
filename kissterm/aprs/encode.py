@@ -20,12 +20,13 @@ for the 2-byte-per-coordinate savings compression exists for.
 
 from __future__ import annotations
 
+import math
 import re
 
 from ..ax25.address import AX25Address, AX25Path
 from ..ax25.frame import AX25Frame, PID_NO_LAYER3, UType
 
-__all__ = ["position_report", "status", "message", "ack", "beacon_frame"]
+__all__ = ["position_report", "object_report", "status", "message", "ack", "beacon_frame"]
 
 #: Conservative cap on the free-text portion of a transmitted packet. AX.25
 #: itself allows much more, but a very long unproto frame is far more likely
@@ -34,6 +35,8 @@ __all__ = ["position_report", "status", "message", "ack", "beacon_frame"]
 _MAX_COMMENT = 100
 _TIMESTAMP_RE = re.compile(r"^\d{6}[zh/]$")
 _MSG_NUMBER_RE = re.compile(r"^[A-Za-z0-9]{1,5}$")
+_OBJECT_NAME_RE = re.compile(r"^[ -~]{1,9}$")
+_OBJECT_COMMENT_MAX = 43
 
 
 def _clean_text(text: str) -> str:
@@ -45,6 +48,8 @@ def _clean_text(text: str) -> str:
 
 
 def _format_lat(lat: float) -> str:
+    if not math.isfinite(lat):
+        raise ValueError("latitude must be finite")
     if not -90.0 <= lat <= 90.0:
         raise ValueError(f"latitude {lat} out of range -90..90")
     hemi = "N" if lat >= 0 else "S"
@@ -55,6 +60,8 @@ def _format_lat(lat: float) -> str:
 
 
 def _format_lon(lon: float) -> str:
+    if not math.isfinite(lon):
+        raise ValueError("longitude must be finite")
     if not -180.0 <= lon <= 180.0:
         raise ValueError(f"longitude {lon} out of range -180..180")
     hemi = "E" if lon >= 0 else "W"
@@ -100,6 +107,44 @@ def position_report(
     else:
         dti = "=" if messaging else "!"
         body = f"{dti}{lat_field}{symbol_table}{lon_field}{symbol_code}{comment}"
+    return body.encode("ascii", "strict")
+
+
+def object_report(
+    name: str,
+    alive: bool,
+    timestamp: str,
+    lat: float,
+    lon: float,
+    symbol_table: str,
+    symbol_code: str,
+    comment: str = "",
+) -> bytes:
+    """Build a strict uncompressed APRS object-report information field.
+
+    APRS 1.0.1, chapter 11, defines an object as ``;`` followed by a fixed
+    nine-character printable-ASCII name, ``*`` (live) or ``_`` (killed), a
+    mandatory seven-character timestamp, and a position.  Names are padded
+    here, never truncated: truncating would silently create a different
+    object.  This encoder intentionally emits only the broadly interoperable
+    uncompressed position form and no optional data extension.
+    """
+    if not isinstance(alive, bool):
+        raise ValueError("object liveness must be a boolean")
+    if not _OBJECT_NAME_RE.fullmatch(name) or not name.strip():
+        raise ValueError("object name must be 1-9 printable ASCII characters and not all spaces")
+    if not _TIMESTAMP_RE.match(timestamp):
+        raise ValueError("object timestamp must be 6 digits + one of 'zh/'")
+    if symbol_table not in ("/", "\\"):
+        raise ValueError(f"symbol table selector must be '/' or '\\\\', got {symbol_table!r}")
+    if len(symbol_code) != 1 or not 0x21 <= ord(symbol_code) <= 0x7E:
+        raise ValueError(f"symbol code must be one printable ASCII character, got {symbol_code!r}")
+    if not comment.isascii() or any(ord(ch) < 0x20 or ord(ch) == 0x7F for ch in comment):
+        raise ValueError("object comment must contain printable ASCII only")
+    if len(comment) > _OBJECT_COMMENT_MAX:
+        raise ValueError(f"object comment must be at most {_OBJECT_COMMENT_MAX} characters")
+    marker = "*" if alive else "_"
+    body = f";{name:<9}{marker}{timestamp}{_format_lat(lat)}{symbol_table}{_format_lon(lon)}{symbol_code}{comment}"
     return body.encode("ascii", "strict")
 
 

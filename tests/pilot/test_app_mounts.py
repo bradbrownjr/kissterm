@@ -512,6 +512,35 @@ async def test_heard_table_shows_bearing_and_distance_once_own_position_is_set()
 
 
 @pytest.mark.asyncio
+async def test_heard_radar_is_a_read_only_view_of_existing_received_positions():
+    """The radar toggles from MHEARD state; it neither sends nor decodes again."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(80, 32)) as pilot:
+        app.config.aprs.latitude = 42.0
+        app.config.aprs.longitude = -71.0
+        path = AX25Path(AX25Address.parse("APRS"), AX25Address.parse("W1AW-9"))
+        await tb.send_frame(AX25Frame.u_frame(path, UType.UI, info=b"!4223.45N/07105.67W>"))
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+
+        app.action_show_tab("heard")
+        await pilot.pause()
+        sent_before = len(ta.sent)
+        await pilot.click("#heard-radar")
+        await pilot.pause()
+
+        radar = _plain(app.query_one("#heard-radar-view"))
+        assert "received position claims" in radar
+        assert "W1AW-9" in radar
+        assert len(ta.sent) == sent_before
+
+        await pilot.click("#heard-radar")
+        await pilot.pause()
+        assert app.query_one("#heard-table").display is True
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_unplugging_the_active_transport_is_reported():
     """A TNC vanishing mid-session must say so, not fail silently later."""
     from kissterm.hotplug import PortEvent

@@ -135,7 +135,9 @@ MonitorPane { layout: vertical; }
 
 /* Heard pane */
 HeardPane { layout: vertical; }
+#heard-radar { width: auto; margin-bottom: 1; }
 #heard-table { height: 1fr; }
+#heard-radar-view { height: 1fr; border: round $primary; padding: 0 1; color: $text-muted; }
 
 /* Address Book pane. No note above the table and no key-hint line below
    the buttons -- Textual's Footer is the context-aware shortcut bar for

@@ -17,16 +17,13 @@ hardware, live-node, publication, release, or regulatory evidence.
 ## P4 — APRS
 
 - **Service-directory currency — dependent.** Missing: current source-page confirmation for each listed service. Evidence: a dated manual review of each entry's source and changed availability. Resume: an operator performs the manual source review; do not add a liveness probe.
-- **Heard-stations position/map view — actionable.** Repository UI design and implementation can proceed; no external result is represented by completion of that work.
 - **GPS integration — dependent.** Missing: a GPS receiver/NMEA stream for final validation. Evidence: a real device provides fix, loss-of-fix, and live beacon-position behavior under the existing deliberate TX gate. Resume: implement against fixtures if desired, then have an operator connect a GPS puck and conduct the gated validation.
 - **Smart beaconing — dependent.** Missing: the shipped GPS position/speed/course source and a real mobile GPS validation environment. Evidence: controlled live source changes produce the intended interval behavior without autonomous gate arming. Resume: complete GPS integration, then an operator validates with a real receiver under visible, opt-in beacon controls.
-- **Text-mode map — actionable.** It can be designed and tested from existing decoded positions without a live service claim.
 - **Object reports — actionable.** Encoder and deliberate-send UI work can be scoped and tested locally; any later RF interoperability result remains separate.
 - **Igate-adjacent features — dependent (explicitly out of scope).** Missing: an explicit operator-approved scope change to create a separate tool. Evidence: that approved scope decision; no radio, Internet-gating, or field result is implied. Resume: create the separate-tool work only after that decision.
 
 ## P5 — Node and BBS workflow
 
-- **NET/ROM awareness — actionable.** Decoder/display work can use protocol sources and fixtures; live-node validation, if later required, remains distinct.
 - **BBS session helpers — actionable.** Scriptable helper design can begin in-repository; it must not auto-dial or claim a live BBS result.
 - **YAPP and autobin transfer — actionable.** Protocol implementation and local tests can proceed; real peer interoperability is later evidence, not a current claim.
 
@@ -34,7 +31,6 @@ hardware, live-node, publication, release, or regulatory evidence.
 
 - **LM/LB blank lines — dependent.** Missing: the reported BBS byte capture. Evidence: a captured real reply identifies its CR/LF sequence and a regression test reproduces it. Resume: operator supplies the debug capture; then make the smallest tested parser correction.
 - **Pager prompt visibility — dependent.** Missing: the same real BBS byte capture. Evidence: capture and regression test show the no-trailing-newline prompt case. Resume: use the supplied capture to diagnose alongside LM/LB rather than guess-fixing buffering.
-- **ASCII-safe mode — actionable.** Existing configuration and rendering code can be audited and tested locally.
 - **Python plugin macros — actionable.** Security design and implementation can proceed, subject to repository safety rules; no external authority is implied.
 - **`textual serve` access — actionable.** Local compatibility assessment can proceed without treating browser access as a radio or field result.
 
@@ -58,7 +54,6 @@ hardware, live-node, publication, release, or regulatory evidence.
 - **Auto-collect mail — dependent.** Missing: mailbox and BBS helpers, qualified regulatory determination, and an operator-authorized BBS/peer. Evidence: confirmed operator-approved collection session and its logged behavior. Resume: complete prerequisites, then operator confirms each named connection; never auto-dial from a notice.
 - **Personal mailbox — dependent.** Missing: qualified regulatory determination for unattended answering/third-party traffic in the intended operation. Evidence: documented authority guidance and an operator-approved constrained design. Resume: obtain that determination before enabling any unattended behavior; repository storage work remains non-field work.
 - **File drop — dependent.** Missing: the same qualified regulatory determination and an operator decision to expose the receive path. Evidence: authority-approved operating scope plus security controls validated before any live use. Resume: resolve authority guidance, then implement the stated jail, quotas, and no-execution controls.
-- **Watched-callsign notification — actionable.** Fan-out and rate-limit behavior can be implemented and tested without a live-node claim.
 - **Incoming-connection/new-mail notification — dependent.** Missing: the mailbox for new-mail behavior; connection notification itself can follow the prior rate-limit mechanism. Evidence: mailbox-triggered notification behavior after the mailbox prerequisite is implemented. Resume: build the shared notification controls, then resume the mail-specific branch with the mailbox.
 
 ## P10 — Application tabs
@@ -85,14 +80,34 @@ hardware, live-node, publication, release, or regulatory evidence.
 
 ## Audit boundary
 
-This audit covers all 50 unchecked roadmap entries as of 2026-09-18. The P3
-AF_AX25, VARA, and Mercury entries retain the detailed no-hardware procedure
-in the settled `kissterm-p3-field-verification-readiness` task record. No
-hardware, live node, peer, service, registry, publisher, or qualified
-authority was contacted for this audit.
+This audit covers all 44 currently unchecked roadmap entries as of 2026-09-20.
+The P3 AF_AX25, VARA, and Mercury entries retain the detailed no-hardware
+procedure in the settled `kissterm-p3-field-verification-readiness` task
+record. No hardware, live node, peer, service, registry, publisher, or
+qualified authority was contacted for this audit.
 
 ## Historical delivered dispositions
 
+- **ASCII-safe terminal rendering — delivered 2026-09-18.** This former P6
+  actionable item is no longer open in `ROADMAP.md`. The dated changelog entry
+  “Add ASCII-safe terminal rendering” and accepted Round 5 task
+  `kissterm-ascii-safe-mode-recovery` record its scoped local-rendering
+  delivery and its terminal-specific residual uncertainty.
+- **NET/ROM routing awareness — delivered 2026-09-18.** This former P5
+  actionable item is no longer open in `ROADMAP.md`. The dated changelog entry
+  “Add read-only NET/ROM routing awareness” and accepted Round 6 task
+  `kissterm-netrom-routing-awareness` record its passive, unverified-claims
+  delivery; live-node interoperability remains unclaimed.
+- **Heard-stations position/map and text-mode map — delivered 2026-09-18.**
+  These former P4 actionable items are no longer open in `ROADMAP.md`. The
+  dated changelog entry “Add read-only heard-stations ASCII radar” records a
+  bounded local rendering of existing received position claims; it makes no
+  GPS, live-service, hardware, or RF interoperability claim.
+- **Watched-callsign notification — delivered 2026-09-20.** This former P9
+  actionable item is no longer open in `ROADMAP.md`. The dated changelog entry
+  “Add passive watched-callsign notifications” records its default-disabled,
+  local rate-limited handling of unverified received claims; it makes no
+  live-node, desktop-endpoint, or RF claim.
 - **Named configuration profiles — delivered 2026-09-20.** This former P6
   actionable item is no longer open in `ROADMAP.md`. The dated changelog entry
   “Add startup-only named configuration profiles” records isolated TOML files,
