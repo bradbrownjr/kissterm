@@ -6,7 +6,14 @@ import asyncio
 
 import pytest
 
-from kissterm.aprs_is import AprsIsAccess, AprsIsMode, AprsIsWatch, callsign_filter, login_line
+from kissterm.aprs_is import (
+    AprsIsAccess,
+    AprsIsMode,
+    AprsIsWatch,
+    callsign_filter,
+    login_line,
+    observation_kind,
+)
 
 
 def test_watch_filter_covers_our_packets_and_messages_addressed_to_us():
@@ -25,8 +32,17 @@ def test_verified_access_is_representable_but_needs_a_real_passcode():
     assert AprsIsAccess(AprsIsMode.VERIFIED, "12345").login_pass() == "12345"
 
 
+def test_observation_labels_do_not_overstate_gateway_delivery():
+    assert observation_kind("KC1JMH>APRS:hello", "KC1JMH") == "outbound packet observed"
+    assert (
+        observation_kind("SMSGTE>APRS::KC1JMH   :ack3", "KC1JMH")
+        == "reply/message to us observed"
+    )
+    assert observation_kind("# logresp KC1JMH unverified", "KC1JMH") == "server status"
+
+
 @pytest.mark.asyncio
-async def test_watch_receives_sanitized_lines_and_writes_only_login():
+async def test_watch_receives_sanitized_lines_writes_only_login_and_logs_observations(caplog):
     received: list[bytes] = []
 
     async def handler(reader, writer):
@@ -38,6 +54,7 @@ async def test_watch_receives_sanitized_lines_and_writes_only_login():
         await asyncio.sleep(0.05)
         writer.close()
 
+    caplog.set_level("DEBUG", logger="kissterm.aprs_is")
     server = await asyncio.start_server(handler, "127.0.0.1", 0)
     try:
         port = server.sockets[0].getsockname()[1]
@@ -60,3 +77,5 @@ async def test_watch_receives_sanitized_lines_and_writes_only_login():
         "BADPACKET",
     ]
     assert watch.status == "Disconnected by APRS-IS"
+    assert "outbound packet observed" in caplog.text
+    assert "BADPACKET" in caplog.text

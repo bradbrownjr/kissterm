@@ -19,6 +19,14 @@ touched and any breaking notes.
   `tests/unit/test_aprs_is.py`, `tests/pilot/test_app_mounts.py`,
   `docs/CHANGELOG.md`.
 
+- **SMS delivery evidence in debug logs.** A deliberate SMS/SMSGTE request
+  starts the same receive-only watch before RF transmission. Debug output
+  distinguishes an outbound packet observed by APRS-IS from a reply addressed
+  back to the operator, without claiming either proves final carrier delivery.
+  **Files:** `kissterm/aprs_is.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/aprs_pane.py`, `tests/unit/test_aprs_is.py`,
+  `tests/pilot/test_aprs_send.py`, `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add documented APRS SMS and email forms
 
 ### Improvements

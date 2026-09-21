@@ -1486,6 +1486,11 @@ class AprsPane(Horizontal):
         # the gate is closed. Guarded on `self.app.station` the same way
         # `TerminalPane.send_line` guards on `link.connected` -- arming for a
         # send that has nothing to go out on would open the gate for nothing.
+        if service == "sms" or addressee.strip().upper() in {"SMS", "SMSGTE"}:
+            # The watcher is receive-only and is deliberately started before
+            # the RF request, so debug logging has the best chance to observe
+            # both the packet's APRS-IS arrival and the gateway's reply.
+            self.app.start_aprs_is_watch_for_debug()  # type: ignore[attr-defined]
         if self.app.station is not None:  # type: ignore[attr-defined]
             self.app._arm_for(f"sending to {addressee}")  # type: ignore[attr-defined]
         ok = await self.app._send_aprs_message(addressee, wire_text, number)  # type: ignore[attr-defined]

@@ -291,8 +291,8 @@ async def test_an_unacked_message_is_retried(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_sending_to_an_sms_contact_transmits_the_templated_body(tmp_path):
-    """The wire body is `<phone> <text>`, but the conversation log keeps
+async def test_sending_to_an_sms_contact_transmits_the_templated_body(tmp_path, monkeypatch):
+    """The wire body is `@<phone> <text>`, but the conversation log keeps
     what the operator actually typed -- readable history, not a wire dump.
     A retry must resend the templated body, not re-template the human text
     a second time."""
@@ -311,6 +311,8 @@ async def test_sending_to_an_sms_contact_transmits_the_templated_body(tmp_path):
     theirs = AX25Station(PEER, tb, params)
     app = KissTermApp(config, mine)
     app.aprs_conversations = ConversationStore(tmp_path / "aprs_messages.json")
+    started: list[bool] = []
+    monkeypatch.setattr(app, "start_aprs_is_watch_for_debug", lambda: started.append(True))
 
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
@@ -340,13 +342,14 @@ async def test_sending_to_an_sms_contact_transmits_the_templated_body(tmp_path):
         sent = [f for f in ta.sent if f.info.startswith(b":SMSGTE")]
         assert sent, "no APRS message frame was actually transmitted"
         packet = aprs.parse_packet(sent[-1])
-        assert packet.data.text == "5551234567 running late"
+        assert packet.data.text == "@5551234567 running late"
+        assert started == [True]
     mine.close()
     theirs.close()
 
 
 @pytest.mark.asyncio
-async def test_a_configured_sms_template_changes_the_wire_body(tmp_path):
+async def test_a_configured_sms_template_changes_the_wire_body(tmp_path, monkeypatch):
     config = Config(
         mycall=str(MYCALL),
         aprs_contacts=[
@@ -363,6 +366,7 @@ async def test_a_configured_sms_template_changes_the_wire_body(tmp_path):
     theirs = AX25Station(PEER, tb, params)
     app = KissTermApp(config, mine)
     app.aprs_conversations = ConversationStore(tmp_path / "aprs_messages.json")
+    monkeypatch.setattr(app, "start_aprs_is_watch_for_debug", lambda: None)
 
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)

@@ -1694,6 +1694,23 @@ class KissTermApp(App):
         self._to_terminal(self._active_key(), "log", f"\n*** {verb} APRS {kind} to {addressee}\n")
         return True
 
+    def start_aprs_is_watch_for_debug(self) -> None:
+        """Begin a receive-only observation before a deliberate SMS request.
+
+        This starts no RF activity and does not wait for the Internet before
+        sending: delaying a requested RF message for a diagnostic connection
+        would be the wrong priority. The debug log records whether APRS-IS
+        later saw the packet and any reply addressed back to this identity.
+        """
+        if self.aprs_is_watch.running:
+            return
+        try:
+            callsign = self._active_aprs_identity()
+            self.aprs_is_watch.start(callsign=callsign)
+            log.debug("APRS-IS watch auto-started for SMS diagnostic: %s", callsign)
+        except ValueError as exc:
+            log.debug("APRS-IS watch not started for SMS diagnostic: %s", exc)
+
     async def _send_aprs_object(self, request: AprsObjectRequest) -> bool:
         """Encode and transmit one deliberately composed APRS object report."""
         if self.station is None:

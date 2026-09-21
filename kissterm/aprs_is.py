@@ -12,12 +12,15 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable
 
 from .monitor import sanitize
+
+log = logging.getLogger(__name__)
 
 DEFAULT_HOST = "rotate.aprs2.net"
 DEFAULT_PORT = 14580
@@ -61,6 +64,20 @@ def login_line(callsign: str, access: AprsIsAccess, *, filter_text: str) -> byte
     ).encode("ascii")
 
 
+def observation_kind(line: str, callsign: str) -> str:
+    """Describe what a filtered line proves, without claiming SMS delivery."""
+    header, separator, info = line.partition(":")
+    source, arrow, _destination = header.partition(">")
+    call = callsign.strip().upper()
+    if arrow and source.upper() == call:
+        return "outbound packet observed"
+    if separator and info.startswith(":") and info[1:10].strip().upper() == call:
+        return "reply/message to us observed"
+    if line.startswith("#"):
+        return "server status"
+    return "filtered packet observed"
+
+
 class AprsIsWatch:
     """A bounded raw APRS-IS observer with no packet-publish capability."""
 
@@ -96,6 +113,7 @@ class AprsIsWatch:
         filter_text = callsign_filter(callsign)
         self.lines.clear()
         self.status = f"Connecting to {host}:{port} ({access.mode.value})"
+        log.debug("APRS-IS watch: %s", self.status)
         self._changed()
         self._task = asyncio.create_task(
             self._run(callsign, host, port, access, filter_text), name="aprs-is-watch"
@@ -105,6 +123,7 @@ class AprsIsWatch:
         if self._task is not None:
             self._task.cancel()
         self.status = "Stopped"
+        log.debug("APRS-IS watch: stopped")
         self._changed()
 
     async def _run(
@@ -116,17 +135,23 @@ class AprsIsWatch:
             writer.write(login_line(callsign, access, filter_text=filter_text))
             await writer.drain()
             self.status = f"Watching {host}:{port} ({access.mode.value})"
+            log.debug("APRS-IS watch: %s", self.status)
             self._changed()
             while line := await reader.readline():
                 clean = sanitize(line, keep_newlines=False).rstrip()
                 if clean:
                     self.lines.append(clean)
+                    log.debug(
+                        "APRS-IS watch %s: %s", observation_kind(clean, callsign), clean
+                    )
                     self._changed()
             self.status = "Disconnected by APRS-IS"
+            log.debug("APRS-IS watch: %s", self.status)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             self.status = f"APRS-IS error: {exc}"
+            log.debug("APRS-IS watch: %s", self.status)
         finally:
             if writer is not None:
                 writer.close()
