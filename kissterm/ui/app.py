@@ -139,7 +139,7 @@ from ..ax25 import AX25Station, parse_path
 from ..ax25.address import AX25Address, AX25AddressError
 from ..aprs_beacon import AprsBeaconer
 from ..beacon import Beaconer
-from ..config import AprsConfig, BeaconConfig, find_credential, find_script
+from ..config import AprsConfig, BeaconConfig, find_credential, find_script, state_path
 from .. import desktop_notify
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
@@ -3327,7 +3327,9 @@ class KissTermApp(App):
             if request.mode == "upload":
                 result = await send_file(session.link, request.path)
             else:
-                result = await receive_file(session.link, request.path)
+                downloads = state_path() / "downloads"
+                downloads.mkdir(parents=True, exist_ok=True)
+                result = await receive_file(session.link, downloads)
         except (OSError, ValueError, YappError) as exc:
             self._note(key, f"\n*** YAPP {request.mode} failed: {exc}\n")
             self.notify(f"YAPP {request.mode} failed: {exc}", severity="warning")

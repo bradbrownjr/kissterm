@@ -12,13 +12,14 @@ modals here.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, Footer, Input, Label, Select, Static, Tab, Tabs, TextArea
+from textual.widgets import Button, DataTable, Footer, Input, Label, Select, Static, Tab, Tabs, TextArea
 
 from ..addressbook import AddressBook
 from ..aprs_contacts import (
@@ -95,6 +96,7 @@ class YappTransferScreen(ModalScreen[YappRequest | None]):
                 value="upload", id="yapp-mode", allow_blank=False,
             )
             yield Input(placeholder="Local file path", id="yapp-path")
+            yield Button("Browse files", id="yapp-browse")
             yield Static("Upload starts YAPP now. For download, start this first, then request YAPP from the peer.")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Start", id="yapp-start", classes="-primary")
@@ -107,10 +109,69 @@ class YappTransferScreen(ModalScreen[YappRequest | None]):
     @on(Button.Pressed, "#yapp-start")
     def _start(self) -> None:
         path = self.query_one("#yapp-path", Input).value.strip()
-        if not path:
+        mode = str(self.query_one("#yapp-mode", Select).value)
+        if mode == "upload" and not path:
             self.notify("Enter a local path.", severity="warning")
             return
-        self.dismiss(YappRequest(str(self.query_one("#yapp-mode", Select).value), path))
+        self.dismiss(YappRequest(mode, path))
+
+    @on(Button.Pressed, "#yapp-browse")
+    def _browse(self) -> None:
+        if self.query_one("#yapp-mode", Select).value != "upload":
+            self.notify("Downloads use kissterm's fixed Downloads folder.")
+            return
+        self.app.push_screen(FilePickerScreen(), self._picked)
+
+    def _picked(self, path: Path | None) -> None:
+        if path is not None:
+            self.query_one("#yapp-path", Input).value = str(path)
+
+
+class FilePickerScreen(ModalScreen[Path | None]):
+    """Local read-only browser for an explicit YAPP upload selection."""
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, directory: Path | None = None) -> None:
+        super().__init__()
+        self.directory = (directory or Path.home()).resolve()
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("Choose upload file", id="connect-title")
+            yield Static(str(self.directory), id="file-picker-path")
+            yield DataTable(id="file-picker-table", cursor_type="row")
+            yield Button("Cancel", id="file-picker-cancel")
+
+    def on_mount(self) -> None:
+        table = self.query_one("#file-picker-table", DataTable)
+        table.add_columns("Name", "Size")
+        self._render()
+
+    def _render(self) -> None:
+        table = self.query_one("#file-picker-table", DataTable)
+        table.clear()
+        table.add_row("..", "folder", key="..")
+        try:
+            entries = sorted(self.directory.iterdir(), key=lambda p: (not p.is_dir(), p.name.casefold()))
+        except OSError as exc:
+            self.notify(f"Can't read folder: {exc}", severity="warning")
+            entries = []
+        for entry in entries:
+            if entry.is_dir() or entry.is_file():
+                table.add_row(entry.name + ("/" if entry.is_dir() else ""), "folder" if entry.is_dir() else str(entry.stat().st_size), key=entry.name)
+        self.query_one("#file-picker-path", Static).update(str(self.directory))
+
+    @on(DataTable.RowSelected, "#file-picker-table")
+    def _choose(self, event: DataTable.RowSelected) -> None:
+        entry = self.directory.parent if event.row_key.value == ".." else self.directory / str(event.row_key.value)
+        if entry.is_dir():
+            self.directory = entry.resolve(); self._render()
+        elif entry.is_file():
+            self.dismiss(entry.resolve())
+
+    @on(Button.Pressed, "#file-picker-cancel")
+    def _cancel_picker(self) -> None:
+        self.dismiss(None)
 
 
 def _validate_target_and_hops(text: str, hops: str) -> tuple[object | None, str]:
