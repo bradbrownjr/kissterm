@@ -143,6 +143,7 @@ from ..config import AprsConfig, BeaconConfig, find_credential, find_script, sta
 from .. import desktop_notify
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
+from ..gps import GpsReader
 from ..hotplug import PortEvent, SerialPortWatcher
 from ..locator import find_grid_in_text
 from ..monitor import MonitorFilter, aprs_message_matches, format_frame, mail_waiting_for, sanitize
@@ -852,7 +853,12 @@ class KissTermApp(App):
         self.aprs_beaconer = AprsBeaconer(
             station, getattr(config, "aprs", None) or AprsConfig(),
             on_sent=self._on_aprs_beacon_sent,
+            position_source=self._gps_position if config.aprs.gps_device.strip() else None,
         )
+        #: A GPS reader is optional and wholly local; it never participates in
+        #: the AX.25/KISS transport fan-out.
+        self.gps_reader: GpsReader | None = None
+        self._gps_had_fix = False
 
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -945,6 +951,7 @@ class KissTermApp(App):
         for pane in self._base_query(TerminalPane):
             pane.remote_color = getattr(self.config, "remote_color", True)
         self._restart_beacon()
+        self._restart_gps()
         self._restart_aprs_beacon()
         self._watch_notifier = self._make_watch_notifier()
 
@@ -989,6 +996,33 @@ class KissTermApp(App):
         """
         self._to_terminal(self._active_key(), "log", f"\n*** Beacon sent to {frame.path.destination}\n")
 
+    def _gps_position(self) -> tuple[float, float] | None:
+        """The receiver's live position, never copied into configuration."""
+        fix = self.gps_reader.fix if self.gps_reader is not None else None
+        return (fix.latitude, fix.longitude) if fix is not None else None
+
+    def _on_gps_fix(self, fix) -> None:
+        """Start a waiting periodic beacon when a receiver first fixes."""
+        had_fix, self._gps_had_fix = self._gps_had_fix, fix is not None
+        # A GPS-configured beacon correctly refuses to start without a fix.
+        # Starting it on the false->true edge retains its normal sleep-first
+        # behavior while avoiding a stale-coordinate fallback or a polling
+        # timer that would only keep discovering it has no position.
+        if fix is not None and not had_fix:
+            self._restart_aprs_beacon()
+
+    @work
+    async def _restart_gps(self) -> None:
+        """Replace the local NMEA reader after a Settings save."""
+        if self.gps_reader is not None:
+            await self.gps_reader.stop()
+        device = self.config.aprs.gps_device.strip()
+        self.gps_reader = GpsReader(device) if device else None
+        self._gps_had_fix = False
+        if self.gps_reader is not None:
+            self.gps_reader.subscribe(self._on_gps_fix)
+            self.gps_reader.start()
+
     @work
     async def _restart_aprs_beacon(self) -> None:
         """Stop then start the APRS position beacon -- see `_restart_beacon`
@@ -998,6 +1032,9 @@ class KissTermApp(App):
         await self.aprs_beaconer.stop()
         self.aprs_beaconer.station = self.station
         self.aprs_beaconer.config = getattr(self.config, "aprs", None) or AprsConfig()
+        self.aprs_beaconer.position_source = (
+            self._gps_position if self.aprs_beaconer.config.gps_device.strip() else None
+        )
         why = self.aprs_beaconer.start()
         if why and self.aprs_beaconer.config.enabled and why != "transmit is disabled":
             self.notify(f"APRS beacon not started: {why}", severity="warning")
@@ -1015,6 +1052,8 @@ class KissTermApp(App):
         """
         self.beaconer.cancel()
         self.aprs_beaconer.cancel()
+        if self.gps_reader is not None:
+            self.gps_reader.cancel()
         self._unsubscribe_monitor()
         self._unsubscribe_aprs()
         self._close_all_transcripts()
@@ -3564,6 +3603,8 @@ class KissTermApp(App):
             parts.append("BEACON")
         if self.aprs_beaconer.running:
             parts.append("APRS BEACON")
+        if self.gps_reader is not None and self.gps_reader.running:
+            parts.append("GPS FIX" if self.gps_reader.fix is not None else "GPS NO FIX")
         parts.append(f"heard {len(self.heard)}")
         renderable = _status_row(parts)
         for bar in self._base_query("#status-bar"):

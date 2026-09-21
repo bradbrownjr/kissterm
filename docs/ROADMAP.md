@@ -90,53 +90,12 @@ entries. What's still open:
   honest answer; a "last checked" column in the picker already tells an
   operator how stale the claim is. Revisit if entries start rotting.
 
-- [ ] **GPS integration.** Everything shipped `[2026-09-09]` (see
-  CHANGELOG) covers a *fixed* station: static decimal-degree or
-  Maidenhead-grid-square position entry in Settings, with a real
-  symbol/WIDE-path/Winlink-notify picker around it. A mobile or portable
-  operator with a GPS puck has nothing to plug into yet -- this item is
-  that missing half, scoped but not built (needs real hardware to verify
-  before it could be marked done, same as every other hardware-dependent
-  item in this file).
-  - **Shape**: a new `kissterm/gps.py`, modeled on `kissterm/hotplug.py`'s
-    `SerialPortWatcher` -- `subscribe`/`start`/`stop`, never raises out of
-    its own read loop, cheap enough to run continuously. Differs from that
-    class in what it does with the port once found: it *opens* it and
-    parses a continuous NMEA-0183 sentence stream (GGA for a fix plus
-    altitude, RMC for the same fix plus speed/course) rather than just
-    enumerating and diffing. This is explicitly NOT a `FrameTransport` --
-    no KISS framing involved, a different kind of background reader
-    entirely, closer in shape to `serial_kiss.py`'s own read loop than to
-    anything in `kissterm/transport/`.
-  - **Config**: one new field for the GPS device path (empty means off,
-    today's static-position behaviour unchanged). The device picker
-    should reuse `discover_serial()`/`list_ports.comports()` -- the same
-    enumeration TNC discovery already does -- rather than inventing a
-    second one, but with the INVERSE heuristic from `discovery.py`'s
-    `_UNLIKELY_SUBSTRINGS`: that list currently down-scores a port
-    description containing "gps receiver" *because* it is scoring
-    candidate TNCs, so a GPS device picker wants to score those same
-    descriptions *up*.
-  - **Bluetooth GPS pucks need no new code at all.** Exactly the same
-    "pair once with `bluetoothctl`, `rfcomm bind`, then it is an ordinary
-    serial device" story SETUP.md already documents for Bluetooth TNCs
-    applies unchanged -- confirmed while scoping this, not assumed.
-  - **Feed `AprsBeaconer` a live position at send time, never write one
-    into `Config.aprs.latitude`/`longitude`.** `AprsBeaconer.build_frame`
-    already re-checks everything at the moment of transmission rather
-    than trusting state from when it was started (see
-    `kissterm/aprs_beacon.py`) -- a GPS fix should plug into that same
-    discipline as an optional live-position source the beaconer asks for
-    at send time, not by mutating the config fields a Settings save could
-    clobber out from under it.
-  - **Status bar**: a `GPS FIX` / `GPS NO FIX` marker for as long as the
-    reader is running, matching the existing `ANSWERING`/`BEACON`
-    convention -- this station is doing something semi-autonomous
-    (trusting a hardware fix over what Settings says), so say so on
-    screen the whole time it's true.
-  - Unblocks the "Smart beaconing" item below, which needs exactly this
-    as its position/speed/course source. Large effort; no reference
-    implementation in this codebase to lean on.
+- [ ] **GPS live-hardware verification.** The NMEA serial reader, local
+  port picker, live-at-send-time beacon source, and GPS FIX/NO FIX status
+  marker shipped on 2026-09-21. Verify them with physical USB and Bluetooth
+  (`rfcomm`) receivers before calling GPS support fully green; no radio or
+  receiver was available to make that claim during implementation. Smart
+  beaconing is unblocked by the reader's position/speed/course fix model.
 - [ ] **Smart beaconing.** Speed/heading-aware beacon interval adjustment
   (the SmartBeaconing algorithm most APRS trackers use) — needs the GPS
   integration item above as its position/speed source first. Medium once

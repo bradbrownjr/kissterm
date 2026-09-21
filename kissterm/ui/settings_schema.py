@@ -267,6 +267,17 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 custom_render=True,
             ),
             Field(
+                "aprs.gps_device",
+                "GPS serial device",
+                "text",
+                "Optional NMEA-0183 serial device, such as /dev/ttyUSB1 or "
+                "/dev/rfcomm0. When set, beacons use only a current GPS fix; "
+                "the fixed position above is left unchanged.",
+                apply="live",
+                placeholder="/dev/ttyUSB1",
+                custom_render=True,
+            ),
+            Field(
                 "aprs.symbol",
                 "Map symbol",
                 "filtered_choice",

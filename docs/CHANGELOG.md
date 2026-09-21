@@ -3,6 +3,24 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-21] — Add live GPS positions to APRS beacons
+
+### New Features
+
+- **NMEA GPS integration.** Settings can scan local serial ports and select
+  an optional GPS receiver (including an already-bound Bluetooth `rfcomm`
+  device). The reader validates GGA/RMC checksums, reports GPS FIX/NO FIX,
+  retains altitude/speed/course for future smart beaconing, and supplies its
+  current position only when an APRS beacon is built. A configured GPS with
+  no fix suppresses the beacon rather than falling back to a saved coordinate;
+  static-position behavior is unchanged when GPS is off. Physical receiver
+  verification remains on the roadmap.
+  **Files:** `kissterm/gps.py`, `kissterm/aprs_beacon.py`,
+  `kissterm/config.py`, `kissterm/ui/app.py`, `kissterm/ui/settings_pane.py`,
+  `kissterm/ui/settings_schema.py`, `config.toml.example`,
+  `tests/unit/test_gps.py`, `tests/unit/test_aprs_beacon.py`,
+  `SETUP.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add explicit AutoBIN client transfers
 
 ### New Features

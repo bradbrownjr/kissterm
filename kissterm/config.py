@@ -94,6 +94,9 @@ class AprsConfig:
     symbol: str = "/>"
     latitude: float = 0.0
     longitude: float = 0.0
+    #: Empty uses the fixed position above. A configured GPS requires a live
+    #: fix rather than ever falling back to a stale saved coordinate.
+    gps_device: str = ""
     comment: str = ""
     #: Default digipeater path. WIDE1-1,WIDE2-1 is the conventional "new
     #: N-paradigm" path that gets a beacon out one hop then two wide hops
@@ -957,6 +960,8 @@ def _load_aprs(value: Any, warnings: list[str]) -> AprsConfig:
         clamped = max(-180.0, min(180.0, aprs.longitude))
         warnings.append(f"aprs.longitude {aprs.longitude} out of range -180..180; clamped to {clamped}")
         aprs.longitude = clamped
+
+    aprs.gps_device = _load_str(value, "gps_device", default.gps_device, warnings).strip()
 
     aprs.grid_square = _load_str(value, "grid_square", default.grid_square, warnings)
     aprs.winlink_check = _load_bool(value, "winlink_check", default.winlink_check, warnings)

@@ -43,6 +43,7 @@ from textual.widgets import (
 )
 
 from ..aprs import symbols
+from ..gps import discover_serial_gps
 from ..locator import LocatorError, from_grid, to_grid
 from .settings_schema import (
     SETTINGS_SCHEMA,
@@ -252,6 +253,8 @@ class SettingsPane(Vertical):
             # widgets for all three ids) and yield nothing of their own here.
             if spec.path == "aprs.latitude":
                 yield from self._compose_aprs_position()
+            elif spec.path == "aprs.gps_device":
+                yield from self._compose_gps_device(spec)
             return
         wid = _widget_id(spec.path)
         with Horizontal(classes="settings-row"):
@@ -298,6 +301,38 @@ class SettingsPane(Vertical):
         if spec.help:
             yield Static(spec.help, classes="settings-help")
         yield Label("", id=f"{wid}-error", classes="settings-error")
+
+    def _compose_gps_device(self, spec: Field) -> ComposeResult:
+        """A local serial-port chooser, not a path the operator must know."""
+        wid = _widget_id(spec.path)
+        with Horizontal(classes="settings-row"):
+            yield Label(spec.label, classes="settings-label")
+            with Vertical(classes="settings-custom-choice"):
+                yield Input(id=wid, placeholder=spec.placeholder)
+                yield Select(
+                    [("Scan local serial ports first", Select.BLANK)],
+                    id="aprs-gps-device-picker", allow_blank=True,
+                )
+            yield Button("Scan", id="aprs-gps-scan")
+        yield Static(spec.help, classes="settings-help")
+        yield Label("", id=f"{wid}-error", classes="settings-error")
+
+    @on(Button.Pressed, "#aprs-gps-scan")
+    @work
+    async def _scan_gps_devices(self) -> None:
+        picker = self.query_one("#aprs-gps-device-picker", Select)
+        picker.set_options([("Scanning local serial ports…", Select.BLANK)])
+        devices = await discover_serial_gps()
+        options = [(f"{item.label} — {item.detail}", item.label) for item in devices]
+        picker.set_options(options or [("No local serial ports found", Select.BLANK)])
+        if options:
+            picker.value = options[0][1]
+        self.app.notify("GPS serial ports scanned." if options else "No local serial ports found.")
+
+    @on(Select.Changed, "#aprs-gps-device-picker")
+    def _choose_gps_device(self, event: Select.Changed) -> None:
+        if event.value not in (Select.BLANK, Select.NULL):
+            self.query_one("#aprs-gps-device", Input).value = str(event.value)
 
     def _compose_aprs_position(self) -> ComposeResult:
         """Latitude/longitude/grid-square as one hand-built block, outside

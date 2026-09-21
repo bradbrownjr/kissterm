@@ -189,6 +189,18 @@ Direwolf config change needed. Two things that do trip people up:
   program (a second kissterm instance, a monitoring tool) already has that
   KISS port open.
 
+### GPS receivers
+
+An NMEA-0183 GPS receiver is separate from the TNC. In Settings > APRS, use
+the GPS serial-device **Scan** button and choose the receiver's local serial
+port. Standard receivers use 4800 baud. Once selected, APRS position beacons
+use a current GPS fix instead of the fixed coordinates in Settings; `GPS FIX`
+or `GPS NO FIX` remains visible in the status bar. No fix means no beacon,
+never a fallback to a possibly stale location.
+
+A Bluetooth GPS puck bound with `rfcomm` is also an ordinary serial device;
+choose its `/dev/rfcomm*` path after pairing and binding it as described below.
+
 ## 4. Bluetooth TNC pairing (Mobilinkd and similar)
 
 A Mobilinkd TNC3/TNC4 in its classic-Bluetooth (SPP) mode pairs like any

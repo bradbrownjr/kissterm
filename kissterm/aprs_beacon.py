@@ -70,10 +70,12 @@ class AprsBeaconer:
         config: AprsConfig,
         *,
         on_sent: Callable[[AX25Frame], None] | None = None,
+        position_source: Callable[[], tuple[float, float] | None] | None = None,
     ) -> None:
         self.station = station
         self.config = config
         self.on_sent = on_sent
+        self.position_source = position_source
         self._task: asyncio.Task | None = None
         self.sent_count = 0
 
@@ -109,13 +111,13 @@ class AprsBeaconer:
             # frame silently, and this class must never report a beacon it
             # did not send.
             return "transmit is disabled"
-        if self.config.latitude == 0.0 and self.config.longitude == 0.0:
+        if self._position() is None:
             # 0,0 is a real point (the Gulf of Guinea) and also exactly what
             # an unconfigured `AprsConfig` defaults to. Treating it as "no
             # position set" is the safe read: transmitting a placeholder
             # position under the operator's callsign is worse than not
             # beaconing at all.
-            return "no position set (latitude and longitude are both 0.0)"
+            return "GPS has no fix" if self.position_source is not None else "no position set (latitude and longitude are both 0.0)"
         if len(self.config.symbol) != 2 or self.config.symbol[0] not in "/\\":
             return f"bad map symbol {self.config.symbol!r}"
         try:
@@ -127,6 +129,14 @@ class AprsBeaconer:
     # ------------------------------------------------------------------
     def _path(self) -> AX25Path:
         return parse_path(f"{APRS_DESTINATION} {self.config.path}".strip())
+
+    def _position(self) -> tuple[float, float] | None:
+        """Ask for a live position only at the moment of a beacon."""
+        if self.position_source is not None:
+            return self.position_source()
+        if self.config.latitude == 0.0 and self.config.longitude == 0.0:
+            return None
+        return self.config.latitude, self.config.longitude
 
     def build_frame(self) -> AX25Frame | None:
         """The frame that would go out now, or None if nothing should.
@@ -141,8 +151,9 @@ class AprsBeaconer:
         repeated here too, mirroring `Beaconer.build_frame`'s own
         independent empty-text guard.
         """
-        if self.config.latitude == 0.0 and self.config.longitude == 0.0:
-            log.warning("APRS beacon not sent: no position set (both 0.0)")
+        position = self._position()
+        if position is None:
+            log.warning("APRS beacon not sent: no current position")
             return None
         if len(self.config.symbol) != 2 or self.config.symbol[0] not in "/\\":
             log.warning("APRS beacon not sent: bad map symbol %r", self.config.symbol)
@@ -157,8 +168,8 @@ class AprsBeaconer:
             comment = f"{kept} {_WINLINK_TOKEN}" if kept else _WINLINK_TOKEN
         try:
             payload = aprs_encode.position_report(
-                self.config.latitude,
-                self.config.longitude,
+                position[0],
+                position[1],
                 self.config.symbol[0],
                 self.config.symbol[1],
                 comment,

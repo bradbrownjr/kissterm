@@ -105,6 +105,27 @@ async def test_position_cleared_under_a_running_beaconer_stops_transmission():
 
 
 @pytest.mark.asyncio
+async def test_live_position_is_asked_for_at_send_time_without_changing_config():
+    station, _, _ = await _station()
+    current = (42.1, -71.2)
+    beacon = AprsBeaconer(station, _config(latitude=1.0, longitude=2.0), position_source=lambda: current)
+    frame = beacon.build_frame()
+    decoded = parse_packet(frame)
+    assert round(decoded.data.latitude, 1) == 42.1
+    assert round(decoded.data.longitude, 1) == -71.2
+    assert (beacon.config.latitude, beacon.config.longitude) == (1.0, 2.0)
+
+
+@pytest.mark.asyncio
+async def test_configured_live_source_with_no_fix_never_falls_back_to_static_position():
+    station, ta, _ = await _station()
+    beacon = AprsBeaconer(station, _config(), position_source=lambda: None)
+    assert beacon.problem() == "GPS has no fix"
+    assert await beacon.send_once() is False
+    assert ta.sent == []
+
+
+@pytest.mark.asyncio
 async def test_a_transport_failure_does_not_raise_into_the_caller():
     station, ta, _ = await _station()
 

@@ -330,6 +330,11 @@ symbol = "/>"
 latitude = 0.0
 longitude = 0.0
 
+# Optional NMEA GPS receiver serial device. When configured, APRS beacons use
+# its live fix and wait when it has no fix; latitude/longitude above remain
+# untouched. Bluetooth GPS pucks bound with rfcomm are serial devices here.
+gps_device = ""
+
 comment = "kissterm packet station"
 
 # Digipeater path for outgoing beacons. WIDE1-1,WIDE2-1 is the standard
