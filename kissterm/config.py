@@ -399,7 +399,7 @@ class Config:
     #: convention for these gateways, not a cited spec -- confirm your own
     #: gateway's current format before relying on this operationally, and
     #: edit the template here if it differs.
-    aprs_sms_template: str = "{detail} {text}"
+    aprs_sms_template: str = "@{detail} {text}"
     aprs_email_template: str = "{detail} {text}"
     #: Max AX.25 info-field size in bytes. 256 is the traditional default;
     #: dropping to 128 or even 64 on a noisy HF path trades throughput for a

@@ -113,6 +113,82 @@ class OnboardingRequest:
     set_up_transport: bool
 
 
+@dataclass(frozen=True)
+class AprsGatewayMessageRequest:
+    """A service form's completed, but not yet transmitted, APRS body."""
+
+    addressee: str
+    body: str
+
+
+class AprsGatewayMessageScreen(ModalScreen[AprsGatewayMessageRequest | None]):
+    """Build one documented SMSGTE or EMAIL-2 request without sending it.
+
+    Gateway punctuation belongs here, not in a novice's memory: SMSGTE needs
+    ``@number`` followed by one space, while EMAIL-2 needs the recipient as
+    the first word.  Dismissing returns plain compose text; the regular APRS
+    send button remains the only deliberate transmit path.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, kind: str) -> None:
+        super().__init__()
+        self._kind = kind
+
+    def compose(self) -> ComposeResult:
+        sms = self._kind == "sms"
+        title = "Send SMS through SMSGTE" if sms else "Send email through EMAIL-2"
+        recipient = "Phone number" if sms else "Email address or shortcut"
+        hint = (
+            "kissterm adds @ before the number and the required single space."
+            if sms else "kissterm places this address or shortcut before one space and your message."
+        )
+        with Vertical(id="connect-box"):
+            yield Label(title, id="connect-title")
+            yield Input(placeholder=recipient, id="gateway-recipient")
+            yield Input(placeholder="Message", id="gateway-message")
+            yield Static(hint, id="connect-hint")
+            yield Static("", id="gateway-preview")
+            yield Label("", id="connect-error")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Put in compose box", variant="primary", id="gateway-apply")
+                yield Button("Cancel", id="gateway-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#gateway-recipient", Input).focus()
+
+    def _body(self) -> str:
+        recipient = self.query_one("#gateway-recipient", Input).value.strip()
+        message = self.query_one("#gateway-message", Input).value.strip()
+        if self._kind == "sms":
+            recipient = recipient.lstrip("@")
+            return f"@{recipient} {message}".strip()
+        return f"{recipient} {message}".strip()
+
+    @on(Input.Changed, "#gateway-recipient")
+    @on(Input.Changed, "#gateway-message")
+    def _preview(self) -> None:
+        body = self._body()
+        self.query_one("#gateway-preview", Static).update(
+            f"Will compose: {body}" if body else ""
+        )
+
+    @on(Button.Pressed, "#gateway-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#gateway-apply")
+    @on(Input.Submitted, "#gateway-message")
+    def _apply(self) -> None:
+        recipient = self.query_one("#gateway-recipient", Input).value.strip()
+        message = self.query_one("#gateway-message", Input).value.strip()
+        if not recipient or not message:
+            self.query_one("#connect-error", Label).update("Enter a recipient and message.")
+            return
+        self.dismiss(AprsGatewayMessageRequest("SMSGTE" if self._kind == "sms" else "EMAIL-2", self._body()))
+
+
 class OnboardingScreen(ModalScreen[OnboardingRequest | None]):
     """Plain-language first-run guide, before a new operator sees Settings.
 

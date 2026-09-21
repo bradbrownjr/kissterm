@@ -3,6 +3,19 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-21] — Add documented APRS SMS and email forms
+
+### Improvements
+
+- **Gateway-specific composition.** SMSGTE contacts now use documented
+  `@number message` formatting. The APRS Form action makes SMSGTE and EMAIL-2
+  bodies from recipient and message fields, previews the exact text, and only
+  puts it into the ordinary compose box; Send remains a separate operator
+  action.
+  **Files:** `kissterm/aprs_contacts.py`, `kissterm/config.py`,
+  `kissterm/ui/dialogs.py`, `kissterm/ui/aprs_pane.py`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Complete onboarding transport handoff
 
 ### Fixes

@@ -70,7 +70,7 @@ SERVICES = ("station", "sms", "email")
 #: require importing `kissterm.config` (which would invert this package's
 #: dependency direction: `config.py` already documents these gateway
 #: fields in terms of this module, not the other way around).
-DEFAULT_SMS_TEMPLATE = "{detail} {text}"
+DEFAULT_SMS_TEMPLATE = "@{detail} {text}"
 DEFAULT_EMAIL_TEMPLATE = "{detail} {text}"
 
 

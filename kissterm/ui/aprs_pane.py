@@ -382,6 +382,7 @@ class AprsPane(Horizontal):
                 # feature reachable only by a key nobody has been told about
                 # is not discoverable.
                 yield Button("Templates", id="aprs-templates-button")
+                yield Button("Form", id="aprs-gateway-form-button")
                 yield Button("Bulletin", id="aprs-bulletin-button")
                 yield Button("Object", id="aprs-object-button")
                 yield Button("Send", variant="primary", id="aprs-send-button")
@@ -485,6 +486,7 @@ class AprsPane(Horizontal):
         room = slideouts.split(total).main if self._slideout.open else total
         wide = room >= _COMPOSE_ROOM_FOR_TEMPLATES
         self.query_one("#aprs-templates-button", Button).display = wide
+        self.query_one("#aprs-gateway-form-button", Button).display = wide
         self.query_one("#aprs-bulletin-button", Button).display = wide
         self.query_one("#aprs-object-button", Button).display = room >= _COMPOSE_ROOM_FOR_OBJECT
         self.query_one("#aprs-to-input", Input).styles.width = 12 if wide else 10
@@ -1344,6 +1346,25 @@ class AprsPane(Horizontal):
     @on(Button.Pressed, "#aprs-templates-button")
     def _templates_pressed(self) -> None:
         self.show_templates()
+
+    @on(Button.Pressed, "#aprs-gateway-form-button")
+    @work
+    async def _gateway_form(self) -> None:
+        """Offer documented fields for the selected SMS/email gateway only."""
+        from .dialogs import AprsGatewayMessageScreen
+
+        addressee = self.query_one("#aprs-to-input", Input).value.strip().upper()
+        kind = "sms" if addressee == "SMSGTE" else "email" if addressee in {"EMAIL", "EMAIL-2"} else ""
+        if not kind:
+            self.app.notify("Choose SMSGTE or EMAIL-2 first, then open Form.", severity="warning")  # type: ignore[attr-defined]
+            return
+        result = await self.app.push_screen_wait(AprsGatewayMessageScreen(kind))  # type: ignore[attr-defined]
+        if result is None:
+            return
+        self.query_one("#aprs-to-input", Input).value = result.addressee
+        field = self.query_one("#aprs-compose-input", Input)
+        field.value = result.body
+        field.focus()
 
     @work
     async def show_templates(self) -> None:
