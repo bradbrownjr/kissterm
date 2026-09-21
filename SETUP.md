@@ -451,7 +451,16 @@ format alone (see the note in `kissterm/ax25/frame.py`'s `decode()`
 docstring), so it has to be a matching configuration choice on both sides,
 not something kissterm can silently work around.
 
-## 9. Developer setup
+## 9. YAPP file transfers
+
+While connected to a peer or BBS that supports YAPP, press `Ctrl+Shift+Y`.
+For an upload, choose **Browse files** and select the local file; kissterm
+sends the YAPP handshake only after that explicit choice. For a download,
+choose **Receive into directory** first, then issue the peer's YAPP download
+command. Completed downloads are saved in kissterm's application-data
+`downloads` directory. Kissterm never opens or executes transferred files.
+
+## 10. Developer setup
 
 Clone and install from source per §1, then enable the repo's git hooks
 (bumps the version on every commit, re-syncs your venv's dependencies after

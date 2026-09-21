@@ -165,16 +165,10 @@ entries. What's still open:
   packet-BBS command dialects (read commands, list-new, send-to-callsign),
   as scriptable macros (see P6) rather than hardcoded parsing, since BBS
   software varies enough that a rigid parser would break constantly. Medium.
-- [ ] **YAPP and autobin binary file transfer.** Note for whoever picks this
-  up: the sibling `bpq-apps` repo's docs describe YAPP as a dead end
-  *specifically for apps running under BPQ32's stdio terminal filter*, where
-  the filter's own line-oriented text handling gets in the way of anything
-  binary. That constraint does not apply here — kissterm holds a genuinely
-  binary-transparent AX.25 connected-mode link of its own, with no terminal
-  filter sitting in between, so YAPP (and the simpler autobin) are both
-  viable transfer protocols in kissterm even though they were ruled out for
-  bpq-apps. Do not let that bpq-apps finding get cited against implementing
-  this here — they are not the same situation. Medium-large effort.
+- [ ] **Autobin binary file transfer.** YAPP shipped `[2026-09-21]`; autobin
+  remains as its simpler companion protocol. As with YAPP, kissterm's native
+  binary-transparent AX.25 link avoids BPQ32 stdio terminal filtering, so the
+  sibling `bpq-apps` limitation does not apply here. Medium effort.
 
 ## P6 — UX
 

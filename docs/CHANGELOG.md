@@ -3,6 +3,21 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-21] — Add explicit YAPP client transfers
+
+### New Features
+
+- **YAPP upload and download.** Connected sessions can start an explicit
+  YAPP 1.1 transfer with `Ctrl+Shift+Y`. Upload uses a local file browser;
+  downloads always save under kissterm's application-data `downloads`
+  directory. The protocol validates names and advertised sizes, writes a
+  temporary partial file until completion, and keeps binary transfer bytes
+  out of terminal scrollback and transcripts. It is a client feature, not an
+  unattended upload drop box or file server.
+  **Files:** `kissterm/yapp.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/dialogs.py`, `tests/unit/test_yapp.py`, `README.md`,
+  `SETUP.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Prepare strict APRS object-report encoding
 
 ### Improvements

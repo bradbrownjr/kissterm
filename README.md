@@ -251,6 +251,7 @@ conversation, and swapping it mid-session would kill the link by timeout.
 | `Ctrl+L` | Clear the active log |
 | `Ctrl+O` | Browse saved session transcripts |
 | `Ctrl+F` | Find in the terminal scrollback |
+| `Ctrl+Shift+Y` | Start an explicit YAPP upload or download on the connected session |
 | `Ctrl+Q` | Quit |
 | `Ctrl+P` | Command palette -- also a searchable reference for every key above |
 
