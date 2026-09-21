@@ -2792,6 +2792,16 @@ class KissTermApp(App):
         # exactly what pulls the activation back.
         self.set_focus(None)
         tabs.active = tab
+
+        def _refresh_context_footer() -> None:
+            if tabs.active == tab:
+                self.query_one(KissTermFooter).refresh_bindings()
+
+        # `TabbedContent.TabActivated` fires before its new pane has fully
+        # settled. Refreshing there alone left one stale Footer render (with
+        # Terminal's Connect/Disconnect) until a click changed focus. Queue a
+        # second refresh after the tab switch's layout pass instead.
+        self.call_after_refresh(_refresh_context_footer)
         target = self._TAB_FOCUS.get(tab)
         if target is None:
             return

@@ -35,6 +35,7 @@ from kissterm.ui.dialogs import (  # noqa: E402
     TransportEntryScreen,
 )
 from textual.widgets import TabbedContent  # noqa: E402
+from textual.widgets._footer import FooterKey  # noqa: E402
 from textual.widgets import Input, Select, TextArea  # noqa: E402
 
 from kissterm.ui.heard_pane import HeardPane  # noqa: E402
@@ -106,6 +107,19 @@ async def test_aprs_is_watch_is_reachable_without_an_rf_transmission():
         assert app.screen.query_one("#aprs-is-watch-log") is not None
         assert ta.sent == []
         await app.screen.dismiss(None)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_aprs_footer_switches_context_before_any_aprs_interaction():
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(140, 40)) as pilot:
+        app.action_show_tab("aprs")
+        await pilot.pause()
+        actions = [key.action for key in app.query_one(ui_app.KissTermFooter).query(FooterKey)]
+        assert "connect" not in actions
+        assert "disconnect" not in actions
+        assert "aprs_gateway_form" in actions
     station.close()
 
 

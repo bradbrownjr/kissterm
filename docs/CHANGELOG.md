@@ -46,6 +46,12 @@ touched and any breaking notes.
   `tests/pilot/test_slideout_auto_open.py`, `tests/unit/test_config.py`,
   `docs/CHANGELOG.md`.
 
+- **Immediate footer context.** Changing to APRS now refreshes its contextual
+  shortcut bar after the tab layout settles, so Terminal-only Connect and
+  Disconnect entries cannot linger until another APRS interaction.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_app_mounts.py`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add documented APRS SMS and email forms
 
 ### Improvements
