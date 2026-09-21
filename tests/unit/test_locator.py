@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from kissterm.locator import LocatorError, find_grid_in_text, from_grid, to_grid
+from kissterm.locator import LocatorError, find_grid_in_text, from_grid, from_mgrs, from_utm, to_grid
 
 # ARRL HQ, Newington CT -- widely cited as grid square FN31pr.
 ARRL_LAT, ARRL_LON = 41.7148, -72.7273
@@ -39,6 +39,26 @@ def test_subsquare_letters_are_accepted_in_either_case():
     lat_upper, lon_upper = from_grid("FN31PR")
     assert lat_lower == lat_upper
     assert lon_lower == lon_upper
+
+
+def test_known_mgrs_reference_converts_to_wgs84():
+    """MGRS's published 15TWG example is at 42 N, 93 W to grid precision."""
+    lat, lon = from_mgrs("15T WG 00000 49776")
+    assert lat == pytest.approx(42.0, abs=0.0001)
+    assert lon == pytest.approx(-93.0, abs=0.0001)
+
+
+def test_utm_requires_an_explicit_hemisphere_and_converts_to_wgs84():
+    # Zone 31's central meridian is 3 E; this is the standard UTM example at 42 N.
+    lat, lon = from_utm("31 N 500000 4649776.22482")
+    assert lat == pytest.approx(42.0, abs=0.0001)
+    assert lon == pytest.approx(3.0, abs=0.0001)
+
+
+@pytest.mark.parametrize("converter,reference", [(from_mgrs, "18I BAD"), (from_utm, "18N 691875 4576931")])
+def test_malformed_projected_coordinates_are_refused(converter, reference):
+    with pytest.raises(LocatorError):
+        converter(reference)
 
 
 @pytest.mark.parametrize(

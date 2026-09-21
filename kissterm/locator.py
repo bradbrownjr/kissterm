@@ -1,4 +1,4 @@
-"""Maidenhead grid-square <-> decimal-degree conversion.
+"""Operator-facing grid references -> WGS-84 decimal degrees.
 
 The Maidenhead Locator System is the standard way hams give their position
 as a short alphanumeric string instead of decimal degrees -- what a
@@ -19,16 +19,28 @@ total characters. kissterm supports 4, 6, or 8-character precision;
 2-character (field-only, ~lower left of a state or two) is too coarse to
 be useful for a station's own position and is not offered.
 
+Maidenhead is implemented here because its compact cell arithmetic is short
+and readily audited. MGRS and UTM have datum, zone, hemisphere and (for MGRS)
+grid-letter edge cases that cannot be responsibly recreated from a quick
+formula, so `pygeodesy` performs those WGS-84 conversions. APRS still gets
+only the resulting latitude/longitude; it has no MGRS or UTM wire format.
+
 Verified against the commonly-cited reference point FN31pr (the ARRL's own
-Newington, CT headquarters grid square, roughly 41.71 N 72.73 W) in
-`tests/unit/test_locator.py`.
+Newington, CT headquarters grid square, roughly 41.71 N 72.73 W) and known
+MGRS/UTM examples in `tests/unit/test_locator.py`.
 """
 
 from __future__ import annotations
 
+import math
 import re
 
-__all__ = ["LocatorError", "to_grid", "from_grid", "find_grid_in_text"]
+from pygeodesy import parseMGRS, parseUTM5
+
+__all__ = [
+    "LocatorError", "to_grid", "from_grid", "from_mgrs", "from_utm",
+    "find_grid_in_text",
+]
 
 #: Field letters run A-R (18 of them: 18*20=360 for longitude, 18*10=180
 #: for latitude). Subsquare letters run A-X (24 of them: 24 subsquares per
@@ -138,6 +150,45 @@ def from_grid(grid: str) -> tuple[float, float]:
     lon_center = lon + lon_width / 2 - 180.0
     lat_center = lat + lat_width / 2 - 90.0
     return lat_center, lon_center
+
+
+def _wgs84_point(reference: str, parser, kind: str) -> tuple[float, float]:
+    """Convert one external grid reference, giving the operator one useful
+    validation error rather than exposing a library-specific traceback.
+
+    The dialog deliberately accepts only WGS-84 UTM/MGRS. A coordinate with a
+    different datum can be metres (occasionally hundreds of metres) away from
+    the intended object, and APRS has no datum field to preserve that fact.
+    """
+    try:
+        point = parser(reference.strip()).toLatLon()
+        latitude, longitude = float(point.lat), float(point.lon)
+    except Exception as exc:
+        raise LocatorError(f"{reference!r} is not a valid WGS-84 {kind} reference") from exc
+    if not math.isfinite(latitude) or not math.isfinite(longitude):
+        raise LocatorError(f"{reference!r} does not resolve to a finite position")
+    return latitude, longitude
+
+
+def from_mgrs(reference: str) -> tuple[float, float]:
+    """MGRS -> `(latitude, longitude)` in WGS-84 decimal degrees.
+
+    Accepts conventional compact or spaced forms, e.g. ``18TWL8566411348`` or
+    ``18T WL 85664 11348``. MGRS names a cell, so the conversion returns its
+    centre -- the same honest convention `from_grid` uses for Maidenhead.
+    """
+    return _wgs84_point(reference, parseMGRS, "MGRS")
+
+
+def from_utm(reference: str) -> tuple[float, float]:
+    """WGS-84 UTM -> `(latitude, longitude)` in decimal degrees.
+
+    The required unambiguous form is ``zone hemisphere easting northing``, for
+    example ``18 N 691875 4576931``. The hemisphere is required: a UTM band
+    letter is not interchangeable with ``N``/``S`` and guessing it can place
+    an object on the other side of the equator.
+    """
+    return _wgs84_point(reference, parseUTM5, "UTM")
 
 
 def find_grid_in_text(text: str) -> tuple[str, float, float] | None:

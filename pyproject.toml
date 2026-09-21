@@ -4,14 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.161"
+version = "0.1.162"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [{name = "Brad Brown Jr", email = "bradbrownjr@gmail.com"}]
 keywords = ["amateur radio", "ham radio", "packet radio", "ax25", "kiss", "aprs", "bpq32", "textual", "tnc"]
-dependencies = ["textual", "rich", "pyserial", "platformdirs"]
+# PyGeodesy is pure Python and converts the coordinate formats operators
+# commonly receive from mapping and public-safety tools (UTM/MGRS) to the
+# WGS-84 decimal degrees APRS encodes on air.  Keeping that projection logic
+# in one maintained library is safer than separate hand-rolled algorithms.
+dependencies = ["textual", "rich", "pyserial", "platformdirs", "pygeodesy>=26.9"]
 
 classifiers = [
     "Development Status :: 3 - Alpha",

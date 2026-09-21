@@ -30,6 +30,7 @@ from ..aprs_contacts import (
     validate_contact,
 )
 from ..ax25 import parse_path
+from ..locator import LocatorError, from_grid, from_mgrs, from_utm
 from .symbol_picker import SymbolPicker
 from .wraplog import WrapLog
 
@@ -338,7 +339,10 @@ class AprsObjectScreen(ModalScreen[AprsObjectRequest | None]):
     An APRS object names and locates something other than this station.  The
     configured beacon position is offered as a starting point solely because
     it is often nearby; each coordinate remains an explicit, editable object
-    field.  Dismissing this screen hands a request to the app -- it does not
+    field. Operators may instead enter Maidenhead, MGRS, or WGS-84 UTM: APRS
+    has no wire representation for those grids, so this screen converts the
+    chosen reference to WGS-84 latitude/longitude before handing the request
+    back. Dismissing this screen hands a request to the app -- it does not
     have a transport or a transmit path of its own.
     """
 
@@ -359,9 +363,19 @@ class AprsObjectScreen(ModalScreen[AprsObjectRequest | None]):
                 [("Live object", "live"), ("Kill object", "killed")],
                 value="live", id="aprs-object-alive", allow_blank=False,
             )
+            yield Select(
+                [
+                    ("Decimal latitude / longitude", "decimal"),
+                    ("Maidenhead grid square", "grid"),
+                    ("MGRS", "mgrs"),
+                    ("WGS-84 UTM", "utm"),
+                ],
+                value="decimal", id="aprs-object-coordinate-format", allow_blank=False,
+            )
             with Horizontal(classes="aprs-object-coordinates"):
                 yield Input(value=str(self._latitude), placeholder="Latitude", id="aprs-object-latitude")
                 yield Input(value=str(self._longitude), placeholder="Longitude", id="aprs-object-longitude")
+            yield Input(id="aprs-object-reference")
             yield SymbolPicker(
                 picker_id="aprs-object-symbol-picker", select_id="aprs-object-symbol",
                 ascii_safe=self._ascii_safe, value=self._symbol,
@@ -372,17 +386,48 @@ class AprsObjectScreen(ModalScreen[AprsObjectRequest | None]):
                 yield Button("Send object", id="aprs-object-send", classes="-primary")
                 yield Button("Cancel", id="aprs-object-cancel")
 
+    def on_mount(self) -> None:
+        self._sync_coordinate_fields()
+
+    @on(Select.Changed, "#aprs-object-coordinate-format")
+    def _coordinate_format_changed(self) -> None:
+        self._sync_coordinate_fields()
+
+    def _sync_coordinate_fields(self) -> None:
+        """Show exactly the one coordinate entry shape the selected format needs."""
+        mode = str(self.query_one("#aprs-object-coordinate-format", Select).value)
+        self.query_one(".aprs-object-coordinates", Horizontal).display = mode == "decimal"
+        reference = self.query_one("#aprs-object-reference", Input)
+        reference.display = mode != "decimal"
+        reference.placeholder = {
+            "grid": "Grid square, e.g. FN31pr",
+            "mgrs": "MGRS, e.g. 18T WL 85664 11348",
+            "utm": "UTM, e.g. 18 N 691875 4576931",
+        }.get(mode, "Coordinate reference")
+
     @on(Button.Pressed, "#aprs-object-cancel")
     def _cancel_object(self) -> None:
         self.dismiss(None)
 
     @on(Button.Pressed, "#aprs-object-send")
     def _send_object(self) -> None:
+        mode = str(self.query_one("#aprs-object-coordinate-format", Select).value)
         try:
-            latitude = float(self.query_one("#aprs-object-latitude", Input).value.strip())
-            longitude = float(self.query_one("#aprs-object-longitude", Input).value.strip())
-        except ValueError:
-            self.notify("Latitude and longitude must be decimal numbers.", severity="warning")
+            if mode == "decimal":
+                latitude = float(self.query_one("#aprs-object-latitude", Input).value.strip())
+                longitude = float(self.query_one("#aprs-object-longitude", Input).value.strip())
+            else:
+                reference = self.query_one("#aprs-object-reference", Input).value
+                converter = {"grid": from_grid, "mgrs": from_mgrs, "utm": from_utm}[mode]
+                latitude, longitude = converter(reference)
+        except (KeyError, LocatorError, ValueError):
+            examples = {
+                "decimal": "Latitude and longitude must be decimal numbers.",
+                "grid": "Enter a 4-, 6-, or 8-character grid square, e.g. FN31pr.",
+                "mgrs": "Enter WGS-84 MGRS, e.g. 18T WL 85664 11348.",
+                "utm": "Enter WGS-84 UTM as zone hemisphere easting northing, e.g. 18 N 691875 4576931.",
+            }
+            self.notify(examples.get(mode, "Enter a valid coordinate."), severity="warning")
             return
         name = self.query_one("#aprs-object-name", Input).value
         symbol = self.query_one("#aprs-object-symbol-picker", SymbolPicker).value

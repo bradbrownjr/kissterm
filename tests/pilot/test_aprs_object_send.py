@@ -97,3 +97,37 @@ async def test_object_composer_cancel_never_transmits():
         assert transport.sent == []
         assert app.gate.enabled is False
     station.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("mode", "reference", "latitude", "longitude"),
+    [
+        # A grid names an area; the documented conversion uses its centre.
+        ("grid", "FN31pr", 41.7292, -72.7083),
+        ("mgrs", "15T WG 00000 49776", 42.0, -93.0),
+        ("utm", "31 N 500000 4649776.22482", 42.0, 3.0),
+    ],
+)
+async def test_object_composer_converts_grid_references_to_aprs_coordinates(
+    mode, reference, latitude, longitude,
+):
+    app, station, transport = await _app()
+    async with app.run_test(size=(120, 44)) as pilot:
+        app.action_show_tab("aprs")
+        await pilot.pause()
+        app.action_aprs_object()
+        await asyncio.sleep(0.05)
+        await pilot.pause()
+        app.screen.query_one("#aprs-object-name", Input).value = "SHELTER"
+        app.screen.query_one("#aprs-object-coordinate-format", Select).value = mode
+        app.screen.query_one("#aprs-object-reference", Input).value = reference
+        await pilot.click("#aprs-object-send")
+        for _ in range(20):
+            if transport.sent:
+                break
+            await asyncio.sleep(0.05)
+        packet = aprs.parse_packet(transport.sent[0])
+        assert packet.data.position.latitude == pytest.approx(latitude, abs=0.02)
+        assert packet.data.position.longitude == pytest.approx(longitude, abs=0.02)
+    station.close()

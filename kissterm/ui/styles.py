@@ -215,10 +215,11 @@ AprsIsWatchScreen { align: center middle; }
     border: thick $primary; background: $surface;
 }
 #aprs-object-name, #aprs-object-comment { width: 100%; margin-top: 1; }
-#aprs-object-alive { width: 100%; margin-top: 1; }
+#aprs-object-alive, #aprs-object-coordinate-format { width: 100%; margin-top: 1; }
 .aprs-object-coordinates { height: auto; margin-top: 1; }
 .aprs-object-coordinates Input { width: 1fr; }
 .aprs-object-coordinates Input:first-child { margin-right: 1; }
+#aprs-object-reference { width: 100%; margin-top: 1; }
 #aprs-object-hint { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
 
 /* Connect dialog */

@@ -7,6 +7,16 @@ touched and any breaking notes.
 
 ### New Features
 
+- **Object reports accept common field coordinate formats.** The APRS object
+  composer now accepts decimal GPS coordinates, Maidenhead grid squares, MGRS,
+  and explicit-hemisphere WGS-84 UTM references. It converts the selected
+  reference to the latitude/longitude APRS actually transmits, rejects an
+  ambiguous UTM hemisphere instead of guessing, and leaves the object send
+  button as the sole deliberate transmit action.
+  **Files:** `pyproject.toml`, `kissterm/locator.py`, `kissterm/ui/dialogs.py`,
+  `kissterm/ui/styles.py`, `tests/unit/test_locator.py`,
+  `tests/pilot/test_aprs_object_send.py`, `docs/CHANGELOG.md`.
+
 - **Receive-only APRS-IS inspection.** The APRS pane now offers Watch IS
   (`Ctrl+Shift+I`), a live raw view filtered to packets from the operator's
   APRS identity and messages addressed back to it. It uses APRS-IS `pass -1`,
