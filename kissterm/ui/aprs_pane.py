@@ -383,6 +383,7 @@ class AprsPane(Horizontal):
                 # is not discoverable.
                 yield Button("Templates", id="aprs-templates-button")
                 yield Button("Form", id="aprs-gateway-form-button")
+                yield Button("Watch IS", id="aprs-is-watch-button")
                 yield Button("Bulletin", id="aprs-bulletin-button")
                 yield Button("Object", id="aprs-object-button")
                 yield Button("Send", variant="primary", id="aprs-send-button")
@@ -487,6 +488,7 @@ class AprsPane(Horizontal):
         wide = room >= _COMPOSE_ROOM_FOR_TEMPLATES
         self.query_one("#aprs-templates-button", Button).display = wide
         self.query_one("#aprs-gateway-form-button", Button).display = wide
+        self.query_one("#aprs-is-watch-button", Button).display = wide
         self.query_one("#aprs-bulletin-button", Button).display = wide
         self.query_one("#aprs-object-button", Button).display = room >= _COMPOSE_ROOM_FOR_OBJECT
         self.query_one("#aprs-to-input", Input).styles.width = 12 if wide else 10
@@ -1365,6 +1367,10 @@ class AprsPane(Horizontal):
         field = self.query_one("#aprs-compose-input", Input)
         field.value = result.body
         field.focus()
+
+    @on(Button.Pressed, "#aprs-is-watch-button")
+    def _aprs_is_watch(self) -> None:
+        self.app.action_aprs_is_watch()  # type: ignore[attr-defined]
 
     @work
     async def show_templates(self) -> None:

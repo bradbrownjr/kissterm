@@ -58,6 +58,7 @@ ACTION_META: dict[str, ActionMeta] = {
     "beacon_now": ActionMeta("Transmit", 5),
     "aprs_beacon_now": ActionMeta("Transmit", 6),
     "aprs_object": ActionMeta("APRS", 6),
+    "aprs_is_watch": ActionMeta("APRS", 7),
     "set_callsign": ActionMeta("Connection", 7),
     "find_in_terminal": ActionMeta("Terminal", 8),
     "clear_log": ActionMeta("Terminal", 9),

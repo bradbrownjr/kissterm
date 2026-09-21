@@ -121,6 +121,75 @@ class AprsGatewayMessageRequest:
     body: str
 
 
+class AprsIsWatchScreen(ModalScreen[None]):
+    """Live raw APRS-IS diagnostics, deliberately separate from RF traffic."""
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Close")]
+
+    def __init__(self, watch, callsign: str) -> None:
+        super().__init__()
+        self._watch = watch
+        self._callsign = callsign
+        self._shown = 0
+        self._unsubscribe = lambda: None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="aprs-is-watch-box"):
+            yield Label("APRS-IS Watch", id="connect-title")
+            yield Static(
+                f"{self._callsign}: own packets and messages addressed back to you. "
+                "Receive-only; it never keys RF.",
+                id="connect-hint",
+            )
+            yield Static("Stopped", id="aprs-is-watch-status")
+            yield WrapLog(id="aprs-is-watch-log", wrap=True, markup=False)
+            with Horizontal(id="connect-buttons"):
+                yield Button("Start watch", variant="primary", id="aprs-is-watch-start")
+                yield Button("Stop", id="aprs-is-watch-stop")
+                yield Button("Close", id="aprs-is-watch-close")
+
+    def on_mount(self) -> None:
+        self._unsubscribe = self._watch.subscribe(self._refresh)
+        self._refresh()
+
+    def on_unmount(self) -> None:
+        # Escape uses the generic dismiss binding, so stopping here is the
+        # one lifecycle rule shared by Escape, Close, and app shutdown.
+        self._unsubscribe()
+        self._watch.stop()
+
+    def _refresh(self) -> None:
+        if not self.is_mounted:
+            return
+        self.query_one("#aprs-is-watch-status", Static).update(self._watch.status)
+        log = self.query_one("#aprs-is-watch-log", WrapLog)
+        lines = tuple(self._watch.lines)
+        if self._shown > len(lines):
+            log.clear()
+            self._shown = 0
+        for line in lines[self._shown :]:
+            log.write(line)
+        self._shown = len(lines)
+        self.query_one("#aprs-is-watch-start", Button).disabled = self._watch.running
+        self.query_one("#aprs-is-watch-stop", Button).disabled = not self._watch.running
+
+    @on(Button.Pressed, "#aprs-is-watch-start")
+    def _start(self) -> None:
+        try:
+            self._watch.start(callsign=self._callsign)
+        except ValueError as exc:
+            self.query_one("#aprs-is-watch-status", Static).update(str(exc))
+
+    @on(Button.Pressed, "#aprs-is-watch-stop")
+    def _stop(self) -> None:
+        self._watch.stop()
+
+    @on(Button.Pressed, "#aprs-is-watch-close")
+    def _close(self) -> None:
+        self._watch.stop()
+        self.dismiss(None)
+
+
 class AprsGatewayMessageScreen(ModalScreen[AprsGatewayMessageRequest | None]):
     """Build one documented SMSGTE or EMAIL-2 request without sending it.
 

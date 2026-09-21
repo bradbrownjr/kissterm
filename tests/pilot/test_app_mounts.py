@@ -27,6 +27,7 @@ from kissterm.monitor import sanitize  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.ui.commands import ACTION_META, KeyBindingsProvider, _action_base  # noqa: E402
 from kissterm.ui.dialogs import (  # noqa: E402
+    AprsIsWatchScreen,
     CallsignScreen,
     ConnectScreen,
     OnboardingScreen,
@@ -88,6 +89,22 @@ async def test_app_mounts_with_every_pane():
     async with app.run_test(size=(120, 40)):
         for pane in (TerminalPane, MonitorPane, HeardPane, SettingsPane):
             assert app.query_one(pane) is not None, f"{pane.__name__} did not mount"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_aprs_is_watch_is_reachable_without_an_rf_transmission():
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("aprs")
+        await pilot.pause()
+        await pilot.press("ctrl+shift+i")
+        await asyncio.sleep(0.05)
+        await pilot.pause()
+        assert isinstance(app.screen, AprsIsWatchScreen)
+        assert app.screen.query_one("#aprs-is-watch-log") is not None
+        assert ta.sent == []
+        await app.screen.dismiss(None)
     station.close()
 
 

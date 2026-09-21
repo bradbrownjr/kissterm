@@ -133,6 +133,7 @@ from .. import __version__
 from ..addressbook import AddressBook
 from ..netrom import KnownNodes
 from .. import aprs
+from ..aprs_is import AprsIsWatch
 from ..aprs_conversations import ConversationStore, MessageDeduplicator
 from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import AX25Station, LinkParams, parse_path
@@ -167,6 +168,7 @@ from .dialogs import (
     ConnectScreen,
     AprsObjectScreen,
     AprsObjectRequest,
+    AprsIsWatchScreen,
     RadioReminderScreen,
     TranscriptsScreen,
     FileTransferScreen,
@@ -675,6 +677,7 @@ class KissTermApp(App):
         # the APRS pane or editing any settings.
         Binding("ctrl+alt+b", "aprs_beacon_now", "Position now"),
         Binding("ctrl+shift+o", "aprs_object", "Object", key_display="^O"),
+        Binding("ctrl+shift+i", "aprs_is_watch", "Watch IS", key_display="^I"),
         Binding("ctrl+n", "connect", "Connect"),
         # Ctrl+SHIFT+D, not plain Ctrl+D, for the same reason as Ctrl+Shift+B
         # above: Textual's `Input` and `TextArea` both bind plain `ctrl+d` to
@@ -828,6 +831,9 @@ class KissTermApp(App):
         #: not "should a desktop notification fire", and the two must not
         #: consume each other's window.
         self._aprs_ack_blocked_cooldown = Cooldown()
+        #: APRS-IS diagnostics are separate from the RF transport fan-out.
+        #: The current UI opens this object only with a ``pass -1`` login.
+        self.aprs_is_watch = AprsIsWatch()
         #: Watches local serial ports only. The network is never scanned on a
         #: timer -- see kissterm/hotplug.py for the cost argument.
         self.port_watcher = SerialPortWatcher()
@@ -1172,6 +1178,7 @@ class KissTermApp(App):
         """
         self.beaconer.cancel()
         self.aprs_beaconer.cancel()
+        self.aprs_is_watch.stop()
         if self.gps_reader is not None:
             self.gps_reader.cancel()
         self._unsubscribe_monitor()
@@ -2610,6 +2617,11 @@ class KissTermApp(App):
             self.notify(f"APRS object {request.name.strip()} sent.")
         else:
             self.notify("APRS object not sent. Check its fields and APRS path.", severity="warning")
+
+    @work
+    async def action_aprs_is_watch(self) -> None:
+        """Open the receive-only APRS-IS diagnostic stream for this call."""
+        await self.push_screen_wait(AprsIsWatchScreen(self.aprs_is_watch, self._active_aprs_identity()))
 
     async def _toggle_aprs_beacon_quick(self) -> None:
         """Flip `config.aprs.enabled` from the APRS pane's Ctrl+Shift+B,

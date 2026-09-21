@@ -205,6 +205,15 @@ AprsPane { height: 1fr; }
 #aprs-service-table { height: 1fr; }
 #aprs-service-search { border: round $accent; margin-bottom: 1; }
 
+/* APRS-IS Watch is a diagnostic, not an APRS compose route. */
+AprsIsWatchScreen { align: center middle; }
+#aprs-is-watch-box {
+    width: 88; height: 85%; padding: 1 2;
+    border: thick $primary; background: $surface;
+}
+#aprs-is-watch-status { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
+#aprs-is-watch-log { height: 1fr; border: round $primary; margin-top: 1; }
+
 /* The object composer uses the existing dialog shape and the same shared
    symbol picker as APRS Settings. Its coordinate fields read as one pair. */
 #aprs-object-box {

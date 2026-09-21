@@ -3,6 +3,22 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-21] — Add APRS-IS Watch diagnostics
+
+### New Features
+
+- **Receive-only APRS-IS inspection.** The APRS pane now offers Watch IS
+  (`Ctrl+Shift+I`), a live raw view filtered to packets from the operator's
+  APRS identity and messages addressed back to it. It uses APRS-IS `pass -1`,
+  sends only its login line, never keys RF, and sanitizes received text before
+  rendering. Its access model can also represent a future verified login,
+  without adding an APRS-IS publish path or turning kissterm into an igate.
+  **Files:** `kissterm/aprs_is.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/aprs_pane.py`, `kissterm/ui/dialogs.py`,
+  `kissterm/ui/styles.py`, `kissterm/ui/commands.py`,
+  `tests/unit/test_aprs_is.py`, `tests/pilot/test_app_mounts.py`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add documented APRS SMS and email forms
 
 ### Improvements
