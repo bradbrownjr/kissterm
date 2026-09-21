@@ -150,6 +150,7 @@ from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError, TransportState
 from ..tx import DISABLED_MESSAGE, TransmitGate
 from ..watched_notify import WatchNotifier, claimed_callsigns, normalize_callsigns
+from ..yapp import YappError, receive_file, send_file
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
@@ -164,6 +165,7 @@ from .dialogs import (
     ConnectScreen,
     RadioReminderScreen,
     TranscriptsScreen,
+    YappTransferScreen,
 )
 from .heard_pane import HeardPane
 from .monitor_pane import MonitorPane
@@ -629,6 +631,7 @@ class KissTermApp(App):
         Binding("f5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+5", "show_tab('settings')", "Settings", show=False),
         Binding("ctrl+t", "toggle_transmit", "TX"),
+        Binding("ctrl+shift+y", "yapp_transfer", "YAPP", key_display="^Y"),
         # The Address Book (Terminal) and APRS contacts slide-outs share this
         # one key -- see `action_toggle_contacts`. Checked against every
         # existing claim before picking "G": `Input`'s own bindings already
@@ -825,6 +828,7 @@ class KissTermApp(App):
         #: not re-notify the operator every time it is heard again -- the
         #: point is "you have not seen this yet", not a running tally.
         self._mail_notified: set[tuple[str, str]] = set()
+        self._yapp_active: set[str] = set()
         #: Monotonic time of local interaction.  This intentionally means
         #: active use, not merely an app window that happens to be open.
         self._last_operator_activity = time.monotonic()
@@ -1985,6 +1989,8 @@ class KissTermApp(App):
             return
 
     def _on_link_data(self, session_key: str, data: bytes) -> None:
+        if session_key in self._yapp_active:
+            return
         # Any data back answers the "did they get it" question the reply
         # timer exists for -- see `_note_if_no_reply`.
         self._cancel_reply_timer(session_key)
@@ -3301,6 +3307,35 @@ class KissTermApp(App):
         now, since `SessionLog` is line-buffered.
         """
         await self.push_screen_wait(TranscriptsScreen(self._transcript_directory()))
+
+    @work
+    async def action_yapp_transfer(self) -> None:
+        """Start one explicit YAPP upload or arm one explicit download."""
+        key = self._active_key()
+        session = self._sessions.get(key)
+        if session is None or session.link is None or not session.link.connected:
+            self.notify("Connect before starting a YAPP transfer.", severity="warning")
+            return
+        request = await self.push_screen_wait(YappTransferScreen())
+        if request is None:
+            return
+        if self.gate is not None and not self.gate.enabled:
+            self._arm_for(f"YAPP {request.mode}")
+        self._yapp_active.add(key)
+        self._note(key, f"\n*** YAPP {request.mode} starting\n")
+        try:
+            if request.mode == "upload":
+                result = await send_file(session.link, request.path)
+            else:
+                result = await receive_file(session.link, request.path)
+        except (OSError, ValueError, YappError) as exc:
+            self._note(key, f"\n*** YAPP {request.mode} failed: {exc}\n")
+            self.notify(f"YAPP {request.mode} failed: {exc}", severity="warning")
+        else:
+            self._note(key, f"\n*** YAPP {request.mode} complete: {result.path.name} ({result.size} bytes)\n")
+            self.notify(f"YAPP {request.mode} complete: {result.path.name}")
+        finally:
+            self._yapp_active.discard(key)
 
     @work
     async def action_disconnect(self) -> None:

@@ -77,6 +77,42 @@ class ConnectRequest:
     port: int = 0
 
 
+@dataclass(frozen=True)
+class YappRequest:
+    mode: str
+    path: str
+
+
+class YappTransferScreen(ModalScreen[YappRequest | None]):
+    """Explicit local-file choice for one YAPP client transfer."""
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("YAPP file transfer", id="connect-title")
+            yield Select(
+                [("Upload local file", "upload"), ("Receive into directory", "download")],
+                value="upload", id="yapp-mode", allow_blank=False,
+            )
+            yield Input(placeholder="Local file path", id="yapp-path")
+            yield Static("Upload starts YAPP now. For download, start this first, then request YAPP from the peer.")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Start", id="yapp-start", classes="-primary")
+                yield Button("Cancel", id="yapp-cancel")
+
+    @on(Button.Pressed, "#yapp-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#yapp-start")
+    def _start(self) -> None:
+        path = self.query_one("#yapp-path", Input).value.strip()
+        if not path:
+            self.notify("Enter a local path.", severity="warning")
+            return
+        self.dismiss(YappRequest(str(self.query_one("#yapp-mode", Select).value), path))
+
+
 def _validate_target_and_hops(text: str, hops: str) -> tuple[object | None, str]:
     """Parse `text` as a connect target, refusing to combine it with node
     hops. Returns `(path, "")` on success or `(None, message)` on failure --

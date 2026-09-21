@@ -61,6 +61,7 @@ ACTION_META: dict[str, ActionMeta] = {
     "find_in_terminal": ActionMeta("Terminal", 8),
     "clear_log": ActionMeta("Terminal", 9),
     "show_transcripts": ActionMeta("Terminal", 10),
+    "yapp_transfer": ActionMeta("Terminal", 14),
     "toggle_aprs_ssid_filter": ActionMeta("APRS", 11),
     "quit": ActionMeta("App", 12),
     "show_tab": ActionMeta("Panes", 13),
