@@ -531,23 +531,46 @@ class KissTermFooter(Footer):
             if binding.show
         ]
         # The footer is a context bar, not an inventory of every global key.
-        # APRS has no connected peer to dial or disconnect from; use the
-        # recovered cells for composing and diagnosing APRS traffic instead.
+        # A tab shows only the actions an operator can normally complete
+        # there; everything remains searchable from Ctrl+P.
         try:
             active_tab = self.app.query_one("#main-tabs", TabbedContent).active
         except Exception:
             active_tab = ""
-        if active_tab == "aprs":
-            aprs_actions = {
+        actions_by_tab = {
+            "terminal": {
+                "toggle_transmit", "connect", "disconnect", "toggle_contacts",
+                "command_reference", "beacon_now", "file_transfer",
+                "find_in_terminal", "show_transcripts", "clear_log", "quit",
+            },
+            "aprs": {
                 "toggle_transmit", "toggle_contacts", "command_reference",
                 "aprs_gateway_form", "aprs_bulletin", "beacon_now",
                 "aprs_beacon_now", "aprs_object", "aprs_is_watch",
                 "toggle_aprs_ssid_filter", "clear_log", "quit",
-            }
+            },
+            "monitor": {"toggle_transmit", "clear_log", "quit"},
+            "heard": {"toggle_transmit", "quit"},
+            "settings": {"toggle_transmit", "quit"},
+        }
+        allowed = actions_by_tab.get(active_tab)
+        if allowed is not None:
             bindings = [
                 (binding, enabled, tooltip)
                 for binding, enabled, tooltip in bindings
-                if _action_base(binding.action) in aprs_actions
+                if _action_base(binding.action) in allowed
+            ]
+        if not self.app.can_disconnect_active_session():
+            bindings = [
+                (binding, enabled, tooltip)
+                for binding, enabled, tooltip in bindings
+                if _action_base(binding.action) != "disconnect"
+            ]
+        if not self.app.can_transfer_on_active_session():
+            bindings = [
+                (binding, enabled, tooltip)
+                for binding, enabled, tooltip in bindings
+                if _action_base(binding.action) != "file_transfer"
             ]
         action_to_bindings: dict[str, list[tuple[Binding, bool, str]]] = {}
         for binding, enabled, tooltip in bindings:
@@ -697,7 +720,7 @@ class KissTermApp(App):
         Binding("ctrl+alt+b", "aprs_beacon_now", "Position now"),
         Binding("ctrl+shift+o", "aprs_object", "Object", key_display="^O"),
         Binding("ctrl+shift+i", "aprs_is_watch", "Watch IS", key_display="^I"),
-        Binding("ctrl+alt+m", "aprs_gateway_form", "Form"),
+        Binding("ctrl+m", "aprs_gateway_form", "Form"),
         Binding("ctrl+alt+l", "aprs_bulletin", "Bulletin"),
         Binding("ctrl+n", "connect", "Connect"),
         # Ctrl+SHIFT+D, not plain Ctrl+D, for the same reason as Ctrl+Shift+B
@@ -1808,6 +1831,30 @@ class KissTermApp(App):
             return pane.active_session_key
         return ""
 
+    def can_disconnect_active_session(self) -> bool:
+        """Whether Ctrl+Shift+D has something real to disconnect or cancel."""
+        key = self._active_key()
+        link = self.link
+        return bool(
+            (link is not None and getattr(link, "connected", False))
+            or key in self._connecting
+            or (
+                key == ""
+                and self._session_connect_task is not None
+                and not self._session_connect_task.done()
+            )
+        )
+
+    def can_transfer_on_active_session(self) -> bool:
+        """Whether the active terminal session has a live byte stream."""
+        link = self.link
+        return bool(link is not None and getattr(link, "connected", False))
+
+    def _refresh_context_footer(self) -> None:
+        """Recompose footer keys when tab or active-link state changes."""
+        for footer in self._base_query(KissTermFooter):
+            footer.refresh_bindings()
+
     @property
     def link(self):
         """The link of whichever Terminal-pane tab is on screen right now,
@@ -1956,6 +2003,7 @@ class KissTermApp(App):
         link.on_state.append(lambda state: self._on_link_state(key, state))
         link.on_error.append(lambda why: self._note(key, f"\n*** {why}\n"))
         self._to_terminal(key, "set_placeholder", f"connected to {link.peer}")
+        self._refresh_context_footer()
         return key
 
     def _transcript_directory(self) -> Path:
@@ -2497,6 +2545,7 @@ class KissTermApp(App):
             self._cancel_hop_watch(session_key)
             self._to_terminal(session_key, "set_placeholder", "not connected -- Ctrl+N")
             self._close_transcript(session_key)
+        self._refresh_context_footer()
 
     # ------------------------------------------------------------------
     # Reply watch -- "they got it, are they just not answering?"
@@ -2620,8 +2669,7 @@ class KissTermApp(App):
         `_toggle_aprs_beacon_quick` for why this is a plain toggle, never
         a transmission, and never touches the transmit gate.
 
-        **On every other tab**: sends one BTEXT beacon immediately,
-        unchanged from before this key became context-aware. The timed
+        **On the Terminal pane**: sends one BTEXT beacon immediately. The timed
         beacon deliberately waits a full interval before its first
         transmission, because launching the app is not a request to key
         the radio. This is how an operator says "yes it is, right now"
@@ -2632,6 +2680,9 @@ class KissTermApp(App):
         active = self.query_one("#main-tabs", TabbedContent).active
         if active == "aprs":
             await self._toggle_aprs_beacon_quick()
+            return
+        if active != "terminal":
+            self.notify("Open Terminal for a text beacon or APRS for position beaconing.")
             return
         if not self.gate.enabled:
             self.notify(DISABLED_MESSAGE, severity="warning")
@@ -2658,6 +2709,9 @@ class KissTermApp(App):
         periodic APRS beacon setting: ``force=True`` waives only that timer
         setting inside :meth:`AprsBeaconer.send_once`.
         """
+        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
+            self.notify("Open APRS to send a position beacon.")
+            return
         self._arm_for("APRS position beacon")
         why = self.aprs_beaconer.problem()
         if why and why != "APRS beaconing is off":
@@ -2677,6 +2731,9 @@ class KissTermApp(App):
         returns a request here, which is the operator-committed action that
         may arm the transmit gate.
         """
+        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
+            self.notify("Open APRS to compose an object report.")
+            return
         request = await self.push_screen_wait(
             AprsObjectScreen(
                 latitude=self.config.aprs.latitude,
@@ -2697,6 +2754,9 @@ class KissTermApp(App):
     @work
     async def action_aprs_is_watch(self) -> None:
         """Open the receive-only APRS-IS diagnostic stream for this call."""
+        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
+            self.notify("Open APRS to watch APRS-IS.")
+            return
         await self.push_screen_wait(AprsIsWatchScreen(self.aprs_is_watch, self._active_aprs_identity()))
 
     async def _toggle_aprs_beacon_quick(self) -> None:
@@ -2746,6 +2806,9 @@ class KissTermApp(App):
         exact SSID match" and "TX BLOCKED" mean nothing to someone new to
         packet, so the toast says who this station currently answers as.
         """
+        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
+            self.notify("Open APRS to change its SSID filter.")
+            return
         self.config.aprs.filter_by_ssid = not self.config.aprs.filter_by_ssid
         self._save_config()
         if self.config.aprs.filter_by_ssid:
@@ -3158,6 +3221,7 @@ class KissTermApp(App):
         # coroutine yields control the link is already reachable by peer
         # address -- which is what lets Ctrl+D find and cancel it mid-attempt.
         self._connecting[key] = (path.destination, port)
+        self._refresh_context_footer()
         try:
             link = await self.station.connect(
                 path,
@@ -3170,6 +3234,7 @@ class KissTermApp(App):
             return
         finally:
             self._connecting.pop(key, None)
+            self._refresh_context_footer()
         if link is None:
             failed = self.station.link_to(path.destination, port)
             reason = getattr(failed, "last_error", "") if failed else ""
@@ -3301,6 +3366,7 @@ class KissTermApp(App):
         connect_task = asyncio.current_task()
         assert connect_task is not None
         self._session_connect_task = connect_task
+        self._refresh_context_footer()
         try:
             session = await transport.connect()
         except asyncio.CancelledError:
@@ -3317,6 +3383,7 @@ class KissTermApp(App):
         finally:
             if self._session_connect_task is connect_task:
                 self._session_connect_task = None
+                self._refresh_context_footer()
         link = _SessionLinkAdapter(session)
         self._bind_link(link, "")
         # Same gap as the frame-tier connect above (`action_connect`) and
@@ -3624,6 +3691,9 @@ class KissTermApp(App):
     @work
     async def action_file_transfer(self) -> None:
         """Start one explicit YAPP/AutoBIN upload or arm an explicit download."""
+        if self.query_one("#main-tabs", TabbedContent).active != "terminal":
+            self.notify("Open Terminal to transfer a file.")
+            return
         key = self._active_key()
         session = self._sessions.get(key)
         if session is None or session.link is None or not session.link.connected:
@@ -3659,13 +3729,16 @@ class KissTermApp(App):
 
     @work
     async def action_disconnect(self) -> None:
-        """Ctrl+Shift+D / Ctrl+D -- disconnect whichever tab is on screen.
+        """Ctrl+Shift+D / Ctrl+D -- disconnect the visible Terminal session.
 
         Also the DISC half of `Delete` on the session-tab strip's focused
         tab (`disconnect_or_close_tab`), since `Delete` there only ever
         fires for the active tab -- see `terminal_pane.py`'s module
         docstring on why closing a session is two `Delete`s, not one.
         """
+        if self.query_one("#main-tabs", TabbedContent).active != "terminal":
+            self.notify("Open Terminal to disconnect from a station.")
+            return
         await self._disconnect_session(self._active_key())
 
     async def _disconnect_session(self, session_key: str) -> None:

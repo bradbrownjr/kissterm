@@ -154,6 +154,8 @@ async def test_ctrl_alt_b_sends_one_position_and_arms_tx_without_starting_the_ti
     app.config.aprs.longitude = -72.7
     app.config.aprs.path = "WIDE1-1"
     async with app.run_test(size=(110, 32)) as pilot:
+        app.action_show_tab("aprs")
+        await pilot.pause()
         await pilot.pause()
         assert app.gate.enabled is False
         assert app.config.aprs.enabled is False
@@ -191,11 +193,8 @@ async def test_the_toggle_persists_across_a_simulated_restart():
 
 
 @pytest.mark.asyncio
-async def test_btext_send_still_works_from_a_tab_that_is_neither_terminal_nor_aprs():
-    """Only the APRS pane gets special dispatch. BTEXT's manual send was
-    never tab-scoped before this key became context-aware, and stays that
-    way everywhere except APRS -- matching the approved plan's "on any
-    other tab: unchanged" wording, not a new per-tab restriction."""
+async def test_btext_send_does_not_run_from_a_diagnostic_tab():
+    """A diagnostic page must not transmit a beacon through a hidden key."""
     config = Config(mycall=str(MYCALL))
     config.tx_armed_at_start = True
     config.beacon.enabled = True
@@ -210,6 +209,6 @@ async def test_btext_send_still_works_from_a_tab_that_is_neither_terminal_nor_ap
         app.action_beacon_now()
         await pilot.pause()
         await asyncio.sleep(0.1)
-        assert len(ta.sent) == 1
+        assert ta.sent == []
         assert app.aprs_beaconer.running is False
     station.close()

@@ -52,6 +52,18 @@ touched and any breaking notes.
   **Files:** `kissterm/ui/app.py`, `tests/pilot/test_app_mounts.py`,
   `docs/CHANGELOG.md`.
 
+- **Shortcut bar follows the actual task.** Terminal now shows Disconnect only
+  while a session is connected or a connect is cancellable, and File Transfer
+  only on a live Terminal session. Position reports and all APRS-only controls
+  are confined to APRS; Heard, Monitor, and Settings no longer advertise
+  unrelated transmit, connection, or composition work. Contextual actions now
+  also decline to run from the wrong tab, so an unseen shortcut cannot trigger
+  a disconnect or beacon from a diagnostic page.
+  Gateway Form is now the simple APRS-only `Ctrl+M` rather than a three-key
+  chord; less common APRS diagnostics remain in the searchable key palette.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_app_mounts.py`,
+  `DESIGN.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add documented APRS SMS and email forms
 
 ### Improvements

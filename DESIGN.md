@@ -144,9 +144,15 @@ tab existed to expect it.
 - **A tab's key never also appears in the Footer.** That put the same words on
   screen twice, in two different corners. Register the binding with
   `show=False`.
-- **The Footer is for non-tab actions only** — TX, Connect, Disconnect,
-  Contacts, Commands, Beacon, Callsign, Find, Clear, Transcripts, Quit,
-  palette.
+- **The Footer is a tab-and-state-aware action bar, not an inventory.** It
+  contains non-tab actions, but only where they are ordinary work: Terminal
+  shows TX, Connect, Contacts, commands, one text beacon, find, transcripts,
+  clear, and file transfer once a session is connected; Disconnect appears
+  only for a connected or still-connecting Terminal session. APRS owns its
+  contacts, templates, gateway forms, bulletin, beacon controls, position,
+  objects, Watch IS, SSID filter, and clear action. Monitor has TX and Clear;
+  Heard and Settings retain only TX. Ctrl+P remains the searchable reference
+  for every shortcut, including deliberately contextual ones.
 - **`Ctrl+1..5` are unlabelled fallback aliases** for terminals that intercept
   function keys.
 - **A panel's own keys go in the Footer too, never in a hint line under its
@@ -166,7 +172,8 @@ tab existed to expect it.
   roughly a third of it used to be scrolled off past the right edge with no
   on-screen sign anything was missing (reported directly from a real
   session). `KissTermFooter` (`kissterm/ui/app.py`) keeps the essential
-  mid-contact cluster — TX, Connect, Disconnect, Contacts — and drops the rest
+  active tab's common work — Terminal begins with TX, Connect, Contacts and
+  APRS begins with TX, Contacts, Commands and Beacon — and drops the rest
   in priority order as the terminal narrows, ranked by
   `kissterm/ui/commands.py`'s `ACTION_META`. A narrower terminal means fewer
   keys shown, never a key silently unreachable: the full list is always one
@@ -179,8 +186,8 @@ tab existed to expect it.
   fuzzy-searchable, grouped by the same `ACTION_META` categories (Connection,
   Transmit, Terminal, Contacts, Panes, App).
 - **`Ctrl+Shift+B` is context-aware by active tab, same dispatch shape as
-  `Ctrl+G`'s slide-outs.** On the Terminal pane (or any tab but APRS) it is
-  unchanged from before: send one BTEXT beacon right now. On the APRS pane
+  `Ctrl+G`'s slide-outs.** On the Terminal pane it sends one BTEXT beacon
+  right now. On the APRS pane
   it instead toggles `config.aprs.enabled` -- the quick-access equivalent
   of the Settings checkbox plus Save, so an operator does not have to open
   Settings just to turn position beaconing on. It never arms the transmit
@@ -189,9 +196,8 @@ tab existed to expect it.
   same case as the manual BTEXT send it shares a key with) and, per
   AGENTS.md's beaconing section, turns the plain-text timer off if it was
   running when APRS beaconing is turned on this way -- the two are not
-  meant to run at once. The Footer label stays "Beacon" on every tab, the
-  same as `Ctrl+G` stays labelled "Contacts" everywhere even where it has
-  nothing to do.
+  meant to run at once. It is intentionally absent from Heard, Monitor and
+  Settings, where neither kind of beacon is the task at hand.
 - **`Ctrl+R` is context-aware by active tab, third use of the same dispatch
   shape.** The key asks one question — "what can I say to the thing I am
   talking to?" — and only the source of the answer changes. On the Terminal
@@ -199,9 +205,8 @@ tab existed to expect it.
   reference from `kissterm/nodes/`. On the APRS pane it opens the gateway
   service picker from `kissterm/aprs_services/`, scoped to whoever is in the
   "To:" field. Both fill an input and **neither sends** — the same rule that
-  has always governed the terminal's reference. The Footer label stays
-  "Commands" on every tab, like `Ctrl+G`'s "Contacts" and `Ctrl+Shift+B`'s
-  "Beacon".
+  has always governed the terminal's reference. It is shown only on Terminal
+  and APRS, the tabs where the result can be used immediately.
 - **Ceiling: F1–F10.** Originally set at F8 (some terminals were assumed
   unreliable past it), raised once F9/F10 were confirmed working in practice
   — see `docs/ROADMAP.md` P10. Five tabs exist, three more are planned
@@ -345,7 +350,7 @@ module docstring for the full reasoning:
 ## 6. The bottom two rows
 
 ```
- ^t TX  ^n Connect  ^D Disconnect  ^G Contacts  ^r Commands  ^B Beacon  ^k Callsign ...  <- Footer (80 cols)
+ ^t TX  ^n Connect  ^G Contacts  ^r Commands  ^B Beacon ...  <- Terminal Footer (80 cols, disconnected)
  kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6                             <- status
 ```
 

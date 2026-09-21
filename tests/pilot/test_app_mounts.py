@@ -124,6 +124,50 @@ async def test_aprs_footer_switches_context_before_any_aprs_interaction():
 
 
 @pytest.mark.asyncio
+async def test_footer_is_tab_and_connection_aware():
+    """The shortcut bar advertises ordinary work, never every global key."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(200, 40)) as pilot:
+        def actions() -> set[str]:
+            return {key.action for key in app.query_one(ui_app.KissTermFooter).query(FooterKey)}
+
+        await pilot.pause()
+        terminal = actions()
+        assert "connect" in terminal
+        assert "disconnect" not in terminal
+        assert "file_transfer" not in terminal
+        assert "aprs_beacon_now" not in terminal
+
+        # A pending connect is a real, cancellable operation, so Disconnect
+        # becomes an honest label rather than a permanently absent escape.
+        app._connecting[""] = (PEER, 0)
+        app._refresh_context_footer()
+        await pilot.pause()
+        assert "disconnect" in actions()
+        app._connecting.clear()
+        app._refresh_context_footer()
+
+        app.action_show_tab("aprs")
+        await asyncio.sleep(0)
+        await pilot.pause()
+        aprs = actions()
+        assert "aprs_beacon_now" in aprs
+        assert "connect" not in aprs
+        assert "disconnect" not in aprs
+        assert "file_transfer" not in aprs
+
+        for tab in ("heard", "monitor", "settings"):
+            app.action_show_tab(tab)
+            await pilot.pause()
+            scoped = actions()
+            assert "connect" not in scoped
+            assert "disconnect" not in scoped
+            assert "beacon_now" not in scoped
+            assert "aprs_beacon_now" not in scoped
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_debug_setting_starts_and_stops_the_background_aprs_is_watch(monkeypatch):
     app, ta, tb, station = await _app()
     started: list[str] = []
@@ -839,7 +883,7 @@ async def test_the_footer_shows_fewer_keys_at_an_ordinary_terminal_width():
         footer = app.query_one("Footer")
         shown = {c.description for c in footer.children}
         # The core mid-contact cluster survives an 80-column terminal...
-        for essential in ("TX", "Connect", "Disconnect", "Contacts"):
+        for essential in ("TX", "Connect", "Contacts"):
             assert essential in shown, f"{essential} missing at 80 columns: {shown}"
         # ...but not everything does; if it did, this feature fixed nothing.
         assert "Transcripts" not in shown
@@ -848,7 +892,7 @@ async def test_the_footer_shows_fewer_keys_at_an_ordinary_terminal_width():
 
 
 @pytest.mark.asyncio
-async def test_the_footer_shows_every_binding_once_the_terminal_is_wide_enough():
+async def test_the_footer_shows_every_terminal_action_once_wide_enough():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(200, 30)) as pilot:
         await pilot.pause()
@@ -857,11 +901,9 @@ async def test_the_footer_shows_every_binding_once_the_terminal_is_wide_enough()
         for expected in (
             "TX",
             "Connect",
-            "Disconnect",
             "Contacts",
             "Commands",
             "Beacon",
-            "Callsign",
             "Find",
             "Clear",
             "Transcripts",

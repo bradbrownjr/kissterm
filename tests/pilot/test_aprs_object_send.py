@@ -44,6 +44,8 @@ async def test_object_composer_sends_its_own_position_and_arms_tx():
     app, station, transport = await _app()
     async with app.run_test(size=(120, 44)) as pilot:
         assert app.gate.enabled is False
+        app.action_show_tab("aprs")
+        await pilot.pause()
         app.action_aprs_object()
         for _ in range(20):
             if list(app.screen.query("#aprs-object-name")):
@@ -83,6 +85,8 @@ async def test_object_composer_sends_its_own_position_and_arms_tx():
 async def test_object_composer_cancel_never_transmits():
     app, station, transport = await _app()
     async with app.run_test(size=(120, 44)) as pilot:
+        app.action_show_tab("aprs")
+        await pilot.pause()
         app.action_aprs_object()
         for _ in range(20):
             if list(app.screen.query("#aprs-object-name")):
