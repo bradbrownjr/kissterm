@@ -100,7 +100,9 @@ _TEST_LABEL = {
     "kiss": "OK",
     "not-a-tnc": "FAILED",
     "unreachable": "FAILED",
-    "unknown": "UNKNOWN",
+    # Silence is normal for an idle KISS TNC.  Calling it UNKNOWN sounded like
+    # a failed setup, even though the TCP connection itself is open.
+    "unknown": "OPEN",
 }
 
 
@@ -115,7 +117,7 @@ def _test_result_line(host: str, port: int, identity) -> str:
     else:
         # Silence is inconclusive, not a failure -- an idle KISS TNC looks
         # exactly like this. Say so in five words, not a paragraph.
-        reason = "open, identity unconfirmed (silent)"
+        reason = "open, identity unconfirmed (silent KISS is normal)"
     return f"{host}:{port}  {label}  --  {reason}"
 
 
@@ -1035,6 +1037,12 @@ class SettingsPane(Vertical):
         self.query_one("#set-active-transport", Select).value = result["name"]
         self._render_transport_detail(config)
         self.app.notify(f"Saved transport {result['name']!r}.")  # type: ignore[attr-defined]
+        # A first-run app has no station yet, so the normal "reopen" path
+        # cannot swap a transport underneath one.  Open this newly saved
+        # entry now; otherwise every APRS and beacon action correctly but
+        # bafflingly reports "no transport" until the operator restarts.
+        if getattr(self.app, "station", None) is None and getattr(self.app, "session_transport", None) is None:
+            await self.app._open_initial_transport(result["name"])  # type: ignore[attr-defined]
 
     @on(Button.Pressed, "#settings-forget")
     def _forget(self) -> None:

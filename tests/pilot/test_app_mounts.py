@@ -105,6 +105,31 @@ async def test_app_mounts_without_a_transport_so_settings_can_repair_it():
 
 
 @pytest.mark.asyncio
+async def test_first_saved_transport_opens_without_requiring_a_restart(monkeypatch):
+    """Onboarding must leave a live frame station for APRS and beacons."""
+    ta, tb = loopback_pair()
+    config = Config(
+        mycall=str(MYCALL),
+        transports=[{"name": "first", "kind": "tcp", "host": "127.0.0.1", "port": 8001}],
+        active_transport="first",
+    )
+    app = KissTermApp(config)
+
+    from kissterm import transport as transport_mod
+
+    monkeypatch.setattr(transport_mod, "build_transport", lambda entry: ta)
+    async with app.run_test(size=(120, 40)):
+        assert await app._open_initial_transport("first")
+        assert app.station is not None
+        assert app.station.transport is ta
+        assert ta.gate is app.gate
+        assert ta.sent == [], "opening a transport must not transmit"
+    app.station.close()
+    await ta.close()
+    await tb.close()
+
+
+@pytest.mark.asyncio
 async def test_first_run_onboarding_requires_a_callsign_then_opens_transport_setup():
     """New operators start in the GUI and land at the next essential step."""
     app = KissTermApp(Config())

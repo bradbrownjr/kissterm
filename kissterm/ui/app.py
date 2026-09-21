@@ -135,7 +135,7 @@ from ..netrom import KnownNodes
 from .. import aprs
 from ..aprs_conversations import ConversationStore, MessageDeduplicator
 from ..aprs_notify import Cooldown, evaluate_packet
-from ..ax25 import AX25Station, parse_path
+from ..ax25 import AX25Station, LinkParams, parse_path
 from ..ax25.address import AX25Address, AX25AddressError
 from ..aprs_beacon import AprsBeaconer
 from ..beacon import Beaconer
@@ -916,25 +916,7 @@ class KissTermApp(App):
         self._start_port_watcher()
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(2.0, self._refresh_heard)
-        if self.station is not None:
-            # Straight off the transport, not off `station.on_unhandled`: a
-            # frame belonging to an open link never reaches `on_unhandled`,
-            # so a monitor fed from there goes silent at exactly the moment
-            # the operator most needs it -- during the connection they are
-            # trying to diagnose. The monitor is a channel monitor or it is
-            # nothing.
-            self._unsubscribe_monitor = self.station.transport.subscribe(
-                self._on_received_frame
-            )
-            # A second, independent subscriber on the same fan-out -- never a
-            # second decode path for the same frame (AGENTS.md sec. 2b). This
-            # one only ever looks at APRS traffic (position/message/status
-            # UI frames); the monitor subscriber above still sees, and still
-            # renders, everything.
-            self._unsubscribe_aprs = self.station.transport.subscribe(self._on_aprs_frame)
-            self.station.transport.on_sent.append(self._on_sent_frame)
-            self.station.on_incoming.append(self._on_incoming_link)
-            self._status = f"{self.station.transport.info.detail}"
+        self._attach_station()
         if self.station is None and self.session_transport is None:
             banner = (
                 f"kissterm {__version__} -- no transport configured. "
@@ -943,7 +925,7 @@ class KissTermApp(App):
         else:
             banner = (
                 f"kissterm {__version__} -- Ctrl+N to connect, Ctrl+R for commands, "
-                "Ctrl+O for past transcripts.\n"
+                "Ctrl+O for past transcripts. Use Left/Right on the tab bar to move tabs.\n"
             )
         self.query_one(TerminalPane).log("", banner)
         self.apply_runtime_settings()
@@ -980,6 +962,12 @@ class KissTermApp(App):
             return
 
         self.config.mycall = request.callsign
+        # A guided setup is an explicit safety reset: it must never carry an
+        # old, opaque "enable at startup" value into a newly configured
+        # station.  The operator can still deliberately enable that advanced
+        # option later in Settings.
+        self.config.tx_armed_at_start = False
+        self.gate.set(False)
         saved = self._save_config()
         self.query_one(SettingsPane).render_settings(self.config)
         if request.set_up_transport:
@@ -993,6 +981,65 @@ class KissTermApp(App):
         else:
             where = "saved" if saved else "kept for this session only"
             self.notify(f"Callsign {request.callsign} {where}. Set up a transport when ready.")
+
+    def _attach_station(self) -> None:
+        """Attach the one frame fan-out after a station becomes available."""
+        if self.station is None:
+            return
+        self._unsubscribe_monitor = self.station.transport.subscribe(self._on_received_frame)
+        self._unsubscribe_aprs = self.station.transport.subscribe(self._on_aprs_frame)
+        self.station.transport.on_sent.append(self._on_sent_frame)
+        self.station.on_incoming.append(self._on_incoming_link)
+        self._status = f"{self.station.transport.info.detail}"
+
+    async def _open_initial_transport(self, name: str) -> bool:
+        """Open the first saved transport in an already-mounted onboarding app.
+
+        Opening a transport does not transmit.  It merely makes the same
+        station/fan-out wiring that normal startup builds available now, so
+        the operator can proceed directly from onboarding to APRS or a
+        connection instead of having to understand why a restart is needed.
+        """
+        if self.station is not None or self.session_transport is not None:
+            return False
+        entry = next((item for item in self.config.transports if item.get("name") == name), None)
+        if entry is None:
+            return False
+        from .. import transport as transport_mod
+        from ..transport.base import FrameTransport
+
+        try:
+            transport = transport_mod.build_transport(entry)
+            await transport.open()
+        except Exception as exc:
+            log.exception("could not open initial transport %s", name)
+            self.notify(f"Saved {name}, but could not open it: {exc}", severity="error")
+            return False
+
+        transport.gate = self.gate
+        if isinstance(transport, FrameTransport):
+            self.station = AX25Station(
+                AX25Address.parse(self.config.mycall),
+                transport,
+                LinkParams(
+                    paclen=self.config.paclen, window=self.config.window,
+                    modulo=self.config.modulo, retries=self.config.retries,
+                    connect_retries=self.config.connect_retries, t1=self.config.t1,
+                    t2=self.config.t2, t3=self.config.t3,
+                ),
+                aliases=tuple(AX25Address.parse(item) for item in self.config.mycall_aliases),
+                accept_incoming=self.config.accept_incoming,
+                max_links=MAX_TERMINAL_TABS,
+            )
+            self.beaconer.station = self.station
+            self.aprs_beaconer.station = self.station
+            self._attach_station()
+        else:
+            self.session_transport = transport
+            self._status = transport.info.detail
+        self._refresh_status()
+        self.notify(f"Now using {name}.")
+        return True
 
     # ------------------------------------------------------------------
     # Settings that need something done, not just stored

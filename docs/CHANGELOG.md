@@ -3,6 +3,21 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-21] — Complete onboarding transport handoff
+
+### Fixes
+
+- **Newly added transports activate immediately.** A transport saved during
+  first-run onboarding now opens in the running app, so APRS and beaconing do
+  not incorrectly remain unavailable until restart. Silent KISS probes read
+  as `OPEN` rather than an alarming unknown result; SMSGTE and EMAIL-2 are
+  the default APRS gateway fields; completing onboarding explicitly resets
+  startup transmit to OFF; and the terminal welcome line reveals Left/Right
+  tab navigation.
+  **Files:** `kissterm/config.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/settings_pane.py`, `tests/unit/test_config.py`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add GUI first-run onboarding
 
 ### New Features

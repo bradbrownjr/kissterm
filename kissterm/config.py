@@ -389,8 +389,8 @@ class Config:
     #: which gateway an operator should use depends on their region and on
     #: who is running what this month, and picking one for them here would
     #: be exactly the unearned confidence the note above is about.
-    aprs_sms_gateway: str = ""
-    aprs_email_gateway: str = ""
+    aprs_sms_gateway: str = "SMSGTE"
+    aprs_email_gateway: str = "EMAIL-2"
     #: How a compose-mode message becomes the actual on-air body, as a
     #: `str.format()` template with `{detail}` (the contact's phone number
     #: or email address) and `{text}` (what the operator typed) --

@@ -59,6 +59,8 @@ def test_defaults_load_with_no_file(tmp_path):
     assert cfg.aprs.enabled is False
     assert cfg.aprs.filter_by_ssid is True
     assert cfg.aprs.path == "WIDE1-1,WIDE2-1"
+    assert cfg.aprs_sms_gateway == "SMSGTE"
+    assert cfg.aprs_email_gateway == "EMAIL-2"
     assert cfg.autoconnect == []
 
 
