@@ -145,6 +145,10 @@ async def test_first_run_onboarding_requires_a_callsign_then_opens_transport_set
         await pilot.pause()
 
         assert app.config.mycall == "N1ABC-1"
+        assert app.config.aprs_sms_gateway == "SMSGTE"
+        assert app.config.aprs_email_gateway == "EMAIL-2"
+        assert app.config.tx_armed_at_start is False
+        assert app.gate.enabled is False
         assert app.query_one("#main-tabs", TabbedContent).active == "settings"
         assert app.query_one("#settings-tabs", TabbedContent).active == "settings-tab-transports"
 

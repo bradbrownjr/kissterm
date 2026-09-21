@@ -962,6 +962,13 @@ class KissTermApp(App):
             return
 
         self.config.mycall = request.callsign
+        # Existing profiles may carry the old explicit empty defaults.  Seed
+        # the onboarding defaults without overwriting a gateway an operator
+        # already chose deliberately.
+        if not self.config.aprs_sms_gateway:
+            self.config.aprs_sms_gateway = "SMSGTE"
+        if not self.config.aprs_email_gateway:
+            self.config.aprs_email_gateway = "EMAIL-2"
         # A guided setup is an explicit safety reset: it must never carry an
         # old, opaque "enable at startup" value into a newly configured
         # station.  The operator can still deliberately enable that advanced
