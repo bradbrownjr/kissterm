@@ -386,6 +386,9 @@ Gotchas that already cost time:
 ## 7. ALWAYS / NEVER rules
 
 ### Airtime is the scarce resource
+- **Commit and push every development cycle.** Each coherent, tested increment
+  goes to the remote before the next increment begins, so the project always
+  has a recoverable revision-history checkpoint.
 - **Commits and pushes are pre-approved.** Commit and push completed, tested
   work without asking for a separate confirmation. The operator prefers the
   recoverability and durable backup of the remote history to an approval pause.
