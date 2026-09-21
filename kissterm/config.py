@@ -401,6 +401,10 @@ class Config:
     #: edit the template here if it differs.
     aprs_sms_template: str = "@{detail} {text}"
     aprs_email_template: str = "{detail} {text}"
+    #: When running with ``--log-level debug``, keep a receive-only APRS-IS
+    #: stream open for correlating RF messages with gateway replies. It has
+    #: no APRS-IS publish path and never affects the transmit gate.
+    aprs_is_watch_debug: bool = False
     #: Max AX.25 info-field size in bytes. 256 is the traditional default;
     #: dropping to 128 or even 64 on a noisy HF path trades throughput for a
     #: much lower chance any given frame needs a retransmit, since a shorter
@@ -716,6 +720,9 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
         cfg.aprs_sms_template = "@{detail} {text}"
         warnings.append("aprs_sms_template updated to SMSGTE's @number format")
     cfg.aprs_email_template = _load_str(raw, "aprs_email_template", cfg.aprs_email_template, warnings)
+    cfg.aprs_is_watch_debug = _load_bool(
+        raw, "aprs_is_watch_debug", cfg.aprs_is_watch_debug, warnings
+    )
     cfg.connect_banner = _load_str(raw, "connect_banner", cfg.connect_banner, warnings)
     cfg.monitor_filter = _load_str(raw, "monitor_filter", cfg.monitor_filter, warnings)
     cfg.log_sessions = _load_bool(raw, "log_sessions", cfg.log_sessions, warnings)

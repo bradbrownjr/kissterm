@@ -191,14 +191,8 @@ AprsPane { height: 1fr; }
 }
 #aprs-conversation-log { height: 1fr; border: solid $panel; }
 #aprs-compose-row { height: auto; margin-top: 1; }
-#aprs-to-input { border: round $accent; width: 12; margin-right: 1; }
+#aprs-to-input { border: round $accent; width: 8; margin-right: 1; }
 #aprs-compose-input { border: round $accent; width: 1fr; margin-right: 1; }
-/* #aprs-templates-button deliberately has NO rule: the base Button style's
-   `min-width: 10` already sizes it correctly next to the `1fr` message
-   input. Verified by rendering the pane with and without an explicit width
-   -- they are identical, so the rule would have been cargo-culted from the
-   #monitor-query case above, where an Input's `width: 100%` default really
-   did push its sibling button off the edge. */
 /* The service/template picker (Ctrl+R on this pane). Reuses #ref-box's
    geometry deliberately -- it is the APRS counterpart to the terminal's
    command reference and should not read as a different kind of screen. */

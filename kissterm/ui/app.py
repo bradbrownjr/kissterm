@@ -157,7 +157,7 @@ from ..yapp import YappError, receive_file, send_file
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
-from .commands import KeyBindingsProvider, fit_footer_bindings
+from .commands import KeyBindingsProvider, _action_base, fit_footer_bindings
 from ..harvested import HarvestedCommands
 from ..nodes import Command, CommandReference
 from ..nodes.reference import identify_family, parse_harvested
@@ -530,6 +530,25 @@ class KissTermFooter(Footer):
             for (_, binding, enabled, tooltip) in active_bindings.values()
             if binding.show
         ]
+        # The footer is a context bar, not an inventory of every global key.
+        # APRS has no connected peer to dial or disconnect from; use the
+        # recovered cells for composing and diagnosing APRS traffic instead.
+        try:
+            active_tab = self.app.query_one("#main-tabs", TabbedContent).active
+        except Exception:
+            active_tab = ""
+        if active_tab == "aprs":
+            aprs_actions = {
+                "toggle_transmit", "toggle_contacts", "command_reference",
+                "aprs_gateway_form", "aprs_bulletin", "beacon_now",
+                "aprs_beacon_now", "aprs_object", "aprs_is_watch",
+                "toggle_aprs_ssid_filter", "clear_log", "quit",
+            }
+            bindings = [
+                (binding, enabled, tooltip)
+                for binding, enabled, tooltip in bindings
+                if _action_base(binding.action) in aprs_actions
+            ]
         action_to_bindings: dict[str, list[tuple[Binding, bool, str]]] = {}
         for binding, enabled, tooltip in bindings:
             action_to_bindings.setdefault(binding.action, []).append(
@@ -678,6 +697,8 @@ class KissTermApp(App):
         Binding("ctrl+alt+b", "aprs_beacon_now", "Position now"),
         Binding("ctrl+shift+o", "aprs_object", "Object", key_display="^O"),
         Binding("ctrl+shift+i", "aprs_is_watch", "Watch IS", key_display="^I"),
+        Binding("ctrl+alt+m", "aprs_gateway_form", "Form"),
+        Binding("ctrl+alt+l", "aprs_bulletin", "Bulletin"),
         Binding("ctrl+n", "connect", "Connect"),
         # Ctrl+SHIFT+D, not plain Ctrl+D, for the same reason as Ctrl+Shift+B
         # above: Textual's `Input` and `TextArea` both bind plain `ctrl+d` to
@@ -834,6 +855,7 @@ class KissTermApp(App):
         #: APRS-IS diagnostics are separate from the RF transport fan-out.
         #: The current UI opens this object only with a ``pass -1`` login.
         self.aprs_is_watch = AprsIsWatch()
+        self._aprs_is_background_started = False
         #: Watches local serial ports only. The network is never scanned on a
         #: timer -- see kissterm/hotplug.py for the cost argument.
         self.port_watcher = SerialPortWatcher()
@@ -1069,7 +1091,29 @@ class KissTermApp(App):
         self._restart_beacon()
         self._restart_gps()
         self._restart_aprs_beacon()
+        self._reconcile_aprs_is_debug_watch()
         self._watch_notifier = self._make_watch_notifier()
+
+    def _reconcile_aprs_is_debug_watch(self) -> None:
+        """Apply the opt-in background APRS-IS diagnostic setting.
+
+        It is deliberately tied to actual debug logging: a background TCP
+        stream is useful only when its correlation evidence is being kept.
+        A manually opened or SMS-triggered watcher is never stopped here.
+        """
+        enabled = bool(getattr(self.config, "aprs_is_watch_debug", False))
+        debug_logging = log.isEnabledFor(logging.DEBUG)
+        if enabled and debug_logging and not self.aprs_is_watch.running:
+            try:
+                self.aprs_is_watch.start(callsign=self._active_aprs_identity())
+            except ValueError as exc:
+                log.debug("APRS-IS background watch not started: %s", exc)
+            else:
+                self._aprs_is_background_started = True
+                log.debug("APRS-IS background watch enabled")
+        elif self._aprs_is_background_started and (not enabled or not debug_logging):
+            self.aprs_is_watch.stop()
+            self._aprs_is_background_started = False
 
     def _make_watch_notifier(self) -> WatchNotifier:
         watched = self.config.watched_callsigns
@@ -1702,7 +1746,7 @@ class KissTermApp(App):
         would be the wrong priority. The debug log records whether APRS-IS
         later saw the packet and any reply addressed back to this identity.
         """
-        if self.aprs_is_watch.running:
+        if not log.isEnabledFor(logging.DEBUG) or self.aprs_is_watch.running:
             return
         try:
             callsign = self._active_aprs_identity()
@@ -1710,6 +1754,20 @@ class KissTermApp(App):
             log.debug("APRS-IS watch auto-started for SMS diagnostic: %s", callsign)
         except ValueError as exc:
             log.debug("APRS-IS watch not started for SMS diagnostic: %s", exc)
+
+    def action_aprs_gateway_form(self) -> None:
+        """Open the APRS gateway form only in its relevant pane."""
+        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
+            self.notify("Open the APRS pane to use a gateway form.", severity="warning")
+            return
+        self.query_one(AprsPane).show_gateway_form()
+
+    def action_aprs_bulletin(self) -> None:
+        """Prepare a bulletin in APRS context; preparation never sends."""
+        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
+            self.notify("Open the APRS pane to compose a bulletin.", severity="warning")
+            return
+        self.query_one(AprsPane).action_compose_bulletin()
 
     async def _send_aprs_object(self, request: AprsObjectRequest) -> bool:
         """Encode and transmit one deliberately composed APRS object report."""
@@ -2155,6 +2213,7 @@ class KissTermApp(App):
             session.reference = CommandReference()
         session.detect_buffer = ""
         self._refresh_status()
+        self.query_one(KissTermFooter).refresh_bindings()
 
     def _base_query(self, selector):
         """Query the app's own screen, not whatever modal is on top of it.

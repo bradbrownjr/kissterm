@@ -20,6 +20,7 @@ import asyncio  # noqa: E402
 import pytest  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
+import kissterm.ui.app as ui_app  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
 from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
@@ -105,6 +106,24 @@ async def test_aprs_is_watch_is_reachable_without_an_rf_transmission():
         assert app.screen.query_one("#aprs-is-watch-log") is not None
         assert ta.sent == []
         await app.screen.dismiss(None)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_debug_setting_starts_and_stops_the_background_aprs_is_watch(monkeypatch):
+    app, ta, tb, station = await _app()
+    started: list[str] = []
+    stopped: list[bool] = []
+    monkeypatch.setattr(ui_app.log, "isEnabledFor", lambda level: True)
+    monkeypatch.setattr(app.aprs_is_watch, "start", lambda *, callsign: started.append(callsign))
+    monkeypatch.setattr(app.aprs_is_watch, "stop", lambda: stopped.append(True))
+    async with app.run_test(size=(120, 40)):
+        app.config.aprs_is_watch_debug = True
+        app._reconcile_aprs_is_debug_watch()
+        assert started == [str(MYCALL)]
+        app.config.aprs_is_watch_debug = False
+        app._reconcile_aprs_is_debug_watch()
+        assert stopped == [True]
     station.close()
 
 

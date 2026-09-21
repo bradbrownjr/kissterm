@@ -83,18 +83,6 @@ _RETRY_CHECK_INTERVAL = 10.0
 #: either side of each of the four columns.
 _TABLE_PADDING = 8
 
-#: How wide the conversation column has to be before the compose row can
-#: afford the Templates button as well as To, the message box and Send.
-#: Measured, not guessed: To(12) + Templates(13) + Send(11) + the margins
-#: between them is 39 cells, and a message box narrower than about 20 is not
-#: a message box.
-_COMPOSE_ROOM_FOR_TEMPLATES = 60
-
-# The object button has the same width as Templates and is still fully
-# reachable through Ctrl+Shift+O when room is tight.  Hiding its redundant
-# button first preserves a useful compose box on a 40-column split pane.
-_COMPOSE_ROOM_FOR_OBJECT = 70
-
 #: The merged view's tab id. Every other tab is `convo-<CALLSIGN>`.
 _ALL_TAB = "convo-ALL"
 
@@ -377,15 +365,6 @@ class AprsPane(Horizontal):
             with Horizontal(id="aprs-compose-row"):
                 yield Input(placeholder="To (callsign)", id="aprs-to-input")
                 yield Input(placeholder="Message", id="aprs-compose-input")
-                # Ctrl+R does the same thing. The button exists because the
-                # whole point of the directory is discoverability, and a
-                # feature reachable only by a key nobody has been told about
-                # is not discoverable.
-                yield Button("Templates", id="aprs-templates-button")
-                yield Button("Form", id="aprs-gateway-form-button")
-                yield Button("Watch IS", id="aprs-is-watch-button")
-                yield Button("Bulletin", id="aprs-bulletin-button")
-                yield Button("Object", id="aprs-object-button")
                 yield Button("Send", variant="primary", id="aprs-send-button")
         with Vertical(id="aprs-contacts-column"):
             yield _AprsContactTable(id="aprs-contact-table", cursor_type="row", zebra_stripes=True)
@@ -463,35 +442,6 @@ class AprsPane(Horizontal):
             # cursor out of the message box because a window got wider is a
             # different thing entirely.
             self.refresh_from(self.app.config.aprs_contacts)  # type: ignore[attr-defined]
-        self._fit_compose_row()
-
-    def _fit_compose_row(self) -> None:
-        """Drop the Templates button when the compose row runs out of room.
-
-        With the contact list open the conversation column can be as narrow as
-        40 cells, and `To` + Templates + Send are about 36 of them before the
-        message box gets anything at all -- which left a two-character box as
-        the DEFAULT view the moment the slide-out started opening itself.
-
-        Templates is the one that goes, because it is the only control here
-        that is purely a shortcut: `Ctrl+R` does exactly the same thing and
-        shows in the Footer as "Commands". Nothing becomes unreachable, which
-        is the bar for hiding anything.
-        """
-        # From the arithmetic, NOT from the rendered width: this runs inside
-        # the same `on_resize` that just set the panel's width, so the
-        # conversation column has not been laid out at its new size yet and
-        # reading `outer_size` here returns the width it had a moment ago.
-        # That is exactly how the first version of this silently did nothing.
-        total = self.size.width
-        room = slideouts.split(total).main if self._slideout.open else total
-        wide = room >= _COMPOSE_ROOM_FOR_TEMPLATES
-        self.query_one("#aprs-templates-button", Button).display = wide
-        self.query_one("#aprs-gateway-form-button", Button).display = wide
-        self.query_one("#aprs-is-watch-button", Button).display = wide
-        self.query_one("#aprs-bulletin-button", Button).display = wide
-        self.query_one("#aprs-object-button", Button).display = room >= _COMPOSE_ROOM_FOR_OBJECT
-        self.query_one("#aprs-to-input", Input).styles.width = 12 if wide else 10
 
     # -- contacts slide-out ---------------------------------------------------
     def toggle_contacts(self) -> None:
@@ -509,9 +459,6 @@ class AprsPane(Horizontal):
             self.query_one("#aprs-contact-table", DataTable).focus()
         else:
             self.query_one("#aprs-compose-input", Input).focus()
-        # The conversation column just changed width, so the compose row has
-        # either gained room for the Templates button or lost it.
-        self._fit_compose_row()
 
     def action_close_contacts(self) -> None:
         """Escape. A no-op if the column is already hidden, so binding it at
@@ -519,7 +466,6 @@ class AprsPane(Horizontal):
         reason (e.g. inside a modal opened over this pane)."""
         if self._slideout.close_by_hand():
             self.query_one("#aprs-compose-input", Input).focus()
-            self._fit_compose_row()
 
     def _close_contacts_after_pick(self) -> None:
         """Close the panel because a row was chosen -- but only if the
@@ -1345,13 +1291,8 @@ class AprsPane(Horizontal):
         self.app.notify(f"Saved {result.name!r}.")  # type: ignore[attr-defined]
 
     # -- templates -----------------------------------------------------------
-    @on(Button.Pressed, "#aprs-templates-button")
-    def _templates_pressed(self) -> None:
-        self.show_templates()
-
-    @on(Button.Pressed, "#aprs-gateway-form-button")
     @work
-    async def _gateway_form(self) -> None:
+    async def show_gateway_form(self) -> None:
         """Offer documented fields for the selected SMS/email gateway only."""
         from .dialogs import AprsGatewayMessageScreen
 
@@ -1378,10 +1319,6 @@ class AprsPane(Horizontal):
         field = self.query_one("#aprs-compose-input", Input)
         field.value = result.body
         field.focus()
-
-    @on(Button.Pressed, "#aprs-is-watch-button")
-    def _aprs_is_watch(self) -> None:
-        self.app.action_aprs_is_watch()  # type: ignore[attr-defined]
 
     @work
     async def show_templates(self) -> None:

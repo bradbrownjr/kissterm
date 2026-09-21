@@ -69,7 +69,7 @@ async def test_gateway_form_uses_the_active_sms_chat_when_to_is_blank(tmp_path):
         pane.select_conversation("SMSGTE", "SMS")
         app.query_one("#aprs-to-input", Input).value = ""
 
-        pane._gateway_form()
+        pane.show_gateway_form()
         await asyncio.sleep(0.05)
         await pilot.pause()
 

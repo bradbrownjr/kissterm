@@ -752,6 +752,15 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 apply="live",
             ),
             Field(
+                "aprs_is_watch_debug",
+                "Background APRS-IS watch in debug logs",
+                "bool",
+                "While kissterm runs with --log-level debug, keep a receive-only "
+                "APRS-IS stream open for your packets and replies addressed to you. "
+                "It never keys RF or publishes to APRS-IS. Off by default.",
+                apply="live",
+            ),
+            Field(
                 "remote_color",
                 "Allow remote colour",
                 "bool",

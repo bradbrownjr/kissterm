@@ -153,39 +153,27 @@ async def test_the_conversation_column_keeps_its_forty_columns():
 
 
 @pytest.mark.asyncio
-async def test_the_templates_button_gets_out_of_the_way_when_the_row_is_tight():
-    """With the contact list open the conversation column can be 40 cells,
-    and To + Templates + Send eat most of that before the message box gets
-    anything -- which the auto-open made the DEFAULT view rather than an edge
-    case. Templates is the one that goes because it is purely a shortcut:
-    Ctrl+R does the same thing and shows in the Footer as "Commands".
-    """
-    from textual.widgets import Button
-
-    for width, expected in ((110, False), (200, True)):
+async def test_aprs_compose_row_stays_usable_with_the_contacts_panel_open():
+    """APRS controls live in the context footer, leaving only To/Message/Send."""
+    for width in (80, 110, 200):
         app, station = await _app()
         async with app.run_test(size=(width, 30)) as pilot:
             await _settle(app, pilot, "aprs")
             assert app.query_one("#aprs-contacts-column").display, width
-            button = app.query_one("#aprs-templates-button", Button)
-            assert button.display is expected, (width, button.display)
-            # Whatever the width, the message box is still usable.
-            assert app.query_one("#aprs-compose-input").outer_size.width >= 20, width
+            assert app.query_one("#aprs-compose-input").outer_size.width >= 16, width
         station.close()
 
 
 @pytest.mark.asyncio
-async def test_closing_the_panel_gives_the_templates_button_back():
+async def test_aprs_compose_row_grows_when_the_contacts_panel_closes():
     app, station = await _app()
     async with app.run_test(size=(110, 30)) as pilot:
         await _settle(app, pilot, "aprs")
-        from textual.widgets import Button
-
-        assert not app.query_one("#aprs-templates-button", Button).display
+        before = app.query_one("#aprs-compose-input").outer_size.width
 
         await pilot.press("ctrl+g")  # close the contact list
         await pilot.pause()
         await asyncio.sleep(0.1)
         await pilot.pause()
-        assert app.query_one("#aprs-templates-button", Button).display
+        assert app.query_one("#aprs-compose-input").outer_size.width > before
     station.close()

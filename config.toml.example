@@ -128,6 +128,12 @@ connect_banner = "Welcome. This is an unattended kissterm station.\rThere is no 
 
 monitor_filter = ""
 
+# With this on AND launching with --log-level debug, kissterm keeps a
+# receive-only APRS-IS diagnostic stream open. The debug log can then show
+# whether APRS-IS observed one of your packets and whether a reply was
+# addressed back to you. It never keys RF or publishes to APRS-IS.
+aprs_is_watch_debug = false
+
 # Where session logs are written. Leave blank to use the platform default
 # (shown by `kissterm --doctor` under "log directory") -- set this only if
 # you want logs somewhere specific, e.g. a shared directory for a club

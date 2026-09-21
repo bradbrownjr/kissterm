@@ -33,6 +33,19 @@ touched and any breaking notes.
   **Files:** `kissterm/ui/aprs_pane.py`, `kissterm/ui/dialogs.py`,
   `tests/pilot/test_aprs_send.py`, `docs/CHANGELOG.md`.
 
+- **APRS-context controls.** The crowded chat compose row is now only To,
+  Message, and Send. Templates, Form, Bulletin, Object, and Watch IS are
+  APRS-context footer actions; the footer no longer shows Connect or
+  Disconnect on that broadcast pane. A new live setting can keep the
+  receive-only APRS-IS watcher running in the background only when
+  `--log-level debug` is active.
+  **Files:** `kissterm/config.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/aprs_pane.py`, `kissterm/ui/commands.py`,
+  `kissterm/ui/settings_schema.py`, `kissterm/ui/styles.py`,
+  `config.toml.example`, `tests/pilot/test_app_mounts.py`,
+  `tests/pilot/test_slideout_auto_open.py`, `tests/unit/test_config.py`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add documented APRS SMS and email forms
 
 ### Improvements
