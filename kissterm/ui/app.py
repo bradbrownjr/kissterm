@@ -720,7 +720,11 @@ class KissTermApp(App):
         Binding("ctrl+alt+b", "aprs_beacon_now", "Position now"),
         Binding("ctrl+shift+o", "aprs_object", "Object", key_display="^O"),
         Binding("ctrl+shift+i", "aprs_is_watch", "Watch IS", key_display="^I"),
-        Binding("ctrl+m", "aprs_gateway_form", "Form"),
+        # Ctrl+M is the carriage-return byte in ordinary terminals.  A
+        # contact table therefore receives it as Enter and opens its selected
+        # row, rather than reaching this app binding. Alt+M is one modifier,
+        # works in those terminals, and remains specific to APRS below.
+        Binding("alt+m", "aprs_gateway_form", "Form"),
         Binding("ctrl+alt+l", "aprs_bulletin", "Bulletin"),
         Binding("ctrl+n", "connect", "Connect"),
         # Ctrl+SHIFT+D, not plain Ctrl+D, for the same reason as Ctrl+Shift+B

@@ -59,8 +59,9 @@ touched and any breaking notes.
   unrelated transmit, connection, or composition work. Contextual actions now
   also decline to run from the wrong tab, so an unseen shortcut cannot trigger
   a disconnect or beacon from a diagnostic page.
-  Gateway Form is now the simple APRS-only `Ctrl+M` rather than a three-key
-  chord; less common APRS diagnostics remain in the searchable key palette.
+  Gateway Form uses APRS-only `Alt+M`: `Ctrl+M` is the Enter byte in ordinary
+  terminals and could activate the selected contact instead. Less common APRS
+  diagnostics remain in the searchable key palette.
   **Files:** `kissterm/ui/app.py`, `tests/pilot/test_app_mounts.py`,
   `DESIGN.md`, `docs/CHANGELOG.md`.
 

@@ -28,6 +28,7 @@ from kissterm.monitor import sanitize  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.ui.commands import ACTION_META, KeyBindingsProvider, _action_base  # noqa: E402
 from kissterm.ui.dialogs import (  # noqa: E402
+    AprsGatewayMessageScreen,
     AprsIsWatchScreen,
     CallsignScreen,
     ConnectScreen,
@@ -120,6 +121,22 @@ async def test_aprs_footer_switches_context_before_any_aprs_interaction():
         assert "connect" not in actions
         assert "disconnect" not in actions
         assert "aprs_gateway_form" in actions
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_alt_m_opens_the_aprs_gateway_form_not_the_selected_contact():
+    """Ctrl+M is Enter in a terminal and must never be used for this action."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("aprs")
+        await pilot.pause()
+        app.query_one("#aprs-to-input", Input).value = "SMSGTE"
+        await pilot.press("alt+m")
+        await asyncio.sleep(0.05)
+        await pilot.pause()
+        assert isinstance(app.screen, AprsGatewayMessageScreen)
+        await app.screen.dismiss(None)
     station.close()
 
 
