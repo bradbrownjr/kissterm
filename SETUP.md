@@ -451,14 +451,16 @@ format alone (see the note in `kissterm/ax25/frame.py`'s `decode()`
 docstring), so it has to be a matching configuration choice on both sides,
 not something kissterm can silently work around.
 
-## 9. YAPP file transfers
+## 9. File transfers: YAPP and AutoBIN
 
-While connected to a peer or BBS that supports YAPP, press `Ctrl+Shift+Y`.
-For an upload, choose **Browse files** and select the local file; kissterm
-sends the YAPP handshake only after that explicit choice. For a download,
-choose **Receive into directory** first, then issue the peer's YAPP download
-command. Completed downloads are saved in kissterm's application-data
-`downloads` directory. Kissterm never opens or executes transferred files.
+While connected to a peer or BBS that supports YAPP or AutoBIN, press
+`Ctrl+Shift+Y` and choose the protocol. For an upload, choose **Browse files**
+and select the local file; kissterm starts the selected protocol only after
+that explicit choice. For a download, choose **Receive into directory** first,
+then issue the peer's YAPP or AutoBIN download command. Completed downloads
+are saved in kissterm's application-data `downloads` directory. Kissterm never
+auto-detects an AutoBIN header into a write, opens, or executes transferred
+files.
 
 ## 10. Developer setup
 

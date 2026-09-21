@@ -79,25 +79,30 @@ class ConnectRequest:
 
 
 @dataclass(frozen=True)
-class YappRequest:
+class FileTransferRequest:
+    protocol: str
     mode: str
     path: str
 
 
-class YappTransferScreen(ModalScreen[YappRequest | None]):
-    """Explicit local-file choice for one YAPP client transfer."""
+class FileTransferScreen(ModalScreen[FileTransferRequest | None]):
+    """Explicit local-file choice for one YAPP or AutoBIN client transfer."""
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
-            yield Label("YAPP file transfer", id="connect-title")
+            yield Label("File transfer", id="connect-title")
+            yield Select(
+                [("YAPP", "yapp"), ("AutoBIN", "autobin")],
+                value="yapp", id="transfer-protocol", allow_blank=False,
+            )
             yield Select(
                 [("Upload local file", "upload"), ("Receive into directory", "download")],
                 value="upload", id="yapp-mode", allow_blank=False,
             )
             yield Input(placeholder="Local file path", id="yapp-path")
             yield Button("Browse files", id="yapp-browse")
-            yield Static("Upload starts YAPP now. For download, start this first, then request YAPP from the peer.")
+            yield Static("Upload starts the selected protocol. For download, start this first, then request it from the peer.")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Start", id="yapp-start", classes="-primary")
                 yield Button("Cancel", id="yapp-cancel")
@@ -113,7 +118,8 @@ class YappTransferScreen(ModalScreen[YappRequest | None]):
         if mode == "upload" and not path:
             self.notify("Enter a local path.", severity="warning")
             return
-        self.dismiss(YappRequest(mode, path))
+        protocol = str(self.query_one("#transfer-protocol", Select).value)
+        self.dismiss(FileTransferRequest(protocol, mode, path))
 
     @on(Button.Pressed, "#yapp-browse")
     def _browse(self) -> None:
@@ -128,7 +134,7 @@ class YappTransferScreen(ModalScreen[YappRequest | None]):
 
 
 class FilePickerScreen(ModalScreen[Path | None]):
-    """Local read-only browser for an explicit YAPP upload selection."""
+    """Local read-only browser for an explicit upload selection."""
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
     def __init__(self, directory: Path | None = None) -> None:

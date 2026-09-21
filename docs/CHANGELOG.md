@@ -3,6 +3,20 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-21] — Add explicit AutoBIN client transfers
+
+### New Features
+
+- **AutoBIN upload and download.** `Ctrl+Shift+Y` now selects YAPP or AutoBIN.
+  AutoBIN uses the `#BIN#` byte-count/CRC handshake, validates the received
+  checksum, writes a temporary file before an atomic move into the fixed
+  downloads directory, and never treats an unrequested header as permission to
+  write a file. Existing downloads are retained rather than overwritten.
+  **Files:** `kissterm/autobin.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/dialogs.py`, `kissterm/ui/commands.py`,
+  `tests/unit/test_autobin.py`, `README.md`, `SETUP.md`,
+  `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add explicit YAPP client transfers
 
 ### New Features
