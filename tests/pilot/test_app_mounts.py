@@ -112,6 +112,27 @@ async def test_aprs_is_watch_is_reachable_without_an_rf_transmission():
 
 
 @pytest.mark.asyncio
+async def test_closing_watch_does_not_stop_the_configured_background_monitor(monkeypatch):
+    """The Watch screen is a view, not the owner of debug monitoring."""
+    app, ta, tb, station = await _app()
+    stopped: list[bool] = []
+    app.config.aprs_is_watch_debug = True
+    monkeypatch.setattr(ui_app.log, "isEnabledFor", lambda level: True)
+    monkeypatch.setattr(app.aprs_is_watch, "stop", lambda: stopped.append(True))
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("aprs")
+        await pilot.pause()
+        app.action_aprs_is_watch()
+        await asyncio.sleep(0.05)
+        await pilot.pause()
+        assert isinstance(app.screen, AprsIsWatchScreen)
+        await app.screen.dismiss(None)
+        await pilot.pause()
+        assert stopped == []
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_aprs_footer_switches_context_before_any_aprs_interaction():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(140, 40)) as pilot:

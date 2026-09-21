@@ -127,10 +127,14 @@ class AprsIsWatchScreen(ModalScreen[None]):
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Close")]
 
-    def __init__(self, watch, callsign: str) -> None:
+    def __init__(self, watch, callsign: str, *, stop_on_close: bool = True) -> None:
         super().__init__()
         self._watch = watch
         self._callsign = callsign
+        # The same receive-only client can be owned by the debug-background
+        # setting. Closing a view of that client must not silently cancel its
+        # monitoring task; a manually opened one still stops on close.
+        self._stop_on_close = stop_on_close
         self._shown = 0
         self._unsubscribe = lambda: None
 
@@ -154,10 +158,12 @@ class AprsIsWatchScreen(ModalScreen[None]):
         self._refresh()
 
     def on_unmount(self) -> None:
-        # Escape uses the generic dismiss binding, so stopping here is the
-        # one lifecycle rule shared by Escape, Close, and app shutdown.
+        # Escape uses the generic dismiss binding. Only the dialog-owned
+        # watcher is stopped here: the configured background watcher belongs
+        # to the app and must outlive this view.
         self._unsubscribe()
-        self._watch.stop()
+        if self._stop_on_close:
+            self._watch.stop()
 
     def _refresh(self) -> None:
         if not self.is_mounted:
@@ -187,7 +193,6 @@ class AprsIsWatchScreen(ModalScreen[None]):
 
     @on(Button.Pressed, "#aprs-is-watch-close")
     def _close(self) -> None:
-        self._watch.stop()
         self.dismiss(None)
 
 

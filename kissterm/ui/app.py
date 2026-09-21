@@ -1128,7 +1128,7 @@ class KissTermApp(App):
         stream is useful only when its correlation evidence is being kept.
         A manually opened or SMS-triggered watcher is never stopped here.
         """
-        enabled = bool(getattr(self.config, "aprs_is_watch_debug", False))
+        enabled = self._aprs_is_background_requested()
         debug_logging = log.isEnabledFor(logging.DEBUG)
         if enabled and debug_logging and not self.aprs_is_watch.running:
             try:
@@ -1141,6 +1141,13 @@ class KissTermApp(App):
         elif self._aprs_is_background_started and (not enabled or not debug_logging):
             self.aprs_is_watch.stop()
             self._aprs_is_background_started = False
+
+    def _aprs_is_background_requested(self) -> bool:
+        """Whether the configured debug monitor owns the APRS-IS client."""
+        return bool(
+            getattr(self.config, "aprs_is_watch_debug", False)
+            and log.isEnabledFor(logging.DEBUG)
+        )
 
     def _make_watch_notifier(self) -> WatchNotifier:
         watched = self.config.watched_callsigns
@@ -2761,7 +2768,13 @@ class KissTermApp(App):
         if self.query_one("#main-tabs", TabbedContent).active != "aprs":
             self.notify("Open APRS to watch APRS-IS.")
             return
-        await self.push_screen_wait(AprsIsWatchScreen(self.aprs_is_watch, self._active_aprs_identity()))
+        await self.push_screen_wait(
+            AprsIsWatchScreen(
+                self.aprs_is_watch,
+                self._active_aprs_identity(),
+                stop_on_close=not self._aprs_is_background_requested(),
+            )
+        )
 
     async def _toggle_aprs_beacon_quick(self) -> None:
         """Flip `config.aprs.enabled` from the APRS pane's Ctrl+Shift+B,

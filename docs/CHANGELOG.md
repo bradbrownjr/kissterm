@@ -29,6 +29,14 @@ touched and any breaking notes.
   `tests/unit/test_aprs_is.py`, `tests/pilot/test_app_mounts.py`,
   `docs/CHANGELOG.md`.
 
+- **Background APRS-IS monitoring survives closing Watch IS.** The modal is
+  now only a view of the configured debug monitor; closing it no longer
+  cancels the shared receive-only connection and leaves later SMS retries
+  without delivery evidence. A manually started watcher still stops when its
+  dialog closes.
+  **Files:** `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+  `tests/pilot/test_app_mounts.py`, `docs/CHANGELOG.md`.
+
 - **SMS delivery evidence in debug logs.** A deliberate SMS/SMSGTE request
   starts the same receive-only watch before RF transmission. Debug output
   distinguishes an outbound packet observed by APRS-IS from a reply addressed
