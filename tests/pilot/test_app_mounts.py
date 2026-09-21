@@ -185,7 +185,10 @@ async def test_footer_is_tab_and_connection_aware():
         app._connecting.clear()
         app._refresh_context_footer()
 
-        app.action_show_tab("aprs")
+        # A mouse click changes ``TabbedContent.active`` directly, bypassing
+        # the keyboard action's deferred refresh. The activation hook itself
+        # must therefore replace Terminal's contextual keys immediately.
+        app.query_one("#main-tabs", TabbedContent).active = "aprs"
         await asyncio.sleep(0)
         await pilot.pause()
         aprs = actions()

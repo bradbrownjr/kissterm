@@ -3964,3 +3964,8 @@ class KissTermApp(App):
             # behaviour that matches "this shows what is in effect".
             self.query_one(SettingsPane).render_settings(self.config)
         self._refresh_status()
+        # Clicking a tab changes ``TabbedContent.active`` directly and never
+        # passes through ``action_show_tab``.  Refresh after this activation's
+        # layout pass too, otherwise Footer can retain Terminal's context
+        # until an APRS child receives focus.
+        self.call_after_refresh(self._refresh_context_footer)

@@ -15,6 +15,15 @@ touched and any breaking notes.
   **Files:** `kissterm/ui/app.py`, `tests/pilot/test_aprs_object_send.py`,
   `docs/CHANGELOG.md`.
 
+### Fixes
+
+- **APRS shortcut bar refreshes on a clicked tab.** Tab activation now
+  refreshes the context-aware shortcut bar after layout, so APRS immediately
+  shows Position now instead of retaining Terminal actions until a child is
+  focused.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_app_mounts.py`,
+  `docs/CHANGELOG.md`.
+
 ### New Features
 
 - **Object reports accept common field coordinate formats.** The APRS object
