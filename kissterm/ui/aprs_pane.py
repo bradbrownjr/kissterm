@@ -1355,12 +1355,23 @@ class AprsPane(Horizontal):
         """Offer documented fields for the selected SMS/email gateway only."""
         from .dialogs import AprsGatewayMessageScreen
 
-        addressee = self.query_one("#aprs-to-input", Input).value.strip().upper()
-        kind = "sms" if addressee == "SMSGTE" else "email" if addressee in {"EMAIL", "EMAIL-2"} else ""
+        to_field = self.query_one("#aprs-to-input", Input)
+        addressee = to_field.value.strip().upper()
+        # A conversation tab already has an unambiguous correspondent. The
+        # field is normally set by TabActivated, but use the tab as a
+        # fallback so opening Form from an existing SMS chat never asks the
+        # operator to retype the gateway callsign.
+        if not addressee:
+            addressee = self._active_callsign() or ""
+            if addressee:
+                to_field.value = addressee
+        kind = "sms" if addressee in {"SMS", "SMSGTE"} else "email" if addressee in {"EMAIL", "EMAIL-2"} else ""
         if not kind:
-            self.app.notify("Choose SMSGTE or EMAIL-2 first, then open Form.", severity="warning")  # type: ignore[attr-defined]
+            self.app.notify("Choose SMS, SMSGTE, or EMAIL-2 first, then open Form.", severity="warning")  # type: ignore[attr-defined]
             return
-        result = await self.app.push_screen_wait(AprsGatewayMessageScreen(kind))  # type: ignore[attr-defined]
+        result = await self.app.push_screen_wait(  # type: ignore[attr-defined]
+            AprsGatewayMessageScreen(kind, addressee=addressee)
+        )
         if result is None:
             return
         self.query_one("#aprs-to-input", Input).value = result.addressee

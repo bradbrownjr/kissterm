@@ -24,6 +24,7 @@ from kissterm.aprs_conversations import ConversationStore, PendingAcks  # noqa: 
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.ui.aprs_pane import AprsPane  # noqa: E402
+from kissterm.ui.dialogs import AprsGatewayMessageScreen  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
 MYCALL = AX25Address.parse("N1ABC-1")
@@ -57,6 +58,27 @@ def _terminal_text(app: KissTermApp) -> str:
     return "\n".join(
         str(line) for line in app.query_one(TerminalPane).query_one("#session-log").lines
     )
+
+
+@pytest.mark.asyncio
+async def test_gateway_form_uses_the_active_sms_chat_when_to_is_blank(tmp_path):
+    app, mine, theirs, ta = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        pane = app.query_one(AprsPane)
+        pane.select_conversation("SMSGTE", "SMS")
+        app.query_one("#aprs-to-input", Input).value = ""
+
+        pane._gateway_form()
+        await asyncio.sleep(0.05)
+        await pilot.pause()
+
+        assert isinstance(app.screen, AprsGatewayMessageScreen)
+        assert app.query_one("#aprs-to-input", Input).value == "SMSGTE"
+        await app.screen.dismiss(None)
+        assert ta.sent == []
+    mine.close()
+    theirs.close()
 
 
 @pytest.mark.asyncio

@@ -27,6 +27,12 @@ touched and any breaking notes.
   `kissterm/ui/aprs_pane.py`, `tests/unit/test_aprs_is.py`,
   `tests/pilot/test_aprs_send.py`, `docs/CHANGELOG.md`.
 
+- **Gateway form follows the active chat.** Form now falls back to the active
+  SMS/SMSGTE/EMAIL conversation when `To:` is blank, fills it visibly, and
+  supports the NA7Q `SMS` gateway alongside SMSGTE.
+  **Files:** `kissterm/ui/aprs_pane.py`, `kissterm/ui/dialogs.py`,
+  `tests/pilot/test_aprs_send.py`, `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add documented APRS SMS and email forms
 
 ### Improvements

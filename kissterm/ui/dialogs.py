@@ -191,7 +191,7 @@ class AprsIsWatchScreen(ModalScreen[None]):
 
 
 class AprsGatewayMessageScreen(ModalScreen[AprsGatewayMessageRequest | None]):
-    """Build one documented SMSGTE or EMAIL-2 request without sending it.
+    """Build one documented SMS/SMSGTE or EMAIL-2 request without sending it.
 
     Gateway punctuation belongs here, not in a novice's memory: SMSGTE needs
     ``@number`` followed by one space, while EMAIL-2 needs the recipient as
@@ -201,13 +201,14 @@ class AprsGatewayMessageScreen(ModalScreen[AprsGatewayMessageRequest | None]):
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
-    def __init__(self, kind: str) -> None:
+    def __init__(self, kind: str, *, addressee: str | None = None) -> None:
         super().__init__()
         self._kind = kind
+        self._addressee = (addressee or ("SMSGTE" if kind == "sms" else "EMAIL-2")).upper()
 
     def compose(self) -> ComposeResult:
         sms = self._kind == "sms"
-        title = "Send SMS through SMSGTE" if sms else "Send email through EMAIL-2"
+        title = f"Send SMS through {self._addressee}" if sms else "Send email through EMAIL-2"
         recipient = "Phone number" if sms else "Email address or shortcut"
         hint = (
             "kissterm adds @ before the number and the required single space."
@@ -255,7 +256,7 @@ class AprsGatewayMessageScreen(ModalScreen[AprsGatewayMessageRequest | None]):
         if not recipient or not message:
             self.query_one("#connect-error", Label).update("Enter a recipient and message.")
             return
-        self.dismiss(AprsGatewayMessageRequest("SMSGTE" if self._kind == "sms" else "EMAIL-2", self._body()))
+        self.dismiss(AprsGatewayMessageRequest(self._addressee, self._body()))
 
 
 class OnboardingScreen(ModalScreen[OnboardingRequest | None]):
