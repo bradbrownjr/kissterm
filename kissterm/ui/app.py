@@ -947,6 +947,52 @@ class KissTermApp(App):
             )
         self.query_one(TerminalPane).log("", banner)
         self.apply_runtime_settings()
+        if not self.config.mycall or (
+            self.station is None
+            and self.session_transport is None
+            and not self.config.transports
+        ):
+            # Defer until the root screen has completed its first layout.
+            # Pushing a modal directly from on_mount races Textual's initial
+            # focus pass and can leave the callsign box unfocused.
+            self.call_after_refresh(self._show_onboarding)
+
+    def _show_onboarding(self) -> None:
+        """Guide a fresh install through its one required identity setting.
+
+        This is deliberately UI-first: a missing callsign should not force a
+        newcomer back to a shell prompt.  `--setup` remains the plain-terminal
+        recovery route for operators who explicitly ask for it.
+        """
+        from .dialogs import OnboardingScreen
+
+        self.push_screen(OnboardingScreen(self.config.mycall), self._finish_onboarding)
+
+    def _finish_onboarding(self, request) -> None:
+        if request is None:
+            # There is no useful terminal session without an identity, and
+            # quitting is clearer than leaving a new operator at a disabled
+            # send line that cannot ever connect.
+            if not self.config.mycall:
+                self.exit()
+            else:
+                self.notify("Add a transport in Settings when you are ready.")
+            return
+
+        self.config.mycall = request.callsign
+        saved = self._save_config()
+        self.query_one(SettingsPane).render_settings(self.config)
+        if request.set_up_transport:
+            main_tabs = self.query_one("#main-tabs", TabbedContent)
+            main_tabs.active = "settings"
+            self.query_one("#settings-tabs", TabbedContent).active = "settings-tab-transports"
+            self.notify(
+                "Callsign saved. Add a transport with New or Scan for hardware.",
+                severity="information",
+            )
+        else:
+            where = "saved" if saved else "kept for this session only"
+            self.notify(f"Callsign {request.callsign} {where}. Set up a transport when ready.")
 
     # ------------------------------------------------------------------
     # Settings that need something done, not just stored

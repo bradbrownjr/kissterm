@@ -3,6 +3,21 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-21] — Add GUI first-run onboarding
+
+### New Features
+
+- **Guided first launch.** A fresh install, or a configuration missing a
+  transport, now opens a focused in-app guide that validates the operator's
+  callsign, makes clear that setup never transmits, and takes them directly
+  to transport setup. APRS configuration stays optional; kissterm does not
+  use APRS-IS credentials. `--setup` remains the explicit plain-terminal
+  recovery path.
+  **Files:** `kissterm/__main__.py`, `kissterm/ui/app.py`,
+  `kissterm/ui/dialogs.py`, `kissterm/ui/styles.py`,
+  `tests/unit/test_config.py`, `tests/pilot/test_app_mounts.py`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Keep the terminal available without a transport
 
 ### Fixes

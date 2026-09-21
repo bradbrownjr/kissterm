@@ -379,6 +379,30 @@ def test_cli_opens_the_ui_when_callsign_exists_but_no_transport_is_configured(
     }
 
 
+def test_cli_leaves_a_fresh_install_for_gui_onboarding(tmp_path, monkeypatch):
+    """Normal launch must not divert a new operator into the old TTY wizard."""
+    monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
+    seen = {}
+
+    class FakeApp:
+        def __init__(self, config, station, session_transport=None):
+            seen["config"] = config
+            seen["station"] = station
+            seen["session_transport"] = session_transport
+
+        async def run_async(self):
+            seen["ran"] = True
+
+    monkeypatch.setattr(app_module, "KissTermApp", FakeApp)
+    args = main._build_parser().parse_args([])
+
+    assert asyncio.run(main._amain(args)) == 0
+    assert seen["config"].mycall == ""
+    assert seen["station"] is None
+    assert seen["session_transport"] is None
+    assert seen["ran"] is True
+
+
 def test_profile_cli_rejects_a_symlinked_profiles_directory(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
     (tmp_path / "profiles").symlink_to(tmp_path, target_is_directory=True)

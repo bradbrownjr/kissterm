@@ -406,7 +406,10 @@ async def _amain(args) -> int:
         print("Preserve this line and its capture time as the regression-fixture provenance.")
         return 0
 
-    if args.setup or not config.mycall:
+    # Normal first-run onboarding belongs in the TUI, where a new operator
+    # can see the same transport editor and help used later.  ``--setup`` is
+    # retained as the explicit plain-terminal recovery route.
+    if args.setup:
         if not await _run_wizard(config, args.no_discover):
             return 1
         config = load_config(profile=profile)

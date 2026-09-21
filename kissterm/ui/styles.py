@@ -248,6 +248,22 @@ ConnectScreen { align: center middle; }
    box that grew with its content would push Connect/Cancel around. */
 #connect-script { height: 4; border: round $primary; margin-top: 1; }
 
+/* First-run onboarding intentionally asks for one required fact before
+   handing off to the established Settings transport editor.  It is a short
+   guide, not a second settings page. */
+OnboardingScreen { align: center middle; }
+#onboarding-box {
+    width: 72; height: auto; padding: 1 2;
+    border: thick $primary; background: $surface;
+}
+#onboarding-intro, #onboarding-call-hint, #onboarding-aprs-note {
+    color: $text-muted; width: 100%; height: auto;
+}
+#onboarding-call-label { margin-top: 1; color: $accent; }
+#onboarding-callsign { width: 100%; }
+#onboarding-aprs-note { margin-top: 1; }
+#onboarding-error { color: $error; width: 100%; height: auto; }
+
 /* APRS contact dialog -- shares #connect-box/#connect-title/#connect-error/
    #connect-buttons with every other modal in this file (one screen visible
    at a time, so the shared ID is not a conflict). */
@@ -430,6 +446,7 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #aprs-contacts-column,
 .-ascii-safe #aprs-sensor-summary,
 .-ascii-safe #connect-box,
+.-ascii-safe #onboarding-box,
 .-ascii-safe #transport-box,
 .-ascii-safe #ref-box,
 .-ascii-safe #transcripts-box,

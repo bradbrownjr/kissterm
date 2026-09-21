@@ -29,6 +29,7 @@ from kissterm.ui.commands import ACTION_META, KeyBindingsProvider, _action_base 
 from kissterm.ui.dialogs import (  # noqa: E402
     CallsignScreen,
     ConnectScreen,
+    OnboardingScreen,
     TransportEntryScreen,
 )
 from textual.widgets import TabbedContent  # noqa: E402
@@ -95,9 +96,32 @@ async def test_app_mounts_without_a_transport_so_settings_can_repair_it():
     """A missing transport is configuration work, not a reason to hide the GUI."""
     app = KissTermApp(Config(mycall=str(MYCALL)))
 
-    async with app.run_test(size=(120, 40)):
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
         assert "NO TRANSPORT - F5 Settings" in _plain(app.query_one("#status-bar"))
         assert app.query_one(SettingsPane) is not None
+        assert isinstance(app.screen, OnboardingScreen)
+        assert app.screen.query_one("#onboarding-callsign", Input).value == str(MYCALL)
+
+
+@pytest.mark.asyncio
+async def test_first_run_onboarding_requires_a_callsign_then_opens_transport_setup():
+    """New operators start in the GUI and land at the next essential step."""
+    app = KissTermApp(Config())
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert isinstance(app.screen, OnboardingScreen)
+        await pilot.press("enter")
+        assert "callsign" in str(app.screen.query_one("#onboarding-error").render()).lower()
+
+        app.screen.query_one("#onboarding-callsign", Input).value = "N1ABC-1"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert app.config.mycall == "N1ABC-1"
+        assert app.query_one("#main-tabs", TabbedContent).active == "settings"
+        assert app.query_one("#settings-tabs", TabbedContent).active == "settings-tab-transports"
 
 
 @pytest.mark.asyncio

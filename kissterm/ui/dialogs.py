@@ -98,6 +98,94 @@ class AprsObjectRequest:
     comment: str
 
 
+@dataclass(frozen=True)
+class OnboardingRequest:
+    """The one required identity answer from first-run onboarding.
+
+    A transport is the next essential step, but its fields vary radically by
+    backend and already have one careful editor in Settings.  This request
+    therefore tells the app whether to take the operator straight there after
+    saving a valid callsign, rather than creating a second, incomplete
+    transport form that would drift from the real one.
+    """
+
+    callsign: str
+    set_up_transport: bool
+
+
+class OnboardingScreen(ModalScreen[OnboardingRequest | None]):
+    """Plain-language first-run guide, before a new operator sees Settings.
+
+    The callsign is required because every AX.25 frame claims one.  A
+    transport is required before any connection can happen, but APRS position,
+    beaconing, and APRS messaging are all optional; asking for those up front
+    would turn a terminal's first minute into a radio-programming form.  The
+    screen creates no transport and never touches the transmit gate.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Quit setup")]
+
+    def __init__(self, current_callsign: str = "") -> None:
+        super().__init__()
+        self._current_callsign = current_callsign
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="onboarding-box"):
+            yield Label("Welcome to kissterm", id="connect-title")
+            yield Static(
+                "This is a terminal for packet radio. Setup only saves local "
+                "settings; it does not connect or transmit.",
+                id="onboarding-intro",
+            )
+            yield Label("Your amateur-radio callsign", id="onboarding-call-label")
+            yield Input(
+                value=self._current_callsign,
+                placeholder="e.g. N1ABC-1",
+                id="onboarding-callsign",
+            )
+            yield Static(
+                "Use the callsign and SSID you will use on this station. "
+                "You can change it later in Settings.",
+                id="onboarding-call-hint",
+            )
+            yield Static(
+                "Next you can add a TNC, modem, or network terminal. APRS "
+                "position and beaconing are optional and stay off until you "
+                "choose them; APRS-IS credentials are not needed.",
+                id="onboarding-aprs-note",
+            )
+            yield Label("", id="onboarding-error")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Set up radio", variant="primary", id="onboarding-transport")
+                yield Button("Explore first", id="onboarding-finish")
+
+    def on_mount(self) -> None:
+        self.query_one("#onboarding-callsign", Input).focus()
+
+    def _finish(self, set_up_transport: bool) -> None:
+        callsign = self.query_one("#onboarding-callsign", Input).value.strip().upper()
+        if not callsign:
+            self.query_one("#onboarding-error", Label).update("Enter your callsign first.")
+            return
+        from ..ax25 import AX25Address
+
+        try:
+            AX25Address.parse(callsign)
+        except Exception as exc:
+            self.query_one("#onboarding-error", Label).update(str(exc))
+            return
+        self.dismiss(OnboardingRequest(callsign, set_up_transport))
+
+    @on(Button.Pressed, "#onboarding-transport")
+    @on(Input.Submitted, "#onboarding-callsign")
+    def _set_up_transport(self) -> None:
+        self._finish(True)
+
+    @on(Button.Pressed, "#onboarding-finish")
+    def _explore_first(self) -> None:
+        self._finish(False)
+
+
 class AprsObjectScreen(ModalScreen[AprsObjectRequest | None]):
     """Compose one object report without treating it as the station position.
 
