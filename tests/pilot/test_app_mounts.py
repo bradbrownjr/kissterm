@@ -91,6 +91,16 @@ async def test_app_mounts_with_every_pane():
 
 
 @pytest.mark.asyncio
+async def test_app_mounts_without_a_transport_so_settings_can_repair_it():
+    """A missing transport is configuration work, not a reason to hide the GUI."""
+    app = KissTermApp(Config(mycall=str(MYCALL)))
+
+    async with app.run_test(size=(120, 40)):
+        assert "NO TRANSPORT - F5 Settings" in _plain(app.query_one("#status-bar"))
+        assert app.query_one(SettingsPane) is not None
+
+
+@pytest.mark.asyncio
 async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filters():
     """ASCII mode changes local chrome, not the terminal's remote-text path."""
     ta, tb = loopback_pair()

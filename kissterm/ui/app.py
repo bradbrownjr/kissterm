@@ -787,7 +787,10 @@ class KissTermApp(App):
         #: the task itself is the cancellation handle. It is set only while
         #: awaiting connect(), not for an established session or login script.
         self._session_connect_task: asyncio.Task[object] | None = None
-        self._status = "starting"
+        # Launching without a transport is intentional: Settings is where an
+        # operator adds or repairs one, and refusing to mount the TUI turns a
+        # missing entry into a command-line dead end.
+        self._status = "NO TRANSPORT - F5 Settings"
         #: Stations already tried, offered in the connect dialog. Owned here
         #: rather than by the dialog so a successful connect can be recorded
         #: after the dialog has closed, and so the file is read once at
@@ -932,11 +935,17 @@ class KissTermApp(App):
             self.station.transport.on_sent.append(self._on_sent_frame)
             self.station.on_incoming.append(self._on_incoming_link)
             self._status = f"{self.station.transport.info.detail}"
-        self.query_one(TerminalPane).log(
-            "",
-            f"kissterm {__version__} -- Ctrl+N to connect, Ctrl+R for commands, "
-            "Ctrl+O for past transcripts.\n",
-        )
+        if self.station is None and self.session_transport is None:
+            banner = (
+                f"kissterm {__version__} -- no transport configured. "
+                "Open F5 Settings, then Transports to add one.\n"
+            )
+        else:
+            banner = (
+                f"kissterm {__version__} -- Ctrl+N to connect, Ctrl+R for commands, "
+                "Ctrl+O for past transcripts.\n"
+            )
+        self.query_one(TerminalPane).log("", banner)
         self.apply_runtime_settings()
 
     # ------------------------------------------------------------------

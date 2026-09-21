@@ -412,46 +412,44 @@ async def _amain(args) -> int:
         config = load_config(profile=profile)
 
     entry = _select_transport_entry(config, args.transport)
-    if entry is None:
-        print("No transport is configured. Run 'kissterm --setup'.", file=sys.stderr)
-        return 2
-
-    from .ax25 import AX25Address, AX25Station, LinkParams
     from .app import KissTermApp
-    from .transport import build_transport
-    from .transport.base import FrameTransport, TransportError
-    from .ui.terminal_pane import MAX_TERMINAL_TABS
-
-    try:
-        transport = build_transport(entry)
-        await transport.open()
-    except (TransportError, Exception) as exc:  # noqa: BLE001 - reported, not raised
-        print(f"Could not open transport {entry.get('name')!r}: {exc}", file=sys.stderr)
-        print("Run 'kissterm --doctor' for a full check.", file=sys.stderr)
-        return 3
-
     station = None
-    if isinstance(transport, FrameTransport):
-        station = AX25Station(
-            AX25Address.parse(config.mycall),
-            transport,
-            LinkParams(
-                paclen=config.paclen,
-                window=config.window,
-                modulo=config.modulo,
-                retries=config.retries,
-                connect_retries=config.connect_retries,
-                t1=config.t1,
-                t2=config.t2,
-                t3=config.t3,
-            ),
-            aliases=tuple(AX25Address.parse(a) for a in config.mycall_aliases),
-            accept_incoming=config.accept_incoming,
-            # Kept in lockstep with the Terminal pane's own tab cap -- see
-            # `terminal_pane.py`'s module docstring -- so the two never
-            # disagree about how many simultaneous connections are usable.
-            max_links=MAX_TERMINAL_TABS,
-        )
+    transport = None
+    if entry is not None:
+        from .ax25 import AX25Address, AX25Station, LinkParams
+        from .transport import build_transport
+        from .transport.base import FrameTransport, TransportError
+        from .ui.terminal_pane import MAX_TERMINAL_TABS
+
+        try:
+            transport = build_transport(entry)
+            await transport.open()
+        except (TransportError, Exception) as exc:  # noqa: BLE001 - reported, not raised
+            print(f"Could not open transport {entry.get('name')!r}: {exc}", file=sys.stderr)
+            print("Run 'kissterm --doctor' for a full check.", file=sys.stderr)
+            return 3
+
+        if isinstance(transport, FrameTransport):
+            station = AX25Station(
+                AX25Address.parse(config.mycall),
+                transport,
+                LinkParams(
+                    paclen=config.paclen,
+                    window=config.window,
+                    modulo=config.modulo,
+                    retries=config.retries,
+                    connect_retries=config.connect_retries,
+                    t1=config.t1,
+                    t2=config.t2,
+                    t3=config.t3,
+                ),
+                aliases=tuple(AX25Address.parse(a) for a in config.mycall_aliases),
+                accept_incoming=config.accept_incoming,
+                # Kept in lockstep with the Terminal pane's own tab cap -- see
+                # `terminal_pane.py`'s module docstring -- so the two never
+                # disagree about how many simultaneous connections are usable.
+                max_links=MAX_TERMINAL_TABS,
+            )
 
     # A log that does not say what it is a log OF is guesswork later. This
     # one line is what makes a file the operator mails in reconstructible:
@@ -460,7 +458,9 @@ async def _amain(args) -> int:
         "kissterm %s starting: mycall=%s transport=%s",
         __version__,
         getattr(config, "mycall", "") or "(unset)",
-        transport.info.detail or transport.info.kind,
+        (transport.info.detail or transport.info.kind)
+        if transport is not None
+        else "(unconfigured)",
     )
     # `station` is None for a SessionTransport (Telnet, SSH, VARA, Mercury,
     # kernel AX.25) -- there is no AX.25 state machine to run underneath it,
@@ -484,7 +484,7 @@ async def _amain(args) -> int:
             # `station.close()` does not touch `.transport`, so it is still
             # there to read after the call.
             await station.transport.close()
-        else:
+        elif transport is not None:
             await transport.close()
     return 0
 

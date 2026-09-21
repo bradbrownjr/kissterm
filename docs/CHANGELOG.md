@@ -3,6 +3,19 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-21] — Keep the terminal available without a transport
+
+### Fixes
+
+- **No-transport launch no longer exits before the TUI.** A configured
+  callsign with no saved transport now opens the terminal directly, with a
+  clear Settings prompt and status indicator so an operator can add or repair
+  a transport in the GUI. A configured transport retains its existing launch
+  and open-failure behavior.
+  **Files:** `kissterm/__main__.py`, `kissterm/ui/app.py`,
+  `tests/unit/test_config.py`, `tests/pilot/test_app_mounts.py`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add GPS SmartBeaconing
 
 ### New Features

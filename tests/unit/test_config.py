@@ -30,6 +30,7 @@ _isolate.isolate()
 from kissterm import config as kconfig  # noqa: E402
 from kissterm import discovery  # noqa: E402
 from kissterm import __main__ as main  # noqa: E402
+from kissterm import app as app_module  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +348,35 @@ def test_profile_cli_selects_only_the_named_configuration(tmp_path, monkeypatch,
     assert kconfig.load_config(profile="field").mycall == "W1AW"
     assert kconfig.load_config().mycall == ""
     assert str(kconfig.config_path("field")) in capsys.readouterr().out
+
+
+def test_cli_opens_the_ui_when_callsign_exists_but_no_transport_is_configured(
+    tmp_path, monkeypatch
+):
+    """Settings must remain reachable to repair a missing transport entry."""
+    monkeypatch.setattr(kconfig, "_CONFIG_DIR", tmp_path)
+    kconfig.save_config(kconfig.Config(mycall="N0CALL"))
+    seen = {}
+
+    class FakeApp:
+        def __init__(self, config, station, session_transport=None):
+            seen["config"] = config
+            seen["station"] = station
+            seen["session_transport"] = session_transport
+
+        async def run_async(self):
+            seen["ran"] = True
+
+    monkeypatch.setattr(app_module, "KissTermApp", FakeApp)
+    args = main._build_parser().parse_args([])
+
+    assert asyncio.run(main._amain(args)) == 0
+    assert seen == {
+        "config": kconfig.Config(mycall="N0CALL"),
+        "station": None,
+        "session_transport": None,
+        "ran": True,
+    }
 
 
 def test_profile_cli_rejects_a_symlinked_profiles_directory(tmp_path, monkeypatch, capsys):
