@@ -119,6 +119,16 @@ def test_wrong_type_field_falls_back_to_default(tmp_path):
     assert len(cfg.warnings) >= 2
 
 
+def test_legacy_sms_template_is_migrated_to_smsgte_format(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('aprs_sms_template = "{detail} {text}"\n', encoding="utf-8")
+
+    cfg = kconfig.load_config(path=path)
+
+    assert cfg.aprs_sms_template == "@{detail} {text}"
+    assert any("SMSGTE" in warning for warning in cfg.warnings)
+
+
 def test_non_table_transport_entries_are_dropped(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text('transports = ["not-a-table", 42]\n', encoding="utf-8")

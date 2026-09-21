@@ -14,6 +14,7 @@ touched and any breaking notes.
   action.
   **Files:** `kissterm/aprs_contacts.py`, `kissterm/config.py`,
   `kissterm/ui/dialogs.py`, `kissterm/ui/aprs_pane.py`,
+  `tests/unit/test_aprs_contacts.py`, `tests/unit/test_config.py`,
   `docs/CHANGELOG.md`.
 
 ## [2026-09-21] — Complete onboarding transport handoff

@@ -709,6 +709,12 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
     cfg.aprs_sms_gateway = _load_str(raw, "aprs_sms_gateway", cfg.aprs_sms_gateway, warnings)
     cfg.aprs_email_gateway = _load_str(raw, "aprs_email_gateway", cfg.aprs_email_gateway, warnings)
     cfg.aprs_sms_template = _load_str(raw, "aprs_sms_template", cfg.aprs_sms_template, warnings)
+    if cfg.aprs_sms_template == "{detail} {text}":
+        # The original shipped default omitted SMSGTE's required ``@``.
+        # This exact value was never a documented customization, so migrate
+        # it while preserving every other operator-written template.
+        cfg.aprs_sms_template = "@{detail} {text}"
+        warnings.append("aprs_sms_template updated to SMSGTE's @number format")
     cfg.aprs_email_template = _load_str(raw, "aprs_email_template", cfg.aprs_email_template, warnings)
     cfg.connect_banner = _load_str(raw, "connect_banner", cfg.connect_banner, warnings)
     cfg.monitor_filter = _load_str(raw, "monitor_filter", cfg.monitor_filter, warnings)
