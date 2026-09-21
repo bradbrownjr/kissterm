@@ -94,6 +94,42 @@ async def test_object_composer_sends_its_own_position_and_arms_tx(caplog):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("scope", "expected_via"),
+    [
+        ("network", ["WIDE1-1"]),
+        ("rf_only", ["WIDE1-1", "RFONLY"]),
+        ("direct", []),
+    ],
+)
+async def test_object_scope_controls_its_rf_distribution(scope, expected_via):
+    """An exercise object can be local without changing normal beacon paths."""
+    app, station, transport = await _app()
+    async with app.run_test(size=(120, 44)) as pilot:
+        app.action_show_tab("aprs")
+        await pilot.pause()
+        app.action_aprs_object()
+        for _ in range(20):
+            if list(app.screen.query("#aprs-object-name")):
+                break
+            await asyncio.sleep(0.05)
+        app.screen.query_one("#aprs-object-name", Input).value = "EXERCISE"
+        app.screen.query_one("#aprs-object-scope", Select).value = scope
+        await pilot.pause()
+        # The primary composer test above covers the real button. Calling the
+        # handler here keeps this distribution matrix independent of modal
+        # viewport height at the smallest supported test terminal.
+        app.screen._send_object()
+        for _ in range(20):
+            if transport.sent:
+                break
+            await asyncio.sleep(0.05)
+
+        assert [str(digi) for digi in transport.sent[0].path.repeaters] == expected_via
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_object_composer_cancel_never_transmits():
     app, station, transport = await _app()
     async with app.run_test(size=(120, 44)) as pilot:

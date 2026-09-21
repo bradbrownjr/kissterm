@@ -97,6 +97,7 @@ class AprsObjectRequest:
     longitude: float
     symbol: str
     comment: str
+    scope: str
 
 
 @dataclass(frozen=True)
@@ -370,6 +371,14 @@ class AprsObjectScreen(ModalScreen[AprsObjectRequest | None]):
             )
             yield Select(
                 [
+                    ("Normal APRS network (configured path)", "network"),
+                    ("Local RF only (do not iGate)", "rf_only"),
+                    ("Direct RF (no digipeaters)", "direct"),
+                ],
+                value="network", id="aprs-object-scope", allow_blank=False,
+            )
+            yield Select(
+                [
                     ("Decimal latitude / longitude", "decimal"),
                     ("Maidenhead grid square", "grid"),
                     ("MGRS", "mgrs"),
@@ -386,17 +395,22 @@ class AprsObjectScreen(ModalScreen[AprsObjectRequest | None]):
                 ascii_safe=self._ascii_safe, value=self._symbol,
             )
             yield Input(placeholder="Comment (optional, 43 ASCII characters)", id="aprs-object-comment")
-            yield Static("Coordinates describe the object, not this station.", id="aprs-object-hint")
+            yield Static(id="aprs-object-hint")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Send object", id="aprs-object-send", classes="-primary")
                 yield Button("Cancel", id="aprs-object-cancel")
 
     def on_mount(self) -> None:
         self._sync_coordinate_fields()
+        self._sync_scope_hint()
 
     @on(Select.Changed, "#aprs-object-coordinate-format")
     def _coordinate_format_changed(self) -> None:
         self._sync_coordinate_fields()
+
+    @on(Select.Changed, "#aprs-object-scope")
+    def _scope_changed(self) -> None:
+        self._sync_scope_hint()
 
     def _sync_coordinate_fields(self) -> None:
         """Show exactly the one coordinate entry shape the selected format needs."""
@@ -409,6 +423,16 @@ class AprsObjectScreen(ModalScreen[AprsObjectRequest | None]):
             "mgrs": "MGRS, e.g. 18T WL 85664 11348",
             "utm": "UTM, e.g. 18 N 691875 4576931",
         }.get(mode, "Coordinate reference")
+
+    def _sync_scope_hint(self) -> None:
+        """Explain the delivery boundary before Send, never afterwards."""
+        scope = str(self.query_one("#aprs-object-scope", Select).value)
+        hint = {
+            "network": "Uses the APRS path configured in Settings.",
+            "rf_only": "Adds RFONLY: compliant iGates keep this object off APRS-IS.",
+            "direct": "Uses no digipeaters; a directly hearing iGate may still forward it.",
+        }[scope]
+        self.query_one("#aprs-object-hint", Static).update(hint)
 
     @on(Button.Pressed, "#aprs-object-cancel")
     def _cancel_object(self) -> None:
@@ -438,13 +462,14 @@ class AprsObjectScreen(ModalScreen[AprsObjectRequest | None]):
         symbol = self.query_one("#aprs-object-symbol-picker", SymbolPicker).value
         comment = self.query_one("#aprs-object-comment", Input).value
         alive = self.query_one("#aprs-object-alive", Select).value == "live"
+        scope = str(self.query_one("#aprs-object-scope", Select).value)
         # Leave strict wire validation to `aprs.object_report`, the one
         # encoder shared by every caller; this checks only enough to keep an
         # empty object from looking like a successfully submitted form.
         if not name.strip():
             self.notify("Give the object a name.", severity="warning")
             return
-        self.dismiss(AprsObjectRequest(name, alive, latitude, longitude, symbol, comment))
+        self.dismiss(AprsObjectRequest(name, alive, latitude, longitude, symbol, comment, scope))
 
 
 class FileTransferScreen(ModalScreen[FileTransferRequest | None]):

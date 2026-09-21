@@ -1812,6 +1812,16 @@ class KissTermApp(App):
             return False
         try:
             target = parse_path(f"APRS {self.config.aprs.path}".strip())
+            via = target.repeaters
+            if request.scope == "rf_only":
+                # APRS reserves RFONLY in the digi field as the originating
+                # operator's instruction not to gate RF traffic to APRS-IS.
+                # Keep the configured RF path so an EOC beyond direct range
+                # can still receive the exercise object over radio.
+                if not any(str(digi) == "RFONLY" for digi in via):
+                    via = (*via, AX25Address.parse("RFONLY"))
+            elif request.scope == "direct":
+                via = ()
             timestamp = datetime.now(UTC).strftime("%d%H%Mz")
             payload = aprs.object_report(
                 request.name, request.alive, timestamp, request.latitude,
@@ -1819,7 +1829,7 @@ class KissTermApp(App):
             )
             outframe = aprs.beacon_frame(
                 self.config.aprs.source_for(str(self.station.mycall)),
-                target.destination, target.repeaters, payload,
+                target.destination, via, payload,
             )
             await self.station.transport.send_frame(outframe, 0)
         except Exception as exc:

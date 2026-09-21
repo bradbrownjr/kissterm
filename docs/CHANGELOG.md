@@ -26,6 +26,15 @@ touched and any breaking notes.
 
 ### New Features
 
+- **Object reports can be scoped to an exercise.** The object composer now
+  offers normal configured-path delivery, direct RF, or local RF-only
+  delivery. RF-only keeps the normal RF path and appends `RFONLY`, the APRS
+  iGate instruction not to forward the packet to APRS-IS; a local EOC can
+  still receive and plot it over RF.
+  **Files:** `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+  `kissterm/ui/styles.py`, `tests/pilot/test_aprs_object_send.py`,
+  `docs/CHANGELOG.md`.
+
 - **Object reports accept common field coordinate formats.** The APRS object
   composer now accepts decimal GPS coordinates, Maidenhead grid squares, MGRS,
   and explicit-hemisphere WGS-84 UTM references. It converts the selected
