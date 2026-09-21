@@ -90,6 +90,11 @@ _TABLE_PADDING = 8
 #: a message box.
 _COMPOSE_ROOM_FOR_TEMPLATES = 60
 
+# The object button has the same width as Templates and is still fully
+# reachable through Ctrl+Shift+O when room is tight.  Hiding its redundant
+# button first preserves a useful compose box on a 40-column split pane.
+_COMPOSE_ROOM_FOR_OBJECT = 70
+
 #: The merged view's tab id. Every other tab is `convo-<CALLSIGN>`.
 _ALL_TAB = "convo-ALL"
 
@@ -378,6 +383,7 @@ class AprsPane(Horizontal):
                 # is not discoverable.
                 yield Button("Templates", id="aprs-templates-button")
                 yield Button("Bulletin", id="aprs-bulletin-button")
+                yield Button("Object", id="aprs-object-button")
                 yield Button("Send", variant="primary", id="aprs-send-button")
         with Vertical(id="aprs-contacts-column"):
             yield _AprsContactTable(id="aprs-contact-table", cursor_type="row", zebra_stripes=True)
@@ -480,6 +486,7 @@ class AprsPane(Horizontal):
         wide = room >= _COMPOSE_ROOM_FOR_TEMPLATES
         self.query_one("#aprs-templates-button", Button).display = wide
         self.query_one("#aprs-bulletin-button", Button).display = wide
+        self.query_one("#aprs-object-button", Button).display = room >= _COMPOSE_ROOM_FOR_OBJECT
         self.query_one("#aprs-to-input", Input).styles.width = 12 if wide else 10
 
     # -- contacts slide-out ---------------------------------------------------
@@ -1415,6 +1422,10 @@ class AprsPane(Horizontal):
     @on(Button.Pressed, "#aprs-bulletin-button")
     def _bulletin_pressed(self) -> None:
         self.action_compose_bulletin()
+
+    @on(Button.Pressed, "#aprs-object-button")
+    def _object_pressed(self) -> None:
+        self.app.action_aprs_object()  # type: ignore[attr-defined]
 
     async def _send_compose(self, text: str) -> None:
         addressee = self.query_one("#aprs-to-input", Input).value.strip()

@@ -4042,3 +4042,17 @@ see ROADMAP P1), the Textual application shell (`kissterm/__main__.py`,
 `kissterm/transport/agwpe.py`, plus repo scaffolding (`pyproject.toml`,
 `LICENSE`, `.gitignore`, `scripts/bump_version.py`, `hooks/pre-commit`,
 `hooks/post-merge`, `docs/ROADMAP.md`, `SETUP.md`).
+## [2026-09-21] — Add APRS object-report composer
+
+- **Deliberate object reports.** The APRS pane now offers `Ctrl+Shift+O` and
+  an Object button to compose a live or killed APRS object. The composer keeps
+  an object's latitude and longitude separate from the station beacon
+  position, reuses the filterable shared symbol selector, uses the configured
+  APRS identity and digipeater path, and adds the mandatory current UTC
+  timestamp at send time. Opening, filtering, or cancelling it never
+  transmits; only `Send object` is a targeted transmission and visibly arms
+  the transmit gate if needed.
+
+**Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/aprs_pane.py`,
+`kissterm/ui/app.py`, `kissterm/ui/commands.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_aprs_object_send.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`

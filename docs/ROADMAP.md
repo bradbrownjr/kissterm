@@ -141,17 +141,6 @@ entries. What's still open:
   (the SmartBeaconing algorithm most APRS trackers use) — needs the GPS
   integration item above as its position/speed source first. Medium once
   that exists.
-- [ ] **Sending object reports, with an object selector.** Requested
-  directly, for after the beacon Settings work `[2026-09-09]` ships.
-  Decoding already exists (`kissterm/aprs/messages.py::parse_object` ->
-  `ObjectReport`) and the strict uncompressed encoder shipped
-  `[2026-09-21]` (`kissterm/aprs/encode.py::object_report`), but there is no
-  deliberate-send UI yet. The filterable `SymbolPicker` is shared with the
-  beacon Settings control, so an object composer will use the same sourced
-  choices rather than creating a second symbol selector. Not scoped further
-  yet -- where in the APRS pane this lives, and how an object's own position
-  (not necessarily the operator's own) gets entered, are still open questions.
-  Medium-large.
 - [ ] **Igate-adjacent features are explicitly out of scope.** kissterm is a
   terminal for a human operator, not an unattended relay — running it as an
   RF-to-APRS-IS igate or a digipeater is a different problem (unattended

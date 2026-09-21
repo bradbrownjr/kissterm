@@ -205,6 +205,19 @@ AprsPane { height: 1fr; }
 #aprs-service-table { height: 1fr; }
 #aprs-service-search { border: round $accent; margin-bottom: 1; }
 
+/* The object composer uses the existing dialog shape and the same shared
+   symbol picker as APRS Settings. Its coordinate fields read as one pair. */
+#aprs-object-box {
+    width: 72; height: auto; max-height: 90%; padding: 1 2;
+    border: thick $primary; background: $surface;
+}
+#aprs-object-name, #aprs-object-comment { width: 100%; margin-top: 1; }
+#aprs-object-alive { width: 100%; margin-top: 1; }
+.aprs-object-coordinates { height: auto; margin-top: 1; }
+.aprs-object-coordinates Input { width: 1fr; }
+.aprs-object-coordinates Input:first-child { margin-right: 1; }
+#aprs-object-hint { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
+
 /* Connect dialog */
 ConnectScreen { align: center middle; }
 #connect-box {

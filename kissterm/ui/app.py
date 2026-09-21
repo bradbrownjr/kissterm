@@ -117,7 +117,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from rich.table import Table
@@ -164,6 +164,8 @@ from .dialogs import (
     CommandReferenceScreen,
     ConnectRequest,
     ConnectScreen,
+    AprsObjectScreen,
+    AprsObjectRequest,
     RadioReminderScreen,
     TranscriptsScreen,
     FileTransferScreen,
@@ -671,6 +673,7 @@ class KissTermApp(App):
         # Ctrl+Alt+B makes that distinction reachable without moving focus to
         # the APRS pane or editing any settings.
         Binding("ctrl+alt+b", "aprs_beacon_now", "Position now"),
+        Binding("ctrl+shift+o", "aprs_object", "Object", key_display="^O"),
         Binding("ctrl+n", "connect", "Connect"),
         # Ctrl+SHIFT+D, not plain Ctrl+D, for the same reason as Ctrl+Shift+B
         # above: Textual's `Input` and `TextArea` both bind plain `ctrl+d` to
@@ -1523,6 +1526,32 @@ class KissTermApp(App):
         verb = "Resent" if retry else "Sent"
         kind = "bulletin" if number is None else f"message {number}"
         self._to_terminal(self._active_key(), "log", f"\n*** {verb} APRS {kind} to {addressee}\n")
+        return True
+
+    async def _send_aprs_object(self, request: AprsObjectRequest) -> bool:
+        """Encode and transmit one deliberately composed APRS object report."""
+        if self.station is None:
+            return False
+        gate = getattr(self.station.transport, "gate", None)
+        if gate is not None and not gate.enabled:
+            return False
+        try:
+            target = parse_path(f"APRS {self.config.aprs.path}".strip())
+            timestamp = datetime.now(UTC).strftime("%d%H%Mz")
+            payload = aprs.object_report(
+                request.name, request.alive, timestamp, request.latitude,
+                request.longitude, request.symbol[0], request.symbol[1], request.comment,
+            )
+            outframe = aprs.beacon_frame(
+                self.config.aprs.source_for(str(self.station.mycall)),
+                target.destination, target.repeaters, payload,
+            )
+            await self.station.transport.send_frame(outframe, 0)
+        except Exception as exc:
+            log.debug("APRS object %s not sent: %s", request.name, exc)
+            return False
+        state = "live" if request.alive else "killed"
+        self._to_terminal(self._active_key(), "log", f"\n*** Sent {state} APRS object {request.name.strip()}\n")
         return True
 
     def _session_key(self, peer, port: int = 0) -> str:
@@ -2396,6 +2425,32 @@ class KissTermApp(App):
             self.notify("APRS position beacon sent.")
         else:
             self.notify("APRS position beacon not sent.", severity="warning")
+
+    @work
+    async def action_aprs_object(self) -> None:
+        """Compose then deliberately send one APRS object report.
+
+        The modal has no transport path: cancelling or merely selecting an
+        object symbol cannot transmit.  Only its explicit Send object button
+        returns a request here, which is the operator-committed action that
+        may arm the transmit gate.
+        """
+        request = await self.push_screen_wait(
+            AprsObjectScreen(
+                latitude=self.config.aprs.latitude,
+                longitude=self.config.aprs.longitude,
+                symbol=self.config.aprs.symbol,
+                ascii_safe=self.config.ascii_safe,
+            )
+        )
+        if request is None:
+            return
+        if self.station is not None:
+            self._arm_for(f"APRS object {request.name.strip()}")
+        if await self._send_aprs_object(request):
+            self.notify(f"APRS object {request.name.strip()} sent.")
+        else:
+            self.notify("APRS object not sent. Check its fields and APRS path.", severity="warning")
 
     async def _toggle_aprs_beacon_quick(self) -> None:
         """Flip `config.aprs.enabled` from the APRS pane's Ctrl+Shift+B,

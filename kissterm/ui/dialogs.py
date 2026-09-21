@@ -30,6 +30,7 @@ from ..aprs_contacts import (
     validate_contact,
 )
 from ..ax25 import parse_path
+from .symbol_picker import SymbolPicker
 from .wraplog import WrapLog
 
 
@@ -83,6 +84,83 @@ class FileTransferRequest:
     protocol: str
     mode: str
     path: str
+
+
+@dataclass(frozen=True)
+class AprsObjectRequest:
+    """The deliberately composed contents of one APRS object report."""
+
+    name: str
+    alive: bool
+    latitude: float
+    longitude: float
+    symbol: str
+    comment: str
+
+
+class AprsObjectScreen(ModalScreen[AprsObjectRequest | None]):
+    """Compose one object report without treating it as the station position.
+
+    An APRS object names and locates something other than this station.  The
+    configured beacon position is offered as a starting point solely because
+    it is often nearby; each coordinate remains an explicit, editable object
+    field.  Dismissing this screen hands a request to the app -- it does not
+    have a transport or a transmit path of its own.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, *, latitude: float = 0.0, longitude: float = 0.0, symbol: str = "/>", ascii_safe: bool = False) -> None:
+        super().__init__()
+        self._latitude = latitude
+        self._longitude = longitude
+        self._symbol = symbol
+        self._ascii_safe = ascii_safe
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="aprs-object-box"):
+            yield Label("Send APRS object", id="connect-title")
+            yield Input(placeholder="Object name (1-9 characters)", id="aprs-object-name")
+            yield Select(
+                [("Live object", "live"), ("Kill object", "killed")],
+                value="live", id="aprs-object-alive", allow_blank=False,
+            )
+            with Horizontal(classes="aprs-object-coordinates"):
+                yield Input(value=str(self._latitude), placeholder="Latitude", id="aprs-object-latitude")
+                yield Input(value=str(self._longitude), placeholder="Longitude", id="aprs-object-longitude")
+            yield SymbolPicker(
+                picker_id="aprs-object-symbol-picker", select_id="aprs-object-symbol",
+                ascii_safe=self._ascii_safe, value=self._symbol,
+            )
+            yield Input(placeholder="Comment (optional, 43 ASCII characters)", id="aprs-object-comment")
+            yield Static("Coordinates describe the object, not this station.", id="aprs-object-hint")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Send object", id="aprs-object-send", classes="-primary")
+                yield Button("Cancel", id="aprs-object-cancel")
+
+    @on(Button.Pressed, "#aprs-object-cancel")
+    def _cancel_object(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#aprs-object-send")
+    def _send_object(self) -> None:
+        try:
+            latitude = float(self.query_one("#aprs-object-latitude", Input).value.strip())
+            longitude = float(self.query_one("#aprs-object-longitude", Input).value.strip())
+        except ValueError:
+            self.notify("Latitude and longitude must be decimal numbers.", severity="warning")
+            return
+        name = self.query_one("#aprs-object-name", Input).value
+        symbol = self.query_one("#aprs-object-symbol-picker", SymbolPicker).value
+        comment = self.query_one("#aprs-object-comment", Input).value
+        alive = self.query_one("#aprs-object-alive", Select).value == "live"
+        # Leave strict wire validation to `aprs.object_report`, the one
+        # encoder shared by every caller; this checks only enough to keep an
+        # empty object from looking like a successfully submitted form.
+        if not name.strip():
+            self.notify("Give the object a name.", severity="warning")
+            return
+        self.dismiss(AprsObjectRequest(name, alive, latitude, longitude, symbol, comment))
 
 
 class FileTransferScreen(ModalScreen[FileTransferRequest | None]):
