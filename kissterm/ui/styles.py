@@ -112,11 +112,10 @@ TerminalPane { layout: horizontal; }
 #find-status { width: auto; padding: 1 1 0 1; color: $text-muted; }
 #find-close { margin-left: 1; }
 #session-log { border: round $primary; height: 1fr; }
-/* A node/BBS prompt is actionable state. It remains above the compose line
-   while the far end waits, rather than depending on the last scrollback row
-   being in view. */
-#remote-prompt {
-    height: auto; padding: 0 1; color: $accent; display: none;
+/* The last remote line remains above the compose line, rather than depending
+   on the last scrollback row being in view. */
+#remote-tail {
+    height: auto; padding: 0 1; color: $text-muted; display: none;
 }
 /* Hidden until there is something to suggest -- see
    `TerminalPane._update_suggestions`. Same subordinate, muted treatment as

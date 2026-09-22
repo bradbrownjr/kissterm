@@ -139,7 +139,6 @@ from .wraplog import WrapLog
 #: Conservative URL match. Trailing punctuation is excluded so a link at the
 #: end of a sentence does not swallow the full stop into the target.
 _URL_RE = re.compile(r"\b((?:https?|gopher|gemini|ftp)://[^\s<>\"']+[^\s<>\"'.,;:!?)\]])")
-_REMOTE_PROMPT_RE = re.compile(r"(?:>\s*$|\bcontinue\.{2,}\s*$)", re.IGNORECASE)
 
 
 def linkify(text: str | Text) -> Text:
@@ -353,7 +352,7 @@ class TerminalPane(Container):
         # visible line break. Kept per session so a background connection's
         # partial line is not lost or mis-split while nobody is looking at it.
         self._pending_incoming: dict[str, bytes] = {"": b""}
-        self._remote_prompts: dict[str, str] = {"": ""}
+        self._remote_tails: dict[str, str] = {"": ""}
         self._flush_timers: dict[str, Timer | None] = {"": None}
         self._unread: set[str] = set()
         #: Whose session is currently rendered into `#session-log`. `""`
@@ -417,7 +416,7 @@ class TerminalPane(Container):
                     max_lines=5000,
                     auto_scroll=True,
                 )
-                yield Static("", id="remote-prompt")
+                yield Static("", id="remote-tail")
                 # Hidden whenever there is nothing to suggest -- see
                 # `_update_suggestions`. Sits directly above the send row,
                 # the same "strip anchored to the thing it annotates"
@@ -559,7 +558,7 @@ class TerminalPane(Container):
             self._placeholders[session_key] = f"connected to {session_key}"
             self._transcript_notes[session_key] = ""
             self._pending_incoming[session_key] = b""
-            self._remote_prompts[session_key] = ""
+            self._remote_tails[session_key] = ""
             self._flush_timers[session_key] = None
             tabs = self._tabs()
             tab_id = _tab_id(session_key)
@@ -589,7 +588,7 @@ class TerminalPane(Container):
         self._placeholders.pop(session_key, None)
         self._transcript_notes.pop(session_key, None)
         self._pending_incoming.pop(session_key, None)
-        self._remote_prompts.pop(session_key, None)
+        self._remote_tails.pop(session_key, None)
         self._unread.discard(session_key)
         tab_id = _tab_id(session_key)
         self._tab_session_keys.pop(tab_id, None)
@@ -629,7 +628,7 @@ class TerminalPane(Container):
         for renderable, expand in self._buffers[session_key]:
             log.write(renderable, expand=expand)
         self.set_placeholder(session_key, self._placeholders.get(session_key, ""))
-        self._set_remote_prompt(session_key, self._remote_prompts.get(session_key, ""))
+        self._set_remote_tail(session_key, self._remote_tails.get(session_key, ""))
         self.query_one("#transcript-note", Static).update(
             self._transcript_notes.get(session_key, "")
         )
@@ -704,22 +703,22 @@ class TerminalPane(Container):
         else:
             self.mark_unread(session_key)
 
-    def _set_remote_prompt(self, session_key: str, text: str) -> None:
-        """Record a remote pager/node prompt and paint it above the input.
+    def _set_remote_tail(self, session_key: str, text: str) -> None:
+        """Record the latest remote line and paint it above the input.
 
-        The bottom log row is not a safe sole carrier for a prompt: a BBS
-        reply may finish exactly at the viewport boundary. This compact
-        readout is absent for ordinary traffic, so it conveys one actionable
-        fact rather than becoming a second scrollback.
+        The bottom log row is not a safe sole carrier for any last line: a
+        remote's output can finish exactly at the viewport boundary. This is
+        deliberately not a BBS/node prompt parser; every remote line uses
+        the same path, whatever the far-end software calls its prompt.
         """
-        if session_key not in self._remote_prompts:
+        if session_key not in self._remote_tails:
             return
-        self._remote_prompts[session_key] = text
+        self._remote_tails[session_key] = text
         if session_key != self.active_session_key:
             return
-        prompt = self.query_one("#remote-prompt", Static)
-        prompt.update(f"Remote: {text}" if text else "")
-        prompt.display = bool(text)
+        tail = self.query_one("#remote-tail", Static)
+        tail.update(f"Last remote: {text}" if text else "")
+        tail.display = bool(text)
 
     def log(self, session_key: str, text: str) -> None:
         """Write locally-generated text: status notes, echoes of what we sent.
@@ -808,10 +807,8 @@ class TerminalPane(Container):
         for line in lines:
             self._append(session_key, linkify(line), expand=True)
         last_line = lines[-1].plain.rstrip() if lines else ""
-        self._set_remote_prompt(
-            session_key,
-            last_line if _REMOTE_PROMPT_RE.search(last_line) else "",
-        )
+        if last_line:
+            self._set_remote_tail(session_key, last_line)
         if not final and self._pending_incoming.get(session_key):
             self._schedule_flush(session_key)
 
@@ -833,7 +830,7 @@ class TerminalPane(Container):
         if session_key not in self._buffers:
             return
         self._pending_incoming[session_key] = b""
-        self._set_remote_prompt(session_key, "")
+        self._set_remote_tail(session_key, "")
         timer = self._flush_timers.get(session_key)
         if timer is not None:
             timer.stop()
@@ -1205,7 +1202,6 @@ class TerminalPane(Container):
                 self.app.notify(DISABLED_MESSAGE, severity="warning")
                 return
         field.value = ""
-        self._set_remote_prompt(self.active_session_key, "")
         # latin-1, not UTF-8: packet is byte-oriented, and a character the
         # operator pasted must not fail to encode mid-session. CR, not LF --
         # see the module docstring.

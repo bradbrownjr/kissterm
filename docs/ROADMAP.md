@@ -133,10 +133,12 @@ session, not yet acted on:
       its virtual height ahead of the layout which recalculates its scroll
       limit, so its ordinary auto-follow could choose the old bottom and
       leave the final row out of view. Terminal output now refreshes that
-      layout and follows the settled bottom; additionally, a current node or
-      pager prompt is held in a dedicated readout above the compose line
-      until the operator sends. Regression coverage includes both BPQ node
-      and unterminated pager prompts. Completed 2026-09-22.
+      layout and follows the settled bottom; additionally, the latest remote
+      line is held in a dedicated readout above the compose line. It is fed
+      by all remote output, not recognition of a particular BBS/node prompt,
+      so unfamiliar node software remains legible. Regression coverage
+      includes ordinary, node-prompt, and unterminated pager output.
+      Completed 2026-09-22.
 - [ ] **Macro/scripting system — Python plugins.** Deliberately not
   linpac's Lisp-ish macro language: a documented plugin API (hook points for
   "on connect", "on line received", "on line typed") that lets a user write
