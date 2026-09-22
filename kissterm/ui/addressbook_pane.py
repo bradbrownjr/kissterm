@@ -67,6 +67,8 @@ class _KnownNodesTable(DataTable):
 class AddressBookPane(Vertical):
     """Every station in `KissTermApp.addressbook`: dial, add, edit, forget."""
 
+    _known_nodes_visible = True
+
     def compose(self) -> ComposeResult:
         # No note line above the table and no key-hint line below the
         # buttons: `_AddressBookTable.BINDINGS` are already registered with
@@ -99,6 +101,29 @@ class AddressBookPane(Vertical):
         table.add_columns("Claimed node", "Alias", "Via", "Quality", "Broadcast by")
         for node in known_nodes.entries():
             table.add_row(node.callsign, node.alias, node.via, str(node.quality), node.broadcaster, key=node.callsign)
+
+    def toggle_known_nodes(self) -> bool:
+        """Show or hide the passive NET/ROM-claim section.
+
+        The address book is the deliberate dialing directory; received
+        NET/ROM claims are useful supporting context but can take too much
+        vertical room on a short terminal.  Keep their visibility independent
+        of the Address Book slide-out so Ctrl+G always means just that.
+
+        Returns the new visibility so the caller can report the result.
+        """
+        self._known_nodes_visible = not self._known_nodes_visible
+        for widget_id in (
+            "#known-nodes-note",
+            "#known-nodes-table",
+            "#known-nodes-use",
+        ):
+            self.query_one(widget_id).display = self._known_nodes_visible
+        if not self._known_nodes_visible:
+            # Do not leave focus in a hidden table; keyboard navigation should
+            # return to the permanent directory immediately.
+            self.query_one("#addressbook-table", DataTable).focus()
+        return self._known_nodes_visible
 
     def _use_claimed_node(self) -> None:
         table = self.query_one("#known-nodes-table", DataTable)

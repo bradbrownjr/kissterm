@@ -43,6 +43,7 @@ from kissterm.ui.heard_pane import HeardPane  # noqa: E402
 from kissterm.ui.monitor_pane import MonitorPane  # noqa: E402
 from kissterm.ui.settings_pane import SettingsPane  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
+from kissterm.ui.addressbook_pane import AddressBookPane  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
 
@@ -943,6 +944,7 @@ async def test_the_footer_shows_every_terminal_action_once_wide_enough():
             "TX",
             "Connect",
             "Contacts",
+            "NET/ROM",
             "Commands",
             "Beacon",
             "Find",
@@ -951,6 +953,33 @@ async def test_the_footer_shows_every_terminal_action_once_wide_enough():
             "Quit",
         ):
             assert expected in shown, f"{expected} missing at 200 columns: {shown}"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_alt_g_toggles_netrom_claims_without_closing_address_book():
+    """NET/ROM claims are optional context, not part of Ctrl+G's slide-out."""
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        column = app.query_one("#terminal-addressbook-column")
+        addressbook = app.query_one(AddressBookPane)
+        assert column.display
+        assert app.query_one("#known-nodes-table").display
+
+        app.query_one("#session-input", Input).focus()
+        await pilot.press("alt+g")
+        await pilot.pause()
+        assert column.display
+        assert not app.query_one("#known-nodes-note").display
+        assert not app.query_one("#known-nodes-table").display
+        assert not app.query_one("#known-nodes-use").display
+        assert app.focused is app.query_one("#addressbook-table")
+
+        await pilot.press("alt+g")
+        await pilot.pause()
+        assert app.query_one("#known-nodes-table").display
+        assert addressbook is app.query_one(AddressBookPane)
     station.close()
 
 

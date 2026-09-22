@@ -75,6 +75,10 @@ never fight over the same key. See `DESIGN.md`'s "slide-out panels" section
 for the pattern -- `AprsPane`'s contacts column and, later, Mail's own
 contacts panel follow the identical recipe.
 
+**NET/ROM claims are supporting context, not a second directory.** `Alt+G`
+collapses or restores their lower section without changing the Address Book
+slide-out, so a shorter terminal keeps room for saved stations.
+
 **Multiple simultaneous connections get one tab each, on a second strip
 inside this pane** -- the same recipe `AprsPane`'s `_ConvoTabs` already
 shipped for per-correspondent conversations (see DESIGN.md's "A second tab
@@ -845,6 +849,17 @@ class TerminalPane(Container):
         """Refresh passive NET/ROM claims when the slide-out is visible."""
         if self.query_one("#terminal-addressbook-column").display:
             self.query_one(AddressBookPane).refresh_known_nodes(self.app.known_nodes)  # type: ignore[attr-defined]
+
+    def toggle_known_nodes(self) -> None:
+        """Alt+G: collapse or restore NET/ROM claims in the open directory."""
+        column = self.query_one("#terminal-addressbook-column")
+        if not column.display:
+            self.app.notify("Open the Address Book first (Ctrl+G).", severity="warning")
+            return
+        visible = self.query_one(AddressBookPane).toggle_known_nodes()
+        self.app.notify(
+            "NET/ROM claims shown." if visible else "NET/ROM claims hidden."
+        )
 
     def _recompute_matches(self, needle: str) -> None:
         """Rebuild the match list only when the needle actually changed, so

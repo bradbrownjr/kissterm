@@ -54,6 +54,7 @@ ACTION_META: dict[str, ActionMeta] = {
     "connect": ActionMeta("Connection", 1),
     "disconnect": ActionMeta("Connection", 2),
     "toggle_contacts": ActionMeta("Contacts", 3),
+    "toggle_known_nodes": ActionMeta("Terminal", 10),
     "command_reference": ActionMeta("Connection", 4),
     "beacon_now": ActionMeta("Transmit", 5),
     "aprs_beacon_now": ActionMeta("Transmit", 6),

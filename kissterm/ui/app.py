@@ -540,7 +540,7 @@ class KissTermFooter(Footer):
         actions_by_tab = {
             "terminal": {
                 "toggle_transmit", "connect", "disconnect", "toggle_contacts",
-                "command_reference", "beacon_now", "file_transfer",
+                "toggle_known_nodes", "command_reference", "beacon_now", "file_transfer",
                 "find_in_terminal", "show_transcripts", "clear_log", "quit",
             },
             "aprs": {
@@ -692,6 +692,11 @@ class KissTermApp(App):
         # no Ctrl+Shift+-plus-legacy-fallback pair the way Beacon/Disconnect
         # do below.
         Binding("ctrl+g", "toggle_contacts", "Contacts", key_display="^G"),
+        # Saved address-book entries and passive NET/ROM claims share the
+        # Terminal slide-out, but on a short display the latter should not
+        # crowd out the directory the operator deliberately maintains.
+        # Alt+G leaves Ctrl+G's cross-pane "contacts" meaning untouched.
+        Binding("alt+g", "toggle_known_nodes", "NET/ROM"),
         # Ctrl+SHIFT+B, not Ctrl+B: Ctrl+B is tmux's default prefix (and
         # screen's, once remapped), so under a multiplexer -- which is how a
         # station PC in another room is usually reached -- the beacon key was
@@ -2940,6 +2945,12 @@ class KissTermApp(App):
             self.query_one(TerminalPane).toggle_addressbook()
         elif active == "aprs":
             self.query_one(AprsPane).toggle_contacts()
+
+    def action_toggle_known_nodes(self) -> None:
+        """Alt+G: collapse passive NET/ROM claims on the Terminal tab only."""
+        active = self.query_one("#main-tabs", TabbedContent).active
+        if active == "terminal":
+            self.query_one(TerminalPane).toggle_known_nodes()
 
     def action_clear_log(self) -> None:
         active = self.query_one("#main-tabs", TabbedContent).active

@@ -146,7 +146,7 @@ tab existed to expect it.
   `show=False`.
 - **The Footer is a tab-and-state-aware action bar, not an inventory.** It
   contains non-tab actions, but only where they are ordinary work: Terminal
-  shows TX, Connect, Contacts, commands, one text beacon, find, transcripts,
+  shows TX, Connect, Contacts, the optional NET/ROM-claims toggle, commands, one text beacon, find, transcripts,
   clear, and file transfer once a session is connected; Disconnect appears
   only for a connected or still-connecting Terminal session. APRS owns its
   contacts, templates, gateway forms, bulletin, beacon controls, position,

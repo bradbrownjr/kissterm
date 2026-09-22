@@ -3,6 +3,20 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-22] — Make NET/ROM claims collapsible
+
+### Improvements
+
+- **NET/ROM claims no longer have to crowd out saved stations.** `Alt+G`
+  collapses or restores the passive claims section inside the open Terminal
+  Address Book; `Ctrl+G` continues to show or hide the Address Book itself.
+  Hiding claims returns focus to the saved-station table, and the context-aware
+  shortcut bar exposes the action on Terminal only.
+  **Files:** `kissterm/ui/addressbook_pane.py`, `kissterm/ui/terminal_pane.py`,
+  `kissterm/ui/app.py`, `kissterm/ui/commands.py`,
+  `tests/pilot/test_app_mounts.py`, `README.md`, `DESIGN.md`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-21] — Add APRS-IS Watch diagnostics
 
 ### Diagnostics
