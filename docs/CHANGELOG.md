@@ -3,6 +3,46 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-22] — The node's prompt appears
+
+### Fixes
+
+- **The last line of node output, usually the prompt, no longer goes
+  missing.** Reported five times and fixed five times without sticking. The
+  instrumentation below settled it on the operator's own station: the
+  Textual timer that releases a held-back partial line was armed over and
+  over and its callback ran **zero** times across a whole session, ending
+  with `unflushed tail is b'de WS1EC>\r'`. `MessagePump.set_timer` wraps its
+  callback in `call_next`, so that flush only happens if the pane's own
+  message queue is drained, while `write_incoming` arrives by a plain method
+  call from the link callback and works regardless -- which is exactly why
+  every line whose continuation arrived in a later frame rendered fine while
+  the prompt, the one tail with no next frame, never did. Two fixes, both
+  measured against the real bytes: the idle flush is now scheduled with
+  `loop.call_later` rather than `Widget.set_timer`, so it depends on the same
+  event loop that delivered the bytes instead of the widget's queue; and a CR
+  ending a chunk is no longer held back waiting to see whether it was half of
+  a CRLF, because the node's prompt is CR-terminated and that hold made the
+  most important line on the screen wait on a timer. The CRLF ambiguity is
+  resolved from the other side now -- the line goes out immediately and a LF
+  opening the next chunk is swallowed -- which cannot produce a blank line or
+  lose one. Three tests replay the real 53-byte CCEMA frame and all three
+  fail without the fix.
+- **A known-broken assertion was corrected rather than worked around.**
+  `test_crlf_split_across_frames_does_not_render_a_blank_line` asserted that
+  a trailing CR was held back. That assertion *was* the defect, so it now
+  asserts the opposite while keeping the guarantee it was written for.
+
+### Known issue opened by this
+
+- **That pane's message queue still does not drain**, which is a separate and
+  wider bug now in the roadmap: anything reaching `TerminalPane` by
+  `call_next`, `call_after_refresh` or a posted message is affected. The fix
+  above routes around it; it does not explain it.
+
+**Files:** kissterm/ui/terminal_pane.py, tests/pilot/test_terminal_ux.py,
+docs/ROADMAP.md.
+
 ## [2026-09-22] — Instrument the held-back line tail
 
 ### Improvements

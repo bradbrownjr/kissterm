@@ -70,9 +70,9 @@ Everything from P9 on comes after milestone 2.
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
-- [ ] **The last line of node output, usually the prompt, sits below the
-  visible area.** `awaiting confirmation` (0.1.189, 2026-09-22; four earlier
-  attempts, 0.1.179 through 0.1.182). Reported repeatedly ("The last line
+- [ ] **The last line of node output, usually the prompt, never appears.**
+  `awaiting confirmation` (0.1.191, 2026-09-22; five earlier attempts,
+  0.1.179 through 0.1.189). Reported repeatedly ("The last line
   hides out of view, often the node prompt or the next page continue/abort
   prompt, so I'm sitting and waiting for more output from the node not
   knowing it's actually waiting on me"), and confirmed not prompt-specific:
@@ -116,28 +116,69 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   split across frames. Joined means each tail waited for the NEXT frame to
   absorb it, across a 58 second gap a 0.2s timer would have split. The one
   tail with no next frame is the prompt.
-  **Leading hypothesis, not yet confirmed:** `MessagePump.set_timer` wraps its
+  **Confirmed by instrumentation on a second on-air run (0.1.190).** A
+  diagnostic build logged every scheduling decision plus an independent
+  event-loop watchdog. Result, unambiguous: `flush: Textual timer callback
+  ran` appears ZERO times in the whole session, while the loop watchdog fired
+  every time and reported the timer *still armed*, ending with
+  `unflushed tail is b'de WS1EC>\r'`. Cause: `MessagePump.set_timer` wraps its
   callback in `call_next`, so the flush only happens if the PANE'S OWN message
   queue is drained, whereas `write_incoming` arrives by a plain method call
-  from the link callback and works regardless. A stalled pane message queue
-  fits every observation. Nothing reproduces under `run_test` -- the real
-  connect path (Ctrl+N, the Radio Reminder modal, real frames over the
-  loopback, the operator's own config at their geometry) was replayed and the
-  timer fires every time -- so this shipped as instrumentation rather than a
-  sixth guess: `_watch_flush` schedules the same delay directly on the event
-  loop (demonstrably alive: RRs went out on time throughout) and logs which
-  mechanism fired. **Next step:** the operator reconnects once with the debug
-  log on, which they already run. If the loop watchdog logs an unflushed tail
-  while the Textual timer is still armed, the message queue is the fault and
-  the flush must stop depending on it.
-  **Design note for the fix, whichever way that lands.** Making a line's
-  visibility depend on a timer is the underlying flaw, not the timer's
-  reliability: the operator waited 58 seconds to see a line whose first half
-  had already arrived. A terminal should show bytes as they arrive and
-  continue the line when the rest comes, rather than withhold them on a
-  delay.
+  from the link callback and works regardless. Nothing reproduces it under
+  `run_test`, which drains those queues itself -- the real connect path
+  (Ctrl+N, the Radio Reminder modal, real frames over the loopback, the
+  operator's own config at their geometry) was replayed and the timer fires
+  every time. That is why four earlier fixes were written against a symptom
+  nobody could reproduce.
+  **Fixed in two places, both measured against the real bytes.** (1) The idle
+  flush is scheduled with `loop.call_later` instead of `Widget.set_timer`, so
+  it no longer depends on the pane's message queue -- the event loop is the
+  same one already carrying the link callback that delivered the bytes, so a
+  flush cannot be starved while data is still arriving. (2) A CR that ends a
+  chunk is no longer held back. It was held in case it was the first half of
+  a CRLF split across two frames (a real BPQ mail-listing defect), but that
+  made every CR-terminated prompt wait on the timer; the log proved the real
+  tail was `b'de WS1EC>\r'`, a COMPLETE line. The line is written immediately
+  now and a LF opening the next chunk is swallowed instead, which cannot
+  produce a blank line or lose one. Either fix alone would have shown the
+  prompt in both reported sessions; together they also cover a prompt with no
+  terminator at all. Three tests in `tests/pilot/test_terminal_ux.py` replay
+  the real 53-byte CCEMA frame and all fail without the fix.
+  **Still open underneath this:** WHY that pane's message queue never drains
+  is not explained. The pane has no blocking `await` in any handler, and the
+  app is otherwise responsive. It matters beyond this bug -- anything reaching
+  the pane by `call_next`, `call_after_refresh` or a posted message is
+  affected -- so it needs its own investigation rather than being considered
+  closed by the workaround above.
   Files: `kissterm/ui/wraplog.py`, `kissterm/ui/terminal_pane.py`,
   `tests/pilot/test_terminal_ux.py`.
+- [ ] **`TerminalPane`'s message queue does not drain on a real station.**
+  `open`. Found 2026-09-22 while diagnosing the missing prompt above, and
+  proven by instrumentation on the operator's own machine: a
+  `Widget.set_timer` scheduled on that pane was armed repeatedly across two
+  consecutive sessions and its callback ran exactly ZERO times, while the
+  event loop stayed healthy throughout (RRs went out on time, frames kept
+  arriving) and direct method calls into the same widget kept working. The
+  prompt bug is worked around by not using that queue, but the queue itself
+  is still broken and **anything reaching this pane by `call_next`,
+  `call_after_refresh`, `set_timer` or a posted message is affected** --
+  which includes `_append`'s own `call_after_refresh(scroll_end)`. Does not
+  reproduce under `run_test`, which drains those queues itself; the real
+  connect path was replayed in full (dialog, Radio Reminder modal, real
+  frames, the operator's config and geometry) without reproducing it. No
+  blocking `await` exists in any of the pane's handlers, so the cause is not
+  yet known. Next step: log from `on_timer` and `on_callback` separately to
+  find which hop dies, and compare a pane timer against an App timer in the
+  same session.
+- [ ] **`TerminalPane.log` shadows Textual's own `log` property.** `open`.
+  `MessagePump.log` is a property returning a `Logger`; the pane defines
+  `log(self, session_key, text)` over it. Textual calls `self.log.warning(...)`
+  on the widget in its own timer- and callback-dispatch paths, which on this
+  pane raises `AttributeError` instead of logging a warning. Not the cause of
+  the missing prompt (that path needs an empty screen stack, which did not
+  happen), but it is a live landmine sitting directly in the message-dispatch
+  machinery the item above is about. Rename the pane's method (`write_note`
+  or similar) and leave Textual's `log` alone.
 - [ ] **The focus highlight never moves: the entry field is always orange.**
   `open`. Reported 2026-09-22: after clicking into the terminal's receive
   box, "the bright box border remains on the text entry field, so I type and

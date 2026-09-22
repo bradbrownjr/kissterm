@@ -469,14 +469,28 @@ async def test_starting_a_connection_hides_the_addressbook_and_netrom_slideout()
 
 @pytest.mark.asyncio
 async def test_crlf_split_across_frames_does_not_render_a_blank_line():
-    """A live BPQ mail list exposed this exact AX.25 frame boundary."""
+    """A live BPQ mail list exposed this exact AX.25 frame boundary.
+
+    This used to assert the opposite of the first check below -- that a
+    trailing CR was HELD back until its possible LF partner arrived. That is
+    how the blank line was avoided originally, and it was the wrong trade: a
+    node's prompt is the last thing it sends and it is CR-terminated, so
+    holding the CR made the most important line on the screen wait for an
+    idle timer, and when that timer did not fire (see
+    `test_an_unterminated_tail_is_flushed_off_the_event_loop`) the operator
+    was left looking at a session that appeared to have gone quiet. The line
+    goes out immediately now and the orphaned LF is dropped instead, which
+    keeps this test's real guarantee -- no blank line -- without that cost.
+    """
     app, a, b, _ = await _connected_app()
     async with app.run_test(size=(80, 32)) as pilot:
         await pilot.pause()
         pane = app.query_one(TerminalPane)
         pane.clear("")
         pane.write_incoming("", b"first line\r")
-        assert pane._buffers[""] == [], "hold a possibly-paired trailing CR"
+        assert [rendered.plain for rendered, _expand in pane._buffers[""]] == [
+            "first line"
+        ], "a CR-terminated line is complete and must not wait for a possible LF"
 
         pane.write_incoming("", b"\nsecond line\r\n")
         assert [rendered.plain for rendered, _expand in pane._buffers[""]] == [
@@ -1763,3 +1777,94 @@ async def test_an_operator_scrolled_back_is_not_yanked_to_the_bottom():
         await asyncio.sleep(0.2)
         await pilot.pause()
         assert _at_bottom(log), "scrolling back to the bottom must resume following it"
+
+
+# ----------------------------------------------------------------------
+# The node's prompt is the last thing it sends, and it must appear.
+#
+# These replay the real CCEMA (WS1EC-15) session of 2026-09-22 that this was
+# diagnosed from: four I-frames, the last of them 53 bytes ending in a
+# CR-terminated prompt with nothing after it. Two independent defects kept
+# that prompt off the screen, and each test below pins one of them.
+# ----------------------------------------------------------------------
+
+#: The real final frame, byte for byte -- its 53 bytes match the length the
+#: operator's own debug log recorded for `I S3 R0 P cmd len=53`, and the
+#: instrumented run confirmed the tail left unwritten was `b'de WS1EC>\r'`.
+CCEMA_LAST_FRAME = (
+    b" \t- Disconnect\r"
+    b"? \t- List of node commands\r"
+    b"\r"
+    b"de WS1EC>\r"
+)
+
+
+def _log_lines(app) -> list[str]:
+    return [strip.text.rstrip() for strip in app.query_one("#session-log", RichLog).lines]
+
+
+@pytest.mark.asyncio
+async def test_a_cr_terminated_prompt_appears_without_waiting_for_the_idle_flush():
+    """The prompt is a complete line the moment its CR arrives.
+
+    It used to be held back on the chance that the CR was the first half of a
+    CRLF split across two frames, which made the single most important line on
+    screen depend on a timer firing. It is flushed immediately now; a LF
+    opening the next frame is swallowed instead (see the CRLF test below).
+
+    No `asyncio.sleep` here on purpose -- waiting would hide the defect by
+    giving the idle flush time to run. One `pilot.pause()` to let the write
+    render, and the prompt has to be there already.
+    """
+    app, station, peer, _ = await _connected_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        pane.write_incoming(pane.active_session_key, CCEMA_LAST_FRAME)
+        await pilot.pause()
+
+        assert "de WS1EC>" in _log_lines(app), (
+            "the node prompt must be on screen as soon as its CR arrives, "
+            f"not after an idle timer -- got {_log_lines(app)!r}"
+        )
+    station.close()
+    peer.close()
+
+
+@pytest.mark.asyncio
+async def test_an_unterminated_tail_is_flushed_off_the_event_loop():
+    """A prompt with NO terminator at all still has to appear, and the thing
+    that makes it appear must not be the pane's message queue.
+
+    `Widget.set_timer` wraps its callback in `call_next`, so it only runs if
+    this pane's own queue is being drained -- and on a real station, twice in
+    one evening, it never was: the timer was armed repeatedly and its callback
+    ran zero times, while `write_incoming` (a plain method call from the link
+    callback) kept working throughout. Nothing reproduces that under
+    `run_test`, which drains those queues itself, so this asserts the
+    mechanism rather than the symptom: the scheduled flush is an
+    `asyncio.TimerHandle` on the event loop, not a Textual timer.
+    """
+    app, station, peer, _ = await _connected_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        key = pane.active_session_key
+        pane.write_incoming(key, b"CCEMA:WS1EC-15} ")  # no terminator at all
+
+        # Read before any `pilot.pause()`: a pause costs 100-120ms of real
+        # time (see AGENTS.md sec. 6) and the flush is scheduled for 200ms,
+        # so pausing first races the very handle being asserted on.
+        handle = pane._flush_timers.get(key)
+        assert isinstance(handle, asyncio.TimerHandle), (
+            "the idle flush must be scheduled on the event loop, not through "
+            f"the pane's message queue -- got {handle!r}"
+        )
+
+        await asyncio.sleep(0.4)
+        await pilot.pause()
+        assert "CCEMA:WS1EC-15}" in _log_lines(app), (
+            f"an unterminated prompt never appeared: {_log_lines(app)!r}"
+        )
+    station.close()
+    peer.close()

@@ -119,7 +119,6 @@ note before the operator could read it.
 from __future__ import annotations
 
 import asyncio
-import logging
 import re
 
 from rich.text import Text
@@ -127,7 +126,6 @@ from textual import events, on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
-from textual.timer import Timer
 from textual.widgets import Button, DataTable, Input, RichLog, Static, Tab, Tabs
 
 from ..ansi import to_text
@@ -137,8 +135,6 @@ from ..monitor import sanitize
 from ..tx import DISABLED_MESSAGE
 from .addressbook_pane import AddressBookPane
 from .wraplog import WrapLog
-
-logger = logging.getLogger(__name__)
 
 #: Conservative URL match. Trailing punctuation is excluded so a link at the
 #: end of a sentence does not swallow the full stop into the target.
@@ -355,7 +351,12 @@ class TerminalPane(Container):
         # visible line break. Kept per session so a background connection's
         # partial line is not lost or mis-split while nobody is looking at it.
         self._pending_incoming: dict[str, bytes] = {"": b""}
-        self._flush_timers: dict[str, Timer | None] = {"": None}
+        # `asyncio.TimerHandle`, NOT `Widget.set_timer` -- see `_schedule_flush`.
+        self._flush_timers: dict[str, asyncio.TimerHandle | None] = {"": None}
+        # Sessions whose last flushed line ended on a bare CR, so a LF opening
+        # the next chunk is that CR's other half and not a blank line. See
+        # `_flush_incoming`.
+        self._swallow_lf: set[str] = set()
         self._unread: set[str] = set()
         #: Whose session is currently rendered into `#session-log`. `""`
         #: is the pre-connection view -- see the module docstring.
@@ -552,6 +553,7 @@ class TerminalPane(Container):
             self._placeholders[session_key] = f"connected to {session_key}"
             self._pending_incoming[session_key] = b""
             self._flush_timers[session_key] = None
+            self._swallow_lf.discard(session_key)
             tabs = self._tabs()
             tab_id = _tab_id(session_key)
             tabs.add_tab(Tab(self._label(session_key), id=tab_id))
@@ -575,11 +577,12 @@ class TerminalPane(Container):
             return
         timer = self._flush_timers.pop(session_key, None)
         if timer is not None:
-            timer.stop()
+            timer.cancel()
         self._buffers.pop(session_key, None)
         self._placeholders.pop(session_key, None)
         self._pending_incoming.pop(session_key, None)
         self._unread.discard(session_key)
+        self._swallow_lf.discard(session_key)
         tab_id = _tab_id(session_key)
         self._tab_session_keys.pop(tab_id, None)
         was_active = self.active_session_key == session_key
@@ -721,6 +724,13 @@ class TerminalPane(Container):
         """
         if session_key not in self._pending_incoming:
             return
+        if session_key in self._swallow_lf:
+            # The previous chunk ended on a bare CR and that line has already
+            # been written. A LF opening this one is the other half of that
+            # terminator, not a blank line of its own.
+            self._swallow_lf.discard(session_key)
+            if data.startswith(b"\n"):
+                data = data[1:]
         self._pending_incoming[session_key] += data
         self._flush_incoming(session_key, final=False)
 
@@ -735,12 +745,22 @@ class TerminalPane(Container):
             ready, self._pending_incoming[session_key] = buf, b""
         else:
             # `\r` counts as a line end too, not just `\n` -- packet nodes
-            # are CR-oriented. But a trailing CR is deliberately held until
-            # the next frame (or the idle timer): it may be the first half
-            # of CRLF. Flushing it now and the LF later renders a spurious
-            # blank line, which a live BPQ BBS mail listing exposed. A CR
-            # followed by any byte is unambiguously a complete bare-CR line;
-            # a CR followed by LF is one CRLF terminator.
+            # are CR-oriented. A CR followed by LF is one CRLF terminator; a
+            # CR followed by anything else is a complete bare-CR line.
+            #
+            # A CR that ends the chunk used to be HELD back, because it might
+            # be the first half of a CRLF split across two AX.25 frames and
+            # flushing it now would render the LF later as a spurious blank
+            # line -- a live BPQ BBS mail listing exposed that. The cost was
+            # far worse than the blank line: a node's prompt is the last
+            # thing it sends and it is CR-terminated, so the single most
+            # important line on the screen was held hostage to the idle timer
+            # every single time. Confirmed on the air against CCEMA
+            # (2026-09-22): the unflushed tail was exactly `b'de WS1EC>\r'`.
+            # The ambiguity is resolved on the other side instead -- flush the
+            # line now and swallow a LF that opens the next chunk (see
+            # `write_incoming`), which cannot produce a blank line and cannot
+            # lose one either.
             end = 0
             index = 0
             while index < len(buf):
@@ -748,9 +768,7 @@ class TerminalPane(Container):
                 if byte == 0x0A:  # LF
                     end = index + 1
                 elif byte == 0x0D:  # CR
-                    if index + 1 >= len(buf):
-                        break  # could become CRLF in the next AX.25 frame
-                    if buf[index + 1] == 0x0A:
+                    if index + 1 < len(buf) and buf[index + 1] == 0x0A:
                         index += 1
                     end = index + 1
                 index += 1
@@ -762,8 +780,16 @@ class TerminalPane(Container):
             ready, self._pending_incoming[session_key] = buf[:end], buf[end:]
         timer = self._flush_timers.get(session_key)
         if timer is not None:
-            timer.stop()
+            timer.cancel()
             self._flush_timers[session_key] = None
+        # A bare CR at the very end of what is being written may yet turn out
+        # to be the first half of a CRLF -- the other half arrives in the next
+        # frame. The line goes out now regardless; `write_incoming` drops that
+        # LF if it comes.
+        if ready.endswith(b"\r"):
+            self._swallow_lf.add(session_key)
+        else:
+            self._swallow_lf.discard(session_key)
         text = to_text(ready) if self.remote_color else Text(sanitize(ready))
         # RichLog puts a line break after every record. Passing it a Text that
         # still contains wire terminators therefore adds a second, empty row
@@ -779,64 +805,41 @@ class TerminalPane(Container):
             self._schedule_flush(session_key)
 
     def _schedule_flush(self, session_key: str) -> None:
-        # Only ever one in flight per session, and it is not rescheduled on
-        # every byte -- a prompt with no trailing newline still has to
-        # appear within a bounded time even if data keeps trickling in, not
-        # "eventually".
-        if self._flush_timers.get(session_key) is None:
-            self._flush_timers[session_key] = self.set_timer(
-                0.2, lambda: self._on_flush_timer(session_key)
-            )
-            logger.debug(
-                "flush: scheduled Textual timer for %r, %d byte(s) pending",
-                session_key,
-                len(self._pending_incoming.get(session_key, b"")),
-            )
-            self._watch_flush(session_key)
+        """Release a partial line after a short idle, on the EVENT LOOP.
 
-    def _watch_flush(self, session_key: str) -> None:
-        """DIAGNOSTIC ONLY -- observes, never flushes. Remove with the fix.
+        Deliberately `loop.call_later` and not `Widget.set_timer`, which is
+        what this used to be. `MessagePump.set_timer` wraps its callback in
+        `call_next`, so the flush only ever happened if this pane's own
+        message queue was being drained -- while `write_incoming` arrives by
+        a plain method call from the link callback and works regardless. On
+        a real station (KC1JMH, 2026-09-22, two consecutive sessions against
+        CCEMA) that queue never delivered: instrumentation logged the timer
+        being armed over and over and its callback running exactly zero
+        times, leaving `b'de WS1EC>\\r'` unwritten while every RR went out on
+        time and frames kept arriving. Nothing reproduces it under
+        `run_test`, where the pilot drains those queues itself, which is why
+        four earlier fixes were written against a symptom nobody could
+        reproduce.
 
-        `set_timer` wraps its callback in `call_next`, so the held-back tail
-        of a line is only ever released if the PANE'S OWN message queue is
-        being drained. `write_incoming` reaches this widget by a plain method
-        call from the link callback instead, which is why a real session
-        (2026-09-22, CCEMA) rendered every line whose continuation arrived in
-        a later frame -- "Emergency Communications Team" came out whole
-        across a 58 second gap that a 0.2s timer should have split -- while
-        the one tail with no next frame, the node's prompt, was never written
-        at all. Both facts fit a Textual timer whose callback never runs, and
-        nothing reproduces it under `run_test`, where the pilot drains those
-        queues itself.
+        The event loop is the right dependency anyway: it is the same one
+        already carrying the link callback that put these bytes here, so a
+        flush cannot be starved while data is still being delivered.
 
-        So this schedules the same delay directly on the event loop, which is
-        demonstrably alive in that session (frames arrived and RRs went out
-        on time throughout), and logs what it finds. If the loop callback
-        logs and the timer callback does not, the message queue is the fault
-        and the flush must not depend on it.
+        Only ever one in flight per session, and not rescheduled on every
+        byte -- a prompt with no trailing newline still has to appear within
+        a bounded time even if data keeps trickling in, not "eventually".
         """
+        if self._flush_timers.get(session_key) is not None:
+            return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:  # no loop (a unit test constructing the pane)
             return
-        loop.call_later(0.45, lambda: self._flush_watchdog_fired(session_key))
-
-    def _flush_watchdog_fired(self, session_key: str) -> None:
-        pending = self._pending_incoming.get(session_key, b"")
-        logger.debug(
-            "flush: loop watchdog for %r -- %d byte(s) still pending, "
-            "Textual timer %s",
-            session_key,
-            len(pending),
-            "still armed (its callback never ran)"
-            if self._flush_timers.get(session_key) is not None
-            else "already fired or was cleared",
+        self._flush_timers[session_key] = loop.call_later(
+            0.2, lambda: self._on_flush_timer(session_key)
         )
-        if pending:
-            logger.debug("flush: unflushed tail is %r", pending[:120])
 
     def _on_flush_timer(self, session_key: str) -> None:
-        logger.debug("flush: Textual timer callback ran for %r", session_key)
         self._flush_timers[session_key] = None
         self._flush_incoming(session_key, final=True)
 
@@ -844,9 +847,10 @@ class TerminalPane(Container):
         if session_key not in self._buffers:
             return
         self._pending_incoming[session_key] = b""
+        self._swallow_lf.discard(session_key)
         timer = self._flush_timers.get(session_key)
         if timer is not None:
-            timer.stop()
+            timer.cancel()
             self._flush_timers[session_key] = None
         self._buffers[session_key] = []
         if session_key == self.active_session_key:
