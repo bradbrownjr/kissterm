@@ -2056,17 +2056,10 @@ class KissTermApp(App):
     # Transcript
     # ------------------------------------------------------------------
     def _start_transcript(self, session_key: str, link) -> None:
-        """Open a transcript for `session_key`, and say where it is, on ITS
-        tab -- not necessarily the one on screen.
+        """Open a transcript for `session_key`, if recording is enabled.
 
-        The path goes on screen -- as a fixed header above the scrollback,
-        not a line inside it (`TerminalPane.set_transcript_note`) -- because a
-        file appearing on disk without the operator being told is a surprise,
-        and this is on by default. A header survives Ctrl+L and scrolling;
-        a log line would not stay findable through either. A transcript that
-        cannot be opened is reported once, as a log line since there is no
-        path to keep showing, and then forgotten about -- see `session_log.py`
-        on why a failed log must never be allowed to disturb a live link.
+        The status bar carries the compact recording indicator; a full path
+        is available from Ctrl+O without consuming live terminal rows.
         """
         self._close_transcript(session_key)
         if not getattr(self.config, "log_sessions", True):
@@ -2086,14 +2079,14 @@ class KissTermApp(App):
         session = self._sessions.get(session_key)
         if session is not None:
             session.transcript = transcript
-        self._to_terminal(session_key, "set_transcript_note", f"Transcript: {transcript.path}")
+        self._refresh_status()
 
     def _close_transcript(self, session_key: str) -> None:
         session = self._sessions.get(session_key)
         if session is not None and session.transcript is not None:
             session.transcript.close()
             session.transcript = None
-            self._to_terminal(session_key, "set_transcript_note", "")
+            self._refresh_status()
 
     def _close_all_transcripts(self) -> None:
         """Every session's, on shutdown -- see `on_unmount`."""
@@ -3954,6 +3947,8 @@ class KissTermApp(App):
             parts.append("BEACON")
         if self.aprs_beaconer.running:
             parts.append("APRS BEACON")
+        if self.transcript is not None:
+            parts.append("LOGGING")
         if self.gps_reader is not None and self.gps_reader.running:
             parts.append("GPS FIX" if self.gps_reader.fix is not None else "GPS NO FIX")
         parts.append(f"heard {len(self.heard)}")

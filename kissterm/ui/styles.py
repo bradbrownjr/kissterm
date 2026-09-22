@@ -95,7 +95,6 @@ TerminalPane { layout: horizontal; }
 /* Starting value only; set on resize by `kissterm/ui/slideouts.py` -- see
    the note on `#aprs-contacts-column` below. */
 #terminal-addressbook-column { width: 58%; border-left: solid $panel; }
-#transcript-note { height: auto; padding: 0 1; color: $text-muted; }
 /* The session tab strip -- one tab per simultaneous connection, hidden
    below two sessions (`TerminalPane._sync_strip_visibility`). Same
    subordinate-to-the-F-key-bar treatment as `#aprs-convo-tabs` above, for
@@ -112,11 +111,6 @@ TerminalPane { layout: horizontal; }
 #find-status { width: auto; padding: 1 1 0 1; color: $text-muted; }
 #find-close { margin-left: 1; }
 #session-log { border: round $primary; height: 1fr; }
-/* The last remote line remains above the compose line, rather than depending
-   on the last scrollback row being in view. */
-#remote-tail {
-    height: auto; padding: 0 1; color: $text-muted; display: none;
-}
 /* Hidden until there is something to suggest -- see
    `TerminalPane._update_suggestions`. Same subordinate, muted treatment as
    `#find-status`; the top candidate's own bold/dim spans (set in Python,

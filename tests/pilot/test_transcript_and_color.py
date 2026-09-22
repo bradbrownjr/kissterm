@@ -15,6 +15,7 @@ isolate()
 import asyncio  # noqa: E402
 
 import pytest  # noqa: E402
+from textual.geometry import Region  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
@@ -95,21 +96,16 @@ async def test_a_connected_session_writes_both_directions_to_disk(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_the_transcript_path_is_shown_to_the_operator(tmp_path):
-    """As a fixed header above the scrollback, not a line inside it -- a
-    session can run for hours, and a header stays findable through both
-    Ctrl+L and ordinary scrolling in a way a log line does not."""
+async def test_transcript_recording_is_shown_in_the_status_bar(tmp_path):
+    """Recording should not consume a row from the live terminal."""
     app, a, b, incoming = await _app(_config(tmp_path))
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         await _connect(app, a, b, incoming, pilot)
         await pilot.pause()
-        pane = app.query_one(TerminalPane)
-        from textual.widgets import Static
-
-        note = pane.query_one("#transcript-note", Static)
-        assert note.display
-        assert "Transcript" in str(note.content)
+        status = app.query_one("#status-bar")
+        region = Region(0, 0, status.size.width, status.size.height)
+        assert "LOGGING" in "\n".join(strip.text for strip in status.render_lines(region))
     a.close()
     b.close()
 

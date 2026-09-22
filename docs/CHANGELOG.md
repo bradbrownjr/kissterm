@@ -9,14 +9,18 @@ touched and any breaking notes.
 
 - **Terminal pager prompts remain visible.** After each terminal-log write,
   the scrollback now refreshes its virtual layout before following the new
-  bottom. The latest remote line also has a dedicated readout above the
-  compose line, fed by all remote output rather than a node-specific prompt
-  matcher. This prevents an unfamiliar node's final line -- including an
-  unterminated `<A>bort, <CR> Continue...` prompt -- from looking like a
-  silent node.
+  bottom, without adding rows above the compose line. This prevents an
+  unterminated `<A>bort, <CR> Continue...` prompt from looking like a silent
+  node while preserving the terminal's full scrollback height.
   **Files:** `kissterm/ui/terminal_pane.py`,
-  `kissterm/ui/styles.py`, `tests/pilot/test_terminal_ux.py`,
-  `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+  `tests/pilot/test_terminal_ux.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+
+- **Transcript recording is compact in the status bar.** The full transcript
+  path no longer takes a terminal row; `LOGGING` marks the active session's
+  recording state. Ctrl+O remains the place to browse transcript files.
+  **Files:** `kissterm/ui/app.py`, `kissterm/ui/terminal_pane.py`,
+  `kissterm/ui/styles.py`, `tests/pilot/test_transcript_and_color.py`,
+  `docs/CHANGELOG.md`.
 
 - **The radio reminder now clears before a connection begins.** A fast
   successful dial from an Address Book entry could start behind the just-

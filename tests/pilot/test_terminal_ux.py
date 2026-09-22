@@ -515,13 +515,6 @@ async def test_a_final_pager_prompt_is_followed_into_view():
         await pilot.pause()
         pane = app.query_one(TerminalPane)
         pane.clear("")
-        pane.write_incoming("", b"de WS1EC#>\r\n")
-        tail = app.query_one("#remote-tail", Static)
-        assert tail.display
-        assert "de WS1EC#>" in str(tail.content)
-        pane.write_incoming("", b"Different BBS reply syntax\r\n")
-        assert "Different BBS reply syntax" in str(tail.content)
-        pane.clear("")
         pane.write_incoming(
             "", b"".join(f"listing line {number}\r\n".encode() for number in range(60))
         )
@@ -535,8 +528,6 @@ async def test_a_final_pager_prompt_is_followed_into_view():
         assert log.lines[-1].text.rstrip() == "<A>bort, <CR> Continue..."
         assert log.scroll_y == log.max_scroll_y
         assert "<A>bort, <CR> Continue..." in log.render_line(log.size.height - 1).text
-        assert tail.display
-        assert "Continue..." in str(tail.content)
     a.close()
     b.close()
 

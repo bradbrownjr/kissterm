@@ -346,13 +346,11 @@ class TerminalPane(Container):
         # every write method always has somewhere to go, connected or not.
         self._buffers: dict[str, list[tuple[object, bool]]] = {"": []}
         self._placeholders: dict[str, str] = {"": "not connected -- Ctrl+N to connect"}
-        self._transcript_notes: dict[str, str] = {"": ""}
         # Incoming bytes not yet written to a session's log -- see
         # `_flush_incoming` for why a chunk boundary must never become a
         # visible line break. Kept per session so a background connection's
         # partial line is not lost or mis-split while nobody is looking at it.
         self._pending_incoming: dict[str, bytes] = {"": b""}
-        self._remote_tails: dict[str, str] = {"": ""}
         self._flush_timers: dict[str, Timer | None] = {"": None}
         self._unread: set[str] = set()
         #: Whose session is currently rendered into `#session-log`. `""`
@@ -375,12 +373,6 @@ class TerminalPane(Container):
         # on the right -- see `toggle_addressbook` and the module docstring.
         with Horizontal():
             with Vertical(id="terminal-main-column"):
-                # A fixed header, not a line in the scrollback -- a session
-                # can run for hours, and the one thing worth finding without
-                # scrolling back to the top is where its own record is being
-                # kept. Empty and hidden until a transcript actually opens;
-                # see `set_transcript_note`.
-                yield Static("", id="transcript-note")
                 # No initial `Tab`, unlike `aprs_pane`'s "All" -- there is no
                 # always-there default view to compose in, and an `add_tab`
                 # on this EMPTY strip is exactly right the first time
@@ -416,7 +408,6 @@ class TerminalPane(Container):
                     max_lines=5000,
                     auto_scroll=True,
                 )
-                yield Static("", id="remote-tail")
                 # Hidden whenever there is nothing to suggest -- see
                 # `_update_suggestions`. Sits directly above the send row,
                 # the same "strip anchored to the thing it annotates"
@@ -432,7 +423,6 @@ class TerminalPane(Container):
                 yield AddressBookPane()
 
     def on_mount(self) -> None:
-        self.query_one("#transcript-note", Static).display = False
         self._tabs().display = False
         self._slideout = slideouts.SlideOut(
             self.query_one("#terminal-addressbook-column"),
@@ -556,9 +546,7 @@ class TerminalPane(Container):
                 return False
             self._buffers[session_key] = []
             self._placeholders[session_key] = f"connected to {session_key}"
-            self._transcript_notes[session_key] = ""
             self._pending_incoming[session_key] = b""
-            self._remote_tails[session_key] = ""
             self._flush_timers[session_key] = None
             tabs = self._tabs()
             tab_id = _tab_id(session_key)
@@ -586,9 +574,7 @@ class TerminalPane(Container):
             timer.stop()
         self._buffers.pop(session_key, None)
         self._placeholders.pop(session_key, None)
-        self._transcript_notes.pop(session_key, None)
         self._pending_incoming.pop(session_key, None)
-        self._remote_tails.pop(session_key, None)
         self._unread.discard(session_key)
         tab_id = _tab_id(session_key)
         self._tab_session_keys.pop(tab_id, None)
@@ -610,8 +596,8 @@ class TerminalPane(Container):
 
     def activate_tab(self, session_key: str) -> None:
         """Put `session_key`'s session on screen: repaint the shared log
-        from its replay buffer, restore its placeholder and transcript
-        note, and clear its unread mark. The one place `#session-log`'s
+        from its replay buffer, restore its placeholder, and clear its unread
+        mark. The one place `#session-log`'s
         content actually changes for a tab switch."""
         if session_key not in self._buffers:
             session_key = ""
@@ -628,13 +614,9 @@ class TerminalPane(Container):
         for renderable, expand in self._buffers[session_key]:
             log.write(renderable, expand=expand)
         self.set_placeholder(session_key, self._placeholders.get(session_key, ""))
-        self._set_remote_tail(session_key, self._remote_tails.get(session_key, ""))
-        self.query_one("#transcript-note", Static).update(
-            self._transcript_notes.get(session_key, "")
-        )
-        self.query_one("#transcript-note", Static).display = bool(
-            self._transcript_notes.get(session_key, "")
-        )
+        refresh_status = getattr(self.app, "_refresh_status", None)
+        if refresh_status is not None:
+            refresh_status()
         # The reference this strip suggests from is session-scoped
         # (`self.app.reference`); recompute it for whatever is still typed
         # into the (shared) send line, or it would keep offering commands
@@ -702,23 +684,6 @@ class TerminalPane(Container):
                 )
         else:
             self.mark_unread(session_key)
-
-    def _set_remote_tail(self, session_key: str, text: str) -> None:
-        """Record the latest remote line and paint it above the input.
-
-        The bottom log row is not a safe sole carrier for any last line: a
-        remote's output can finish exactly at the viewport boundary. This is
-        deliberately not a BBS/node prompt parser; every remote line uses
-        the same path, whatever the far-end software calls its prompt.
-        """
-        if session_key not in self._remote_tails:
-            return
-        self._remote_tails[session_key] = text
-        if session_key != self.active_session_key:
-            return
-        tail = self.query_one("#remote-tail", Static)
-        tail.update(f"Last remote: {text}" if text else "")
-        tail.display = bool(text)
 
     def log(self, session_key: str, text: str) -> None:
         """Write locally-generated text: status notes, echoes of what we sent.
@@ -806,9 +771,6 @@ class TerminalPane(Container):
             lines.pop()
         for line in lines:
             self._append(session_key, linkify(line), expand=True)
-        last_line = lines[-1].plain.rstrip() if lines else ""
-        if last_line:
-            self._set_remote_tail(session_key, last_line)
         if not final and self._pending_incoming.get(session_key):
             self._schedule_flush(session_key)
 
@@ -830,7 +792,6 @@ class TerminalPane(Container):
         if session_key not in self._buffers:
             return
         self._pending_incoming[session_key] = b""
-        self._set_remote_tail(session_key, "")
         timer = self._flush_timers.get(session_key)
         if timer is not None:
             timer.stop()
@@ -843,19 +804,6 @@ class TerminalPane(Container):
         """`Ctrl+L` -- clear whichever session (or the pre-connection view)
         is on screen right now."""
         self.clear(self.active_session_key)
-
-    def set_transcript_note(self, session_key: str, text: str) -> None:
-        """Show or clear the transcript-path header for `session_key`.
-        Empty hides it. Only actually redraws it when `session_key` is the
-        one on screen -- see `activate_tab`, which is what shows it again
-        on switching back."""
-        if session_key not in self._transcript_notes:
-            return
-        self._transcript_notes[session_key] = text
-        if session_key == self.active_session_key:
-            note = self.query_one("#transcript-note", Static)
-            note.update(text)
-            note.display = bool(text)
 
     def set_placeholder(self, session_key: str, text: str) -> None:
         if session_key not in self._placeholders:
