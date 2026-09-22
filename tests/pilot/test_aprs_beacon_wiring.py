@@ -25,7 +25,12 @@ MYCALL = AX25Address.parse("N1ABC-1")
 def _plain(widget) -> str:
     from textual.geometry import Region
 
-    region = Region(0, 0, widget.size.width or 200, widget.size.height or 5)
+    # `outer_size`, not `size`: the latter is the CONTENT box while
+    # `render_lines` paints the padded/bordered one, so a widget with
+    # horizontal padding silently loses its right-hand edge here. See
+    # `tests/pilot/test_terminal_ux.py::_plain`.
+    size = widget.outer_size
+    region = Region(0, 0, size.width or 200, size.height or 5)
     return "\n".join(strip.text for strip in widget.render_lines(region))
 
 

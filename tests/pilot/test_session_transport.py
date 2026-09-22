@@ -375,7 +375,9 @@ async def test_status_bar_shows_the_session_transport_detail():
     from textual.geometry import Region
 
     def _plain(widget) -> str:
-        region = Region(0, 0, widget.size.width or 200, widget.size.height or 5)
+        # `outer_size`, not `size` -- see test_terminal_ux.py::_plain.
+        size = widget.outer_size
+        region = Region(0, 0, size.width or 200, size.height or 5)
         return "\n".join(strip.text for strip in widget.render_lines(region))
 
     server = await asyncio.start_server(_fake_node, "127.0.0.1", 0)

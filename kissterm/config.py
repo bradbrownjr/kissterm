@@ -376,19 +376,23 @@ class Config:
     #: SMS/email-over-APRS gateway defaults, pre-filled into a new contact's
     #: `callsign` when its service is set to sms/email in the APRS pane's
     #: contact editor (`AprsContactScreen`) -- see `kissterm/aprs_contacts.py`.
-    #: **UNVERIFIED and deliberately blank by default**: which gateway
-    #: callsign is actually running, in what region, changes over time, and
-    #: this codebase has no way to confirm one from here. Never asserted as
-    #: fact -- an empty gateway just means the operator has to type a
-    #: contact's own gateway callsign once, the same as any other field.
+    #: **These were deliberately blank until 0.1.182**, on the reasoning
+    #: that which gateway callsign is actually running, in what region,
+    #: changes over time, and naming one here would be unearned confidence.
+    #: They now default to `SMSGTE`/`EMAIL-2` because that objection stopped
+    #: applying: `kissterm/aprs_services/` has shipped both since 0.1.60
+    #: with their sources and command syntax, so this is a cited default,
+    #: not a guess -- the same fact the contact editor's own service picker
+    #: already shows.
     #:
-    #: Since 0.1.60 there IS a cited answer for the common cases:
-    #: `kissterm/aprs_services/` ships `SMSGTE`, `SMS` and `EMAIL-2` with
-    #: their sources and command syntax, reachable from the APRS pane's
-    #: contact editor. These two fields stay blank by default anyway --
-    #: which gateway an operator should use depends on their region and on
-    #: who is running what this month, and picking one for them here would
-    #: be exactly the unearned confidence the note above is about.
+    #: What makes naming one safe is that it is ONLY a prefill, and only
+    #: into an empty field (`AprsContactScreen._prefill_gateway`): it never
+    #: overwrites a callsign the operator typed, it addresses nothing on its
+    #: own, and the operator still confirms the contact before anything can
+    #: be sent to it. Set either to `""` to turn the prefill off entirely.
+    #: A regional gateway is still a per-operator setting, not a fact about
+    #: the air -- so this must stay a starting point the editor shows, never
+    #: an addressee anything picks up implicitly.
     aprs_sms_gateway: str = "SMSGTE"
     aprs_email_gateway: str = "EMAIL-2"
     #: How a compose-mode message becomes the actual on-air body, as a

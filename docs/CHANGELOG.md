@@ -3,6 +3,41 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-22] — Fix three stale test failures at their cause
+
+### Fixes
+
+- **A test helper read padded widgets one character short.** `_plain()` --
+  copied into six pilot test files -- rendered a widget at `Widget.size`,
+  which is the CONTENT box, while `render_lines` paints the padded box. On
+  `#suggestion-strip` (`padding: 0 1`) that cropped the left pad and the
+  last real character, so a correctly wrapped command summary read back as
+  truncated mid-word ("... or nod") and failed the assertion. The strip on
+  screen was right the whole time. Every copy now renders at `outer_size`.
+- **Two suggestion-strip assertions had outgone the code they guard.** The
+  strip became one candidate per line as `NAME - summary` (0.1.17x) while
+  the test still expected the old single-row `NAME: summary`; and the
+  arrow-navigation test named `LB` as the third candidate under "L", which
+  stopped being true when the shipped BPQMail reference grew from three L*
+  commands to thirteen. The navigation test now reads the expected command
+  off the candidate list -- what it is really about is that Tab fills
+  whatever the arrows selected, not which command sits third in shipped
+  data.
+- **`aprs_sms_gateway`/`aprs_email_gateway` default to `SMSGTE`/`EMAIL-2`,
+  and now say so.** The defaults changed from blank in 0.1.182 but the
+  field comment still argued at length for leaving them blank, and the test
+  named "no default gateway is configured" was using a default `Config`, so
+  it was really asserting the old default and failing against the new one.
+  The comment now records why naming a gateway became defensible (both are
+  cited in `kissterm/aprs_services/`, and it is only a prefill into an empty
+  field that the operator still confirms), the test configures the blank
+  case it names, and a second test covers the shipped default prefilling.
+  **Files:** `kissterm/config.py`, `tests/pilot/test_terminal_ux.py`,
+  `tests/pilot/test_aprs_contacts_pane.py`, `tests/pilot/test_settings.py`,
+  `tests/pilot/test_session_transport.py`, `tests/pilot/test_beacon_wiring.py`,
+  `tests/pilot/test_aprs_beacon_wiring.py`, `tests/pilot/test_transmit_gate.py`,
+  `tests/pilot/test_app_mounts.py`, `docs/CHANGELOG.md`.
+
 ## [2026-09-22] — One keyboard standard: F1 Help, F10 Menu, nine Ctrl keys
 
 ### Improvements

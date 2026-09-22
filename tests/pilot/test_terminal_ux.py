@@ -87,8 +87,17 @@ async def _hop_settled(app, session_key: str, timeout: float = 2.0) -> None:
 def _plain(widget) -> str:
     """A widget's currently-rendered plain text -- reading `.renderable`
     directly is the internals-coupling `kissterm/ui/AGENTS.md` rule 21 warns
-    against once it holds a Rich renderable rather than a bare string."""
-    region = Region(0, 0, widget.size.width or 200, widget.size.height or 5)
+    against once it holds a Rich renderable rather than a bare string.
+
+    Render at `outer_size`, NOT `size`. `Widget.size` is the CONTENT box,
+    while `render_lines` paints the padded/bordered box -- so on any widget
+    with horizontal padding this helper silently cropped the right-hand
+    edge and reported a real character as missing. `#suggestion-strip` has
+    `padding: 0 1`, and that is exactly how this read a correctly wrapped
+    command summary back as truncated mid-word ("... or nod").
+    """
+    size = widget.outer_size
+    region = Region(0, 0, size.width or 200, size.height or 5)
     return "\n".join(strip.text for strip in widget.render_lines(region))
 
 
@@ -402,8 +411,17 @@ async def test_up_down_choose_a_stacked_suggestion_and_tab_fills_it():
         assert pane._suggestion_index == 2
         assert field.value == "L", "navigation must not fill or send"
 
+        # Read the expected command off the candidate list rather than
+        # naming one. Which BBS command sits third under "L" is shipped
+        # data (`kissterm/bbs.py`), and it has already moved once --
+        # documenting the full L* set turned the third entry from LB into
+        # LM and failed this test for a reason that had nothing to do with
+        # navigation. What must hold is that Tab fills the entry the arrows
+        # selected, whatever it happens to be.
+        chosen = pane._suggestion_matches[2].name
+        assert chosen != "L", "the arrows must have moved off the first entry"
         await pilot.press("tab")
-        assert field.value == "LB"
+        assert field.value == chosen
     a.close()
     b.close()
 
@@ -580,10 +598,13 @@ async def test_typing_a_prefix_shows_matching_commands_without_transmitting():
         shown = " ".join(_plain(strip).split())
         # bpq32.toml ships C, CQ and CHAT -- complete() sorts shortest first.
         # The strip must say what the choices do, not just make a newcomer
-        # infer their meaning from two-letter node jargon.
-        assert "C: Connect onward to another station or node" in shown
-        assert "CQ: Call CQ to other users connected to the node" in shown
-        assert "CHAT: Enter the node's chat server, if it has one" in shown
+        # infer their meaning from two-letter node jargon. One candidate per
+        # line, `NAME - summary`, is the shipped format (see
+        # `_update_suggestions`); the whole summary has to survive the wrap,
+        # which is the half of this a rendering bug would break.
+        assert "C - Connect onward to another station or node" in shown
+        assert "CQ - Call CQ to other users connected to the node" in shown
+        assert "CHAT - Enter the node's chat server, if it has one" in shown
         assert "Tab" in shown
 
         assert _sent_data_frames(app.station.transport) == before, "showing suggestions transmitted"

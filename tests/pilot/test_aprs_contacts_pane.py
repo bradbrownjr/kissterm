@@ -396,7 +396,18 @@ async def test_prefill_never_overwrites_a_callsign_already_typed():
 
 @pytest.mark.asyncio
 async def test_no_prefill_when_no_default_gateway_is_configured():
-    app, station = await _app()
+    """An operator who blanks the gateway gets an empty field, not the
+    shipped default reappearing.
+
+    `Config.aprs_sms_gateway`/`aprs_email_gateway` ship as `SMSGTE`/
+    `EMAIL-2` (cited in `kissterm/aprs_services/`), so this case has to be
+    configured rather than assumed -- the test previously used a default
+    `Config` and only passed while those fields were blank.
+    """
+    config = Config(mycall=str(MYCALL))
+    config.aprs_sms_gateway = ""
+    config.aprs_email_gateway = ""
+    app, station = await _app(config)
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
         app.query_one(AprsPane)._new_contact()
@@ -410,6 +421,29 @@ async def test_no_prefill_when_no_default_gateway_is_configured():
         app.screen.query_one("#aprs-contact-service", Select).value = "email"
         await pilot.pause()
         assert app.screen.query_one("#aprs-contact-callsign", Input).value == ""
+        await app.screen.dismiss(None)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_shipped_default_gateway_prefills_a_new_email_contact():
+    """The counterpart to the test above: with the shipped defaults in
+    place, choosing `email` fills `EMAIL-2` in so a newcomer is not left
+    guessing a gateway callsign the service directory already knows."""
+    app, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        app.query_one(AprsPane)._new_contact()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+
+        from textual.widgets import Input
+        from kissterm.ui.dialogs import AprsContactScreen
+
+        assert isinstance(app.screen, AprsContactScreen)
+        app.screen.query_one("#aprs-contact-service", Select).value = "email"
+        await pilot.pause()
+        assert app.screen.query_one("#aprs-contact-callsign", Input).value == "EMAIL-2"
         await app.screen.dismiss(None)
     station.close()
 
