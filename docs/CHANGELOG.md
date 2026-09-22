@@ -7,6 +7,15 @@ touched and any breaking notes.
 
 ### Fixes
 
+- **The radio reminder now clears before a connection begins.** A fast
+  successful dial from an Address Book entry could start behind the just-
+  confirmed "Before connecting" modal, leaving that stale dialog visibly on
+  top of the live terminal. The connect flow now lets Textual complete its
+  queued screen replacement first; direct modal-button interaction is covered
+  for both regular and Address Book connects.
+  **Files:** `kissterm/ui/app.py`, `tests/pilot/test_connect_scripts.py`,
+  `docs/CHANGELOG.md`.
+
 - **Multi-line BBS replies no longer gain blank rows.** The terminal receive
   buffer waits to see whether a trailing CR is followed by LF, then writes
   each normalized physical line without its terminator so `RichLog` does not

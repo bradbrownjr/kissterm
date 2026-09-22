@@ -360,10 +360,11 @@ async def test_acknowledging_the_radio_reminder_proceeds_with_the_connect(tmp_pa
         await pilot.pause()
 
         assert isinstance(app.screen, RadioReminderScreen)
-        await app.screen.dismiss(True)  # Connect
+        await pilot.click("#connect-go")
         await pilot.pause()
         await asyncio.sleep(0.5)
 
+        assert not isinstance(app.screen, RadioReminderScreen)
         assert station.transport.sent, "acknowledging the reminder never transmitted"
         assert app.link is not None and app.link.connected
     peer.close()
@@ -429,16 +430,19 @@ async def test_dialing_from_the_addressbook_pane_also_shows_the_reminder(tmp_pat
     book = _fresh_book(app, tmp_path)
     book.upsert("WS1EC-7", frequency="146.520 MHz", connection_type="1200 AFSK")
 
-    async with app.run_test(size=(120, 40)):
+    async with app.run_test(size=(120, 40)) as pilot:
         entry = book.find("WS1EC-7")
         app.action_connect(prefill=entry)
         await asyncio.sleep(0.2)
 
         assert isinstance(app.screen, RadioReminderScreen), type(app.screen).__name__
-        await app.screen.dismiss(False)
+        await pilot.pause()
+        await pilot.click("#connect-go")
+        await pilot.pause()
         await asyncio.sleep(0.1)
 
-        assert not station.transport.sent
+        assert not isinstance(app.screen, RadioReminderScreen)
+        assert station.transport.sent
     station.close()
 
 

@@ -3202,6 +3202,12 @@ class KissTermApp(App):
             )
             if not proceed:
                 return
+            # Screen.dismiss() resolves push_screen_wait before Textual's
+            # queued screen replacement paints. Yield once before beginning
+            # the connect work: a fast local/nearby node could otherwise
+            # complete the whole attempt while the just-dismissed "Before
+            # connecting" modal was still the visible screen.
+            await asyncio.sleep(0)
         target = request.target
         # Node hops replace the "via DIGI" path entirely rather than
         # combining with it -- see `ConnectScreen._submit`, which already
