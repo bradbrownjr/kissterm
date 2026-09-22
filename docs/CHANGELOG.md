@@ -16,6 +16,12 @@ touched and any breaking notes.
   catalog. Shipped `[x]` items were removed; `ROADMAP_DEPENDENCIES.md` was
   stale and is folded into per-item "Needs:" notes. AGENTS.md points at the
   new working rules.
+- **Tab layout decided and messaging client planned (P2).** F1 Help, F10
+  Menu, F9 Settings now. Mail, Bulletins and Files will take F2-F4, with
+  Terminal, APRS, Heard and Info after them. New P2 covers a folder-tree
+  message store, Winlink (B2F over CMS Telnet, packet RMS and VARA, reusing
+  the existing link seam), and BBS mail send/receive. The old P10 tab items
+  moved there.
   **Files:** `docs/ROADMAP.md`, `docs/ROADMAP_DEPENDENCIES.md` (removed),
   `AGENTS.md`, `docs/CHANGELOG.md`.
 

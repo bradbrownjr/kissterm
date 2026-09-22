@@ -51,7 +51,14 @@ that does not work in their terminal. Concretely:
   BLE) are labelled **experimental** in Settings, `--doctor` and SETUP.md
   rather than blocking the release.
 
-Everything from P9 on is post-1.0.
+**Milestone 2 -- the messaging client (P2).** kissterm's long-term shape is
+OutpostPM or Winlink on Android (WoAD): the stored messages are the product,
+and the terminal is one tool for getting them. Milestone 2 is reached when
+Winlink and BBS mail download into their own inboxes in a folder tree, and
+Mail, Bulletins and Files are the first tabs an operator sees. 1.0 stays
+terminal-first so there is a stable release before that larger build starts.
+
+Everything from P9 on comes after milestone 2.
 
 ---
 
@@ -197,19 +204,34 @@ The rules, in the form that goes into DESIGN.md section 5:
 6. **What the footer prints is exactly what to press.** No `key_display`
    that names a different chord from the one bound.
 
-**Decision needed from the operator before implementation -- the tab keys.**
-CUA reserves F1 for Help, and F1 is currently the Terminal tab.
-Recommended: shift the tabs up by one and fold in the reserved P10 tabs, so
-the row reads the way Midnight Commander's does: `F1 Help  F2 Terminal
-F3 APRS  F4 Heard  F5 Monitor  F6 Mail  F7 Bulletins  F8 Files  F9 Settings
-F10 Menu`. This fits every planned tab inside the F10 ceiling. The
-alternative keeps F1-F5 as they are and puts Help only on F10 > Help, which
-costs CUA conformance on its most widely known key.
+**Tab keys -- decided 2026-09-22.** F1 is Help and F10 is the menu, per
+CUA. The tabs are ordered by what the product is for. The content tabs come
+first, then the tools, then the informational tabs, then Settings:
+
+| Key | Final layout (milestone 2) | Now, until Mail exists |
+|---|---|---|
+| F1 | Help | Help |
+| F2 | Mail | Terminal |
+| F3 | Bulletins | APRS |
+| F4 | Files | Heard |
+| F5 | Terminal | Info |
+| F6 | APRS | -- |
+| F7 | Heard | -- |
+| F8 | Info | -- |
+| F9 | Settings | Settings |
+| F10 | Menu | Menu |
+
+Help, Settings and Menu take their final keys now so they never move again.
+Terminal, APRS, Heard and Info move once, when the Mail/Bulletins/Files tabs
+land (P2). The app opens on Terminal until Mail exists, then on Mail.
+**Info** is the informational tab replacing today's Monitor: the
+raw-frame monitor plus link and station status. Confirm its contents before
+renaming anything.
 
 Work items, in order:
 
-- [ ] Operator decides the tab-key question above; the rules go into
-  DESIGN.md section 5, replacing the per-key history there.
+- [ ] Write the rules and the interim tab layout into DESIGN.md section 5,
+  replacing the per-key history there.
 - [ ] `tests/unit/test_key_standard.py`: walks every `BINDINGS` list in
   `kissterm/ui/` and fails on any key outside the rule 2 allowlist, any
   `key_display` that differs from the bound key, or more than nine global
@@ -290,6 +312,134 @@ rewrite.
 - [ ] Archive CHANGELOG sections older than the last release into
   `docs/CHANGELOG-archive.md` once 1.0 is tagged.
 - [ ] DESIGN.md section 5 replaced by P0.2's standard, not added to.
+
+---
+
+## P2 — Messaging client: Mail, Bulletins, Files (milestone 2)
+
+The model is OutpostPM and Winlink on Android (WoAD): the operator opens
+kissterm to their messages, not to a prompt. The Terminal becomes one of the
+tools that fills the message store, alongside Winlink and scripted BBS
+sessions. Requested 2026-09-22.
+
+Starts after P0. The BBS half depends on P0.3's per-application command
+catalog, because a collection script has to know which BBS it is talking to.
+
+### The folder tree
+
+One on-disk store, shown as one tree in the Mail tab, with each source
+getting its own branch:
+
+```
+Mail
+  Winlink          Inbox  Outbox  Sent  Deleted
+  BBS
+    CCEMA          Inbox  Outbox  Sent  Deleted     (one per BBS account)
+  Local            Inbox  Sent  Deleted             (P9's personal mailbox)
+Bulletins
+  CCEMA            ALL  ARES  WX  ...               (by category, with expiry)
+Files
+  Downloads  Attachments  Received
+```
+
+- **Plain files, one per message, in a directory tree that mirrors the UI**,
+  under the platformdirs data directory. Any index is a cache rebuilt from
+  the files. A mailbox only this app can read is a bad bargain for an
+  emergency tool. That rule already stands in P9. Raw Winlink messages are
+  kept as received (B2F) beside the parsed view, so nothing is lost to a
+  parser bug.
+- **Deleted is a real folder**, not destruction. A message that arrived over
+  a marginal HF path may not be re-sendable.
+- **Bulletins are not mail with a different header.** They are addressed to a
+  category and expire, so model category and lifetime from the start.
+
+### Items
+
+- [ ] **Message store** (`kissterm/mail/`): folders, message files, the
+  rebuildable index, move/delete/restore. No UI, no I/O beyond the data
+  directory, and fully unit-tested like `ax25/`. Tests use `_isolate`.
+  Medium.
+- [ ] **Shared message-list widget and folder tree.** Mail, Bulletins and
+  Files are the same three panes: tree, list of headers, reader. One widget
+  with a column spec replaces three that would drift apart. Keys follow
+  P0.2 rule 4: Enter opens the message, Insert composes, Delete moves to
+  Deleted, and plain letters (R reply, F forward, S send/receive) work only
+  while the list has focus. The folder tree answers the old "sub-view
+  navigation" question, so there is no sub-tab strip. Medium.
+- [ ] **Mail, Bulletins and Files tabs** at F2, F3 and F4, with the tab
+  move from P0.2's table done in the same change. Mail becomes the launch
+  tab. Large, mostly composition of the two items above.
+- [ ] **Compose and Outbox.** Composing writes to the Outbox of a chosen
+  account (a Winlink account or a BBS). Nothing transmits on save. Sending
+  happens only when the operator starts a send/receive, which arms the gate
+  through `_arm_for` exactly as Ctrl+N does. Medium.
+
+#### Winlink
+
+Winlink messages travel as B2F (the FBB B2 forwarding protocol: proposals,
+LZHUF-compressed messages, and a challenge-response secure login) over a
+byte stream. That fits the existing architecture exactly: **B2F is a
+session protocol on top of whatever link is open.** It runs over an
+`AX25Link` to an RMS Gateway (packet, kissterm's own state machine), a
+`Session` from the VARA transport, or Telnet to the Winlink CMS, via the
+same `_SessionLinkAdapter` seam the terminal uses. It needs no new transport.
+
+Sources: Winlink's published B2F and secure-login documentation, and **Pat**
+(getpat.io, github.com/la5nta/pat, with its protocol library wl2k-go). Pat
+is a working open-source Winlink client and the best reference
+implementation. Check its licence before porting any code, and mark
+anything taken from its behaviour rather than from documentation
+`# UNVERIFIED:` until a live exchange confirms it.
+
+- [ ] **Winlink account in Settings**: callsign, and a password kept as a
+  named credential (`Config.credentials`, as Address Book logins already
+  are), never in plain config text if the OS keyring is available. Small.
+- [ ] **B2F client** (`kissterm/winlink/`): handshake and SID exchange,
+  secure login, proposal/accept, LZHUF compress and decompress, send
+  Outbox, receive to Inbox, clean disconnect. Unit-tested against recorded
+  exchanges. `# RESEARCH:` the exact secure-login hash and the SID flags
+  from the published docs. Large.
+- [ ] **CMS over Telnet first.** It is the test path that needs no radio.
+  Pat's documented form is `cms.winlink.org:8772`. Confirm the host, port
+  and Telnet-layer login from Winlink's own documentation. Operator-initiated
+  only. Medium.
+- [ ] **Packet to an RMS Gateway** using the existing Connect flow (radio
+  reminder, gate arming, hop chains). Needs: a reachable RMS Gateway and a
+  live session to verify. Medium.
+- [ ] **VARA to an RMS Gateway**, once P3's VARA hardware verification is
+  done. Small on top of the two above.
+- [ ] **RMS Gateway list** for choosing where to connect, fetched from the
+  Internet on request and cached, never queried over the air.
+  `# RESEARCH:` whether Winlink's gateway API needs a key and on what terms.
+  Medium.
+- [ ] **Attachments** land in Files > Attachments, under P9's filename rules
+  (sanitized, never executed, never auto-opened). Small.
+- **Later:** Winlink HTML/XML forms (they meet P11's form system here),
+  peer-to-peer Winlink, and scheduled send/receive. The scheduled version
+  follows every unattended-transmission rule in AGENTS.md: opt-in, a status
+  marker, an interval floor, and every line logged.
+
+#### BBS mail (BPQMail first, then the other P0.3 applications)
+
+- [ ] **BBS accounts**: an Address Book entry marked as a mail source, with
+  its BBS application from the P0.3 catalog (BPQMail, FBB, JNOS mailbox),
+  its hop chain and login script, and retrieval options. Small.
+- [ ] **BBS send/receive**: an operator-started session that connects via
+  the normal Connect flow, then runs the application's collection
+  sequence from the catalog: list mine, read each new message into
+  BBS/<name>/Inbox, send the Outbox, and disconnect. Every line is echoed to
+  the terminal log and the transcript as it goes, as the auto-login script
+  already does. It stops, and does not guess, on any reply it does not
+  recognise. **Reproduce-first applies here:** the per-application
+  description of where a read message starts and ends is written from
+  captured real sessions (CCEMA's BPQMail first), stored as data beside the
+  command catalog, and tested against those captures. Retrieval filtering
+  (private, NTS or bulletins; skipping this station's own; keep on the BBS
+  or kill after reading) is part of this item. The default for kill-after-read
+  is an operator decision to record here before building. The P11 notes
+  below describe how Outpost does it. Large.
+- [ ] **Bulletin collection** into Bulletins/<BBS>/<category>, using the
+  same session with a category or keyword filter. Medium.
 
 ---
 
@@ -422,23 +572,10 @@ of the beacon work is the half that needs a mailbox behind it:
         it, and the per-callsign back-off -- not another beacon. **Do not
         build a second beaconer beside the first.** Mid.
 
-- [ ] **Auto-collect mail once a mailbox exists.** Depends on the mailbox
-      item below shipping first -- once kissterm can hold mail *for its own
-      operator*, it should also be able to go get mail (and bulletins)
-      *from someone else's*: on hearing (or being told about) a "MAIL FOR"
-      match via the passive notice above, offer to dial the advertising
-      node, log in, run its list/read/download command sequence for the
-      node family in question (`kissterm/nodes/` already has per-family
-      command references -- see P8), and file the results locally, all
-      without the operator typing the session by hand. This is a
-      **connection the operator has to confirm**, same as every other
-      unattended-looking action in this codebase (AGENTS.md's "Unattended
-      transmission" rules) -- never auto-dial on a bare notification with no
-      confirmation step, that is exactly the "bare keystroke never arms the
-      gate" case applied to a whole session instead of one transmission.
-      Medium-large: needs a per-family "collect" script (list, read each,
-      mark read/kill, disconnect) layered on the BBS session helpers item
-      above (P5), not a new parsing approach.
+- [ ] **Collect mail when a "MAIL FOR" beacon names this station.**
+      Offer (never auto-dial) to run P2's BBS send/receive against the
+      advertising node. The collection itself is P2's; this item is only the
+      trigger, and it must be confirmed like any other connect.
 - [ ] **A personal mailbox on an alternate SSID** -- the `-1` convention, which
       `Config.mycall_aliases` and `AX25Station.aliases` already support at the
       protocol level. Minimal command set in the EasyTerm//W0RLI tradition:
@@ -466,53 +603,12 @@ of the beacon work is the half that needs a mailbox behind it:
 - [ ] **Notify on incoming connection and on new mail**, same rate-limiting
       machinery. Small once the above exists.
 
-## P10 — Application tabs: Mail, Bulletins, Files
+## P10 — Serving files to other stations
 
-The three tabs that turn kissterm from a terminal into a station. Each is a
-front-end over machinery P9 builds (the mailbox and the file drop); this phase
-is the operator-facing half, and it is worth designing the navigation before
-any of it is written.
+The Mail, Bulletins and Files tabs moved to P2, the messaging client. What
+remains here is the server side: offering files to stations that connect to
+this one. It depends on P9's drop box and on the Files tab in P2.
 
-### The F-key ceiling -- raised to F10, but still finite
-
-**Superseded pending P0.2's tab-key decision.** If the recommended CUA
-layout is adopted, these tabs land on F6 Mail, F7 Bulletins, F8 Files with
-F1 Help, F9 Settings and F10 Menu; the reasoning below about the F10
-ceiling and F11 still holds.
-Function keys are tabs; Ctrl sequences are actions and modals (see
-`kissterm/ui/app.py`'s module docstring). The ceiling was originally set at
-F8 (some terminals were assumed unreliable past it), but confirmed working
-in practice through F10 on the terminals actually in use here, matching
-Midnight Commander's long-standing F1-F10 convention. **F1..F10 is the
-working ceiling; ten tabs the practical maximum.** F11 stays off-limits --
-"toggle fullscreen" in enough terminal emulators and window managers that it
-rarely reaches the application at all.
-
-Five tabs exist now (F1 Terminal, F2 APRS, F3 Heard, F4 Monitor, F5
-Settings), ordered by how often an operator visits them rather than by the
-order they were built. Address Book briefly had its own F5 slot (bumping Settings to F6)
-before it shipped as a collapsible slide-out on the Terminal pane instead --
-`Ctrl+G`, see `kissterm/ui/app.py`'s module docstring and `DESIGN.md`'s
-"slide-out panels" section -- which returned Settings to F5 and freed the
-slot back up. The three below take **F6 Mail, F7 Bulletins, F8 Files**,
-landing with **F9 and F10 spare** for whatever needs a tab next -- do not put
-something on either of those that would rather be a command-palette entry or
-a modal. Mail's own contact list is expected to reuse the Address-Book/APRS
-slide-out recipe rather than becoming a seventh tab or a fourth copy of
-"contacts".
-
-- [ ] **Mail tab (F6)** -- personal message store, sub-views for Inbox,
-      Outbox, Sent and Deleted. Reads the mailbox P9 builds; the tab is the
-      view layer, not a second copy of the storage. Deleted should be a real
-      recoverable folder rather than immediate destruction -- an operator who
-      fat-fingers a delete on a message that arrived over a marginal HF path
-      may have no way to get it re-sent. Large.
-- [ ] **Bulletins tab (F7)** -- same four sub-views, but bulletins are
-      broadcast-addressed rather than person-addressed, and that difference is
-      not cosmetic: a bulletin is addressed to a category (`ALL`, `ARES`,
-      `WX`) and typically carries a lifetime after which it should stop being
-      shown or forwarded. Model the category and expiry from the start rather
-      than reusing the mail schema unchanged. Large.
 ### Serving files to other stations -- read before building the download area
 
 A public download area is the natural companion to the drop box, and it is
@@ -555,24 +651,6 @@ operator's own callsign and licence. So:
       Do not build this before the curated area works. Mid.
 - [ ] **A hash and a claimed-source line per file**, shown locally and in the
       remote listing. Small once the areas exist.
-
-- [ ] **Files tab (F8)** -- sub-views for Downloads (files this station
-      fetched), Received (files other stations sent us, which is the P9 drop
-      box and carries all of its security requirements: a resolved jail
-      directory, allowlisted filenames, quotas enforced during transfer, never
-      execute or auto-open), a local browser for choosing something to upload,
-      and -- where the far end supports it -- a remote directory listing.
-      Large.
-- [ ] **Sub-view navigation within a tab.** Four sub-views per tab across
-      three tabs means the F-row cannot address them; they need their own
-      consistent scheme (left/right arrows, or a sub-tab strip like the
-      Calendar tab in the sibling google-tui project). Pick ONE pattern and
-      use it in all three, decided before the first of them is built rather
-      than three times independently. Small, but blocking.
-- [ ] **A shared message-list widget.** Mail and Bulletins are the same list
-      of headers over different stores; Files is a list too. One widget with
-      a column spec beats three that drift apart -- the same argument that
-      made `settings_schema.py` worth having. Mid.
 
 ## P11 — Served-agency messaging: forms, traffic, tactical identity
 
@@ -753,6 +831,10 @@ OutpostPMX one does, not after.
       this file. Small-medium once the mailbox exists.
 
 ### Adjacent nuance for the existing BBS/mailbox items above
+
+Both notes below now feed P2's "BBS send/receive" item. Scheduled
+send/receive is P2's post-milestone item; retrieval filtering belongs to
+the send/receive item itself.
 
 - **Scheduled, unattended send/receive.** Outpost's most-used feature in
   practice is not manual Send/Receive -- it is a timer that connects to a
