@@ -22,6 +22,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Input, Label, Select, Static, Tab, Tabs, TextArea
 
 from ..addressbook import AddressBook
+from ..bbs import Macro, profile, profiles
 from ..aprs_contacts import (
     CannedMessage,
     Contact,
@@ -2686,6 +2687,7 @@ class CommandReferenceScreen(ModalScreen[str | None]):
                 id="ref-help",
             )
             with Horizontal(id="connect-buttons"):
+                yield Button("BBS mail helpers", id="ref-bbs")
                 if self._can_harvest:
                     yield Button("Learn from node", id="ref-harvest")
                     yield Button("Show captured reply", id="ref-show-harvest")
@@ -2816,6 +2818,18 @@ class CommandReferenceScreen(ModalScreen[str | None]):
     def _close(self) -> None:
         self.dismiss(None)
 
+    @on(Button.Pressed, "#ref-bbs")
+    async def _bbs_helpers(self) -> None:
+        """Open the parameterised BBS templates.
+
+        The nested screen returns text only.  Dismissing this reference with
+        that text preserves the one app-level route that places a suggestion
+        in the terminal compose box, and never creates another send path.
+        """
+        chosen = await self.app.push_screen_wait(BbsHelperScreen())
+        if chosen:
+            self.dismiss(chosen)
+
     @on(Button.Pressed, "#ref-harvest")
     async def _harvest(self) -> None:
         """Confirm the airtime cost, then ask `KissTermApp.harvest_commands`
@@ -2892,6 +2906,127 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         if self._mode == "glossary":
             return
         self.dismiss(self._command_row_values.get(str(event.row_key.value), ""))
+
+
+class BbsHelperScreen(ModalScreen[str | None]):
+    """Fill one documented BBS mail command without parsing or sending.
+
+    The picker intentionally ends at the terminal compose box.  A BBS send
+    is a multi-step conversation with prompts that differ across software;
+    pretending it can be driven blindly would be the rigid parser P5 rules
+    out, while sending on selection would violate the terminal's deliberate-
+    commit rule.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._profile_id = profiles()[0].id
+        self._macro_id = profiles()[0].macros[0].id
+
+    @property
+    def _profile(self):
+        return profile(self._profile_id) or profiles()[0]
+
+    @property
+    def _macro(self) -> Macro:
+        return next(
+            (item for item in self._profile.macros if item.id == self._macro_id),
+            self._profile.macros[0],
+        )
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="bbs-helper-box"):
+            yield Label("BBS mail helper", id="bbs-helper-title")
+            yield Static("", id="bbs-helper-note")
+            yield Select(
+                [(item.name, item.id) for item in profiles()],
+                value=self._profile_id,
+                allow_blank=False,
+                id="bbs-profile",
+            )
+            yield Select(
+                [(item.label, item.id) for item in self._profile.macros],
+                value=self._macro_id,
+                allow_blank=False,
+                id="bbs-macro",
+            )
+            yield Input(placeholder="message number", id="bbs-number")
+            yield Input(placeholder="recipient callsign", id="bbs-callsign")
+            yield Static("", id="bbs-preview")
+            yield Static("", id="bbs-helper-error")
+            yield Static(
+                "Put in compose box does not send. Review it, then press Enter or Send.",
+                id="bbs-helper-help",
+            )
+            with Horizontal(id="connect-buttons"):
+                yield Button("Put in compose box", variant="primary", id="bbs-apply")
+                yield Button("Cancel", id="bbs-cancel")
+
+    def on_mount(self) -> None:
+        self._render_macro_options()
+        self.query_one("#bbs-profile", Select).focus()
+
+    def _render_macro_options(self) -> None:
+        macro_select = self.query_one("#bbs-macro", Select)
+        macro_select.set_options([(item.label, item.id) for item in self._profile.macros])
+        if self._macro_id not in {item.id for item in self._profile.macros}:
+            self._macro_id = self._profile.macros[0].id
+        macro_select.value = self._macro_id
+        self._render_fields()
+
+    def _render_fields(self) -> None:
+        macro = self._macro
+        self.query_one("#bbs-helper-note", Static).update(
+            f"{self._profile.name}: {macro.summary} ({macro.confidence}). {self._profile.note}"
+        )
+        self.query_one("#bbs-number", Input).display = "number" in macro.fields
+        self.query_one("#bbs-callsign", Input).display = "callsign" in macro.fields
+        self._preview()
+
+    @on(Select.Changed, "#bbs-profile")
+    def _profile_changed(self, event: Select.Changed) -> None:
+        self._profile_id = str(event.value)
+        self._macro_id = self._profile.macros[0].id
+        self._render_macro_options()
+
+    @on(Select.Changed, "#bbs-macro")
+    def _macro_changed(self, event: Select.Changed) -> None:
+        self._macro_id = str(event.value)
+        self._render_fields()
+
+    @on(Input.Changed, "#bbs-number")
+    @on(Input.Changed, "#bbs-callsign")
+    def _input_changed(self) -> None:
+        self._preview()
+
+    def _values(self) -> dict[str, str]:
+        return {
+            "number": self.query_one("#bbs-number", Input).value,
+            "callsign": self.query_one("#bbs-callsign", Input).value,
+        }
+
+    def _preview(self) -> str:
+        try:
+            rendered = self._macro.render(**self._values())
+        except ValueError as exc:
+            self.query_one("#bbs-preview", Static).update("")
+            self.query_one("#bbs-helper-error", Static).update(str(exc))
+            return ""
+        self.query_one("#bbs-preview", Static).update(f"Will put in compose box: {rendered}")
+        self.query_one("#bbs-helper-error", Static).update("")
+        return rendered
+
+    @on(Button.Pressed, "#bbs-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#bbs-apply")
+    def _apply(self) -> None:
+        chosen = self._preview()
+        if chosen:
+            self.dismiss(chosen)
 
 
 def _human_size(n: int) -> str:

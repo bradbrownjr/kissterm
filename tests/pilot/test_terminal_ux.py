@@ -24,7 +24,7 @@ from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa
 from kissterm.config import Config  # noqa: E402
 from kissterm.nodes import Command, CommandReference, load_family  # noqa: E402
 from kissterm.ui import terminal_pane as tp  # noqa: E402
-from kissterm.ui.dialogs import CommandReferenceScreen  # noqa: E402
+from kissterm.ui.dialogs import BbsHelperScreen, CommandReferenceScreen  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane, linkify  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
@@ -294,6 +294,70 @@ async def test_suggest_fills_the_input_without_sending():
         assert app.query_one("#session-input", Input).value == "NODES"
         assert _sent_data_frames(app.station.transport) == before, "a suggestion transmitted"
         assert far.read_nowait() == b"", "a suggestion reached the far end"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_bbs_helper_fills_a_parameterized_command_without_sending():
+    """P5 helpers end at the compose box; Send remains a separate commit."""
+    app, a, b, incoming = await _connected_app()
+    chosen: list[str | None] = []
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()
+        before = _sent_data_frames(app.station.transport)
+
+        app.push_screen(BbsHelperScreen(), chosen.append)
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, BbsHelperScreen)
+        screen.query_one("#bbs-macro").value = "read"
+        screen.query_one("#bbs-number", Input).value = "42"
+        screen.query_one("#bbs-apply", Button).press()
+        await pilot.pause()
+
+        assert chosen == ["R 42"]
+        assert _sent_data_frames(app.station.transport) == before
+        assert far.read_nowait() == b""
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_bbs_helper_from_reference_reaches_compose_box_without_sending():
+    """The nested picker keeps the reference's one fill-only return route."""
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()
+        before = _sent_data_frames(app.station.transport)
+
+        await pilot.press("ctrl+r")
+        await asyncio.sleep(0.1)
+        reference = app.screen
+        assert isinstance(reference, CommandReferenceScreen)
+        reference.query_one("#ref-bbs", Button).press()
+        await asyncio.sleep(0.1)
+        helper = app.screen
+        assert isinstance(helper, BbsHelperScreen)
+        helper.query_one("#bbs-macro").value = "send"
+        helper.query_one("#bbs-callsign", Input).value = "N1ABC-7"
+        helper.query_one("#bbs-apply", Button).press()
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+
+        assert app.query_one("#session-input", Input).value == "SP N1ABC-7"
+        assert _sent_data_frames(app.station.transport) == before
+        assert far.read_nowait() == b""
     a.close()
     b.close()
 

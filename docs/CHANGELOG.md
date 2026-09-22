@@ -3,6 +3,21 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-22] — Add BBS mail helpers
+
+### New Features
+
+- **BBS mail commands now have a safe, visible starting point.** `Ctrl+R` >
+  BBS mail helpers provides BPQMail/LinBPQ templates for listing mail,
+  reading a numbered message, and starting personal mail to a callsign.
+  Parameters reject control characters, selection only fills the normal
+  compose box, and the existing Send/Enter action remains the sole transmit
+  path. No BBS reply parser is introduced; further documented dialects are
+  data additions in `kissterm/bbs.py`.
+  **Files:** `kissterm/bbs.py`, `kissterm/ui/dialogs.py`,
+  `kissterm/ui/styles.py`, `tests/unit/test_bbs.py`, `README.md`,
+  `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-22] — Make NET/ROM claims collapsible
 
 ### Improvements

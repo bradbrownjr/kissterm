@@ -121,6 +121,16 @@ TerminalPane { layout: horizontal; }
 #session-input { border: round $accent; width: 1fr; }
 #session-send { margin-left: 1; }  /* shape comes from the base Button rule above */
 
+/* BBS mail helpers are a compact parameter picker, not a second terminal.
+   The returned command goes into #session-input and still needs its normal
+   deliberate Send/Enter commit. */
+#bbs-helper-box { width: 72; height: auto; max-height: 90%; padding: 1 2; border: thick $primary; background: $surface; }
+#bbs-helper-title { color: $accent; text-style: bold; }
+#bbs-helper-note, #bbs-helper-help { height: auto; color: $text-muted; margin-bottom: 1; }
+#bbs-profile, #bbs-macro, #bbs-number, #bbs-callsign { width: 100%; margin-top: 1; }
+#bbs-preview { height: auto; margin-top: 1; color: $success; }
+#bbs-helper-error { height: auto; color: $warning; }
+
 /* Monitor pane */
 MonitorPane { layout: vertical; }
 #monitor-filter { height: 3; }

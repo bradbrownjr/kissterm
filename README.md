@@ -311,6 +311,14 @@ An entry can carry:
   node, ...), so it's a reminder that matches what you actually have
   configured rather than a note you have to retype consistently by hand.
 
+**BBS mail helpers** are in `Ctrl+R` > **BBS mail helpers**. They provide
+dialect-specific starting commands for listing mail, reading a numbered
+message, and starting a message to a callsign; their displayed confidence tells
+you how much verification backs each command. Choosing one only puts
+the command in the terminal compose box; inspect it and press Enter or Send to
+transmit. This is intentionally not a BBS-output parser: prompt and message
+formats vary too much between systems for a rigid parser to be trustworthy.
+
 **Running under tmux or screen?** The beacon is `Ctrl+Shift+B` rather than
 `Ctrl+B` because `Ctrl+B` is tmux's default prefix -- the multiplexer eats it
 and kissterm never sees the keypress. Telling the two apart requires the

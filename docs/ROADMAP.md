@@ -105,10 +105,16 @@ entries. What's still open:
 
 ## P5 — Node and BBS workflow
 
-- [ ] **BBS session helpers** — mail read/send macros for the common
-  packet-BBS command dialects (read commands, list-new, send-to-callsign),
-  as scriptable macros (see P6) rather than hardcoded parsing, since BBS
-  software varies enough that a rigid parser would break constantly. Medium.
+- [x] **BBS session helpers** — BPQMail/LinBPQ BBS mail command templates
+  (list-my/new, read-number, send-to-callsign) in `kissterm/bbs.py`, each with
+  visible provenance (currently `recalled` pending upstream-documentation or
+  live-BBS verification),
+  reached from `Ctrl+R` > BBS mail helpers. They parameterize and fill the
+  normal compose box only; `TerminalPane.send_line` remains the deliberate
+  commit path. No hardcoded reply parser: BBS prompts and output vary enough
+  that a rigid parser would break constantly. Further dialects are data
+  additions with provenance, while P6 remains the general Python plugin/hook
+  system. Completed 2026-09-22.
 
 ## P6 — UX
 
