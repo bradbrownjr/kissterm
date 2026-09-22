@@ -121,19 +121,13 @@ entries. What's still open:
 Operator feedback on the terminal pane and glossary rendering, from a real
 session, not yet acted on:
 
-- [ ] **`LM`/`LB` (and likely any multi-line node reply) render with a
-      spurious blank line between every pair of real lines.** Reported
-      directly from a real BBS session. The likely cause is in
-      `TerminalPane._flush_incoming` (`kissterm/ui/terminal_pane.py`):
-      `split = max(buf.rfind(b"\n"), buf.rfind(b"\r"))` treats `\r` and `\n`
-      as independent line terminators, so a `\r\n` pair arriving (or
-      splitting) across two flushes can be counted as two line ends instead
-      of one, rendering an empty line between every real one. Needs a real
-      capture of the actual bytes a BBS list command sends (`--log-level
-      debug` logs both directions) to confirm before changing the split
-      logic -- guess-fixing CR/LF handling here risks reintroducing the
-      mid-word split bug this same method's docstring describes fixing.
-      Small once the actual byte sequence is captured.
+- [x] **`LM`/`LB` (and likely any multi-line node reply) render with a
+      spurious blank line between every pair of real lines.** Confirmed from
+      the 2026-09-22 live BPQ BBS mail-list session: a CR at one AX.25 frame
+      boundary was flushed before its paired LF arrived. `_flush_incoming`
+      now retains a trailing CR until the next frame or idle flush can decide
+      whether it is bare CR or CRLF; regression tests cover split CRLF and
+      ordinary bare-CR TNC output. Completed 2026-09-22.
 - [ ] **A pager prompt (`<A>bort, <CR> Continue...`) can go missing off the
       bottom of the log until Enter is pressed**, reported directly as the
       last row of output appearing twice and the pager prompt itself

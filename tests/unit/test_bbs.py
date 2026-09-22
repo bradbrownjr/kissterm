@@ -10,11 +10,12 @@ from kissterm.bbs import complete, profile, profiles
 def test_bpqmail_covers_list_read_and_send_workflow():
     helper = profile("bpqmail")
     assert helper is not None
-    assert {macro.id for macro in helper.macros} == {"list-mine", "list-new", "list-bulletins", "read", "send"}
+    assert {macro.id for macro in helper.macros} == {"list-mine", "list-new", "list-bulletins", "bye", "read", "send"}
     macros = {macro.id: macro for macro in helper.macros}
     assert macros["list-mine"].render() == "LM"
     assert macros["list-new"].render() == "LN"
     assert macros["list-bulletins"].render() == "LB"
+    assert macros["bye"].render() == "B"
     assert macros["read"].render(number="42") == "R 42"
     assert macros["send"].render(callsign="N1ABC-7") == "SP N1ABC-7"
 
@@ -41,3 +42,6 @@ def test_list_macros_complete_with_their_operator_facing_descriptions():
         ("LB", "List Bulletins"),
     ]
     assert complete("R") == (), "read needs a message number and belongs in the picker"
+    assert [(macro.name, macro.summary) for macro in complete("BYE")] == [
+        ("B", "BYE — disconnect from BBS")
+    ]

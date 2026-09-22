@@ -439,6 +439,43 @@ async def test_starting_a_connection_hides_the_addressbook_and_netrom_slideout()
     b.close()
 
 
+@pytest.mark.asyncio
+async def test_crlf_split_across_frames_does_not_render_a_blank_line():
+    """A live BPQ mail list exposed this exact AX.25 frame boundary."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(80, 32)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        pane.clear("")
+        pane.write_incoming("", b"first line\r")
+        assert pane._buffers[""] == [], "hold a possibly-paired trailing CR"
+
+        pane.write_incoming("", b"\nsecond line\r\n")
+        assert len(pane._buffers[""]) == 1
+        rendered, _expand = pane._buffers[""][0]
+        assert rendered.plain == "first line\nsecond line\n"
+        assert pane._pending_incoming[""] == b""
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_bare_cr_stream_still_flushes_without_waiting_for_lf():
+    """TNC-style CR-only output remains a supported line ending."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(80, 32)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        pane.clear("")
+        pane.write_incoming("", b"first\rsecond\rthird")
+        assert len(pane._buffers[""]) == 1
+        rendered, _expand = pane._buffers[""][0]
+        assert rendered.plain == "first\nsecond\n"
+        assert pane._pending_incoming[""] == b"third"
+    a.close()
+    b.close()
+
+
 # ---------------------------------------------------------------------------
 # Inline suggestion strip -- docs/ROADMAP.md's "Inline completion on the
 # send line". Tab fills in the input like `suggest()` above; it must never

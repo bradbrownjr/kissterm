@@ -5,6 +5,16 @@ touched and any breaking notes.
 
 ## [2026-09-22] — Add BBS mail helpers
 
+### Fixes
+
+- **Multi-line BBS replies no longer gain blank rows at AX.25 frame
+  boundaries.** The terminal receive buffer now waits to see whether a
+  trailing CR is followed by LF before rendering it; CR-only TNC output still
+  flushes normally. This was confirmed by a live BPQ BBS mail listing.
+  **Files:** `kissterm/ui/terminal_pane.py`,
+  `tests/pilot/test_terminal_ux.py`, `docs/ROADMAP.md`,
+  `docs/CHANGELOG.md`.
+
 ### Improvements
 
 - **Starting a connection clears the Terminal view.** A real dial now closes
@@ -42,6 +52,12 @@ touched and any breaking notes.
   not mask `List Mine`.
   **Files:** `kissterm/ui/terminal_pane.py`,
   `tests/pilot/test_terminal_ux.py`, `README.md`, `docs/CHANGELOG.md`.
+
+- **The BBS command list now includes `B` / `BYE`.** It is discoverable by
+  either spelling and fills the short `B` form, consistent with BPQ BBS
+  practice.
+  **Files:** `kissterm/bbs.py`, `tests/unit/test_bbs.py`, `README.md`,
+  `docs/CHANGELOG.md`.
 
 ## [2026-09-22] — Make NET/ROM claims collapsible
 

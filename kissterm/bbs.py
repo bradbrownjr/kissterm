@@ -27,11 +27,17 @@ class Macro:
     template: str
     fields: tuple[str, ...] = ()
     confidence: str = "documented"
+    aliases: tuple[str, ...] = ()
 
     @property
     def name(self) -> str:
         """The text Tab places in the compose box for parameter-free helpers."""
         return self.template
+
+    def matches(self, prefix: str) -> bool:
+        """Whether the short command or a documented long spelling matches."""
+        needle = prefix.upper()
+        return any(name.upper().startswith(needle) for name in (self.name, *self.aliases))
 
     def render(self, **values: str) -> str:
         """Fill the template, rejecting control characters before they can
@@ -77,6 +83,7 @@ BPQMAIL = Profile(
         Macro("list-mine", "List my mail", "List Mine", "LM", confidence="recalled"),
         Macro("list-new", "List new mail", "List unread/new messages", "LN", confidence="recalled"),
         Macro("list-bulletins", "List bulletins", "List Bulletins", "LB", confidence="recalled"),
+        Macro("bye", "Bye", "BYE — disconnect from BBS", "B", confidence="recalled", aliases=("BYE",)),
         Macro("read", "Read message", "Read one numbered message", "R {number}", ("number",), "recalled"),
         Macro("send", "Send mail", "Start a personal message to a callsign", "SP {callsign}", ("callsign",), "recalled"),
     ),
@@ -107,6 +114,6 @@ def complete(prefix: str, limit: int = 8) -> tuple[Macro, ...]:
         macro
         for item in profiles()
         for macro in item.macros
-        if not macro.fields and macro.name.upper().startswith(needle)
+        if not macro.fields and macro.matches(needle)
     ]
     return tuple(matches[:limit])

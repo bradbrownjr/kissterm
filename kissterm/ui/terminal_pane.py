@@ -731,16 +731,31 @@ class TerminalPane(Container):
             ready, self._pending_incoming[session_key] = buf, b""
         else:
             # `\r` counts as a line end too, not just `\n` -- packet nodes
-            # are CR-oriented (see the module docstring) and a bare-CR
-            # stream would otherwise never find a "\n" to split on and
-            # would sit fully at the mercy of the idle timer.
-            split = max(buf.rfind(b"\n"), buf.rfind(b"\r"))
-            if split == -1:
+            # are CR-oriented. But a trailing CR is deliberately held until
+            # the next frame (or the idle timer): it may be the first half
+            # of CRLF. Flushing it now and the LF later renders a spurious
+            # blank line, which a live BPQ BBS mail listing exposed. A CR
+            # followed by any byte is unambiguously a complete bare-CR line;
+            # a CR followed by LF is one CRLF terminator.
+            end = 0
+            index = 0
+            while index < len(buf):
+                byte = buf[index]
+                if byte == 0x0A:  # LF
+                    end = index + 1
+                elif byte == 0x0D:  # CR
+                    if index + 1 >= len(buf):
+                        break  # could become CRLF in the next AX.25 frame
+                    if buf[index + 1] == 0x0A:
+                        index += 1
+                    end = index + 1
+                index += 1
+            if end == 0:
                 # No complete line yet -- wait for the rest of the word
                 # instead of rendering the chunk boundary as a wrap point.
                 self._schedule_flush(session_key)
                 return
-            ready, self._pending_incoming[session_key] = buf[: split + 1], buf[split + 1 :]
+            ready, self._pending_incoming[session_key] = buf[:end], buf[end:]
         timer = self._flush_timers.get(session_key)
         if timer is not None:
             timer.stop()
