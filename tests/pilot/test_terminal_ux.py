@@ -382,6 +382,45 @@ async def test_bbs_list_suggestions_are_stacked_with_their_meanings():
 
 
 @pytest.mark.asyncio
+async def test_up_down_choose_a_stacked_suggestion_and_tab_fills_it():
+    """Arrow navigation selects only; Tab remains the deliberate fill step."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(55, 32)) as pilot:
+        await pilot.pause()
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        field.value = "L"
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        assert pane._suggestion_index == 0
+
+        await pilot.press("down", "down")
+        assert pane._suggestion_index == 2
+        assert field.value == "L", "navigation must not fill or send"
+
+        await pilot.press("tab")
+        assert field.value == "LB"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_bbs_helpers_explain_empty_learned_command_suggestions():
+    """Harvesting tells us a name, while shipped helpers provide its meaning."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(55, 32)) as pilot:
+        await pilot.pause()
+        app.reference = CommandReference(learned=(Command("LM", context="bbs"),))
+        field = app.query_one("#session-input", Input)
+        field.value = "L"
+        await pilot.pause()
+        rendered = _plain(app.query_one("#suggestion-strip", Static))
+        assert "LM - List Mine" in rendered
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
 async def test_starting_a_connection_hides_the_addressbook_and_netrom_slideout():
     """Live connection status needs the Terminal column, not side context."""
     app, a, b, _ = await _connected_app()

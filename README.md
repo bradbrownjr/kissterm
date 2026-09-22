@@ -320,7 +320,8 @@ transmit. This is intentionally not a BBS-output parser: prompt and message
 formats vary too much between systems for a rigid parser to be trustworthy.
 Typing a command prefix also shows a stacked, Tab-to-fill explanation -- for
 example, `LM - List Mine` and `LB - List Bulletins` -- rather than squeezing
-the descriptions off the right edge of a narrow terminal.
+the descriptions off the right edge of a narrow terminal. Up/Down selects a
+candidate; Tab fills the selected command without sending it.
 
 **Running under tmux or screen?** The beacon is `Ctrl+Shift+B` rather than
 `Ctrl+B` because `Ctrl+B` is tmux's default prefix -- the multiplexer eats it

@@ -243,6 +243,8 @@ class _SendInput(Input):
         Binding("ctrl+enter", "submit", show=False),
         Binding("alt+enter", "submit", show=False),
         Binding("tab", "accept_suggestion", show=False),
+        Binding("up", "previous_suggestion", show=False),
+        Binding("down", "next_suggestion", show=False),
     ]
 
     def action_accept_suggestion(self) -> None:
@@ -260,6 +262,14 @@ class _SendInput(Input):
         pane = self.app.query_one(TerminalPane)
         if not pane.accept_suggestion():
             self.screen.focus_next()
+
+    def action_previous_suggestion(self) -> None:
+        """Move the stacked suggestion highlight up, without filling it."""
+        self.app.query_one(TerminalPane).move_suggestion(-1)
+
+    def action_next_suggestion(self) -> None:
+        """Move the stacked suggestion highlight down, without filling it."""
+        self.app.query_one(TerminalPane).move_suggestion(1)
 
     def _on_paste(self, event: events.Paste) -> None:
         """Sanitize a paste before `Input`'s own handler ever sees it.
@@ -984,6 +994,26 @@ class TerminalPane(Container):
         self.suggest(command.name)
         return True
 
+    def move_suggestion(self, direction: int) -> bool:
+        """Move the selection in the visible suggestion list.
+
+        Up/Down only choose which candidate Tab will fill; they never alter
+        the input or send a command. With no candidates they deliberately do
+        nothing, preserving ordinary single-line input behaviour rather than
+        making an arrow key unexpectedly move focus elsewhere.
+        """
+        if not self._suggestion_matches:
+            return False
+        self._suggestion_index = (self._suggestion_index + direction) % len(
+            self._suggestion_matches
+        )
+        # `_update_suggestions` owns the strip rendering. Keeping this input
+        # as the cycling value tells it to retain the candidate tuple and our
+        # newly chosen index instead of recomputing/resetting them.
+        self._cycling_value = self.query_one("#session-input", Input).value
+        self._update_suggestions(self._cycling_value)
+        return True
+
     def _update_suggestions(self, prefix: str) -> None:
         """Recompute `#suggestion-strip` for `prefix` against the active
         session's command reference.
@@ -1008,10 +1038,22 @@ class TerminalPane(Container):
             # any channel time.  A BBS command that happens to share a name
             # with a node command appears once, with the node reference's
             # richer per-session provenance taking precedence.
-            seen = {command.name.upper() for command in command_matches}
-            matches = command_matches + tuple(
-                macro for macro in complete_bbs(prefix) if macro.name.upper() not in seen
+            bbs_matches = complete_bbs(prefix)
+            bbs_by_name = {macro.name.upper(): macro for macro in bbs_matches}
+            # A learned BBS command proves the name is present on THIS
+            # station, but harvesting knows only names, not meanings. Keep
+            # that local command when it already has a description; otherwise
+            # replace its display entry with the shipped helper's explained
+            # one. The command text is identical, and this avoids the
+            # unhelpful duplicate `LM` rows a simple append would create.
+            matches = tuple(
+                bbs_by_name.get(command.name.upper(), command)
+                if not command.summary
+                else command
+                for command in command_matches
             )
+            seen = {command.name.upper() for command in matches}
+            matches += tuple(macro for macro in bbs_matches if macro.name.upper() not in seen)
             self._suggestion_matches = matches
             self._suggestion_index = 0
             self._cycling_value = None
@@ -1036,7 +1078,7 @@ class TerminalPane(Container):
             text.append(command.name, style="bold" if index == self._suggestion_index else "dim")
             if command.summary:
                 text.append(f" - {command.summary}", style="dim")
-        text.append("\nTab: cycle", style="dim italic")
+        text.append("\nUp/Down: choose  Tab: fill", style="dim italic")
         strip.update(text)
         strip.display = True
 

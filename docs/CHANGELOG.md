@@ -35,6 +35,14 @@ touched and any breaking notes.
   `tests/unit/test_bbs.py`, `tests/pilot/test_terminal_ux.py`, `README.md`,
   `docs/CHANGELOG.md`.
 
+- **Up/Down now selects a command suggestion.** The arrow keys move the
+  stacked highlight while preserving the typed prefix; Tab still performs the
+  separate, non-transmitting fill step. Locally learned BBS command names
+  with no description inherit the shipped helper's explanation, so `LM` does
+  not mask `List Mine`.
+  **Files:** `kissterm/ui/terminal_pane.py`,
+  `tests/pilot/test_terminal_ux.py`, `README.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-22] — Make NET/ROM claims collapsible
 
 ### Improvements
