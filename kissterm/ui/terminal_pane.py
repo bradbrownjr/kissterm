@@ -847,6 +847,18 @@ class TerminalPane(Container):
             self.focus_input()
         self._request_scrollback_reflow()
 
+    def close_addressbook_for_connection(self) -> None:
+        """Clear the shared Address Book / NET/ROM column for a dial.
+
+        A connection attempt has its own live status and terminal tab to
+        watch. Leaving either side of this shared column open makes that the
+        narrow, secondary view at the moment the operator needs the session
+        output most. This is intentionally an explicit close rather than a
+        toggle: a connection must never open a panel that was already hidden.
+        """
+        if self._slideout.close_by_hand():
+            self._request_scrollback_reflow()
+
     def refresh_known_nodes(self) -> None:
         """Refresh passive NET/ROM claims when the slide-out is visible."""
         if self.query_one("#terminal-addressbook-column").display:

@@ -3230,6 +3230,12 @@ class KissTermApp(App):
                 severity="warning",
             )
             return
+        # The Address Book and passive NET/ROM claims deliberately share one
+        # slide-out. A dial has just become a live session to watch, so close
+        # either view before shrinking the terminal column and opening its
+        # connection tab. This is after every validation/reminder above: a
+        # cancelled dialog must not change the operator's layout.
+        pane.close_addressbook_for_connection()
         # This session's own tab, opened and put on screen before anything
         # below writes to it, including the TNC-link check right after --
         # a reconnect to a peer whose tab is still open reuses it (and its
@@ -3407,6 +3413,7 @@ class KissTermApp(App):
         if self.link is not None and self.link.connected:
             self.notify("Already connected.", severity="warning")
             return
+        self.query_one(TerminalPane).close_addressbook_for_connection()
         self._arm_for(f"connect via {transport.info.detail}")
         self.query_one(TerminalPane).clear("")
         self._to_terminal("", "log", f"\n*** Connecting to {transport.info.detail}...\n")

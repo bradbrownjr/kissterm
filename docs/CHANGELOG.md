@@ -5,6 +5,15 @@ touched and any breaking notes.
 
 ## [2026-09-22] — Add BBS mail helpers
 
+### Improvements
+
+- **Starting a connection clears the Terminal view.** A real dial now closes
+  the shared Address Book / NET/ROM slide-out before showing connection
+  status, restoring the full terminal width for the live session. Cancelling
+  a Connect or radio-reminder dialog leaves the operator's layout unchanged.
+  **Files:** `kissterm/ui/app.py`, `kissterm/ui/terminal_pane.py`,
+  `tests/pilot/test_terminal_ux.py`, `docs/CHANGELOG.md`.
+
 ### New Features
 
 - **BBS mail commands now have a safe, visible starting point.** `Ctrl+R` >

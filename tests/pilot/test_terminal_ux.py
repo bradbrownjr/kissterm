@@ -20,6 +20,7 @@ from textual.geometry import Region  # noqa: E402
 from textual.widgets import Button, Input, RichLog, Static, Tabs  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
+from kissterm.addressbook import Entry  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.nodes import Command, CommandReference, load_family  # noqa: E402
@@ -376,6 +377,25 @@ async def test_bbs_list_suggestions_are_stacked_with_their_meanings():
         assert "LM - List Mine" in rendered
         assert "LB - List Bulletins" in rendered
         assert rendered.index("LM - List Mine") < rendered.index("LB - List Bulletins")
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_starting_a_connection_hides_the_addressbook_and_netrom_slideout():
+    """Live connection status needs the Terminal column, not side context."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(120, 32)) as pilot:
+        await pilot.pause()
+        column = app.query_one("#terminal-addressbook-column")
+        assert column.display
+        assert app.query_one("#known-nodes-table").display
+
+        app.action_connect(prefill=Entry(str(PEER)))
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+
+        assert not column.display
     a.close()
     b.close()
 
