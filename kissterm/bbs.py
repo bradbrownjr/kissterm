@@ -31,8 +31,8 @@ class Macro:
 
     @property
     def name(self) -> str:
-        """The text Tab places in the compose box for parameter-free helpers."""
-        return self.template
+        """The command word, separate from any helper-only parameters."""
+        return self.template.split(maxsplit=1)[0]
 
     def matches(self, prefix: str) -> bool:
         """Whether the short command or a documented long spelling matches."""
@@ -69,23 +69,31 @@ class Profile:
     macros: tuple[Macro, ...]
 
 
-# BPQMail's commonly used interactive command shapes.  ``LM`` is intentionally
-# included instead of guessing at a universal "new mail" syntax: it is the
-# compact list-my-mail command the operator sees on a BPQ BBS, while other
-# systems can be added as their documentation is verified. These remain
-# ``recalled`` until checked against current upstream documentation or a real
-# BBS capture; a wrong command shown confidently is worse than no helper.
+# BPQMail's documented interactive command shapes. Their names were confirmed
+# in a 2026-09-10 WS1EC BPQ BBS help capture; meanings and syntax are cross-
+# checked against the saved BPQ user-command reference. Do not generalize them
+# to another BBS dialect without its own capture or documentation.
 BPQMAIL = Profile(
     id="bpqmail",
     name="BPQMail / LinBPQ BBS",
     note="Commands are put in the compose box only; check the BBS prompt before sending.",
     macros=(
-        Macro("list-mine", "List my mail", "List Mine", "LM", confidence="recalled"),
-        Macro("list-new", "List new mail", "List unread/new messages", "LN", confidence="recalled"),
-        Macro("list-bulletins", "List bulletins", "List Bulletins", "LB", confidence="recalled"),
-        Macro("bye", "Bye", "BYE — disconnect from BBS", "B", confidence="recalled", aliases=("BYE",)),
-        Macro("read", "Read message", "Read one numbered message", "R {number}", ("number",), "recalled"),
-        Macro("send", "Send mail", "Start a personal message to a callsign", "SP {callsign}", ("callsign",), "recalled"),
+        Macro("list-new", "List new mail", "List new messages", "L"),
+        Macro("list-new-oldest", "List new, oldest first", "List new messages, oldest first", "LR"),
+        Macro("list-mine", "List my mail", "List Mine", "LM"),
+        Macro("list-new-status", "List new-status mail", "List messages with N status", "LN"),
+        Macro("list-held", "List held mail", "List Held messages", "LH"),
+        Macro("list-killed", "List killed mail", "List Killed messages", "LK"),
+        Macro("list-forwarded", "List forwarded mail", "List Forwarded messages", "LF"),
+        Macro("list-delivered", "List delivered mail", "List Delivered messages", "LD"),
+        Macro("list-bulletins", "List bulletins", "List Bulletins", "LB"),
+        Macro("list-personal", "List personal mail", "List Personal messages", "LP"),
+        Macro("list-traffic", "List NTS traffic", "List Traffic (NTS messages)", "LT"),
+        Macro("list-categories", "List bulletin categories", "List active bulletin TO fields", "LC"),
+        Macro("list-last", "List last messages", "List the last N messages", "LL {number}", ("number",)),
+        Macro("bye", "Bye", "BYE — disconnect from BBS", "B", aliases=("BYE",)),
+        Macro("read", "Read message", "Read one numbered message", "R {number}", ("number",)),
+        Macro("send", "Send mail", "Start a personal message to a callsign", "SP {callsign}", ("callsign",)),
     ),
 )
 
@@ -100,12 +108,15 @@ def profile(profile_id: str) -> Profile | None:
     return next((item for item in profiles() if item.id == profile_id), None)
 
 
-def complete(prefix: str, limit: int = 8) -> tuple[Macro, ...]:
-    """Parameter-free BBS commands beginning with ``prefix``.
+def complete(
+    prefix: str, limit: int = 16, *, include_parameterized: bool = True
+) -> tuple[Macro, ...]:
+    """BBS commands beginning with ``prefix``.
 
-    A Tab completion cannot safely invent a message number or recipient, so
-    read/send remain in the parameterized helper picker. Listing commands are
-    complete on their own and are useful alongside normal node suggestions.
+    The complete published reference is available to callers by default,
+    including commands with a message number or callsign argument. Filling
+    one still only puts its short command into the compose box; it never
+    transmits or invents its required argument.
     """
     needle = prefix.strip().upper()
     if not needle:
@@ -114,6 +125,6 @@ def complete(prefix: str, limit: int = 8) -> tuple[Macro, ...]:
         macro
         for item in profiles()
         for macro in item.macros
-        if not macro.fields and macro.matches(needle)
+        if (include_parameterized or not macro.fields) and macro.matches(needle)
     ]
     return tuple(matches[:limit])

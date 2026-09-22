@@ -107,8 +107,7 @@ entries. What's still open:
 
 - [x] **BBS session helpers** — BPQMail/LinBPQ BBS mail command templates
   (list-my/new, read-number, send-to-callsign) in `kissterm/bbs.py`, each with
-  visible provenance (currently `recalled` pending upstream-documentation or
-  live-BBS verification),
+  visible documented provenance,
   reached from `Ctrl+R` > BBS mail helpers. They parameterize and fill the
   normal compose box only; `TerminalPane.send_line` remains the deliberate
   commit path. No hardcoded reply parser: BBS prompts and output vary enough
@@ -123,11 +122,12 @@ session, not yet acted on:
 
 - [x] **`LM`/`LB` (and likely any multi-line node reply) render with a
       spurious blank line between every pair of real lines.** Confirmed from
-      the 2026-09-22 live BPQ BBS mail-list session: a CR at one AX.25 frame
-      boundary was flushed before its paired LF arrived. `_flush_incoming`
-      now retains a trailing CR until the next frame or idle flush can decide
-      whether it is bare CR or CRLF; regression tests cover split CRLF and
-      ordinary bare-CR TNC output. Completed 2026-09-22.
+      the 2026-09-22 live BPQ BBS mail-list session. `_flush_incoming` retains
+      a trailing CR until it can distinguish bare CR from CRLF, then writes
+      normalized physical lines without their terminators so `RichLog` does
+      not add a second record break. Regression tests preserve true blank BBS
+      lines and cover split CRLF and ordinary bare-CR TNC output. Completed
+      2026-09-22.
 - [ ] **A pager prompt (`<A>bort, <CR> Continue...`) can go missing off the
       bottom of the log until Enter is pressed**, reported directly as the
       last row of output appearing twice and the pager prompt itself

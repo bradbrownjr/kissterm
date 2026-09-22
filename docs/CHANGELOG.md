@@ -7,10 +7,11 @@ touched and any breaking notes.
 
 ### Fixes
 
-- **Multi-line BBS replies no longer gain blank rows at AX.25 frame
-  boundaries.** The terminal receive buffer now waits to see whether a
-  trailing CR is followed by LF before rendering it; CR-only TNC output still
-  flushes normally. This was confirmed by a live BPQ BBS mail listing.
+- **Multi-line BBS replies no longer gain blank rows.** The terminal receive
+  buffer waits to see whether a trailing CR is followed by LF, then writes
+  each normalized physical line without its terminator so `RichLog` does not
+  add a second record break; genuine blank BBS lines and CR-only TNC output
+  remain intact. This was confirmed by a live BPQ BBS mail listing.
   **Files:** `kissterm/ui/terminal_pane.py`,
   `tests/pilot/test_terminal_ux.py`, `docs/ROADMAP.md`,
   `docs/CHANGELOG.md`.

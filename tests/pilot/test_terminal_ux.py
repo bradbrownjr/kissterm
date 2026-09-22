@@ -377,6 +377,10 @@ async def test_bbs_list_suggestions_are_stacked_with_their_meanings():
         assert "LM - List Mine" in rendered
         assert "LB - List Bulletins" in rendered
         assert rendered.index("LM - List Mine") < rendered.index("LB - List Bulletins")
+        assert any(
+            command.name == "LL" and command.summary == "List the last N messages"
+            for command in pane._suggestion_matches
+        ), "the shipped reference must not depend on a node having learned it"
     a.close()
     b.close()
 
@@ -410,12 +414,18 @@ async def test_bbs_helpers_explain_empty_learned_command_suggestions():
     app, a, b, _ = await _connected_app()
     async with app.run_test(size=(55, 32)) as pilot:
         await pilot.pause()
-        app.reference = CommandReference(learned=(Command("LM", context="bbs"),))
+        app.reference = CommandReference(
+            learned=(Command("LM", context="bbs"), Command("LL", context="bbs"))
+        )
         field = app.query_one("#session-input", Input)
         field.value = "L"
         await pilot.pause()
         rendered = _plain(app.query_one("#suggestion-strip", Static))
         assert "LM - List Mine" in rendered
+        field.value = "LL"
+        await pilot.pause()
+        rendered = _plain(app.query_one("#suggestion-strip", Static))
+        assert "LL - List the last N messages" in rendered
     a.close()
     b.close()
 
@@ -451,9 +461,9 @@ async def test_crlf_split_across_frames_does_not_render_a_blank_line():
         assert pane._buffers[""] == [], "hold a possibly-paired trailing CR"
 
         pane.write_incoming("", b"\nsecond line\r\n")
-        assert len(pane._buffers[""]) == 1
-        rendered, _expand = pane._buffers[""][0]
-        assert rendered.plain == "first line\nsecond line\n"
+        assert [rendered.plain for rendered, _expand in pane._buffers[""]] == [
+            "first line", "second line"
+        ]
         assert pane._pending_incoming[""] == b""
     a.close()
     b.close()
@@ -468,10 +478,31 @@ async def test_bare_cr_stream_still_flushes_without_waiting_for_lf():
         pane = app.query_one(TerminalPane)
         pane.clear("")
         pane.write_incoming("", b"first\rsecond\rthird")
-        assert len(pane._buffers[""]) == 1
-        rendered, _expand = pane._buffers[""][0]
-        assert rendered.plain == "first\nsecond\n"
+        assert [rendered.plain for rendered, _expand in pane._buffers[""]] == [
+            "first", "second"
+        ]
         assert pane._pending_incoming[""] == b"third"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_bbs_lines_are_written_once_without_losing_real_blank_lines():
+    """RichLog owns record breaks; received CRLF terminators must not too."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(80, 32)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        pane.clear("")
+        pane.write_incoming("", b"first\r\nsecond\r\n\r\nthird\r\n")
+        assert [rendered.plain for rendered, _expand in pane._buffers[""]] == [
+            "first", "second", "", "third"
+        ]
+        await pilot.pause()
+        log = app.query_one("#session-log", RichLog)
+        rendered = "\n".join(strip.text.rstrip() for strip in log.lines)
+        assert "first\nsecond\n\nthird" in rendered
+        assert "first\n\nsecond" not in rendered
     a.close()
     b.close()
 

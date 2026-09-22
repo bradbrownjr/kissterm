@@ -324,6 +324,11 @@ the descriptions off the right edge of a narrow terminal. Up/Down selects a
 candidate; Tab fills the selected command without sending it.
 The BBS helper also shows `B - BYE — disconnect from BBS`; typing `BYE` finds
 that short command and Tab fills `B`.
+BPQMail list filters are described too: `LD` delivered, `LF` forwarded, `LH`
+held, `LK` killed, and `LL n` the last *n* messages. Parameterized entries
+(`LL`, `R`, and `SP`) also remain visible in autocomplete with their published
+meaning; Tab fills only the command text, leaving its number or callsign for
+you to supply.
 
 **Running under tmux or screen?** The beacon is `Ctrl+Shift+B` rather than
 `Ctrl+B` because `Ctrl+B` is tmux's default prefix -- the multiplexer eats it

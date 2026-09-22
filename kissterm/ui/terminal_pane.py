@@ -761,7 +761,16 @@ class TerminalPane(Container):
             timer.stop()
             self._flush_timers[session_key] = None
         text = to_text(ready) if self.remote_color else Text(sanitize(ready))
-        self._append(session_key, linkify(text), expand=True)
+        # RichLog puts a line break after every record. Passing it a Text that
+        # still contains wire terminators therefore adds a second, empty row
+        # after each BBS line. Write physical lines separately, discarding
+        # exactly the final separator. `allow_blank` keeps genuine blank BBS
+        # lines: "one\n\ntwo\n" stays one, blank, two.
+        lines = list(text.split("\n", allow_blank=True))
+        if text.plain.endswith("\n") and lines:
+            lines.pop()
+        for line in lines:
+            self._append(session_key, linkify(line), expand=True)
         if not final and self._pending_incoming.get(session_key):
             self._schedule_flush(session_key)
 
@@ -1046,11 +1055,11 @@ class TerminalPane(Container):
             matches = self._suggestion_matches
         else:
             command_matches = reference.complete(prefix) if reference is not None else ()
-            # BBS list commands are complete on their own, unlike read/send
-            # which require a number or recipient and stay in the helper
-            # picker.  Offer them beside the node reference, never instead of
-            # it, so typing "L" can explain LM/LB before the operator spends
-            # any channel time.  A BBS command that happens to share a name
+            # The shipped BPQMail reference is a baseline, not a guess made
+            # from whatever a particular node happened to reveal. Offer its
+            # complete documented command set beside the session reference,
+            # so typing "L" can explain LM/LB/LL before the operator spends
+            # any channel time. A BBS command that happens to share a name
             # with a node command appears once, with the node reference's
             # richer per-session provenance taking precedence.
             bbs_matches = complete_bbs(prefix)
@@ -1068,7 +1077,11 @@ class TerminalPane(Container):
                 for command in command_matches
             )
             seen = {command.name.upper() for command in matches}
-            matches += tuple(macro for macro in bbs_matches if macro.name.upper() not in seen)
+            matches += tuple(
+                macro
+                for macro in bbs_matches
+                if macro.name.upper() not in seen
+            )
             self._suggestion_matches = matches
             self._suggestion_index = 0
             self._cycling_value = None
