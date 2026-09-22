@@ -1,264 +1,372 @@
 # ROADMAP.md — kissterm
 
-Prioritized future work. Each item notes status and the file(s) it touches.
-Update this file as items are completed — move the completed item's entry
-into CHANGELOG.md under a new dated section (`## [YYYY-MM-DD]`) instead of
-just checking it off here, so ROADMAP.md only ever shows what's still open.
+What is still open, in the order it should be done. Shipped work moves to
+`CHANGELOG.md` (dated section) and is deleted from this file the same day;
+nothing here is ever checked off and left in place.
 
-Dependency dispositions for every open checklist item are maintained in
-[`ROADMAP_DEPENDENCIES.md`](ROADMAP_DEPENDENCIES.md). That audit distinguishes
-repository-actionable work from work that needs operator-controlled hardware,
-an authorized peer or account, publication authority, external source material,
-or qualified regulatory review; it is planning evidence, not field evidence.
+## How to work this file -- read before picking anything up
 
-Phase numbers are labels, not a strict work order. The one real ordering
-constraint is that **P1's remaining verification-against-hardware items outrank
-everything else** -- the whole stack is proven only against a software loopback
-so far, and a bug found on the air could invalidate work built on top of it.
+These rules exist because of a failure mode found in the 2026-09-22 review
+of the Codex sessions and git history: over eleven days roughly twenty new features shipped
+while the same handful of terminal bugs were reported, "fixed", and reported
+again. "What's next on the roadmap?" kept resolving to a new feature because
+the bugs were never on the roadmap -- they lived only in chat.
 
-## P1 — Core terminal — DONE (2026-09-04)
+1. **P0 goes first, top to bottom.** No item whose CHANGELOG entry would sit
+   under "New Features" starts while P0 has an open item, unless the operator
+   explicitly asks for that specific feature.
+2. **A bug the operator reports from a live session goes into P0.1 the moment
+   it is reported**, with the date and their words. Chat is not a tracker.
+3. **Reproduce before fixing.** A fix starts with a failing test built from
+   the real evidence -- bytes from the `--log-level debug` log or a saved
+   transcript, or a pilot test that reproduces the geometry -- not from a
+   theory about it. No reproduction, no fix: say what evidence is missing and
+   ask for it.
+4. **Only the operator closes a live bug.** A passing test moves it to
+   `awaiting confirmation`, not to CHANGELOG. It leaves P0 when the operator
+   confirms it on a real session.
+5. **Two failed attempts means stop patching.** After the second "still
+   broken", write a root-cause note in the item (what was assumed, what the
+   evidence showed) before touching code a third time. Adding and then
+   removing UI to work around a symptom is the pattern this rule stops.
+6. **No key binding is added or changed except under P0.2's standard.** Once
+   P0.2 lands, its allowlist test is the enforcement.
+7. **Keep documentation proportionate.** A CHANGELOG entry is a few lines. A
+   new AGENTS.md rule is added when the operator states one, not to narrate a
+   fix. Explanations belong in the code's docstrings.
 
-Everything P1 called for shipped: the AX.25 connected-mode state machine, KISS
-over serial and TCP, the Textual app shell with a connected session, the
-monitor pane, the heard list, the first-run wizard with autodiscovery, and
-`--doctor`. See docs/CHANGELOG.md `[2026-09-04]` for what was built and how it
-was verified.
+## Finish line: what 1.0 means
 
-Both hardware verification and the remaining protocol checks are complete.
-See CHANGELOG's 2026-09-13 verification entry for the authoritative
-compressed-range reference and the recorded on-air modulo-128 fallback test.
+1.0 is a packet terminal an unfamiliar operator can install, set up, connect
+to a node or BBS with, and read mail on, without hitting a known bug or a key
+that does not work in their terminal. Concretely:
 
+- P0 is empty, with every live bug confirmed fixed by the operator.
+- The keyboard follows P0.2's standard, enforced by test.
+- The command catalog (P0.3) covers BPQ32/LinBPQ node, BPQMail and BPQChat
+  fully from published documentation, plus JNOS, TheNet/X1J and TNC2 at
+  their current level.
+- P7's PyPI, pipx/uv and Raspberry Pi items are done.
+- Transports never verified against hardware (kernel AX.25, VARA, Mercury,
+  BLE) are labelled **experimental** in Settings, `--doctor` and SETUP.md
+  rather than blocking the release.
+
+Everything from P9 on is post-1.0.
+
+---
+
+## P0 — Stabilize: the product that exists, working
+
+### P0.1 Reported bugs
+
+Status values: `open`, `fix attempted N` (N attempts, still reported
+broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
+
+- [ ] **The last line of node output, usually the prompt, sits below the
+  visible area.** `fix attempted 4` (0.1.179 through 0.1.182, all
+  2026-09-22). First reported earlier, re-reported 2026-09-22 ("The last line
+  hides out of view, often the node prompt or the next page continue/abort
+  prompt, so I'm sitting and waiting for more output from the node not
+  knowing it's actually waiting on me"), still present in 0.1.179, and
+  confirmed not prompt-specific: "Each node may present differently."
+  **Root-cause note (2026-09-22 review):** every attempt so far changed what
+  happens *when a line is written* (`TerminalPane._append`: refresh the
+  layout, then `scroll_end`). Nothing re-follows the bottom when the log gets
+  *shorter* after the write. `WrapLog.on_resize` only updates `min_width`,
+  and `RichLog.auto_scroll` acts only on `write`. Several things take rows
+  from the log after output has arrived: the stacked suggestion list shipped
+  the same day (`#suggestion-strip`, `height: auto`), the find bar, the
+  "Last remote" and transcript-path rows that were added and then removed,
+  and closing the slide-out, which changes wrap width. Any of these puts the
+  last lines below the fold with no new write to bring them back. That fits
+  the report exactly: it looks like waiting on the node, and pressing Enter
+  "fixes" it. **Unverified hypothesis:** confirm it with a pilot test (write
+  lines ending in a prompt with no newline, then show the suggestion strip,
+  then assert the last line is inside the log's visible region) before
+  changing code. The likely fix is general: when the log was at the bottom
+  before a resize, keep it at the bottom after. Also replay a real captured
+  session from the debug log to rule out a receive-side cause.
+  Files: `kissterm/ui/terminal_pane.py`, `kissterm/ui/wraplog.py`.
+- [ ] **Blank lines between lines of a BBS mail listing (`LM`/`LB`).**
+  `awaiting confirmation`. Reported 2026-09-22 14:26, re-reported 14:44
+  after the first fix; a second fix (hold a trailing CR until it is known
+  whether LF follows) shipped in "Fix BBS line rendering and document
+  commands". Re-test with a real `LM` of more than one page.
+- [ ] **Shortcut bar keeps the previous tab's actions until the pane is
+  clicked.** `awaiting confirmation`. Reported 2026-09-21 19:06 ("Going from
+  Terminal to APRS keeps connect and disconnect ... until I tab or click
+  within the APRS pane") and again 20:42 ("Position now wasn't shown ...
+  until I clicked inside the text box"). Fixed in "Refresh APRS shortcuts on
+  tab activation". P0.2 replaces this footer logic; re-test after that.
+- [ ] **"Before connecting" dialog stays on screen after Connect.**
+  `awaiting confirmation`. Reported 2026-09-22 15:09 and 15:20 (Address Book
+  double-click). Fixed in "Dismiss radio reminder before connecting".
+- [ ] **Had to turn transmit off and on again before the radio keyed.**
+  `open`, not investigated. Reported 2026-09-21 20:30 after an app restart,
+  the same session in which the KISS SoundModem on the other machine also
+  needed a restart. The cause may be the modem, but nobody has read the
+  debug log for that session to find out. Check whether `TX BLOCKED` or
+  `TX FAILED` appears before the toggle.
+- [ ] **"Check the Monitor" hint appears when the node is simply waiting on
+  the operator.** `open`. Reported 2026-09-22 16:33. `_note_if_no_reply`
+  (`kissterm/ui/app.py`) fires when a sent line gets no reply in time. If the
+  reply actually arrived and was only scrolled out of view (the first bug
+  above), the hint is blaming the RF path for a display bug. Re-test once the
+  first item is fixed. If it still fires, decide whether it may fire at all
+  while unread output exists.
+- [ ] **Duplicate WXBOT replies.** `awaiting confirmation`. Reported
+  2026-09-11 and again 2026-09-12 after the first fix; deduplication plus an
+  extended window shipped 2026-09-12. Confirm across a few requests.
+- [ ] **Toasts that report what the operator can already see.** `open`.
+  Requested 2026-09-22 ("get rid of the notification pop-up that we've
+  revealed or hidden something, we see what we did already"). The UI has
+  107 `notify()` calls, and many of them either confirm a visible change or
+  say "Open APRS to ..." for a key pressed on the wrong tab. DESIGN.md
+  section 1 already says "no toast for anything that is not actionable".
+  Audit every call: keep errors and transmit-related notices (the rules
+  require those), remove confirmations, and make wrong-tab actions
+  unavailable (P0.2) instead of explaining them after the fact.
+
+### P0.2 Keyboard standard -- adopt one, then conform to it
+
+**Problem.** Keys were chosen one at a time, each against the collisions
+known at that moment. The NET/ROM toggle alone moved five times in one day
+(Alt+G, Ctrl+Shift+G, Ctrl+Alt+G, Ctrl+Alt+G again, Ctrl+PageDown), and
+each move was a new collision found by the operator on their own desktop.
+Worse, the footer advertises keys that do something else in an ordinary
+terminal:
+
+| Footer shows | Actual binding | What an ordinary terminal (no kitty keyboard protocol) delivers |
+|---|---|---|
+| `^O` Object | Ctrl+Shift+O | Ctrl+O, which is **Transcripts** |
+| `^F` SSID Filter | Ctrl+Shift+F | Ctrl+F, which is **Find** |
+| `^I` Watch IS | Ctrl+Shift+I | Ctrl+I, which **is the Tab key** |
+| `^Y` Files | Ctrl+Shift+Y | Ctrl+Y, which nothing is bound to |
+| `^D` Disconnect | Ctrl+Shift+D | Ctrl+D, which the focused input consumes as delete-right |
+| `^B` Beacon | Ctrl+Shift+B | Ctrl+B, the tmux prefix |
+| (hidden) Heard tab | Ctrl+3 | Escape (xterm encodes Ctrl+3 as ESC) |
+| `Ctrl+PgDn` NET/ROM | Ctrl+PageDown | Switches tabs in GNOME Terminal and xfce4-terminal |
+| Position now | Ctrl+Alt+B | Commonly taken by the desktop (Ctrl+Alt+G was, per the report) |
+
+"The terminal doesn't seem to differentiate between upper and lowercase"
+(operator, 2026-09-22) was a correct diagnosis of the table above, not a
+local quirk: Ctrl+Shift+letter and Ctrl+letter are the same byte unless the
+terminal and every layer in between (tmux, ssh) support an enhanced keyboard
+protocol.
+
+**The standard: IBM CUA (Common User Access), as adapted to character
+terminals by Turbo Vision and Midnight Commander.** It is the published
+convention for keyboard-driven text UIs, and it is what an operator who has
+used `mc`, a DOS-era program or a BIOS setup screen already knows. It fits
+this app because its central idea is that **every command is reachable from
+a menu, and shortcuts are accelerators, not the only way in**. That removes
+the pressure to give every action its own chord.
+
+The rules, in the form that goes into DESIGN.md section 5:
+
+1. **F1 is Help** -- context help for the current tab, including its keys.
+   **F10 is the menu** -- every command, grouped (Connection, Transmit,
+   APRS, View, Tools), with its key shown beside it. Inside the menu, plain
+   letters are the mnemonics, so no Alt chord is needed.
+2. **Only terminal-safe keys may be bound.** Allowed: F1-F10, Enter, Esc,
+   Tab/Shift+Tab, arrows, Home/End, PgUp/PgDn, Insert, Delete, plain
+   Ctrl+letter from the budget in rule 3, and plain letters while a list
+   (not a text input) has focus. **Never bound:** Ctrl+Shift+anything,
+   Ctrl+digit, Ctrl+Alt+anything, Alt+anything outside the menu, Ctrl+PgUp,
+   Ctrl+PgDn, Ctrl+Tab, F11, F12. Ctrl+I, M, H, [ and J are Tab, Enter,
+   Backspace, Escape and LF. Ctrl+C, Z and \ are signals, Ctrl+S is
+   flow control, Ctrl+B and Ctrl+A are the tmux and screen prefixes, and
+   Ctrl+A, E, K, U and W are line editing in the input.
+3. **At most nine global Ctrl keys**, each with a mnemonic that holds in
+   other software: `Ctrl+Q` Quit, `Ctrl+N` New connection, `Ctrl+D`
+   Disconnect (end-of-session in every Unix shell; bound with priority over
+   the input's delete-right, which the Delete key already provides), `Ctrl+T`
+   Transmit on/off, `Ctrl+F` Find, `Ctrl+L` Clear, `Ctrl+G` Side panel,
+   `Ctrl+R` Command reference, `Ctrl+P` Command palette. Everything else
+   (beacon now, position now, object, bulletin, gateway form, Watch IS, SSID
+   filter, file transfer, NET/ROM panel, callsign, transcripts) lives in the
+   F10 menu and Ctrl+P, plus a context key where rule 4 allows one.
+4. **Context keys are plain keys on focused lists.** In a table or list:
+   Enter is the default action, Insert is New, Delete is Delete, and any
+   other action is one letter shown in the footer. In a text input, typing
+   is typing: no plain-letter bindings.
+5. **The footer shows only what works right now.** An action that does not
+   apply on this tab or in this state is absent from the footer and disabled
+   in the menu. It is not shown and then answered with a toast. Tab switches
+   refresh the footer; this is the rule the stale-footer bug above breaks.
+6. **What the footer prints is exactly what to press.** No `key_display`
+   that names a different chord from the one bound.
+
+**Decision needed from the operator before implementation -- the tab keys.**
+CUA reserves F1 for Help, and F1 is currently the Terminal tab.
+Recommended: shift the tabs up by one and fold in the reserved P10 tabs, so
+the row reads the way Midnight Commander's does: `F1 Help  F2 Terminal
+F3 APRS  F4 Heard  F5 Monitor  F6 Mail  F7 Bulletins  F8 Files  F9 Settings
+F10 Menu`. This fits every planned tab inside the F10 ceiling. The
+alternative keeps F1-F5 as they are and puts Help only on F10 > Help, which
+costs CUA conformance on its most widely known key.
+
+Work items, in order:
+
+- [ ] Operator decides the tab-key question above; the rules go into
+  DESIGN.md section 5, replacing the per-key history there.
+- [ ] `tests/unit/test_key_standard.py`: walks every `BINDINGS` list in
+  `kissterm/ui/` and fails on any key outside the rule 2 allowlist, any
+  `key_display` that differs from the bound key, or more than nine global
+  Ctrl bindings. It will fail on the current tree; that is the point.
+- [ ] F10 action menu: one modal listing every action with its key, driven
+  from `commands.ACTION_META` so the menu, the Ctrl+P palette and the footer
+  read one registry. Disabled entries are shown dimmed with the reason.
+- [ ] F1 context help screen generated from the same registry.
+- [ ] Rebind to the standard: remove every Ctrl+Shift, Ctrl+Alt, Ctrl+digit
+  and Alt binding and the hidden legacy fallbacks that existed only to
+  paper over them; route those actions through the menu.
+- [ ] Update README's key table and SETUP.md from the registry, not by hand.
+
+### P0.3 Command knowledge: one catalog, layered by source and context
+
+**Problem.** Command suggestions currently merge three sources that were
+built at different times: node references as data
+(`kissterm/nodes/data/*.toml`, 16 BPQ node commands), BBS mail helpers as
+Python (`kissterm/bbs.py`, a handful of BPQMail macros), and names harvested
+from a node's `?` output (`kissterm/harvested.py`, names without meanings).
+They are shown together whether the operator is at a node prompt or inside
+the BBS. This produces the reports "I type L and see LB, LM ... but no
+explanation", "BYE is missing", "What about LD, LF, LH, LK, LL", and the
+operator's rule for how to fix it: "we shouldn't rely solely on learned info
+from the node, these are standard node operating systems that should be well
+documented. There's no reason not to include published information in our
+help and auto-complete."
+
+**Model.**
+
+- **Two kinds of reference, both data files with per-command provenance:**
+  *node* families (BPQ32/LinBPQ, JNOS, TheNet/X1J, KA-Node, TNC2 command
+  mode) and *applications* reached through a node (BPQMail, BPQChat, FBB,
+  JNOS mailbox, Winlink RMS, DXSpider). Each command carries name, minimum
+  abbreviation, syntax, one-line description, `source` (URL or document and
+  section) and `confidence`.
+- **Context is detected passively**, as family detection already is: the
+  node prompt, the BBS prompt (`de CALL>`), the chat prompt. Suggestions show
+  the current context's commands only. The reference screen (Ctrl+R) shows
+  all of them, grouped by context.
+- **Harvested names are an overlay, never a source of meaning.** A harvested
+  name that matches a published command marks it "offered by this node". An
+  unmatched name is listed as "offered by this node, not in the published
+  reference". It never gets an invented description.
+- **Every row shows its source tier** (published / verified on air /
+  harvested only), so a guess can never pass for documentation.
+
+Work items:
+
+- [ ] Move `kissterm/bbs.py`'s macros into data
+  (`kissterm/nodes/data/bpqmail.toml`) using the same schema as node
+  families, with an `application` kind and its own prompt detection.
+- [ ] Complete BPQMail from its published documentation -- every user
+  command it documents, with minimum abbreviations, not a sample. At least
+  the ones operators have already hit without a description: `LD`, `LF`,
+  `LH`, `LK`, `LL`, and `B`/`BYE`. Cite the section for each; anything not
+  found in the documentation is marked `recalled`, never written from
+  memory as `documented`.
+- [ ] Complete the BPQ32 node file the same way (currently 16 commands), and
+  add BPQChat.
+- [ ] Context switch in `TerminalPane` suggestions: node, application or
+  unknown, from passive prompt detection. At an unknown prompt, show nothing
+  rather than guess.
+- [ ] Harvest overlay semantics as described above, replacing the current
+  "harvested alongside" merge.
+
+### P0.4 Documentation diet
+
+The files agents are told to read are now too long to hold in mind, which is
+how rules already written down get broken again. AGENTS.md is about 1,200
+lines, CHANGELOG.md about 4,350, and this file was about 680 before this
+rewrite.
+
+- [ ] Cut AGENTS.md to rules and pointers, under about 400 lines: each rule
+  stated in a sentence or two with a pointer to the code or test that
+  enforces it. The history behind a rule moves to the enforcing module's
+  docstring or to CHANGELOG, where it already mostly lives.
+- [ ] Archive CHANGELOG sections older than the last release into
+  `docs/CHANGELOG-archive.md` once 1.0 is tagged.
+- [ ] DESIGN.md section 5 replaced by P0.2's standard, not added to.
+
+---
 
 ## P3 — Transports
 
-- [ ] **Linux kernel AF_AX25 verification against real hardware.**
-  `kissterm/transport/kernel_ax25.py` is implemented (`SessionTransport`,
-  for users who already run `ax25d`/`kissattach` and want kissterm as a
-  terminal on top of the kernel's own link layer -- see SETUP.md's "kernel
-  AX.25 as an alternative" section for when that's the right call) and, as
-  of the same session that added Telnet/SSH, actually reachable from the
-  app (`KissTermApp.action_connect` via `_SessionLinkAdapter` -- before
-  that, `station is None` on this tier meant Ctrl+N did nothing at all,
-  for VARA and Mercury too). What is still open is real verification: one
-  socket-API detail is marked `# RESEARCH:` in that file (the exact
-  bind/connect address tuple shape for `AF_AX25`, which has shifted across
-  Python versions), and nothing here has been exercised against a live
-  `kissattach` setup. Linux-only, small once someone with that setup can
-  test it.
-- [ ] **VARA HF/FM verification against real hardware.** The two-TCP-port
-  protocol (control + data, see SETUP.md) is documented and a
-  `SessionTransport` implementation is planned, but nothing has been tested
-  against an actual VARA modem and radio yet — treat any implementation as
-  unverified until it has. Effort unknown until that testing happens.
-- [ ] **Mercury HF verification against real hardware.** Mercury v2's
-  documented VARA-compatible TCP TNC interface is implemented and covered by
-  a local control/data socket integration test. Verify an actual ARQ contact
-  before treating it as field-ready; this validates radio/audio/PTT setup and
-  the modem's live status behavior, which a loopback cannot exercise.
-- [ ] **AX/IP — a different, lower-priority ask.** Carries actual AX.25
-  *frames* over UDP (BPQ32's convention for linking nodes to each other
-  over the Internet), so architecturally it is a `FrameTransport` like
-  `tcp_kiss.py`, not a `SessionTransport` like Telnet/SSH above -- kissterm
-  would run its own state machine over it exactly as it does over KISS.
-  Its real use is node-to-node backbone linking, not operator dial-in, so
-  it is unlikely to be what an operator actually wants kissterm itself to
-  speak; confirm there is a real use case (reaching a specific node whose
-  only path in is AX/IP, say) before building it. Medium, and needs the
-  wire format sourced from BPQ32's own documentation rather than guessed
-  -- mark anything inferred `# UNVERIFIED:` per this repo's rule.
+Not blocking 1.0 (see the finish line): each is labelled experimental until
+verified. All four need an operator with the hardware or peer; none can be
+closed by a coding session.
+
+- [ ] **Linux kernel AF_AX25 against real hardware.** Needs: a
+  `kissattach`/`axports` station and an authorized peer. One socket detail
+  in `kissterm/transport/kernel_ax25.py` is marked `# RESEARCH:` (the
+  bind/connect address tuple shape).
+- [ ] **VARA HF/FM against real hardware.** Needs: a licensed VARA modem,
+  radio, and peer. Command set in `vara.py` is `# UNVERIFIED:` where
+  inferred.
+- [ ] **Mercury HF against real hardware.** Needs: Mercury v2, radio, peer.
+  Local control/data socket test passes; an ARQ contact has not been made.
+- [ ] **BLE KISS (Mobilinkd-class) against real hardware.** Needs: a BLE
+  TNC. Shipped 2026-09-17 against mocks only.
+- [ ] **AX/IP** -- post-1.0, and only with a named use case (a node reachable
+  only over AX/IP) and BPQ32's own wire-format documentation. Node-to-node
+  backbone linking is not a terminal's job.
 
 ## P4 — APRS
 
-APRS rides on the same AX.25 UI (`UType.UI`) frames every other unproto
-traffic uses — decoding it is a payload-format problem sitting on top of
-transports and framing that already exist, not a new transport.
+- [ ] **GPS against physical receivers** (USB and Bluetooth `rfcomm`).
+  Needs: a GPS puck. Covers fix, loss of fix, live beacon position and
+  SmartBeaconing intervals.
+- [ ] **Object reports heard by a real digipeater/igate.** Operator saw
+  WS1EC-15 list the station but not TESTOBJ on 2026-09-21; the investigation
+  (path, LinBPQ object handling, local-only delivery option) is in that
+  session's CHANGELOG entries. Confirm an object appears on aprs.fi.
+- [ ] **Service directory currency** -- periodic manual re-check of each
+  `kissterm/aprs_services/` entry against its `source` URL. No liveness
+  probe, by design.
+- [ ] **Station list/map view** -- the remaining half of the original P4:
+  bearing and distance per heard station, from the existing decode
+  subscriber. Post-1.0.
+- **Out of scope:** igate and digipeater operation. A separate tool if ever.
 
-The four items originally listed here -- the frame-fan-out subscriber with
-message-history/auto-ack/notification, the contacts-list CRUD pane, sending
-with ack/retry, and SMS/email compose forms -- all shipped 2026-09-08 and
-2026-09-09, as did the shipped gateway-service directory
-(`kissterm/aprs_services/`, 17 services as built-in contacts with a
-never-transmits template picker on `Ctrl+R`); see CHANGELOG for the dated
-entries. What's still open:
+## P6 — UX (post-1.0)
 
-- [ ] **Keeping the service directory current.** It ships with a `checked`
-  date per service and is explicitly a snapshot, not a liveness probe --
-  several entries were reported down by a third-party health check the day
-  they were written. There is no mechanism to notice a service that has
-  gone away for good, and there deliberately is not one that phones home.
-  A periodic manual re-check against each entry's `source` URL is the
-  honest answer; a "last checked" column in the picker already tells an
-  operator how stale the claim is. Revisit if entries start rotting.
+- [ ] **Python plugin hooks** (on connect, line received, line typed) --
+  instead of a macro DSL. Needs a security design before any plugin can
+  transmit or touch files. Distinct from the shipped per-station auto-login
+  and hop chains.
+- [ ] **`textual serve` remote access** -- confirm nothing assumes a local
+  TTY. Small.
 
-- [ ] **GPS live-hardware verification.** The NMEA serial reader, local
-  port picker, live-at-send-time beacon source, and GPS FIX/NO FIX status
-  marker shipped on 2026-09-21. Verify them with physical USB and Bluetooth
-  (`rfcomm`) receivers before calling GPS support fully green; no radio or
-  receiver was available to make that claim during implementation. Smart
-  beaconing is unblocked by the reader's position/speed/course fix model.
-- [ ] **Igate-adjacent features are explicitly out of scope.** kissterm is a
-  terminal for a human operator, not an unattended relay — running it as an
-  RF-to-APRS-IS igate or a digipeater is a different problem (unattended
-  operation, message deduplication, digipeat path handling) with different
-  reliability requirements than an interactive TUI is built for. If that need
-  arises, it belongs in a separate tool, not bolted onto kissterm.
+## P7 — Packaging (1.0)
 
-## P5 — Node and BBS workflow
+- [ ] **PyPI release.** Needs: owner account and a version decision.
+- [ ] **`pipx` / `uv tool install`** verified against the published package
+  and documented.
+- [ ] **Raspberry Pi note** in SETUP.md: serial backend fallback, `dialout`
+  group, GPIO UART.
+- [ ] **Debian package** -- post-1.0.
+- [ ] **Self-update check** against PyPI metadata, never blocking startup --
+  post-1.0.
 
-- [x] **BBS session helpers** — BPQMail/LinBPQ BBS mail command templates
-  (list-my/new, read-number, send-to-callsign) in `kissterm/bbs.py`, each with
-  visible documented provenance,
-  reached from `Ctrl+R` > BBS mail helpers. They parameterize and fill the
-  normal compose box only; `TerminalPane.send_line` remains the deliberate
-  commit path. No hardcoded reply parser: BBS prompts and output vary enough
-  that a rigid parser would break constantly. Further dialects are data
-  additions with provenance, while P6 remains the general Python plugin/hook
-  system. Completed 2026-09-22.
+## P8 — Node references (beyond P0.3's 1.0 set)
 
-## P6 — UX
+Why references ship as data instead of being harvested: measured at 1200
+baud half-duplex, a node's help costs 4.7 s (512 B) to 75 s (8 KB) of
+channel time during which nobody else can transmit. See
+`kissterm/nodes/reference.py` and AGENTS.md "Airtime is the scarce
+resource".
 
-Operator feedback on the terminal pane and glossary rendering, from a real
-session, not yet acted on:
-
-- [x] **`LM`/`LB` (and likely any multi-line node reply) render with a
-      spurious blank line between every pair of real lines.** Confirmed from
-      the 2026-09-22 live BPQ BBS mail-list session. `_flush_incoming` retains
-      a trailing CR until it can distinguish bare CR from CRLF, then writes
-      normalized physical lines without their terminators so `RichLog` does
-      not add a second record break. Regression tests preserve true blank BBS
-      lines and cover split CRLF and ordinary bare-CR TNC output. Completed
-      2026-09-22.
-- [x] **A pager prompt (`<A>bort, <CR> Continue...`) can go missing off the
-      bottom of the log until Enter is pressed.** A `RichLog` write updates
-      its virtual height ahead of the layout which recalculates its scroll
-      limit, so its ordinary auto-follow could choose the old bottom and
-      leave the final row out of view. Terminal output now refreshes that
-      layout and follows the settled bottom. The Terminal retains its full
-      height: no extra prompt, remote-tail, or transcript-path row consumes
-      output space. Regression coverage includes an unterminated pager
-      prompt. Completed 2026-09-22.
-- [ ] **Macro/scripting system — Python plugins.** Deliberately not
-  linpac's Lisp-ish macro language: a documented plugin API (hook points for
-  "on connect", "on line received", "on line typed") that lets a user write
-  a normal `.py` file instead of learning a bespoke macro DSL. Medium-large,
-  needs a real security think-through before plugins can touch anything
-  sensitive. Not to be confused with what already shipped: a per-station
-  auto-login (`AddressBook.Entry.script`/`.credential`, sent by
-  `KissTermApp._run_connect_script`) and a node-to-node hop chain
-  (`AddressBook.Entry.hops`, walked by `_hop_through`/`_hop_to`) -- both
-  fixed, no-logic sequences triggered only by "on connect", not a scripting
-  language. This item is the general-purpose, arbitrary-hook version of the
-  same idea (conditionals, reacting to arbitrary text, running on other
-  events besides connect).
-- [ ] **`textual serve` remote access.** Let kissterm be reached over a
-  browser via `textual serve`, useful for operating a home-station TNC from
-  elsewhere. Small — mostly confirming nothing in the transport layer assumes
-  a local TTY.
-## P7 — Packaging
-
-- [ ] **PyPI release.** Register `kissterm` on PyPI, wire up a release build
-  (the `pyproject.toml` here is already shaped for it). Small once P1 is
-  solid enough to tag a 0.1.0.
-- [ ] **`uv tool install` / `pipx` install paths.** Both should already work
-  once published (`[project.scripts]` is set up for it) — this item is
-  verifying and documenting them, not building anything new. Small.
-- [ ] **Raspberry Pi install note.** Document the ARM-specific serial
-  backend fallback (see `kissterm/transport/serial_kiss.py`'s docstring) and
-  any Pi-specific `dialout` group / GPIO-UART quirks in SETUP.md. Small,
-  mostly documentation — some of it already exists in SETUP.md's Raspberry Pi
-  callouts.
-- [ ] **Debian packaging.** A `.deb` for users who won't touch pip/pipx at
-  all — likely useful for club/EOC-maintained machines that standardize on
-  apt-installed software. Medium, unfamiliar territory (packaging tooling,
-  not kissterm code).
-- [ ] **Self-update check modeled on google-tui's `updater.py`.** Same
-  strictness rules as that implementation: never touch uncommitted work,
-  fast-forward only, and never block startup on the check (fail silently and
-  let the app come up if the check itself fails or is slow). For a
-  PyPI-distributed tool this likely means checking PyPI's version metadata
-  rather than git, unlike google-tui's git-based updater — needs a decision
-  on which distribution channel is authoritative once P7's PyPI item lands.
-  Medium.
-
-## P8 — Terminal assistance: know what to type at the node you reached
-
-Packet's usability problem is not the protocol, it is that every node family
-has its own command set and a new operator faces a bare `}` prompt with no idea
-what is legal.
-
-**Correction to an earlier version of this section**, which said harvesting a
-node's own `?` output was "a better source than any table we ship". That was
-wrong, on airtime grounds. Measured with `kissterm.nodes.airtime_seconds` at
-1200 baud half-duplex, including framing, keyup and turnaround:
-
-| help text | channel time |
-|---|---|
-| 512 B | ~4.7 s |
-| 2 KB | ~18.7 s |
-| 8 KB | ~74.9 s |
-
-A verbose node's help is a minute or more during which **nobody else on the
-frequency can transmit**. Doing that automatically on every connect, to
-populate an autocomplete list, would make kissterm the rudest client on the
-band. Shipped references are therefore the **primary** source; harvesting is
-opt-in, once per node, and cached forever.
-
-Shipped in `[2026-09-04]` (see CHANGELOG): the `kissterm/nodes/` package with
-TOML references for BPQ32/LinBPQ and TNC2-class command mode, passive family
-detection from the banner and prompt, the command-reference modal (`Ctrl+R`
-today -- it moved off the F-row before Address Book's own F5/F6 shuffle, see
-`kissterm/ui/AGENTS.md` rule 16), and the airtime estimator. Still open:
-
-- [ ] **More families.** FBB, KA-Node, DXSpider, Winlink RMS.
-      One TOML file each in `kissterm/nodes/data/` -- data, not code. Each needs
-      a `detect_prompt`/`detect_banner` that is specific enough not to false-
-      match; a wrong family shown confidently is worse than "unknown node",
-      because the operator types its commands. Small per family. **JNOS
-      shipped `[2026-09-10]`** (see CHANGELOG): banner-only detection (no
-      `detect_prompt` -- JNOS's stock prompt can collide with tnc2.toml's
-      `cmd:` pattern), all commands `confidence = "recalled"` pending a real
-      session -- next candidate for the "verify against live nodes" item
-      below, reachable via a BPQ->JNOS hop. **TheNet/X1J shipped
-      `[2026-09-18]`** (see CHANGELOG): documented release-4 user commands,
-      intentionally with no detection patterns because the available source
-      does not establish a safe discriminator; live-node verification remains
-      open below.
-- [ ] **Verify the shipped references against live nodes.** Entries carrying
-      `confidence = "recalled"` in `bpq32.toml` and `tnc2.toml` were written
-      from memory, are flagged as such in the UI, and should be corrected from
-      a real session -- kissterm will already be logging those (P2). The
-      documented entries deserve a check too. **Partially done for
-      `bpq32.toml`**: a real `[2026-09-10]` session against WS1EC-15/CCEMA
-      promoted `?`/`B`/`C`/`I`/`N`/`P`/`R`/`U`/`MH` to `confidence =
-      "verified"` (see CHANGELOG) -- `STATS`/`PING`/`CQ`/`T` stayed
-      `"recalled"` (absent from that one node's `?` output, which proves
-      nothing either way about other nodes), `BBS`/`CHAT` stayed at the
-      family's `"documented"` default (application names, not node commands),
-      and `tnc2.toml` is completely untouched. **Needs an operator with a
-      real node to connect to** -- not something a coding session can do on
-      its own. Cross-checked `[2026-09-10]` against the sibling `bpq-apps`
-      repo's own node-map crawl (`utilities/nodemap.json`, 15 real captured
-      "?" replies): independently confirmed the same 8 core commands on 12 of
-      15 nodes, and added `RMS` at `confidence = "documented"` (60% of those
-      nodes list it as a configured application -- common enough across
-      independently-run nodes to be worth naming). See `bpq32.toml`'s own
-      provenance comment for the full breakdown.
-- [ ] **Candidate PBBS/AEA-TNC-mailbox family, not yet shipped.** 3 of the 15
-      nodes in that same `nodemap.json` crawl (W1KRP-1, WD1F-1, W1ZE-1) are
-      tagged `"type": "BPQ"` by the crawl's own heuristic but returned
-      single-letter-with-parenthetical-long-form command sets (`B(ye)`,
-      `J(heard)`, `[AEA PK-232M]`) that do not match `bpq32.toml`'s
-      `detect_prompt`/`detect_banner` at all -- they read as a PBBS-style
-      mailbox and an AEA PK-232 TNC mailbox, respectively. Worth a real family
-      of its own eventually, but 2-3 samples from one crawl is not enough to
-      write a confident `detect_prompt` yet -- a wrong family shown
-      confidently is worse than "unknown node". Needs more captured examples
-      before it ships.
-
-Shipped in `[2026-09-10]` (see CHANGELOG, three entries): opt-in harvesting
-from a connected node (`kissterm/harvested.py`, `HarvestConfirmScreen`), a
-packet-terminology glossary sharing the Ctrl+R pane (`kissterm/glossary.py`),
-and per-node notes in the Address Book, shown on connect.
+- [ ] **More families:** FBB, KA-Node, DXSpider, Winlink RMS. One data file
+  each, with a detection pattern specific enough never to false-match.
+- [ ] **Verify against live nodes.** `recalled` entries in `bpq32.toml` and
+  all of `tnc2.toml`; JNOS and TheNet/X1J are unverified. Needs: sessions
+  on real nodes (JNOS reachable via a BPQ hop).
+- [ ] **PBBS / AEA PK-232 mailbox family** -- three samples in the
+  `bpq-apps` node-map crawl (W1KRP-1, WD1F-1, W1ZE-1). Needs more captured
+  examples before a detection pattern can be trusted.
 
 ## P9 — Unattended operation: mailbox, file drop, and alerts
 
@@ -366,6 +474,11 @@ is the operator-facing half, and it is worth designing the navigation before
 any of it is written.
 
 ### The F-key ceiling -- raised to F10, but still finite
+
+**Superseded pending P0.2's tab-key decision.** If the recommended CUA
+layout is adopted, these tabs land on F6 Mail, F7 Bulletins, F8 Files with
+F1 Help, F9 Settings and F10 Menu; the reasoning below about the F10
+ceiling and F11 still holds.
 Function keys are tabs; Ctrl sequences are actions and modals (see
 `kissterm/ui/app.py`'s module docstring). The ceiling was originally set at
 F8 (some terminals were assumed unreliable past it), but confirmed working

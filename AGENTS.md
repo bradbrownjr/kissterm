@@ -13,6 +13,16 @@ anything looks)**, `docs/ROADMAP.md` (what is still open), `docs/CHANGELOG.md`
 
 ---
 
+## Before picking up any work
+
+Read the top of `docs/ROADMAP.md` ("How to work this file") first. In short:
+P0 (reported bugs, the keyboard standard, the command catalog) comes before
+any new feature; a live bug is reproduced from real evidence before it is
+fixed and is closed only by the operator; no key binding is added or changed
+outside P0.2's terminal-safe standard.
+
+---
+
 ## Always / Never Memory Protocol
 
 - If the user says **"always"**, **"never"**, **"remember"**, or **"don't"**,

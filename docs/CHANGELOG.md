@@ -3,6 +3,22 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-22] — Roadmap reorganized around stabilization
+
+### Documentation
+
+- **ROADMAP.md now leads with P0 (stabilize) and a defined 1.0 finish
+  line.** From a review of the Codex session history against git: live bug
+  reports were tracked only in chat, so "what's next" kept resolving to new
+  features. P0 lists every reported bug with its status, adopts IBM CUA (as
+  used by Turbo Vision / Midnight Commander) as the keyboard standard with a
+  terminal-safe key allowlist, and defines a layered, sourced command
+  catalog. Shipped `[x]` items were removed; `ROADMAP_DEPENDENCIES.md` was
+  stale and is folded into per-item "Needs:" notes. AGENTS.md points at the
+  new working rules.
+  **Files:** `docs/ROADMAP.md`, `docs/ROADMAP_DEPENDENCIES.md` (removed),
+  `AGENTS.md`, `docs/CHANGELOG.md`.
+
 ## [2026-09-22] — Add BBS mail helpers
 
 ### Fixes
