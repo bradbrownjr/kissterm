@@ -22,6 +22,11 @@ touched and any breaking notes.
   message store, Winlink (B2F over CMS Telnet, packet RMS and VARA, reusing
   the existing link seam), and BBS mail send/receive. The old P10 tab items
   moved there.
+- **Forms and BBS retrieval policy planned.** P2 gains a Forms subsection:
+  every bpq-apps `.frm` form, vden PKTNET parity, and Winlink standard
+  forms, with golden-output tests against bpq-apps' forms.py. BBS messages
+  stay on the node by default; kill is explicit, and re-downloads are
+  prevented per account. P11's form items moved into P2.
   **Files:** `docs/ROADMAP.md`, `docs/ROADMAP_DEPENDENCIES.md` (removed),
   `AGENTS.md`, `docs/CHANGELOG.md`.
 

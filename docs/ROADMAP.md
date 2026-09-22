@@ -54,8 +54,9 @@ that does not work in their terminal. Concretely:
 **Milestone 2 -- the messaging client (P2).** kissterm's long-term shape is
 OutpostPM or Winlink on Android (WoAD): the stored messages are the product,
 and the terminal is one tool for getting them. Milestone 2 is reached when
-Winlink and BBS mail download into their own inboxes in a folder tree, and
-Mail, Bulletins and Files are the first tabs an operator sees. 1.0 stays
+Winlink and BBS mail download into their own inboxes in a folder tree, the
+shipped forms can be filled in and sent, and Mail, Bulletins and Files are
+the first tabs an operator sees. 1.0 stays
 terminal-first so there is a stable release before that larger build starts.
 
 Everything from P9 on comes after milestone 2.
@@ -434,12 +435,100 @@ anything taken from its behaviour rather than from documentation
   description of where a read message starts and ends is written from
   captured real sessions (CCEMA's BPQMail first), stored as data beside the
   command catalog, and tested against those captures. Retrieval filtering
-  (private, NTS or bulletins; skipping this station's own; keep on the BBS
-  or kill after reading) is part of this item. The default for kill-after-read
-  is an operator decision to record here before building. The P11 notes
-  below describe how Outpost does it. Large.
+  (private, NTS or bulletins; skipping this station's own) is part of this
+  item; the P11 notes below describe how Outpost does it. **Decided
+  2026-09-22: messages stay on the BBS by default.** Deleting is the
+  operator's choice, as it is at the node, where a message is read and
+  then killed by command. Kill is an explicit per-message action (or an
+  opt-in per-account setting), never a side effect of downloading.
+  **Never download the same message twice:** each BBS account records
+  what it has already filed, by BBS message number plus the BID/MID where
+  the BBS shows one, so a later session lists new mail and reads only
+  that. Winlink needs no equivalent, because the CMS delivers each
+  message once. Large.
 - [ ] **Bulletin collection** into Bulletins/<BBS>/<category>, using the
   same session with a category or keyword filter. Medium.
+
+#### Forms
+
+Decided 2026-09-22: kissterm ships every form in the sibling `bpq-apps`
+repo, parity with vden's PKTNET forms (https://vden.org/pktnet/), and
+Winlink's standard message forms. A filled form becomes an ordinary message
+in an account's Outbox, addressed the way that form requires, and it goes
+out on the next send/receive. Nothing transmits when a form is saved.
+
+**The design is already built and in use: port it, don't re-derive it.**
+`bpq-apps/apps/forms.py` and `apps/forms/*.frm` are a working forms system
+on a BPQ32 BBS. A `.frm` file is one JSON document: `id`, `title`,
+`version`, `description`, an optional output `format`, and `fields`. Each
+field has `name`, `label`, `type`, `required` and `description`, and may
+have `max_length`, `default`, `default_now` (a `strftime` pattern),
+`auto_fill: "callsign"` and a `validate` rule (`callsign`, `us_zip`,
+`phone`, `email`, `hhmm`, `city_state`, `hx_code`, `nts_number`). Field
+types are `text`, `textarea`, `yesno`, `choice` and `strip`. Forms ship as
+package data, and an operator can drop in their own `.frm` locally. **Do
+not port forms.py's auto-download from GitHub on launch.** It suits a
+script on someone else's BBS shell, not this project's rule that shipped
+data is never fetched automatically.
+
+| Form | Source | Output / addressing |
+|---|---|---|
+| ICS-213 General Message | `ics213.frm`; vden `ics213.html` | Plain text, with a linked reply half (below) |
+| ICS-309 Communications Log | `ics309.frm` | Plain text |
+| Net check-in | `netcheck.frm` (matches vden PACKET CHECK-IN) | `pktnet_checkin`; bulletin `SB PKTNET@USA`, subject "Name, Call, Town, State" |
+| ARRL Radiogram | `radiogram.frm` + `arl_messages.json` | `nts_radiogram`; `ST <ZIP> @ NTS<STATE>` routing built from the form |
+| Information strip response | `strip.frm` | Strip (`TITLE/answer1/answer2//`) |
+| GYX Weather (SKYWARN) | `gyx-weather.frm` | Strip |
+| Field Situation Report | `fsr.frm`; vden `fsr.html` | Plain text |
+| Severe Weather Report | `severe_wx.frm`; vden `severe_wx.html` | Plain text |
+| Bulletin Message | `bulletin.frm`; vden `bulletin.html` | Plain text, bulletin addressing |
+| Equipment Status Report | `eqstat.frm` | Plain text |
+| USGS DYFI report | `dyfi.frm` | Plain text |
+| MCF720 price survey | `mcf720-price-survey.frm` | Plain text |
+| Winlink standard forms | Winlink Express templates | `# RESEARCH:` below |
+
+- [ ] **Form engine** (`kissterm/forms/`): load and validate `.frm`, the
+  validators above, and the output formatters (plain, `pktnet_checkin`,
+  `nts_radiogram`, strip). That includes forms.py's NTS rules: prosign
+  substitution (`normalize_nts_text`), the ARRL word-count check
+  (`count_nts_check`, where a pure-digit group over 5 characters counts as
+  `ceil(len/5)` words), and the address-block sanitizer. **Golden-output
+  tests:** the same answers through bpq-apps' forms.py and through kissterm
+  must produce byte-identical messages, so two stations on one net never
+  disagree about what a form looks like. Medium.
+- [ ] **Form screen**: one screen generated from the schema, the same way
+  the Settings pane is generated from `settings_schema.py`. It has no
+  per-form code. `textarea` is a real multi-line editor here (bpq-apps'
+  `/EX` terminator is a BBS-shell constraint kissterm does not have). A
+  `strip` field shows the template and accepts a pasted strip. Reached from
+  "New from form" in the F10 menu, and as a plain-letter key on the Mail
+  list per P0.2 rule 4.
+  Medium.
+- [ ] **Ship every bpq-apps form** in the table above. Small once the
+  engine exists: they are data.
+- [ ] **vden parity check.** Compare each vden form (the local copy in the
+  sibling `pktnet` directory, v1.1 from 2023-11, and the live site) field by
+  field against its bpq-apps equivalent. Anything vden has that bpq-apps
+  lacks is fixed in the `.frm` in both repos, not only in kissterm. Small.
+- [ ] **Received forms render as forms.** A message kissterm or bpq-apps
+  produced is recognised and shown in the form layout, with the raw text one
+  key away. ICS-213 keeps a message and its reply in one record: the
+  received half is read-only, and the reply half is editable only after the
+  operator starts a reply (Outpost's `Ics213mm.exe` behaves this way).
+  Medium.
+- [ ] **Winlink forms.** Winlink Express's standard templates are HTML forms
+  that send a readable text body plus an XML attachment
+  (`RMS_Express_Form_*.xml`) that another Winlink client renders as the
+  form. `# RESEARCH:` source the XML structure from Winlink's published
+  Standard Templates, not from guesses. Order: first display the ones that
+  arrive (the text body always works; parse the XML), then compose
+  Winlink Check-In, ICS-213 and Radiogram as Winlink forms. Depends on the
+  B2F client. Large.
+- [ ] **PackItForms/Outpost wire compatibility**, so an Outpost or Winlink
+  Express operator sees a recognised form rather than plain text. It is
+  later and separate, and is sourced from PackItForms' published templates
+  or a captured real message. Plain text is readable by every client and
+  comes first.
 
 ---
 
@@ -652,7 +741,7 @@ operator's own callsign and licence. So:
 - [ ] **A hash and a claimed-source line per file**, shown locally and in the
       remote listing. Small once the areas exist.
 
-## P11 — Served-agency messaging: forms, traffic, tactical identity
+## P11 — Served-agency messaging: tactical identity, numbering, receipts
 
 Researched from Outpost Packet Message Manager (`outpostpm.org`), the
 Windows application ARES/RACES/MARS teams already standardize on for
@@ -686,103 +775,10 @@ makes the forms work below a genuine opportunity, not just catch-up: a
 kissterm operator on a mixed net may have working forms before an
 OutpostPMX one does, not after.
 
-- [ ] **A form template system, modeled directly on the sibling `bpq-apps`
-      repo's `apps/forms.py` and `apps/forms/*.frm` -- port the design, not
-      just the idea.** That app is a *working, in-use* fillable-forms system
-      for a BPQ32 BBS: a `.frm` file is one JSON document (`id`, `title`,
-      `version`, `description`, `fields: [...]`), each field a `name` /
-      `label` / `type` / `required` / `description`, optionally
-      `max_length`, `default`, `default_now` (a `strftime` pattern for
-      auto-filled dates), `auto_fill: "callsign"`, and a `validate` rule
-      (`callsign`, `us_zip`, `phone`, `email`, `hhmm`, `city_state`,
-      `hx_code`, `nts_number` are all already implemented). Field types:
-      `text`, `textarea` (terminated by typing `/EX`, matching this
-      codebase's own YAPP/autobin-adjacent packet conventions), `yesno`
-      (Y/N/NA), and `choice` (a numbered pick-list). This is the same
-      "data, not code" pattern `kissterm/nodes/` and
-      `kissterm/aprs_services/` already use in this codebase for exactly
-      the same reason -- ship the form set as data, add one file per form,
-      never hand-write a screen per form. `kissterm/nodes/data/ics213.frm`
-      and `.../forms/ics309.frm` already exist in `bpq-apps` as a starting
-      field list (ICS-309 is a communications log, not covered anywhere in
-      this file before now) -- copy and adapt them rather than re-deriving
-      the ICS-213 field list from Outpost's PDF guide a second time. **Do
-      not port `forms.py`'s GitHub auto-download-on-every-launch
-      behaviour** -- that fits a script running on someone else's BBS shell
-      account with no local persistence story; it does not fit this
-      project's "ship it, cache it, never fetch it automatically" rule
-      already established for `nodes/` and `aprs_services/`. Ship the forms
-      as static package data and let an operator drop in a custom `.frm`
-      file locally, the same way a custom node reference would work.
-      Depends on the P10 Mail tab existing as somewhere to compose from and
-      land replies. Large.
-- [ ] **ICS-213 as the first shipped form**, using the field list above:
-      Incident Name, To/Position, From/Position, Subject, Message
-      (free-text), Priority, and (matching Outpost's own `Ics213mm.exe`
-      more closely than `bpq-apps`' flatter version) a linked Reply half
-      with its own Signature/Position/Date -- one message and its reply
-      share a single record, not two independent messages, and only the
-      half the local operator is producing is ever editable: a received
-      message's Message area is read-only, and the Reply area is editable
-      only after the operator explicitly starts a reply. Medium, once the
-      template system above exists.
-- [ ] **Strip-mode forms (MARS/SHARES convention) -- a capability Outpost
-      itself does not have, worth keeping.** `bpq-apps`' `strip.frm` and
-      `fill_strip_form` handle a different shape entirely: a
-      slash-separated "information request strip" (`ROSTER/CALL/NAME/
-      LOCATION//`) that the operator either pastes verbatim or picks from a
-      form's own built-in `template` field, then answers field-by-field,
-      producing a matching `TITLE/answer1/answer2//` response strip. Worth
-      its own field `type: "strip"` in the template schema (the roadmap
-      item above scopes `text`/`textarea`/`yesno`/`choice`; add this as a
-      fifth) rather than skipping it because Outpost has no equivalent --
-      it is real, still-used net-check traffic in MARS/SHARES circles.
-      Small once the template system exists.
-- [ ] **Plain-text output now; PackItForms/Winlink-Express wire compatibility
-      is a separate, later, lower-priority question.** `bpq-apps`'
-      `format_as_bpq_message` does not attempt to match Outpost's or
-      Winlink Express's PackItForms tagged-block encoding -- it renders a
-      filled form as an ordinary, human-readable text message body (field:
-      value pairs, or -- for NTS -- the standard radiogram layout below),
-      which is readable by *any* BBS mail client, PackItForms-aware or not.
-      That is the right first target here too: it is what was actually
-      asked for (a forms feature in kissterm's own BBS mail client, in the
-      same spirit as the never-transmit-on-selection APRS service-template
-      picker already shipped -- `AprsServiceScreen`, `kissterm/ui/
-      dialogs.py`), and it needs no reverse-engineering of a format neither
-      this project nor `bpq-apps` has ever captured a real sample of.
-      **If bit-for-bit PackItForms compatibility is wanted later** (so an
-      Outpost or Winlink Express operator's client renders the message as
-      a recognized form rather than plain text), that is its own future
-      item and this repo's usual rule still applies: source the actual
-      field-tag/delimiter format from PackItForms' own published templates
-      or a captured real message before writing an encoder, and mark
-      anything unconfirmed `# UNVERIFIED:`. Do not block the item above on
-      it.
-- [ ] **NTS / ARRL Radiogram format -- a working reference implementation
-      already exists in `bpq-apps`, port it rather than re-deriving it.**
-      `apps/forms.py`'s `format_nts_radiogram`, `normalize_nts_text`
-      (ARRL/Winlink prosign substitution: `,`/`!`/`;` -> `X`, `?` -> `INT`,
-      `&` -> `AND`, decimal points between digits -> `R`, hyphens between
-      words -> `X`), `count_nts_check` (the word-count check, including the
-      ARRL rule that a pure-digit group over 5 characters counts as
-      `ceil(len/5)` words), and the address-block sanitizer (`#` -> `NR`,
-      hyphens -> `DASH`, per NTS punctuation rules) are a complete,
-      already-in-use encoder for the numbered radiogram (station of
-      origin, check, place of origin, time filed, date, precedence, `BT`
-      breaks, 5-word-per-line body) plus its own ARL canned-message
-      catalog (`forms/arl_messages.json`, browsable by group) for the
-      common boilerplate messages. This is a different, older, and
-      equally-live standard from ICS-213 -- rigid fixed fields with a
-      word-count integrity check, vs. free text -- and Outpost's own
-      Message Settings treats it as a distinct message type for exactly
-      that reason (its own "skip NTS messages that I sent" BBS retrieval
-      filter). Porting working, already-field-tested Python beats
-      re-deriving the ARRL rules from documentation a second time; still
-      worth a real-traffic sanity check before calling it done, same as
-      every other unverified-on-the-air item in this file. Medium,
-      independent of the ICS-213 work above -- and with most of the actual
-      research risk already retired by the existing implementation.
+Forms (ICS-213, radiograms, strips, check-ins, the whole bpq-apps set,
+vden and Winlink forms) moved to P2's Forms subsection, which carries
+everything that was here.
+
 - [ ] **Tactical call / assignment identity.** Outpost's "Setups for
       Tactical Operations" is a distinct, well-established ARES/RACES
       convention worth its own item, not a variant of the P9 mailbox
