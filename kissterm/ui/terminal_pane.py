@@ -219,29 +219,31 @@ class _SessionTabs(Tabs):
 
 
 class _SendInput(Input):
-    """The outgoing-message box -- Input's own "enter" binding, plus a
-    defensive net around it.
+    """The outgoing-message box. Enter sends, via `Input`'s own binding.
 
-    From a real report: typed text sent fine through the Send button, but
-    plain Enter did nothing at all -- the text just sat there. Nothing in
-    this app intercepts Enter (`grep` confirms no `on_key`/`_on_key`
-    anywhere in `kissterm/ui/`), so the keystroke was reaching Textual and
-    simply not resolving to the string `"enter"` Input's own binding
-    matches. This app's enhanced-keyboard-protocol reliance is not
-    hypothetical -- `Ctrl+Shift+B`/`Ctrl+Shift+D` need it and are confirmed
-    working over Konsole's CSI-u mode -- and that same class of protocol is
-    exactly where a terminal can occasionally attach a modifier to a bare
-    Enter that a plain one would never carry, changing the reported key
-    name out from under a binding that only listens for "enter". These
-    extra bindings catch the variants that would otherwise swallow the
-    keystroke silently, all routed to the same `action_submit` a normal
-    Enter already runs.
+    This used to carry `shift+enter`/`ctrl+enter`/`alt+enter` bindings onto
+    `submit` as well, added against a report that typed text sent fine through
+    the Send button while plain Enter did nothing. The reasoning was that an
+    enhanced keyboard protocol was attaching a modifier to Enter and changing
+    the key name out from under `Input`'s binding, so these caught the
+    variants. That was a guess, it was wrong, and the report came back.
+
+    What actually happened, measured with `scripts/keycheck.py` on the
+    affected station: Enter produced NO key event at all -- not a modified
+    one, nothing -- so no binding of any name could have helped. Textual's
+    enhanced protocol was turning Enter into a bare `CSI 13 u` sequence with
+    no associated text, and that sequence was being lost in that terminal.
+    The protocol is now switched off in `kissterm/__init__.py`, where the
+    reasoning lives, and Enter arrives as an ordinary CR again.
+
+    So these three are gone rather than kept as insurance: `alt+enter`
+    violated DESIGN.md's keyboard standard outright (never bind Alt), and
+    `shift+enter` shadowed `TerminalPane`'s own find-previous binding while
+    the send line had focus. Keeping dead workarounds around a fixed bug is
+    how the next reader concludes Enter is unreliable and adds a fourth.
     """
 
     BINDINGS = [
-        Binding("shift+enter", "submit", show=False),
-        Binding("ctrl+enter", "submit", show=False),
-        Binding("alt+enter", "submit", show=False),
         Binding("tab", "accept_suggestion", show=False),
         Binding("up", "previous_suggestion", show=False),
         Binding("down", "next_suggestion", show=False),

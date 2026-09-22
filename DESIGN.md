@@ -155,7 +155,15 @@ is the enforcement.
    Ctrl+PgUp/PgDn, Ctrl+Tab, F11, F12. **Ctrl+Shift+letter and Ctrl+letter
    are the same byte** unless the terminal, and every layer between (tmux,
    ssh), speak an enhanced keyboard protocol — which is exactly what a
-   station PC reached from another room does not. Ctrl+I, M, H, `[` and J
+   station PC reached from another room does not. **kissterm switches that
+   protocol off outright** (`kissterm/__init__.py`), so this rule is enforced
+   by the wire and not only by convention: under Textual's enhanced mode
+   Enter stops being a plain CR and becomes a bare `CSI 13 u` sequence, and
+   on a real station that sequence went missing after the window had sat in
+   a multiplexer — typing still worked and Enter silently did nothing, so
+   the send line could only be committed with the mouse. Since no allowed
+   key needs the protocol, turning it off costs nothing and removes the
+   failure. Ctrl+I, M, H, `[` and J
    are Tab, Enter, Backspace, Esc and LF; Ctrl+C, Z and `\` are signals;
    Ctrl+S is flow control; Ctrl+A and Ctrl+B are the screen and tmux
    prefixes; Ctrl+A, E, K, U and W are line editing inside an input.

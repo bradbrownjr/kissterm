@@ -436,6 +436,23 @@ Gotchas that already cost time:
   Alt anything**: without an enhanced keyboard protocol -- which tmux and
   ssh in the path usually deny you -- Ctrl+Shift+X and Ctrl+X are the same
   byte.
+- **NEVER turn Textual's enhanced (Kitty) keyboard protocol back on.**
+  `kissterm/__init__.py` sets `TEXTUAL_DISABLE_KITTY_KEY` before anything
+  imports Textual -- `textual.constants` reads it at IMPORT time, so moving
+  that line anywhere downstream silently does nothing. Under the protocol
+  Enter is not a CR but a bare `CSI 13 u` sequence carrying no text, and on a
+  real station (Konsole under a session manager, 2026-09-22) that sequence
+  went missing once the window had sat and been returned to: letters still
+  typed, Enter produced NO key event at all, and the send line could only be
+  committed with the mouse. It took three attempts to find because the first
+  two guessed at the key NAME -- `_SendInput` grew `shift+enter`/`ctrl+enter`/
+  `alt+enter` bindings that could never have worked, since there was no event
+  to bind. `scripts/keycheck.py` is what settled it and is the tool to reach
+  for whenever a key "does nothing": it prints the name, character and
+  aliases Textual actually receives. The protocol buys only the chords rule 2
+  already bans, so this costs nothing;
+  `tests/unit/test_keyboard_protocol.py` guards both the default and the
+  operator's `TEXTUAL_DISABLE_KITTY_KEY=0` override.
 - **A tab-switching key is shown in the tab label, never in the footer too.**
   `F1 Terminal` (key first, like a menu accelerator), not `Terminal (F1)`.
   Textual's `Footer` would otherwise print the same word the tab bar already

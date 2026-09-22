@@ -3,6 +3,45 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-22] — Enter sends again
+
+### Fixes
+
+- **Enter now commits the send line; it no longer silently does nothing.**
+  Reported twice, and both earlier attempts guessed at the key NAME -- adding
+  `shift+enter`/`ctrl+enter`/`alt+enter` bindings on the theory that an
+  enhanced keyboard protocol was attaching a modifier. They could never have
+  worked. A key probe run on the affected station showed Enter producing **no
+  key event at all**: `b`, `y` and `e` logged, nothing for Enter, so no
+  binding under any name would ever fire. The cause is Textual's enhanced
+  (Kitty) keyboard protocol, enabled with report-all-keys, under which Enter
+  stops being a plain CR and becomes a bare `CSI 13 u` sequence carrying no
+  text while letters still arrive with theirs -- so once that protocol state
+  went wrong after the window had sat in a session manager, typing kept
+  working and Enter vanished, leaving the mouse as the only way to send.
+  Confirmed by A/B in the same terminal tab: with the protocol disabled the
+  same probe reported `key='enter' character='\r'` and the submit fired.
+  kissterm now disables it in `kissterm/__init__.py`, before anything imports
+  Textual, which is the only point where that setting is still read. It costs
+  nothing -- the protocol only buys the Ctrl+Shift/Ctrl+Alt/Alt chords the
+  keyboard standard already bans -- and `TEXTUAL_DISABLE_KITTY_KEY=0` is the
+  way back in for a terminal that handles it correctly.
+- **The three speculative Enter bindings are gone.** `alt+enter` violated the
+  keyboard standard outright and `shift+enter` shadowed the pane's own
+  find-previous binding while the send line had focus. The test that asserted
+  each of them transmitted now asserts that plain Enter does.
+
+### New
+
+- **`scripts/keycheck.py`** prints the key name, character and aliases
+  Textual actually receives, plus focus state and AppBlur/AppFocus, so "this
+  key does nothing" can be measured instead of guessed. It is what settled
+  this bug after two wrong theories.
+
+**Files:** kissterm/__init__.py, kissterm/ui/terminal_pane.py,
+scripts/keycheck.py, tests/unit/test_keyboard_protocol.py,
+tests/pilot/test_terminal_ux.py, AGENTS.md, DESIGN.md, docs/ROADMAP.md.
+
 ## [2026-09-22] — The node's prompt appears
 
 ### Fixes
