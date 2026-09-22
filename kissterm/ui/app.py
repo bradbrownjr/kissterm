@@ -693,14 +693,12 @@ class KissTermApp(App):
         # Saved address-book entries and passive NET/ROM claims share the
         # Terminal slide-out, but on a short display the latter should not
         # crowd out the directory the operator deliberately maintains.
-        # Ctrl+Alt+G is a distinct modifier sequence on ordinary terminals.
-        # Unlike Ctrl+Shift+G, it is not collapsed into the same byte as
-        # Ctrl+G; unlike Alt+G, it avoids desktop-level Alt-key shortcuts.
-        # The app already uses this modifier family for deliberate APRS
-        # actions, and no other binding claims this chord.
+        # Ctrl+PageDown is a distinct terminal key sequence and does not
+        # collide with desktop-level Alt-key shortcuts. No app binding claims
+        # this chord, while its paired Ctrl+G remains the Address Book key.
         Binding(
-            "ctrl+alt+g", "toggle_known_nodes", "NET/ROM",
-            key_display="Ctrl+Alt+G",
+            "ctrl+pagedown", "toggle_known_nodes", "NET/ROM",
+            key_display="Ctrl+PgDn", priority=True,
         ),
         # Ctrl+SHIFT+B, not Ctrl+B: Ctrl+B is tmux's default prefix (and
         # screen's, once remapped), so under a multiplexer -- which is how a
@@ -2952,7 +2950,7 @@ class KissTermApp(App):
             self.query_one(AprsPane).toggle_contacts()
 
     def action_toggle_known_nodes(self) -> None:
-        """Ctrl+Alt+G: collapse passive NET/ROM claims on Terminal only."""
+        """Ctrl+PageDown: collapse passive NET/ROM claims on Terminal only."""
         active = self.query_one("#main-tabs", TabbedContent).active
         if active == "terminal":
             self.query_one(TerminalPane).toggle_known_nodes()

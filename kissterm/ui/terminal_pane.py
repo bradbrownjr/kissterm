@@ -75,7 +75,7 @@ never fight over the same key. See `DESIGN.md`'s "slide-out panels" section
 for the pattern -- `AprsPane`'s contacts column and, later, Mail's own
 contacts panel follow the identical recipe.
 
-**NET/ROM claims are supporting context, not a second directory.** `Ctrl+Alt+G`
+**NET/ROM claims are supporting context, not a second directory.** `Ctrl+PageDown`
 collapses or restores their lower section without changing the Address Book
 slide-out. If the slide-out is closed, it opens it with claims shown, so both
 sections remain independently reachable.
@@ -852,7 +852,7 @@ class TerminalPane(Container):
             self.query_one(AddressBookPane).refresh_known_nodes(self.app.known_nodes)  # type: ignore[attr-defined]
 
     def toggle_known_nodes(self) -> None:
-        """Ctrl+Alt+G: independently show or hide NET/ROM claims."""
+        """Ctrl+PageDown: independently show or hide NET/ROM claims."""
         column = self.query_one("#terminal-addressbook-column")
         if not column.display:
             # The shortcut names the NET/ROM list, so it must be able to
@@ -861,12 +861,8 @@ class TerminalPane(Container):
             # panel.
             self.toggle_addressbook()
             self.query_one(AddressBookPane).set_known_nodes_visible(True)
-            self.app.notify("NET/ROM claims shown.")
             return
-        visible = self.query_one(AddressBookPane).toggle_known_nodes()
-        self.app.notify(
-            "NET/ROM claims shown." if visible else "NET/ROM claims hidden."
-        )
+        self.query_one(AddressBookPane).toggle_known_nodes()
 
     def _recompute_matches(self, needle: str) -> None:
         """Rebuild the match list only when the needle actually changed, so
