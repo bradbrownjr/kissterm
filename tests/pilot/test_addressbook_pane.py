@@ -70,18 +70,18 @@ async def _addressbook_tab(app, pilot):
 
 
 @pytest.mark.asyncio
-async def test_settings_is_f5_and_ctrl_g_closes_and_reopens_the_addressbook():
+async def test_settings_is_f9_and_ctrl_g_closes_and_reopens_the_addressbook():
     """On a terminal this wide the Address Book is already open -- so what
     Ctrl+G has to do here is close it, and open it again, with Escape closing
     it in between. The "starts hidden" half of this test moved to
     `test_slideouts.py`, which drives the width rule directly."""
     app, station, ta, tb = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.press("f5")
+        await pilot.press("f9")
         await pilot.pause()
         assert app.query_one("#main-tabs").active == "settings"
 
-        await pilot.press("f1")
+        await pilot.press("f2")
         await pilot.pause()
         await asyncio.sleep(0.05)
         await pilot.pause()

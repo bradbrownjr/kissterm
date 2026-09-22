@@ -190,7 +190,7 @@ async def test_beacon_now_reports_honestly_when_transmit_is_off():
 
 
 @pytest.mark.asyncio
-async def test_ctrl_shift_b_sends_one_beacon_even_with_the_timer_off():
+async def test_the_menu_sends_one_beacon_even_with_the_timer_off():
     """A manual beacon is not the timer. Refusing one because the periodic
     beacon is switched off would answer a question nobody asked."""
     app, station, ta = await _app(tx_armed_at_start=True)
@@ -199,42 +199,21 @@ async def test_ctrl_shift_b_sends_one_beacon_even_with_the_timer_off():
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         assert not app.beaconer.running
-        await pilot.press("ctrl+shift+b")
+        app.action_beacon_now()
         await pilot.pause()
         await asyncio.sleep(0.2)
-        assert len(ta.sent) == 1, "Ctrl+Shift+B did not send a beacon"
-        assert not app.beaconer.running, "Ctrl+Shift+B must not start the timer"
+        assert len(ta.sent) == 1, "Send beacon did not send a beacon"
+        assert not app.beaconer.running, "Send beacon must not start the timer"
     station.close()
 
 
 @pytest.mark.asyncio
-async def test_plain_ctrl_b_still_beacons_on_a_legacy_terminal():
-    """The beacon moved to Ctrl+Shift+B to stop tmux (prefix Ctrl+B) from
-    eating it, but a terminal without the enhanced keyboard protocol cannot
-    tell the two apart -- it sends 0x02 for both. Dropping the plain binding
-    would leave those terminals with no way to beacon at all, since there is
-    no slash command for it. Under a multiplexer this binding is unreachable
-    anyway, which is the whole point.
-    """
-    app, station, ta = await _app(tx_armed_at_start=True)
-    app.config.beacon.enabled = False
-    app.config.beacon.text = "N1ABC test"
-    async with app.run_test(size=(110, 32)) as pilot:
-        await pilot.pause()
-        await pilot.press("ctrl+b")
-        await pilot.pause()
-        await asyncio.sleep(0.2)
-        assert len(ta.sent) == 1, "the legacy Ctrl+B fallback did not beacon"
-    station.close()
-
-
-@pytest.mark.asyncio
-async def test_ctrl_shift_b_still_refuses_with_no_text():
+async def test_a_manual_beacon_still_refuses_with_no_text():
     app, station, ta = await _app(tx_armed_at_start=True)
     app.config.beacon.text = ""
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        await pilot.press("ctrl+shift+b")
+        app.action_beacon_now()
         await pilot.pause()
         await asyncio.sleep(0.15)
         assert ta.sent == []
@@ -295,6 +274,11 @@ async def test_ctrl_d_cancels_a_stuck_connect_instead_of_saying_not_connected():
     report "Not connected" (true, useless) and the operator had to wait out
     the whole retry budget while the radio kept keying up on its own."""
     app, station, ta = await _app(tx_armed_at_start=True)
+    # A generous SABM budget so the attempt is still in flight by the time
+    # the dialog has been typed into and dismissed: on a loaded machine each
+    # simulated keypress costs a full render, and an attempt that ended on
+    # its own tests nothing about cancelling one.
+    station.params.connect_retries = 60
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         await pilot.press("ctrl+n")
@@ -308,6 +292,16 @@ async def test_ctrl_d_cancels_a_stuck_connect_instead_of_saying_not_connected():
 
         sent_before_cancel = len(ta.sent)
         assert sent_before_cancel >= 1, "the connect attempt never sent anything"
+
+        # Wait for the Connect dialog to actually come down first: Ctrl+D is
+        # deliberately inert while a dialog is open (its text fields use that
+        # key for delete-right), so pressing it too early proves nothing.
+        for _ in range(20):
+            if len(app.screen_stack) == 1:
+                break
+            await pilot.pause()
+            await asyncio.sleep(0.05)
+        assert app._connecting, "the connect attempt finished before it could be cancelled"
 
         await pilot.press("ctrl+d")
         await pilot.pause()
@@ -332,14 +326,14 @@ async def test_ctrl_d_cancels_a_stuck_connect_instead_of_saying_not_connected():
 
 
 @pytest.mark.asyncio
-async def test_ctrl_shift_d_disconnects_even_with_the_outgoing_box_focused():
+async def test_ctrl_d_disconnects_even_with_the_outgoing_box_focused():
     """From a real report: the Footer's Disconnect hint vanished and the
     keystroke stopped reaching `action_disconnect` once the outgoing-message
     box took focus -- which is true for nearly all of a live session.
     Textual's `Input` binds plain `Ctrl+D` to delete-character-right, and
-    whichever binding is closer to the focused widget wins; `Ctrl+Shift+D` is
-    not claimed by `Input` at all, so it must keep working regardless of
-    focus. See the BINDINGS list in `kissterm/ui/app.py`."""
+    whichever binding is closer to the focused widget wins -- so Disconnect
+    is bound with `priority=True` (see `commands.COMMANDS`) and wins while
+    there is a session to end. Delete-right is still on the Delete key."""
     from kissterm.ax25 import AX25Path
 
     ta, tb = loopback_pair()
@@ -363,11 +357,11 @@ async def test_ctrl_shift_d_disconnects_even_with_the_outgoing_box_focused():
         await pilot.pause()
         assert send_box.has_focus, "the outgoing box must hold focus for this to prove anything"
 
-        await pilot.press("ctrl+shift+d")
+        await pilot.press("ctrl+d")
         await pilot.pause()
         await asyncio.sleep(0.3)
 
-        assert not link.connected, "Ctrl+Shift+D did not reach action_disconnect"
+        assert not link.connected, "Ctrl+D did not reach action_disconnect"
     station.close()
     peer_station.close()
 

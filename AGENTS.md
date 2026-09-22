@@ -423,6 +423,19 @@ Gotchas that already cost time:
   fact with half-remembered syntax is worse than none.
 
 ### One visual language, one place for each fact
+- **The keyboard is one table.** `kissterm/ui/commands.py`'s `COMMANDS`
+  generates the App's `BINDINGS`, the Footer, the F10 menu, the F1 help
+  screen and the Ctrl+P palette. Never hand-write a `Binding` on the App or
+  a per-tab key list inside a widget: that is how the Footer came to
+  advertise `^O` for a key bound to Ctrl+Shift+O, which an ordinary terminal
+  delivers as Ctrl+O -- a different command. The standard is IBM CUA as
+  Midnight Commander uses it (F1 Help, F10 menu, everything in the menu,
+  nine terminal-safe Ctrl keys, plain letters only while a list has focus),
+  written down in DESIGN.md section 5 and enforced by
+  `tests/unit/test_key_standard.py`. **Never bind Ctrl+Shift, Ctrl+Alt or
+  Alt anything**: without an enhanced keyboard protocol -- which tmux and
+  ssh in the path usually deny you -- Ctrl+Shift+X and Ctrl+X are the same
+  byte.
 - **A tab-switching key is shown in the tab label, never in the footer too.**
   `F1 Terminal` (key first, like a menu accelerator), not `Terminal (F1)`.
   Textual's `Footer` would otherwise print the same word the tab bar already
@@ -489,8 +502,8 @@ Gotchas that already cost time:
 - **A confirmed, targeted request ARMS the gate; it is not refused by it.**
   `KissTermApp._arm_for` is the only way this happens. Its callers: `Ctrl+N`
   (after the operator names a station and confirms the dialog); Disconnect
-  (`Ctrl+Shift+D`, or plain `Ctrl+D` when nothing has shadowed it -- see
-  `kissterm/ui/app.py`'s BINDINGS); `TerminalPane.send_line` (Enter or the
+  (`Ctrl+D`, bound with priority so a focused input's delete-right cannot
+  shadow it -- see `kissterm/ui/commands.py`); `TerminalPane.send_line` (Enter or the
   Send button, but only once `link.connected` is true -- arming for a send
   that has nothing to go out on would open the gate for nothing); and
   `AprsPane._send_compose` (Enter or the Send button in the APRS compose
@@ -510,10 +523,10 @@ Gotchas that already cost time:
   still unacked when the gate closes must stop retrying rather than have the
   timer quietly reopen the gate on the operator's behalf. Same reasoning as
   the beacon timer below.
-- **A timer toggle never arms it.** The periodic beacon toggle
-  (`Ctrl+Shift+B` on APRS) has no transmission in it and never opens TX. The
-  BTEXT one-shot on that key also still reports a closed gate and sends
-  nothing. **`Ctrl+Alt+B` is the explicit exception:** it is a direct,
+- **A timer toggle never arms it.** The periodic beacon toggle (menu: APRS >
+  Position beacon) has no transmission in it and never opens TX. The BTEXT
+  one-shot (Session > Send beacon) also still reports a closed gate and sends
+  nothing. **APRS > Send position is the explicit exception:** it is a direct,
   operator-committed APRS position report to the fixed APRS destination, so
   it arms TX and sends once even while periodic APRS beaconing is off. The
   gate is for autonomous activity, not a dead end in front of a deliberate
@@ -557,13 +570,14 @@ Gotchas that already cost time:
   precisely so `send_once` cannot log "Beacon sent" for a frame the gate
   dropped. Telling an operator something went on the air when nothing did is
   the one lie a transmit indicator must not tell.
-- **`Ctrl+Shift+B` is a manual beacon and waives exactly one check** -- whether the
-  *timer* is enabled, because a manual beacon is not the timer. It does not
-  waive the gate, empty text, or a bad destination. It is `Ctrl+Shift+B`, not
-  `Ctrl+B`, because `Ctrl+B` is tmux's prefix and a station PC in another room
-  is usually reached through a multiplexer -- a transmit key the operator
-  cannot press is not a transmit key. Plain `Ctrl+B` stays bound but hidden,
-  for terminals whose keyboard protocol collapses the two into one byte.
+- **Send beacon is a manual beacon and waives exactly one check** -- whether
+  the *timer* is enabled, because a manual beacon is not the timer. It does
+  not waive the gate, empty text, or a bad destination. It has no key of its
+  own: it lived on `Ctrl+Shift+B` (never `Ctrl+B`, tmux's prefix) until the
+  key standard removed every Ctrl+Shift binding, since an ordinary terminal
+  delivers both as the same byte. It is a menu command now, which is also
+  why it no longer has to guess which beacon the operator meant from which
+  tab was open.
 
 ### Unattended transmission
 - **Two things can transmit with nobody present: answering a call, and
@@ -608,15 +622,15 @@ Gotchas that already cost time:
   callsign -- so this is a transmitting bug, not a cosmetic one, and
   `tests/pilot/test_settings.py` guards the labelling.
 - **They stay distinct features, but are deliberately mutually exclusive
-  when APRS beaconing is turned on via `Ctrl+Shift+B` on the APRS pane**
+  when APRS beaconing is turned on from the menu (APRS > Position beacon)**
   (`KissTermApp._toggle_aprs_beacon_quick`, `kissterm/ui/app.py`): turning
   APRS beaconing on this way also turns the BTEXT timer off if it was
   running, on the reasoning that an operator reaching for this key does
   not also want BTEXT still repeating in the background unattended. This
-  is a UX convenience for the ONE shortcut, not a new general rule --
+  is a UX convenience for the ONE command, not a new general rule --
   Settings itself still lets both be enabled simultaneously with no such
-  cross-effect, and BTEXT's own `Ctrl+Shift+B` (Terminal pane, unchanged
-  one-shot send) has no symmetrical case to handle. Do not "fix" this
+  cross-effect, and BTEXT's own Send beacon (an unchanged one-shot send)
+  has no symmetrical case to handle. Do not "fix" this
   into allowing both to run at once from the quick-toggle path, and do
   not extend the cross-disable into Settings' own checkboxes.
 - **The beacon interval floor is a clamp, not advice.** Ten minutes, enforced
@@ -1147,12 +1161,10 @@ again after a Settings save or a config reload.
   unrelated question) was also being applied here as the ONLY option.
   `filter_by_ssid=False` is the explicit, still-supported opt-out for an
   operator who wants one running session to answer for every SSID of
-  their call. Toggled live with **Ctrl+Shift+F** (`action_toggle_
-  aprs_ssid_filter`) -- not plain Ctrl+F, which is already "Find"; unlike
-  Beacon/Disconnect's Ctrl+Shift+ pattern there is no safe hidden legacy
-  fallback to add for a terminal that collapses the two, since a
-  fallback bound to plain `ctrl+f` would just steal Find's key -- same
-  accepted trade-off as Ctrl+K (Callsign) elsewhere in this file. A
+  their call. Toggled live from the menu, APRS > SSID filter
+  (`action_toggle_aprs_ssid_filter`). It briefly had Ctrl+Shift+F, which an
+  ordinary terminal delivers as Ctrl+F -- already "Find" -- which is the
+  collision the key standard exists to end. A
   desktop-notify caller with no `Config` at all (a test, a REPL) still
   gets the OLD SSID-agnostic default if it does not pass
   `filter_by_ssid`/`active_identity` explicitly -- `evaluate_packet`'s

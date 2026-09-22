@@ -125,96 +125,118 @@ changed later — then Transports, then everything else.
 
 ## 5. Keys
 
-**Function keys are tabs. Ctrl sequences are actions and modals.** No
-exceptions; the one time a modal took a function key (the command reference on
-F5, then F6), it broke the "F*n* is the *n*-th tab" pattern the moment another
-tab existed to expect it.
+**The standard is IBM CUA, as character terminals adopted it** — Turbo
+Vision, Midnight Commander, a BIOS setup screen. It was chosen after keys
+here had been picked one at a time, each against the collisions known that
+day: the NET/ROM toggle moved five times in one day, and the Footer ended up
+advertising `^O` for a key bound to Ctrl+Shift+O, which an ordinary terminal
+delivers as Ctrl+O — a different command. CUA's central idea is what fixes
+that: **every command is in the menu, and a key is only an accelerator.** No
+command needs a chord of its own to be reachable, so the key budget can stay
+inside what a terminal can actually deliver.
 
-- **A tab's key is printed in its label, key first** — `F1 Terminal`, the way a
-  menu shows an accelerator. Never `Terminal (F1)`.
-- **Tabs are ordered by how often an operator visits them, not by when they
-  were built**: `F1 Terminal  F2 APRS  F3 Heard  F4 Monitor  F5 Settings`.
-  Terminal and APRS are where the work happens; Monitor is a diagnostic and
-  Settings is a place you leave again, so both sit to the right — requested
-  directly, "putting useful stuff to the left of Monitor and Settings". The
-  `TabPane` **ids never move with the labels** (`terminal`, `aprs`, `heard`,
-  `monitor`, `settings`): every `active == "aprs"` check and every
-  `action_show_tab` caller addresses a pane by id, so a future reordering is
-  three labels and three bindings, not a search through the app.
-- **A tab's key never also appears in the Footer.** That put the same words on
-  screen twice, in two different corners. Register the binding with
-  `show=False`.
-- **The Footer is a tab-and-state-aware action bar, not an inventory.** It
-  contains non-tab actions, but only where they are ordinary work: Terminal
-  shows TX, Connect, Contacts, the optional NET/ROM-claims toggle, commands, one text beacon, find, transcripts,
-  clear, and file transfer once a session is connected; Disconnect appears
-  only for a connected or still-connecting Terminal session. APRS owns its
-  contacts, templates, gateway forms, bulletin, beacon controls, position,
-  objects, Watch IS, SSID filter, and clear action. Monitor has TX and Clear;
-  Heard and Settings retain only TX. Ctrl+P remains the searchable reference
-  for every shortcut, including deliberately contextual ones.
-- **`Ctrl+1..5` are unlabelled fallback aliases** for terminals that intercept
-  function keys.
-- **A panel's own keys go in the Footer too, never in a hint line under its
-  buttons.** Textual's `Footer` renders whatever the *focused* widget binds
-  with `show=True` and repaints as focus moves, so a table that binds
-  Insert/F2/Delete/Enter already has a context-aware shortcut bar — printing
-  the same four keys as a `Static` beneath the buttons is the duplication the
-  first rule in this section exists to prevent, in a different corner again.
-  It also pushed those buttons a row lower than every other pane's, which is
-  what got it reported: the buttons should line up across the Terminal, APRS
-  and Address Book panes. A modal screen has to `yield Footer()` itself to
-  get this.
-- **The Footer shows the highest-priority prefix of that list that fits the
-  terminal width, not all of it truncated.** Textual's own `Footer` is a
-  horizontally-scrollable container with its scrollbar suppressed — at an
-  ordinary 80-column terminal the full list above needs about 140 columns, so
-  roughly a third of it used to be scrolled off past the right edge with no
-  on-screen sign anything was missing (reported directly from a real
-  session). `KissTermFooter` (`kissterm/ui/app.py`) keeps the essential
-  active tab's common work — Terminal begins with TX, Connect, Contacts and
-  APRS begins with TX, Contacts, Commands and Beacon — and drops the rest
-  in priority order as the terminal narrows, ranked by
-  `kissterm/ui/commands.py`'s `ACTION_META`. A narrower terminal means fewer
-  keys shown, never a key silently unreachable: the full list is always one
-  `Ctrl+P` away regardless of width.
-- **`Ctrl+P` is a real, searchable key reference, not just Textual's small
-  built-in System Commands.** `commands.KeyBindingsProvider` walks every
-  action in `KissTermApp.BINDINGS` — visible and `show=False` alike, so
-  Ctrl+B/Ctrl+D's hidden legacy-terminal fallbacks and anything the Footer
-  currently has no room for are still one search away — and offers them
-  fuzzy-searchable, grouped by the same `ACTION_META` categories (Connection,
-  Transmit, Terminal, Contacts, Panes, App).
-- **`Ctrl+Shift+B` is context-aware by active tab, same dispatch shape as
-  `Ctrl+G`'s slide-outs.** On the Terminal pane it sends one BTEXT beacon
-  right now. On the APRS pane
-  it instead toggles `config.aprs.enabled` -- the quick-access equivalent
-  of the Settings checkbox plus Save, so an operator does not have to open
-  Settings just to turn position beaconing on. It never arms the transmit
-  gate (a bare keystroke with no confirmation and no named target must
-  not, per AGENTS.md's transmit-gate rules -- this is architecturally the
-  same case as the manual BTEXT send it shares a key with) and, per
-  AGENTS.md's beaconing section, turns the plain-text timer off if it was
-  running when APRS beaconing is turned on this way -- the two are not
-  meant to run at once. It is intentionally absent from Heard, Monitor and
-  Settings, where neither kind of beacon is the task at hand.
-- **`Ctrl+R` is context-aware by active tab, third use of the same dispatch
-  shape.** The key asks one question — "what can I say to the thing I am
-  talking to?" — and only the source of the answer changes. On the Terminal
-  pane (and every tab but APRS) it is unchanged: the shipped node command
-  reference from `kissterm/nodes/`. On the APRS pane it opens the gateway
-  service picker from `kissterm/aprs_services/`, scoped to whoever is in the
-  "To:" field. Both fill an input and **neither sends** — the same rule that
-  has always governed the terminal's reference. It is shown only on Terminal
-  and APRS, the tabs where the result can be used immediately.
-- **Ceiling: F1–F10.** Originally set at F8 (some terminals were assumed
-  unreliable past it), raised once F9/F10 were confirmed working in practice
-  — see `docs/ROADMAP.md` P10. Five tabs exist, three more are planned
-  (Mail, Bulletins, Files) — an eleventh needs a different scheme entirely,
-  not an eleventh function key, since F11 is "toggle fullscreen" in enough
-  terminals and window managers to rarely reach the application at all.
-- **Never bind a bare printable key globally.** A focused `Input` swallows it,
-  so the binding works inconsistently depending on focus — and this is a
+**One table, `kissterm/ui/commands.py`'s `COMMANDS`, generates all of it**:
+the App's `BINDINGS`, the Footer, the F10 menu, the F1 help screen and the
+Ctrl+P palette. Adding a `Binding` by hand, or a per-tab list inside a
+widget, puts the same fact in two places again. `tests/unit/test_key_standard.py`
+is the enforcement.
+
+### The rules
+
+1. **F1 is Help. F10 is the menu.** Permanently, on every tab. Help is for
+   the tab you are on; the menu is every command, grouped (Session, APRS,
+   View, Help), each with its key beside it. Inside the menu, plain letters
+   are the mnemonics — the underlined letter runs that entry — so no Alt
+   chord is needed anywhere.
+2. **Only terminal-safe keys may be bound.** Allowed: F1–F10, Enter, Esc,
+   Tab/Shift+Tab, arrows, Home/End, PgUp/PgDn, Insert, Delete, the Ctrl keys
+   in rule 3, and plain letters while a **list** has focus. Never bound:
+   Ctrl+Shift+anything, Ctrl+digit, Ctrl+Alt+anything, Alt+anything,
+   Ctrl+PgUp/PgDn, Ctrl+Tab, F11, F12. **Ctrl+Shift+letter and Ctrl+letter
+   are the same byte** unless the terminal, and every layer between (tmux,
+   ssh), speak an enhanced keyboard protocol — which is exactly what a
+   station PC reached from another room does not. Ctrl+I, M, H, `[` and J
+   are Tab, Enter, Backspace, Esc and LF; Ctrl+C, Z and `\` are signals;
+   Ctrl+S is flow control; Ctrl+A and Ctrl+B are the screen and tmux
+   prefixes; Ctrl+A, E, K, U and W are line editing inside an input.
+3. **Nine global Ctrl keys, and that is the whole budget**, each with a
+   mnemonic that holds in other software: `Ctrl+Q` Quit, `Ctrl+N` New
+   connection, `Ctrl+D` Disconnect, `Ctrl+T` Transmit on/off, `Ctrl+F` Find,
+   `Ctrl+L` Clear, `Ctrl+G` side panel, `Ctrl+R` command reference, `Ctrl+P`
+   palette. Ctrl+D is bound with `priority=True` so it wins over an `Input`'s
+   own delete-right (the Delete key still does that), and only while there is
+   something to disconnect. Everything else — send beacon, send position,
+   object, bulletin, gateway form, Watch APRS-IS, SSID filter, file transfer,
+   NET/ROM panel, callsign, transcripts — lives in the F10 menu and Ctrl+P.
+4. **Context keys are plain keys on a focused list.** Enter is the default
+   action, Insert is New, Delete is Delete, and anything else is one letter
+   shown in the Footer (the Address Book and the APRS contacts table both use
+   `E` for Edit). In a text input, typing is typing: no plain-letter binding.
+   Edit is not F2, because F2 is a tab.
+5. **The Footer shows only what works right now.** An action that does not
+   apply on this tab, or in this state, is absent — not shown and then
+   answered with a toast. `KissTermApp.check_action` is where that decision
+   lives, and it does both halves at once: the key is left out of the Footer
+   *and* falls through to the focused widget, so Ctrl+D is delete-right in
+   the send line until there is a session to end.
+6. **What the Footer prints is exactly what to press.** No `key_display`
+   naming a different chord from the bound key.
+
+### The tab bar
+
+| Key | Tab |
+|---|---|
+| F1 | Help (a screen, not a tab) |
+| F2 | Terminal |
+| F3 | APRS |
+| F4 | Heard |
+| F5 | Monitor |
+| F9 | Settings |
+| F10 | Menu |
+
+- **A tab's key is printed in its label, key first** — `F2 Terminal`, the way
+  a menu shows an accelerator. Never `Terminal (F2)`, and never in the Footer
+  as well: that put the same words on screen twice, in two corners.
+- **Tabs are ordered by what the product is for**, not by when they were
+  built. Mail, Bulletins and Files take F2–F4 when they land (docs/ROADMAP.md
+  P2), moving Terminal, APRS, Heard and Monitor down; Help, Settings and Menu
+  are on their final keys now so they never move again.
+- **The `TabPane` ids never move with the labels** (`terminal`, `aprs`,
+  `heard`, `monitor`, `settings`): every `active == "aprs"` check addresses a
+  pane by id, so a reordering is a table edit, not a search through the app.
+- **F1 and F10 are the two keys a terminal emulator may steal** — GNOME
+  Terminal opens its own help on F1 and its menu bar on F10 unless the menu
+  accelerator is turned off. The F1 screen says so, and both are clickable in
+  the Footer, with Ctrl+P as the third way in.
+
+### The Footer
+
+- **It is a context bar, not an inventory**, drawn from the registry rather
+  than from `Binding.show`, and it keeps the longest prefix of
+  `commands.FOOTER_ORDER` that fits the terminal width. Textual's own
+  `Footer` scrolls the overflow off the right edge with no sign anything is
+  missing; at 80 columns that was about a third of the keys. `F10 Menu` is
+  pinned to the right and never dropped, because it reaches everything that
+  was.
+- **A focused list's own keys appear there too**, right after Help, and only
+  while that widget has focus — never as a hint line under its buttons. A
+  modal screen has to `yield Footer()` itself to get this.
+- **`Ctrl+P` is a searchable reference for every command**, including those
+  with no key at all, grouped by the same headings as the menu.
+
+### Context by tab, not a key per pane
+
+`Ctrl+G` and `Ctrl+R` each ask one question whose answer depends on where
+you are, and the registry gives each tab its own label for them. Ctrl+G is
+the Address Book on Terminal and the contacts list on APRS. Ctrl+R is the
+node command reference on Terminal ("what can I say to this node?") and the
+gateway service picker on APRS ("what can I say to this service?"). Both fill
+an input; **neither sends**.
+
+### Everything else about keys
+
+- **Never bind a bare printable key globally.** A focused `Input` swallows
+  it, so the binding works inconsistently depending on focus — and this is a
   terminal, where typing a character must always just type that character.
 - **The send-line suggestion strip is a row, not ghost text, and Tab is its
   only key.** `#suggestion-strip` (`kissterm/ui/terminal_pane.py`) shows up
@@ -350,15 +372,15 @@ module docstring for the full reasoning:
 ## 6. The bottom two rows
 
 ```
- ^t TX  ^n Connect  ^G Contacts  ^r Commands  ^B Beacon ...  <- Terminal Footer (80 cols, disconnected)
- kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6                             <- status
+ F1 Help  ^T TX  ^N Connect  ^G Book  ^R Commands  ^F Find  ^Q Quit  F10 Menu   <- Terminal Footer
+ kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6                    <- status
 ```
 
-The Footer row above is illustrative, not literal — which keys actually fit
-is a function of terminal width; see the new bullet above. At 80 columns
-that is roughly the prefix shown; a wider terminal keeps adding Find, Clear,
-Transcripts, Quit and the `^p` command-palette chip in the same priority
-order.
+Illustrative, not literal: which keys fit is a function of terminal width
+(see section 5's Footer rules). `F1 Help` is first and `F10 Menu` is pinned
+to the right; the keys between them are dropped from the right as the
+terminal narrows, and `^D Disconnect` joins them only while there is a
+session to end.
 
 - **Footer above, status below.** Keys you might press come first, reading top
   to bottom; the passive readout comes last.

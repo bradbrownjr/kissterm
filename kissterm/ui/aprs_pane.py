@@ -232,7 +232,7 @@ def _detail_cell(detail: str, notes: str) -> str:
 
 
 class _AprsContactTable(DataTable):
-    """Insert/F2/Delete/Enter on the contacts table, same convention as
+    """Insert/E/Delete/Enter on the contacts table, same convention as
     `_AddressBookTable` -- bound on the table itself so Delete does not also
     fire while the operator is typing somewhere else in this pane.
 
@@ -250,7 +250,7 @@ class _AprsContactTable(DataTable):
     BINDINGS = [
         Binding("enter", "message_contact", "Message"),
         Binding("insert", "new_contact", "New"),
-        Binding("f2", "edit_contact", "Edit"),
+        Binding("e", "edit_contact", "Edit"),
         Binding("delete", "forget_contact", "Forget"),
     ]
 
@@ -296,7 +296,6 @@ class AprsPane(Horizontal):
 
     BINDINGS = [
         Binding("escape", "close_contacts", show=False),
-        Binding("ctrl+shift+u", "compose_bulletin", "Bulletin"),
     ]
 
     def __init__(self, *args, **kwargs) -> None:
@@ -373,8 +372,8 @@ class AprsPane(Horizontal):
             with Horizontal(classes="addressbook-actions"):
                 yield Button("Message", variant="primary", id="aprs-contact-message")
                 yield Button("New", id="aprs-contact-new")
-                yield Button("Edit selected", id="aprs-contact-edit")
-                yield Button("Forget selected", id="aprs-contact-forget")
+                yield Button("Edit", id="aprs-contact-edit")
+                yield Button("Forget", id="aprs-contact-forget")
 
     def on_mount(self) -> None:
         self.refresh_from(self.app.config.aprs_contacts)  # type: ignore[attr-defined]

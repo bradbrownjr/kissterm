@@ -162,7 +162,7 @@ class SettingsPane(Vertical):
             yield Static("", id="settings-banner", classes="settings-banner")
             with Horizontal(classes="settings-row settings-actions"):
                 yield Button("Save", variant="primary", id="settings-save")
-                yield Button("Reload from file", id="settings-reload")
+                yield Button("Reload", id="settings-reload")
             yield Static("", id="settings-footer", classes="settings-note")
 
     def _compose_transports(self) -> ComposeResult:
@@ -188,9 +188,9 @@ class SettingsPane(Vertical):
             yield Label("", classes="settings-label")
             yield Button("Scan for hardware", id="settings-scan")
             yield Button("New", id="transport-new")
-            yield Button("Edit selected", id="transport-edit")
+            yield Button("Edit", id="transport-edit")
             yield Button("Test selected", id="settings-test")
-            yield Button("Forget selected", id="settings-forget")
+            yield Button("Forget", id="settings-forget")
         yield Static("", id="settings-transport-detail", classes="settings-help")
 
     def _compose_credentials(self) -> ComposeResult:
@@ -215,8 +215,8 @@ class SettingsPane(Vertical):
         with Horizontal(classes="settings-row"):
             yield Label("", classes="settings-label")
             yield Button("New", id="credential-new")
-            yield Button("Edit selected", id="credential-edit")
-            yield Button("Forget selected", id="credential-forget")
+            yield Button("Edit", id="credential-edit")
+            yield Button("Forget", id="credential-forget")
         yield Static("", id="settings-credential-detail", classes="settings-help")
 
     def _compose_scripts(self) -> ComposeResult:
@@ -244,8 +244,8 @@ class SettingsPane(Vertical):
         with Horizontal(classes="settings-row"):
             yield Label("", classes="settings-label")
             yield Button("New", id="script-new")
-            yield Button("Edit selected", id="script-edit")
-            yield Button("Forget selected", id="script-forget")
+            yield Button("Edit", id="script-edit")
+            yield Button("Forget", id="script-forget")
         yield Static("", id="settings-script-detail", classes="settings-help")
 
     def _compose_field(self, spec: Field) -> ComposeResult:
@@ -998,7 +998,7 @@ class SettingsPane(Vertical):
         self._edit_transport()
 
     async def _edit_transport_entry(self, entry: dict | None, config) -> None:
-        """Shared by New and Edit selected: push the form, then -- per
+        """Shared by New and Edit: push the form, then -- per
         `AGENTS.md`'s "one way to build a transport" rule -- prove the
         result actually constructs before saving it. A config entry that
         looks right and fails at `open()` is worse than catching it here,

@@ -122,8 +122,9 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   clicked.** `awaiting confirmation`. Reported 2026-09-21 19:06 ("Going from
   Terminal to APRS keeps connect and disconnect ... until I tab or click
   within the APRS pane") and again 20:42 ("Position now wasn't shown ...
-  until I clicked inside the text box"). Fixed in "Refresh APRS shortcuts on
-  tab activation". P0.2 replaces this footer logic; re-test after that.
+  until I clicked inside the text box"). The footer logic it broke has since
+  been replaced wholesale by P0.2's registry-driven bar, which recomposes on
+  tab activation and shows only what applies. Re-test.
 - [ ] **"Before connecting" dialog stays on screen after Connect.**
   `awaiting confirmation`. Reported 2026-09-22 15:09 and 15:20 (Address Book
   double-click). Fixed in "Dismiss radio reminder before connecting".
@@ -149,120 +150,32 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   107 `notify()` calls, and many of them either confirm a visible change or
   say "Open APRS to ..." for a key pressed on the wrong tab. DESIGN.md
   section 1 already says "no toast for anything that is not actionable".
-  Audit every call: keep errors and transmit-related notices (the rules
-  require those), remove confirmations, and make wrong-tab actions
-  unavailable (P0.2) instead of explaining them after the fact.
+  P0.2 removed the seven wrong-tab toasts: a key that does not apply on this
+  tab is now absent from the footer and inert. What is left is the audit of
+  the rest -- keep errors and transmit-related notices (the rules require
+  those), remove confirmations of something already on screen.
 
-### P0.2 Keyboard standard -- adopt one, then conform to it
+### P0.2 Keyboard standard -- adopted 2026-09-22
 
-**Problem.** Keys were chosen one at a time, each against the collisions
-known at that moment. The NET/ROM toggle alone moved five times in one day
-(Alt+G, Ctrl+Shift+G, Ctrl+Alt+G, Ctrl+Alt+G again, Ctrl+PageDown), and
-each move was a new collision found by the operator on their own desktop.
-Worse, the footer advertises keys that do something else in an ordinary
-terminal:
+**Shipped.** The standard is IBM CUA as Midnight Commander uses it: F1 Help,
+F10 menu, every command in the menu, nine terminal-safe Ctrl keys, plain
+letters only while a list has focus. It is written down in DESIGN.md section
+5, generated from one table (`kissterm/ui/commands.py`'s `COMMANDS`, which
+produces the bindings, the Footer, the menu, the help screen and Ctrl+P) and
+enforced by `tests/unit/test_key_standard.py`. Every Ctrl+Shift, Ctrl+Alt,
+Alt and Ctrl+digit binding is gone, with them the mismatched `key_display`
+values, and the tabs moved to F2-F9 so Help, Menu and Settings are on their
+final keys. The tab layout for milestone 2 is in DESIGN.md section 5.
 
-| Footer shows | Actual binding | What an ordinary terminal (no kitty keyboard protocol) delivers |
-|---|---|---|
-| `^O` Object | Ctrl+Shift+O | Ctrl+O, which is **Transcripts** |
-| `^F` SSID Filter | Ctrl+Shift+F | Ctrl+F, which is **Find** |
-| `^I` Watch IS | Ctrl+Shift+I | Ctrl+I, which **is the Tab key** |
-| `^Y` Files | Ctrl+Shift+Y | Ctrl+Y, which nothing is bound to |
-| `^D` Disconnect | Ctrl+Shift+D | Ctrl+D, which the focused input consumes as delete-right |
-| `^B` Beacon | Ctrl+Shift+B | Ctrl+B, the tmux prefix |
-| (hidden) Heard tab | Ctrl+3 | Escape (xterm encodes Ctrl+3 as ESC) |
-| `Ctrl+PgDn` NET/ROM | Ctrl+PageDown | Switches tabs in GNOME Terminal and xfce4-terminal |
-| Position now | Ctrl+Alt+B | Commonly taken by the desktop (Ctrl+Alt+G was, per the report) |
+Remaining:
 
-"The terminal doesn't seem to differentiate between upper and lowercase"
-(operator, 2026-09-22) was a correct diagnosis of the table above, not a
-local quirk: Ctrl+Shift+letter and Ctrl+letter are the same byte unless the
-terminal and every layer in between (tmux, ssh) support an enhanced keyboard
-protocol.
-
-**The standard: IBM CUA (Common User Access), as adapted to character
-terminals by Turbo Vision and Midnight Commander.** It is the published
-convention for keyboard-driven text UIs, and it is what an operator who has
-used `mc`, a DOS-era program or a BIOS setup screen already knows. It fits
-this app because its central idea is that **every command is reachable from
-a menu, and shortcuts are accelerators, not the only way in**. That removes
-the pressure to give every action its own chord.
-
-The rules, in the form that goes into DESIGN.md section 5:
-
-1. **F1 is Help** -- context help for the current tab, including its keys.
-   **F10 is the menu** -- every command, grouped (Connection, Transmit,
-   APRS, View, Tools), with its key shown beside it. Inside the menu, plain
-   letters are the mnemonics, so no Alt chord is needed.
-2. **Only terminal-safe keys may be bound.** Allowed: F1-F10, Enter, Esc,
-   Tab/Shift+Tab, arrows, Home/End, PgUp/PgDn, Insert, Delete, plain
-   Ctrl+letter from the budget in rule 3, and plain letters while a list
-   (not a text input) has focus. **Never bound:** Ctrl+Shift+anything,
-   Ctrl+digit, Ctrl+Alt+anything, Alt+anything outside the menu, Ctrl+PgUp,
-   Ctrl+PgDn, Ctrl+Tab, F11, F12. Ctrl+I, M, H, [ and J are Tab, Enter,
-   Backspace, Escape and LF. Ctrl+C, Z and \ are signals, Ctrl+S is
-   flow control, Ctrl+B and Ctrl+A are the tmux and screen prefixes, and
-   Ctrl+A, E, K, U and W are line editing in the input.
-3. **At most nine global Ctrl keys**, each with a mnemonic that holds in
-   other software: `Ctrl+Q` Quit, `Ctrl+N` New connection, `Ctrl+D`
-   Disconnect (end-of-session in every Unix shell; bound with priority over
-   the input's delete-right, which the Delete key already provides), `Ctrl+T`
-   Transmit on/off, `Ctrl+F` Find, `Ctrl+L` Clear, `Ctrl+G` Side panel,
-   `Ctrl+R` Command reference, `Ctrl+P` Command palette. Everything else
-   (beacon now, position now, object, bulletin, gateway form, Watch IS, SSID
-   filter, file transfer, NET/ROM panel, callsign, transcripts) lives in the
-   F10 menu and Ctrl+P, plus a context key where rule 4 allows one.
-4. **Context keys are plain keys on focused lists.** In a table or list:
-   Enter is the default action, Insert is New, Delete is Delete, and any
-   other action is one letter shown in the footer. In a text input, typing
-   is typing: no plain-letter bindings.
-5. **The footer shows only what works right now.** An action that does not
-   apply on this tab or in this state is absent from the footer and disabled
-   in the menu. It is not shown and then answered with a toast. Tab switches
-   refresh the footer; this is the rule the stale-footer bug above breaks.
-6. **What the footer prints is exactly what to press.** No `key_display`
-   that names a different chord from the one bound.
-
-**Tab keys -- decided 2026-09-22.** F1 is Help and F10 is the menu, per
-CUA. The tabs are ordered by what the product is for. The content tabs come
-first, then the tools, then the informational tabs, then Settings:
-
-| Key | Final layout (milestone 2) | Now, until Mail exists |
-|---|---|---|
-| F1 | Help | Help |
-| F2 | Mail | Terminal |
-| F3 | Bulletins | APRS |
-| F4 | Files | Heard |
-| F5 | Terminal | Info |
-| F6 | APRS | -- |
-| F7 | Heard | -- |
-| F8 | Info | -- |
-| F9 | Settings | Settings |
-| F10 | Menu | Menu |
-
-Help, Settings and Menu take their final keys now so they never move again.
-Terminal, APRS, Heard and Info move once, when the Mail/Bulletins/Files tabs
-land (P2). The app opens on Terminal until Mail exists, then on Mail.
-**Info** is the informational tab replacing today's Monitor: the
-raw-frame monitor plus link and station status. Confirm its contents before
-renaming anything.
-
-Work items, in order:
-
-- [ ] Write the rules and the interim tab layout into DESIGN.md section 5,
-  replacing the per-key history there.
-- [ ] `tests/unit/test_key_standard.py`: walks every `BINDINGS` list in
-  `kissterm/ui/` and fails on any key outside the rule 2 allowlist, any
-  `key_display` that differs from the bound key, or more than nine global
-  Ctrl bindings. It will fail on the current tree; that is the point.
-- [ ] F10 action menu: one modal listing every action with its key, driven
-  from `commands.ACTION_META` so the menu, the Ctrl+P palette and the footer
-  read one registry. Disabled entries are shown dimmed with the reason.
-- [ ] F1 context help screen generated from the same registry.
-- [ ] Rebind to the standard: remove every Ctrl+Shift, Ctrl+Alt, Ctrl+digit
-  and Alt binding and the hidden legacy fallbacks that existed only to
-  paper over them; route those actions through the menu.
-- [ ] Update README's key table and SETUP.md from the registry, not by hand.
+- [ ] Generate README's key table and SETUP.md's key mentions from the
+  registry rather than keeping them in step by hand. Both were rewritten by
+  hand for this change; the next key change is where a hand-written table
+  goes stale again. Small.
+- [ ] Decide what the **Info** tab is (today's Monitor, plus link and station
+  status) before renaming anything. The Monitor tab keeps its name until
+  then.
 
 ### P0.3 Command knowledge: one catalog, layered by source and context
 

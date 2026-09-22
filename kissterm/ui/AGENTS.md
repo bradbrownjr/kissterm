@@ -27,7 +27,8 @@ Read this file plus the one pane you are changing.
 | `addressbook_pane.py` | The Address Book table + CRUD, mounted as the Terminal pane's Ctrl+G slide-out (`DESIGN.md`'s "Slide-out panels") |
 | `slideouts.py` | How wide a Ctrl+G column gets and whether it opens itself -- pure arithmetic plus one controller, shared by BOTH panes |
 | `wraplog.py` | `WrapLog`: a `RichLog` that wraps to the width it is actually shown at. Used by all three scrollbacks; read it before touching `min_width` anywhere |
-| `commands.py` | `ACTION_META`: one table of (category, footer priority) per `BINDINGS` action, read by both `KissTermFooter` and `KeyBindingsProvider` in `app.py` |
+| `commands.py` | `COMMANDS`: THE command registry. Every key, label, menu entry, Footer chip and Ctrl+P hit is generated from it |
+| `menu.py` | The F10 menu bar and the F1 help screen, both built from that registry |
 
 `kissterm/app.py` one level up is a thin shim re-exporting `KissTermApp`, so
 `from kissterm.app import KissTermApp` keeps working. Leave it alone.
@@ -89,17 +90,21 @@ Read this file plus the one pane you are changing.
 15. **Never spend airtime to populate the UI.** Command references ship as
     data (`kissterm/nodes/data/`); asking a node costs ~19 s per 2 KB at 1200
     baud. Node detection is passive -- read the banner, ask nothing.
-16. **The tab bar is the ONLY place a tab-switching key is shown.** F1-F5
-    (`F1 Terminal  F2 APRS  F3 Heard  F4 Monitor  F5 Settings`, ordered by how
-    often an operator visits them) are named in the tab label itself, key
-    first (`F1 Terminal`, like a menu accelerator); `Binding(..., show=False)`
-    keeps them registered without the Footer repeating the same word that is
-    already in the tab strip above it. Function keys are tabs, Ctrl sequences
-    are actions and modals -- no exceptions; the one time a modal took a
-    function key (the command reference, briefly on F5 then F6) it broke the
-    "F*n* is the *n*-th tab" pattern the moment another tab existed to expect
-    it. The command reference is `Ctrl+R` now, not any F-key, for exactly
-    that reason. If a sixth tab is ever added it takes F6, not the reverse.
+16. **The keyboard is one table: `commands.py`'s `COMMANDS`.** It generates
+    `KissTermApp.BINDINGS`, the Footer, the F10 menu, the F1 help screen and
+    the Ctrl+P palette. Add a command there, not a `Binding` here and a list
+    there. The standard is IBM CUA (F1 Help, F10 menu, nine terminal-safe
+    Ctrl keys, plain letters only on focused lists) and
+    `tests/unit/test_key_standard.py` enforces it -- including that no
+    Ctrl+Shift, Ctrl+Alt or Alt key is ever bound, because an ordinary
+    terminal delivers Ctrl+Shift+X as Ctrl+X and the two silently become one
+    key. DESIGN.md section 5 is the written form.
+16a. **The tab bar is the ONLY place a tab-switching key is shown.** F2-F9
+    (`F2 Terminal  F3 APRS  F4 Heard  F5 Monitor  F9 Settings`) are named in
+    the tab label itself, key first, like a menu accelerator; the Footer
+    never repeats them. F1 is Help and F10 is the menu, permanently, and
+    they are the only function keys in the Footer.
+
 17. **One `Button` style for the whole app** (`styles.py`, top of `APP_CSS`):
     a flat rounded border, no filled 3D bevel. Variant classes
     (`-primary`/`-error`/...) change only the border and text color, never the
@@ -160,31 +165,13 @@ Read this file plus the one pane you are changing.
     `link.send` -- which is not a second transmit path, and rule 14 still
     holds.
 29. No emoji anywhere.
-30. **`KissTermFooter` shows the highest-priority prefix of `BINDINGS` that
-    fits the terminal width, not everything truncated.** Textual's stock
-    `Footer` is a horizontally-scrollable container with its scrollbar
-    suppressed, so at an ordinary 80-column terminal roughly a third of
-    kissterm's own bindings used to be scrolled off past the right edge with
-    no on-screen sign anything was missing. Adding a new App-level `Binding`
-    means adding it to `commands.ACTION_META` too (category for `Ctrl+P`,
-    priority for the Footer) -- a missing entry degrades to `Other`/lowest
-    priority at runtime rather than crashing, but
-    `tests/pilot/test_app_mounts.py::test_every_visible_binding_action_has_
-    footer_and_palette_metadata` fails the build for it regardless, the same
-    discipline rule 11 already asks of `SETTINGS_SCHEMA`.
-
-## Testing
-
-```bash
-.venv/bin/python -m pytest tests/pilot/ -q
-```
-
-`tests/pilot/test_app_mounts.py` is the pattern: call
-`kissterm._isolate.isolate()` **before any other kissterm import** (a hard repo
-rule — see `kissterm/_isolate.py`), build a loopback transport from
-`tests/loopback.py`, then `async with app.run_test(size=(120, 40)) as pilot`.
-`app.save_screenshot(path)` inside `run_test` exports an SVG of the render,
-which is the closest thing to eyeballing a live TTY.
-
-Gotcha: after `pilot.press`, a `@work` action needs `await pilot.pause()` plus
-a short `asyncio.sleep` before its result is observable.
+30. **`KissTermFooter` shows what works on this tab, as much of it as fits.**
+    It reads the registry, not `Binding.show`: a command that does not apply
+    here, or cannot run now (Disconnect with nothing connected), is absent
+    rather than shown and then answered with a toast, and
+    `KissTermApp.check_action` makes the key itself fall through to the
+    focused widget in the same breath. What fits is the longest prefix of
+    `commands.FOOTER_ORDER`, with `F10 Menu` pinned to the right and never
+    dropped -- Textual's stock `Footer` scrolls the overflow off the right
+    edge with no sign anything is missing, which at 80 columns was about a
+    third of the keys.

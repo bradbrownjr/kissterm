@@ -7,6 +7,7 @@ this: it operates purely on what is already in `#session-log`.
 
 from __future__ import annotations
 
+import asyncio
 import pytest
 from textual.widgets import Input, RichLog, Static
 
@@ -54,7 +55,12 @@ def _fill_log(pane: TerminalPane, marker: str, at: tuple[int, ...], count: int =
 
 
 @pytest.mark.asyncio
-async def test_ctrl_f_opens_the_find_bar_on_the_terminal_tab():
+async def test_find_from_another_tab_goes_through_the_menu_and_comes_back_here():
+    """Ctrl+F is a Terminal key: on Monitor (which has its own filter box) it
+    does nothing at all rather than yanking the operator somewhere else. The
+    menu entry is the way across, and it brings the tab with it."""
+    from kissterm.ui.commands import command_for
+
     app, a = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
@@ -62,6 +68,13 @@ async def test_ctrl_f_opens_the_find_bar_on_the_terminal_tab():
         await pilot.pause()
 
         await pilot.press("ctrl+f")
+        await pilot.pause()
+        assert app.query_one("#main-tabs").active == "monitor"
+        assert app.query_one("#find-row").display is False
+
+        app.run_command(command_for("find_in_terminal", "terminal"))
+        await pilot.pause()
+        await asyncio.sleep(0.2)
         await pilot.pause()
 
         assert app.query_one("#main-tabs").active == "terminal"

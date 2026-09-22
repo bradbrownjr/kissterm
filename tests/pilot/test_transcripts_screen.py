@@ -48,7 +48,7 @@ async def _connected_app(log_dir):
 
 
 @pytest.mark.asyncio
-async def test_ctrl_o_opens_the_screen_and_lists_the_live_transcript(tmp_path):
+async def test_the_menu_opens_the_screen_and_lists_the_live_transcript(tmp_path):
     app, a, b = await _connected_app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
@@ -59,7 +59,14 @@ async def test_ctrl_o_opens_the_screen_and_lists_the_live_transcript(tmp_path):
         assert app.transcript is not None
         transcript_path = app.transcript.path
 
-        await pilot.press("ctrl+o")
+        # Session > Transcripts. It gave up Ctrl+O to the key standard:
+        # every command is in the menu, so few need a key of their own.
+        await pilot.press("f10")
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        await pilot.press("r")
+        await pilot.pause()
+        await asyncio.sleep(0.1)
         await pilot.pause()
 
         assert isinstance(app.screen, TranscriptsScreen)
@@ -89,7 +96,7 @@ async def test_search_filters_by_content_not_just_by_callsign(tmp_path):
         app.transcript.close()  # flush + stop, so the search reads a settled file
         app.transcript = None
 
-        await pilot.press("ctrl+o")
+        app.action_show_transcripts()
         await pilot.pause()
         screen = app.screen
         assert isinstance(screen, TranscriptsScreen)
@@ -121,7 +128,7 @@ async def test_export_copies_the_selected_transcript(tmp_path):
         await asyncio.sleep(0.1)
         original_text = app.transcript.path.read_text()
 
-        await pilot.press("ctrl+o")
+        app.action_show_transcripts()
         await pilot.pause()
         screen = app.screen
         assert isinstance(screen, TranscriptsScreen)

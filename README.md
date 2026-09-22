@@ -149,7 +149,7 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   line. It starts **off**, so a fresh launch cannot transmit until you say so,
   and the status bar reads `TX OFF` for as long as that is true. A station
   meant to run unattended sets `tx_armed_at_start`. Asking to connect to a
-  named station (`Ctrl+N`) or to disconnect (`Ctrl+Shift+D`) **turns it on** rather
+  named station (`Ctrl+N`) or to disconnect (`Ctrl+D`) **turns it on** rather
   than being refused -- naming a station and confirming it is the clearest
   way an operator can ask to transmit, and the switch exists to stop the
   transmissions you did *not* ask for. It says so when it does: a
@@ -160,7 +160,7 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   ten-minute floor that is enforced rather than suggested. Settings shows what
   your chosen interval actually costs the channel, in seconds and as a
   percentage of the frequency. The timer waits a full interval before its
-  first transmission -- **`Ctrl+Shift+B` sends one right now**, the way JS8Call's
+  first transmission -- **the menu's Session > Send beacon sends one right now**, the way JS8Call's
   heartbeat button does, without turning the timer on.
 - **`kissterm --doctor`.** Diagnoses the things that actually go wrong: serial
   permissions, missing dependencies, an unreachable TNC host, a bad callsign.
@@ -228,7 +228,7 @@ query and never greets you. Link
 parameters deliberately do not change under an established link; they were
 negotiated when it came up.
 
-**Changing your callsign specifically takes one keystroke.** `Ctrl+K` in the app, or
+**Changing your callsign is never more than the menu.** Session > My callsign, or
 `kissterm --callsign W1AW-9` from a shell -- neither re-runs the setup wizard.
 Operators change SSID constantly (a `-1` mailbox, a different SSID for portable
 or an emergency net, a club call for an event), so this is a first-class
@@ -238,28 +238,47 @@ conversation, and swapping it mid-session would kill the link by timeout.
 
 ## Keys
 
+kissterm follows the keyboard convention of Midnight Commander and DOS-era
+text UIs (IBM CUA): **F1 is help, F10 is the menu, and every command is in
+the menu.** Shortcuts are accelerators for the commands you use most, not
+the only way in -- so there are few of them, and they are keys an ordinary
+terminal can actually deliver.
+
 | Key | Action |
 |-----|--------|
-| `F1`..`F5` | Terminal / Monitor / Heard / APRS / Settings -- shown as the key right in each tab's label (also `Ctrl+1`..`Ctrl+5`, for a terminal that intercepts function keys) |
-| `Ctrl+G` | Open/close the Address Book (Terminal) or contacts list (APRS) as a slide-out on the right |
-| `Ctrl+PageDown` | Show/hide passive NET/ROM claims; opens the Terminal Address Book if needed |
-| `Ctrl+R` | Command reference and glossary for the node you are actually talking to |
-| `Ctrl+T` | Enable / disable transmit -- the master switch |
-| `Ctrl+Shift+B` | Send one beacon now (see the tmux note below) |
+| `F1` | Help for the tab you are on, with its keys |
+| `F10` | The menu: every command, grouped, with its key beside it |
+| `F2`..`F9` | Terminal / APRS / Heard / Monitor, and Settings on `F9` -- shown as the key in each tab's label |
 | `Ctrl+N` | Connect to a station (with a list of stations already tried) |
-| `Ctrl+Shift+D` | Disconnect -- plain `Ctrl+D` also works except while a text field has focus, which is most of a session; see below |
-| `Ctrl+K` | Change your callsign |
-| `Ctrl+L` | Clear the active log |
-| `Ctrl+O` | Browse saved session transcripts |
+| `Ctrl+D` | Disconnect, or cancel a connect attempt that is still trying |
+| `Ctrl+T` | Enable / disable transmit -- the master switch |
+| `Ctrl+G` | Open/close the Address Book (Terminal) or contacts list (APRS) |
+| `Ctrl+R` | Command reference for the node you are talking to; on APRS, the gateway services |
 | `Ctrl+F` | Find in the terminal scrollback |
-| `Ctrl+Shift+Y` | Start an explicit YAPP or AutoBIN upload or download on the connected session |
+| `Ctrl+L` | Clear the active log |
 | `Ctrl+Q` | Quit |
-| `Ctrl+P` | Command palette -- also a searchable reference for every key above |
+| `Ctrl+P` | Search every command by name, including those with no key |
 
-**The footer at the bottom of the screen shows as many of the keys above as
-fit the terminal width**, TX/Connect/Disconnect/Contacts first, widening out
-to the rest as the window grows. Nothing is ever unreachable at a narrow
-width -- `Ctrl+P` always lists the full set, searchable by name.
+Inside a list -- the Address Book, APRS contacts -- `Enter` is the default
+action, `Insert` adds, `E` edits and `Delete` forgets, and those keys appear
+in the bottom bar while the list has focus.
+
+Everything else is in the **F10 menu**: send a beacon, send a position
+report, objects, bulletins, gateway forms, Watch APRS-IS, the SSID filter,
+file transfer, the NET/ROM panel, your callsign and saved transcripts. Open
+it, then press the underlined letter; Left and Right move between headings.
+A command that cannot run right now is listed anyway, dimmed, with the
+reason.
+
+**The bottom bar shows the keys that work on this tab, right now**, as many
+as fit the terminal width, with `F10 Menu` always at the right-hand end.
+Nothing is ever unreachable at a narrow width: the menu and `Ctrl+P` reach
+everything, and every key in the bar can also be clicked.
+
+**If `F1` or `F10` does nothing**, your terminal program took it first --
+GNOME Terminal opens its own help on `F1` and its menu bar on `F10` until
+you turn off "Enable the menu accelerator key" in its preferences. Clicking
+Help or Menu in the bottom bar works regardless.
 
 Connect targets accept a digipeater path: `WS1EC-7 via W1AW-1,W1XYZ`.
 
@@ -287,7 +306,7 @@ for that.
 **The Address Book slide-out (`Ctrl+G`, from the Terminal pane) is the same
 list, with room to manage it.** A table of every saved station -- add one in
 advance, fix a typo in its hop chain, or dial it directly (Enter or the
-Connect button) without opening Ctrl+N first. Insert/F2/Delete match
+Connect button) without opening Ctrl+N first. Insert/E/Delete match
 `syncterm`'s dialing directory; Escape closes the panel again.
 An entry can carry:
 - a **node-to-node hop chain**, for a station reached only by connecting
@@ -330,29 +349,16 @@ held, `LK` killed, and `LL n` the last *n* messages. Parameterized entries
 meaning; Tab fills only the command text, leaving its number or callsign for
 you to supply.
 
-**Running under tmux or screen?** The beacon is `Ctrl+Shift+B` rather than
-`Ctrl+B` because `Ctrl+B` is tmux's default prefix -- the multiplexer eats it
-and kissterm never sees the keypress. Telling the two apart requires the
-terminal's enhanced keyboard protocol; if `Ctrl+Shift+B` does nothing inside
-tmux, add this to `~/.tmux.conf` and start a fresh server:
+**Running under tmux or screen?** Nothing needs configuring. kissterm
+deliberately binds no key that a multiplexer eats or that needs an enhanced
+keyboard protocol to tell apart -- no `Ctrl+B` (tmux's prefix), no
+`Ctrl+Shift+` anything, no `Ctrl+Alt+` anything.
 
-```
-set -s extended-keys on
-set -as terminal-features 'xterm*:extkeys'
-```
-
-Outside a multiplexer, plain `Ctrl+B` still beacons, so a terminal that cannot
-distinguish the two keys at all is not left without the shortcut.
-
-**Why Disconnect is `Ctrl+Shift+D`, not plain `Ctrl+D`.** Textual's text
-fields (the outgoing-message box, the Connect dialog, every address-book
-field) already bind plain `Ctrl+D` to delete-the-character-right, and
-whichever one has focus wins -- which is most of a live session, since the
-outgoing box holds focus the whole time you are typing to the far station.
-`Ctrl+Shift+D` is not claimed by anything, so it disconnects no matter what
-has focus. Plain `Ctrl+D` still disconnects too, whenever focus happens to be
-somewhere that does not shadow it (the scrollback itself, say) -- it is a
-fallback, not a second, unreliable way to do the same thing.
+**Ctrl+D is Disconnect, and still deletes a character.** Textual's text
+fields bind plain `Ctrl+D` to delete-the-character-right. kissterm claims the
+key only while there is a session to end, so it disconnects when that is what
+it could mean and deletes a character when it is not -- and `Delete` always
+deletes.
 
 ## Command line
 
@@ -378,9 +384,9 @@ responses, so kissterm never reports them with the same words:
 - **`no answer from <call> after N tries`** -- nothing came back at all. That
   is an antenna, power, squelch or propagation problem, not a configuration
   one. kissterm sends 6 SABMs over about 18 seconds before saying this;
-  `connect_retries` in Settings (F5) changes that.
+  `connect_retries` in Settings (F9) changes that.
 
-The **Monitor tab (F2)** is the real instrument. It shows every frame in both
+The **Monitor tab (F5)** is the real instrument. It shows every frame in both
 directions, `>` for what you transmitted and `<` for what was heard, so you
 can see your SABM leave and watch for a reply -- including supervisory
 frames (RR, RNR, REJ), shown by default because on an ordinary one-to-one
@@ -474,13 +480,13 @@ only to tell you *why* nothing happened. A blocked transmission is counted, not
 raised, because AX.25 retransmission runs on timer callbacks where an exception
 has nowhere to go.
 
-Two keys are exempt, and only these two: `Ctrl+N` and `Ctrl+Shift+D`. Naming a
+Two keys are exempt, and only these two: `Ctrl+N` and `Ctrl+D`. Naming a
 station in the connect dialog and confirming it is an unambiguous request to
 key the radio, so it opens the gate instead of hitting a refusal that cannot
 be acted on. Disconnecting is the same, and skipping the DISC would leave the
 far station holding a session open until its own timers expire. Both announce
 it. Nothing that lacks a confirmation step and a named target does this --
-the manual beacon on `Ctrl+Shift+B` still reports the closed gate and sends
+the menu's Send beacon still reports the closed gate and sends
 nothing.
 
 The two things that can transmit without you at the keyboard -- answering a

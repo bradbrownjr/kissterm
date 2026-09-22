@@ -58,10 +58,10 @@ async def _open_contacts(app, pilot):
 
 
 @pytest.mark.asyncio
-async def test_aprs_is_f2():
+async def test_aprs_is_f3():
     app, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.press("f2")
+        await pilot.press("f3")
         await pilot.pause()
         assert app.query_one("#main-tabs").active == "aprs"
     station.close()

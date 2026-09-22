@@ -3,6 +3,62 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-22] — One keyboard standard: F1 Help, F10 Menu, nine Ctrl keys
+
+### Improvements
+
+- **The keyboard follows IBM CUA, as Midnight Commander uses it.** Keys had
+  been chosen one at a time, each against the collisions known that day, and
+  the result was a Footer advertising `^O` for a key bound to Ctrl+Shift+O --
+  which an ordinary terminal delivers as Ctrl+O, a different command. Every
+  Ctrl+Shift, Ctrl+Alt, Alt and Ctrl+digit binding is gone, because without
+  an enhanced keyboard protocol (which tmux and ssh in the path usually deny)
+  Ctrl+Shift+X and Ctrl+X are the same byte. What is left: **F1 Help, F10
+  Menu**, tabs on F2-F9, and nine Ctrl keys -- Q N D T F L G R P.
+- **F10 opens a menu with every command in it**, grouped Session / APRS /
+  View / Help, each with its key beside it and its mnemonic letter
+  underlined; Left and Right move between headings. A command that cannot run
+  now (Disconnect with nothing connected) is listed dimmed with the reason.
+  Because nothing needs its own chord to be reachable, Send beacon, Send
+  position, Object, Bulletin, Gateway form, Watch APRS-IS, SSID filter, File
+  transfer, NET/ROM nodes, My callsign and Transcripts gave up their keys.
+- **F1 is context help**: what this tab is for, every key that works on it,
+  the keys a focused list adds, and a note that GNOME Terminal steals F1 and
+  F10 until its menu accelerator is turned off.
+- **The bottom bar shows only what works here, right now**, and pins `F10
+  Menu` to the right so nothing dropped for width is unreachable. A key that
+  does not apply on this tab is absent from the bar and falls through to the
+  focused widget instead of raising a toast; seven "Open APRS to ..." toasts
+  are gone with it.
+- **Tabs moved to their long-term keys**: `F2 Terminal  F3 APRS  F4 Heard
+  F5 Monitor  F9 Settings`. Help, Menu and Settings are now on the keys they
+  keep when Mail, Bulletins and Files arrive (ROADMAP P2). `Ctrl+1`..`Ctrl+5`
+  are gone -- xterm sends ESC for Ctrl+3.
+- **Ctrl+D is Disconnect again, properly.** It is bound with priority and
+  only while there is a session to end, so it disconnects from the send line
+  where Ctrl+Shift+D used to be needed, and is still delete-right otherwise.
+  In lists, Edit moved from F2 (now the Terminal tab) to `E`.
+- **Shorter labels where the noun was already on screen**: "Edit selected"
+  and "Forget selected" are Edit and Forget above the table they act on,
+  "Use claimed callsign" is "Use node", "Reload from file" is Reload. In the
+  menu and the bar, a command is a verb: TX, Connect, Book, Commands, Find.
+- **One table generates all of it.** `kissterm/ui/commands.py`'s `COMMANDS`
+  produces the bindings, the Footer, the menu, the help screen and the Ctrl+P
+  palette -- which now finds commands with no key at all.
+  `tests/unit/test_key_standard.py` fails the build on a key outside the
+  allowlist, a plain letter bound off a list, a `key_display` naming a
+  different chord, or more than nine global Ctrl keys.
+  **Files:** `kissterm/ui/commands.py`, `kissterm/ui/menu.py` (new),
+  `kissterm/ui/app.py`, `kissterm/ui/aprs_pane.py`,
+  `kissterm/ui/addressbook_pane.py`, `kissterm/ui/dialogs.py`,
+  `kissterm/ui/settings_schema.py`, `DESIGN.md`, `README.md`, `SETUP.md`,
+  `AGENTS.md`, `kissterm/ui/AGENTS.md`, `docs/ROADMAP.md`,
+  `tests/unit/test_key_standard.py` (new), `tests/unit/test_commands.py`,
+  `tests/pilot/test_menu_and_help.py` (new), `tests/pilot/test_app_mounts.py`,
+  `tests/pilot/test_transmit_gate.py`, `tests/pilot/test_beacon_key_dispatch.py`,
+  `tests/pilot/test_aprs_messaging.py`, `tests/pilot/test_aprs_contacts_pane.py`,
+  `tests/pilot/test_addressbook_pane.py`.
+
 ## [2026-09-22] — Roadmap reorganized around stabilization
 
 ### Documentation

@@ -444,7 +444,7 @@ async def test_an_emergency_mic_e_beacon_fires_the_notification_cooldown_key(tmp
     theirs.close()
 
 
-# -- Config.aprs.filter_by_ssid (Ctrl+Shift+F) --------------------------
+# -- Config.aprs.filter_by_ssid (menu: APRS > SSID filter) --------------------------
 
 
 @pytest.mark.asyncio
@@ -468,18 +468,18 @@ async def test_filter_on_by_default_ignores_a_message_to_a_different_ssid(tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_ctrl_shift_f_toggles_the_filter_and_notifies_in_plain_language(tmp_path):
+async def test_the_menu_toggles_the_filter_and_notifies_in_plain_language(tmp_path):
     app, mine, theirs = await _app(tmp_path)
     assert app.config.aprs.filter_by_ssid is True
     seen = []
     app.notify = lambda message, *args, **kwargs: seen.append(message)
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        await pilot.press("ctrl+shift+f")
+        app.action_toggle_aprs_ssid_filter()
         assert app.config.aprs.filter_by_ssid is False
         assert any("SSID filter OFF" in m for m in seen)
         seen.clear()
-        await pilot.press("ctrl+shift+f")
+        app.action_toggle_aprs_ssid_filter()
         assert app.config.aprs.filter_by_ssid is True
         assert any("SSID filter ON" in m for m in seen)
     mine.close()

@@ -84,7 +84,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "mycall",
                 "Callsign",
                 "callsign",
-                "Your callsign with SSID. Also changeable any time with Ctrl+K.",
+                "Your callsign with SSID. Also changeable any time from the F10 menu, under Session.",
                 apply="connect",
                 placeholder="N1ABC-1",
             ),
@@ -220,7 +220,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "(someone else's mobile or handheld persona, say) is "
                 "ignored by this session rather than answered under an "
                 "identity it was never sent to. Turn off to answer a "
-                "message sent to ANY SSID of your callsign -- Ctrl+Shift+F "
+                "message sent to ANY SSID of your callsign -- the F10 menu's APRS > SSID filter "
                 "toggles this without opening Settings.",
                 apply="live",
             ),
@@ -404,7 +404,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         "APRS messaging",
-        "SMS/email gateway defaults for the APRS pane's contact editor (F4). "
+        "SMS/email gateway defaults for the APRS pane's contact editor. "
         "UNVERIFIED: gateway callsigns and message-body formats vary by "
         "region and change over time -- confirm your own gateway's current "
         "convention before relying on these operationally.",

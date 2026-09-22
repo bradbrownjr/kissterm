@@ -335,11 +335,11 @@ exactly the way SyncTERM or a plain `telnet`/`ssh` client already reaches
 this kind of node.
 
 Neither is found by "Scan for hardware" — that only sweeps your own LAN, and
-neither one is hardware to begin with. Add the entry from Settings (`F5`) >
+neither one is hardware to begin with. Add the entry from Settings (`F9`) >
 Transports > New, which asks for exactly these fields, or by hand in
 `config.toml` (see the worked examples in `config.toml.example`) if you
 prefer to edit text directly — either way it shows up the same in Settings
-(`F5`) > Transports:
+(`F9`) > Transports:
 
 ```toml
 [[transports]]
@@ -472,8 +472,8 @@ not something kissterm can silently work around.
 
 ## 9. File transfers: YAPP and AutoBIN
 
-While connected to a peer or BBS that supports YAPP or AutoBIN, press
-`Ctrl+Shift+Y` and choose the protocol. For an upload, choose **Browse files**
+While connected to a peer or BBS that supports YAPP or AutoBIN, open the F10 menu and
+choose Session > File transfer, then the protocol. For an upload, choose **Browse files**
 and select the local file; kissterm starts the selected protocol only after
 that explicit choice. For a download, choose **Receive into directory** first,
 then issue the peer's YAPP or AutoBIN download command. Completed downloads

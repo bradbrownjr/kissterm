@@ -35,7 +35,9 @@ from textual.widgets import Button, DataTable, Input, Static
 class _AddressBookTable(DataTable):
     """The table itself, with `syncterm`-style dialing-directory keys:
     Enter connects (its own default `select_cursor` binding, handled as
-    `DataTable.RowSelected`), Insert adds, F2 edits, Delete forgets.
+    `DataTable.RowSelected`), Insert adds, E edits, Delete forgets.
+    A plain letter is safe here because it is bound on the table, which
+    has no text entry; F2 would have shadowed the Terminal tab key.
 
     Bound on the table widget itself, not the pane -- Textual only offers a
     binding at the App or Screen level otherwise, and a Delete bound that
@@ -45,9 +47,10 @@ class _AddressBookTable(DataTable):
     """
 
     BINDINGS = [
-        Binding("insert", "new_entry", "New", show=False),
-        Binding("f2", "edit_entry", "Edit", show=False),
-        Binding("delete", "forget_entry", "Forget", show=False),
+        Binding("enter", "select_cursor", "Connect"),
+        Binding("insert", "new_entry", "New"),
+        Binding("e", "edit_entry", "Edit"),
+        Binding("delete", "forget_entry", "Forget"),
     ]
 
     def action_new_entry(self) -> None:
@@ -84,12 +87,12 @@ class AddressBookPane(Vertical):
         with Horizontal(classes="addressbook-actions"):
             yield Button("Connect", variant="primary", id="addressbook-connect")
             yield Button("New", id="addressbook-new")
-            yield Button("Edit selected", id="addressbook-edit")
-            yield Button("Forget selected", id="addressbook-forget")
+            yield Button("Edit", id="addressbook-edit")
+            yield Button("Forget", id="addressbook-forget")
         yield Static("Known NET/ROM nodes — unverified received claims", id="known-nodes-note")
         yield _KnownNodesTable(id="known-nodes-table", cursor_type="row", zebra_stripes=True)
         with Horizontal(classes="addressbook-actions"):
-            yield Button("Use claimed callsign", id="known-nodes-use")
+            yield Button("Use node", id="known-nodes-use")
 
     def on_mount(self) -> None:
         self.refresh_from(self.app.addressbook)  # type: ignore[attr-defined]

@@ -1,11 +1,15 @@
-"""Ctrl+Shift+B is context-aware by active tab -- same dispatch shape as
-Ctrl+G (`action_toggle_contacts`). Terminal pane: unchanged, sends one
-BTEXT beacon immediately (see `test_beacon_wiring.py` for that half in
-full). APRS pane: toggles `config.aprs.enabled`, the quick-access
-equivalent of the Settings checkbox plus Save.
+"""The two beacons are two commands, not one key with two meanings.
 
-Ctrl+Alt+B is deliberately separate: it sends one APRS position report now,
-without changing that periodic setting.
+Session > Send beacon sends one BTEXT beacon now, on any tab (see
+`test_beacon_wiring.py` for that half in full). APRS > Position beacon
+toggles `config.aprs.enabled`, the quick-access equivalent of the Settings
+checkbox plus Save. APRS > Send position sends one position report now
+without changing that setting.
+
+They shared Ctrl+Shift+B, dispatched by active tab, until the key standard
+(docs/ROADMAP.md P0.2) removed every Ctrl+Shift binding: an ordinary
+terminal delivers it as Ctrl+B, which is tmux's prefix. Menu commands have
+no such collision and say which beacon they are.
 """
 
 from __future__ import annotations
@@ -62,7 +66,7 @@ async def test_on_the_terminal_pane_it_still_sends_one_btext_beacon():
 
 
 @pytest.mark.asyncio
-async def test_on_the_aprs_pane_it_toggles_aprs_enabled_instead_of_sending():
+async def test_the_position_beacon_command_toggles_aprs_enabled_without_sending():
     app, station, ta = await _app(tx_armed_at_start=True)
     app.config.aprs.latitude = 41.7
     app.config.aprs.longitude = -72.7
@@ -71,14 +75,14 @@ async def test_on_the_aprs_pane_it_toggles_aprs_enabled_instead_of_sending():
         await pilot.pause()
         assert app.config.aprs.enabled is False
 
-        app.action_beacon_now()
+        app.action_toggle_aprs_beacon()
         await pilot.pause()
         await asyncio.sleep(0.15)
         assert app.config.aprs.enabled is True
         assert app.aprs_beaconer.running is True
         assert ta.sent == [], "the toggle itself must never transmit"
 
-        app.action_beacon_now()
+        app.action_toggle_aprs_beacon()
         await pilot.pause()
         await asyncio.sleep(0.15)
         assert app.config.aprs.enabled is False
@@ -106,7 +110,7 @@ async def test_enabling_aprs_this_way_disables_a_running_btext_timer():
 
         app.action_show_tab("aprs")
         await pilot.pause()
-        app.action_beacon_now()
+        app.action_toggle_aprs_beacon()
         await pilot.pause()
         await asyncio.sleep(0.15)
 
@@ -119,10 +123,9 @@ async def test_enabling_aprs_this_way_disables_a_running_btext_timer():
 
 @pytest.mark.asyncio
 async def test_the_toggle_never_arms_a_closed_transmit_gate():
-    """AGENTS.md: a bare keystroke with no confirmation and no named
-    target must never arm the gate -- this is architecturally the same
-    case as the manual BTEXT beacon, just for the timer instead of a
-    one-shot send."""
+    """AGENTS.md: a command with no confirmation and no named target must
+    never arm the gate -- this is architecturally the same case as the
+    manual BTEXT beacon, just for the timer instead of a one-shot send."""
     app, station, ta = await _app()  # tx_armed_at_start defaults False
     app.config.aprs.latitude = 41.7
     app.config.aprs.longitude = -72.7
@@ -131,7 +134,7 @@ async def test_the_toggle_never_arms_a_closed_transmit_gate():
         await pilot.pause()
         assert app.gate.enabled is False
 
-        app.action_beacon_now()
+        app.action_toggle_aprs_beacon()
         await pilot.pause()
         await asyncio.sleep(0.15)
 
@@ -142,7 +145,7 @@ async def test_the_toggle_never_arms_a_closed_transmit_gate():
 
 
 @pytest.mark.asyncio
-async def test_ctrl_alt_b_sends_one_position_and_arms_tx_without_starting_the_timer():
+async def test_send_position_sends_one_position_and_arms_tx_without_starting_the_timer():
     """A deliberate position report is not unattended beaconing.
 
     It must work with periodic APRS beaconing off, use the configured APRS
@@ -160,7 +163,7 @@ async def test_ctrl_alt_b_sends_one_position_and_arms_tx_without_starting_the_ti
         assert app.gate.enabled is False
         assert app.config.aprs.enabled is False
 
-        await pilot.press("ctrl+alt+b")
+        app.action_aprs_beacon_now()
         await asyncio.sleep(0.15)
 
         assert app.gate.enabled is True
@@ -182,7 +185,7 @@ async def test_the_toggle_persists_across_a_simulated_restart():
     async with app.run_test(size=(110, 32)) as pilot:
         app.action_show_tab("aprs")
         await pilot.pause()
-        app.action_beacon_now()
+        app.action_toggle_aprs_beacon()
         await pilot.pause()
         await asyncio.sleep(0.15)
         assert app.config.aprs.enabled is True
@@ -193,8 +196,10 @@ async def test_the_toggle_persists_across_a_simulated_restart():
 
 
 @pytest.mark.asyncio
-async def test_btext_send_does_not_run_from_a_diagnostic_tab():
-    """A diagnostic page must not transmit a beacon through a hidden key."""
+async def test_the_beacon_command_works_from_any_tab():
+    """It is a menu command an operator chose by name, not a key that might
+    have been pressed by accident on a tab where it means nothing -- which
+    is what the old per-tab dispatch had to guard against."""
     config = Config(mycall=str(MYCALL))
     config.tx_armed_at_start = True
     config.beacon.enabled = True
@@ -209,6 +214,6 @@ async def test_btext_send_does_not_run_from_a_diagnostic_tab():
         app.action_beacon_now()
         await pilot.pause()
         await asyncio.sleep(0.1)
-        assert ta.sent == []
+        assert len(ta.sent) == 1
         assert app.aprs_beaconer.running is False
     station.close()

@@ -4,27 +4,23 @@ Layout follows the shape a packet operator already has in their head from
 BPQTerminal and EasyTerm, because the goal is a familiar tool that happens to
 be modern, not a novel one they have to relearn:
 
-    F1 Terminal  F2 APRS  F3 Heard  F4 Monitor  F5 Settings
+    F2 Terminal  F3 APRS  F4 Heard  F5 Monitor  F9 Settings
     +--------------------------------------------+---------+
     | session output (scrollback, selectable)     | Address |
     +--------------------------------------------+ Book,   |
     | > type here                          [Send] | Ctrl+G  |
     +--------------------------------------------+---------+
-      ^r Commands  ^n Connect  ^d Disconnect  ^G Contacts ...  <- shortcut keys
+      F1 Help  ^T TX  ^N Connect  ^G Book ...  F10 Menu     <- keys for this tab
       kissterm 0.1 | transport | callsign | heard N          <- status, BELOW them
 
-The F-key for each tab is printed IN THE TAB LABEL (`F1 Terminal`, keyboard-
-shortcut-first, matching how a menu shows an accelerator), not in the footer.
-Textual's `Footer` widget would otherwise show `f1 Terminal  f2 APRS  f3
-Heard  f4 Monitor  f5 Settings` right below a tab bar already showing those
-same five names -- the same words twice, in two different corners of the screen.
-All five `Binding`s stay registered (`show=False`) so the keys still work;
-only the redundant on-screen label moves. `Ctrl+1..5` remain as unlabelled
-fallback aliases for terminals that intercept function keys.
+Keys follow IBM CUA as Midnight Commander uses it: F1 Help, F10 the menu,
+function keys for tabs, a small set of terminal-safe Ctrl keys, and every
+command in the menu. All of it is generated from `commands.COMMANDS`; see
+that module and DESIGN.md section 5. A tab's key is printed in its label
+(`F2 Terminal`), never in the Footer as well.
 
-**Function keys are tabs. Ctrl sequences are actions and modals.** That is
-the whole rule, and it is why the command reference -- a modal opened over
-whatever tab is active -- is `Ctrl+R`, not a function key. A non-tab action
+**A modal is never a function key.** The command reference -- a modal opened
+over whatever tab is active -- is `Ctrl+R`, not a function key. A non-tab action
 squatting on the next free F-number breaks the "F<n> is the n-th tab" pattern
 the moment an n-th tab exists to expect it, which already happened once here
 (Address Book briefly had its own F-key before this). Address Book is now a
@@ -49,12 +45,12 @@ terminals are unreliable past it), but KC1JMH reports F9/F10 work fine in
 practice on the terminals actually in use here, and Midnight Commander --
 about as widely deployed a terminal-UI precedent as exists -- has used
 F1-F10 for its whole menu row for decades without it being a practical
-problem. **F1..F10 is the working ceiling now, ten tabs the practical
-maximum.** F11 is out regardless: it is "toggle fullscreen" in enough
+problem. F11 is out regardless: it is "toggle fullscreen" in enough
 terminal emulators and window managers that it rarely reaches the
-application at all. Five tabs exist and three more are planned, landing at
-F6-F8 with F9/F10 spare -- see docs/ROADMAP.md's P10 section for the
-assignment.
+application at all. **F1 is Help and F10 is the menu, permanently**, so
+tabs have F2-F9: five exist and Mail, Bulletins and Files are planned,
+which is the whole allowance -- see `commands.COMMANDS` and DESIGN.md
+section 5 for the assignment.
 
 The status bar sits BELOW the Footer's shortcut-key row, not above it -- the
 keys you might press come first, reading top to bottom, and the passive status
@@ -157,7 +153,9 @@ from ..yapp import YappError, receive_file, send_file
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
-from .commands import KeyBindingsProvider, _action_base, fit_footer_bindings
+from . import commands as cmdreg
+from .commands import KeyBindingsProvider
+from .menu import HelpScreen, MenuScreen
 from ..harvested import HarvestedCommands
 from ..nodes import Command, CommandReference
 from ..nodes.reference import identify_family, parse_harvested
@@ -489,145 +487,58 @@ class _SessionLinkAdapter:
 
 
 class KissTermFooter(Footer):
-    """A Footer that hides its lowest-priority keys instead of scrolling
-    them off-screen.
+    """The context bar: the keys that work on this tab, right now.
 
-    Textual's own `Footer` is a horizontally-scrollable container with its
-    scrollbar suppressed (`scrollbar-size: 0 0` in its own `DEFAULT_CSS`):
-    at an ordinary 80-column terminal, kissterm's eleven action bindings plus
-    the command-palette chip need about 140 columns, so roughly a third of
-    them are pushed past the right edge, reachable only by a mouse-wheel
-    scroll with no on-screen sign anything is missing. Reported directly
-    from a real session; see `docs/CHANGELOG.md`.
+    Drawn from `commands.COMMANDS` rather than from `Binding.show`, for two
+    reasons Textual's own `Footer` cannot meet. It shows only what works
+    here (rule 5 of the key standard): an action for another tab, or
+    Disconnect with nothing connected, is absent rather than shown and then
+    answered with a toast. And it fits the width: Textual's `Footer` scrolls
+    its overflow off the right edge with no sign anything is missing, so
+    this keeps the longest prefix of `commands.FOOTER_ORDER` that fits and
+    pins `F10 Menu` to the end, where everything dropped can still be found.
 
-    This override reimplements `Footer.compose()` (Textual's own version:
-    `textual.widgets._footer.Footer.compose`) but replaces "show every
-    `show=True` binding, however many columns that needs" with "show the
-    highest-priority prefix of them that actually fits" --
-    `commands.fit_footer_bindings`, ranked by `commands.ACTION_META`. A
-    narrower terminal means fewer keys shown, never a key silently pushed
-    out of reach; the full set stays one `Ctrl+P` away either way, since
-    `commands.KeyBindingsProvider` reads the same `BINDINGS` list.
-
-    Does NOT support `Binding.Group` the way the real `Footer.compose()`
-    does -- nothing in this app groups bindings today. Add that back (see
-    the real implementation) if a future `Binding` ever sets `group=`.
-
-    `_on_resize` is what makes the fit re-run as the terminal is resized:
-    Textual's own `Footer` only recomposes when the *set* of bindings
-    changes (`bindings_updated_signal`), because which ones fit was never
-    previously a function of width. `refresh_bindings()` republishes that
-    same signal, which `Footer.bindings_changed` (inherited, unchanged) is
-    already subscribed to.
+    A focused list's own `show=True` bindings (Address Book: Enter, Ins, E,
+    Del) come right after Help, because while a list has focus those are the
+    keys in use. `_on_resize` re-runs the fit: Textual recomposes a Footer
+    only when the set of bindings changes, never on width alone.
     """
 
     def compose(self) -> ComposeResult:
         if not self._bindings_ready:
             return
-        active_bindings = self.screen.active_bindings
-        bindings = [
-            (binding, enabled, tooltip)
-            for (_, binding, enabled, tooltip) in active_bindings.values()
-            if binding.show
+        app = self.app
+        tab = app.active_tab()
+        active = self.screen.active_bindings
+        chips: list[tuple[str, str, str, str]] = []  # key, display, label, action
+        for command in cmdreg.footer_commands(tab):
+            if command.action == "menu" or app.command_unavailable(command):
+                continue
+            chips.append((
+                command.key, cmdreg.key_label(command.key), command.footer_label,
+                command.action,
+            ))
+        # The focused widget's own keys, which exist only while it has focus.
+        local = [
+            (b.key, app.get_key_display(b), b.description, b.action)
+            for (node, b, enabled, _tip) in active.values()
+            if node is not app and b.show and enabled and b.description
         ]
-        # The footer is a context bar, not an inventory of every global key.
-        # A tab shows only the actions an operator can normally complete
-        # there; everything remains searchable from Ctrl+P.
-        try:
-            active_tab = self.app.query_one("#main-tabs", TabbedContent).active
-        except Exception:
-            active_tab = ""
-        actions_by_tab = {
-            "terminal": {
-                "toggle_transmit", "connect", "disconnect", "toggle_contacts",
-                "toggle_known_nodes", "command_reference", "beacon_now", "file_transfer",
-                "find_in_terminal", "show_transcripts", "clear_log", "quit",
-            },
-            "aprs": {
-                "toggle_transmit", "toggle_contacts", "command_reference",
-                "aprs_gateway_form", "aprs_bulletin", "beacon_now",
-                "aprs_beacon_now", "aprs_object", "aprs_is_watch",
-                "toggle_aprs_ssid_filter", "clear_log", "quit",
-            },
-            "monitor": {"toggle_transmit", "clear_log", "quit"},
-            "heard": {"toggle_transmit", "quit"},
-            "settings": {"toggle_transmit", "quit"},
-        }
-        allowed = actions_by_tab.get(active_tab)
-        if allowed is not None:
-            bindings = [
-                (binding, enabled, tooltip)
-                for binding, enabled, tooltip in bindings
-                if _action_base(binding.action) in allowed
-            ]
-        if not self.app.can_disconnect_active_session():
-            bindings = [
-                (binding, enabled, tooltip)
-                for binding, enabled, tooltip in bindings
-                if _action_base(binding.action) != "disconnect"
-            ]
-        if not self.app.can_transfer_on_active_session():
-            bindings = [
-                (binding, enabled, tooltip)
-                for binding, enabled, tooltip in bindings
-                if _action_base(binding.action) != "file_transfer"
-            ]
-        action_to_bindings: dict[str, list[tuple[Binding, bool, str]]] = {}
-        for binding, enabled, tooltip in bindings:
-            action_to_bindings.setdefault(binding.action, []).append(
-                (binding, enabled, tooltip)
-            )
-
-        show_palette = self.show_command_palette and self.app.ENABLE_COMMAND_PALETTE
-        palette_binding = None
-        palette_reserved = 0
-        if show_palette:
-            try:
-                _node, palette_binding, _enabled, _tooltip = active_bindings[
-                    self.app.COMMAND_PALETTE_BINDING
-                ]
-            except KeyError:
-                show_palette = False
-            else:
-                palette_reserved = (
-                    len(self.app.get_key_display(palette_binding))
-                    + len(palette_binding.description)
-                    + 3
-                )
-
-        budget = max(self.size.width - palette_reserved, 0)
-        items = [
-            (
-                action,
-                self.app.get_key_display(group[0][0]),
-                group[0][0].description,
-            )
-            for action, group in action_to_bindings.items()
-        ]
-        for action, key_display, description in fit_footer_bindings(items, budget):
-            binding, enabled, tooltip = action_to_bindings[action][0]
-            yield FooterKey(
-                binding.key,
-                key_display,
-                description,
-                binding.action,
-                disabled=not enabled,
-                tooltip=tooltip,
-            ).data_bind(compact=Footer.compact)
-
-        if show_palette:
-            _node, binding, enabled, tooltip = active_bindings[
-                self.app.COMMAND_PALETTE_BINDING
-            ]
-            yield FooterKey(
-                binding.key,
-                self.app.get_key_display(binding),
-                binding.description,
-                binding.action,
-                classes="-command-palette",
-                disabled=not enabled,
-                tooltip=binding.tooltip or binding.description,
-            )
+        if chips and chips[0][3] == "help":
+            chips = chips[:1] + local + chips[1:]
+        else:
+            chips = local + chips
+        menu = cmdreg.command_for("menu", tab)
+        reserved = cmdreg.chip_width("F10", menu.footer_label) if menu else 0
+        fitted = cmdreg.fit_footer(
+            [(display, label) for _k, display, label, _a in chips],
+            max(self.size.width - reserved, 0),
+        )
+        chips = chips[: len(fitted)]
+        if menu is not None:
+            chips.append((menu.key, "F10", menu.footer_label, menu.action))
+        for key, display, label, action in chips:
+            yield FooterKey(key, display, label, action).data_bind(compact=Footer.compact)
 
     def _on_resize(self, event: events.Resize) -> None:
         self.refresh_bindings()
@@ -646,138 +557,16 @@ class KissTermApp(App):
 
     CSS = APP_CSS
 
-    #: Adds `KeyBindingsProvider` (`commands.py`) to Textual's own default
-    #: `{get_system_commands_provider}` -- without this, Ctrl+P only ever
-    #: listed Textual's small built-in System Commands (Theme, Quit, Keys,
-    #: Maximize, Screenshot), and typing in its search box filtered that
-    #: short list and nothing else: none of kissterm's own BINDINGS, visible
-    #: or hidden, were searchable there at all.
+    #: Adds the registry (`commands.KeyBindingsProvider`) to Textual's own
+    #: system commands, so Ctrl+P finds every kissterm command by name,
+    #: including the ones with no key.
     COMMANDS = App.COMMANDS | {KeyBindingsProvider}
 
-    BINDINGS = [
-        Binding("ctrl+q", "quit", "Quit"),
-        # Hidden from the footer: the tab bar already shows these instead
-        # (rule 16, `kissterm/ui/AGENTS.md`) -- unrelated to why every other
-        # binding below stays discoverable even once `KissTermFooter` (this
-        # module) runs out of room for it: `Ctrl+P` lists all of them,
-        # `commands.KeyBindingsProvider` reads this same list.
-        # Ordered by how often an operator actually visits them, requested
-        # directly: "putting useful stuff to the left of Monitor and
-        # Settings". Terminal and APRS are where the work happens; Monitor is
-        # a diagnostic and Settings is a place you leave again. The TabPane
-        # IDs deliberately did NOT change with this reordering -- every
-        # `active == "aprs"` check, `_TAB_FOCUS` entry and `show_tab` caller
-        # addresses a pane by id, so only the labels and the keys moved.
-        Binding("f1", "show_tab('terminal')", "Terminal", show=False),
-        Binding("f2", "show_tab('aprs')", "APRS", show=False),
-        Binding("f3", "show_tab('heard')", "Heard", show=False),
-        Binding("f4", "show_tab('monitor')", "Monitor", show=False),
-        Binding("ctrl+1", "show_tab('terminal')", "Terminal", show=False),
-        Binding("ctrl+2", "show_tab('aprs')", "APRS", show=False),
-        Binding("ctrl+3", "show_tab('heard')", "Heard", show=False),
-        Binding("ctrl+4", "show_tab('monitor')", "Monitor", show=False),
-        Binding("f5", "show_tab('settings')", "Settings", show=False),
-        Binding("ctrl+5", "show_tab('settings')", "Settings", show=False),
-        Binding("ctrl+t", "toggle_transmit", "TX"),
-        Binding("ctrl+shift+y", "file_transfer", "Files", key_display="^Y"),
-        # The Address Book (Terminal) and APRS contacts slide-outs share this
-        # one key -- see `action_toggle_contacts`. Checked against every
-        # existing claim before picking "G": `Input`'s own bindings already
-        # own ctrl+a *and* ctrl+shift+a (home / select-all), ctrl+e/w/u/k/x/
-        # c/v/d for line editing; this app already owns ctrl+q/t/b/n/d/k/r/l/
-        # o/f/1..5; Textual's own command palette owns ctrl+p; and Ctrl+C
-        # (any shifted form included) is avoided everywhere in this file for
-        # the SIGINT reason below. Ctrl+G collides with none of that and is
-        # not a flow-control byte or job-control signal either.
-        Binding("ctrl+g", "toggle_contacts", "Contacts", key_display="^G"),
-        # Saved address-book entries and passive NET/ROM claims share the
-        # Terminal slide-out, but on a short display the latter should not
-        # crowd out the directory the operator deliberately maintains.
-        # Ctrl+PageDown is a distinct terminal key sequence and does not
-        # collide with desktop-level Alt-key shortcuts. No app binding claims
-        # this chord, while its paired Ctrl+G remains the Address Book key.
-        Binding(
-            "ctrl+pagedown", "toggle_known_nodes", "NET/ROM",
-            key_display="Ctrl+PgDn", priority=True,
-        ),
-        # Ctrl+SHIFT+B, not Ctrl+B: Ctrl+B is tmux's default prefix (and
-        # screen's, once remapped), so under a multiplexer -- which is how a
-        # station PC in another room is usually reached -- the beacon key was
-        # simply unreachable, eaten one layer up. Ctrl+Shift+B needs the
-        # terminal's enhanced keyboard protocol to be distinguishable at all;
-        # where it is not, the terminal collapses it to the same byte as
-        # Ctrl+B, which is why the plain binding stays below.
-        # `key_display` because Textual abbreviates `ctrl+x` to `^x` on its
-        # own but has no such rule for `ctrl+shift+x`, so this one binding
-        # would print the literal "ctrl+shift+b" -- five times the width of
-        # every neighbour, in a footer that already truncates its rightmost
-        # binding at 80 columns. `^B` is the same shape as `^t`/`^n`/`^d`
-        # beside it, and the capital IS the shift.
-        Binding("ctrl+shift+b", "beacon_now", "Beacon", key_display="^B"),
-        # Legacy fallback, deliberately hidden. In a terminal that does not
-        # speak the kitty/CSI-u keyboard protocol, Ctrl+Shift+B *is* 0x02 and
-        # arrives here as "ctrl+b"; without this the beacon would have no key
-        # at all on such a terminal, and there is no slash command for it.
-        # This costs nothing under a multiplexer, which consumes Ctrl+B before
-        # the app ever sees it.
-        Binding("ctrl+b", "beacon_now", "Beacon", show=False),
-        # A one-shot APRS position report is a different action from both the
-        # context-aware Ctrl+Shift+B beacon shortcut and its periodic timer.
-        # Ctrl+Alt+B makes that distinction reachable without moving focus to
-        # the APRS pane or editing any settings.
-        Binding("ctrl+alt+b", "aprs_beacon_now", "Position now"),
-        Binding("ctrl+shift+o", "aprs_object", "Object", key_display="^O"),
-        Binding("ctrl+shift+i", "aprs_is_watch", "Watch IS", key_display="^I"),
-        # Ctrl+M is the carriage-return byte in ordinary terminals.  A
-        # contact table therefore receives it as Enter and opens its selected
-        # row, rather than reaching this app binding. Alt+M is one modifier,
-        # works in those terminals, and remains specific to APRS below.
-        Binding("alt+m", "aprs_gateway_form", "Form"),
-        Binding("ctrl+alt+l", "aprs_bulletin", "Bulletin"),
-        Binding("ctrl+n", "connect", "Connect"),
-        # Ctrl+SHIFT+D, not plain Ctrl+D, for the same reason as Ctrl+Shift+B
-        # above: Textual's `Input` and `TextArea` both bind plain `ctrl+d` to
-        # delete-character-right for ordinary line editing (`show=False`),
-        # and whichever of those has focus -- which is most of the session:
-        # the terminal's own outgoing-message box -- wins over the app-level
-        # binding of the same key. Before this, the Footer silently dropped
-        # "Disconnect" the instant that box took focus, and the keystroke
-        # deleted a character instead of disconnecting -- reported directly
-        # ("^d went missing when I started to connect"). `key_display="^D"`
-        # keeps the footer showing the same short glyph as every neighbour;
-        # the capital is the shift, same convention as `^B`.
-        Binding("ctrl+shift+d", "disconnect", "Disconnect", key_display="^D"),
-        # Legacy fallback, hidden, for a terminal that collapses Ctrl+Shift+D
-        # to plain Ctrl+D -- same reasoning as the Ctrl+B fallback below.
-        # Still shadowed by a focused Input/TextArea exactly as before this
-        # change; Ctrl+Shift+D above is what actually fixes the report.
-        Binding("ctrl+d", "disconnect", "Disconnect", show=False),
-        # Ctrl+K (Callsign) has the identical collision with Input/TextArea's
-        # own delete-to-end-of-line binding and is not fixed here -- nobody
-        # has hit it in practice, and TextArea's own Ctrl+Shift+K
-        # (delete-line, used by the auto-login script boxes) means the same
-        # Ctrl+Shift+ fix used above for Disconnect is not free for this key.
-        # Worth the Ctrl+Shift+K trade-off only if this ever gets reported.
-        Binding("ctrl+k", "set_callsign", "Callsign"),
-        Binding("ctrl+r", "command_reference", "Commands"),
-        Binding("ctrl+l", "clear_log", "Clear"),
-        # "Open" is the standard mnemonic (most editors' Ctrl+O) for "open a
-        # saved file", and there is nothing else on this key.
-        Binding("ctrl+o", "show_transcripts", "Transcripts"),
-        # The universal "Find" mnemonic (every browser, every editor).
-        Binding("ctrl+f", "find_in_terminal", "Find"),
-        # Ctrl+SHIFT+F, not plain Ctrl+F, because plain Ctrl+F is "Find"
-        # right above -- same reason Beacon/Disconnect use Ctrl+Shift+
-        # rather than collide with an existing key. UNLIKE those two,
-        # there is no safe hidden legacy fallback to add here: on a
-        # terminal without the kitty/CSI-u enhanced keyboard protocol,
-        # Ctrl+Shift+F collapses to the same byte as Ctrl+F, and a
-        # fallback bound to "ctrl+f" would just steal Find's key instead
-        # of adding this one. On such a terminal this toggle is reachable
-        # only through Settings -- same trade-off already accepted for
-        # Ctrl+K (Callsign) above, not worth solving until reported.
-        Binding("ctrl+shift+f", "toggle_aprs_ssid_filter", "SSID Filter", key_display="^F"),
-    ]
+    #: Generated from `commands.COMMANDS`, the one table the Footer, the F10
+    #: menu, F1 help and Ctrl+P also read. Do not add a `Binding` here: add a
+    #: `Command` there, inside the key standard that
+    #: `tests/unit/test_key_standard.py` enforces (docs/ROADMAP.md P0.2).
+    BINDINGS = cmdreg.app_bindings()
 
     def __init__(
         self,
@@ -849,7 +638,7 @@ class KissTermApp(App):
         # Launching without a transport is intentional: Settings is where an
         # operator adds or repairs one, and refusing to mount the TUI turns a
         # missing entry into a command-line dead end.
-        self._status = "NO TRANSPORT - F5 Settings"
+        self._status = "NO TRANSPORT - F9 Settings"
         #: Stations already tried, offered in the connect dialog. Owned here
         #: rather than by the dialog so a successful connect can be recorded
         #: after the dialog has closed, and so the file is read once at
@@ -931,15 +720,15 @@ class KissTermApp(App):
     def compose(self) -> ComposeResult:
         yield KissTermHeader(show_clock=True)
         with TabbedContent(initial="terminal", id="main-tabs"):
-            with TabPane("F1 Terminal", id="terminal"):
+            with TabPane("F2 Terminal", id="terminal"):
                 yield TerminalPane()
-            with TabPane("F2 APRS", id="aprs"):
+            with TabPane("F3 APRS", id="aprs"):
                 yield AprsPane()
-            with TabPane("F3 Heard", id="heard"):
+            with TabPane("F4 Heard", id="heard"):
                 yield HeardPane()
-            with TabPane("F4 Monitor", id="monitor"):
+            with TabPane("F5 Monitor", id="monitor"):
                 yield MonitorPane()
-            with TabPane("F5 Settings", id="settings"):
+            with TabPane("F9 Settings", id="settings"):
                 yield SettingsPane()
         # Status bar and Footer share one bottom-docked container. Docking
         # them both individually puts them in the SAME region -- the Footer
@@ -947,7 +736,7 @@ class KissTermApp(App):
         # order. One docked parent with an explicit height lays them out as
         # two distinct rows. Verified in tests/pilot/test_app_mounts.py.
         with Vertical(id="bottom-bar"):
-            yield KissTermFooter()
+            yield KissTermFooter(show_command_palette=False)
             yield Static(id="status-bar")
 
     def apply_theme(self) -> None:
@@ -983,12 +772,12 @@ class KissTermApp(App):
         if self.station is None and self.session_transport is None:
             banner = (
                 f"kissterm {__version__} -- no transport configured. "
-                "Open F5 Settings, then Transports to add one.\n"
+                "Open F9 Settings, then Transports to add one.\n"
             )
         else:
             banner = (
-                f"kissterm {__version__} -- Ctrl+N to connect, Ctrl+R for commands, "
-                "Ctrl+O for past transcripts. Use Left/Right on the tab bar to move tabs.\n"
+                f"kissterm {__version__} -- Ctrl+N to connect, F1 for help, "
+                "F10 for the menu.\n"
             )
         self.query_one(TerminalPane).log("", banner)
         self.apply_runtime_settings()
@@ -1799,16 +1588,10 @@ class KissTermApp(App):
 
     def action_aprs_gateway_form(self) -> None:
         """Open the APRS gateway form only in its relevant pane."""
-        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
-            self.notify("Open the APRS pane to use a gateway form.", severity="warning")
-            return
         self.query_one(AprsPane).show_gateway_form()
 
     def action_aprs_bulletin(self) -> None:
         """Prepare a bulletin in APRS context; preparation never sends."""
-        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
-            self.notify("Open the APRS pane to compose a bulletin.", severity="warning")
-            return
         self.query_one(AprsPane).action_compose_bulletin()
 
     async def _send_aprs_object(self, request: AprsObjectRequest) -> bool:
@@ -1867,7 +1650,7 @@ class KissTermApp(App):
         return ""
 
     def can_disconnect_active_session(self) -> bool:
-        """Whether Ctrl+Shift+D has something real to disconnect or cancel."""
+        """Whether Ctrl+D has something real to disconnect or cancel."""
         key = self._active_key()
         link = self.link
         return bool(
@@ -2059,7 +1842,7 @@ class KissTermApp(App):
         """Open a transcript for `session_key`, if recording is enabled.
 
         The status bar carries the compact recording indicator; a full path
-        is available from Ctrl+O without consuming live terminal rows.
+        is available from the menu (Session > Transcripts) without consuming live terminal rows.
         """
         self._close_transcript(session_key)
         if not getattr(self.config, "log_sessions", True):
@@ -2615,7 +2398,7 @@ class KissTermApp(App):
             session_key,
             "log",
             f"\n*** {link.peer} acknowledged that -- no reply yet. See "
-            "Monitor (F2) for what has come back since.\n",
+            "Monitor (F5) for what has come back since.\n",
         )
 
     # ------------------------------------------------------------------
@@ -2671,7 +2454,7 @@ class KissTermApp(App):
 
         So arming needs a CONFIRMED, TARGETED action -- a destination the
         operator typed and accepted. A single keystroke with no confirmation
-        step (the manual beacon on `Ctrl+Shift+B`) still does not arm: that is
+        step (the manual text beacon) still does not arm: that is
         exactly the shape of an accidental transmission, and there is no
         target to make the intent unambiguous.
 
@@ -2690,28 +2473,15 @@ class KissTermApp(App):
 
     @work
     async def action_beacon_now(self) -> None:
-        """Ctrl+Shift+B -- context-aware by active tab, same dispatch shape
-        as `action_toggle_contacts` (Ctrl+G).
+        """Send one BTEXT beacon now (menu: Session > Send beacon).
 
-        **On the APRS pane**: toggles `config.aprs.enabled` -- see
-        `_toggle_aprs_beacon_quick` for why this is a plain toggle, never
-        a transmission, and never touches the transmit gate.
-
-        **On the Terminal pane**: sends one BTEXT beacon immediately. The timed
-        beacon deliberately waits a full interval before its first
-        transmission, because launching the app is not a request to key
-        the radio. This is how an operator says "yes it is, right now"
-        without having to wait out the interval or shorten it -- the same
-        role JS8Call's heartbeat button plays. It does not enable the
-        timer and does not need the timer to be on.
+        The timed beacon waits a full interval before its first
+        transmission, because launching the app is not a request to key the
+        radio. This is how an operator says "yes it is, right now" -- the
+        role JS8Call's heartbeat button plays. It does not enable the timer
+        and does not need it on. It does not arm the gate: a closed gate is
+        reported and nothing is sent.
         """
-        active = self.query_one("#main-tabs", TabbedContent).active
-        if active == "aprs":
-            await self._toggle_aprs_beacon_quick()
-            return
-        if active != "terminal":
-            self.notify("Open Terminal for a text beacon or APRS for position beaconing.")
-            return
         if not self.gate.enabled:
             self.notify(DISABLED_MESSAGE, severity="warning")
             return
@@ -2728,7 +2498,7 @@ class KissTermApp(App):
 
     @work
     async def action_aprs_beacon_now(self) -> None:
-        """Ctrl+Alt+B -- transmit one APRS position report immediately.
+        """Menu: APRS > Send position -- transmit one position report now.
 
         This is an operator-committed transmission to the well-defined APRS
         destination, not an unattended timer action.  It therefore arms the
@@ -2737,9 +2507,6 @@ class KissTermApp(App):
         periodic APRS beacon setting: ``force=True`` waives only that timer
         setting inside :meth:`AprsBeaconer.send_once`.
         """
-        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
-            self.notify("Open APRS to send a position beacon.")
-            return
         self._arm_for("APRS position beacon")
         why = self.aprs_beaconer.problem()
         if why and why != "APRS beaconing is off":
@@ -2759,9 +2526,6 @@ class KissTermApp(App):
         returns a request here, which is the operator-committed action that
         may arm the transmit gate.
         """
-        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
-            self.notify("Open APRS to compose an object report.")
-            return
         request = await self.push_screen_wait(
             AprsObjectScreen(
                 latitude=self.config.aprs.latitude,
@@ -2782,9 +2546,6 @@ class KissTermApp(App):
     @work
     async def action_aprs_is_watch(self) -> None:
         """Open the receive-only APRS-IS diagnostic stream for this call."""
-        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
-            self.notify("Open APRS to watch APRS-IS.")
-            return
         await self.push_screen_wait(
             AprsIsWatchScreen(
                 self.aprs_is_watch,
@@ -2793,8 +2554,13 @@ class KissTermApp(App):
             )
         )
 
+    @work
+    async def action_toggle_aprs_beacon(self) -> None:
+        """Menu: APRS > Position beacon on/off."""
+        await self._toggle_aprs_beacon_quick()
+
     async def _toggle_aprs_beacon_quick(self) -> None:
-        """Flip `config.aprs.enabled` from the APRS pane's Ctrl+Shift+B,
+        """Flip `config.aprs.enabled` from the menu (APRS > Position beacon),
         so an operator does not have to open Settings just to turn
         beaconing on -- identical in effect to the Settings checkbox plus
         Save, just faster to reach.
@@ -2813,7 +2579,7 @@ class KissTermApp(App):
         whether both may run at once -- an operator reaching for this key
         to turn APRS beaconing on is very unlikely to also want BTEXT
         still repeating in the background unattended. Only this
-        direction: BTEXT's own Ctrl+Shift+B (Terminal pane) is a one-shot
+        direction: the text beacon's Send beacon is a one-shot
         send, not a timer toggle, so there is no symmetrical case where
         enabling BTEXT this way would need to disable APRS.
         """
@@ -2830,7 +2596,7 @@ class KissTermApp(App):
         self.notify(message)
 
     def action_toggle_aprs_ssid_filter(self) -> None:
-        """Flip `Config.aprs.filter_by_ssid` (Ctrl+Shift+F) -- see
+        """Flip `Config.aprs.filter_by_ssid` (menu: APRS > SSID filter) -- see
         `aprs_message_matches`'s docstring for what it decides. A plain
         toggle, not a transmission, so none of the transmit-gate rules
         apply -- this only changes which already-received messages count
@@ -2840,9 +2606,6 @@ class KissTermApp(App):
         exact SSID match" and "TX BLOCKED" mean nothing to someone new to
         packet, so the toast says who this station currently answers as.
         """
-        if self.query_one("#main-tabs", TabbedContent).active != "aprs":
-            self.notify("Open APRS to change its SSID filter.")
-            return
         self.config.aprs.filter_by_ssid = not self.config.aprs.filter_by_ssid
         self._save_config()
         if self.config.aprs.filter_by_ssid:
@@ -2855,6 +2618,116 @@ class KissTermApp(App):
                 "APRS SSID filter OFF -- answering messages addressed to any "
                 f"SSID of {self.config.mycall}."
             )
+
+    # --- The command registry, applied --------------------------------
+    #: Cached because `check_action` runs for every binding on every Footer
+    #: render, and a DOM query per check is work done thousands of times a
+    #: session for a widget that never moves.
+    _main_tabs: TabbedContent | None = None
+
+    def active_tab(self) -> str:
+        """The main tab's id, or "" before it is composed."""
+        tabs = self._main_tabs
+        if tabs is None or not tabs.is_attached:
+            tabs = None
+            for found in self._base_query("#main-tabs"):
+                tabs = found
+                break
+            self._main_tabs = tabs
+        return tabs.active if tabs is not None else ""
+
+    def command_unavailable(self, command: cmdreg.Command) -> str:
+        """Why this command cannot run now, or "" if it can. The tab is not
+        a reason: the menu switches to the command's tab first. This is only
+        the state the operator would have to change."""
+        action = command.action
+        if action == "disconnect" and not self.can_disconnect_active_session():
+            return "not connected"
+        if action == "file_transfer" and not self.can_transfer_on_active_session():
+            return "not connected"
+        return ""
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        """Keys work only where they mean something (key standard rule 5).
+
+        Returning False here does two things: the Footer leaves the key out,
+        and the keystroke falls through to the focused widget -- so Ctrl+D
+        in the entry line is delete-right until there is something to
+        disconnect, and a key pressed on the wrong tab does nothing instead
+        of answering with a toast.
+        """
+        try:
+            tab = self.active_tab()
+            if tab and not cmdreg.applies_on(action, tab):
+                return False
+            if action == "disconnect":
+                # Never from under a dialog: its text fields use Ctrl+D too.
+                if len(self.screen_stack) > 1:
+                    return False
+                return self.can_disconnect_active_session()
+        except Exception:
+            # A binding check runs on every Footer render; never let one
+            # take the app down.
+            log.debug("check_action(%s) failed", action, exc_info=True)
+        return True
+
+    def get_key_display(self, binding: Binding) -> str:
+        """"^N", "F10", "Ins": the same short form the registry uses."""
+        if binding.key_display:
+            return binding.key_display
+        return cmdreg.key_label(binding.key)
+
+    def run_command(self, command: cmdreg.Command) -> None:
+        """Run a command chosen from the menu or Ctrl+P, exactly as its key
+        would, after switching to its tab if it belongs to one."""
+        if command.tabs and self.active_tab() not in command.tabs:
+            self.action_show_tab(command.tabs[0])
+            self.call_after_refresh(self._run_command_action, command.action)
+        else:
+            self.call_later(self._run_command_action, command.action)
+
+    async def _run_command_action(self, action: str) -> None:
+        await self.run_action(action)
+
+    def action_menu(self) -> None:
+        """F10: the menu bar, opened at the heading for this tab's work."""
+        tab = self.active_tab()
+        groups = [
+            (title, [(c, self.command_unavailable(c)) for c in entries])
+            for title, entries in cmdreg.menu_groups()
+        ]
+        start_title = cmdreg.MENU_GROUP_FOR_TAB.get(tab, "View")
+        start = next(i for i, (title, _e) in enumerate(groups) if title == start_title)
+
+        def _chosen(command: cmdreg.Command | None) -> None:
+            if command is not None:
+                self.run_command(command)
+
+        self.push_screen(MenuScreen(groups, start), _chosen)
+
+    def action_help(self) -> None:
+        """F1: this tab's purpose and keys, from the registry."""
+        from .addressbook_pane import _AddressBookTable
+        from .aprs_pane import _AprsContactTable, _ConvoTabs
+        from .terminal_pane import _SessionTabs
+
+        tab = self.active_tab()
+        widgets = {
+            "terminal": [("Address Book", _AddressBookTable), ("session tabs", _SessionTabs)],
+            "aprs": [("contacts", _AprsContactTable), ("conversation tabs", _ConvoTabs)],
+        }.get(tab, [])
+        list_keys = [
+            (where, b.key, b.description)
+            for where, cls in widgets
+            for b in cls.BINDINGS
+            if isinstance(b, Binding) and b.description
+        ]
+        unavailable = {
+            c.action: why for c in cmdreg.COMMANDS if (why := self.command_unavailable(c))
+        }
+        self.push_screen(
+            HelpScreen(cmdreg.help_renderable(tab, list_keys, unavailable=unavailable))
+        )
 
     #: Where focus goes when a tab is opened, so the operator can act
     #: immediately: type at the node, type a message, search the monitor.
@@ -2878,7 +2751,7 @@ class KissTermApp(App):
         vanishing again.
 
         This affected EVERY pane with a focusable widget, not one of them:
-        F2/F3/F5 from the Terminal pane's send line and from the APRS compose
+        The tab keys from the Terminal pane's send line and from the APRS compose
         box were all equally dead, which is most of the time an operator is
         actually typing. It went unnoticed because every test drove
         `action_show_tab` without focusing anything first, and a fresh app
@@ -2943,7 +2816,7 @@ class KissTermApp(App):
             self.query_one(AprsPane).toggle_contacts()
 
     def action_toggle_known_nodes(self) -> None:
-        """Ctrl+PageDown: collapse passive NET/ROM claims on Terminal only."""
+        """Menu: View > NET/ROM nodes. Collapse passive NET/ROM claims."""
         active = self.query_one("#main-tabs", TabbedContent).active
         if active == "terminal":
             self.query_one(TerminalPane).toggle_known_nodes()
@@ -3254,7 +3127,7 @@ class KissTermApp(App):
                 "log",
                 f"\n*** Not connecting: the link to the TNC at {where} is "
                 f"{state.value}, so nothing would reach the air. This is not "
-                f"an RF problem -- check the TNC, then Settings (F5) > Test "
+                f"an RF problem -- check the TNC, then Settings (F9) > Test "
                 f"selected.\n",
             )
             self.notify(
@@ -3306,7 +3179,7 @@ class KissTermApp(App):
                 self._to_terminal(
                     key,
                     "log",
-                    f"*** {attempts} attempt(s) sent. Check the Monitor tab (F2) "
+                    f"*** {attempts} attempt(s) sent. Check the Monitor tab (F5) "
                     "for what went out and what came back.\n",
                 )
             # It was up when we started or we would not be here, so a
@@ -3698,9 +3571,8 @@ class KissTermApp(App):
         question -- "what can I say to the thing I am talking to?" -- and on
         the APRS pane the answer comes from `kissterm/aprs_services/` instead
         of `kissterm/nodes/`. Same question, same key, different source; this
-        is the third use of the per-tab dispatch `action_toggle_contacts`
-        (`Ctrl+G`) and `action_beacon_now` (`Ctrl+Shift+B`) already use, and
-        the operator learns one key rather than two. Terminal-pane behaviour
+        is the same per-tab dispatch `action_toggle_contacts` (`Ctrl+G`) uses,
+        and the registry gives it a label for each tab (Commands, Services). Terminal-pane behaviour
         below is untouched, and every other tab still gets it.
 
         `can_harvest`/`peer` let the screen offer its "Learn from node"
@@ -3744,9 +3616,6 @@ class KissTermApp(App):
     @work
     async def action_file_transfer(self) -> None:
         """Start one explicit YAPP/AutoBIN upload or arm an explicit download."""
-        if self.query_one("#main-tabs", TabbedContent).active != "terminal":
-            self.notify("Open Terminal to transfer a file.")
-            return
         key = self._active_key()
         session = self._sessions.get(key)
         if session is None or session.link is None or not session.link.connected:
@@ -3782,7 +3651,7 @@ class KissTermApp(App):
 
     @work
     async def action_disconnect(self) -> None:
-        """Ctrl+Shift+D / Ctrl+D -- disconnect the visible Terminal session.
+        """Ctrl+D -- disconnect the visible Terminal session.
 
         Also the DISC half of `Delete` on the session-tab strip's focused
         tab (`disconnect_or_close_tab`), since `Delete` there only ever

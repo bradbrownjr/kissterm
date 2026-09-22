@@ -1,90 +1,105 @@
-"""Pure logic behind the Footer's width-fitting and the Ctrl+P key reference.
+"""The command registry's pure logic: the Footer fit, the menu grouping and
+the help text.
 
-No Textual event loop and no isolated config directory needed -- both
-functions under test take plain `Binding`/tuple lists, exactly so this stays
-an ordinary pytest module. See `kissterm/ui/commands.py`'s module docstring
-for why.
+No Textual event loop and no isolated config directory needed -- everything
+here is a plain function over `kissterm.ui.commands.COMMANDS`, which is why
+that module holds no App or widget reference. See its docstring.
 """
 
 from __future__ import annotations
 
-from textual.binding import Binding
-
-from kissterm.ui.commands import (
-    ACTION_META,
-    fit_footer_bindings,
-    iter_binding_entries,
-)
+from kissterm.ui import commands as cmd
 
 
-def test_beacon_and_its_hidden_legacy_fallback_are_one_entry():
-    bindings = [
-        Binding("ctrl+shift+b", "beacon_now", "Beacon", key_display="^B"),
-        Binding("ctrl+b", "beacon_now", "Beacon", show=False),
-    ]
-    entries = iter_binding_entries(bindings)
-    assert len(entries) == 1
-    assert entries[0].keys == ("Ctrl+Shift+B", "Ctrl+B")
+def test_every_command_is_in_a_menu_group_or_deliberately_not():
+    for command in cmd.COMMANDS:
+        assert command.group in cmd.MENU_GROUPS or command.group == "", command.label
+        if command.group:
+            assert command.mnemonic, f"{command.label} has no menu mnemonic"
 
 
-def test_tab_switching_aliases_collapse_to_one_entry():
-    bindings = [
-        Binding("f1", "show_tab('terminal')", "Terminal", show=False),
-        Binding("ctrl+1", "show_tab('terminal')", "Terminal", show=False),
-    ]
-    entries = iter_binding_entries(bindings)
-    assert len(entries) == 1
-    assert entries[0].category == "Panes"
-    assert entries[0].keys == ("F1", "Ctrl+1")
+def test_mnemonics_are_unique_within_a_group():
+    """Two entries on the same letter means one of them is unreachable from
+    the keyboard once its menu is open."""
+    for group, entries in cmd.menu_groups():
+        letters = [c.mnemonic for c in entries]
+        assert len(letters) == len(set(letters)), f"{group}: {letters}"
 
 
-def test_entries_are_ordered_by_category_then_footer_priority():
-    bindings = [
-        Binding("ctrl+q", "quit", "Quit"),
-        Binding("ctrl+t", "toggle_transmit", "TX"),
-        Binding("ctrl+n", "connect", "Connect"),
-    ]
-    entries = iter_binding_entries(bindings)
-    # "App" < "Connection" < "Transmit" alphabetically, so Quit sorts first
-    # by category even though it is the lowest footer priority of the three.
-    assert [e.action for e in entries] == ["quit", "connect", "toggle_transmit"]
+def test_every_mnemonic_is_a_letter_of_its_own_label():
+    """The menu underlines the mnemonic in the label; a letter that is not
+    in the label has nothing to underline and nothing to learn from."""
+    for command in cmd.COMMANDS:
+        if command.mnemonic:
+            assert command.mnemonic in command.label.upper(), command.label
 
 
-def test_an_action_missing_from_action_meta_falls_back_instead_of_crashing():
-    bindings = [Binding("ctrl+z", "some_future_action", "Future")]
-    entries = iter_binding_entries(bindings)
-    assert entries[0].category == "Other"
+def test_key_labels_are_the_short_form_the_footer_uses():
+    assert cmd.key_label("ctrl+n") == "^N"
+    assert cmd.key_label("ctrl+n", short=False) == "Ctrl+N"
+    assert cmd.key_label("f10") == "F10"
+    assert cmd.key_label("insert") == "Ins"
+    assert cmd.key_label("e") == "E"
+    assert cmd.key_label("") == ""
 
 
-def test_fit_footer_bindings_keeps_the_highest_priority_items_that_fit():
-    # Widths: TX = 2+2+3=7, Connect = 2+7+3=12, Disconnect = 2+10+3=15.
-    items = [
-        ("toggle_transmit", "^t", "TX"),
-        ("connect", "^n", "Connect"),
-        ("disconnect", "^D", "Disconnect"),
-    ]
-    assert fit_footer_bindings(items, budget=100) == items
-    # Only TX (7) fits in a 10-column budget; Connect (12) alone would not.
-    assert fit_footer_bindings(items, budget=10) == [items[0]]
-    assert fit_footer_bindings(items, budget=0) == []
+def test_a_key_does_nothing_on_a_tab_it_does_not_apply_to():
+    # Find is a Terminal action; Ctrl+F on APRS falls through rather than
+    # switching tabs out from under the operator.
+    assert cmd.applies_on("find_in_terminal", "terminal")
+    assert not cmd.applies_on("find_in_terminal", "aprs")
+    # Transmit applies everywhere, and so does anything not in the registry
+    # (a widget's own binding, or one of Textual's).
+    assert cmd.applies_on("toggle_transmit", "settings")
+    assert cmd.applies_on("focus_next", "heard")
 
 
-def test_fit_footer_bindings_stops_at_the_first_that_does_not_fit():
-    # "quit" (lowest priority, width 5) would easily fit a 20-column budget
-    # on its own, but only after skipping "connect" (mid priority, width
-    # 94) -- and fitting is a strict priority-ordered prefix, not a bin-
-    # packing search, so it never gets the chance.
-    items = [
-        ("toggle_transmit", "x", "y" * 14),  # priority 0, width 18
-        ("connect", "a", "b" * 90),  # priority 1, width 94
-        ("quit", "c", "d"),  # priority 10, width 5
-    ]
-    assert fit_footer_bindings(items, budget=20) == [items[0]]
+def test_one_action_can_carry_a_different_label_per_tab():
+    """Ctrl+R asks the same question on both tabs -- "what can I say to the
+    thing I am talking to?" -- and the label has to say which answer."""
+    assert cmd.command_for("command_reference", "terminal").label == "Node commands"
+    assert cmd.command_for("command_reference", "aprs").label == "Services"
+    assert cmd.command_for("command_reference", "heard") is None
 
 
-def test_every_footer_priority_is_unique():
-    priorities = [meta.footer_priority for meta in ACTION_META.values()]
-    assert len(priorities) == len(set(priorities)), (
-        "two actions competing for the same footer_priority makes the "
-        "Footer's fit order depend on dict iteration order"
-    )
+def test_the_footer_shows_only_what_applies_to_the_tab():
+    terminal = [c.action for c in cmd.footer_commands("terminal")]
+    assert "connect" in terminal
+    assert "find_in_terminal" in terminal
+    aprs = [c.action for c in cmd.footer_commands("aprs")]
+    assert "connect" not in aprs
+    assert "clear_log" in aprs
+    for tab in cmd.TAB_ORDER:
+        actions = [c.action for c in cmd.footer_commands(tab)]
+        assert actions[0] == "help", tab
+        assert len(set(actions)) == len(actions), f"{tab} repeats a key: {actions}"
+
+
+def test_the_footer_keeps_a_prefix_that_fits_and_drops_the_rest():
+    items = [("F1", "Help"), ("^T", "TX"), ("^N", "Connect")]
+    assert cmd.fit_footer(items, budget=100) == items
+    # Help is 2+4+3 = 9 columns, TX is 7, Connect is 12.
+    assert cmd.fit_footer(items, budget=16) == items[:2]
+    assert cmd.fit_footer(items, budget=15) == items[:1]
+    assert cmd.fit_footer(items, budget=0) == []
+
+
+def test_fitting_is_a_prefix_not_a_best_fit():
+    """A later, smaller chip must not jump the queue: the order is the
+    priority, so a narrow terminal loses the last keys, never a middle one."""
+    items = [("^T", "TX"), ("^N", "X" * 90), ("^Q", "Quit")]
+    assert cmd.fit_footer(items, budget=20) == items[:1]
+
+
+def test_help_names_the_tab_and_its_keys():
+    from rich.console import Console
+
+    console = Console(width=100, record=True)
+    console.print(cmd.help_renderable("terminal", [("Address Book", "insert", "New")]))
+    body = console.export_text()
+    assert "Terminal" in body
+    assert "Ctrl+N" in body and "Connect" in body
+    assert "Ins" in body and "Address Book" in body
+    assert "highlighted letter" in body
+    # An APRS-only command has no business in Terminal's key list.
+    assert "Send position" not in body

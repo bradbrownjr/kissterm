@@ -26,7 +26,7 @@ from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.monitor import sanitize  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
-from kissterm.ui.commands import ACTION_META, KeyBindingsProvider, _action_base  # noqa: E402
+from kissterm.ui.commands import KeyBindingsProvider  # noqa: E402
 from kissterm.ui.dialogs import (  # noqa: E402
     AprsGatewayMessageScreen,
     AprsIsWatchScreen,
@@ -62,6 +62,38 @@ def _plain(widget) -> str:
 
     region = Region(0, 0, widget.size.width or 200, widget.size.height or 5)
     return "\n".join(strip.text for strip in widget.render_lines(region))
+
+
+async def _footer_chips(app, pilot):
+    """The Footer's chips once it has actually composed them.
+
+    `Footer` renders nothing until its bindings are ready, which is a frame
+    or two after mount and longer on a loaded machine -- reading it after a
+    single `pause()` produced an empty list and a test that failed only
+    under xdist.
+    """
+    for _ in range(20):
+        chips = list(app.query_one(ui_app.KissTermFooter).query(FooterKey))
+        if chips:
+            return chips
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+    return []
+
+
+async def _menu(pilot, *keys):
+    """Open the F10 menu and walk it: a pause between each key, because the
+    menu screen has to be mounted before its letters mean anything, and a
+    loaded machine takes longer than one frame to get there."""
+    await pilot.press("f10")
+    await pilot.pause()
+    await asyncio.sleep(0.1)
+    await pilot.pause()
+    for key in keys:
+        await pilot.press(key)
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        await pilot.pause()
 
 
 MYCALL = AX25Address.parse("N1ABC-1")
@@ -102,7 +134,7 @@ async def test_aprs_is_watch_is_reachable_without_an_rf_transmission():
     async with app.run_test(size=(120, 40)) as pilot:
         app.action_show_tab("aprs")
         await pilot.pause()
-        await pilot.press("ctrl+shift+i")
+        await _menu(pilot, "w")  # menu: APRS > Watch APRS-IS
         await asyncio.sleep(0.05)
         await pilot.pause()
         assert isinstance(app.screen, AprsIsWatchScreen)
@@ -142,19 +174,20 @@ async def test_aprs_footer_switches_context_before_any_aprs_interaction():
         actions = [key.action for key in app.query_one(ui_app.KissTermFooter).query(FooterKey)]
         assert "connect" not in actions
         assert "disconnect" not in actions
-        assert "aprs_gateway_form" in actions
+        assert "command_reference" in actions  # ^R Services
+        assert "toggle_contacts" in actions
     station.close()
 
 
 @pytest.mark.asyncio
-async def test_alt_m_opens_the_aprs_gateway_form_not_the_selected_contact():
-    """Ctrl+M is Enter in a terminal and must never be used for this action."""
+async def test_the_menu_opens_the_aprs_gateway_form_not_the_selected_contact():
+    """The gateway form has no key of its own; F10 then G reaches it."""
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
         app.action_show_tab("aprs")
         await pilot.pause()
         app.query_one("#aprs-to-input", Input).value = "SMSGTE"
-        await pilot.press("alt+m")
+        await _menu(pilot, "g")
         await asyncio.sleep(0.05)
         await pilot.pause()
         assert isinstance(app.screen, AprsGatewayMessageScreen)
@@ -193,7 +226,7 @@ async def test_footer_is_tab_and_connection_aware():
         await asyncio.sleep(0)
         await pilot.pause()
         aprs = actions()
-        assert "aprs_beacon_now" in aprs
+        assert "clear_log" in aprs
         assert "connect" not in aprs
         assert "disconnect" not in aprs
         assert "file_transfer" not in aprs
@@ -234,7 +267,7 @@ async def test_app_mounts_without_a_transport_so_settings_can_repair_it():
 
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
-        assert "NO TRANSPORT - F5 Settings" in _plain(app.query_one("#status-bar"))
+        assert "NO TRANSPORT - F9 Settings" in _plain(app.query_one("#status-bar"))
         assert app.query_one(SettingsPane) is not None
         assert isinstance(app.screen, OnboardingScreen)
         assert app.screen.query_one("#onboarding-callsign", Input).value == str(MYCALL)
@@ -274,6 +307,8 @@ async def test_first_run_onboarding_requires_a_callsign_then_opens_transport_set
         await pilot.pause()
         assert isinstance(app.screen, OnboardingScreen)
         await pilot.press("enter")
+        await pilot.pause()
+        await asyncio.sleep(0.05)
         assert "callsign" in str(app.screen.query_one("#onboarding-error").render()).lower()
 
         app.screen.query_one("#onboarding-callsign", Input).value = "N1ABC-1"
@@ -483,7 +518,7 @@ async def test_remote_escape_sequences_never_reach_the_widget():
 async def test_callsign_dialog_opens_prefilled():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.press("ctrl+k")
+        await _menu(pilot, "m")  # Session > My callsign
         await pilot.pause()
         await asyncio.sleep(0.1)
         await pilot.pause()
@@ -502,7 +537,7 @@ async def test_changing_callsign_updates_the_live_station():
     """
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.press("ctrl+k")
+        await _menu(pilot, "m")  # Session > My callsign
         await pilot.pause()
         await asyncio.sleep(0.1)
         await pilot.pause()
@@ -524,7 +559,7 @@ async def test_new_callsign_is_the_one_actually_transmitted():
     """The proof that matters: the new call appears in the address field."""
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.press("ctrl+k")
+        await _menu(pilot, "m")  # Session > My callsign
         await pilot.pause()
         await asyncio.sleep(0.1)
         await pilot.pause()
@@ -558,7 +593,7 @@ async def test_callsign_change_refused_while_connected():
         link = await a.connect(AX25Path(PEER, MYCALL))
         assert link is not None and link.connected
         app._bind_link(link)
-        await pilot.press("ctrl+k")
+        await _menu(pilot, "m")  # Session > My callsign
         await pilot.pause()
         await asyncio.sleep(0.1)
         await pilot.pause()
@@ -783,25 +818,15 @@ async def test_tab_switching_keys_are_not_duplicated_in_the_footer():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
-        # Check the Footer's own binding source directly, so this does not
-        # depend on rendering or terminal width.
-        shown = {
-            key: active.binding.description
-            for key, active in app.active_bindings.items()
-            if active.binding.show
-        }
-        for key in ("f1", "f2", "f3", "f4", "f5"):
-            assert key not in shown, (
-                f"{key} is shown in the footer, duplicating its tab label"
-            )
-        # Function keys are tabs; Ctrl sequences are actions and modals. So
-        # NO function key should appear in the footer at all -- the command
-        # reference is ctrl+r, and the F-row stays reserved for the tabs
-        # still to come (Mail, Bulletins, Files).
-        assert not any(k.startswith("f") and k[1:].isdigit() for k in shown), (
-            f"a function key is in the footer: {sorted(shown)}"
+        chips = await _footer_chips(app, pilot)
+        actions = [chip.action for chip in chips]
+        assert not any(a.startswith("show_tab") for a in actions), (
+            f"a tab key is in the footer, duplicating its tab label: {actions}"
         )
-        assert "ctrl+r" in shown
+        # The only function keys in the footer are Help and Menu, which are
+        # not tabs, and the node command reference is a Ctrl key.
+        assert [c.key for c in chips if c.key.startswith("f")] == ["f1", "f10"]
+        assert "command_reference" in actions
     station.close()
 
 
@@ -812,11 +837,11 @@ async def test_tab_switching_keys_are_not_duplicated_in_the_footer():
 #: check: a label that says F2 while F2 opens something else is worse than
 #: no hint at all.
 TAB_BAR = (
-    ("F1 Terminal", "terminal", "f1"),
-    ("F2 APRS", "aprs", "f2"),
-    ("F3 Heard", "heard", "f3"),
-    ("F4 Monitor", "monitor", "f4"),
-    ("F5 Settings", "settings", "f5"),
+    ("F2 Terminal", "terminal", "f2"),
+    ("F3 APRS", "aprs", "f3"),
+    ("F4 Heard", "heard", "f4"),
+    ("F5 Monitor", "monitor", "f5"),
+    ("F9 Settings", "settings", "f9"),
 )
 
 
@@ -887,7 +912,7 @@ async def test_ctrl_g_is_a_no_op_on_a_tab_with_no_slideout():
     begin with, which makes "nothing happened" unambiguous."""
     app, ta, tb, station = await _app()
     async with app.run_test(size=(79, 30)) as pilot:
-        await pilot.press("f4")  # Monitor -- no slide-out of its own
+        await pilot.press("f5")  # Monitor -- no slide-out of its own
         await pilot.pause()
         assert not app.query_one("#terminal-addressbook-column").display
         await pilot.press("ctrl+g")
@@ -903,33 +928,17 @@ async def test_ctrl_g_is_a_no_op_on_a_tab_with_no_slideout():
 # ---------------------------------------------------------------------------
 
 
-def test_every_visible_binding_action_has_footer_and_palette_metadata():
-    """A `Binding` with no `ACTION_META` entry silently falls back to
-    `commands._FALLBACK_META` instead of crashing the Footer -- this test is
-    what actually enforces that every action gets a deliberate category and
-    priority, the same discipline `AGENTS.md` asks of `Config`/
-    `SETTINGS_SCHEMA`."""
-    missing = {
-        _action_base(binding.action)
-        for binding in KissTermApp.BINDINGS
-        if binding.show and _action_base(binding.action) not in ACTION_META
-    }
-    assert not missing, f"no ACTION_META entry for: {sorted(missing)}"
-
-
 @pytest.mark.asyncio
 async def test_the_footer_shows_fewer_keys_at_an_ordinary_terminal_width():
     app, ta, tb, station = await _app()
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
-        footer = app.query_one("Footer")
-        shown = {c.description for c in footer.children}
-        # The core mid-contact cluster survives an 80-column terminal...
-        for essential in ("TX", "Connect", "Contacts"):
-            assert essential in shown, f"{essential} missing at 80 columns: {shown}"
-        # ...but not everything does; if it did, this feature fixed nothing.
-        assert "Transcripts" not in shown
-        assert len(shown) < len(KissTermApp.BINDINGS)
+    async with app.run_test(size=(60, 30)) as pilot:
+        shown = [c.description for c in await _footer_chips(app, pilot)]
+        # The front of the bar survives a narrow terminal, and Menu is
+        # pinned to the end because it reaches everything that was dropped.
+        for essential in ("Help", "TX", "Connect"):
+            assert essential in shown, f"{essential} missing at 60 columns: {shown}"
+        assert shown[-1] == "Menu"
+        assert "Quit" not in shown
     station.close()
 
 
@@ -937,28 +946,16 @@ async def test_the_footer_shows_fewer_keys_at_an_ordinary_terminal_width():
 async def test_the_footer_shows_every_terminal_action_once_wide_enough():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(200, 30)) as pilot:
-        await pilot.pause()
-        footer = app.query_one("Footer")
-        shown = {c.description for c in footer.children}
-        for expected in (
-            "TX",
-            "Connect",
-            "Contacts",
-            "NET/ROM",
-            "Commands",
-            "Beacon",
-            "Find",
-            "Clear",
-            "Transcripts",
-            "Quit",
-        ):
+        shown = {c.description for c in await _footer_chips(app, pilot)}
+        for expected in ("Help", "TX", "Connect", "Book", "Commands", "Find", "Quit", "Menu"):
             assert expected in shown, f"{expected} missing at 200 columns: {shown}"
     station.close()
 
 
 @pytest.mark.asyncio
-async def test_ctrl_pagedown_independently_toggles_netrom_claims():
-    """NET/ROM claims can summon their shared slide-out independently."""
+async def test_the_netrom_menu_entry_independently_toggles_netrom_claims():
+    """NET/ROM claims can summon their shared slide-out independently
+    (menu: View > NET/ROM nodes -- F10, Right twice from Session, N)."""
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
@@ -974,19 +971,19 @@ async def test_ctrl_pagedown_independently_toggles_netrom_claims():
         assert not column.display
 
         app.query_one("#session-input", Input).focus()
-        await pilot.press("ctrl+pagedown")
+        await _menu(pilot, "right", "right", "n")
         await pilot.pause()
         assert column.display
         assert app.query_one("#known-nodes-table").display
 
-        await pilot.press("ctrl+pagedown")
+        await _menu(pilot, "right", "right", "n")
         await pilot.pause()
         assert not app.query_one("#known-nodes-note").display
         assert not app.query_one("#known-nodes-table").display
         assert not app.query_one("#known-nodes-use").display
         assert app.focused is app.query_one("#addressbook-table")
 
-        await pilot.press("ctrl+pagedown")
+        await _menu(pilot, "right", "right", "n")
         await pilot.pause()
         assert app.query_one("#known-nodes-table").display
         assert addressbook is app.query_one(AddressBookPane)
@@ -996,13 +993,12 @@ async def test_ctrl_pagedown_independently_toggles_netrom_claims():
 @pytest.mark.asyncio
 async def test_the_footer_widens_back_out_on_a_live_resize():
     app, ta, tb, station = await _app()
-    async with app.run_test(size=(80, 30)) as pilot:
-        await pilot.pause()
-        footer = app.query_one("Footer")
-        narrow_count = len(list(footer.children))
+    async with app.run_test(size=(50, 30)) as pilot:
+        narrow_count = len(await _footer_chips(app, pilot))
         await pilot.resize_terminal(200, 30)
         await pilot.pause()
-        assert len(list(footer.children)) > narrow_count
+        await asyncio.sleep(0.05)
+        assert len(await _footer_chips(app, pilot)) > narrow_count
     station.close()
 
 
@@ -1016,14 +1012,14 @@ async def test_ctrl_p_key_reference_finds_and_runs_a_binding():
         await pilot.pause()
         assert KeyBindingsProvider in app.COMMANDS
         provider = KeyBindingsProvider(app.screen)
-        hits = [hit async for hit in provider.search("contacts")]
-        assert hits, "Ctrl+G's Contacts binding is not searchable from the palette"
+        hits = [hit async for hit in provider.search("address book")]
+        assert hits, "Ctrl+G's Address book is not searchable from the palette"
         # 80 columns is exactly the auto-open threshold, so the slide-out is
         # already showing -- what the palette hit has to prove is that it
         # runs the action at all, which here means closing it.
         column = app.query_one("#terminal-addressbook-column")
         assert column.display
-        await hits[0].command()
+        hits[0].command()
         await pilot.pause()
         assert not column.display, "the palette hit's command did not run the action"
     station.close()
@@ -1408,10 +1404,10 @@ async def test_tab_keys_work_while_an_input_has_focus():
     async with app.run_test(size=(120, 40)) as pilot:
         tabs = app.query_one("#main-tabs", TabbedContent)
         for start, widget, key, dest in (
-            ("terminal", "#session-input", "f2", "aprs"),
-            ("terminal", "#session-input", "f5", "settings"),
-            ("aprs", "#aprs-compose-input", "f4", "monitor"),
-            ("aprs", "#aprs-compose-input", "f3", "heard"),
+            ("terminal", "#session-input", "f3", "aprs"),
+            ("terminal", "#session-input", "f9", "settings"),
+            ("aprs", "#aprs-compose-input", "f5", "monitor"),
+            ("aprs", "#aprs-compose-input", "f4", "heard"),
         ):
             app.action_show_tab(start)
             await pilot.pause()

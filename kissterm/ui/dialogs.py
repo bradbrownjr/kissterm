@@ -2262,7 +2262,7 @@ class AprsServiceScreen(ModalScreen[str | None]):
     #: pushed over it.
     BINDINGS = [
         Binding("enter", "select_row", "Use"),
-        Binding("insert", "new_message", "Save a message"),
+        Binding("insert", "new_message", "New"),
         Binding("f2", "edit_message", "Edit"),
         Binding("delete", "forget_message", "Forget"),
         Binding("escape", "dismiss(None)", "Close"),
@@ -2300,7 +2300,7 @@ class AprsServiceScreen(ModalScreen[str | None]):
             )
             with Horizontal(id="connect-buttons"):
                 yield Button("Use", variant="primary", id="aprs-service-use")
-                yield Button("Save a message", id="aprs-service-new")
+                yield Button("New", id="aprs-service-new")
                 yield Button("Close", id="aprs-service-close")
         yield Footer()
 
@@ -2321,7 +2321,7 @@ class AprsServiceScreen(ModalScreen[str | None]):
             return (
                 "Not one of the gateway services kissterm ships, so there are no "
                 "command templates for it -- only your own saved messages. Set a "
-                "gateway on the contact (F2 in the contacts list) if it is one."
+                "gateway on the contact (E in the contacts list) if it is one."
             )
         parts = [self._service.note.replace("\n", " ").strip()]
         if self._service.region:

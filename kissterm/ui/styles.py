@@ -17,7 +17,7 @@ APP_CSS = """
 Screen { layout: vertical; }
 
 /* One flat button style for the whole app -- Connect, Cancel, Save, Reload,
-   Scan for hardware, Forget selected, Close, Send, all of it. Textual's
+   Scan for hardware, Forget, Close, Send, all of it. Textual's
    default Button has a two-tone "tall" border that reads as a raised, chunky
    3D bezel; combined with the bright solid fill `variant="primary"` applies,
    it looked like it belonged to a different, more skeuomorphic app than the
