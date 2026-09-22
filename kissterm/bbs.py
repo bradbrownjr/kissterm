@@ -28,6 +28,11 @@ class Macro:
     fields: tuple[str, ...] = ()
     confidence: str = "documented"
 
+    @property
+    def name(self) -> str:
+        """The text Tab places in the compose box for parameter-free helpers."""
+        return self.template
+
     def render(self, **values: str) -> str:
         """Fill the template, rejecting control characters before they can
         turn a one-line helper into several commands.
@@ -69,8 +74,9 @@ BPQMAIL = Profile(
     name="BPQMail / LinBPQ BBS",
     note="Commands are put in the compose box only; check the BBS prompt before sending.",
     macros=(
-        Macro("list-mine", "List my mail", "List messages addressed to you", "LM", confidence="recalled"),
+        Macro("list-mine", "List my mail", "List Mine", "LM", confidence="recalled"),
         Macro("list-new", "List new mail", "List unread/new messages", "LN", confidence="recalled"),
+        Macro("list-bulletins", "List bulletins", "List Bulletins", "LB", confidence="recalled"),
         Macro("read", "Read message", "Read one numbered message", "R {number}", ("number",), "recalled"),
         Macro("send", "Send mail", "Start a personal message to a callsign", "SP {callsign}", ("callsign",), "recalled"),
     ),
@@ -85,3 +91,22 @@ def profiles() -> tuple[Profile, ...]:
 def profile(profile_id: str) -> Profile | None:
     """Find a profile without making an unsupported guess."""
     return next((item for item in profiles() if item.id == profile_id), None)
+
+
+def complete(prefix: str, limit: int = 8) -> tuple[Macro, ...]:
+    """Parameter-free BBS commands beginning with ``prefix``.
+
+    A Tab completion cannot safely invent a message number or recipient, so
+    read/send remain in the parameterized helper picker. Listing commands are
+    complete on their own and are useful alongside normal node suggestions.
+    """
+    needle = prefix.strip().upper()
+    if not needle:
+        return ()
+    matches = [
+        macro
+        for item in profiles()
+        for macro in item.macros
+        if not macro.fields and macro.name.upper().startswith(needle)
+    ]
+    return tuple(matches[:limit])

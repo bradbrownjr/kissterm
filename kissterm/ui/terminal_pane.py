@@ -129,6 +129,7 @@ from textual.timer import Timer
 from textual.widgets import Button, DataTable, Input, RichLog, Static, Tab, Tabs
 
 from ..ansi import to_text
+from ..bbs import complete as complete_bbs
 from . import slideouts
 from ..monitor import sanitize
 from ..tx import DISABLED_MESSAGE
@@ -987,7 +988,18 @@ class TerminalPane(Container):
         if prefix == self._cycling_value and self._suggestion_matches:
             matches = self._suggestion_matches
         else:
-            matches = reference.complete(prefix) if reference is not None else ()
+            command_matches = reference.complete(prefix) if reference is not None else ()
+            # BBS list commands are complete on their own, unlike read/send
+            # which require a number or recipient and stay in the helper
+            # picker.  Offer them beside the node reference, never instead of
+            # it, so typing "L" can explain LM/LB before the operator spends
+            # any channel time.  A BBS command that happens to share a name
+            # with a node command appears once, with the node reference's
+            # richer per-session provenance taking precedence.
+            seen = {command.name.upper() for command in command_matches}
+            matches = command_matches + tuple(
+                macro for macro in complete_bbs(prefix) if macro.name.upper() not in seen
+            )
             self._suggestion_matches = matches
             self._suggestion_index = 0
             self._cycling_value = None
@@ -1002,18 +1014,17 @@ class TerminalPane(Container):
         # Command names alone make a new operator guess at exactly the point
         # they are looking for help. The shipped reference already carries a
         # concise summary for each one, so surface it here instead of asking
-        # the node (which would cost airtime) or hiding candidates past the
-        # right edge. Let the small strip wrap on a narrow terminal: losing a
-        # candidate to an ellipsis is worse than giving the scrollback one
-        # less row while the operator chooses deliberately.
+        # the node (which would cost airtime). One candidate per line keeps
+        # the command and its meaning together on narrow terminals; a wide
+        # horizontal row would put exactly that explanation off-screen.
         text = Text(overflow="fold")
         for index, command in enumerate(matches):
             if index:
-                text.append("  ")
+                text.append("\n")
             text.append(command.name, style="bold" if index == self._suggestion_index else "dim")
             if command.summary:
-                text.append(f": {command.summary}", style="dim")
-        text.append("   Tab: cycle", style="dim italic")
+                text.append(f" - {command.summary}", style="dim")
+        text.append("\nTab: cycle", style="dim italic")
         strip.update(text)
         strip.display = True
 

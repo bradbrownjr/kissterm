@@ -18,6 +18,14 @@ touched and any breaking notes.
   `kissterm/ui/styles.py`, `tests/unit/test_bbs.py`, `README.md`,
   `docs/ROADMAP.md`, `docs/CHANGELOG.md`.
 
+- **Command suggestions are stacked and explained.** The terminal input now
+  keeps each candidate and its short meaning on one row (`LM - List Mine`,
+  `LB - List Bulletins`) rather than risking descriptions beyond a narrow
+  terminal's right edge. Tab still only fills the input.
+  **Files:** `kissterm/bbs.py`, `kissterm/ui/terminal_pane.py`,
+  `tests/unit/test_bbs.py`, `tests/pilot/test_terminal_ux.py`, `README.md`,
+  `docs/CHANGELOG.md`.
+
 ## [2026-09-22] — Make NET/ROM claims collapsible
 
 ### Improvements

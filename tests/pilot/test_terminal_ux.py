@@ -362,6 +362,24 @@ async def test_bbs_helper_from_reference_reaches_compose_box_without_sending():
     b.close()
 
 
+@pytest.mark.asyncio
+async def test_bbs_list_suggestions_are_stacked_with_their_meanings():
+    """A narrow terminal must not push the explanation off the right edge."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(55, 32)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        pane._update_suggestions("L")
+        await pilot.pause()
+        strip = app.query_one("#suggestion-strip", Static)
+        rendered = _plain(strip)
+        assert "LM - List Mine" in rendered
+        assert "LB - List Bulletins" in rendered
+        assert rendered.index("LM - List Mine") < rendered.index("LB - List Bulletins")
+    a.close()
+    b.close()
+
+
 # ---------------------------------------------------------------------------
 # Inline suggestion strip -- docs/ROADMAP.md's "Inline completion on the
 # send line". Tab fills in the input like `suggest()` above; it must never
