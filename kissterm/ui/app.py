@@ -688,15 +688,16 @@ class KissTermApp(App):
         # o/f/1..5; Textual's own command palette owns ctrl+p; and Ctrl+C
         # (any shifted form included) is avoided everywhere in this file for
         # the SIGINT reason below. Ctrl+G collides with none of that and is
-        # not a flow-control byte or job-control signal either, so it needs
-        # no Ctrl+Shift+-plus-legacy-fallback pair the way Beacon/Disconnect
-        # do below.
-        Binding("ctrl+g", "toggle_contacts", "Contacts", key_display="^G"),
+        # not a flow-control byte or job-control signal either. Lowercase
+        # `^g` on screen distinguishes it from the modified shortcut below.
+        Binding("ctrl+g", "toggle_contacts", "Contacts", key_display="^g"),
         # Saved address-book entries and passive NET/ROM claims share the
         # Terminal slide-out, but on a short display the latter should not
         # crowd out the directory the operator deliberately maintains.
-        # Alt+G leaves Ctrl+G's cross-pane "contacts" meaning untouched.
-        Binding("alt+g", "toggle_known_nodes", "NET/ROM"),
+        # Ctrl+Shift+G leaves Ctrl+G's cross-pane "contacts" meaning
+        # untouched. Terminals without an enhanced keyboard protocol collapse
+        # this to plain Ctrl+G, which is the safe Address Book fallback.
+        Binding("ctrl+shift+g", "toggle_known_nodes", "NET/ROM", key_display="^G"),
         # Ctrl+SHIFT+B, not Ctrl+B: Ctrl+B is tmux's default prefix (and
         # screen's, once remapped), so under a multiplexer -- which is how a
         # station PC in another room is usually reached -- the beacon key was
@@ -2947,7 +2948,7 @@ class KissTermApp(App):
             self.query_one(AprsPane).toggle_contacts()
 
     def action_toggle_known_nodes(self) -> None:
-        """Alt+G: collapse passive NET/ROM claims on the Terminal tab only."""
+        """Ctrl+Shift+G: collapse passive NET/ROM claims on Terminal only."""
         active = self.query_one("#main-tabs", TabbedContent).active
         if active == "terminal":
             self.query_one(TerminalPane).toggle_known_nodes()

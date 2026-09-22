@@ -7,11 +7,12 @@ touched and any breaking notes.
 
 ### Improvements
 
-- **NET/ROM claims no longer have to crowd out saved stations.** `Alt+G`
-  collapses or restores the passive claims section inside the open Terminal
-  Address Book; `Ctrl+G` continues to show or hide the Address Book itself.
-  Hiding claims returns focus to the saved-station table, and the context-aware
-  shortcut bar exposes the action on Terminal only.
+- **NET/ROM claims no longer have to crowd out saved stations.** `Ctrl+Shift+G`
+  collapses or restores the passive claims section independently from the
+  Terminal Address Book; from a closed slide-out it opens the shared column
+  with claims shown. `Ctrl+G` continues to show or hide the Address Book
+  itself. Hiding claims returns focus to the saved-station table, and the
+  context-aware shortcut bar exposes the action on Terminal only.
   **Files:** `kissterm/ui/addressbook_pane.py`, `kissterm/ui/terminal_pane.py`,
   `kissterm/ui/app.py`, `kissterm/ui/commands.py`,
   `tests/pilot/test_app_mounts.py`, `README.md`, `DESIGN.md`,

@@ -102,17 +102,17 @@ class AddressBookPane(Vertical):
         for node in known_nodes.entries():
             table.add_row(node.callsign, node.alias, node.via, str(node.quality), node.broadcaster, key=node.callsign)
 
-    def toggle_known_nodes(self) -> bool:
-        """Show or hide the passive NET/ROM-claim section.
+    def set_known_nodes_visible(self, visible: bool) -> bool:
+        """Set visibility of the passive NET/ROM-claim section.
 
         The address book is the deliberate dialing directory; received
         NET/ROM claims are useful supporting context but can take too much
         vertical room on a short terminal.  Keep their visibility independent
         of the Address Book slide-out so Ctrl+G always means just that.
 
-        Returns the new visibility so the caller can report the result.
+        Returns the resulting visibility so the caller can report it.
         """
-        self._known_nodes_visible = not self._known_nodes_visible
+        self._known_nodes_visible = visible
         for widget_id in (
             "#known-nodes-note",
             "#known-nodes-table",
@@ -124,6 +124,10 @@ class AddressBookPane(Vertical):
             # return to the permanent directory immediately.
             self.query_one("#addressbook-table", DataTable).focus()
         return self._known_nodes_visible
+
+    def toggle_known_nodes(self) -> bool:
+        """Invert the NET/ROM-claim section's current visibility."""
+        return self.set_known_nodes_visible(not self._known_nodes_visible)
 
     def _use_claimed_node(self) -> None:
         table = self.query_one("#known-nodes-table", DataTable)

@@ -242,7 +242,7 @@ conversation, and swapping it mid-session would kill the link by timeout.
 |-----|--------|
 | `F1`..`F5` | Terminal / Monitor / Heard / APRS / Settings -- shown as the key right in each tab's label (also `Ctrl+1`..`Ctrl+5`, for a terminal that intercepts function keys) |
 | `Ctrl+G` | Open/close the Address Book (Terminal) or contacts list (APRS) as a slide-out on the right |
-| `Alt+G` | Show/hide passive NET/ROM claims in the open Terminal Address Book |
+| `Ctrl+Shift+G` | Show/hide passive NET/ROM claims; opens the Terminal Address Book if needed |
 | `Ctrl+R` | Command reference and glossary for the node you are actually talking to |
 | `Ctrl+T` | Enable / disable transmit -- the master switch |
 | `Ctrl+Shift+B` | Send one beacon now (see the tmux note below) |

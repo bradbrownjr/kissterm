@@ -75,9 +75,10 @@ never fight over the same key. See `DESIGN.md`'s "slide-out panels" section
 for the pattern -- `AprsPane`'s contacts column and, later, Mail's own
 contacts panel follow the identical recipe.
 
-**NET/ROM claims are supporting context, not a second directory.** `Alt+G`
+**NET/ROM claims are supporting context, not a second directory.** `Ctrl+Shift+G`
 collapses or restores their lower section without changing the Address Book
-slide-out, so a shorter terminal keeps room for saved stations.
+slide-out. If the slide-out is closed, it opens it with claims shown, so both
+sections remain independently reachable.
 
 **Multiple simultaneous connections get one tab each, on a second strip
 inside this pane** -- the same recipe `AprsPane`'s `_ConvoTabs` already
@@ -851,10 +852,16 @@ class TerminalPane(Container):
             self.query_one(AddressBookPane).refresh_known_nodes(self.app.known_nodes)  # type: ignore[attr-defined]
 
     def toggle_known_nodes(self) -> None:
-        """Alt+G: collapse or restore NET/ROM claims in the open directory."""
+        """Ctrl+Shift+G: independently show or hide NET/ROM claims."""
         column = self.query_one("#terminal-addressbook-column")
         if not column.display:
-            self.app.notify("Open the Address Book first (Ctrl+G).", severity="warning")
+            # The shortcut names the NET/ROM list, so it must be able to
+            # summon the shared column by itself. It is a show operation in
+            # this state, rather than an invisible state flip behind a closed
+            # panel.
+            self.toggle_addressbook()
+            self.query_one(AddressBookPane).set_known_nodes_visible(True)
+            self.app.notify("NET/ROM claims shown.")
             return
         visible = self.query_one(AddressBookPane).toggle_known_nodes()
         self.app.notify(
