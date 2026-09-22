@@ -94,10 +94,50 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   without any of them knowing a scrollback exists, and an operator scrolled
   back is not yanked to the bottom. Three pilot tests in
   `tests/pilot/test_terminal_ux.py` cover both directions and all three fail
-  without the fix. **Still to do before this closes:** the operator re-tests
-  against a real node. If it recurs, the remaining untested hypothesis is a
-  receive-side one -- replay a real captured session from the debug log.
-  Files: `kissterm/ui/wraplog.py`, `tests/pilot/test_terminal_ux.py`.
+  without the fix.
+  **Re-tested on the air the same evening against CCEMA (WS1EC-15), and the
+  symptom recurred -- from a SECOND, unrelated cause.** The anchor fix is
+  sound and stays; it is simply not what produced this report. Evidence, all
+  from the operator's own machine rather than a hypothesis: the session
+  transcript contains the prompt (`de WS1EC>`), the debug log shows four
+  I-frames of 128/128/128/53 all accepted with V(R) reaching 4, and the
+  operator reports roughly thirty EMPTY rows below the last visible line. So
+  every byte arrived, reached the UI layer, and the scrollback was nowhere
+  near full -- nothing was below any fold, and the prompt was never written
+  at all.
+  **Where it actually goes.** `TerminalPane._flush_incoming` holds back
+  everything after the last line terminator so a word split across a frame
+  boundary does not render as a hard break mid-word. That tail is released
+  only by a newline or by a 0.2s idle timer. The node's last frame ends in an
+  unterminated prompt, so the prompt's entire visibility depended on that
+  timer -- and the timer never ran. The screenshots prove it independently of
+  the prompt: the Terminal pane shows `Emergency Communications Team` and
+  `BYE<tab>- Disconnect` as single joined lines, while the Monitor shows both
+  split across frames. Joined means each tail waited for the NEXT frame to
+  absorb it, across a 58 second gap a 0.2s timer would have split. The one
+  tail with no next frame is the prompt.
+  **Leading hypothesis, not yet confirmed:** `MessagePump.set_timer` wraps its
+  callback in `call_next`, so the flush only happens if the PANE'S OWN message
+  queue is drained, whereas `write_incoming` arrives by a plain method call
+  from the link callback and works regardless. A stalled pane message queue
+  fits every observation. Nothing reproduces under `run_test` -- the real
+  connect path (Ctrl+N, the Radio Reminder modal, real frames over the
+  loopback, the operator's own config at their geometry) was replayed and the
+  timer fires every time -- so this shipped as instrumentation rather than a
+  sixth guess: `_watch_flush` schedules the same delay directly on the event
+  loop (demonstrably alive: RRs went out on time throughout) and logs which
+  mechanism fired. **Next step:** the operator reconnects once with the debug
+  log on, which they already run. If the loop watchdog logs an unflushed tail
+  while the Textual timer is still armed, the message queue is the fault and
+  the flush must stop depending on it.
+  **Design note for the fix, whichever way that lands.** Making a line's
+  visibility depend on a timer is the underlying flaw, not the timer's
+  reliability: the operator waited 58 seconds to see a line whose first half
+  had already arrived. A terminal should show bytes as they arrive and
+  continue the line when the rest comes, rather than withhold them on a
+  delay.
+  Files: `kissterm/ui/wraplog.py`, `kissterm/ui/terminal_pane.py`,
+  `tests/pilot/test_terminal_ux.py`.
 - [ ] **The focus highlight never moves: the entry field is always orange.**
   `open`. Reported 2026-09-22: after clicking into the terminal's receive
   box, "the bright box border remains on the text entry field, so I type and

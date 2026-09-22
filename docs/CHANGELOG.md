@@ -3,6 +3,35 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-22] — Instrument the held-back line tail
+
+### Improvements
+
+- **The debug log now says whether a held-back line tail was ever
+  released.** An on-air re-test against CCEMA (WS1EC-15) showed the missing
+  prompt has a second cause, unrelated to the scroll fix below: the
+  transcript contained `de WS1EC>`, the debug log showed all four I-frames
+  accepted, and the operator had about thirty empty rows below the last
+  visible line -- so the prompt was never written rather than scrolled out
+  of sight. `TerminalPane._flush_incoming` holds back everything after the
+  last line terminator, so a word split across a frame boundary does not
+  render as a break mid-word, and releases it on a newline or a 0.2s idle
+  timer. The node's last frame ends in an unterminated prompt, so the
+  prompt depended entirely on that timer, and the timer never ran: the
+  Terminal pane showed `Emergency Communications Team` as one joined line
+  across a 58 second gap that a 0.2s timer would have split, while the
+  Monitor showed the two halves arriving in separate frames.
+  `MessagePump.set_timer` wraps its callback in `call_next`, so the flush
+  needs the pane's own message queue to be drained, while `write_incoming`
+  arrives by a plain method call and works regardless. That is the leading
+  hypothesis and it does not reproduce under `run_test`, so this ships as
+  measurement rather than a sixth guess: `_watch_flush` schedules the same
+  delay directly on the event loop and logs which mechanism fired. It
+  observes and never flushes, so behaviour is unchanged. Diagnostic only --
+  it comes out with the fix.
+
+**Files:** kissterm/ui/terminal_pane.py, docs/ROADMAP.md.
+
 ## [2026-09-22] — Keep the last line of node output in view
 
 ### Fixes

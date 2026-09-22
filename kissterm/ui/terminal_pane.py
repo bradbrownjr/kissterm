@@ -118,6 +118,8 @@ note before the operator could read it.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import re
 
 from rich.text import Text
@@ -135,6 +137,8 @@ from ..monitor import sanitize
 from ..tx import DISABLED_MESSAGE
 from .addressbook_pane import AddressBookPane
 from .wraplog import WrapLog
+
+logger = logging.getLogger(__name__)
 
 #: Conservative URL match. Trailing punctuation is excluded so a link at the
 #: end of a sentence does not swallow the full stop into the target.
@@ -783,8 +787,56 @@ class TerminalPane(Container):
             self._flush_timers[session_key] = self.set_timer(
                 0.2, lambda: self._on_flush_timer(session_key)
             )
+            logger.debug(
+                "flush: scheduled Textual timer for %r, %d byte(s) pending",
+                session_key,
+                len(self._pending_incoming.get(session_key, b"")),
+            )
+            self._watch_flush(session_key)
+
+    def _watch_flush(self, session_key: str) -> None:
+        """DIAGNOSTIC ONLY -- observes, never flushes. Remove with the fix.
+
+        `set_timer` wraps its callback in `call_next`, so the held-back tail
+        of a line is only ever released if the PANE'S OWN message queue is
+        being drained. `write_incoming` reaches this widget by a plain method
+        call from the link callback instead, which is why a real session
+        (2026-09-22, CCEMA) rendered every line whose continuation arrived in
+        a later frame -- "Emergency Communications Team" came out whole
+        across a 58 second gap that a 0.2s timer should have split -- while
+        the one tail with no next frame, the node's prompt, was never written
+        at all. Both facts fit a Textual timer whose callback never runs, and
+        nothing reproduces it under `run_test`, where the pilot drains those
+        queues itself.
+
+        So this schedules the same delay directly on the event loop, which is
+        demonstrably alive in that session (frames arrived and RRs went out
+        on time throughout), and logs what it finds. If the loop callback
+        logs and the timer callback does not, the message queue is the fault
+        and the flush must not depend on it.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:  # no loop (a unit test constructing the pane)
+            return
+        loop.call_later(0.45, lambda: self._flush_watchdog_fired(session_key))
+
+    def _flush_watchdog_fired(self, session_key: str) -> None:
+        pending = self._pending_incoming.get(session_key, b"")
+        logger.debug(
+            "flush: loop watchdog for %r -- %d byte(s) still pending, "
+            "Textual timer %s",
+            session_key,
+            len(pending),
+            "still armed (its callback never ran)"
+            if self._flush_timers.get(session_key) is not None
+            else "already fired or was cleared",
+        )
+        if pending:
+            logger.debug("flush: unflushed tail is %r", pending[:120])
 
     def _on_flush_timer(self, session_key: str) -> None:
+        logger.debug("flush: Textual timer callback ran for %r", session_key)
         self._flush_timers[session_key] = None
         self._flush_incoming(session_key, final=True)
 
