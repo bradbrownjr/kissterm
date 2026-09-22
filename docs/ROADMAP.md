@@ -152,6 +152,34 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   closed by the workaround above.
   Files: `kissterm/ui/wraplog.py`, `kissterm/ui/terminal_pane.py`,
   `tests/pilot/test_terminal_ux.py`.
+- [ ] **Enter does not send from the terminal's send line; the Send button
+  does.** `fix attempted 1`. Reported twice on a real station, most recently
+  2026-09-22 22:29 ("I went back to the terminal and hit B to disconnect, but
+  can't press enter, I had to click Send"). The transcript confirms the text
+  was really in the field and really went out on the click: `[22:29:07] > Bye`.
+  **What it is NOT**, checked in the code rather than assumed: nothing binds
+  `enter` anywhere in `kissterm/ui/` and the only `priority=True` binding in
+  the catalog is Ctrl+D, so no binding is shadowing it; the installed Textual
+  8.2.8 `Input` does bind `enter` to `action_submit`, which posts
+  `Input.Submitted`; and `#session-input`/`#session-send` are wired
+  symmetrically to the same pane, with `Input.Changed` on the same path
+  demonstrably working (the suggestion strip updates while typing). So the
+  pane receives the Send button's message fine, which means `action_submit`
+  is never reached -- the keystroke is not resolving to the name `enter` in
+  that terminal.
+  **The first attempt guessed and was wrong.** `_SendInput` grew
+  `shift+enter`/`ctrl+enter`/`alt+enter` bindings on the theory that an
+  enhanced keyboard protocol was attaching a modifier. Its own docstring
+  admits the cause was never found, and the report came back, so the real key
+  name is none of those either.
+  **Next step is to measure, not guess again:** `scripts/keycheck.py` prints
+  the key name, character and aliases Textual actually receives. Run it in
+  the same Konsole tab kissterm runs in and press Enter in its box. It must
+  report `key='enter'` AND an `Input.Submitted` line; whichever of those two
+  is missing says which half is broken, and they need different fixes. Once
+  the real name is known the binding belongs in `commands.py`'s one table,
+  not as more variants bolted onto `_SendInput`.
+  Files: `scripts/keycheck.py`, `kissterm/ui/terminal_pane.py`.
 - [ ] **`TerminalPane`'s message queue does not drain on a real station.**
   `open`. Found 2026-09-22 while diagnosing the missing prompt above, and
   proven by instrumentation on the operator's own machine: a
