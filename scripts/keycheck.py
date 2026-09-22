@@ -29,6 +29,8 @@ Ctrl+C or Ctrl+Q quits.
 
 from __future__ import annotations
 
+import time
+
 from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Vertical
@@ -48,10 +50,15 @@ class _ProbeInput(Input):
     def on_key(self, event) -> None:
         # `character` is what would be inserted as text; `aliases` is every
         # name this one keypress could match a binding under, which is the
-        # detail that explains a key doing nothing.
+        # detail that explains a key doing nothing. `focused` is reported
+        # alongside because a binding is resolved against the focus chain --
+        # if that came back wrong after the window was away, characters can
+        # still insert while bindings quietly stop matching.
+        focused = getattr(self.app.screen.focused, "id", None)
         self.app.report(
             f"key={event.key!r}  character={event.character!r}  "
-            f"name={event.name!r}  aliases={list(event.aliases)!r}"
+            f"name={event.name!r}  aliases={list(event.aliases)!r}  "
+            f"focused={focused!r}  app_focus={self.app.app_focus}"
         )
 
 
@@ -68,10 +75,12 @@ class KeyCheckApp(App):
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Static(
-                "Type in the box. Every key is reported below with the NAME "
-                "Textual matched it under.\nPress Enter in the box: it must "
-                "report key='enter' AND an Input.Submitted line.\n"
-                "Ctrl+C or Ctrl+Q to quit.",
+                "Type in the box. Every key is reported with the NAME "
+                "Textual matched it under.\n"
+                "Enter must report key='enter' AND an Input.Submitted line.\n"
+                "TO REPRODUCE THE REPORTED FAULT: leave this window in herdr, "
+                "let it sit as long as it usually takes, come back, then type "
+                "a letter and press Enter.\nCtrl+C or Ctrl+Q to quit.",
                 id="hint",
             )
             yield RichLog(id="keys", markup=False)
@@ -81,7 +90,17 @@ class KeyCheckApp(App):
         self.query_one("#probe", Input).focus()
 
     def report(self, line: str) -> None:
-        self.query_one("#keys", RichLog).write(line)
+        self.query_one("#keys", RichLog).write(f"{time.strftime('%H:%M:%S')}  {line}")
+
+    # Losing and regaining terminal focus is the condition being tested, so
+    # it is reported rather than being an invisible part of the setup. A
+    # terminal that never sends these at all is itself a finding: Textual
+    # only knows the window came back if it is told.
+    def on_app_blur(self, event) -> None:
+        self.report("--- AppBlur: this terminal lost focus ---")
+
+    def on_app_focus(self, event) -> None:
+        self.report("--- AppFocus: this terminal got focus back ---")
 
     @on(Input.Submitted, "#probe")
     def _submitted(self, event: Input.Submitted) -> None:
