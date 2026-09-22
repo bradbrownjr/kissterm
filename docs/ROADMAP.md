@@ -128,17 +128,13 @@ session, not yet acted on:
       not add a second record break. Regression tests preserve true blank BBS
       lines and cover split CRLF and ordinary bare-CR TNC output. Completed
       2026-09-22.
-- [ ] **A pager prompt (`<A>bort, <CR> Continue...`) can go missing off the
-      bottom of the log until Enter is pressed**, reported directly as the
-      last row of output appearing twice and the pager prompt itself
-      invisible until a keystroke -- read by the operator as the connection
-      having died. Likely related to the same `_flush_incoming`/CR-handling
-      area above (a no-trailing-newline prompt sits in the pending buffer
-      until the 0.2 s idle timer or `final=True` flush fires) rather than
-      `RichLog` auto-scroll, which is already on
-      (`auto_scroll=True` in `terminal_pane.py`'s compose). Needs the same
-      real byte capture as the item above before attempting a fix --
-      likely the same root cause, not two bugs. Small-medium once diagnosed.
+- [x] **A pager prompt (`<A>bort, <CR> Continue...`) can go missing off the
+      bottom of the log until Enter is pressed.** A `RichLog` write updates
+      its virtual height ahead of the layout which recalculates its scroll
+      limit, so its ordinary auto-follow could choose the old bottom and
+      leave the final row out of view. Terminal output now refreshes that
+      layout and follows the settled bottom; a regression covers a long list
+      followed by an unterminated pager prompt. Completed 2026-09-22.
 - [ ] **Macro/scripting system — Python plugins.** Deliberately not
   linpac's Lisp-ish macro language: a documented plugin API (hook points for
   "on connect", "on line received", "on line typed") that lets a user write

@@ -681,7 +681,20 @@ class TerminalPane(Container):
         if session_key == self.active_session_key:
             log = self._scrollback()
             if log is not None:
-                log.write(renderable, expand=expand)
+                # RichLog's own auto-scroll asks for the bottom before the
+                # new virtual height is incorporated by a refresh. A packet
+                # node's final prompt often has no newline and no following
+                # output, so it can remain exactly one row below the view.
+                # Refresh first, then choose the end from the settled height.
+                log.write(renderable, expand=expand, scroll_end=False)
+                # RichLog sets ``virtual_size`` directly; a layout refresh is
+                # what makes ScrollView recompute ``max_scroll_y`` from it.
+                log.refresh(layout=True)
+                log.call_after_refresh(
+                    lambda: log.scroll_end(
+                        animate=False, immediate=True, x_axis=False
+                    )
+                )
         else:
             self.mark_unread(session_key)
 

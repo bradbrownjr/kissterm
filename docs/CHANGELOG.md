@@ -7,6 +7,15 @@ touched and any breaking notes.
 
 ### Fixes
 
+- **Terminal pager prompts remain visible.** After each terminal-log write,
+  the scrollback now refreshes its virtual layout before following the new
+  bottom. This prevents an unterminated final node prompt such as
+  `<A>bort, <CR> Continue...` from sitting just below the viewport while the
+  node waits for operator input.
+  **Files:** `kissterm/ui/terminal_pane.py`,
+  `tests/pilot/test_terminal_ux.py`, `docs/ROADMAP.md`,
+  `docs/CHANGELOG.md`.
+
 - **The radio reminder now clears before a connection begins.** A fast
   successful dial from an Address Book entry could start behind the just-
   confirmed "Before connecting" modal, leaving that stale dialog visibly on

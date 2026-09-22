@@ -507,6 +507,31 @@ async def test_bbs_lines_are_written_once_without_losing_real_blank_lines():
     b.close()
 
 
+@pytest.mark.asyncio
+async def test_a_final_pager_prompt_is_followed_into_view():
+    """A node that is waiting for Enter must never look like it went silent."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(80, 20)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        pane.clear("")
+        pane.write_incoming(
+            "", b"".join(f"listing line {number}\r\n".encode() for number in range(60))
+        )
+        # Packet pagers generally leave this final prompt unterminated. It
+        # reaches the log on the idle flush, with no later node output to
+        # trigger a deferred RichLog auto-scroll.
+        pane.write_incoming("", b"<A>bort, <CR> Continue...")
+        await pilot.pause(0.3)
+        log = app.query_one("#session-log", RichLog)
+        assert pane._pending_incoming[""] == b""
+        assert log.lines[-1].text.rstrip() == "<A>bort, <CR> Continue..."
+        assert log.scroll_y == log.max_scroll_y
+        assert "<A>bort, <CR> Continue..." in log.render_line(log.size.height - 1).text
+    a.close()
+    b.close()
+
+
 # ---------------------------------------------------------------------------
 # Inline suggestion strip -- docs/ROADMAP.md's "Inline completion on the
 # send line". Tab fills in the input like `suggest()` above; it must never
