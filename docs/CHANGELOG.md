@@ -7,7 +7,7 @@ touched and any breaking notes.
 
 ### Improvements
 
-- **NET/ROM claims no longer have to crowd out saved stations.** `Ctrl+Shift+G`
+- **NET/ROM claims no longer have to crowd out saved stations.** `Ctrl+]`
   collapses or restores the passive claims section independently from the
   Terminal Address Book; from a closed slide-out it opens the shared column
   with claims shown. `Ctrl+G` continues to show or hide the Address Book
