@@ -35,6 +35,35 @@ to a right answer available. A log that has never been visible keeps
 This only affects lines written *after* the resize -- `RichLog` never re-wraps
 what it has already rendered, and reflowing the whole scrollback on every
 resize is not worth it for a log an operator scrolls back through rarely.
+
+**The second defect, and why it is fixed here too.** `RichLog.auto_scroll`
+acts on `write` and nowhere else, so a log sitting exactly at the bottom stops
+being at the bottom the moment something *takes rows away from it* -- and
+nothing brings it back, because no new line arrives to trigger the scroll. On
+the terminal pane the suggestion strip is seven rows tall when a command
+prefix matches, the find bar is three more, and closing the Address Book
+slide-out changes the wrap width; each one pushes the tail of the scrollback
+under the fold while the widget still reports `auto_scroll`. Measured on an
+80x24 terminal: 40 lines of node output ending in a prompt left `scroll_y=27`
+against `max_scroll_y=34` once the strip appeared -- the last seven lines,
+prompt included, simply gone from view.
+
+That is the bug an operator reported four times ("the last line hides out of
+view, often the node prompt ... so I'm sitting and waiting for more output
+from the node not knowing it's actually waiting on me"). It was read as a
+prompt-rendering problem and four fixes went into the *write* path, which is
+the half that was already working. The general statement is "if the log was at
+the bottom before the layout changed, it is at the bottom after".
+
+`Widget.anchor()` is Textual's own name for exactly that, and it is re-applied
+by the compositor on every arrange (`_compositor.py`), not on write -- so it
+covers the resize, the strip, the find bar and the slide-out without any of
+them having to know a scrollback exists. Scrolling up releases the anchor
+(`_scroll_to` does it), so an operator reading back is never yanked to the
+bottom, and scrolling back down restores it (`_check_anchor`). Do not
+"simplify" this into a `scroll_end` in `on_resize`: that reads the state
+*after* the resize, when what is at the bottom has already changed, and it
+would fight the operator's own scrollback on every repaint.
 """
 
 from __future__ import annotations
@@ -43,7 +72,16 @@ from textual.widgets import RichLog
 
 
 class WrapLog(RichLog):
-    """`RichLog` that keeps `min_width` in step with its own laid-out width."""
+    """`RichLog` that keeps `min_width` -- and the bottom -- in step with its
+    own laid-out size."""
+
+    def on_mount(self) -> None:
+        # Textual dispatches `on_mount` to every class in the MRO that
+        # defines one, so this does not shadow `ScrollView.on_mount` and its
+        # scrollbar refresh. Anchoring from here rather than at construction
+        # because `anchor()` scrolls, and a widget has no geometry to scroll
+        # within until it is mounted.
+        self.anchor()
 
     def on_resize(self) -> None:
         width = self.scrollable_content_region.width

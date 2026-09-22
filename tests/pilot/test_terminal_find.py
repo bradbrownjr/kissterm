@@ -92,10 +92,16 @@ async def test_typing_counts_matches_without_jumping():
         _fill_log(pane, "orange", at=(5, 15, 25))
         await pilot.pause()
         log = app.query_one("#session-log", RichLog)
-        before = log.scroll_y
 
         await pilot.press("ctrl+f")
         await pilot.pause()
+        # Measured with the bar already open, not before it. The bar takes
+        # three rows from the log, and a log that was at the bottom follows
+        # the bottom across that (`kissterm/ui/wraplog.py` -- it is the fix
+        # for the prompt hiding below the fold). What this test is about is
+        # that *counting* does not navigate, so the baseline has to be the
+        # position the count starts from.
+        before = log.scroll_y
         app.query_one("#find-input", Input).value = "orange"
         await pilot.pause()
 
@@ -189,10 +195,12 @@ async def test_no_matches_says_so_and_does_not_move():
         _fill_log(pane, "orange", at=(5,))
         await pilot.pause()
         log = app.query_one("#session-log", RichLog)
-        before = log.scroll_y
 
         await pilot.press("ctrl+f")
         await pilot.pause()
+        # After the bar is open, for the reason given in
+        # `test_typing_counts_matches_without_jumping` above.
+        before = log.scroll_y
         app.query_one("#find-input", Input).value = "purple"
         await pilot.pause()
 

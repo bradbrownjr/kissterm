@@ -3,6 +3,40 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-22] — Keep the last line of node output in view
+
+### Fixes
+
+- **The prompt no longer hides below the fold.** Reported four times and
+  fixed four times without sticking (0.1.179-0.1.182), because every attempt
+  changed what happens when a line is *written* -- and that half was already
+  working. `RichLog.auto_scroll` acts on `write` and nowhere else, so a log
+  sitting exactly at the bottom stopped being at the bottom the moment
+  something took rows away from it, with no new write left to bring it back.
+  Measured at 80x24 before the fix: 40 lines of node output ending in a
+  prompt left `scroll_y=27` against `max_scroll_y=34` as soon as the
+  suggestion strip appeared -- the last seven lines, prompt included, gone
+  from view. The find bar reproduces it on its own, and so does closing the
+  Address Book slide-out, which is why the fix is general rather than written
+  against the strip. `WrapLog` now anchors itself (Textual's own
+  `Widget.anchor()`), which the compositor re-applies on every arrange: if
+  the log was at the bottom before the layout changed, it is at the bottom
+  after. Scrolling up releases the anchor, so an operator reading back keeps
+  their place; scrolling to the bottom resumes following it. All three
+  scrollbacks -- terminal, monitor, APRS -- get this, since all three are
+  `WrapLog`. This is what the operator saw as the node going quiet when it
+  was in fact waiting on them.
+
+- **Two find tests measured their baseline before the find bar opened.**
+  They exist to prove that *counting matches* does not navigate, but they
+  captured the scroll position before pressing Ctrl+F, so they also measured
+  the bar's own three rows appearing -- which the anchor now correctly
+  follows. The baseline moved to after the bar is open; what they assert is
+  unchanged.
+
+**Files:** `kissterm/ui/wraplog.py`, `tests/pilot/test_terminal_ux.py`,
+`tests/pilot/test_terminal_find.py`, `docs/ROADMAP.md`, `assets/*`.
+
 ## [2026-09-22] — Fix three stale test failures at their cause
 
 ### Fixes

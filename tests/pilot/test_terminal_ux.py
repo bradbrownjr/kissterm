@@ -1609,3 +1609,157 @@ async def test_writing_to_a_torn_down_terminal_pane_does_not_raise():
         pane.log("", "*** Disconnected")
         pane.write_incoming("", b"hello from the far end\r\n")
         pane._flush_incoming("", final=True)
+
+
+async def _page_of_output(pane, pilot, lines: int = 40) -> str:
+    """Fill the active session with `lines` of node output ending in a prompt
+    that has NO trailing newline -- the shape the bug was reported against."""
+    key = pane.active_session_key
+    for n in range(lines):
+        pane.write_incoming(key, f"line {n:02d} of node output\r".encode())
+    pane.write_incoming(key, b"N1ABC-1:WS1EC-7} ")
+    await pilot.pause()
+    await asyncio.sleep(0.3)
+    await pilot.pause()
+    return key
+
+
+def _at_bottom(log) -> bool:
+    """Is the last written line actually inside the visible region?
+
+    `scroll_offset.y` against `max_scroll_y` is the question the operator is
+    really asking: anything between them is written, rendered, and below the
+    fold. Reading the widget's own `auto_scroll` instead would answer a
+    different question and answer it wrongly -- it stays True throughout the
+    bug this guards.
+    """
+    return log.scroll_offset.y >= log.max_scroll_y
+
+
+@pytest.mark.asyncio
+async def test_the_last_line_stays_visible_when_the_suggestion_strip_appears():
+    """The reported bug, reproduced at its cause: a log that was at the bottom
+    must still be at the bottom after something takes rows away from it.
+
+    Four previous fixes went into `TerminalPane._append`, i.e. into what
+    happens when a line is *written*. That half was already working. What was
+    missing is that `RichLog.auto_scroll` acts only on `write`, so the stacked
+    suggestion strip -- seven rows tall for a prefix with several matches --
+    pushed the tail of the scrollback under the fold with no new write left to
+    bring it back. Measured at 80x24 before the fix: `scroll_y` stayed at 27
+    while `max_scroll_y` became 34, hiding the last seven lines including the
+    prompt. That is exactly the report: it looks like the node has gone quiet
+    when it is in fact waiting on you.
+    """
+    app, a, _b, incoming = await _connected_app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        incoming[0].read_nowait()
+        app.reference = CommandReference(family=load_family("bpq32"))
+
+        pane = app.query_one(TerminalPane)
+        await _page_of_output(pane, pilot)
+        log = app.query_one("#session-log", RichLog)
+        assert _at_bottom(log), "the output itself must land at the bottom"
+
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.press("c")
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+
+        strip = app.query_one("#suggestion-strip", Static)
+        assert strip.display is True, "this test is meaningless without the strip"
+        assert strip.outer_size.height > 1, "a one-row strip would not hide anything"
+        assert _at_bottom(log), (
+            "the prompt fell below the fold when the suggestion strip "
+            f"appeared: scroll_y={log.scroll_offset.y} "
+            f"max_scroll_y={log.max_scroll_y}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_the_last_line_stays_visible_when_the_find_bar_opens():
+    """The same defect through a second door, which is why the fix is general.
+
+    The strip is not special; the find bar, and closing the Address Book
+    slide-out, take rows or columns from the same log. A fix written against
+    the suggestion strip alone would leave these two reported the same way.
+    """
+    app, a, _b, incoming = await _connected_app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        incoming[0].read_nowait()
+
+        pane = app.query_one(TerminalPane)
+        await _page_of_output(pane, pilot)
+        log = app.query_one("#session-log", RichLog)
+        assert _at_bottom(log)
+
+        pane.open_find()
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+        assert _at_bottom(log), (
+            "the prompt fell below the fold when the find bar opened: "
+            f"scroll_y={log.scroll_offset.y} max_scroll_y={log.max_scroll_y}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_an_operator_scrolled_back_is_not_yanked_to_the_bottom():
+    """The other half of the guarantee, and the reason this is an anchor
+    rather than a `scroll_end` on every layout pass.
+
+    Following the bottom is only correct while the operator is *at* the
+    bottom. Someone reading back through a node's listing must be able to
+    keep their place while the strip appears under them -- a scrollback that
+    snaps to the end whenever anything repaints is a different bug of the
+    same size, and one this pane would hit constantly, because the retry and
+    status timers repaint it on their own schedule.
+    """
+    app, a, _b, incoming = await _connected_app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        incoming[0].read_nowait()
+        app.reference = CommandReference(family=load_family("bpq32"))
+
+        pane = app.query_one(TerminalPane)
+        await _page_of_output(pane, pilot)
+        log = app.query_one("#session-log", RichLog)
+
+        log.scroll_to(y=5, animate=False, immediate=True)
+        await pilot.pause()
+        assert log.scroll_offset.y == 5
+
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.press("c")
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+
+        assert log.scroll_offset.y == 5, (
+            "reading back through the scrollback must survive the strip "
+            "appearing underneath it"
+        )
+
+        # ...and returning to the bottom re-arms the follow, so the next
+        # thing that shrinks the log does not strand the prompt again.
+        log.scroll_end(animate=False, immediate=True)
+        await pilot.pause()
+        pane.open_find()
+        await pilot.pause()
+        await asyncio.sleep(0.2)
+        await pilot.pause()
+        assert _at_bottom(log), "scrolling back to the bottom must resume following it"

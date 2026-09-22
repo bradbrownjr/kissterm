@@ -71,30 +71,33 @@ Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
 - [ ] **The last line of node output, usually the prompt, sits below the
-  visible area.** `fix attempted 4` (0.1.179 through 0.1.182, all
-  2026-09-22). First reported earlier, re-reported 2026-09-22 ("The last line
+  visible area.** `awaiting confirmation` (0.1.189, 2026-09-22; four earlier
+  attempts, 0.1.179 through 0.1.182). Reported repeatedly ("The last line
   hides out of view, often the node prompt or the next page continue/abort
   prompt, so I'm sitting and waiting for more output from the node not
-  knowing it's actually waiting on me"), still present in 0.1.179, and
-  confirmed not prompt-specific: "Each node may present differently."
-  **Root-cause note (2026-09-22 review):** every attempt so far changed what
-  happens *when a line is written* (`TerminalPane._append`: refresh the
-  layout, then `scroll_end`). Nothing re-follows the bottom when the log gets
-  *shorter* after the write. `WrapLog.on_resize` only updates `min_width`,
-  and `RichLog.auto_scroll` acts only on `write`. Several things take rows
-  from the log after output has arrived: the stacked suggestion list shipped
-  the same day (`#suggestion-strip`, `height: auto`), the find bar, the
-  "Last remote" and transcript-path rows that were added and then removed,
-  and closing the slide-out, which changes wrap width. Any of these puts the
-  last lines below the fold with no new write to bring them back. That fits
-  the report exactly: it looks like waiting on the node, and pressing Enter
-  "fixes" it. **Unverified hypothesis:** confirm it with a pilot test (write
-  lines ending in a prompt with no newline, then show the suggestion strip,
-  then assert the last line is inside the log's visible region) before
-  changing code. The likely fix is general: when the log was at the bottom
-  before a resize, keep it at the bottom after. Also replay a real captured
-  session from the debug log to rule out a receive-side cause.
-  Files: `kissterm/ui/terminal_pane.py`, `kissterm/ui/wraplog.py`.
+  knowing it's actually waiting on me"), and confirmed not prompt-specific:
+  "Each node may present differently."
+  **Cause, now measured rather than hypothesised.** The 2026-09-22 review
+  guessed that every previous attempt had fixed the wrong half -- all four
+  changed what happens *when a line is written* (`TerminalPane._append`), and
+  nothing re-followed the bottom when the log got *shorter* after the write.
+  A pilot test written before any code change confirmed it exactly: at 80x24,
+  40 lines of node output ending in a prompt left `scroll_y=27` against
+  `max_scroll_y=34` the moment the suggestion strip appeared -- the last seven
+  lines, prompt included, below the fold with no new write left to bring them
+  back. The find bar reproduces it independently (`scroll_y=27`,
+  `max_scroll_y=37`), which is why the fix had to be general rather than
+  written against the strip.
+  **Fixed** by anchoring the scrollback (`WrapLog.on_mount` calls Textual's
+  own `Widget.anchor()`): the compositor re-applies it on every arrange, so
+  the resize, the strip, the find bar and the slide-out are all covered
+  without any of them knowing a scrollback exists, and an operator scrolled
+  back is not yanked to the bottom. Three pilot tests in
+  `tests/pilot/test_terminal_ux.py` cover both directions and all three fail
+  without the fix. **Still to do before this closes:** the operator re-tests
+  against a real node. If it recurs, the remaining untested hypothesis is a
+  receive-side one -- replay a real captured session from the debug log.
+  Files: `kissterm/ui/wraplog.py`, `tests/pilot/test_terminal_ux.py`.
 - [ ] **The focus highlight never moves: the entry field is always orange.**
   `open`. Reported 2026-09-22: after clicking into the terminal's receive
   box, "the bright box border remains on the text entry field, so I type and
