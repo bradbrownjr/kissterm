@@ -75,7 +75,7 @@ never fight over the same key. See `DESIGN.md`'s "slide-out panels" section
 for the pattern -- `AprsPane`'s contacts column and, later, Mail's own
 contacts panel follow the identical recipe.
 
-**NET/ROM claims are supporting context, not a second directory.** `Ctrl+]`
+**NET/ROM claims are supporting context, not a second directory.** `Ctrl+Alt+G`
 collapses or restores their lower section without changing the Address Book
 slide-out. If the slide-out is closed, it opens it with claims shown, so both
 sections remain independently reachable.
@@ -852,7 +852,7 @@ class TerminalPane(Container):
             self.query_one(AddressBookPane).refresh_known_nodes(self.app.known_nodes)  # type: ignore[attr-defined]
 
     def toggle_known_nodes(self) -> None:
-        """Ctrl+]: independently show or hide NET/ROM claims."""
+        """Ctrl+Alt+G: independently show or hide NET/ROM claims."""
         column = self.query_one("#terminal-addressbook-column")
         if not column.display:
             # The shortcut names the NET/ROM list, so it must be able to

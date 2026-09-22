@@ -693,11 +693,15 @@ class KissTermApp(App):
         # Saved address-book entries and passive NET/ROM claims share the
         # Terminal slide-out, but on a short display the latter should not
         # crowd out the directory the operator deliberately maintains.
-        # Ctrl+] sends its own control character on ordinary terminals --
-        # unlike Ctrl+Shift+G, whose shifted letter is commonly collapsed to
-        # the exact same byte as Ctrl+G. It is otherwise unclaimed by the
-        # app or Textual's Input widget.
-        Binding("ctrl+]", "toggle_known_nodes", "NET/ROM", key_display="^]"),
+        # Ctrl+Alt+G is a distinct modifier sequence on ordinary terminals.
+        # Unlike Ctrl+Shift+G, it is not collapsed into the same byte as
+        # Ctrl+G; unlike Alt+G, it avoids desktop-level Alt-key shortcuts.
+        # The app already uses this modifier family for deliberate APRS
+        # actions, and no other binding claims this chord.
+        Binding(
+            "ctrl+alt+g", "toggle_known_nodes", "NET/ROM",
+            key_display="Ctrl+Alt+G",
+        ),
         # Ctrl+SHIFT+B, not Ctrl+B: Ctrl+B is tmux's default prefix (and
         # screen's, once remapped), so under a multiplexer -- which is how a
         # station PC in another room is usually reached -- the beacon key was
@@ -2948,7 +2952,7 @@ class KissTermApp(App):
             self.query_one(AprsPane).toggle_contacts()
 
     def action_toggle_known_nodes(self) -> None:
-        """Ctrl+]: collapse passive NET/ROM claims on Terminal only."""
+        """Ctrl+Alt+G: collapse passive NET/ROM claims on Terminal only."""
         active = self.query_one("#main-tabs", TabbedContent).active
         if active == "terminal":
             self.query_one(TerminalPane).toggle_known_nodes()

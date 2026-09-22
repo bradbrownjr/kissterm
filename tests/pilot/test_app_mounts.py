@@ -957,7 +957,7 @@ async def test_the_footer_shows_every_terminal_action_once_wide_enough():
 
 
 @pytest.mark.asyncio
-async def test_ctrl_bracket_independently_toggles_netrom_claims():
+async def test_ctrl_alt_g_independently_toggles_netrom_claims():
     """NET/ROM claims can summon their shared slide-out independently."""
     app, ta, tb, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
@@ -974,19 +974,19 @@ async def test_ctrl_bracket_independently_toggles_netrom_claims():
         assert not column.display
 
         app.query_one("#session-input", Input).focus()
-        await pilot.press("ctrl+]")
+        await pilot.press("ctrl+alt+g")
         await pilot.pause()
         assert column.display
         assert app.query_one("#known-nodes-table").display
 
-        await pilot.press("ctrl+]")
+        await pilot.press("ctrl+alt+g")
         await pilot.pause()
         assert not app.query_one("#known-nodes-note").display
         assert not app.query_one("#known-nodes-table").display
         assert not app.query_one("#known-nodes-use").display
         assert app.focused is app.query_one("#addressbook-table")
 
-        await pilot.press("ctrl+]")
+        await pilot.press("ctrl+alt+g")
         await pilot.pause()
         assert app.query_one("#known-nodes-table").display
         assert addressbook is app.query_one(AddressBookPane)
