@@ -95,6 +95,24 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   before a resize, keep it at the bottom after. Also replay a real captured
   session from the debug log to rule out a receive-side cause.
   Files: `kissterm/ui/terminal_pane.py`, `kissterm/ui/wraplog.py`.
+- [ ] **The focus highlight never moves: the entry field is always orange.**
+  `open`. Reported 2026-09-22: after clicking into the terminal's receive
+  box, "the bright box border remains on the text entry field, so I type and
+  wonder at first why my keystrokes aren't going into the entry field."
+  Cause, read from the code: `kissterm/ui/styles.py` gives `#session-input`
+  `border: round $accent` unconditionally, and `#session-log` has no focus
+  rule, so the accent colour marks the widget and not the focus. **The rule,
+  across the whole app, not just Terminal:** whichever pane or field has
+  focus takes the `$accent` border (orange in the current theme), and
+  everything else uses the standard `$primary` border. When focus leaves the
+  entry field it drops back to `$primary` until it gets focus again. This
+  applies to every focusable scrollback, list, table and input (the Terminal
+  and APRS logs and compose boxes, the Address Book, contacts, Heard,
+  Monitor and dialog fields), and keeps the ASCII-safe border variants in
+  step. DESIGN.md section 2 already defines `$accent` as "the active/current
+  thing", so this brings the CSS in line with the design rather than adding
+  a rule. Add a pilot test that moves focus between the log and the input
+  and asserts which one carries the accent border. Small.
 - [ ] **Blank lines between lines of a BBS mail listing (`LM`/`LB`).**
   `awaiting confirmation`. Reported 2026-09-22 14:26, re-reported 14:44
   after the first fix; a second fix (hold a trailing CR until it is known

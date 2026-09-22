@@ -27,6 +27,8 @@ touched and any breaking notes.
   forms, with golden-output tests against bpq-apps' forms.py. BBS messages
   stay on the node by default; kill is explicit, and re-downloads are
   prevented per account. P11's form items moved into P2.
+- **Focus highlight bug added to P0.1.** The accent border is fixed on the
+  terminal entry field instead of following focus.
   **Files:** `docs/ROADMAP.md`, `docs/ROADMAP_DEPENDENCIES.md` (removed),
   `AGENTS.md`, `docs/CHANGELOG.md`.
 
