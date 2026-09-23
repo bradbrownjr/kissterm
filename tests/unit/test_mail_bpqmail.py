@@ -14,6 +14,7 @@ from kissterm.mail.bpqmail import (  # noqa: E402
     parse_list_line,
     parse_read,
     prompt_call,
+    strip_page_prompts,
     to_message,
 )
 
@@ -90,3 +91,21 @@ def test_infer_date_rolls_back_a_year_across_new_year():
     assert infer_date("30-Dec 10:00Z", jan).year == 2026
     assert infer_date("01-Jan 10:00Z", jan).year == 2027
     assert infer_date("nonsense", jan) is None
+
+
+def test_the_same_read_without_paging_parses_identically():
+    # Paging is a per-user BBS setting; a user with it off gets no prompts.
+    paged = _lines("read_2686_excerpt.txt")
+    unpaged = [line for line in paged if "Continue..>" not in line]
+    a, b = parse_read(paged), parse_read(unpaged)
+    assert (a.headers, a.routes, a.body, a.complete) == (b.headers, b.routes, b.body, b.complete)
+
+
+def test_a_page_prompt_glued_to_text_is_cut_out():
+    assert strip_page_prompts("<A>bort, <CR> Continue..>nudged down to 55 kt") == "nudged down to 55 kt"
+    assert strip_page_prompts("last line<A>bort, <R Msg(s)>, <CR> = Continue..>") == "last line"
+    assert strip_page_prompts("<A>bort, <CR> Continue..>  ") is None
+    assert strip_page_prompts("an ordinary line") == "an ordinary line"
+    lines = ["From: N4SD", "Title: t", "", "one", "<A>bort, <CR> Continue..>two",
+             "[End of Message #1 from N4SD]"]
+    assert parse_read(lines).body == ["one", "two"]

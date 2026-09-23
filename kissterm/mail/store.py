@@ -3,7 +3,7 @@
 ```
 <root>/Mail/BBS/{Inbox,Outbox,Sent,Deleted}
 <root>/Mail/Winlink/{Inbox,Outbox,Sent,Deleted}
-<root>/Mail/Local/{Inbox,Sent,Deleted}
+<root>/Mail/Local/{Inbox,Sent,Deleted}   (P9's mailbox; made when that ships)
 <root>/Bulletins/<category>, plus Bulletins/Deleted
 <root>/Files/{Downloads,Attachments,Received}
 ```
@@ -70,6 +70,12 @@ SENT = "Sent"
 
 MESSAGE_SUFFIX = ".txt"
 INDEX_NAME = ".index.json"
+
+#: The tree's combined view of every Inbox under Mail/ (BBS, Winlink, ...),
+#: the way Outpost and Winlink Express show one In Tray. A view, not a
+#: folder: nothing is filed here, and each message keeps its own folder so
+#: a reply goes back the way it came. `check_folder` refuses it as a name.
+ALL_INBOXES = "All Inboxes"
 _INDEX_VERSION = 2
 
 #: Folders that exist on a fresh install. Bulletin categories are made as
@@ -83,9 +89,6 @@ DEFAULT_FOLDERS = (
     f"{MAIL}/Winlink/{OUTBOX}",
     f"{MAIL}/Winlink/{SENT}",
     f"{MAIL}/Winlink/{DELETED}",
-    f"{MAIL}/Local/{INBOX}",
-    f"{MAIL}/Local/{SENT}",
-    f"{MAIL}/Local/{DELETED}",
     f"{BULLETINS}/{DELETED}",
     f"{FILES}/Downloads",
     f"{FILES}/Attachments",
@@ -110,6 +113,8 @@ def check_folder(folder: str) -> str:
     if text.startswith("/"):
         raise ValueError(f"absolute folder path: {folder!r}")
     parts = text.split("/")
+    if ALL_INBOXES.casefold() in (p.casefold() for p in parts):
+        raise ValueError(f"{ALL_INBOXES!r} is a view, not a folder")
     for part in parts:
         if not _SEGMENT_RE.fullmatch(part) or part.endswith((".", " ")):
             raise ValueError(f"unsafe folder name: {part!r}")
@@ -389,6 +394,18 @@ class MessageStore:
         folder = check_folder(folder)
         self.refresh()
         items = [s for _m, _z, s in self._index.values() if s.folder == folder]
+        epoch = datetime.min.replace(tzinfo=timezone.utc)
+        items.sort(key=lambda s: (s.date or epoch, s.ref), reverse=True)
+        return items
+
+    def list_inboxes(self) -> list[Summary]:
+        """Every message in any Inbox under Mail/, newest first (`ALL_INBOXES`)."""
+        self.refresh()
+        items = [
+            s
+            for _m, _z, s in self._index.values()
+            if s.folder.startswith(f"{MAIL}/") and s.folder.split("/")[-1] == INBOX
+        ]
         epoch = datetime.min.replace(tzinfo=timezone.utc)
         items.sort(key=lambda s: (s.date or epoch, s.ref), reverse=True)
         return items

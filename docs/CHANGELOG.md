@@ -16,10 +16,16 @@ you need the history of a specific change.
   `[End of Message #N from CALL]` arrives; an aborted read is never
   filed. The captures are test fixtures in `tests/unit/data/bpqmail/`.
   No session driver yet.
+- **Page prompts are cut out wherever they appear**, including glued to
+  text, and a read parses the same with paging on or off (`OP` is a
+  per-user BBS setting).
+- **All Inboxes**: one list of every Inbox under Mail, newest first
+  (`MessageStore.list_inboxes`); a view, not a folder. **Mail/Local is no
+  longer created** until P9's mailbox exists to fill it.
 
 **Files:** `kissterm/mail/bpqmail.py`, `kissterm/mail/AGENTS.md`,
-`tests/unit/test_mail_bpqmail.py`, `tests/unit/data/bpqmail/`,
-`docs/ROADMAP.md`
+`kissterm/mail/store.py`, `tests/unit/test_mail_bpqmail.py`,
+`tests/unit/test_mail_store.py`, `tests/unit/data/bpqmail/`, `docs/ROADMAP.md`
 
 ## [2026-09-23] — Mail: the message store
 

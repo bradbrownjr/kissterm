@@ -13,8 +13,10 @@ What the captures show:
   line, sometimes not, sometimes with a blank line among them -- then the
   body, then trailing blank lines and `[End of Message #N from CALL]`.
 - The BBS pages long output: `<A>bort, <CR> Continue..>` inside a read,
-  `<A>bort, <R Msg(s)>, <CR> = Continue..>` inside a listing. Those lines
-  are the BBS's, not the message's, and are dropped.
+  `<A>bort, <R Msg(s)>, <CR> = Continue..>` inside a listing. The prompt is
+  the BBS's, not the message's: it is cut out wherever it appears, and a
+  line left empty by the cut is dropped. Paging is a per-user BBS setting
+  (`OP n`), so every function here works the same with or without it.
 - `A` at a page prompt ends the read with `Output aborted`. **A read without
   its end marker is incomplete and is never filed**: a half message filed as
   if whole is worse than one that is fetched again next time.
@@ -33,7 +35,9 @@ from datetime import datetime, timezone
 
 from .message import KIND_BULLETIN, KIND_MAIL, Message
 
-PAGE_PROMPT_RE = re.compile(r"^<A>bort,.*Continue\.\.>\s*$")
+#: A page prompt, wherever it sits on a line: alone, or glued to text when
+#: the BBS sends it without a line ending.
+PAGE_PROMPT_RE = re.compile(r"<A>bort,.*?Continue\.\.>[ \t]*")
 END_RE = re.compile(r"^\[End of Message #(\d+) from ([A-Za-z0-9/-]+)\]\s*$")
 ABORTED = "Output aborted"
 PROMPT_RE = re.compile(r"^de ([A-Z0-9]{1,6})(?:-\d{1,2})?#>\s*$")
@@ -66,7 +70,16 @@ class ListEntry:
     title: str
 
 
+def strip_page_prompts(line: str) -> str | None:
+    """`line` with any page prompt cut out; None if nothing but the prompt."""
+    if "Continue..>" not in line:
+        return line
+    cut = PAGE_PROMPT_RE.sub("", line)
+    return cut if cut.strip() else None
+
+
 def parse_list_line(line: str) -> ListEntry | None:
+    line = strip_page_prompts(line) or ""
     match = LIST_RE.match(line.rstrip())
     if match is None:
         return None
@@ -112,6 +125,7 @@ def parse_read(lines: list[str]) -> BbsRead | None:
     skipped. `complete` is True only when the end marker arrived.
     """
     read = BbsRead()
+    lines = [kept for kept in (strip_page_prompts(line) for line in lines) if kept is not None]
     i = 0
     while i < len(lines) and not lines[i].startswith("From:"):
         i += 1
@@ -131,7 +145,7 @@ def parse_read(lines: list[str]) -> BbsRead | None:
         line = lines[i]
         if _ROUTE_RE.match(line):
             read.routes.append(line.rstrip())
-        elif line.strip() and not PAGE_PROMPT_RE.match(line):
+        elif line.strip():
             break
         i += 1
     for line in lines[i:]:
@@ -145,8 +159,6 @@ def parse_read(lines: list[str]) -> BbsRead | None:
             break
         if PROMPT_RE.match(line.strip()):
             break
-        if PAGE_PROMPT_RE.match(line):
-            continue
         read.body.append(line.rstrip("\r"))
     while read.body and not read.body[-1].strip():
         read.body.pop()

@@ -14,7 +14,7 @@ import pytest  # noqa: E402
 from kissterm import config  # noqa: E402
 from kissterm.mail import KIND_BULLETIN, Message, MessageStore, check_folder  # noqa: E402
 from kissterm.mail.message import format_message, parse_message  # noqa: E402
-from kissterm.mail.store import INDEX_NAME  # noqa: E402
+from kissterm.mail.store import ALL_INBOXES, INDEX_NAME  # noqa: E402
 
 WHEN = datetime(2026, 9, 23, 18, 0, 0, tzinfo=timezone.utc)
 INBOX = "Mail/BBS/Inbox"
@@ -93,9 +93,22 @@ def test_unsafe_folder_names_are_refused(bad):
 
 def test_default_tree_has_no_folder_per_source(store):
     folders = store.folders()
-    for f in ("Mail/Winlink/Inbox", "Mail/Local/Deleted", "Files/Attachments",
+    for f in ("Mail/Winlink/Inbox", "Files/Attachments",
               INBOX, "Mail/BBS/Outbox", "Bulletins/Deleted"):
         assert f in folders
+    # Local is P9's mailbox and appears only once that ships.
+    assert not any(f.startswith("Mail/Local") for f in folders)
+
+
+def test_all_inboxes_is_a_view_over_every_mail_inbox(store):
+    store.add(INBOX, _msg(subject="bbs", date=WHEN - timedelta(hours=1)))
+    store.add("Mail/Winlink/Inbox", _msg(subject="winlink"))
+    store.add("Mail/BBS/Sent", _msg(subject="sent"))
+    store.add("Bulletins/WX", _msg(subject="wx", kind=KIND_BULLETIN))
+    assert [s.subject for s in store.list_inboxes()] == ["winlink", "bbs"]
+    assert [s.folder for s in store.list_inboxes()] == ["Mail/Winlink/Inbox", INBOX]
+    with pytest.raises(ValueError):
+        check_folder(ALL_INBOXES)
 
 
 # -- add, list, read ---------------------------------------------------------

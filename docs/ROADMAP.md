@@ -100,9 +100,10 @@ BBS's own callsign, never the route.
 
 ```
 Mail
+  All Inboxes                                       (a view over every Inbox)
   BBS              Inbox  Outbox  Sent  Deleted
   Winlink          Inbox  Outbox  Sent  Deleted
-  Local            Inbox  Sent  Deleted             (P9's personal mailbox)
+  Local            Inbox  Sent  Deleted             (P9's mailbox; hidden until it ships)
 Bulletins          ALL  ARES  WX  ...  Deleted      (by category, with expiry)
 Files
   Downloads  Attachments  Received
@@ -190,7 +191,15 @@ anything taken from its behaviour rather than from documentation
   now; FBB and the JNOS mailbox once P8 adds them), and retrieval options.
   Any Address Book entry that reaches it (node then `BBS`, a NET/ROM alias,
   direct) can be the route for a send/receive; the route never changes
-  where mail is filed. Small.
+  where mail is filed. As in Outpost: the BBS software is identified
+  automatically from its banner and prompt (`nodes.reference.identify_family`;
+  BPQMail and JNOS are in the catalog), with a manual override, plus two
+  optional fields for a BBS that does not match: the text that means
+  "connected and ready" (wait for it before the first command) and the
+  prompt after which the saved credential is sent (Telnet BBSes ask for a
+  login; RF ones usually do not). Today's Address Book login script sends
+  its lines blind on a timer; this waits for what it expects and stops if
+  it does not see it. Small to medium.
 - [ ] **BBS send/receive**: an operator-started session that connects via
   the normal Connect flow, then runs the application's collection
   sequence from the catalog: list mine, read each new message into
