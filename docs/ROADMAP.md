@@ -242,11 +242,11 @@ Alt and Ctrl+digit binding is gone, with them the mismatched `key_display`
 values, and the tabs moved to F2-F9 so Help, Menu and Settings are on their
 final keys. The tab layout for milestone 2 is in DESIGN.md section 5.
 
-Remaining:
-
-- [ ] Decide what the **Info** tab is (today's Monitor, plus link and station
-  status) before renaming anything. The Monitor tab keeps its name until
-  then.
+Decided 2026-09-23: there is no Info tab. Monitor keeps its name; with
+Mail, Bulletins and Files on F2-F4 in milestone 2, the seven tabs fit F2-F8
+exactly, so nothing needs merging. README's key table is generated from the
+registry (`scripts/sync_docs.py`), and `tests/unit/test_docs_keys.py` checks
+every key named in README, SETUP and DESIGN.
 
 ### P0.3 Command knowledge: one catalog, layered by source and context
 
