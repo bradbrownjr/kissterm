@@ -22,6 +22,7 @@ from kissterm import aprs  # noqa: E402
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
+from tests.pilot._wait import wait_for  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
 
@@ -109,10 +110,13 @@ async def test_object_scope_controls_its_rf_distribution(scope, expected_via):
         app.action_show_tab("aprs")
         await pilot.pause()
         app.action_aprs_object()
-        for _ in range(20):
-            if list(app.screen.query("#aprs-object-name")):
-                break
-            await asyncio.sleep(0.05)
+        # Wait for the Select's own label, not just the dialog: setting a
+        # Select's value before it has composed raised NoMatches('#label')
+        # under parallel load.
+        await wait_for(
+            lambda: app.screen.query_one("#aprs-object-scope", Select).query_one("#label"),
+            "the object dialog to finish mounting",
+        )
         app.screen.query_one("#aprs-object-name", Input).value = "EXERCISE"
         app.screen.query_one("#aprs-object-scope", Select).value = scope
         await pilot.pause()
@@ -120,10 +124,7 @@ async def test_object_scope_controls_its_rf_distribution(scope, expected_via):
         # handler here keeps this distribution matrix independent of modal
         # viewport height at the smallest supported test terminal.
         app.screen._send_object()
-        for _ in range(20):
-            if transport.sent:
-                break
-            await asyncio.sleep(0.05)
+        await wait_for(lambda: transport.sent, "the object to be transmitted")
 
         assert [str(digi) for digi in transport.sent[0].path.repeaters] == expected_via
     station.close()

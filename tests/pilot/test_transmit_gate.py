@@ -19,6 +19,7 @@ from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
+from tests.pilot._wait import wait_for  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
 MYCALL = AX25Address.parse("N1ABC-1")
@@ -289,39 +290,30 @@ async def test_ctrl_d_cancels_a_stuck_connect_instead_of_saying_not_connected():
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         await pilot.press("ctrl+n")
-        await pilot.pause()
-        await asyncio.sleep(0.1)
+        await wait_for(lambda: len(app.screen_stack) > 1, "the Connect dialog to open")
         for key in "WS1EC-7":
             await pilot.press(key if key != "-" else "minus")
         await pilot.press("enter")
-        await pilot.pause()
-        await asyncio.sleep(0.1)  # let the first SABM go out
-
-        sent_before_cancel = len(ta.sent)
-        assert sent_before_cancel >= 1, "the connect attempt never sent anything"
+        await wait_for(lambda: len(ta.sent) >= 1, "the first SABM")
 
         # Wait for the Connect dialog to actually come down first: Ctrl+D is
         # deliberately inert while a dialog is open (its text fields use that
         # key for delete-right), so pressing it too early proves nothing.
-        for _ in range(20):
-            if len(app.screen_stack) == 1:
-                break
-            await pilot.pause()
-            await asyncio.sleep(0.05)
+        await wait_for(lambda: len(app.screen_stack) == 1, "the Connect dialog to close")
         assert app._connecting, "the connect attempt finished before it could be cancelled"
 
         await pilot.press("ctrl+d")
-        await pilot.pause()
-        await asyncio.sleep(0.05)
-
+        await wait_for(lambda: app._connecting == {}, "Ctrl+D to cancel the attempt")
         assert app.link is None, "there was never a UA -- nothing came up to bind"
-        assert app._connecting == {}, "the cancelled attempt is still tracked as in-flight"
 
-        # If cancellation only stopped the *UI* and not the retry timer, more
-        # SABMs would still be queued to go out; wait past where the next
-        # retry (T1=0.2s) would have fired and confirm none did.
-        await asyncio.sleep(0.3)
-        assert len(ta.sent) == sent_before_cancel, "a retry fired after cancellation"
+        # Counted only now the cancel has taken effect: a retry that went out
+        # while the keypress was still being delivered is not a retry after
+        # cancellation, and counting before the press made this flaky under
+        # load. Then wait past where the next retry (T1=0.2s) would fire.
+        sent_after_cancel = len(ta.sent)
+        await asyncio.sleep(0.5)
+        assert len(ta.sent) == sent_after_cancel, "a retry fired after cancellation"
+        await pilot.pause()
 
         log = app.query_one(TerminalPane).query_one("#session-log")
         text = "\n".join(str(line) for line in log.lines)

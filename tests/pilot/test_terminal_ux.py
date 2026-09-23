@@ -28,6 +28,7 @@ from kissterm.ui import terminal_pane as tp  # noqa: E402
 from kissterm.ui.dialogs import BbsHelperScreen, CommandReferenceScreen  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane, linkify  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
+from tests.pilot._wait import wait_for  # noqa: E402
 
 MYCALL = AX25Address.parse("N1ABC-1")
 PEER = AX25Address.parse("WS1EC-7")
@@ -359,18 +360,30 @@ async def test_bbs_helper_from_reference_reaches_compose_box_without_sending():
         before = _sent_data_frames(app.station.transport)
 
         await pilot.press("ctrl+r")
-        await asyncio.sleep(0.1)
-        reference = app.screen
-        assert isinstance(reference, CommandReferenceScreen)
-        reference.query_one("#ref-bbs", Button).press()
-        await asyncio.sleep(0.1)
+        await wait_for(
+            lambda: isinstance(app.screen, CommandReferenceScreen)
+            and app.screen.query_one("#ref-bbs", Button),
+            "the command reference to open",
+        )
+        app.screen.query_one("#ref-bbs", Button).press()
+        await wait_for(
+            lambda: isinstance(app.screen, BbsHelperScreen)
+            and app.screen.query_one("#bbs-apply", Button),
+            "the BBS helper to open",
+        )
+        # Let the helper's own Select post its initial Changed first; a value
+        # set before that is reset by it (the fixed sleep here used to hide
+        # this ordering).
+        await pilot.pause()
         helper = app.screen
-        assert isinstance(helper, BbsHelperScreen)
         helper.query_one("#bbs-macro").value = "send"
         helper.query_one("#bbs-callsign", Input).value = "N1ABC-7"
         helper.query_one("#bbs-apply", Button).press()
-        await asyncio.sleep(0.2)
-        await pilot.pause()
+        await wait_for(
+            lambda: app.query_one("#session-input", Input).value == "SP N1ABC-7",
+            "the helper's command to reach the compose box",
+        )
+        await asyncio.sleep(0.2)  # give a wrongly-wired send time to show up
 
         assert app.query_one("#session-input", Input).value == "SP N1ABC-7"
         assert _sent_data_frames(app.station.transport) == before
@@ -1137,7 +1150,12 @@ async def test_a_fast_reply_does_not_wait_out_the_full_ceiling():
             await task
 
             assert "CALENDAR" in names
-            assert elapsed < 2.0, (
+            # Bounded by the mechanism, not by how busy the machine is: the
+            # loop counts its wait in polls and `asyncio.sleep` never returns
+            # early, so running to the ceiling cannot take less than the
+            # ceiling in real time. Anything well under it was the quiet
+            # exit. A fixed 2 s budget here failed under parallel load (3.14s).
+            assert elapsed < 0.8 * app_module.HARVEST_MAX_WAIT_SECONDS, (
                 f"took {elapsed:.2f}s -- quiet-exit did not shortcut the "
                 f"10s ceiling for a reply that arrived almost immediately"
             )

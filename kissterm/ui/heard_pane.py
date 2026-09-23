@@ -163,6 +163,10 @@ class HeardPane(Container):
         self._show_radar = False
         self._last_heard: HeardTable | None = None
         self._last_my_position: tuple[float, float] | None = None
+        #: Set once `on_mount` has built the table's columns. The app's 2 s
+        #: refresh interval and tab activation can reach this pane before
+        #: that, and a `query_one` then raised `NoMatches` out of a timer.
+        self._table_ready = False
 
     def compose(self) -> ComposeResult:
         yield Button("Show radar", id="heard-radar")
@@ -178,6 +182,9 @@ class HeardPane(Container):
         # `KeyError` instead of finding the column.
         table.add_columns(*[(label, label) for label in _COLUMNS])
         self.query_one("#heard-radar-view", Static).display = False
+        self._table_ready = True
+        if self._last_heard is not None:
+            self.refresh_from(self._last_heard, self._last_my_position)
 
     def refresh_from(
         self, heard: "HeardTable", my_position: tuple[float, float] | None = None
@@ -190,6 +197,8 @@ class HeardPane(Container):
         """
         self._last_heard = heard
         self._last_my_position = my_position
+        if not self._table_ready:
+            return  # painted by `on_mount`
         table = self.query_one("#heard-table", DataTable)
         table.clear()
         self._geo.clear()

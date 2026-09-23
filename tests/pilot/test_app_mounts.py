@@ -45,6 +45,7 @@ from kissterm.ui.settings_pane import SettingsPane  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
 from kissterm.ui.addressbook_pane import AddressBookPane  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
+from tests.pilot._wait import wait_for  # noqa: E402
 
 
 def _plain(widget) -> str:
@@ -175,8 +176,13 @@ async def test_aprs_footer_switches_context_before_any_aprs_interaction():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(140, 40)) as pilot:
         app.action_show_tab("aprs")
-        await pilot.pause()
-        actions = [key.action for key in app.query_one(ui_app.KissTermFooter).query(FooterKey)]
+
+        def footer() -> list[str]:
+            return [key.action for key in app.query_one(ui_app.KissTermFooter).query(FooterKey)]
+
+        # clear_log is APRS-only here; toggle_contacts is Ctrl+G on Terminal too.
+        await wait_for(lambda: "clear_log" in footer(), "the APRS keys in the footer")
+        actions = footer()
         assert "connect" not in actions
         assert "disconnect" not in actions
         assert "command_reference" in actions  # ^R Services
@@ -208,7 +214,7 @@ async def test_footer_is_tab_and_connection_aware():
         def actions() -> set[str]:
             return {key.action for key in app.query_one(ui_app.KissTermFooter).query(FooterKey)}
 
-        await pilot.pause()
+        await wait_for(lambda: "connect" in actions(), "the Terminal keys in the footer")
         terminal = actions()
         assert "connect" in terminal
         assert "disconnect" not in terminal
@@ -219,17 +225,16 @@ async def test_footer_is_tab_and_connection_aware():
         # becomes an honest label rather than a permanently absent escape.
         app._connecting[""] = (PEER, 0)
         app._refresh_context_footer()
-        await pilot.pause()
-        assert "disconnect" in actions()
+        await wait_for(lambda: "disconnect" in actions(), "Disconnect during a pending connect")
         app._connecting.clear()
         app._refresh_context_footer()
+        await wait_for(lambda: "disconnect" not in actions(), "Disconnect to leave again")
 
         # A mouse click changes ``TabbedContent.active`` directly, bypassing
         # the keyboard action's deferred refresh. The activation hook itself
         # must therefore replace Terminal's contextual keys immediately.
         app.query_one("#main-tabs", TabbedContent).active = "aprs"
-        await asyncio.sleep(0)
-        await pilot.pause()
+        await wait_for(lambda: "clear_log" in actions(), "the APRS keys after a click")
         aprs = actions()
         assert "clear_log" in aprs
         assert "connect" not in aprs
@@ -1469,15 +1474,17 @@ async def test_tab_keys_work_while_an_input_has_focus():
             ("aprs", "#aprs-compose-input", "f4", "heard"),
         ):
             app.action_show_tab(start)
-            await pilot.pause()
-            await asyncio.sleep(0.1)
+            await wait_for(lambda: tabs.active == start, f"{start} to open")
             app.query_one(widget).focus()
-            await pilot.pause()
+            await wait_for(lambda: app.query_one(widget).has_focus, f"{widget} to take focus")
             assert tabs.active == start
 
             await pilot.press(key)
-            await pilot.pause()
+            await wait_for(lambda: tabs.active == dest, f"{key} to reach {dest}")
+            # Held for a moment: the bug was a tab that appeared for a frame
+            # and was pulled straight back.
             await asyncio.sleep(0.2)
+            await pilot.pause()
             assert tabs.active == dest, (
                 f"{key} from {start} with {widget} focused landed on "
                 f"{tabs.active}, not {dest}"

@@ -3,6 +3,32 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Pilot tests wait on conditions, not the clock
+
+### Bug Fixes
+
+- **The Heard pane no longer crashes if refreshed before it has mounted.**
+  The app's 2 s refresh and tab activation could reach `HeardPane` before its
+  table existed, and `query_one` raised `NoMatches` out of a timer, which
+  ends the app. Found through a flaky test (P0.4); an early refresh is now
+  remembered and painted on mount.
+
+### Improvements
+
+- **The flaky pilot tests (P0.4) wait on the thing they test.** A shared
+  `tests/pilot/_wait.py` polls a condition against a generous deadline and
+  names what never happened. Converted: the BBS helper, footer, tab-key,
+  Ctrl+D-cancel and APRS object tests, plus the harvest quiet-exit test,
+  which is now bounded by its own ceiling rather than a 2 s budget. Two had
+  real ordering bugs the old sleeps hid: Ctrl+D counted SABMs before the
+  keypress landed, and the BBS helper was filled in before its `Select`
+  posted its initial change.
+
+**Files:** `kissterm/ui/heard_pane.py`, `tests/pilot/_wait.py`,
+`tests/unit/test_heard_radar.py`, `tests/pilot/test_app_mounts.py`,
+`tests/pilot/test_terminal_ux.py`, `tests/pilot/test_transmit_gate.py`,
+`tests/pilot/test_aprs_object_send.py`, `docs/CHANGELOG.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — Fewer toasts: none for what is already on screen
 
 ### Improvements

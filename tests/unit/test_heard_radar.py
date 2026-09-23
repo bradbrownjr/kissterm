@@ -49,3 +49,18 @@ def test_radar_requires_a_configured_operator_position_without_guessing_one():
     rendered = render_radar([_entry("NORTH", (1.0, 0.0))], None, now=1_001.0)
     assert "needs this station's position" in rendered
     assert "Received position claims: 1; no known position: 0." in rendered
+
+
+def test_a_refresh_before_the_pane_has_mounted_is_kept_not_raised():
+    """`KissTermApp._refresh_heard` runs on a 2 s interval and on tab
+    activation. Under parallel test load it reached a HeardPane whose table
+    was not mounted yet, and `query_one` raised `NoMatches` out of a timer --
+    which ends the app. A refresh that early is remembered and painted on
+    mount instead."""
+    from kissterm.heard import HeardTable
+    from kissterm.ui.heard_pane import HeardPane
+
+    pane = HeardPane()
+    heard = HeardTable()
+    pane.refresh_from(heard, None)  # must not raise
+    assert pane._last_heard is heard

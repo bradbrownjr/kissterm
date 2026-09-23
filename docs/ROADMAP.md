@@ -308,7 +308,9 @@ Work items:
 ### P0.4 The pilot suite is flaky under parallel load
 
 - [ ] **A different test fails on each parallel run; all of them pass
-  alone.** `open`, found 2026-09-22. Observed failures so far:
+  alone.** `fixed, confirming` (2026-09-23): every test listed below now
+  waits on a condition (`tests/pilot/_wait.py`); remove this item after a
+  few consecutive green full-suite runs. Found 2026-09-22. Observed failures so far:
   `test_a_fast_reply_does_not_wait_out_the_full_ceiling` (a real timing
   budget: "took 3.14s", asserted `< 2.0`),
   `test_bbs_helper_from_reference_reaches_compose_box_without_sending`,
