@@ -91,17 +91,19 @@ catalog (`kissterm/nodes/data/`, application families), because a collection scr
 
 ### The folder tree
 
-One on-disk store, shown as one tree in the Mail tab, with each source
-getting its own branch:
+One on-disk store, shown as one tree in the Mail tab. **Folders separate
+kinds of mail, never sources** (decided 2026-09-23): an operator has one
+home BBS, reachable several ways (WS1EC-15 then BBS, the CCEMA alias,
+WS1EC-2 direct, the CCEBBS alias), and Outpost and Winlink Express file all
+of it in one place. A message's origin is its `Source:` header, by the
+BBS's own callsign, never the route.
 
 ```
 Mail
+  BBS              Inbox  Outbox  Sent  Deleted
   Winlink          Inbox  Outbox  Sent  Deleted
-  BBS
-    CCEMA          Inbox  Outbox  Sent  Deleted     (one per BBS account)
   Local            Inbox  Sent  Deleted             (P9's personal mailbox)
-Bulletins
-  CCEMA            ALL  ARES  WX  ...               (by category, with expiry)
+Bulletins          ALL  ARES  WX  ...  Deleted      (by category, with expiry)
 Files
   Downloads  Attachments  Received
 ```
@@ -183,14 +185,16 @@ anything taken from its behaviour rather than from documentation
 
 #### BBS mail (BPQMail first, then the applications P8 adds)
 
-- [ ] **BBS accounts**: an Address Book entry marked as a mail source, with
-  its BBS application from the command catalog (BPQMail now; FBB and the
-  JNOS mailbox once P8 adds them),
-  its hop chain and login script, and retrieval options. Small.
+- [ ] **Home BBS**: the BBS's own callsign (its identity for `Source:` and
+  duplicate checks), its application from the command catalog (BPQMail
+  now; FBB and the JNOS mailbox once P8 adds them), and retrieval options.
+  Any Address Book entry that reaches it (node then `BBS`, a NET/ROM alias,
+  direct) can be the route for a send/receive; the route never changes
+  where mail is filed. Small.
 - [ ] **BBS send/receive**: an operator-started session that connects via
   the normal Connect flow, then runs the application's collection
   sequence from the catalog: list mine, read each new message into
-  BBS/<name>/Inbox, send the Outbox, and disconnect. Every line is echoed to
+  Mail/BBS/Inbox, send the Outbox, and disconnect. Every line is echoed to
   the terminal log and the transcript as it goes, as the auto-login script
   already does. It stops, and does not guess, on any reply it does not
   recognise. **Reproduce-first applies here:** the per-application
@@ -203,12 +207,12 @@ anything taken from its behaviour rather than from documentation
   operator's choice, as it is at the node, where a message is read and
   then killed by command. Kill is an explicit per-message action (or an
   opt-in per-account setting), never a side effect of downloading.
-  **Never download the same message twice:** each BBS account records
-  what it has already filed, by BBS message number plus the BID/MID where
-  the BBS shows one, so a later session lists new mail and reads only
+  **Never download the same message twice:** each filed message records
+  its BBS message number plus the BID/MID where the BBS shows one, keyed
+  by the BBS's callsign rather than the route (`MessageStore.find`), so a later session lists new mail and reads only
   that. Winlink needs no equivalent, because the CMS delivers each
   message once. Large.
-- [ ] **Bulletin collection** into Bulletins/<BBS>/<category>, using the
+- [ ] **Bulletin collection** into Bulletins/<category>, using the
   same session with a category or keyword filter. Medium.
 
 #### Forms

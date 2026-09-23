@@ -17,6 +17,11 @@ you need the history of a specific change.
   back where it was, and only purge from Deleted removes a file. Raw
   copies (`.b2f`) move with their message. Lookup by Message-Id is there
   so BBS collection can avoid filing a message twice. No UI yet.
+- **Folders separate kinds of mail, not sources** (operator's decision):
+  one `Mail/BBS` mailbox and one `Bulletins` tree by category, however the
+  home BBS was reached (node, NET/ROM alias, direct). Each message's
+  `Source:` header names the BBS by its own callsign; duplicate checks use
+  Message-Id plus that source, so a second route never re-downloads mail.
 
 **Files:** `kissterm/mail/`, `kissterm/config.py` (`mail_path`),
 `tests/unit/test_mail_store.py`, `AGENTS.md`, `docs/ROADMAP.md`

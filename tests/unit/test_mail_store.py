@@ -17,7 +17,7 @@ from kissterm.mail.message import format_message, parse_message  # noqa: E402
 from kissterm.mail.store import INDEX_NAME  # noqa: E402
 
 WHEN = datetime(2026, 9, 23, 18, 0, 0, tzinfo=timezone.utc)
-INBOX = "Mail/BBS/CCEMA/Inbox"
+INBOX = "Mail/BBS/Inbox"
 
 
 def _msg(**kw) -> Message:
@@ -30,7 +30,6 @@ def _msg(**kw) -> Message:
 def store(tmp_path):
     s = MessageStore(tmp_path / "mail")
     s.ensure_default_tree()
-    s.add_bbs_account("CCEMA")
     return s
 
 
@@ -44,6 +43,7 @@ def test_mail_path_is_under_the_isolated_data_dir():
 def test_a_message_round_trips_through_its_file():
     m = _msg(
         message_id="12345_WS1EC",
+        source="BBS WS1EC",
         kind=KIND_BULLETIN,
         category="WX",
         expires=WHEN + timedelta(days=7),
@@ -91,10 +91,10 @@ def test_unsafe_folder_names_are_refused(bad):
         check_folder(bad)
 
 
-def test_default_tree_and_bbs_account(store):
+def test_default_tree_has_no_folder_per_source(store):
     folders = store.folders()
     for f in ("Mail/Winlink/Inbox", "Mail/Local/Deleted", "Files/Attachments",
-              INBOX, "Mail/BBS/CCEMA/Outbox", "Bulletins/CCEMA/Deleted"):
+              INBOX, "Mail/BBS/Outbox", "Bulletins/Deleted"):
         assert f in folders
 
 
@@ -135,7 +135,7 @@ def test_set_read(store):
 def test_delete_moves_to_deleted_and_restore_moves_back(store):
     ref = store.add(INBOX, _msg(), raw=b"raw")
     gone = store.delete(ref)
-    assert gone.startswith("Mail/BBS/CCEMA/Deleted/")
+    assert gone.startswith("Mail/BBS/Deleted/")
     assert store.list(INBOX) == []
     assert store.read(gone).deleted_from == INBOX
     assert len(store.raw_files(gone)) == 1
@@ -144,7 +144,7 @@ def test_delete_moves_to_deleted_and_restore_moves_back(store):
     assert back.startswith(INBOX + "/")
     assert store.read(back).deleted_from == ""
     assert len(store.raw_files(back)) == 1
-    assert store.list("Mail/BBS/CCEMA/Deleted") == []
+    assert store.list("Mail/BBS/Deleted") == []
 
 
 def test_purge_only_from_deleted(store):
@@ -155,12 +155,12 @@ def test_purge_only_from_deleted(store):
     with pytest.raises(ValueError):
         store.delete(gone)
     store.purge(gone)
-    deleted_dir = store.root / "Mail/BBS/CCEMA/Deleted"
+    deleted_dir = store.root / "Mail/BBS/Deleted"
     assert list(deleted_dir.iterdir()) == []
 
 
 def test_restore_without_a_record_goes_to_the_inbox(store):
-    ref = store.add("Mail/BBS/CCEMA/Deleted", _msg())
+    ref = store.add("Mail/BBS/Deleted", _msg())
     assert store.restore(ref).startswith(INBOX + "/")
 
 
@@ -208,16 +208,18 @@ def test_symlinks_and_dotfiles_are_skipped(store, tmp_path):
 # -- lookups -----------------------------------------------------------------
 
 
-def test_find_by_message_id(store):
-    store.add(INBOX, _msg(message_id="2738_WS1EC"))
-    store.add("Mail/Winlink/Inbox", _msg(message_id="2738_WS1EC"))
-    assert len(store.find("2738_WS1EC")) == 2
-    assert len(store.find("2738_WS1EC", under="Mail/BBS/CCEMA")) == 1
+def test_find_by_message_id_spans_routes_and_deleted(store):
+    # One BBS reached two ways files into one Inbox; the second read is a dup.
+    ref = store.add(INBOX, _msg(message_id="2738", source="BBS WS1EC"))
+    assert len(store.find("2738", source="BBS WS1EC")) == 1
+    assert store.find("2738", source="BBS N0BBS") == []
+    store.delete(ref)
+    assert len(store.find("2738", source="BBS WS1EC")) == 1
     assert store.find("") == []
 
 
 def test_expired_bulletins(store):
-    wx = "Bulletins/CCEMA/WX"
+    wx = "Bulletins/WX"
     store.add(wx, _msg(kind=KIND_BULLETIN, category="WX", expires=WHEN))
     store.add(wx, _msg(kind=KIND_BULLETIN, category="WX", expires=WHEN + timedelta(days=9)))
     store.add(INBOX, _msg(expires=WHEN))  # mail with an Expires header is still mail

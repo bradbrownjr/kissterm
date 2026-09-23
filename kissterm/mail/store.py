@@ -1,14 +1,21 @@
 """The message store: a directory tree that mirrors the Mail tab's folder tree.
 
 ```
+<root>/Mail/BBS/{Inbox,Outbox,Sent,Deleted}
 <root>/Mail/Winlink/{Inbox,Outbox,Sent,Deleted}
-<root>/Mail/BBS/<account>/{Inbox,Outbox,Sent,Deleted}
 <root>/Mail/Local/{Inbox,Sent,Deleted}
-<root>/Bulletins/<account>/<category>, plus <account>/Deleted
+<root>/Bulletins/<category>, plus Bulletins/Deleted
 <root>/Files/{Downloads,Attachments,Received}
 ```
 
 Why it is shaped this way (ROADMAP P2, "The folder tree"):
+
+- **Folders separate kinds of mail, never sources.** One BBS is reachable
+  several ways (WS1EC-15 then BBS, the CCEMA NET/ROM alias, WS1EC-2 direct,
+  the CCEBBS alias); a folder per route would split one mailbox four ways,
+  and Outpost and Winlink Express both file everything in one place. Where
+  a message came from is its `Source:` header (`BBS WS1EC`), keyed on the
+  BBS's own callsign, never the route. Decided by the operator 2026-09-23.
 
 - **One plain file per message** (`message.py`), named
   `YYYYMMDD-HHMMSS_<sender>.txt` so a directory listing sorts by date and
@@ -28,7 +35,7 @@ Why it is shaped this way (ROADMAP P2, "The folder tree"):
   Bulletins/.
 
 No I/O outside the root, no UI and no network: this is unit-tested the way
-`ax25/` is. Folder names come from the operator (a BBS account name), so every
+`ax25/` is. Folder names can come from remote data (a bulletin category), so every
 path is checked to stay inside the root, dotfiles and symlinks are skipped,
 and a folder segment is restricted to a conservative character set.
 """
@@ -63,10 +70,15 @@ SENT = "Sent"
 
 MESSAGE_SUFFIX = ".txt"
 INDEX_NAME = ".index.json"
-_INDEX_VERSION = 1
+_INDEX_VERSION = 2
 
-#: Folders that exist on a fresh install. BBS accounts add their own.
+#: Folders that exist on a fresh install. Bulletin categories are made as
+#: bulletins are filed.
 DEFAULT_FOLDERS = (
+    f"{MAIL}/BBS/{INBOX}",
+    f"{MAIL}/BBS/{OUTBOX}",
+    f"{MAIL}/BBS/{SENT}",
+    f"{MAIL}/BBS/{DELETED}",
     f"{MAIL}/Winlink/{INBOX}",
     f"{MAIL}/Winlink/{OUTBOX}",
     f"{MAIL}/Winlink/{SENT}",
@@ -74,6 +86,7 @@ DEFAULT_FOLDERS = (
     f"{MAIL}/Local/{INBOX}",
     f"{MAIL}/Local/{SENT}",
     f"{MAIL}/Local/{DELETED}",
+    f"{BULLETINS}/{DELETED}",
     f"{FILES}/Downloads",
     f"{FILES}/Attachments",
     f"{FILES}/Received",
@@ -128,6 +141,7 @@ class Summary:
     subject: str
     date: datetime | None
     message_id: str
+    source: str
     kind: str
     category: str
     expires: datetime | None
@@ -156,6 +170,7 @@ def _summary_to_json(s: Summary) -> dict:
         "subject": s.subject,
         "date": _date_text(s.date),
         "message_id": s.message_id,
+        "source": s.source,
         "kind": s.kind,
         "category": s.category,
         "expires": _date_text(s.expires),
@@ -173,6 +188,7 @@ def _summary_from_json(ref: str, d: dict) -> Summary:
         subject=str(d.get("subject", "")),
         date=parse_date(str(d.get("date", ""))),
         message_id=str(d.get("message_id", "")),
+        source=str(d.get("source", "")),
         kind=str(d.get("kind", "")),
         category=str(d.get("category", "")),
         expires=parse_date(str(d.get("expires", ""))),
@@ -223,15 +239,6 @@ class MessageStore:
         folder = check_folder(folder)
         self._dir(folder).mkdir(parents=True, exist_ok=True)
         return folder
-
-    def add_bbs_account(self, name: str) -> None:
-        """Mail and Bulletins branches for one BBS account."""
-        check_folder(name)
-        if "/" in name:
-            raise ValueError("an account name is one folder name")
-        for box in (INBOX, OUTBOX, SENT, DELETED):
-            self.create_folder(f"{MAIL}/BBS/{name}/{box}")
-        self.create_folder(f"{BULLETINS}/{name}/{DELETED}")
 
     def folders(self) -> list[str]:
         """Every folder under the root, sorted, as `A/B/C` paths."""
@@ -303,6 +310,7 @@ class MessageStore:
             subject=message.subject,
             date=message.date,
             message_id=message.message_id,
+            source=message.source,
             kind=message.kind,
             category=message.category,
             expires=message.expires,
@@ -400,19 +408,21 @@ class MessageStore:
             if p != path and not p.name.endswith(MESSAGE_SUFFIX) and p.is_file()
         )
 
-    def find(self, message_id: str, under: str = "") -> list[Summary]:
-        """Messages with this Message-Id (BID/MID), optionally under a folder.
+    def find(self, message_id: str, source: str = "") -> list[Summary]:
+        """Messages with this Message-Id, optionally from one source only.
 
-        This is how a BBS collection avoids filing the same message twice.
+        This is how a BBS collection avoids filing a message twice, however
+        the BBS was reached: a BID/MID is unique network-wide, and a bare
+        BBS message number is unique only with its `source` (`BBS WS1EC`).
+        Messages in Deleted count, so deleting one does not re-download it.
         """
         if not message_id:
             return []
         self.refresh()
-        prefix = check_folder(under) + "/" if under else ""
         return [
             s
             for _m, _z, s in self._index.values()
-            if s.message_id == message_id and s.ref.startswith(prefix)
+            if s.message_id == message_id and (not source or s.source == source)
         ]
 
     def expired(self, now: datetime | None = None) -> list[Summary]:

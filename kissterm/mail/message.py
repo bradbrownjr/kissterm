@@ -29,6 +29,7 @@ _KNOWN = (
     "Subject",
     "Date",
     "Message-Id",
+    "Source",
     "Kind",
     "Category",
     "Expires",
@@ -53,7 +54,9 @@ class Message:
     `kind` is "mail" or "bulletin". A bulletin is addressed to a `category`
     (WX, ARES, ALL) rather than a person and may carry `expires`; ROADMAP P2
     asks for both to be modelled from the start rather than bolted on.
-    `deleted_from` is set only while the message sits in a Deleted folder
+    `source` says where it came from, by the far end's identity and never
+    the route (`BBS WS1EC`, `Winlink`), since one BBS is reachable several
+    ways. `deleted_from` is set only while the message sits in a Deleted folder
     and says where Restore puts it back.
     """
 
@@ -62,6 +65,7 @@ class Message:
     subject: str = ""
     date: datetime | None = None
     message_id: str = ""
+    source: str = ""
     kind: str = KIND_MAIL
     category: str = ""
     expires: datetime | None = None
@@ -117,6 +121,7 @@ def format_message(message: Message) -> str:
         "Subject": message.subject,
         "Date": _format_date(message.date),
         "Message-Id": message.message_id,
+        "Source": message.source,
         "Kind": message.kind if message.kind != KIND_MAIL else "",
         "Category": message.category,
         "Expires": _format_date(message.expires),
@@ -170,6 +175,7 @@ def parse_message(data: bytes | str) -> Message:
         subject=lower.get("subject", ""),
         date=parse_date(lower.get("date", "")),
         message_id=lower.get("message-id", ""),
+        source=lower.get("source", ""),
         kind=lower.get("kind", "") or KIND_MAIL,
         category=lower.get("category", ""),
         expires=parse_date(lower.get("expires", "")),
