@@ -126,14 +126,9 @@ changed later — then Transports, then everything else.
 ## 5. Keys
 
 **The standard is IBM CUA, as character terminals adopted it** — Turbo
-Vision, Midnight Commander, a BIOS setup screen. It was chosen after keys
-here had been picked one at a time, each against the collisions known that
-day: the NET/ROM toggle moved five times in one day, and the Footer ended up
-advertising `^O` for a key bound to Ctrl+Shift+O, which an ordinary terminal
-delivers as Ctrl+O — a different command. CUA's central idea is what fixes
-that: **every command is in the menu, and a key is only an accelerator.** No
-command needs a chord of its own to be reachable, so the key budget can stay
-inside what a terminal can actually deliver.
+Vision, Midnight Commander, a BIOS setup screen. Its central idea: **every
+command is in the menu, and a key is only an accelerator**, so the key budget
+can stay inside what a terminal can actually deliver.
 
 **One table, `kissterm/ui/commands.py`'s `COMMANDS`, generates all of it**:
 the App's `BINDINGS`, the Footer, the F10 menu, the Keys page of the F1 Help tab and the
@@ -155,16 +150,9 @@ is the enforcement.
    Ctrl+Shift+anything, Ctrl+digit, Ctrl+Alt+anything, Alt+anything,
    Ctrl+PgUp/PgDn, Ctrl+Tab, F11, F12. **Ctrl+Shift+letter and Ctrl+letter
    are the same byte** unless the terminal, and every layer between (tmux,
-   ssh), speak an enhanced keyboard protocol — which is exactly what a
-   station PC reached from another room does not. **kissterm switches that
-   protocol off outright** (`kissterm/__init__.py`), so this rule is enforced
-   by the wire and not only by convention: under Textual's enhanced mode
-   Enter stops being a plain CR and becomes a bare `CSI 13 u` sequence, and
-   on a real station that sequence went missing after the window had sat in
-   a multiplexer — typing still worked and Enter silently did nothing, so
-   the send line could only be committed with the mouse. Since no allowed
-   key needs the protocol, turning it off costs nothing and removes the
-   failure. Ctrl+I, M, H, `[` and J
+   ssh), speak an enhanced keyboard protocol. **kissterm switches that
+   protocol off outright** (`kissterm/__init__.py` says why). Ctrl+I, M, H,
+   `[` and J
    are Tab, Enter, Backspace, Esc and LF; Ctrl+C, Z and `\` are signals;
    Ctrl+S is flow control; Ctrl+A and Ctrl+B are the screen and tmux
    prefixes; Ctrl+A, E, K and U are line editing inside an input.
@@ -173,11 +161,9 @@ is the enforcement.
    connection, `Ctrl+D` Disconnect, `Ctrl+T` Transmit on/off, `Ctrl+F` Find,
    `Ctrl+L` Clear, `Ctrl+G` side panel, `Ctrl+R` Reconnect (Services on
    APRS), `Ctrl+P`
-   palette, `Ctrl+W` close tab. Ctrl+W was an input's delete-word until the
-   operator asked for it as close (2026-09-23), as in a browser or editor;
-   the lines typed into all day (`WordInput`) delete a word with
-   Ctrl+Backspace and Ctrl+Delete instead, and inside a dialog Ctrl+W is
-   still delete-word. Ctrl+D is bound with `priority=True` so it wins over an `Input`'s
+   palette, `Ctrl+W` close tab. The lines typed into all day (`WordInput`)
+   delete a word with Ctrl+Backspace and Ctrl+Delete; inside a dialog Ctrl+W
+   is still delete-word. Ctrl+D is bound with `priority=True` so it wins over an `Input`'s
    own delete-right (the Delete key still does that), and only while there is
    something to disconnect. Everything else — send beacon, send position,
    object, bulletin, gateway form, Watch APRS-IS, SSID filter, file transfer,
@@ -253,33 +239,23 @@ a Terminal key: Node commands on Terminal (F10 > Help, or read-only under
 F1) and the gateway service picker on APRS (`Ctrl+R`). Both fill an input;
 **neither sends**.
 
-`Ctrl+R` is two different commands by tab, which the registry allows only
-because each is scoped to its tab: Reconnect on Terminal (requested
-2026-09-23: "let the end user hit F1 for the context aware help tab, and
-change ^R to Reconnect") and Services on APRS. Reconnect redials the tab's
-last request through the ordinary connect flow, so it arms the transmit
-gate visibly, exactly like dialing from the Address Book.
+`Ctrl+R` is two commands, each scoped to its tab: Reconnect on Terminal and
+Services on APRS. Reconnect redials the tab's last request through the
+ordinary connect flow, so it arms the transmit gate visibly, like dialing
+from the Address Book.
 
 ### Everything else about keys
 
 - **Never bind a bare printable key globally.** A focused `Input` swallows
   it, so the binding works inconsistently depending on focus — and this is a
   terminal, where typing a character must always just type that character.
-- **The send-line suggestion strip is a row, not ghost text, and Tab is its
-  only key.** `#suggestion-strip` (`kissterm/ui/terminal_pane.py`) shows up
-  to `CommandReference.complete`'s matches for what is currently typed —
-  the top command bold and the rest dim, each followed by its short muted
-  explanation — rather than Textual's built-in single inline-ghost-text
-  suggester, because more than one candidate is routinely useful (a node's
-  `C`, `CQ` and `CHAT` all share a prefix) and ghost text can only ever show
-  one. The row wraps rather than hiding a choice past an ellipsis on a narrow
-  terminal. Tab fills in the highlighted match and leaves the strip open;
-  repeated Tab presses cycle through every match sharing the original prefix.
-  The operator can keep typing to narrow further, or press Enter to send, same as
-  any other suggestion on this screen. Tab with nothing suggested falls
-  through to ordinary focus-cycling, so an operator who never triggers a
-  suggestion never notices Tab behaves any differently than before this
-  existed.
+- **Send-line suggestions are a stacked list, not ghost text**
+  (`kissterm/ui/terminal_pane.py`): several commands often share a prefix,
+  and ghost text can show only one. Each row is a command and its short
+  description, from the reference for the current context. Up/Down choose,
+  Tab fills without sending, Esc hides the list until the line changes, and
+  Enter sends only what is in the line. Tab with nothing suggested moves
+  focus as usual.
 
 ### Slide-out panels
 
@@ -291,12 +267,6 @@ contacts panel once that tab exists — is a collapsible column docked on the
 - **One key opens or closes whichever slide-out belongs to the active
   pane**: `Ctrl+G`. The key's meaning does not change tab to tab; a tab with
   no slide-out (Monitor, Heard, Settings) just has nothing for it to do.
-  Picked only after checking every existing binding —
-  `kissterm/ui/app.py`'s `Binding("ctrl+g", ...)` records the full check —
-  because `Input`'s own built-in bindings already claim more of the alphabet
-  (`ctrl+a`, `ctrl+shift+a`, `ctrl+e/w/u/k/x/c/v/d`) than is obvious until
-  you look, and a key silently shadowed by a focused `Input` is worse than
-  an unfamiliar one, per the `Select.BLANK` lesson in `AGENTS.md`.
 - **No animation, ever, on any slide-out.** "Slides out" describes where the
   panel ends up — docked at the right edge, over nothing else — not a motion
   effect. Sec. 1's rule holds here exactly as everywhere else: nothing

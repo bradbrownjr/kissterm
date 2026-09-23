@@ -582,7 +582,7 @@ class KissTermApp(App):
     #: Generated from `commands.COMMANDS`, the one table the Footer, the F10
     #: menu, F1 help and Ctrl+P also read. Do not add a `Binding` here: add a
     #: `Command` there, inside the key standard that
-    #: `tests/unit/test_key_standard.py` enforces (docs/ROADMAP.md P0.2).
+    #: `tests/unit/test_key_standard.py` enforces (DESIGN.md section 5).
     BINDINGS = cmdreg.app_bindings()
 
     def __init__(

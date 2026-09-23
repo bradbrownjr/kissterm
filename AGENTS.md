@@ -3,1261 +3,420 @@
 A terminal for KISS TNCs, packet nodes, and HF modems. Python 3.11+, built with
 [Textual](https://textual.textualize.io/). Package under `kissterm/`.
 
-This file is the single source of truth for a future session continuing work
-WITHOUT prior chat context. Read it top to bottom before touching code.
+The rules a session needs, each with a pointer to the code or test that
+enforces it. The reasons behind a rule live in that code's docstring and in
+`docs/CHANGELOG.md`; the long version of this file, with each rule's history,
+is in git at commit `6d81202`. Read this file top to bottom before touching
+code.
 
-Companion files: `README.md` (users), `SETUP.md` (operators getting on the air),
-**`DESIGN.md` (the visual and interaction schema -- read before changing how
-anything looks)**, `docs/ROADMAP.md` (what is still open), `docs/CHANGELOG.md`
-(what changed and why).
+Companion files: `README.md` (users), `SETUP.md` (getting on the air),
+**`DESIGN.md` (how anything looks or is keyed -- read before changing
+either)**, `docs/ROADMAP.md` (what is open), `docs/CHANGELOG.md` (what
+changed). Each package has its own short `AGENTS.md` (`kissterm/ax25/`,
+`transport/`, `aprs/`, `ui/`).
 
 ---
 
 ## Before picking up any work
 
-Read the top of `docs/ROADMAP.md` ("How to work this file") first. In short:
-P0 (reported bugs, the keyboard standard, the command catalog) comes before
-any new feature; a live bug is reproduced from real evidence before it is
-fixed and is closed only by the operator; no key binding is added or changed
-outside P0.2's terminal-safe standard.
+Read the top of `docs/ROADMAP.md` ("How to work this file"). In short: P0
+(reported bugs, stabilizing) comes before any new feature; a live bug is
+reproduced from real evidence before it is fixed and is closed only by the
+operator; no key binding changes outside DESIGN.md section 5.
 
----
+## Always / Never memory protocol
 
-## Always / Never Memory Protocol
-
-- If the user says **"always"**, **"never"**, **"remember"**, or **"don't"**,
-  treat it as a permanent rule and add it to §7 immediately.
-- If a rule is not written down here, assume it will be forgotten next session.
-- Remove or update rules that turn out to be wrong rather than letting them stack.
+- When the user says **"always"**, **"never"**, **"remember"** or **"don't"**,
+  add it to section 7 as a rule immediately.
+- A rule not written here will be forgotten next session.
+- Update or remove a rule that turns out wrong rather than stacking another.
+- A rule is a sentence or two plus a pointer. History goes to CHANGELOG.
 
 ---
 
 ## 1. What kissterm is, and what it is not
 
-kissterm is a **terminal**. You connect to a packet BBS, a NET/ROM node, or a
-BPQ32/LinBPQ node and type at it. It also monitors the channel, keeps a heard
-list, and decodes APRS.
+A **terminal**: connect to a packet BBS, NET/ROM node or BPQ32/LinBPQ node and
+type at it; also monitor the channel, keep a heard list, decode and send APRS.
 
-**The thing that makes it different from every comparable project** is in
-`kissterm/ax25/session.py`: kissterm implements AX.25 connected mode *itself*,
-in userspace, over KISS.
+**What makes it different** is `kissterm/ax25/session.py`: AX.25 connected
+mode implemented in userspace over KISS. That is why it runs unprivileged and
+cross-platform against a TNC on serial, Bluetooth or a TCP socket on another
+machine (linpac needs the kernel AX.25 stack; BPQTerminal and EasyTerm are
+Windows GUIs tied to one install). **A change that delegates the link layer
+back to the kernel deletes the reason this project exists.**
 
-| Project | Why it does not cover this niche |
-|---|---|
-| linpac | Requires the Linux kernel AX.25 stack (`AF_AX25`, `axports`, root to set up). Cannot talk to a KISS TNC on another machine's TCP port at all. |
-| BPQTerminal / bpqterm32 | Windows GUI, tied to a BPQ32 install. |
-| UZ7HO EasyTerm | Windows GUI, tied to that author's soundmodem. |
-
-Owning the state machine is why kissterm runs unprivileged, cross-platform,
-against a TNC on a serial cable, a Bluetooth link, or a TCP socket on a
-Raspberry Pi in the garage. **If a future change proposes delegating the link
-layer back to the kernel, it is deleting the reason this project exists.**
-
-Scope boundary: kissterm is a *client terminal*, not a node, a BBS, or an
-igate. It answers incoming connections (that is how keyboard-to-keyboard chat
-and a personal mailbox work) but it does not route, digipeat, or gate to the
-internet. See `docs/ROADMAP.md` P4 for why igating is explicitly out of scope.
+Scope: a client terminal, not a node, BBS or igate. It may answer incoming
+connections (keyboard chat, a future personal mailbox) but never routes,
+digipeats or gates to the internet (ROADMAP P4).
 
 ## 2. Architecture
 
-### 2a. The two transport tiers — the central design decision
+### 2a. The two transport tiers
 
-`kissterm/transport/base.py`. Every backend is one of two things, and
-conflating them is how a packet terminal accretes special cases:
+`kissterm/transport/base.py`. Every backend is exactly one of:
 
-**Frame transports** (`FrameTransport`) move AX.25 *frames* and know nothing
-about connections. KISS over serial (`serial_kiss.py`), KISS over TCP
-(`tcp_kiss.py`), KISS over Bluetooth (`bluetooth.py`), AGWPE raw mode
-(`agwpe.py`). Their frames go into kissterm's own state machine.
+- **Frame transports** (`FrameTransport`) move AX.25 frames: KISS over serial,
+  TCP, Bluetooth; AGWPE raw. Frames go into kissterm's own state machine.
+- **Session transports** (`SessionTransport`) hand back an already-connected
+  byte stream: VARA, Mercury, kernel AX.25, Telnet, SSH. **Never run
+  kissterm's state machine on top of one** -- two AX.25 implementations on
+  one link corrupt it.
 
-**Session transports** (`SessionTransport`) hand back an *already-connected
-byte stream*. VARA HF/FM (`vara.py`), Mercury (`mercury.py`), the Linux kernel
-AX.25 stack (`kernel_ax25.py`), Telnet (`telnet.py`), SSH (`ssh.py`). The
-modem, kernel, or remote node already ran the link layer (for Telnet/SSH
-there is no AX.25 on the wire at all to run one). **Running kissterm's state
-machine on top of one of these puts two AX.25 implementations on one link
-and corrupts it.** That is what the tier split exists to prevent.
-
-**The two tiers do NOT produce the same object, and pretending otherwise
-would be wrong.** The frame tier's `AX25Station.connect()` returns an
-`AX25Link` (`ax25/session.py`) -- the state machine itself; the session
-tier's `SessionTransport.connect()` returns a `Session`
-(`transport/base.py`) -- a thin dataclass around a sender/closer pair and an
-`incoming` queue. They differ in real ways (`Session.on_state_change` is a
-registration *method*, `AX25Link.on_state` a plain callback list;
-`AX25Link` has `on_data`, `Session` only `incoming`/`deliver()`) because
-`Session` predates any real caller -- nothing in this app constructed one
-through `SessionTransport.connect()` until Telnet/SSH shipped, so VARA,
-Mercury and kernel AX.25 existed as backend classes with no way to actually
-be connected to from the UI. `KissTermApp._SessionLinkAdapter`
-(`ui/app.py`) is the seam: it wraps a `Session` in `AX25Link`'s shape once,
-at bind time, so `_bind_link`, `_hop_through`/`_run_connect_script`, and
-`action_disconnect` — all written once against `AX25Link` — work unchanged
-for either tier. **Add a new session transport by matching `Session`'s
-actual interface (`_sender`/`_closer`, `deliver()`, `set_state()`); add UI
-logic that needs to work on either tier by extending the adapter, never by
-reshaping `Session` to look more like `AX25Link` -- that would ripple into
-`vara.py`/`kernel_ax25.py`/`mercury.py` and their existing tests
-(`tests/unit/test_tx_gate.py` included) for a UI-layer problem.**
+They return different objects: `AX25Station.connect()` gives an `AX25Link`,
+`SessionTransport.connect()` a `Session`. `KissTermApp._SessionLinkAdapter`
+(`ui/app.py`) wraps a `Session` in `AX25Link`'s shape at bind time. **Add UI
+logic that must work on both tiers by extending the adapter, never by
+reshaping `Session`** (that ripples into vara/mercury/kernel_ax25 and
+`tests/unit/test_tx_gate.py`).
 
 ### 2b. One shared frame fan-out
 
-`FrameTransport.subscribe()` is a fan-out. The station, the monitor pane, the
-heard table and the APRS decoder are all subscribers; a frame is decoded once
-no matter how many things care about it. **Adding a second decode path for a
-new pane is the wrong instinct — add a subscriber.**
+`FrameTransport.subscribe()` fans each frame out once to the station, monitor,
+heard table and APRS decoder. **A new consumer is a subscriber, never a second
+decode path.** `AX25Station` (`ax25/station.py`) demultiplexes: existing link,
+new incoming link, or `on_unhandled` (the APRS input). The monitor subscribes
+to the transport, not to `on_unhandled`, or it goes quiet during a live
+conversation. `FrameTransport.on_sent` is the transmit-side fan-out.
 
-`AX25Station` (`ax25/station.py`) is the demultiplexer: it decides whether an
-inbound frame belongs to an existing link, starts a new one (incoming SABM),
-or belongs to nobody and goes to `on_unhandled` — which is the input to APRS.
+Nothing in `ax25/` does I/O; every byte goes through a transport object, which
+is what makes the stack testable on a loopback (section 6).
 
-**The monitor pane subscribes to the transport, not to `station.on_unhandled`.**
-A frame belonging to an open link is routed straight to that link and never
-reaches `on_unhandled`, so a monitor fed from there cannot show the UA that
-answers your SABM, nor any traffic of a live conversation — it goes quiet at
-the one moment worth watching. `FrameTransport.on_sent` is the matching
-fan-out for the transmit side; without it "the node never answered" and "we
-never actually keyed up" look identical on screen.
+## 3. The AX.25 stack
 
-### 2c. Layering
+`kissterm/ax25/session.py` implements AX.25 2.2 section 6; its module
+docstring is long on purpose. The points that cost time if forgotten:
 
-```
-        app.py  (Textual: tabs, panes, bindings)
-           |
-      Session  <-------------------------------+
-           |                                    |
-   ax25/station.py  (demux, incoming links)      |
-           |                                    |
-   ax25/session.py  (AX25Link: the state machine)|
-           |                                    |
-   ax25/frame.py + ax25/address.py  (wire format)|
-           |                                    |
-   FrameTransport                        SessionTransport
-   (kiss.py codec + serial/tcp/bt/agwpe)  (vara, mercury, kernel)
-```
-
-Nothing in `ax25/` does I/O. Every byte goes through a transport object. That
-is what makes the whole stack testable against a loopback with no radio — see
-§6.
-
-## 3. The AX.25 stack — what a future session needs to know
-
-`kissterm/ax25/session.py` implements AX.25 2.2 section 6. Read its module
-docstring; it is long on purpose. The points that cost time if forgotten:
-
-- **`TIMER_RECOVERY` is not an error state.** It is the link asking "are you
-  still there, and what have you received?" after T1 expired. A busy 1200-baud
-  channel or a marginal HF path spends real time there and recovers fine.
-  Showing the operator a failure, or tearing the link down, is wrong.
-- **Three timers, three jobs.** T1 = "I sent something and have not been
-  acknowledged" (drives all retransmission). T2 = "wait before acknowledging",
-  so an outgoing I frame can piggyback the ack — on a half-duplex radio channel
-  every avoided transmission is avoided airtime and avoided collisions; setting
-  T2 to zero roughly doubles the frames on the air. T3 = "the link has been
-  idle, is it alive?" — without it a link whose far end vanished stays
-  "connected" in the UI forever.
-- **All sequence arithmetic is modular.** `_ack_upto` walks V(A) forward
-  modulo N rather than comparing integers. Writing `while self.va < nr` instead
-  silently stops acknowledging after the first wrap and the window jams shut.
-  The symptom is "the link stalls after exactly 8 frames".
-- **One REJ, not one per out-of-sequence frame.** The peer is already sending
-  the rest of its window; every extra REJ is airtime spent asking for something
-  already on its way. `reject_sent` guards this.
-- **DELIBERATE DEVIATION from the 2.2 SDL**: `_ack_upto` resets RC on *any*
-  forward progress, not only on leaving timer recovery. Measured on the
-  loopback at 40% frame loss, strict-SDL behaviour tears the link down
-  mid-transfer while this carries it to completion. Revert only with a test
-  showing it makes a link cling to a genuinely dead peer.
-- **Modulo 128 is implemented and tested** (`test_modulo_128_link`), but SABM /
-  modulo 8 is the default because it is what every BPQ32, KA-Node and
-  TNC2-class station on the air actually implements. A station that does not
-  understand SABME answers DM; `_on_dm` falls back to SABM once before giving
-  up, which is what makes the non-default safe to turn on. `Config.modulo`
-  selects it and the window ceiling scales with it (k < modulo).
-- **Answer DM to traffic for a link you do not have.** A silent drop makes the
-  caller retry N2 times and waste a minute of channel time.
-- **Connect retries and N2 are separate budgets, on purpose.**
-  `LinkParams.connect_retries` (default 5) bounds the SABM phase;
-  `retries` (default 10, the spec value) bounds an established link. They are
-  different trades: giving up early on a connect costs one keystroke, while
-  giving up early on a live session throws away a real conversation over what
-  may be one car passing between two antennas. Collapsing them back into one
-  number makes one of the two wrong whichever value is picked.
-- **Single-threaded per link, no locks.** `AX25Link` schedules `call_later`
-  timers on the running loop. Calling into one from a thread destroys the
-  invariant the whole state machine rests on.
+- **`TIMER_RECOVERY` is not an error.** Never show it as a failure or tear the
+  link down over it.
+- **T1** drives retransmission, **T2** delays acks so they piggyback (T2=0
+  doubles frames on air), **T3** probes an idle link so a vanished peer does
+  not stay "connected".
+- **All sequence arithmetic is modular** (`ax25/window.py`). `while va < nr`
+  jams the window after the first wrap ("stalls after exactly 8 frames").
+- **One REJ, not one per out-of-sequence frame** (`reject_sent`).
+- **Deliberate deviation:** `_ack_upto` resets RC on any forward progress.
+  Revert only with a test showing a link clinging to a dead peer.
+- **Modulo 128 works but SABM/mod 8 is the default**; `_on_dm` falls back
+  from SABME to SABM once. `Config.modulo` selects it; k < modulo.
+- **Answer DM to traffic for a link you do not have**; silence costs the
+  caller N2 retries.
+- **Connect retries (5) and N2 (10) are separate budgets on purpose.**
+- **Single-threaded per link, no locks.** Never call into a link from a thread.
+- New logic that fits `window.py` or `timers.py` goes there, not into
+  `session.py` (the one deliberately large file).
 
 ## 4. File map
 
 ```
 kissterm/
-├── pyproject.toml           # package metadata + console_scripts entry
-├── README.md                # users
-├── AGENTS.md                # THIS file
-├── SETUP.md                 # getting a radio on the air
-├── DESIGN.md                # visual + interaction schema (colors, grid, keys)
-├── LICENSE                  # MIT
-├── config.toml.example      # documented config template (never auto-copied)
-├── docs/
-│   ├── ROADMAP.md           # what is open; completed items move to CHANGELOG
-│   └── CHANGELOG.md         # newest at top, dated sections, **Files:** line
-├── hooks/{pre-commit,post-merge}   # version bump + dep resync (see §5)
-├── scripts/bump_version.py
-├── kissterm/
-│   ├── __init__.py          # __version__ -- source of truth
-│   ├── __main__.py          # CLI: --doctor, --setup, --discover, wizard, launch
-│   ├── app.py               # thin backward-compat shim -- re-exports
-│   │                        #   KissTermApp from kissterm.ui; the real class
-│   │                        #   lives at kissterm/ui/app.py
-│   ├── config.py            # Config dataclass <-> config.toml (never raises)
-│   ├── _isolate.py          # platformdirs monkeypatch for tests -- see §6
-│   ├── discovery.py         # serial / LAN / Bluetooth autodiscovery (MANUAL)
-│   ├── hotplug.py           # serial-only hotplug watch (never the network)
-│   ├── doctor.py            # `--doctor` diagnostics
-│   ├── monitor.py           # frame -> monitor line, and sanitize()
-│   ├── tx.py                # MASTER TRANSMIT GATE -- closed on launch
-│   ├── ansi.py              # SGR ALLOWLIST for the terminal pane only
-│   ├── beacon.py            # BTEXT: unproto UI frames on a timer (NOT APRS)
-│   ├── aprs_beacon.py       # APRS position beacon on its own timer (NOT
-│   │                        #   beacon.py's BTEXT -- separate config,
-│   │                        #   separate destination)
-│   ├── locator.py           # Maidenhead grid square <-> decimal degrees,
-│   │                        #   no I/O, used by the Settings position picker
-│   ├── session_log.py       # per-session plain-text transcript
-│   ├── transcripts.py       # lists/reads saved transcripts for the browser
-│   ├── heard.py             # MHEARD table
-│   ├── glossary.py          # packet terms, for the Help tab's Glossary
-│   ├── guides.py            # built-in how-tos for the Help tab; keys only
-│   │                        #   via {key:action}, never typed by hand
-│   ├── addressbook.py       # station Address Book: connect targets, hop
-│   │                        #   chains, login scripts/credentials
-│   ├── aprs_contacts.py     # APRS messaging contacts (name/callsign/
-│   │                        #   service/detail) -- separate from the
-│   │                        #   Address Book above; a different kind of thing
-│   ├── aprs_conversations.py  # ConversationStore (message history) +
-│   │                        #   PendingAcks (in-memory outgoing-ack tracking)
-│   ├── aprs_notify.py       # pure decision logic (no I/O) for
-│   │                        #   message-addressed-to-me / Emergency Mic-E
-│   │                        #   desktop notification
-│   ├── desktop_notify.py    # cross-desktop delivery: herdr first,
-│   │                        #   notify-send as the fallback
-│   ├── nodes/               # SHIPPED command references (data/*.toml):
-│   │                        #   node families and the applications a node
-│   │                        #   hands a session to (BPQMail, BPQChat)
-│   ├── aprs_services/       # SHIPPED APRS gateway directory (data/*.toml):
-│   │                        #   who to address, what it does, what to say to
-│   │                        #   it. Same "ship it, don't ask over the air"
-│   │                        #   reasoning as nodes/ -- NOT the same module,
-│   │                        #   see its docstring for why they stay apart
-│   ├── ax25/            # + its own AGENTS.md (local contract)
-│   │   ├── address.py       # callsign/SSID encode+decode, AX25Path
-│   │   ├── frame.py         # I/S/U frames, modulo 8 and 128
-│   │   ├── window.py        # V(S)/V(R)/V(A) -- ALL modular arithmetic
-│   │   ├── timers.py        # T1/T2/T3 + the sync-to-async bridge
-│   │   ├── session.py       # AX25Link -- THE STATE MACHINE
-│   │   └── station.py       # AX25Station -- demux, incoming links
-│   ├── aprs/                # UI-frame payload decode + encode (+ AGENTS.md)
-│   ├── ui/                  # Textual panes, one file each (+ AGENTS.md)
-│   │   ├── settings_schema.py  # DECLARATIVE settings; add a field here only
-│   │   ├── settings_pane.py    # generated from the schema, edits nothing else
-│   │   ├── help_pane.py     # the F1 Help tab: keys, node commands, guides,
-│   │   │                    #   glossary, About -- reads, never sends or fills
-│   │   ├── wraplog.py       # WrapLog: a RichLog that wraps to the width it
-│   │   │                    #   is actually shown at -- all three scrollbacks
-│   │   └── slideouts.py     # how wide a Ctrl+G column gets and whether it
-│   │                        #   opens itself -- pure arithmetic plus one
-│   │                        #   small controller, shared by BOTH panes so
-│   │                        #   the two columns cannot drift apart
-│   └── transport/           # + its own AGENTS.md (local contract)
-│       ├── base.py          # the two tiers, Session
-│       ├── kiss.py          # KISS codec, no I/O
-│       ├── serial_kiss.py   tcp_kiss.py   agwpe.py      (frame tier)
-│       └── bluetooth.py  kernel_ax25.py  vara.py  mercury.py  telnet.py  ssh.py
-└── tests/
-    ├── loopback.py          # two frame transports wired together, with loss
-    ├── unit/                # pytest; test_ax25_link.py is the important one
-    └── pilot/               # headless Textual run_test() scenarios
+  __init__.py  __main__.py  config.py  _isolate.py  tx.py (TRANSMIT GATE)
+  monitor.py (sanitize)  ansi.py (SGR allowlist, decode_text)
+  discovery.py  hotplug.py  doctor.py
+  beacon.py (BTEXT)  aprs_beacon.py (APRS)  aprs_*.py  desktop_notify.py
+  session_log.py  transcripts.py  heard.py  locator.py
+  addressbook.py  harvested.py  bbs.py  glossary.py  guides.py
+  nodes/ aprs_services/   SHIPPED references (data/*.toml)
+  ax25/  aprs/  transport/  ui/   each with its own AGENTS.md
+         ui/commands.py is the key table; ui/settings_schema.py drives Settings
+tests/  loopback.py  unit/ (test_ax25_link.py matters most)  pilot/ (_wait.py)
 ```
 
-### Keeping files editable by a smaller model
+**Each file should be changeable without reading the rest of the repo.** That
+is why each package has its own `AGENTS.md`, and why modular arithmetic and
+timers live apart from the state machine.
 
-A deliberate constraint: **each file should be changeable without reading the
-rest of the repo.** That is why every package carries its own short
-`AGENTS.md` contract (file map, local rules, how to test just that package) and
-why the two riskiest concerns -- modular sequence arithmetic and timer
-lifecycle -- were pulled out of the state machine into `window.py` and
-`timers.py`, where they can be tested with no event loop and no peer.
-
-`ax25/session.py` (~700 lines) is the one deliberately large file: it is a
-single state machine, and splitting its handlers apart creates a two-way
-dependency worse than the size. New logic that fits in `window.py` or
-`timers.py` belongs there instead of growing it further.
-
-## 5. How to run, and versioning
+## 5. Running and versioning
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/kissterm              # or: .venv/bin/python -m kissterm
-.venv/bin/kissterm --doctor     # diagnostics, plain stdout, no TUI
-.venv/bin/kissterm --discover   # scan for TNCs and exit
-.venv/bin/kissterm --setup      # re-run the first-run wizard
-```
-
-`__version__` in `kissterm/__init__.py` is the source of truth; `pyproject.toml`
-is kept in lockstep. The patch version bumps on every commit — `hooks/pre-commit`
-runs `scripts/bump_version.py` and stages both files. Activate once per clone:
-
-```bash
+.venv/bin/kissterm            # --doctor, --discover, --setup
 git config core.hooksPath hooks
 ```
 
-`hooks/post-merge` re-runs `pip install -e .` when a pull touches
-`pyproject.toml`, so a new dependency does not produce a `ModuleNotFoundError`
-on the next launch.
+`__version__` in `kissterm/__init__.py` is the source of truth;
+`hooks/pre-commit` bumps the patch version on every commit and keeps
+`pyproject.toml` in step. `hooks/post-merge` reinstalls when `pyproject.toml`
+changes.
 
-## 6. Testing without a TTY and without a radio
+## 6. Testing without a TTY or a radio
 
-> **Isolate config/state paths before importing anything from `kissterm` in ANY
-> headless test or script.** `config.py` computes `_CONFIG_DIR`/`_STATE_DIR`/
-> `_DATA_DIR` from `platformdirs` at **import time**, using the same `"kissterm"`
-> app name the real installed app uses — on a dev machine those are the
-> developer's actual `~/.config/kissterm`. Call `kissterm._isolate.isolate()`
-> **before** the first `kissterm` import; patching afterwards is too late.
-> **Never `shutil.rmtree()` a `platformdirs.user_*_dir()` result.** A sibling
-> project of this author destroyed a real user's settings twice doing exactly
-> that, and there is no `ignore_errors=True` that makes it safe — the path being
-> real in the first place is the bug.
-
-**The stack needs no radio.** `tests/loopback.py` wires two `FrameTransport`s
-to each other, with injectable `loss` and `delay`, so two real `AX25Station`s
-hold a full conversation — SABM, I frames, acknowledgements, retransmission,
-DISC — inside one event loop. `tests/unit/test_ax25_link.py` is the suite that
-matters most in this project; it is the only conformance check short of putting
-the code on the air.
-
-**The full suite runs in parallel by default** (`pytest-xdist`,
-`addopts = "-n auto"` in `pyproject.toml`) — about 3 minutes on a 12-core
-machine versus roughly 15 serial, same tests, same result. Safe because
-`_isolate.isolate()` gives every test file its own `tempfile.mkdtemp()`
-config directory and xdist workers are separate processes, so there is no
-shared state to collide on. Run the tests proportionate to the change before every commit. Focused tests
-for the affected module or interaction are the default; do not run the full
-suite merely because a commit is being made. Reserve the full suite for
-cross-cutting or high-risk changes (transport, AX.25 state machine, shared
-configuration, broad UI architecture, dependency upgrades), or when focused
-tests expose a possible wider regression. Pass `-n0` if you need
-un-interleaved output to debug a single failing test.
-
-Gotchas that already cost time:
-
-- **The loopback re-encodes and re-decodes** rather than passing the same
-  `AX25Frame` object across. A test that hands one instance to both ends
-  silently skips the wire format, where half the real bugs live. Keep it.
-- **Do not drain a lossy link with a "went quiet" heuristic.** On a lossy
-  channel the gap between chunks is a whole T1 recovery cycle, so a quiet-period
-  read returns partial data and blames the state machine for a harness bug —
-  this produced exactly one false failure already. `_drain(link, expect=N)`
-  waits for a byte count against a hard deadline instead.
-- **`pilot.pause()` costs roughly 100-120ms of real wall time** (a full
-  render per call), not a cheap event-loop yield. A polling loop that calls
-  it alongside a real timing budget (a capture window, a timeout) can eat
-  most of that budget in the polling itself before the thing under test
-  even happens — this produced a flaky-looking harvest-window test that
-  failed with 2-3 seconds of budget silently consumed by ~20-40 calls to
-  `pilot.pause()`. Poll with a bare `asyncio.sleep()` for anything
-  asyncio-level (link callbacks, timers, `_pump`) — it does not need
-  Textual's message pump to make progress — and call `pilot.pause()` at
-  most once, right before reading a widget's state.
-- **`run_test` runs the test body inside the app's context; the real launch
-  does not.** The transport is opened before the app, so its reader task has
-  no active Textual app, and a Textual timer armed from a received frame dies
-  silently. `FrameTransport.callback_context` fixes that; a test for anything
-  frame-driven that depends on Textual machinery should deliver frames from a
-  task started before `run_test` (`tests/pilot/test_frame_context.py`).
-- **At 40% frame loss the transfer completes in about 5 s**, not instantly:
-  go-back-N with a 4-frame window collapses under that much loss. That is
-  correct behaviour, not a stall. 25% is the stable test point.
-- **`LinkParams` is `slots=True`** — `vars()` does not work on it. Use
-  `dataclasses.replace()` to copy per-link params.
-- **Patch `serial.tools.list_ports.comports` itself, not `sys.modules`.**
-  `from serial.tools import list_ports` resolves through the package attribute
-  once anything has imported it, so a `monkeypatch.setitem(sys.modules, ...)`
-  works only when the test happens to run first. That produced tests that
-  passed alone and failed in the suite — the worst kind, because it looks like
-  a real regression. Same trap for any `from package import submodule`.
-- Textual needs a real terminal, so UI tests use `app.run_test()` with a pilot,
-  same pattern as the sibling `google-tui` project. `app.save_screenshot(path)`
-  inside `run_test` exports an SVG of the current render.
-- **Generate a screenshot after any layout change.**
-  `.venv/bin/python scripts/generate_screenshot.py` runs the real app headless
-  against a loopback and writes `assets/*.png`. This is not just for the
-  README: two invisible layout bugs -- a status bar the Footer painted over,
-  and a heard table that stayed empty until an interval ticked -- passed the
-  whole test suite and were caught only by looking at the picture. Both now
-  have geometry regression tests in `tests/pilot/test_app_mounts.py`; write one
-  like them when the picture shows something the assertions did not.
-- **Two bottom-docked widgets land in the same region.** Textual's `Footer`
-  docks bottom; anything else docked bottom is painted over, in either yield
-  order. Put them in one docked container with an explicit height instead.
-- **A pane fed by a periodic refresh needs a `TabActivated` hook**, or it shows
-  empty or stale content for up to one interval every time the operator
-  switches to it. See `_on_tab_activated`.
-- `KissTermApp` takes `config` and `station` as constructor arguments
-  specifically so a test can mount it against a loopback with no hardware and
-  no real config dir. Do not make it construct them internally.
+- **Call `kissterm._isolate.isolate()` before the first `kissterm` import** in
+  any test or script. `config.py` resolves the real `~/.config/kissterm` at
+  import time. **Never `shutil.rmtree()` a `platformdirs` path.**
+- **Run only the tests for what you changed.** Requested repeatedly by the
+  operator (CPU, power, tokens). The full suite (`-n auto`, several minutes on
+  every core) is for cross-cutting changes -- transport, the AX.25 state
+  machine, shared config, dependency upgrades -- run once, with
+  `-o faulthandler_timeout=180` so a hang prints its stack. `-n0` for
+  un-interleaved output.
+- **The loopback** (`tests/loopback.py`) re-encodes every frame; keep it that
+  way. `tests/unit/test_ax25_link.py` is the conformance suite.
+- **Wait on conditions, not wall-clock time** (`tests/pilot/_wait.py`). Drain a
+  lossy link by byte count (`_drain(link, expect=N)`). At 40% loss a transfer
+  takes ~5 s; 25% is the stable test point.
+- **`pilot.pause()` costs ~100-120 ms.** Poll asyncio-level conditions with
+  `asyncio.sleep()`; pause once before reading a widget.
+- **Pause before pressing a button on a just-pushed screen.** A lost press
+  leaves the screen open and `run_test` then never returns -- a hang, not a
+  failure.
+- **`run_test` runs inside the app's context; the real launch does not.**
+  Frame-driven Textual timers need `FrameTransport.callback_context`; see
+  `tests/pilot/test_frame_context.py`.
+- `LinkParams` is `slots=True`: copy with `dataclasses.replace()`.
+- Patch `serial.tools.list_ports.comports` itself, never `sys.modules`.
+- **Generate a screenshot after any layout change**
+  (`scripts/generate_screenshot.py` -> `assets/`) and look at it; write a
+  geometry test (`tests/pilot/test_app_mounts.py`) for what it shows.
+- Two bottom-docked widgets overlap; put them in one docked container.
+- A pane fed by a periodic refresh needs a `TabActivated` hook.
+- `KissTermApp` takes `config` and `station` as arguments so tests can mount
+  it on a loopback. Keep it that way.
 
 ## 7. ALWAYS / NEVER rules
 
+### Workflow
+- **Commit and push every tested increment**; commits and pushes are
+  pre-approved. One CHANGELOG entry per commit where the hunks allow it.
+- **Never add `Co-Authored-By: Claude` trailers.** AI attestation is in the
+  README.
+- **System-wide read-only commands are pre-approved**; ask before system-wide
+  writes, installs or service changes.
+- **Update CHANGELOG and ROADMAP when something ships**: a dated section with
+  a `**Files:**` line; delete the roadmap item the same day. New capabilities
+  go under "New Features", improvements to existing ones under
+  "Improvements". Keep entries to a few lines.
+- **Module docstrings explain why** the design is what it is and what breaks
+  otherwise. That is where a rule's history belongs.
+- **No emoji** in source, output or docs. Sole exception:
+  `kissterm/aprs/symbols.py`'s `Symbol.emoji`, UI-only, operator-requested.
+- **Never write a doubled curly brace in Markdown** (Jekyll/Liquid breaks the
+  author's GitHub Pages builds).
+- **Mark inferred protocol details `# UNVERIFIED:` or `# RESEARCH:`.** Never
+  present a guessed wire format as fact.
+
 ### Airtime is the scarce resource
-- **Commit and push every development cycle.** Each coherent, tested increment
-  goes to the remote before the next increment begins, so the project always
-  has a recoverable revision-history checkpoint.
-- **Commits and pushes are pre-approved.** Commit and push completed, tested
-  work without asking for a separate confirmation. The operator prefers the
-  recoverability and durable backup of the remote history to an approval pause.
-- **System-wide read-only commands are pre-approved.** Inspecting host state,
-  installed tools, logs, configuration, and other non-mutating system data does
-  not need an escalation request. Continue to request approval for system-wide
-  writes, package installs, service changes, or other mutations outside the
-  workspace unless separately authorized.
-- **Never spend channel time to populate the UI.** At 1200 baud half-duplex,
-  2 KB is ~19 seconds and 8 KB is over a minute during which nobody else on the
-  frequency can transmit. Command references therefore **ship** as data in
-  `kissterm/nodes/data/`; asking a node for its own `?` output is opt-in, once
-  per node, cached forever, and shows the operator the cost first
-  (`nodes.reference.describe_airtime`). An earlier version of the roadmap had
-  this backwards.
-- **Node identification is passive.** `_sniff_node` reads the banner and prompt
-  that arrive anyway. It must never ask a question to identify a node.
-- **A wrong family shown confidently is worse than "unknown node"**, because
-  the operator types its commands. Detection patterns must be specific.
-- **Record provenance per command** (`confidence`: verified / documented /
-  recalled / learned) and show it. A reference that silently mixes documented
-  fact with half-remembered syntax is worse than none.
+- **Never spend channel time to populate the UI.** Command references ship in
+  `kissterm/nodes/data/`; asking a node for its `?` list is opt-in, once per
+  node, cached, and shows the cost first (`nodes.reference.describe_airtime`).
+- **Node identification is passive** (`_sniff_node`): read the banner and
+  prompt, never ask.
+- **A wrong family shown confidently is worse than "unknown"**; detection
+  patterns must be specific.
+- **Record provenance per command** (verified / documented / recalled /
+  learned) and show it (`nodes.reference.SOURCE_TIERS`).
 
 ### One visual language, one place for each fact
-- **The keyboard is one table.** `kissterm/ui/commands.py`'s `COMMANDS`
-  generates the App's `BINDINGS`, the Footer, the F10 menu, the Keys page
-  of the F1 Help tab and the Ctrl+P palette. Never hand-write a `Binding` on the App or
-  a per-tab key list inside a widget: that is how the Footer came to
-  advertise `^O` for a key bound to Ctrl+Shift+O, which an ordinary terminal
-  delivers as Ctrl+O -- a different command. The standard is IBM CUA as
-  Midnight Commander uses it (F1 Help, F10 menu, everything in the menu,
-  ten terminal-safe Ctrl keys, plain letters only while a list has focus),
-  written down in DESIGN.md section 5 and enforced by
-  `tests/unit/test_key_standard.py`. **Never bind Ctrl+Shift, Ctrl+Alt or
-  Alt anything**: without an enhanced keyboard protocol -- which tmux and
-  ssh in the path usually deny you -- Ctrl+Shift+X and Ctrl+X are the same
-  byte.
-- **NEVER turn Textual's enhanced (Kitty) keyboard protocol back on.**
-  `kissterm/__init__.py` sets `TEXTUAL_DISABLE_KITTY_KEY` before anything
-  imports Textual -- `textual.constants` reads it at IMPORT time, so moving
-  that line anywhere downstream silently does nothing. Under the protocol
-  Enter is not a CR but a bare `CSI 13 u` sequence carrying no text, and on a
-  real station (Konsole under a session manager, 2026-09-22) that sequence
-  went missing once the window had sat and been returned to: letters still
-  typed, Enter produced NO key event at all, and the send line could only be
-  committed with the mouse. It took three attempts to find because the first
-  two guessed at the key NAME -- `_SendInput` grew `shift+enter`/`ctrl+enter`/
-  `alt+enter` bindings that could never have worked, since there was no event
-  to bind. `scripts/keycheck.py` is what settled it and is the tool to reach
-  for whenever a key "does nothing": it prints the name, character and
-  aliases Textual actually receives. The protocol buys only the chords rule 2
-  already bans, so this costs nothing;
-  `tests/unit/test_keyboard_protocol.py` guards both the default and the
-  operator's `TEXTUAL_DISABLE_KITTY_KEY=0` override.
-- **A tab-switching key is shown in the tab label, never in the footer too.**
-  `F2 Terminal` (key first, like a menu accelerator), not `Terminal (F2)`.
-  **Help is a tab too** (`F1 Help`, first in the row) -- an operator reading
-  F2..F9 across the top looked for F1 there and concluded it was missing --
-  so F1 is not in the Footer either.
-  Textual's `Footer` would otherwise print the same word the tab bar already
-  shows, in a different corner of the screen -- exactly the duplication a user
-  flagged from a real screenshot. The `Binding`s stay registered with
-  `show=False`; only the on-screen label moved.
-- **Every `Button` shares one flat, rounded style** (`styles.py`). Textual's
-  default is a two-tone "tall" border reading as a raised 3D bezel; a `Send`
-  button styled with `variant="primary"` and everything else left default
-  looked like it belonged to a different app. Variant classes change color
-  only, never the shape.
-- **The active tab is bold accent text plus the underline bar, not a filled
-  block.** Textual fills the focused tab strip's active tab with a solid
-  "block cursor" background by default -- flagged as "looks funny" next to the
-  flat outlined panels everywhere else.
-- **Footer docks itself; yield order does not decide its position.**
-  `Footer`'s own `DEFAULT_CSS` sets `dock: bottom` unconditionally, so writing
-  it second in `compose()` does not put it below a sibling -- it pins to the
-  container edge regardless. Getting the status bar to sit below it needed
-  `#bottom-bar Footer { dock: top; }`, not a reordered `yield`. Check a
-  widget's own default CSS before assuming compose order controls layout.
-- **Status bar background is `$background` (near-black, matches the tab
-  row), not `$panel`** (the slate-blue Header/Footer use). Requested directly:
-  the readout should look like the chrome above the panes, not the Header.
-- **Status fields are laid out in a `Table.grid`, not joined with `"  |  "`.**
-  A joined string bunches at the left and leaves most of a wide terminal
-  blank; equal-ratio columns spread across the full width and re-flow on
-  resize. See `_status_row` in `ui/app.py`.
+- **The keyboard is one table**: `kissterm/ui/commands.py`'s `COMMANDS`
+  generates the bindings, Footer, F10 menu, Help Keys page, palette and the
+  README key table (`scripts/sync_docs.py`). Never hand-write an App
+  `Binding`. The standard is DESIGN.md section 5, enforced by
+  `tests/unit/test_key_standard.py` and `test_docs_keys.py`. **Never bind
+  Ctrl+Shift, Ctrl+Alt or Alt anything.**
+- **Never turn Textual's Kitty keyboard protocol back on**
+  (`kissterm/__init__.py`, `tests/unit/test_keyboard_protocol.py`). When a key
+  "does nothing", run `scripts/keycheck.py` before guessing.
+- **A tab's key is in its label (`F2 Terminal`), never also in the Footer.**
+- **One flat, rounded `Button` style** (`styles.py`); variants change colour
+  only.
+- **Active tab = bold accent text plus underline**, not a filled block.
+- **`Footer` docks itself**; compose order does not place it. Check a widget's
+  `DEFAULT_CSS` before assuming yield order controls layout.
+- **Status bar**: `$background`, fields in a `Table.grid` (`_status_row`).
+- **A focused widget's `BINDINGS` with `show=True` are the context bar.** No
+  hint lines under buttons; a modal screen yields its own `Footer()`.
 
 ### The terminal transmits only on a deliberate commit
 - **`TerminalPane.send_line` is the single transmit path** out of the terminal
-  pane. Enter and the Send button both route through it, so "what can key the
-  transmitter?" is answerable by reading one method.
-  `tests/pilot/test_terminal_ux.py` asserts against the source that there is
-  exactly one `link.send(` call in that module.
+  pane (`tests/pilot/test_terminal_ux.py` counts `link.send(` in the source).
 - **Suggestions and completions fill the input; they never send.** Use
-  `TerminalPane.suggest`. A completion that transmits on its own is a defect on
-  a shared channel. Never complete-on-enter.
-- **The same rule governs the APRS template picker, and matters more there.**
-  `AprsServiceScreen` (`kissterm/ui/dialogs.py`) offers well over a hundred
-  shipped gateway commands, several of which *act* when they arrive -- APSPOT
-  posts a public spot, SMSGTE texts a real phone, NTSGTE files traffic. A
-  picker that transmitted on selection would turn browsing into acting.
-  Selection returns a string; `AprsPane.show_templates` puts it in the
-  compose box and stops. Two tests guard this and both must stay:
-  `test_choosing_a_template_from_every_shipped_service_transmits_nothing`
-  drives the real selection handler for every service with the gate OPEN and
-  asserts the wire stayed empty, and `test_the_picker_has_no_transmit_path_
-  at_all` asserts it against the source (docstrings stripped first -- the
-  prose explains which send path it is *not* on, and a naive substring
-  search matches the documentation written to prevent the bug).
-- **The scrollback is a `RichLog`, not an editable widget** -- selectable and
-  copyable, but it cannot be typed into by accident.
-- **Links are constructed from sanitized text, never parsed from remote
-  markup.** The link target is the matched substring itself, so displayed text
-  and destination cannot differ.
+  `TerminalPane.suggest`; never complete-on-enter.
+- **The APRS template picker never transmits on selection**
+  (`AprsServiceScreen`). Both guarding tests in `test_aprs_templates.py` stay.
+- The scrollback is a read-only `RichLog`/`WrapLog`.
+- Links are built from sanitized text, never parsed from remote markup.
 
-### The transmit gate -- read this before touching any send path
-- **`kissterm/tx.py` is the master switch, and it is CLOSED on launch.**
-  `Ctrl+T` opens it; `Config.tx_armed_at_start` (default false) decides where
-  it starts. Modelled on WSJT-X's "Enable Tx" because that is the convention
-  an operator already knows. With it closed, nothing keys the radio -- not a
-  beacon, not answering, not connecting, not the terminal send line.
-- **A confirmed, targeted request ARMS the gate; it is not refused by it.**
-  `KissTermApp._arm_for` is the only way this happens. Its callers: `Ctrl+N`
-  (after the operator names a station and confirms the dialog); Disconnect
-  (`Ctrl+D`, bound with priority so a focused input's delete-right cannot
-  shadow it -- see `kissterm/ui/commands.py`); `TerminalPane.send_line` (Enter or the
-  Send button, but only once `link.connected` is true -- arming for a send
-  that has nothing to go out on would open the gate for nothing); and
-  `AprsPane._send_compose` (Enter or the Send button in the APRS compose
-  row, guarded the same way on `self.app.station is not None`). The gate
-  exists to stop transmissions the operator did not initiate -- a timer, an
-  incoming call -- and it was never meant to veto one they just asked for by
-  name. Refusing a connect, or a message the operator just typed and
-  committed, with "transmit is disabled" is a dead end: the only thing the
-  operator wanted is the only thing the message will not do, and on a
-  marginal path it reads like the far station is missing. Disconnecting
-  matters for the channel too -- a DISC we refuse to send leaves the far
-  station holding a session open until its own timers give up.
-  **The distinction that matters when adding a new send path: a fresh,
-  operator-committed send arms; an unattended resend of the same content
-  never does.** `AprsPane._retry_worker` calls `_send_aprs_message` directly,
-  bypassing `_send_compose` and therefore `_arm_for`, on purpose -- a message
-  still unacked when the gate closes must stop retrying rather than have the
-  timer quietly reopen the gate on the operator's behalf. Same reasoning as
-  the beacon timer below.
-- **A timer toggle never arms it.** The periodic beacon toggle (menu: APRS >
-  Position beacon) has no transmission in it and never opens TX. The BTEXT
-  one-shot (Session > Send beacon) also still reports a closed gate and sends
-  nothing. **APRS > Send position is the explicit exception:** it is a direct,
-  operator-committed APRS position report to the fixed APRS destination, so
-  it arms TX and sends once even while periodic APRS beaconing is off. The
-  gate is for autonomous activity, not a dead end in front of a deliberate
-  one-shot send; `_arm_for` keeps that auto-arm visible in the log, toast,
-  and status bar.
-- **Arming is never silent.** `_arm_for` writes a line into the terminal log,
-  raises a notification, and refreshes the status bar. "Did this thing start
-  transmitting behind my back?" has to stay answerable from the screen, or
-  the auto-arm is not defensible at all.
-- **It is enforced at the transport, not in the UI.**
-  `FrameTransport.send_frame` is CONCRETE and calls the abstract
-  `_send_frame`; `Session.send` gates the session tier so VARA and Mercury are
-  covered too. A new backend implements `_send_frame` and **must never
-  override `send_frame`** -- that would route around the interlock, and
-  `tests/unit/test_tx_gate.py` fails if one does. The checks in the panes are
-  a courtesy so the operator learns *why* nothing happened; the transport
-  check is the guarantee.
-- **A blocked send returns normally and is counted, never raised.** AX.25
-  retransmission runs on `call_later` callbacks with nowhere for an exception
-  to go, and the house rule is that a background task never dies of one.
-- **A bare `Transport` has an OPEN gate.** A transport built by a test, a
-  script or a probe has no operator to throw the switch, and a safety
-  interlock nobody can reach is just a broken program. `KissTermApp.__init__`
-  installs the closed one, and `tests/pilot/test_transmit_gate.py` asserts a
-  freshly mounted app cannot transmit.
-- **Never log a frame as transmitted before the backend accepted it.**
-  `Transport.send_frame` logs `TX port N` *after* `_send_frame` returns, and
-  logs `TX FAILED` with the reason if it raises. The first version logged
-  first: a real on-air test produced a log showing four SABMs sent when the
-  fourth never left the process, because the TCP socket to the TNC had gone
-  away -- and the operator read a dead socket as a dead RF path. `on_sent`
-  (which feeds the monitor pane) must not fire for a refused frame either.
-- **A transport that is not carrying frames has to say so where the operator
-  is already looking.** `KissTermApp._transport_status` reads LIVE transport
-  state into the status bar (`RECONNECTING`, `DOWN`), and `action_connect`
-  refuses -- with a message that says it is not an RF problem -- rather than
-  spending six SABMs on a socket that is down. A status string captured once
-  at mount is how a dead TNC link masqueraded as a dead antenna.
-- **Never report a suppressed transmission as a sent one.**
-  `Beaconer.problem()` treats a closed gate as a reason not to beacon
-  precisely so `send_once` cannot log "Beacon sent" for a frame the gate
-  dropped. Telling an operator something went on the air when nothing did is
-  the one lie a transmit indicator must not tell.
-- **Send beacon is a manual beacon and waives exactly one check** -- whether
-  the *timer* is enabled, because a manual beacon is not the timer. It does
-  not waive the gate, empty text, or a bad destination. It has no key of its
-  own: it lived on `Ctrl+Shift+B` (never `Ctrl+B`, tmux's prefix) until the
-  key standard removed every Ctrl+Shift binding, since an ordinary terminal
-  delivers both as the same byte. It is a menu command now, which is also
-  why it no longer has to guess which beacon the operator meant from which
-  tab was open.
+### The transmit gate
+- **`kissterm/tx.py` is the master switch, CLOSED on launch.** `Ctrl+T`
+  toggles it; `Config.tx_armed_at_start` defaults false.
+- **A confirmed, operator-named request arms the gate** through
+  `KissTermApp._arm_for` only: connect (Ctrl+N dialog, Address Book dial,
+  Ctrl+R Reconnect), disconnect, `TerminalPane.send_line` while connected,
+  `AprsPane._send_compose`, APRS > Send position. **An unattended resend never
+  arms** (`AprsPane._retry_worker`, beacon timers).
+- **Arming is never silent**: `_arm_for` writes a terminal line, a toast and
+  the status bar.
+- **Enforced at the transport, not the UI.** `FrameTransport.send_frame` is
+  concrete; backends implement `_send_frame` and **never override
+  `send_frame`** (`tests/unit/test_tx_gate.py`). `Session.send` gates the
+  session tier.
+- A blocked send returns normally and is counted, logged `TX BLOCKED`, and
+  never fires `on_sent`.
+- A bare `Transport` (tests, scripts) has an open gate; `KissTermApp.__init__`
+  installs the closed one (`tests/pilot/test_transmit_gate.py`).
+- **Log a frame as transmitted only after the backend accepted it**; `TX
+  FAILED` otherwise.
+- **Show a transport that is not carrying frames** (`_transport_status`:
+  `RECONNECTING`, `DOWN`), and refuse to connect over it with a message that
+  says it is not an RF problem.
+- **Never report a suppressed transmission as sent** (`Beaconer.problem()`).
+- Send beacon (menu) waives only the timer-enabled check, not the gate, empty
+  text or a bad destination.
 
 ### Unattended transmission
-- **Two things can transmit with nobody present: answering a call, and
-  beaconing.** Both are off by default, both show a status-bar marker
-  (`ANSWERING`, `BEACON`) for as long as they are armed, and both write every
-  transmission into the terminal pane. A station that transmits without the
-  operator being able to see that it did is what the opt-in exists to prevent.
-- **A per-station auto-login script (`KissTermApp._run_connect_script`) and a
-  node-hop chain (`_hop_through`/`_hop_to`) are a third case, not a loophole
-  in the first one.** Both only fire after a connect the operator just named
-  and confirmed in the Connect dialog -- `_arm_for` already armed transmit
-  for that exact request, and both ride it rather than arming or confirming
-  anything of their own. Both still have to behave like the other two: every
-  line (a login line, or a "C <node>" hop command) echoed into the terminal
-  log and the transcript as it goes out, and both stop rather than silently
-  drop something if the gate closes or the link drops mid-sequence. A script
-  is empty and a hop chain is empty by default on every address-book entry;
-  either only exists because the operator typed it into the Connect dialog
-  for that exact station. The hop chain additionally stops on the first hop
-  that answers BUSY/FAILED/DISCONNECTED/TIMEOUT or stays silent past
-  `HOP_TIMEOUT` -- it never sends the next hop's command into a link nothing
-  has confirmed is ready for it, and never runs the login step (script or
-  credential) unless the WHOLE chain, including the final target, came up.
-- **`RadioReminderScreen` is a checkpoint BEFORE the gate arms, not after.**
-  An address-book entry can carry a frequency and connection type, purely
-  informational -- kissterm cannot tune a radio or start a modem, so this
-  exists only to put that text in front of the operator at the one moment
-  it is useful. It is a blocking Connect/Cancel step in `action_connect`,
-  shown before `_arm_for` runs, for exactly the same reason a bare
-  keystroke never arms the gate: a reminder the operator can dismiss
-  without reading, or one shown after the SABMs already went out, is not a
-  reminder. Cancelling it must transmit nothing at all --
-  `tests/pilot/test_connect_scripts.py::test_a_radio_reminder_blocks_the_
-  connect_until_acknowledged` asserts the transport's sent list stays
-  empty. Dialing from the Address Book pane goes through the identical
-  check (`action_connect(prefill=...)`); it is not a way to skip it.
-- **A beacon is not APRS beaconing, and the code must keep saying so.**
-  `kissterm/beacon.py` sends free text to `BEACON`; `kissterm/aprs/` sends a
-  position in APRS format to `APRS`. Separate config tables, separate Settings
-  sections, separate intervals. An operator who enables one expecting the
-  other is transmitting something they did not intend, under their own
-  callsign -- so this is a transmitting bug, not a cosmetic one, and
-  `tests/pilot/test_settings.py` guards the labelling.
-- **They stay distinct features, but are deliberately mutually exclusive
-  when APRS beaconing is turned on from the menu (APRS > Position beacon)**
-  (`KissTermApp._toggle_aprs_beacon_quick`, `kissterm/ui/app.py`): turning
-  APRS beaconing on this way also turns the BTEXT timer off if it was
-  running, on the reasoning that an operator reaching for this key does
-  not also want BTEXT still repeating in the background unattended. This
-  is a UX convenience for the ONE command, not a new general rule --
-  Settings itself still lets both be enabled simultaneously with no such
-  cross-effect, and BTEXT's own Send beacon (an unchanged one-shot send)
-  has no symmetrical case to handle. Do not "fix" this
-  into allowing both to run at once from the quick-toggle path, and do
-  not extend the cross-disable into Settings' own checkboxes.
-- **The beacon interval floor is a clamp, not advice.** Ten minutes, enforced
-  in `config.py`'s loader AND again in `Beaconer.interval_seconds`, because a
-  `Config` built in code bypasses the loader. It is a courtesy to everyone
-  else on the frequency, not a preference of the operator's to be talked out
-  of.
-- **Nothing transmits at startup.** The beacon sleeps a full interval first.
-  Opening the app is not a request to key the radio.
-- **Never send an empty beacon.** No text, no transmission, whatever
-  `enabled` says. `MAIL FOR:` with nothing after it is pure channel occupancy.
-- **Re-check at the moment of transmission, not only where the decision was
-  made.** `Beaconer.send_once` re-runs `problem()`; the failure mode of not
-  doing so is transmitting text the operator already deleted.
-- **Answering incoming calls is OFF by default and must stay that way.** It is
-  unattended transmission under the operator's callsign. Anything that
-  transmits checks the opt-in at the moment it transmits, not only where the
-  decision was made -- `_send_banner` re-checks `accept_incoming` even though
-  it only runs after a connection was accepted.
-- **A refusal is a DM, never silence.** A silently dropped call makes the
-  caller retry its full N2 budget and waste a minute of channel time.
-- **If the station will answer unattended, say so on screen** for as long as
-  that is true. The status bar's `ANSWERING` marker is the honest counterpart
-  to the opt-in.
+- **Answering calls and beaconing are the only unattended transmitters.** Both
+  off by default, both shown in the status bar (`ANSWERING`, `BEACON`) while
+  armed, both log every transmission to the terminal pane.
+- **A login script or hop chain rides the connect the operator confirmed**
+  (`_run_connect_script`, `_hop_through`): each line echoed, stops if the
+  gate closes or the link drops, and the login runs only if the whole chain
+  came up.
+- **`RadioReminderScreen` comes before the gate arms**; cancelling transmits
+  nothing (`test_connect_scripts.py`). Address Book dials and Reconnect go
+  through it too.
+- **BTEXT (`beacon.py`) is not APRS beaconing (`aprs/`)**: separate config,
+  Settings sections and labels (`tests/pilot/test_settings.py`). Turning APRS
+  beaconing on from the menu turns BTEXT off (`_toggle_aprs_beacon_quick`);
+  Settings does not cross-disable. Keep both as they are.
+- **Beacon interval floor: 10 minutes**, clamped in `config.py` and in
+  `Beaconer.interval_seconds`.
+- **Nothing transmits at startup**; the beacon waits a full interval.
+- **Never send an empty beacon.**
+- **Re-check at the moment of transmission**, not only where the decision was
+  made (`Beaconer.send_once`, `_send_banner`).
+- **Answering is off by default and stays that way**; a refusal is a DM, never
+  silence.
 
 ### One way to build a transport
-- **`transport.build_transport()` is the ONLY way a `Transport` is constructed
-  from config.** The app, the setup wizard and `--doctor` all go through it. A
-  second dispatch table looks harmless and is not: `--doctor` had one, picked
-  constructor arguments by hand, and so reported every transport healthy while
-  the app could not open a single one. A diagnostic that does not exercise the
-  real path is worse than no diagnostic, because it is believed.
-- **Config-entry keys are not constructor arguments.** `name` is the
-  operator's label -- what `active_transport` matches on and what the status
-  bar shows -- and no transport's `__init__` takes it. `_ENTRY_ONLY_KEYS` is
-  the list that gets stripped; everything else is still forwarded, so a typo
-  in a real setting still fails loudly instead of being silently dropped.
-  Forwarding `name` blindly is what made 0.1.16's first run write a
-  valid-looking config and then fail to open it, for every transport kind.
-- **Discovery must only emit a config it can actually complete.** A probe
-  cannot know a VARA modem's callsign or that it needs two ports, so those
-  entries carry no `kind` and the wizard says so rather than writing a wrong
-  one. And the port decides the *kind*, not just the label: an AGWPE engine
-  spoken to as raw KISS decodes as garbage instead of failing cleanly.
-- **The wizard builds what it is about to save**, and refuses to print
-  "Saved" if that fails. It is the last moment the operator is still present
-  to be told something is wrong.
-- `tests/unit/test_transport_factory.py` guards all of the above, including a
-  static check that every key discovery writes is either stripped or accepted
-  by that kind's `__init__`.
-- **Switching the active transport mid-session goes through
-  `AX25Station.rebind_transport`, never a bare `station.transport = ...`.**
-  It refuses while any link is connected (swapping the wire under a live
-  conversation would silently misroute its frames onto unrelated hardware)
-  and moves the frame subscription, not just the attribute -- forgetting
-  that half leaves the station bound to a transport that never calls it.
-  It hands back the OLD transport rather than closing it, because closing
-  is I/O and this call is deliberately synchronous; the caller (currently
-  only `SettingsPane._reopen_transport`) awaits `old.close()` itself.
-  **Whoever closes the CURRENT transport at shutdown must read it from
-  `station.transport`, not from whatever local variable originally built
-  it** -- `kissterm/__main__.py`'s `finally` block did exactly the wrong
-  one until this was added, which leaked the newly-opened transport (socket
-  or serial handle, still open) every time an operator switched transports
-  in Settings and then quit.
+- **`transport.build_transport()` is the only constructor from config** (app,
+  wizard, `--doctor`). `_ENTRY_ONLY_KEYS` strips config-only keys like `name`;
+  everything else is forwarded so a typo fails loudly
+  (`tests/unit/test_transport_factory.py`).
+- **Discovery emits only a config it can complete**; the port decides the kind.
+- **The wizard builds what it saves** and never prints "Saved" on failure.
+- **Switch transports with `AX25Station.rebind_transport`**, never by
+  assignment; it refuses while a link is connected. At shutdown, close
+  `station.transport`, not the variable that first built it.
 
 ### Discovery and scanning
-- **A sweep must cover the subnet or say that it did not.** `ScanCoverage`
-  exists for exactly this: the first version budgeted ~21 seconds of work
-  into a 3 second window, silently reached 43 of 254 addresses, and returned
-  partial results indistinguishable from a complete scan. "Nothing found" and
-  "gave up before looking" are different answers, and a scan that cannot tell
-  them apart sends an operator to check cabling that is fine.
-- **Ports are the OUTER loop of the sweep, hosts the inner one.** Every host
-  is probed on 8001 before any host is probed on 8300, so truncation costs
-  ports rather than whole address ranges. Reversing this is what made a TNC
-  at `.128` invisible while a web server at `.3` was offered as a transport.
-- **Truncation is counted in probes, not hosts.** With ports as the outer
-  loop a badly truncated sweep still touches all 254 addresses on the first
-  port -- counting hosts would call it complete.
-- **NEVER scan the network on a timer.** A sweep is 254 hosts times six
-  ports -- about **1,500 TCP connection attempts**. Automatic, that is
-  indistinguishable from a port scanner, trips intrusion detection on managed
-  networks, and is rude on a club link. It happens only when a human asks:
-  `--discover`, the setup wizard, or the Settings "Scan for hardware" button.
-  `tests/unit/test_hotplug.py::test_hotplug_never_touches_the_network` fails if
-  someone adds a convenience rescan later.
-- **DO poll local serial ports.** `list_ports.comports()` costs about **0.4 ms**
-  and reads only the local `/sys` tree, so the 3-second poll in
-  `kissterm/hotplug.py` is a ~0.01% duty cycle touching no other machine. The
-  asymmetry between this rule and the one above is measured, not aesthetic.
-- **A configured host that goes away does not need a scan.**
-  `TcpKissTransport` already reconnects to its known address with backoff.
-  Re-scanning a subnet to rediscover an address you already have is waste.
-- **NEVER initiate Bluetooth pairing or a discovery scan.** Enumerate *paired*
-  devices only; pairing is a system-level action the operator takes deliberately.
+- **A sweep covers the subnet or says it did not** (`ScanCoverage`); ports are
+  the outer loop, truncation counted in probes.
+- **Never scan the network on a timer** -- only `--discover`, the wizard, or
+  Settings' "Scan for hardware" (`test_hotplug_never_touches_the_network`).
+- **Do poll local serial ports** (`hotplug.py`, ~0.4 ms per poll).
+- A configured TCP host that goes away is reconnected, not rescanned.
+- **Never initiate Bluetooth pairing or discovery**; enumerate paired devices.
 
 ### Radio and protocol
-- **NEVER** send anything to a transport that the operator did not ask for.
-  Every transmission is on a shared channel, keys a transmitter, and is
-  attributable to a licensed callsign.
-- **NEVER** transmit during discovery or probing. What discovery may write to
-  a socket is exhaustively: two bare `FEND` bytes, or one AGWPE version query
-  (`'R'`). Two FENDs are a KISS frame with no type byte, so there is no
-  command for a TNC to act on; the AGWPE query asks the *software* its
-  version. `tests/unit/test_identify_tcp.py` asserts the exact bytes on the
-  wire and that they do not decode as a KISS frame. Anything else -- a KISS
-  DATA frame, a parameter command, `exit_kiss()`, a VARA line command -- is
-  out of bounds, and **VARA's ports are never spoken to at all** because its
-  command channel can start a session.
-- **ALWAYS** treat a SILENT probe as inconclusive. A KISS TNC on a quiet
-  channel is indistinguishable from a wrong port until a frame arrives off the
-  air, and silence is what a *working* station looks like. The UI says "open,
-  identity unconfirmed", **never** "not a TNC".
-- **A protocol reply is a different thing from silence, and may be conclusive.**
-  If a port answers with an HTTP status line, an SSH banner, or a hang-up, it
-  is not a TNC -- no KISS or AGWPE endpoint can produce those. `identify_tcp`
-  returns `"not-a-tnc"` and `discover_network` drops the port instead of
-  scoring it low, because a `DiscoveredDevice` is written straight into
-  `config.transports` and a web app in that list costs an operator an evening.
-  Do not weaken this into another confidence score: the previous
-  port-number-only match is what put self-hosted web apps in the list.
-- **ALWAYS** answer a poll (`P` bit) with a response carrying `F=1`, even when
-  busy. A peer waiting on a poll is blocked.
-- **ALWAYS** keep `paclen` and window configurable per link. HF wants short
-  frames; a fast local link wants the opposite.
+- **Never send anything to a transport the operator did not ask for.**
+- **Never transmit during discovery.** A probe may write two bare FENDs or one
+  AGWPE `'R'` query, nothing else; **VARA's ports are never touched**
+  (`tests/unit/test_identify_tcp.py`).
+- **A silent probe is inconclusive** ("open, identity unconfirmed"). A protocol
+  reply (HTTP, SSH banner, hang-up) is conclusive: `"not-a-tnc"`, dropped.
+- **Always answer a poll with F=1**, even when busy.
+- **Keep `paclen` and window configurable per link.**
 
 ### A callsign is a claim, not an identity
-- **AX.25 has no authentication of any kind.** Any station can transmit any
-  callsign. Everything kissterm displays -- the heard list, the monitor pane,
-  APRS positions, an incoming connection's source, and eventually a file's
-  uploader or a message's sender -- is a callsign the sender *asserted*, and
-  nothing more.
-- **Never present a callsign as proof.** Not in wording ("uploaded by W1AW"
-  implies verification that does not exist -- "claimed W1AW" does not), and
-  not in behaviour: a per-callsign allowlist is a convenience for the
-  operator, never a security control, and must never be the only thing
-  standing between a remote station and a destructive action.
-- This is why serving back files that arrived over the air is opt-in and
-  loudly labelled (docs/ROADMAP.md P10), and why any future auto-action keyed
-  on "who" is suspect by construction.
+- AX.25 has no authentication. **Never present a callsign as proof**, in
+  wording ("claimed W1AW") or behaviour; a per-callsign allowlist is a
+  convenience, never a security control (ROADMAP P10).
 
 ### A failure the operator cannot diagnose is a bug
-- **Both directions of every frame are recorded.** `send_frame` and `dispatch`
-  are the two points every frame passes through, and both log at DEBUG, so a
-  new backend inherits the record instead of having to remember it. Never add
-  a send path that bypasses `send_frame`.
-- **A gate-blocked frame is logged as `TX BLOCKED`, never as sent**, and does
-  not fire `on_sent`. Same rule as the beacon: never report a suppressed
-  transmission as a sent one.
-- **`--log-level debug` raises the level of the `kissterm` tree only.** The
-  root stays at WARNING. Letting it also uncork asyncio and Textual buries the
-  twenty frames that matter under thousands of lines about selector events.
-- **Never report two different failures with the same words.** "No connection"
-  covering both a DM refusal and N2 silence sends the operator to check the
-  wrong end of their station.
+- **Both directions of every frame are logged** at DEBUG in `send_frame` and
+  `dispatch`; never add a send path that bypasses `send_frame`.
+- `--log-level debug` raises only the `kissterm` logger tree.
+- **Never report two different failures with the same words** (DM refusal vs.
+  N2 silence; a closed-gate auto-ack is announced, not just withheld).
 
 ### Untrusted input
-- **ALWAYS** put remote-supplied bytes through one of the two filters before
-  they reach a widget or a log. `monitor.sanitize()` removes every escape
-  sequence and is the default everywhere -- matching, filtering, logging,
-  transcripts. `ansi.to_text()` additionally keeps allowlisted SGR, and is
-  used in exactly one place, the terminal pane, where a BBS's colour is the
-  point. Every byte in an information field was put there by someone else's
-  transmitter; a corrupt frame off a noisy channel produces the same bytes by
-  accident.
-- **`kissterm/ansi.py` is an ALLOWLIST and must stay one.** The set of escape
-  sequences a terminal understands is large and undocumented in practice; the
-  set that can only recolour a glyph is enumerable. Anything unrecognised is
-  removed *by construction* rather than by having been thought of, which is
-  the property a denylist cannot have. Three invariants there are load-
-  bearing, each with a test: a dropped sequence is consumed **whole** (leaving
-  `[2J` behind as text is how this filter usually fails); an SGR with nothing
-  allowlisted left **vanishes** rather than becoming `CSI m`, which is a reset
-  the sender never asked for; and blink (5, 6) and conceal (8) are **not**
-  allowlisted -- photosensitivity is an accessibility hazard and invisible
-  text is a spoofing primitive.
-- **A transcript gets fully stripped text, never the coloured form.** `cat` on
-  a log file runs whatever escapes it contains.
-- **A paste is sanitized before it reaches the send line, not just before
-  display.** `_SendInput._on_paste` (`kissterm/ui/terminal_pane.py`) is the
-  mirror image of the rule above: it protects the *channel* from the
-  operator's own clipboard rather than the screen from the far end --
-  stripping C0/C1 control bytes, keeping only the first line of a
-  multi-line paste, and capping length, all before `send_line` can ever see
-  the text. Textual's own dispatcher calls every class's own message
-  handler in the MRO for one message, `Input`'s included, so this method
-  mutates `event.text` and returns -- it must never call
-  `super()._on_paste(event)` itself, which would run `Input`'s
-  insert-at-cursor logic a second time and double whatever was pasted.
-- **A log that cannot be written must never disturb a live link.**
-  `session_log.py` catches `OSError` everywhere and degrades to a no-op. A
-  full disk taking a station off the air mid-net is a regression an operator
-  will not forgive.
-- **ALWAYS** decode payload text with `ansi.decode_text`: UTF-8 when the
-  bytes are valid UTF-8, latin-1 when they are not. Never a bare
-  `.decode("utf-8")`, which raises or inserts replacement characters on a
-  corrupt frame and loses the readable part with the noise. The fallback
-  keeps the old latin-1 guarantee (total, never raises); UTF-8 first is
-  there because real BBSes store messages as UTF-8 (WS1EC-2, 2026-09-23).
-  Decided by the operator 2026-09-23, replacing "latin-1, never UTF-8".
-  C1 controls are therefore stripped from the decoded text, never as bytes
-  -- 0x80-0x9F are UTF-8 continuation bytes.
-- **NEVER** let a decode error, a dropped socket, or a missing optional
-  dependency raise out of a background task. Count it and continue. Line noise
-  is normal on RF; taking the app down for it is not.
+- **Every remote byte goes through a filter before a widget or log.**
+  `monitor.sanitize()` everywhere; `ansi.to_text()` only in the terminal pane.
+- **`kissterm/ansi.py` is an allowlist and stays one**: dropped sequences
+  vanish whole, an emptied SGR vanishes rather than becoming a reset, blink
+  and conceal are not allowed (`tests/unit/test_ansi.py`).
+- **Transcripts get fully stripped text**, never colour codes.
+- **A paste is sanitized before the send line** (`_SendInput._on_paste`);
+  never call `super()._on_paste` there.
+- **A log that cannot be written never disturbs a live link**
+  (`session_log.py` catches `OSError`).
+- **Decode payload with `ansi.decode_text`**: UTF-8 when valid, else latin-1
+  (operator's decision, 2026-09-23). Never a bare `.decode("utf-8")`. C1 and
+  bidi controls are stripped from the decoded text, never as bytes.
+- **Never let a decode error, dropped socket or missing optional dependency
+  raise out of a background task.** Count it and continue.
 
-### Code
-- **ALWAYS** write module docstrings that explain *why* the design is what it
-  is and what breaks otherwise. This codebase's docstrings are load-bearing
-  documentation, not decoration. Shallow "This module implements X" docstrings
-  do not match the house style.
-- **NEVER** put emoji in source, output, or docs. **One explicit, narrow
-  exception**: `kissterm/aprs/symbols.py`'s `Symbol.emoji` field, added on
-  operator request as a cosmetic annotation for the Settings map-symbol
-  picker. Those glyphs are never transmitted (the wire format is the
-  table+code pair only) and are shown in the UI only when
-  `Config.ascii_safe` is False. Do not extend this exception elsewhere
-  without the same explicit ask.
-- **NEVER** write a doubled curly brace in a Markdown file — Jekyll parses it
-  as a Liquid variable and breaks this author's GitHub Pages builds. This rule
-  cannot state the sequence literally for the same reason.
-- **NEVER** add `Co-Authored-By: Claude` trailers to commits. AI attestations
-  go in the repo README.
-- **ALWAYS** mark inferred protocol details with `# UNVERIFIED:` or
-  `# RESEARCH:` rather than presenting a guess as fact. An honest stub beats an
-  invented wire format.
-- **ALWAYS** update `docs/CHANGELOG.md` and `docs/ROADMAP.md` when something
-  ships. New capabilities go under "New Features"; "Improvements" is only for
-  making existing things better. Remove a roadmap item the moment it ships.
-- **Use focused tests by default.** Requested directly: do not run the full
-  test suite merely for every commit. Test the affected module or interaction;
-  reserve the full suite for cross-cutting or high-risk changes, dependency
-  upgrades, or evidence of a wider regression.
-- **ALWAYS commit finished, tested work rather than leaving it sitting
-  uncommitted.** Requested directly: "so we have history and snapshots to
-  roll back to" -- an uncommitted working tree has no rollback point if the
-  next change goes wrong, and it is not visible to anything that reads git
-  history. Split unrelated changes into separate commits (one per shipped
-  CHANGELOG entry is the natural boundary) rather than one commit covering
-  several features, so a single commit is still a meaningful revert target.
-  This does not relax the git safety protocol elsewhere in this file --
-  commit, don't force-push or rewrite history, and never commit without
-  having run the tests first.
-- **`Select.NULL` is the "nothing selected" sentinel in this installed
-  Textual version -- `Select.BLANK` is a stale alias that is literally the
-  bool `False`, and assigning it to `.value` raises `InvalidSelectValueError`
-  even on a `Select` built with `allow_blank=True`.** Comparing against it
-  (`selected != Select.BLANK`) does not crash, but is silently always true
-  (`Select.NULL != False`), which is worse: it looks like a guard and is
-  not one. This shipped once already -- `SettingsPane._save`'s active-
-  transport check and `_forget`'s blank check both used `Select.BLANK` and
-  neither ever actually caught a blank selection, so saving with nothing
-  picked wrote the string `"Select.NULL"` into `config.active_transport`.
-  Fixed by switching every comparison and assignment to `Select.NULL`;
-  `tests/pilot/test_settings.py::test_saving_with_no_transport_selected_
-  does_not_corrupt_active_transport` and the matching `_forget` test guard
-  it. Check `Select.NULL` before trusting `Select.BLANK` in any future
-  Textual upgrade -- this is exactly the kind of rename that would silently
-  reintroduce the bug if the two ever swap meaning again.
-- **`Select.set_options` raises on an empty list and RESETS `.value`.**
-  Three separate `Select` bugs have now shipped in this project, all of them
-  the same shape -- an invariant between a `Select`'s options and its value
-  that nothing enforces for you:
-  1. `Select.BLANK` above.
-  2. Setting `.value` to something outside the current options raises
-     (`themes.resolve_theme_id`, `settings_pane._set_select_value`).
-  3. `set_options([])` raises `EmptySelectError` when the widget was built
-     with `allow_blank=False`, and `set_options` **resets the value** in every
-     case. The Settings map-symbol filter did both: any word matching no
-     symbol crashed the app out of a message handler, and narrowing past your
-     own symbol silently blanked it so a save wrote an empty symbol.
-  **The rule that fixes all three: whatever is currently selected is pinned
-  into the options you set, and the list you set is never empty.**
-  `tests/pilot/test_settings.py` guards the symbol filter both ways.
-- **`RichLog` clamps every line up to `min_width` (default 78) AFTER
-  shrinking it to the visible width -- and `min_width=0` is NOT the fix.**
-  A `RichLog` in any column narrower than 78 renders each line 78 cells
-  wide, does not wrap it, and leaves the tail off the right-hand edge behind
-  a horizontal scrollbar: a node's `?` listing arrived cut off mid-word, and
-  the APRS merged view lost the `[ack]`/`[no ack]` status those lines exist
-  to carry. But setting `min_width=0` breaks something worse -- a widget on
-  an **inactive `TabPane` has a content width of zero**, so every line
-  written while the operator is on another tab renders as an empty strip and
-  is gone from the scrollback for good. `kissterm/ui/wraplog.py`'s `WrapLog`
-  is the answer: it tracks its own laid-out width on resize and uses that as
-  the fallback. Use it for any log in a column the layout can resize; never
-  a bare `RichLog`. The truncation was caught by looking at a generated
-  screenshot (sec. 6's rule) and the zero-width regression by
-  `tests/pilot/test_aprs_send.py::test_an_unacked_message_is_retried`, which
-  reads the terminal log while the APRS tab is active.
-- **Textual's `Tabs` traps, all three verified against 8.2.8**: a widget id
-  may not begin with a digit and `2E0ABC` is an ordinary callsign, so any
-  per-callsign tab id needs a prefix (`convo-`) or it raises `BadIdentifier`;
-  `add_tab` on an EMPTY strip activates what it just added, so a strip that
-  must not jump to whatever arrived first needs its default tab composed in
-  rather than added; and `Tabs.TabActivated` and `TabbedContent.TabActivated`
-  are unrelated classes, so `@on(TabbedContent.TabActivated, "#main-tabs")`
-  cannot see an inner strip's messages (and `TabbedContent` ignores a strip
-  that is not its own via `_is_associated_tabs`).
-- **A widget's own `BINDINGS` with `show=True` ARE the context-aware shortcut
-  bar.** Textual's `Footer` renders the focused widget's bindings and updates
-  as focus moves, so a dialog or slide-out must not also print its keys as a
-  hint line under its buttons -- requested directly: those keys "belong in
-  the context-aware shortcut bar at the bottom... Professional symmetry." A
-  hint line is a second copy of the same fact in a different place and style,
-  and it pushes that pane's buttons out of line with every other pane's.
-  A modal screen needs to `yield Footer()` for this to work.
+### Textual traps (all verified against 8.2.8)
+- **`Select.NULL`, never `Select.BLANK`**, for "nothing selected".
+- **Pin the current value into any `Select.set_options` list, and never set
+  an empty list** (`tests/pilot/test_settings.py`).
+- **Use `WrapLog`, never a bare `RichLog`**, in a resizable column
+  (`kissterm/ui/wraplog.py`).
+- **Tab ids need a prefix** (`convo-`, since `2E0ABC` is a callsign);
+  `add_tab` on an empty strip activates it; `Tabs.TabActivated` and
+  `TabbedContent.TabActivated` are unrelated.
+- **A message used with `@on(..., "#id")` needs a `control` property**
+  (`kissterm/ui/tabclose.py`).
 
 ## 7a. Theming
 
-`kissterm/ui/themes.py` curates a set of Textual's own `BUILTIN_THEMES`
-(Tokyo Night, Catppuccin's four flavors, Nord, Gruvbox, Dracula, Monokai,
-Solarized, Rose Pine, Atom One, Textual's own, `ansi-dark`/`ansi-light`) plus
-a `"custom"` escape hatch built from `Config.custom_theme`'s hex fields.
-`KissTermApp.apply_theme()` resolves `Config.theme` and sets `self.theme`;
-called from `__init__` (so the first frame paints correctly, no flash) and
-again after a Settings save or a config reload.
+`kissterm/ui/themes.py` curates Textual's `BUILTIN_THEMES` plus a `"custom"`
+theme from `Config.custom_theme`; `KissTermApp.apply_theme()` applies it.
 
-- **Never invent a palette for a family that does not have one upstream.**
-  Tokyo Night, Nord, Gruvbox, Dracula and Monokai ship dark-only; there is no
-  real "Tokyo Night Light" to point at, and guessing hex values to fake one
-  would be presenting a fabricated palette as the real thing. Point at
-  `SUGGESTED_LIGHT_ALTERNATIVES` instead.
-- **A bad theme name must never crash the app or leave it unstyled.**
-  `themes.resolve_theme_id` always returns something valid; `DEFAULT_THEME`
-  ("tokyo-night") is the fallback. This bit twice in testing: once because a
-  `Select` widget raises if set to a value outside its own options (fixed in
-  `settings_pane._set_select_value`), and once in the config loader's hex
-  validation (`_load_hex_color`), which degrades one bad `[custom_theme]`
-  field at a time rather than discarding the whole table.
-- **`ansi-dark`/`ansi-light` are the actual "sync with my terminal" feature.**
-  They render using the terminal emulator's own ANSI palette, not a copied
-  one -- nothing to keep in sync by hand. Mention these first when anyone asks
-  how to match kissterm to their terminal theme.
-- Add a new theme family by adding a `ThemeFamily` to `THEME_CATALOG` --
-  verified by test against `textual.theme.BUILTIN_THEMES`, never by typing
-  hex values in by hand.
+- **Never invent a palette** for a family with no upstream light variant; point
+  at `SUGGESTED_LIGHT_ALTERNATIVES`.
+- **A bad theme name never crashes or unstyles the app**
+  (`themes.resolve_theme_id`, default `tokyo-night`).
+- **`ansi-dark`/`ansi-light` are "match my terminal"** -- mention them first.
+- Add a family as a `ThemeFamily` in `THEME_CATALOG`, verified by test.
 
-## 8. Known caveats / open items
+## 8. Known caveats
 
-- **APRS Mic-E is decoded but not validated against real off-air traffic.**
-  The Mic-E test fixtures were generated by this codebase's own inverse
-  encoder, so they prove the decoder is self-consistent, not that it is
-  correct. The destination-callsign polarity for N/S, the longitude offset,
-  E/W, and the 3-bit message-code table were reconstructed rather than cited.
-  **Run a real captured Mic-E packet through it before trusting it
-  operationally.** Mic-E is the most common position format on 2 m and the
-  most commonly botched decoder, so this is the highest-value verification
-  task open in the project.
-- **Compressed-position `{` cs-byte**: implemented as a pre-calculated radio
-  range (`Position.precalc_range_mi`), not as altitude. Worth checking against
-  a live feed. Weather-report field widths are regex-extracted rather than
-  fixed-column, because real trackers are not uniform.
+- **Mic-E is decoded but not validated against off-air traffic** (fixtures come
+  from our own encoder). Run a real captured packet through it before
+  trusting it -- the highest-value open verification.
+- The compressed-position cs byte is treated as radio range; weather fields
+  are regex-extracted. Check against a live feed.
+- **Modulo 128, VARA, Mercury, kernel AX.25 and BLE are unverified on
+  hardware** (ROADMAP P3). Do not "finish" VARA or Mercury by guessing;
+  `mercury.py` is an honest skeleton.
+- The session-tier UI wiring is proven against local Telnet/SSH servers only.
+- **Every top-level setting in `config.toml.example` stays above the first
+  `[table]` header** (`tests/unit/test_config.py`).
+- **Answering has no mailbox behind it yet** (ROADMAP P9; read its regulatory
+  note first).
+- APRS: a station list/map view is still open (P4). The Monitor pane shows raw
+  frames by design.
+- **APRS specifics, each documented in `ui/app.py`'s `_on_aprs_frame` and
+  `aprs_*` modules:** third-party-wrapped messages are unwrapped for
+  ack-matching; conversation tabs are restored at launch but the retry queue
+  never is; Ctrl+L on "All" deletes every conversation, and a new pane in
+  `action_clear_log` needs its own case; acks go out under
+  `Config.aprs.source_for` and never another identity (LinBPQ requires an
+  exact SSID match -- fix addressing, never spoof); a closed-gate auto-ack is
+  announced; duplicates are shown once but acked every time;
+  `filter_by_ssid` (default on) decides "addressed to me" in one place,
+  `monitor.aprs_message_matches`.
+- **YAPP is viable here**, unlike under BPQ32's stdio in the sibling
+  `bpq-apps` repo (ROADMAP P5).
 
-- **Modulo 128 is configurable but has never run against real hardware.**
-  `Config.modulo` (8 or 128) reaches `LinkParams` and the window clamp now
-  scales with it (k < modulo, enforced in both `config.py` and
-  `SlidingWindow`). It is covered by `test_modulo_128_link` on the loopback
-  only. Almost nothing on the air speaks SABME, so the fallback path in
-  `_on_dm` (DM answering SABME retries once as SABM) is the part most likely
-  to matter and the part least likely to have been exercised.
-- **VARA and Mercury are unverified against hardware.** `vara.py`'s command set
-  is written from documentation and is marked `# UNVERIFIED:` where behaviour
-  is inferred. `mercury.py` is an honest skeleton that raises from `open()`;
-  its wire protocol needs reading out of the upstream source before it can
-  work. Do not "finish" either one by guessing.
-- **The `SessionTransport` UI wiring (`_SessionLinkAdapter`, `KissTermApp.
-  _connect_session_transport`) is proven against real local Telnet and SSH
-  servers, never against a real remote node.** Telnet and SSH themselves are
-  simple enough on the wire that this is a reasonable bar; VARA, Mercury and
-  kernel AX.25 -- unblocked by this same wiring, since it was VARA/Mercury/
-  kernel AX.25 that first exposed `station is None` meaning "Ctrl+N does
-  nothing" -- still carry their own, separate hardware-verification gaps
-  above and in docs/ROADMAP.md P3, unrelated to whether the UI can reach
-  them now.
-- **BLE TNCs are not supported.** Mobilinkd TNC4-class devices need GATT
-  characteristic handling and a `bleak` dependency. `BleKissTransport` is a
-  marked stub.
-- **`config.toml.example` had five settings silently discarded** because they
-  were documented after the `[custom_theme]` header and TOML puts a bare key
-  under the last table above it. Fixed, and guarded by two tests in
-  `tests/unit/test_config.py`. **Every top-level setting must stay above the
-  first `[table]` header in that file.**
-- **Answering is opt-in and there is still no mailbox behind it.**
-  `Config.accept_incoming` defaults to False; a caller gets a DM refusal.
-  Turned on, kissterm answers, sends `Config.connect_banner`, and shows
-  `ANSWERING` in the status bar -- but the session then has nothing to say and
-  no commands. That is roadmap P9. **Read P9's regulatory note before building
-  a mailbox**: unattended answering and third-party traffic are both regulated
-  and vary by country and band.
-- **The APRS pane covers messaging and beaconing; a station list/map view is
-  still open (P4).** `KissTermApp._on_aprs_frame` (`kissterm/ui/app.py`) is a
-  second subscriber on the same fan-out the monitor pane uses --
-  `aprs.parse_packet` runs on every frame, feeding
-  `kissterm/aprs_conversations.py` (message history) and
-  `kissterm/aprs_notify.py` (message-addressed-to-me / Emergency Mic-E
-  desktop notification, plus auto-ack). The contacts CRUD pane, a
-  conversation view per contact, sending with ack/retry, SMS/email compose,
-  and a periodic position beacon (`kissterm/aprs_beacon.py`) have all
-  shipped since. As of 2026-09-11 the APRS pane's "All" tab also renders
-  every non-message packet kind (position, weather, status, telemetry,
-  object/item, third-party) as one `aprs.format_packet` line, in memory
-  only, merged by timestamp with the message log (`AprsPane.note_packet`,
-  fed from `KissTermApp._note_aprs_packet`) -- so a position beacon reads as
-  `WS1EC-15 pos 49.0500,-72.0175 car` instead of not appearing in this pane
-  at all. **The Monitor pane is unchanged and still shows the raw sanitized
-  frame text** for APRS traffic (and everything else) by design -- it is the
-  wire-level view across all frame kinds, not an APRS-aware one. What P4
-  still needs is a dedicated station list/map or bearing-distance view; the
-  decode subscriber and message store it would depend on both exist, and the
-  "All" tab above proves the missing half was human-readable output, not a
-  second decode path.
-- **A third-party-wrapped message is unwrapped for ack-matching, not just
-  for display.** A message-relay service with no RF presence of its own
-  (WHO-IS, WXBOT, and message traffic generally crossing between RF and
-  APRS-IS) replies only wrapped in a third-party (`}`) relay header -- the
-  igate's own callsign as the outer frame's source, the service's identity
-  (`WHO-IS`, not a legal AX.25 callsign) as the header's own source text.
-  `_on_aprs_frame` checks `packet.data.inner` when `packet.kind ==
-  "third-party"` and its inner packet is a message, using `tp.source`
-  (plain text) as the correspondent rather than the outer frame's source or
-  the inner `AprsPacket.source` (which a non-callsign header text like
-  `WHO-IS` coerces to the `NOCALL` placeholder -- same reasoning
-  `format_packet` uses it for display, see the caveat below). This shipped
-  because treating a wrapped reply as "not a message" left an answered
-  query stuck retrying forever in its own conversation tab while "All"
-  plainly showed the reply landing. Any future per-kind handling keyed on
-  `packet.kind` at the top of `_on_aprs_frame` needs the same check, or it
-  silently only ever fires for direct RF traffic.
-- **APRS conversation tabs are restored from `ConversationStore` at
-  launch** (`AprsPane._restore_tabs`, called from `on_mount`), oldest
-  last-activity first, without activating any of them -- persisted history
-  outlives the process and the tabs above it should too. The retry queue
-  (`PendingAcks`) deliberately does NOT do the same and stays in-memory
-  only (see `aprs_conversations`'s own docstring): kissterm must never
-  resume transmitting into an old conversation just because it was
-  reopened, so a message still "sent"/"retry N" when the app closes is
-  correctly reported as `no ack` after a restart, not silently retried
-  again.
-- **`Ctrl+L` ("Clear") means something different on every pane it touches,
-  and `KissTermApp.action_clear_log` has to route to the right one rather
-  than have a fallback silently catch a pane nobody added a case for.** It
-  used to: everything except Monitor fell through to
-  `TerminalPane.clear_active`, so Ctrl+L on the APRS pane cleared the
-  (off-screen) Terminal session log and left APRS looking untouched.
-  `AprsPane.clear_active` is genuinely more than a widget-clear: because
-  every conversation log is redrawn straight from `ConversationStore` on
-  every repaint (including the retry timer's own periodic one), anything
-  less than deleting the underlying data reappears within
-  `_RETRY_CHECK_INTERVAL` seconds and looks like the key did nothing. A
-  conversation tab deletes that one correspondent's history
-  (`ConversationStore.forget`) and its pending retries
-  (`PendingAcks.discard_for`). **"All" deletes EVERY conversation
-  (`ConversationStore.clear_all`) and every pending retry
-  (`PendingAcks.clear`), with no confirmation step** -- requested directly
-  after a first version that only swept "All"'s ephemeral packet buffer:
-  with third-party-relayed replies now filed as real chat history rather
-  than raw packet lines, most of what "All" shows *is* conversation
-  content, so sparing it looked unresponsive rather than careful. A future
-  pane added to `action_clear_log`'s dispatch needs a real case, not the
-  `else` branch, and should not assume "All"-shaped views are safe to
-  spare by default -- ask what "clear" should mean there before shipping it.
-- **`Config.aprs.source_for` (the separately configured APRS-SSID identity)
-  is used for an outgoing ack too, exactly like every other piece of APRS
-  traffic this station originates.** A brief, incorrect version of
-  `_send_aprs_ack` transmitted the ack under `Message.addressee` verbatim
-  instead -- reasoning that a real igate's own message-tracking must be
-  matching the ack's source callsign+SSID against exactly what it
-  addressed, since a message addressed to this station's bare callsign
-  kept retrying even after the ack went out. That reasoning does not
-  hold: it made the ack the only outgoing APRS traffic transmitting under
-  an identity other than this station's own configured one, which is the
-  exact "callsign is a claim" hazard described elsewhere in this file --
-  presenting an SSID (or lack of one) that is not actually how this
-  station is configured. "A message addressed to my bare call should
-  still reach me while I run an SSID" is already handled correctly, and
-  in exactly one place: `callsign_matches` strips SSID before `to_me` is
-  decided in `_on_aprs_frame`. **Confirmed against a real LinBPQ station
-  afterward, direct RF, via the debug log**: a message addressed to this
-  station's bare call, acked from `KC1JMH-5` (this station's configured
-  identity), was reported Failed by LinBPQ's own delivery tracker; the
-  same exchange addressed to `KC1JMH-5` exactly was Acked. LinBPQ's own
-  message-tracking DOES require an exact address match, SSID included --
-  that is real, confirmed behaviour of a widely-used node package, not a
-  hypothesis. The fix for it is still on the addressing side (whoever
-  messages this station must use its exact configured identity), never
-  by having `_send_aprs_ack` spoof one. Do not reintroduce a
-  `heard_as`-shaped parameter to `_send_aprs_ack`.
-- **A blocked auto-ack is reported to the operator, not just correctly
-  withheld.** Found live, same session as the LinBPQ investigation above:
-  a message arrived on a station whose transmit gate had not been
-  re-armed since its last launch (closed by default -- see the
-  transmit-gate rules), `_send_aprs_ack` correctly declined to send
-  anything, and there was NO visible sign of this anywhere on screen --
-  only the debug log recorded it. The sender retried the same message
-  four times over several minutes and gave up with no way for the
-  operator to have known why. This is the same "arming is never silent" /
-  "a failure the operator cannot diagnose is a bug" territory the gate
-  rules already cover for a beacon; a closed gate silently eating an
-  auto-ack was the one place that check was missing. `_send_aprs_ack` now
-  raises a `self.notify(..., severity="warning")` toast AND writes a
-  terminal-pane line, in plain language a newcomer would understand ("...
-  Transmit is OFF ... Press Ctrl+T ...") rather than protocol jargon like
-  "TX BLOCKED". `_aprs_ack_blocked_cooldown` (separate from
-  `_aprs_notify_cooldown`, which governs the unrelated desktop
-  "message addressed to me" notice) keys on `(addressee, number)` so a
-  sender's own retries -- typically every 30-90 seconds -- do not
-  repaint the same warning on top of itself.
-- **A repeated APRS message is shown once, but acknowledged every time.** RF
-  retries and duplicate relay paths are normal, not a reason to turn one
-  WXBOT forecast into several chat lines. `MessageDeduplicator` compares the
-  sender, addressee, text, and message number for a bounded in-memory retry
-  window; it never persists that cache because message numbers may be reused.
-  The receive path still sends an auto-ack for every duplicate addressed to
-  us -- suppressing that ack is what would make the far end keep retrying.
-- **`Config.aprs.filter_by_ssid` (on by default) requires an incoming
-  APRS message to match this station's EXACT identity to count as "for
-  me" -- a message to a different SSID of the same base call is a
-  different logical persona and is recorded (every message packet
-  always is) but not auto-acked, tabbed, or notified.**
-  `kissterm.monitor.aprs_message_matches` is the one place this
-  decision lives, called from both `_on_aprs_frame`'s `to_me` and
-  `aprs_notify.evaluate_packet` so the pane/auto-ack path and the
-  desktop-notification path can never disagree about what "addressed to
-  me" means. Requested directly, prompted by the LinBPQ investigation
-  above turning up a BULLETIN log entry addressed to a `-9` SSID this
-  session was not running as: "APRS applications typically filter out
-  messages not destined for that SSID" -- most real APRS clients only
-  ever run one identity at a time and naturally behave this way; this
-  station previously did not, because `callsign_matches`'s SSID-
-  stripping leniency (still exactly correct for MAIL FOR beacons, an
-  unrelated question) was also being applied here as the ONLY option.
-  `filter_by_ssid=False` is the explicit, still-supported opt-out for an
-  operator who wants one running session to answer for every SSID of
-  their call. Toggled live from the menu, APRS > SSID filter
-  (`action_toggle_aprs_ssid_filter`). It briefly had Ctrl+Shift+F, which an
-  ordinary terminal delivers as Ctrl+F -- already "Find" -- which is the
-  collision the key standard exists to end. A
-  desktop-notify caller with no `Config` at all (a test, a REPL) still
-  gets the OLD SSID-agnostic default if it does not pass
-  `filter_by_ssid`/`active_identity` explicitly -- `evaluate_packet`'s
-  own function-level default is deliberately the opposite of
-  `Config.aprs.filter_by_ssid`'s product default, see its docstring.
-- **YAPP is viable here, unlike in the sibling `bpq-apps` repo.** That project
-  documents YAPP as a dead end because BPQ32's terminal emulation filters the
-  control characters it needs — that limitation applies to apps running *under*
-  BPQ32's stdio, not to a terminal holding a genuinely binary-transparent AX.25
-  link. Do not let a future reader conflate the two cases. Roadmap P5.
+## 9. Common tasks
 
-## 9. Common tasks a future session might do
-
-- **Add a transport:** subclass `FrameTransport` or `SessionTransport` in
-  `kissterm/transport/`, add a branch to `build_transport()` in
-  `transport/__init__.py` (import it lazily there so a missing optional
-  dependency never breaks `import kissterm`), add a worked example to
-  `config.toml.example`, and add a `discovery.py` heuristic if it is findable.
-  Pick the tier by asking one question: *does this thing connect on its own?*
-- **Add a transport backend:** implement `_send_frame`, never `send_frame`.
-  See the transmit-gate rules above.
-- **Add a pane:** add a `TabPane` in `app.py`'s `compose()`, a `Binding` for
-  `ctrl+N`/`fN`, and — if it needs frames — a subscriber on the existing
-  fan-out, never a second decode path.
-- **Add a setting:** add the field to `Config` in `config.py` (with a loader
-  entry so a bad value degrades to the default), then add ONE entry to
-  `SETTINGS_SCHEMA` in `kissterm/ui/settings_schema.py`. The Settings pane is
-  generated from that list — no widget, validator or save hook to write. A
-  config field with no schema entry fails
-  `tests/pilot/test_settings.py::test_every_config_field_is_editable_or_deliberately_excluded`,
-  which is there precisely because the first, hand-built Settings pane was out
-  of date with `Config` on the day it shipped.
-- **Change link behaviour:** it is all in `ax25/session.py`. Add a loopback
-  test in `tests/unit/test_ax25_link.py` first; that file is the safety net.
-- **Debug "the link stalls":** check the modular arithmetic in `_ack_upto`
-  first, then whether `_pump()` is reachable from the path you changed, then
-  whether `peer_busy` got stuck. Turn on `--log-level debug` and read
-  `V(S)/V(R)/V(A)/rc` — `AX25Link.__repr__` prints all four.
-- **Debug "nothing in the monitor pane":** the frame never reached
-  `Transport.dispatch`. Check the transport's decode-error counter first, then
-  `MonitorFilter` (supervisory frames show by default as of 2026-09-07 --
-  see that class's docstring for why -- but an operator may have toggled the
-  pane's "Supervisory" button off for a busy link). Run with
-  `--log-level debug`: every frame is logged in both directions from
-  `send_frame` and `dispatch`, so the log settles whether the frame arrived at
-  all before you go looking in the UI.
-- **Debug "the connect got an ACK but never a reply":** that is
-  `KissTermApp._note_if_no_reply`'s exact case, not a connect failure --
-  `link.va == link.vs` means the far end already acknowledged the line at
-  the AX.25 layer, and the silence past that point is the remote
-  application (or the RF path back) being slow or dead, never kissterm's.
-- **Debug "the connect failed":** read `link.last_error` via
-  `AX25Station.link_to()`, and the Monitor tab. A DM means the far end heard
-  us and refused — a configuration problem. N2 silence means the path did not
-  carry — an antenna, power or propagation problem. These need opposite
-  actions from the operator and must never be reported with the same words.
-- **Ship something:** update `docs/CHANGELOG.md` with a dated section and a
-  `**Files:**` line, and delete the item from `docs/ROADMAP.md`.
+- **Add a transport:** subclass `FrameTransport` or `SessionTransport`
+  (tier = "does it connect on its own?"), add a lazily-imported branch to
+  `build_transport()`, an example in `config.toml.example`, and a discovery
+  heuristic if findable. Implement `_send_frame`, never `send_frame`.
+- **Add a pane:** a `TabPane` in `compose()`, a `Command` in
+  `ui/commands.py`, and a fan-out subscriber if it needs frames.
+- **Add a setting:** a `Config` field with a loader entry, then one
+  `SETTINGS_SCHEMA` entry (`test_every_config_field_is_editable_or_deliberately_excluded`).
+- **Change link behaviour:** add a loopback test in `test_ax25_link.py` first.
+- **"The link stalls":** check `_ack_upto`'s modular walk, then `_pump()`
+  reachability, then `peer_busy`; `--log-level debug` shows V(S)/V(R)/V(A)/rc.
+- **"Nothing in the monitor":** the transport's decode-error counter, then
+  `MonitorFilter`, then the debug log.
+- **"Acked but no reply":** `_note_if_no_reply` -- the far application is
+  slow, not the link.
+- **"The connect failed":** `link.last_error` and the Monitor. DM = refused
+  (configuration); N2 silence = path (antenna, power, propagation).
+- **A key "does nothing":** `scripts/keycheck.py`.

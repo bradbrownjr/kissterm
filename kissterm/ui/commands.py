@@ -11,7 +11,7 @@ shown on a tab where it only answered with "Open APRS to ...". Generating all
 of them from `COMMANDS` means a key, a label or a context can only be wrong
 in one place, and `tests/unit/test_key_standard.py` checks that one place.
 
-The standard (docs/ROADMAP.md P0.2, DESIGN.md section 5) is IBM CUA as text
+The standard (DESIGN.md section 5) is IBM CUA as text
 UIs adopted it -- Turbo Vision, Midnight Commander: F1 is Help, F10 is the
 menu, **every command is in the menu**, and a key is only an accelerator. That
 is what lets the key budget stay small enough to be terminal-safe: a command

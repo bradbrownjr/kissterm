@@ -219,8 +219,9 @@ class _SessionLog(WrapLog):
     check keeps a rewrite (which changes the virtual size and so resizes
     again) from looping.
 
-    A direct call, not a posted message: see docs/ROADMAP.md P0.1 on this
-    pane's message queue.
+    A direct call, not a posted message: written while this pane's message
+    queue did not drain on a real station (fixed by
+    `FrameTransport.callback_context`; docs/CHANGELOG.md, 2026-09-23).
     """
 
     def on_resize(self) -> None:

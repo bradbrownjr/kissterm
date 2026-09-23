@@ -29,8 +29,8 @@ the bugs were never on the roadmap -- they lived only in chat.
    broken", write a root-cause note in the item (what was assumed, what the
    evidence showed) before touching code a third time. Adding and then
    removing UI to work around a symptom is the pattern this rule stops.
-6. **No key binding is added or changed except under P0.2's standard.** Once
-   P0.2 lands, its allowlist test is the enforcement.
+6. **No key binding is added or changed except under the keyboard standard**
+   (DESIGN.md section 5), enforced by `tests/unit/test_key_standard.py`.
 7. **Keep documentation proportionate.** A CHANGELOG entry is a few lines. A
    new AGENTS.md rule is added when the operator states one, not to narrate a
    fix. Explanations belong in the code's docstrings.
@@ -42,9 +42,9 @@ to a node or BBS with, and read mail on, without hitting a known bug or a key
 that does not work in their terminal. Concretely:
 
 - P0 is empty, with every live bug confirmed fixed by the operator.
-- The keyboard follows P0.2's standard, enforced by test. Met
+- The keyboard follows DESIGN.md section 5's standard, enforced by test. Met
   2026-09-23.
-- The command catalog (P0.3) covers BPQ32/LinBPQ node, BPQMail and
+- The command catalog covers BPQ32/LinBPQ node, BPQMail and
   BPQChat fully from published documentation, plus JNOS, TheNet/X1J and TNC2
   at their current level. Met 2026-09-23; context-following suggestions
   confirmed by the operator on a live session the same day.
@@ -67,85 +67,15 @@ Everything from P9 on comes after milestone 2.
 
 ## P0 — Stabilize: the product that exists, working
 
+No open items (2026-09-23). A live bug the operator reports goes here first,
+under rule 2 above, with the date and their words:
+
 ### P0.1 Reported bugs
 
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
-- [ ] **`TerminalPane`'s message queue does not drain on a real station.**
-  `awaiting confirmation` (2026-09-23). Found 2026-09-22: a `set_timer` on
-  the pane was armed repeatedly across two on-air sessions and its callback
-  ran zero times. **Cause, reproduced:** the launch opens the transport
-  before the app runs, so received frames were dispatched from a task with no
-  active Textual app, and `Timer._tick` dies on a bare `active_app.get()`.
-  `run_test` hid it because the pilot already runs inside the app's context.
-  Fixed by running the frame fan-out in the app's context
-  (`FrameTransport.callback_context`); `tests/pilot/test_frame_context.py`
-  reproduces the real launch order. Confirm on the air with any node session.
-
-### P0.2 Keyboard standard
-
-Done, and confirmed by the operator on a live session 2026-09-23. The
-standard itself lives in DESIGN.md section 5 and is enforced by
-`tests/unit/test_key_standard.py` and `tests/unit/test_docs_keys.py`; rule 6
-above still applies to every new key.
-
-### P0.4 The pilot suite is flaky under parallel load
-
-- [ ] **A different test fails on each parallel run; all of them pass
-  alone.** `fixed, confirming` (2026-09-23): every test listed below now
-  waits on a condition (`tests/pilot/_wait.py`); remove this item after a
-  few consecutive green full-suite runs. Found 2026-09-22. Observed failures so far:
-  `test_a_fast_reply_does_not_wait_out_the_full_ceiling` (a real timing
-  budget: "took 3.14s", asserted `< 2.0`),
-  `test_bbs_helper_from_reference_reaches_compose_box_without_sending`,
-  `test_footer_is_tab_and_connection_aware`,
-  `test_object_scope_controls_its_rf_distribution[rf_only]`, and
-  `test_tab_keys_work_while_an_input_has_focus` (`NoMatches: No nodes match
-  '#heard-table'` -- a mount that had not finished). Every one passes with
-  `-n0`. The common shape is a test that measures real elapsed time or reads
-  a widget before its pane has mounted, running on a box with `-n auto`
-  workers competing for CPU.
-  **Why this is P0 and not a nuisance.** AGENTS.md already says a flake is
-  the worst kind of failure because "the suite is green" stops meaning
-  anything -- and this project's whole P0 exists because bugs were reported,
-  "fixed" and reported again. A suite that fails somewhere different every
-  run trains a reader to re-run instead of to look.
-  Fix by making these tests wait on a condition rather than on wall-clock
-  time (poll with a bare `asyncio.sleep` against a deadline, per AGENTS.md
-  sec. 6 on `pilot.pause()` costing 100-120ms), and by awaiting the mount
-  before querying. Do not "fix" it by widening the timing budgets until the
-  flake hides, and do not drop `-n auto`: the parallelism is not the bug, it
-  is what exposes it.
-  2026-09-23: `test_every_tab_can_be_selected` and
-  `test_a_note_appears_once_a_sent_line_goes_unanswered` converted too (the
-  second waited 0.2 s for an ACK that parallel load sometimes delayed). One
-  more failure in `test_app_mounts.py`/`test_transcript_and_color.py`
-  happened once and did not reproduce in 11 further runs; identify it from
-  the next full-suite failure output.
-  2026-09-23: a new shape, worse than a failure -- a HANG.
-  `test_forgetting_learned_commands_clears_the_cache_and_sends_nothing`
-  pressed a button on a dialog that had not finished mounting, the press
-  was lost, and the failure left the dialog open. Textual's `run_test`
-  then never returned, so the whole suite stalled at 98% with no output
-  (about one run in eight under load). Fixed by pausing before the press.
-  Run the full suite with `-o faulthandler_timeout=180` so a hang prints
-  its stack instead of stalling.
-
-### P0.5 Documentation diet
-
-The files agents are told to read are now too long to hold in mind, which is
-how rules already written down get broken again. AGENTS.md is about 1,200
-lines, CHANGELOG.md about 4,350, and this file was about 680 before this
-rewrite.
-
-- [ ] Cut AGENTS.md to rules and pointers, under about 400 lines: each rule
-  stated in a sentence or two with a pointer to the code or test that
-  enforces it. The history behind a rule moves to the enforcing module's
-  docstring or to CHANGELOG, where it already mostly lives.
-- [ ] Archive CHANGELOG sections older than the last release into
-  `docs/CHANGELOG-archive.md` once 1.0 is tagged.
-- [ ] DESIGN.md section 5 replaced by P0.2's standard, not added to.
+(none open)
 
 ---
 
@@ -196,12 +126,12 @@ Files
 - [ ] **Shared message-list widget and folder tree.** Mail, Bulletins and
   Files are the same three panes: tree, list of headers, reader. One widget
   with a column spec replaces three that would drift apart. Keys follow
-  P0.2 rule 4: Enter opens the message, Insert composes, Delete moves to
+  DESIGN.md section 5 rule 4: Enter opens the message, Insert composes, Delete moves to
   Deleted, and plain letters (R reply, F forward, S send/receive) work only
   while the list has focus. The folder tree answers the old "sub-view
   navigation" question, so there is no sub-tab strip. Medium.
 - [ ] **Mail, Bulletins and Files tabs** at F2, F3 and F4, with the tab
-  move from P0.2's table done in the same change. Mail becomes the launch
+  move from DESIGN.md section 5.s table done in the same change. Mail becomes the launch
   tab. Large, mostly composition of the two items above.
 - [ ] **Compose and Outbox.** Composing writes to the Outbox of a chosen
   account (a Winlink account or a BBS). Nothing transmits on save. Sending
@@ -336,7 +266,7 @@ data is never fetched automatically.
   `/EX` terminator is a BBS-shell constraint kissterm does not have). A
   `strip` field shows the template and accepts a pasted strip. Reached from
   "New from form" in the F10 menu, and as a plain-letter key on the Mail
-  list per P0.2 rule 4.
+  list per DESIGN.md section 5 rule 4.
   Medium.
 - [ ] **Ship every bpq-apps form** in the table above. Small once the
   engine exists: they are data.

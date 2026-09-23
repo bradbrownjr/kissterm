@@ -93,7 +93,7 @@ Read this file plus the one pane you are changing.
 16. **The keyboard is one table: `commands.py`'s `COMMANDS`.** It generates
     `KissTermApp.BINDINGS`, the Footer, the F10 menu, the F1 help screen and
     the Ctrl+P palette. Add a command there, not a `Binding` here and a list
-    there. The standard is IBM CUA (F1 Help, F10 menu, nine terminal-safe
+    there. The standard is IBM CUA (F1 Help, F10 menu, ten terminal-safe
     Ctrl keys, plain letters only on focused lists) and
     `tests/unit/test_key_standard.py` enforces it -- including that no
     Ctrl+Shift, Ctrl+Alt or Alt key is ever bound, because an ordinary
