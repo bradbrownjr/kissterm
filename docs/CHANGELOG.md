@@ -3,6 +3,24 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — README's key table is generated from the registry
+
+### Improvements
+
+- **README's key table comes from `COMMANDS`**, like the bindings, Footer,
+  menu, Help keys page and palette already did. `scripts/sync_docs.py`
+  rewrites it between markers; `tests/unit/test_docs_keys.py` fails if it is
+  stale. Keys named in running prose are checked instead: every
+  "Settings (F9)"-style tab mention in README, SETUP and DESIGN must match
+  the tab's real key, and every Ctrl key README and SETUP name must be bound.
+- The check found what the hand-kept copies had let drift: README sent
+  operators to "Settings (F5)" in five places (F5 is Monitor), and DESIGN's
+  Footer sketch still showed `F1 Help`, which moved to the tab row.
+
+**Files:** `kissterm/ui/commands.py`, `scripts/sync_docs.py`, `README.md`,
+`DESIGN.md`, `tests/unit/test_docs_keys.py`, `docs/CHANGELOG.md`,
+`docs/ROADMAP.md`
+
 ## [2026-09-23] — Pilot tests wait on conditions, not the clock
 
 ### Bug Fixes

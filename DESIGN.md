@@ -387,13 +387,13 @@ module docstring for the full reasoning:
 ## 6. The bottom two rows
 
 ```
- F1 Help  ^T TX  ^N Connect  ^G Book  ^R Commands  ^F Find  ^Q Quit  F10 Menu   <- Terminal Footer
+ ^T TX  ^N Connect  ^G Book  ^R Commands  ^F Find  ^Q Quit  F10 Menu            <- Terminal Footer
  kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6                    <- status
 ```
 
 Illustrative, not literal: which keys fit is a function of terminal width
-(see section 5's Footer rules). `F1 Help` is first and `F10 Menu` is pinned
-to the right; the keys between them are dropped from the right as the
+(see section 5's Footer rules). `F10 Menu` is pinned to the right (F1 is
+in the tab row, not here); the keys before it are dropped from the right as the
 terminal narrows, and `^D Disconnect` joins them only while there is a
 session to end.
 

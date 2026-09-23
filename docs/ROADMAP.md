@@ -244,10 +244,6 @@ final keys. The tab layout for milestone 2 is in DESIGN.md section 5.
 
 Remaining:
 
-- [ ] Generate README's key table and SETUP.md's key mentions from the
-  registry rather than keeping them in step by hand. Both were rewritten by
-  hand for this change; the next key change is where a hand-written table
-  goes stale again. Small.
 - [ ] Decide what the **Info** tab is (today's Monitor, plus link and station
   status) before renaming anything. The Monitor tab keeps its name until
   then.
