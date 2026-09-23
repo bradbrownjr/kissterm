@@ -82,21 +82,6 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   Fixed by running the frame fan-out in the app's context
   (`FrameTransport.callback_context`); `tests/pilot/test_frame_context.py`
   reproduces the real launch order. Confirm on the air with any node session.
-- [ ] **Blank lines and broken lines in a BBS mail listing (`L`, `LM`,
-  `R`).** `fix attempted 3` (2026-09-23), awaiting confirmation. Reported
-  2026-09-22 14:26 and 14:44; re-reported 2026-09-23 ("the wrapping of L is
-  hit or miss, and there's a spare line between messages 2718 and 2717";
-  "r 2738 also exhibits incorrect line breaks").
-  **Root cause, from the 2026-09-23 transcript and debug log.** Both earlier
-  fixes worked on how a CR/LF pair split across two frames is joined. The
-  evidence showed a different split: the pane showed a partial line after
-  0.2 s idle and closed it, but at 1200 baud the next 128-byte frame of the
-  same listing arrived 1 to 9 s later (frames at 12:54:35.4, :36.4, :38.9).
-  So the rest of the line became a new row, and when the line's own CR came
-  in the next frame it became an empty row (2718 / 2717). The fix keeps a
-  timer-flushed partial line open and re-renders it in place when the rest
-  arrives; the transcript file now assembles lines the same way. Re-test with
-  `L` and a long `R`.
 - [ ] **Accented and typographic characters in BBS messages are garbled.**
   `awaiting confirmation` (2026-09-23). Reported 2026-09-23 ("r 2738 also
   exhibits ... unexpected characters"). WS1EC-2 sent the message as UTF-8;

@@ -3,6 +3,15 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — BBS listing line breaks confirmed fixed
+
+- The operator confirmed on a live session (0.1.221, WS1EC-2 `LR` and
+  `R 2712`) that node output renders correctly; the transcript shows every
+  listing line whole, with no blank lines. Removed from P0.1 after three
+  attempts; the root cause is in the "slow frames" entry below.
+
+**Files:** `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-23] — Esc hides the suggestion list
 
 ### Improvements
