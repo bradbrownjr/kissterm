@@ -3,6 +3,34 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Suggestions follow the session into the BBS and back
+
+### Improvements
+
+- **The send line suggests the commands of wherever the session is.** At a
+  BPQ32 node, "L" offers LINKS. After the node says
+  "CCEMA:WS1EC-15} Connected to BBS", it offers BPQMail's L, LR, LM ... LK,
+  each with its description. After "Returned to Node", it offers the node's
+  again. Both lines are read from what the node sends anyway, and the
+  patterns live in the node's data file. BPQMail's commands are no longer
+  offered at every prompt, where "L" meant something else.
+- An application kissterm has no reference for (a sysop's own CALENDAR)
+  and an unidentified prompt suggest nothing but names harvested from that
+  station, rather than another system's commands. The status bar says where
+  the session is: `BPQ32 > BPQMAIL`, `BPQ32 > CALENDAR`.
+- Harvested names are filed and offered per context, so a BBS harvest's
+  "L" is not offered at the node prompt. "Learn from node" defaults to the
+  context the session is in.
+- Sysop commands (PASSWORD, KH, ...) are listed in the reference but never
+  suggested.
+- Because G8BPQ uses the same "Connected to" words for a STAY hop to
+  another node, an unknown name is treated as a hop while a typed hop is
+  pending, and only a known application's name switches references.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/terminal_pane.py`,
+`kissterm/ui/dialogs.py`, `kissterm/nodes/reference.py`,
+`tests/pilot/test_terminal_ux.py`, `docs/CHANGELOG.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — BPQ32, BPQMail and BPQChat references from the published docs
 
 ### New Features

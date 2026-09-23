@@ -399,6 +399,7 @@ async def test_bbs_list_suggestions_are_stacked_with_their_meanings():
     async with app.run_test(size=(55, 32)) as pilot:
         await pilot.pause()
         pane = app.query_one(TerminalPane)
+        app.reference = CommandReference(family=load_family("bpqmail"))
         pane._update_suggestions("L")
         await pilot.pause()
         strip = app.query_one("#suggestion-strip", Static)
@@ -420,6 +421,7 @@ async def test_up_down_choose_a_stacked_suggestion_and_tab_fills_it():
     app, a, b, _ = await _connected_app()
     async with app.run_test(size=(55, 32)) as pilot:
         await pilot.pause()
+        app.reference = CommandReference(family=load_family("bpqmail"))
         field = app.query_one("#session-input", Input)
         field.focus()
         field.value = "L"
@@ -433,7 +435,7 @@ async def test_up_down_choose_a_stacked_suggestion_and_tab_fills_it():
 
         # Read the expected command off the candidate list rather than
         # naming one. Which BBS command sits third under "L" is shipped
-        # data (`kissterm/bbs.py`), and it has already moved once --
+        # data (`kissterm/nodes/data/bpqmail.toml`), and it has already moved once --
         # documenting the full L* set turned the third entry from LB into
         # LM and failed this test for a reason that had nothing to do with
         # navigation. What must hold is that Tab fills the entry the arrows
@@ -448,12 +450,14 @@ async def test_up_down_choose_a_stacked_suggestion_and_tab_fills_it():
 
 @pytest.mark.asyncio
 async def test_bbs_helpers_explain_empty_learned_command_suggestions():
-    """Harvesting tells us a name, while shipped helpers provide its meaning."""
+    """Harvesting tells us a name, while the shipped reference provides its
+    meaning -- and the name appears once, not once per source."""
     app, a, b, _ = await _connected_app()
     async with app.run_test(size=(55, 32)) as pilot:
         await pilot.pause()
         app.reference = CommandReference(
-            learned=(Command("LM", context="bbs"), Command("LL", context="bbs"))
+            family=load_family("bpqmail"),
+            learned=(Command("LM", context="bbs"), Command("LL", context="bbs")),
         )
         field = app.query_one("#session-input", Input)
         field.value = "L"
@@ -1910,3 +1914,117 @@ async def test_an_unterminated_tail_is_flushed_off_the_event_loop():
         )
     station.close()
     peer.close()
+
+
+# ---------------------------------------------------------------------------
+# Context: node, application, unknown (docs/ROADMAP.md P0.3)
+# ---------------------------------------------------------------------------
+
+
+def _status_parts(app, monkeypatch) -> str:
+    """The status bar's fields as text, before the grid lays them out
+    (a narrow column would wrap the field this is looking for)."""
+    import kissterm.ui.app as app_module
+
+    captured: list[str] = []
+    real = app_module._status_row
+    monkeypatch.setattr(
+        app_module, "_status_row", lambda parts: (captured.extend(parts), real(parts))[1]
+    )
+    app._refresh_status()
+    monkeypatch.setattr(app_module, "_status_row", real)
+    return " | ".join(captured)
+
+
+def _suggested(app, prefix: str) -> list[str]:
+    pane = app.query_one(TerminalPane)
+    pane._update_suggestions(prefix)
+    return [command.name for command in pane._suggestion_matches]
+
+
+@pytest.mark.asyncio
+async def test_suggestions_follow_the_session_into_the_bbs_and_back(monkeypatch):
+    """"L" is LINKS at a BPQ32 node and "list new mail" in its BBS. The node
+    says which one is in effect ("Connected to BBS", "Returned to Node"),
+    and the suggestions follow it, reading nothing but what arrived anyway."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        _feed(link, b"Welcome.\rCCEMA:WS1EC-15} ")
+        await pilot.pause()
+        assert app.reference.family.id == "bpq32"
+        at_node = _suggested(app, "L")
+        assert "LINKS" in at_node and "LM" not in at_node
+
+        # The line can arrive split across frames; it is matched whole.
+        app.log_sent(app._active_key(), "BBS")
+        _feed(link, b"CCEMA:WS1EC-15} Connec")
+        _feed(link, b"ted to BBS\r[BPQ-6.0.23.1-B2FWIHJM$]\rde WS1EC#>\r")
+        await pilot.pause()
+        assert app.reference.family.id == "bpqmail"
+        in_bbs = _suggested(app, "L")
+        assert in_bbs[:3] == ["L", "LR", "LM"] and "LINKS" not in in_bbs
+        assert {"LD", "LF", "LH", "LK", "LL"} <= set(in_bbs)
+        assert "BPQ32 > BPQMAIL" in _status_parts(app, monkeypatch)
+
+        _feed(link, b"Returned to Node CCEMA:WS1EC-15} ")
+        await pilot.pause()
+        assert app.reference.family.id == "bpq32"
+        assert "LINKS" in _suggested(app, "L")
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_an_application_with_no_reference_suggests_nothing(monkeypatch):
+    """A sysop's own CALENDAR has commands kissterm does not know. Offering
+    the node's there would be a guess, so the strip stays empty."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        _feed(link, b"CCEMA:WS1EC-15} ")
+        await pilot.pause()
+        app.log_sent(app._active_key(), "CALENDAR")
+        _feed(link, b"CCEMA:WS1EC-15} Connected to CALENDAR\r")
+        await pilot.pause()
+        assert app.reference.family is None
+        assert _suggested(app, "L") == []
+        assert _suggested(app, "C") == []
+        assert "BPQ32 > CALENDAR" in _status_parts(app, monkeypatch)
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_an_unidentified_prompt_suggests_nothing():
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        _feed(link, b"Hello from somewhere\r> ")
+        await pilot.pause()
+        assert app.reference.family is None
+        assert _suggested(app, "L") == []
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_sysop_commands_are_never_suggested():
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        app.reference = CommandReference(family=load_family("bpq32"))
+        assert "PASSWORD" not in _suggested(app, "PA")
+        app.reference = CommandReference(family=load_family("bpqmail"))
+        assert "KH" not in _suggested(app, "K")
+    a.close()
+    b.close()

@@ -159,7 +159,7 @@ from .commands import KeyBindingsProvider
 from .menu import MenuScreen
 from ..harvested import HarvestedCommands
 from ..nodes import Command, CommandReference
-from ..nodes.reference import identify_family, parse_harvested
+from ..nodes.reference import application_named, identify_family, parse_harvested
 from .dialogs import (
     CallsignScreen,
     CommandReferenceScreen,
@@ -234,6 +234,16 @@ class _TerminalSession:
     #: a call that wrote a note. See that method's docstring for why a
     #: "last state we wrote a note for" version of this field does not work.
     last_state: "SessionState | None" = None
+    #: The application the node said it handed this session to ("BBS",
+    #: "CHAT", a sysop's "CALENDAR"), upper-cased; "" while at the node.
+    #: See `KissTermApp._track_application`.
+    application: str = ""
+    #: The node's own command set, put aside while an application's is in
+    #: effect and restored when the node says the session came back.
+    node_reference: "CommandReference | None" = None
+    #: The unterminated tail of the last chunk received, so a line split
+    #: across two frames is still matched whole.
+    line_buffer: str = ""
 
 
 def _status_row(parts: list[str]) -> Table:
@@ -1868,14 +1878,7 @@ class KissTermApp(App):
         # Apply anything harvested from THIS peer on a past connect --
         # cached forever, per AGENTS.md's opt-in-harvesting rule, so a
         # reconnect never re-asks and never re-spends the airtime.
-        cached = self._harvested.records_for_callsign(str(link.peer))
-        if cached:
-            session.reference = CommandReference(
-                learned=tuple(
-                    Command(name=command.name, confidence="learned", context=command.context)
-                    for command in cached
-                )
-            )
+        session.reference = CommandReference(learned=self._learned(str(link.peer), "node"))
         self._sessions[key] = session
         self.query_one(TerminalPane).open_tab(key, activate=activate)
         self._start_transcript(key, link)
@@ -1999,6 +2002,10 @@ class KissTermApp(App):
         session = self._sessions.get(session_key)
         if session is None:
             return
+        # A node's prompt has no line end ("CCEMA:WS1EC-15} "); the line the
+        # operator typed ends it. Without this the node's reply is read as a
+        # continuation of the prompt and "Connected to BBS" never matches.
+        session.line_buffer = ""
         if session.transcript is not None:
             session.transcript.sent(text)
         if watch_hop:
@@ -2127,17 +2134,11 @@ class KissTermApp(App):
         if session is None:
             return
         session.current_node = node
-        cached = self._harvested.records_for_callsign(node)
-        if cached:
-            session.reference = CommandReference(
-                learned=tuple(
-                    Command(name=command.name, confidence="learned", context=command.context)
-                    for command in cached
-                )
-            )
-        else:
-            session.reference = CommandReference()
+        session.reference = CommandReference(learned=self._learned(node, "node"))
         session.detect_buffer = ""
+        session.application = ""
+        session.node_reference = None
+        session.line_buffer = ""
         self._refresh_status()
         self.query_one(KissTermFooter).refresh_bindings()
 
@@ -2216,31 +2217,130 @@ class KissTermApp(App):
 
         Only the first couple of kilobytes are examined; a node identifies
         itself in its greeting or not at all, and scanning the whole session
-        forever would let ordinary message text trigger a false match.
+        forever would let ordinary message text trigger a false match. Once
+        the family is known, `_track_application` watches for the family's
+        own, specific enter/return lines for the rest of the session.
         """
         session = self._sessions.get(session_key)
-        if session is None or session.reference.family is not None or len(session.detect_buffer) > 2048:
+        if session is None:
             return
-        from ..monitor import sanitize
+        text = sanitize(data)
+        if (
+            session.reference.family is None
+            and not session.application
+            and len(session.detect_buffer) <= 2048
+        ):
+            session.detect_buffer += text
+            family = identify_family(session.detect_buffer)
+            if family is not None:
+                # Set the `family` field in place rather than replacing the
+                # whole `CommandReference` -- a wholesale replacement here
+                # would silently drop `learned` commands `_bind_link` already
+                # pre-populated from a past harvest of this same peer.
+                #
+                # No inline terminal note here -- the family name is shown in
+                # the status bar instead (`_refresh_status`). Announcing it a
+                # second time in the scrollback is the duplication AGENTS.md's
+                # "one place for each fact" rule covers.
+                session.reference.family = family
+                if family.kind == "application":
+                    # Connected straight to a BBS: its harvested names, not
+                    # the node-context ones `_bind_link` assumed.
+                    session.reference.learned = self._learned(
+                        session.current_node, family.harvest_context
+                    )
+                self._refresh_status()
+        self._track_application(session, text)
 
-        session.detect_buffer += sanitize(data)
-        family = identify_family(session.detect_buffer)
-        if family is None:
+    def _learned(self, node: str, context: str) -> tuple[Command, ...]:
+        """Names harvested from `node` in one context, as `Command`s.
+
+        Filtered by context because "L" harvested inside the BBS and "L"
+        harvested at the node prompt are different commands; offering the
+        BBS's at the node is the mix-up docs/ROADMAP.md P0.3 exists to end.
+        """
+        return tuple(
+            Command(name=command.name, confidence="learned", context=command.context)
+            for command in self._harvested.records_for_callsign(node)
+            if command.context == context
+        )
+
+    @staticmethod
+    def _context_of(session: _TerminalSession) -> str:
+        """The harvest context (node / bbs / application) in effect."""
+        family = session.reference.family
+        if family is not None and family.kind == "application":
+            return family.harvest_context
+        return "application" if session.application else "node"
+
+    def harvest_context(self, session_key: str) -> str:
+        """What a `?` asked now would be answered by, for the confirm
+        screen's default -- the operator can still change it."""
+        session = self._sessions.get(session_key)
+        return self._context_of(session) if session is not None else "node"
+
+    def _track_application(self, session: _TerminalSession, text: str) -> None:
+        """Follow the session into and out of a node's applications.
+
+        A BPQ32 node says "CCEMA:WS1EC-15} Connected to BBS" when it hands
+        the session to its BBS, and "Returned to Node" when one hands it
+        back. Between the two, BPQMail's commands are in effect and the
+        node's are not -- "L" lists mail there and links at the node, so a
+        suggestion from the wrong one is a wrong command. Both lines come
+        from the identified node family's data (`enter_pattern`,
+        `return_pattern`), so nothing here is BPQ-specific, and a node with
+        neither is simply never tracked.
+
+        An application kissterm ships no reference for (a sysop's own
+        CALENDAR) gets an empty command set: suggesting the node's commands
+        there would be a guess. The node uses the same "Connected to" words
+        for a STAY hop to another node (G8BPQ's example: "Connected to
+        GB7YDX"), so while a typed hop is being watched an unknown name is
+        left to `_commit_hop`; only a shipped application's name is taken.
+        """
+        node = (
+            session.node_reference.family
+            if session.node_reference is not None
+            else session.reference.family
+        )
+        if node is None or node.kind != "node" or not (node.enter_pattern or node.return_pattern):
             return
-        # Set the `family` field in place rather than replacing the whole
-        # `CommandReference` -- a wholesale replacement here would silently
-        # drop any `learned` commands `_bind_link` already pre-populated
-        # from a past harvest of this same peer.
-        #
-        # No inline terminal note here -- the family name is shown in the
-        # status bar instead (`_refresh_status`), which already carries the
-        # peer callsign and link state right next to it. Announcing it a
-        # second time in the scrollback is the same duplication AGENTS.md's
-        # "one place for each fact" rule already covers for the tab label
-        # vs. the footer; the operator asked for this one to move the same
-        # way.
-        session.reference.family = family
-        self._refresh_status()
+        pending = session.line_buffer + text
+        *lines, tail = re.split(r"\r\n|\r|\n", pending)
+        session.line_buffer = tail[-512:]
+        try:
+            if session.application:
+                # The return line is followed by the node's prompt with no
+                # line end, so the unterminated tail counts too.
+                if node.return_pattern and any(
+                    re.search(node.return_pattern, line) for line in (*lines, tail)
+                ):
+                    session.reference = session.node_reference or CommandReference()
+                    session.node_reference = None
+                    session.application = ""
+                    session.line_buffer = ""
+                    self._refresh_status()
+                return
+            if not node.enter_pattern:
+                return
+            for line in lines:
+                match = re.search(node.enter_pattern, line)
+                if match is None:
+                    continue
+                name = match.group(1).upper()
+                family = application_named(name)
+                if family is None and session.hop_watch_task is not None:
+                    continue
+                session.node_reference = session.reference
+                session.application = name
+                context = family.harvest_context if family is not None else "application"
+                session.reference = CommandReference(
+                    family=family, learned=self._learned(session.current_node, context)
+                )
+                self._refresh_status()
+                return
+        except re.error:
+            log.warning("bad enter/return pattern in family %s", node.id)
 
     def _capture_harvest(self, session_key: str, data: bytes) -> None:
         """Feed one session's harvest capture window, when one is open.
@@ -2345,10 +2445,7 @@ class KissTermApp(App):
         # node's commands. See `_TerminalSession.current_node`.
         node = session.current_node or str(link.peer)
         self._harvested.add(node, names, context=context)
-        session.reference.learned = tuple(
-            Command(name=command.name, confidence="learned", context=command.context)
-            for command in self._harvested.records_for_callsign(node)
-        )
+        session.reference.learned = self._learned(node, self._context_of(session))
         self._to_terminal(
             session_key,
             "write_note",
@@ -3896,7 +3993,20 @@ class KissTermApp(App):
             where = node if node == str(self.link.peer) else f"{node} via {self.link.peer}"
             peer_part = f"{where} {self.link.state.value}"
             family = self.reference.family
-            if family is not None:
+            session = self._sessions.get(self._active_key())
+            if session is not None and session.application:
+                # Inside an application: say which, after the node it was
+                # reached through, so "BPQ32 > BPQMAIL" and a sysop's own
+                # "BPQ32 > CALENDAR" (no reference, no suggestions) are both
+                # explained where the operator is already looking.
+                node_family = (
+                    session.node_reference.family if session.node_reference else None
+                )
+                where_in = family.id.upper() if family is not None else session.application
+                if node_family is not None:
+                    where_in = f"{node_family.id.upper()} > {where_in}"
+                peer_part += f" {where_in}"
+            elif family is not None:
                 # Short id (e.g. "BPQ32", not the long-form family.name) --
                 # this is a status-bar field next to the callsign and link
                 # state, not a sentence. Replaces the old inline terminal

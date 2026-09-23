@@ -2551,9 +2551,13 @@ class HarvestConfirmScreen(ModalScreen[str | None]):
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
-    def __init__(self, peer: str) -> None:
+    def __init__(self, peer: str, context: str = "node") -> None:
         super().__init__()
         self._peer = peer
+        # Where the session is now (node prompt, BBS, other application),
+        # as tracked from the node's own "Connected to" lines. Only the
+        # default: the operator can see the prompt and knows better.
+        self._harvest_context = context if context in ("node", "bbs", "application") else "node"
 
     def compose(self) -> ComposeResult:
         from ..nodes.reference import describe_airtime
@@ -2578,7 +2582,7 @@ class HarvestConfirmScreen(ModalScreen[str | None]):
                     ("BBS commands", "bbs"),
                     ("Other application commands", "application"),
                 ],
-                value="node",
+                value=self._harvest_context,
                 allow_blank=False,
                 id="harvest-context",
             )
@@ -2844,7 +2848,8 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         current text is enough to show the result -- no extra plumbing back
         from the app needed.
         """
-        context = await self.app.push_screen_wait(HarvestConfirmScreen(self._peer))
+        default = self.app.harvest_context(self._session_key)  # type: ignore[attr-defined]
+        context = await self.app.push_screen_wait(HarvestConfirmScreen(self._peer, default))
         if not context:
             return
         harvest = self.query_one("#ref-harvest", Button)

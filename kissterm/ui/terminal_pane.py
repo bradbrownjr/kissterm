@@ -129,7 +129,6 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, RichLog, Static, Tab, Tabs
 
 from ..ansi import to_text
-from ..bbs import complete as complete_bbs
 from . import slideouts
 from ..monitor import sanitize
 from ..tx import DISABLED_MESSAGE
@@ -1125,34 +1124,14 @@ class TerminalPane(Container):
         if prefix == self._cycling_value and self._suggestion_matches:
             matches = self._suggestion_matches
         else:
-            command_matches = reference.complete(prefix) if reference is not None else ()
-            # The shipped BPQMail reference is a baseline, not a guess made
-            # from whatever a particular node happened to reveal. Offer its
-            # complete documented command set beside the session reference,
-            # so typing "L" can explain LM/LB/LL before the operator spends
-            # any channel time. A BBS command that happens to share a name
-            # with a node command appears once, with the node reference's
-            # richer per-session provenance taking precedence.
-            bbs_matches = complete_bbs(prefix)
-            bbs_by_name = {macro.name.upper(): macro for macro in bbs_matches}
-            # A learned BBS command proves the name is present on THIS
-            # station, but harvesting knows only names, not meanings. Keep
-            # that local command when it already has a description; otherwise
-            # replace its display entry with the shipped helper's explained
-            # one. The command text is identical, and this avoids the
-            # unhelpful duplicate `LM` rows a simple append would create.
-            matches = tuple(
-                bbs_by_name.get(command.name.upper(), command)
-                if not command.summary
-                else command
-                for command in command_matches
-            )
-            seen = {command.name.upper() for command in matches}
-            matches += tuple(
-                macro
-                for macro in bbs_matches
-                if macro.name.upper() not in seen
-            )
+            # One source: the reference for the context the session is in
+            # (`KissTermApp._track_application` swaps it when the node hands
+            # the session to its BBS and back). Suggesting BPQMail's "L" at a
+            # node prompt, where L lists links, is a wrong command offered as
+            # help -- the mix docs/ROADMAP.md P0.3 removed. An unidentified
+            # prompt suggests only what this station itself was heard to
+            # offer (a harvest), never another system's commands.
+            matches = reference.complete(prefix, limit=20) if reference is not None else ()
             self._suggestion_matches = matches
             self._suggestion_index = 0
             self._cycling_value = None

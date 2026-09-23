@@ -234,11 +234,20 @@ class CommandReference:
         An empty prefix returns nothing rather than everything: suggesting the
         whole command set the moment the operator focuses an empty input is
         noise, not help.
+
+        Sysop commands are left out: they are listed in the reference screen
+        so an operator knows they exist, but offering PASSWORD or KH to
+        someone typing at a public node is offering a command that will be
+        refused, on the air.
         """
         if not prefix.strip():
             return ()
-        matches = [c for c in self.commands if c.matches(prefix.strip())]
-        matches.sort(key=lambda c: (len(c.name), c.name))
+        needle = prefix.strip().upper()
+        matches = [c for c in self.commands if not c.sysop and c.matches(needle)]
+        # Shortest first, and within one length the reference file's own
+        # order, which puts the everyday commands (L, LR, LM) ahead of the
+        # rarer ones (L$) rather than sorting punctuation to the top.
+        matches.sort(key=lambda c: (c.name.upper() != needle, len(c.name)))
         return tuple(matches[:limit])
 
     def find(self, text: str) -> tuple[Command, ...]:

@@ -284,9 +284,6 @@ help and auto-complete."
 
 Work items:
 
-- [ ] Context switch in `TerminalPane` suggestions: node, application or
-  unknown, from passive prompt detection. At an unknown prompt, show nothing
-  rather than guess.
 - [ ] Harvest overlay semantics as described above, replacing the current
   "harvested alongside" merge.
 
