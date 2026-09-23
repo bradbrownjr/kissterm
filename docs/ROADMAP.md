@@ -914,3 +914,55 @@ the send/receive item itself.
   concrete filter shape once that item is scoped, including which way
   kissterm's own default should go, rather than building one
   undifferentiated "get everything" collector.
+
+## P12 — Future idea: FSQCALL through fldigi
+
+**Concept only, not scheduled.** Why it is here: the operator's local
+emcomm team sends sitreps and small files over FSQ instead of packet,
+while the ARES team they also support in the next county uses packet
+and APRS. If kissterm could reach both, one operator would need only one
+client for both teams.
+
+**What FSQCALL is.** FSQ is keyboard-to-keyboard directed messaging, not a
+connected mode. Every transmission starts with `sendercall:xx` (the call in
+lowercase, then a CCITT CRC8 over the call and colon, as two hex digits),
+followed by an addressee (a callsign, `allcall` or `cqcqcq`) and a
+one-character trigger: space means chat, `?` SNR report, `$` heard list,
+`#` save message/file, `;` relay, `!`/`~` repeat, `&` QTC, `@` position,
+`|` alert. A header with nothing after it is a "sounding" (a beacon).
+There is no link state and no ack, so it is closer to APRS messaging than
+to a BBS session.
+
+**Route.** The original FSQCALL (ZL2AFP, Windows) has no network interface.
+fldigi does: XML-RPC on 7362 (`modem.set_by_name`, `text.add_tx` +
+`main.tx`/`main.abort`, poll `rx.get_data`). stdlib `xmlrpc.client` is
+enough, so no new dependency. fldigi's KISS port (7342) is the wrong tool:
+it carries fldigi's own data frames, which an FSQCALL station cannot decode.
+
+**Shape.** A `SessionTransport` (`transport/fldigi.py`) whose "connect" is
+purely local: it picks the addressee, keys nothing, and every committed line
+goes out as `<addressee> <text>` through `Session.send`, so the transmit gate
+applies. Also a pure header/CRC8 parser feeding a heard list, and the
+directed commands offered as fill-the-input templates that never send on
+selection (the APRS service picker's rule). Manual config only: probing
+XML-RPC is a real request, so it is out of bounds for discovery.
+
+**Open questions -- settle against a running fldigi before any design work:**
+
+- UNVERIFIED: what `rx.get_data` returns in directed mode. fldigi prints only
+  traffic addressed to this station and may strip the header, which would
+  make a heard list impossible from that stream. Undirected mode may give raw
+  text.
+- UNVERIFIED: whether text sent through `text.add_tx` gets fldigi's automatic
+  `mycall:crc` header the way typed text does.
+- **fldigi transmits on its own.** In directed mode it answers `?`, `$`, `@`
+  etc. itself and can sound on a timer, none of which passes through
+  kissterm's gate. At the least this has to be stated on screen and in
+  SETUP.md, per the unattended-transmission rules.
+- FSQ is slow (FSQ-3 is about 30 WPM, so 100 characters take about 20 s of
+  airtime). The paste cap and any file-send UI need tighter limits than
+  packet.
+
+First step: dump `rx.get_data` and send one `text.add_tx` line against a real
+fldigi in FSQ mode. Tests use a fake XML-RPC server, since fldigi cannot
+decode FSQ without audio.
