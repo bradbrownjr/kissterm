@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-23] — Mail: reading BPQMail's replies
+
+### New Features
+
+- **BPQMail parser (`kissterm/mail/bpqmail.py`)**, written from the
+  operator's captured sessions with WS1EC-2: listing lines, a read split
+  into headers, `R:` routing lines and body, page prompts dropped, the
+  year supplied for `Date/Time:`. A read counts as complete only when
+  `[End of Message #N from CALL]` arrives; an aborted read is never
+  filed. The captures are test fixtures in `tests/unit/data/bpqmail/`.
+  No session driver yet.
+
+**Files:** `kissterm/mail/bpqmail.py`, `kissterm/mail/AGENTS.md`,
+`tests/unit/test_mail_bpqmail.py`, `tests/unit/data/bpqmail/`,
+`docs/ROADMAP.md`
+
 ## [2026-09-23] — Mail: the message store
 
 ### New Features

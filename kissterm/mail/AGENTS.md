@@ -3,6 +3,8 @@
 The message store for Mail, Bulletins and Files (ROADMAP P2). No UI, no
 network, no transport: only files under one root (`config.mail_path()`).
 Tests: `tests/unit/test_mail_store.py`, with `_isolate` and `tmp_path`.
+`bpqmail.py` parses BPQMail replies; it is written from the real captures in
+`tests/unit/data/bpqmail/` -- add a capture before changing a pattern.
 
 - **The files are the truth.** One `.txt` per message (`message.py`);
   `.index.json` is a cache that `refresh()` rebuilds. Never store a fact only
@@ -17,3 +19,4 @@ Tests: `tests/unit/test_mail_store.py`, with `_isolate` and `tmp_path`.
   names can come from remote data (bulletin categories). Dotfiles and symlinks are skipped.
 - Header values are one line; `format_message` strips CR/LF so a remote
   subject cannot forge a header.
+- **A BBS read is filed only when its end marker arrived** (`BbsRead.complete`).

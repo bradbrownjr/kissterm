@@ -1,0 +1,37 @@
+From: N4SD
+To: WX
+Type/Status: BN
+Date/Time: 21-Sep 08:37Z
+Bid: 22806_N4SD
+Title: Tropical Storm Fay Discussion Number   8
+
+R:260921/1105Z 7442@W1BKW.#OXFO.ME.USA.NOAM BPQ6.0.25
+R:260921/1104z @:N2MH.#NNJ.NJ.USA.NOAM [via AREDN Mesh] jnos 2.0p $:22806_N4SD
+
+R:260921/1104Z 37494@N2MH4.#SENC.NC.USA.NOAM LinBPQ6.0.24
+R:260921/1104Z 27457@N3MEL.#EPA.PA.USA.NOAM LinBPQ6.0.25
+R:260921/0837Z 22806@N4SD.#TIDE.VA.USA.NOAM BPQ6.0.24
+
+WTNT41 KNHC 210836
+TCDAT1
+ 
+Tropical Storm Fay Discussion Number   8
+NWS National Hurricane Center Miami FL       AL062026
+900 AM GMT Mon Sep 21 2026
+<A>bort, <CR> Continue..>
+120H  26/0600Z...DISSIPATED
+ 
+$$
+Forecaster Cangialosi
+ 
+
+------
+Received by NOAA Satellite Downlink at N4SD
+More Info: N4SD@N4SD.#TIDE.VA.USA.NOAM
+
+
+
+
+
+[End of Message #2686 from N4SD]
+<A>bort, <CR> Continue..>

@@ -1,0 +1,67 @@
+[BPQ-6.0.23.1-B2FWIHJM$]
+Hello Bradley. Welcome back to WS1EC-2 BBS. 
+Latest Message is 2742, Last listed is 1176.
+You have 2 messages waiting for you.
+de WS1EC#>
+From: HP2DFA
+To: AMSAT
+Type/Status: BN
+Date/Time: 23-Sep 09:06Z
+Bid: 2306_HP2DFA
+Title: ARISS Contact Schedule as of 2026-09-23 05:00 UTC
+
+R:260923/0943z @:KC1UIX.#YORK.ME.USA.NOAM $:2306_HP2DFA
+R:260923/0943z @:N2MH.#NNJ.NJ.USA.NOAM [via AREDN Mesh] jnos 2.0p $:2306_HP2DFA
+R:260923/0943Z 2194@NS2B.#WNY.NY.USA.NOAM LinBPQ6.0.25
+R:260923/0942Z 18119@GB7BED.#21.GBR.EU LinBPQ6.0.25
+R:260923/0941Z 2035@K1AJD.#AUG.GA.USA.NOAM LinBPQ6.0.25
+R:260923/0941Z 22624@LU9DCE.TOR.BA.ARG.SOAM LinBPQ6.0.25
+R:260923/0937Z 54431@PY2BIL.SP.BRA.SOAM LinBPQ6.0.25
+R:260923/0906Z 2306@HP2DFA.#COL.PAN.CEAM BPQ6.0.24
+Upcoming ARISS Contact Schedule as of 2026-09-23 05:00 UTC
+
+Announcement of the ARICA-2...
+aj9n＠aol.com
+22 Sep 2026 9:54 p.m.
+Upcoming ARISS Contact Schedule as of 2026-09-23 05:00 UTC
+<A>bort, <CR> Continue..>
+Quick list of scheduled contacts and events:
+
+MAOU “School No. 200, Belogorsk, Russia, direct via RKØJ (***)
+The ISS callsign is presently scheduled to be RSØISS
+
+The downlink frequency is presently scheduled to be 145.800 MHz
+The latest information on the operation mode can be found at https://www.ariss.org/current-status-of-iss-stations.html
+The scheduled crewmember is Anna Kikina and Andrey Fedyaev
+
+The ARISS mentor is RV3DR
+
+Contact was successful for Tue 2026-09-22 08:19 UTC (***)
+Congratulations to the MAOU “School No. 200” students, Anna and Andrey, mentor RV3DR, and ground station RKØJ (***)
+Atrium Health Levine Children’s Hospital, Charlotte, NC, telebridge via ON4ISS
+
+The ISS callsign is presently scheduled to be OR4ISS
+The downlink frequency is presently scheduled to be 145.800 MHz
+<A>bort, <CR> Continue..>
+The latest information on the operation mode can be found at https://www.ariss.org/current-status-of-iss-stations.html
+The scheduled crewmember is Jack Hathaway KJ5NIV
+
+The ARISS mentor is K4RGK
+
+Contact is go for: Wed 2026-09-23 16:51:40 UTC 80 deg
+Collège Roger Martin du Gard, Belleme, France, direct via F6KCO
+
+The ISS callsign is presently scheduled to be OR4ISS
+The downlink frequency is presently scheduled to be 145.800 MHz
+The latest information on the operation mode can be found at https://www.ariss.org/current-status-of-iss-stations.html
+
+The scheduled crewmember is Sophie Adenot KJ5LTN
+
+The ARISS mentor is F6ICS
+Contact is go for: Fri 2026-09-25 13:38:52 UTC 38 deg
+
+Liceo Bicentenario Mary Graham, Valparaíso, Chile, direct via CE2CQ
+<A>bort, <CR> Continue..>
+
+Output aborted
+de WS1EC#>

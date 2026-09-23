@@ -1,0 +1,26 @@
+From: N4SD
+To: WX
+Type/Status: BN
+Date/Time: 22-Sep 08:42Z
+Bid: 22888_N4SD
+Title: Tropical Storm Fay Discussion Number  12
+R:260922/1054Z 7492@W1BKW.#OXFO.ME.USA.NOAM BPQ6.0.25
+R:260922/1053z @:N2NOV.#RICH.NY.USA.NOAM $:22888_N4SD
+R:260922/1050Z 27597@N3MEL.#EPA.PA.USA.NOAM LinBPQ6.0.25
+R:260922/1039Z 8506@KA3VSP.DE.USA.NOAM BPQ6.0.25
+R:260922/0842Z 22888@N4SD.#TIDE.VA.USA.NOAM BPQ6.0.24
+
+WTNT41 KNHC 220841
+TCDAT1
+ 
+Tropical Storm Fay Discussion Number  12
+NWS National Hurricane Center Miami FL       AL062026
+900 AM GMT Tue Sep 22 2026
+ 
+Deep convection associated with Fay has completely dissipated, 
+leaving the low-level center fully exposed on satellite imagery. 
+Given the lack of organized deep convection over the past several 
+hours, Fay's remaining time as a tropical cyclone is limited unless 
+<A>bort, <CR> Continue..>
+
+Output aborted

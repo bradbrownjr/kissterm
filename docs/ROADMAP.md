@@ -212,6 +212,9 @@ anything taken from its behaviour rather than from documentation
   by the BBS's callsign rather than the route (`MessageStore.find`), so a later session lists new mail and reads only
   that. Winlink needs no equivalent, because the CMS delivers each
   message once. Large.
+  *Progress:* the reply parser (`kissterm/mail/bpqmail.py`) is done from
+  WS1EC-2 captures. Still to capture: a private message read to its end,
+  `K`, and the empty replies to `LM` and `R`.
 - [ ] **Bulletin collection** into Bulletins/<category>, using the
   same session with a category or keyword filter. Medium.
 
