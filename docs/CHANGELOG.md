@@ -3,6 +3,45 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — BPQ32, BPQMail and BPQChat references from the published docs
+
+### New Features
+
+- **BPQMail and BPQChat have their own command references**
+  (`kissterm/nodes/data/bpqmail.toml`, `bpqchat.toml`), as *application*
+  families: reached from a node, with their own command language. BPQMail
+  lists every user command in G8BPQ's BBS user-command page and in the
+  WS1EC-2 BBS's own `?` reply (`LD`, `LF`, `LH`, `LK`, `LL`, `B`/`BYE`,
+  `RMR`, `SB`, `ST`, `HOMEBBS` and the rest), with sysop commands marked.
+  BPQChat lists the `/` commands from the chat server page. Each command
+  records its source URL.
+
+### Improvements
+
+- **The BPQ32 node file is complete against G8BPQ's node command page**:
+  abbreviations as documented, and the missing commands added (LINKS, STATS,
+  VERSION, NRR, LISTEN, UNPROTO, PACLEN and others). Two entries written from
+  memory were wrong: PING is an IP ping, not a node reachability test (that is
+  NRR), and CQ works only in LISTEN mode. HELP is a sysop's help file,
+  separate from `?`.
+- **The BBS helper (Ctrl+R) reads BPQMail's reference file** instead of its
+  own copy in `kissterm/bbs.py`, so the helper and the suggestions describe
+  a command in the same words.
+
+### Bug Fixes
+
+- **A BPQ32 node's prompt is recognised from what the node sends.** The
+  pattern expected `CALL-SSID:ALIAS}`; BPQ32 sends `ALIAS:CALL-SSID}`
+  (`CCEMA:WS1EC-15}`), so it never matched, and the test fixture had been
+  written to match the pattern rather than a node. CCEMA was identified only
+  through its sysop's `de WS1EC>` sign-off.
+
+**Files:** `kissterm/nodes/data/bpq32.toml`, `kissterm/nodes/data/bpqmail.toml`,
+`kissterm/nodes/data/bpqchat.toml`, `kissterm/nodes/reference.py`,
+`kissterm/bbs.py`, `tests/unit/test_nodes.py`, `tests/unit/test_bbs.py`,
+`tests/pilot/test_terminal_ux.py`, `tests/pilot/test_connect_scripts.py`,
+`docs/CHANGELOG.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — README's key table is generated from the registry
 
 ### Improvements

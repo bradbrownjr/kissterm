@@ -8,6 +8,8 @@ that reasoning down so it does not get "optimised" away later.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from kissterm.nodes import (
@@ -18,7 +20,12 @@ from kissterm.nodes import (
     load_all,
     load_family,
 )
-from kissterm.nodes.reference import CONFIDENCE_ORDER, describe_airtime, identify_family
+from kissterm.nodes.reference import (
+    CONFIDENCE_ORDER,
+    application_named,
+    describe_airtime,
+    identify_family,
+)
 
 
 def test_shipped_references_load():
@@ -39,8 +46,11 @@ def test_every_command_declares_a_summary_and_confidence():
 
 
 def test_bpq_prompt_is_recognised():
-    """Both prompt shapes seen on real BPQ nodes."""
-    for prompt in ("W1AW-7:CCEMA}", "de WS1EC-15>"):
+    """ALIAS:CALL} as WS1EC-15 sends it and G8BPQ documents it, and the
+    CTEXT sign-off seen on WS1EC-15. The earlier fixture, "W1AW-7:CCEMA}",
+    had the SSID on the alias side -- a shape no BPQ32 node sends -- and the
+    pattern written to match it never matched the real node."""
+    for prompt in ("CCEMA:WS1EC-15} ", "NOTTS:G8BPQ-3}", "de WS1EC-15>"):
         family = identify_family(prompt)
         assert family is not None and family.id == "bpq32", f"missed {prompt!r}"
 
@@ -87,7 +97,7 @@ def test_thenet_x1j_is_deliberately_not_auto_detected():
     assert family.detect_prompt == ()
     assert family.detect_banner == ()
     assert identify_family("THENET:G8KBB-5>") is None
-    assert identify_family("W1AW-7:CCEMA}").id == "bpq32"
+    assert identify_family("CCEMA:WS1EC-15}").id == "bpq32"
     assert identify_family("cmd:").id == "tnc2"
     assert identify_family("Welcome to W1AW JNOS 2.0k\n").id == "jnos"
 
@@ -238,3 +248,40 @@ def test_describe_airtime_is_human():
     assert "second" in describe_airtime(2048)
     assert "minute" in describe_airtime(16384)
     assert airtime_seconds(0) == 0.0
+
+
+def test_bpq_application_banners_are_the_applications_not_the_node():
+    """BPQMail's SID and prompt name the BBS; nothing there is a node command."""
+    for text in ("[BPQ-6.0.23.1-B2FWIHJM$]", "de WS1EC#>"):
+        family = identify_family(text)
+        assert family is not None and family.id == "bpqmail", f"missed {text!r}"
+
+
+def test_a_node_names_the_application_it_hands_over_to():
+    bpq = load_family("bpq32")
+    match = re.search(bpq.enter_pattern, "CCEMA:WS1EC-15} Connected to BBS", re.MULTILINE)
+    assert match is not None
+    assert application_named(match.group(1)).id == "bpqmail"
+    assert application_named("CHAT").id == "bpqchat"
+    # A sysop's own application has no shipped reference, and none is guessed.
+    assert application_named("CALENDAR") is None
+
+
+def test_every_command_names_its_source():
+    """Every shipped entry can be checked against where it came from."""
+    for family in load_all():
+        for command in family.commands:
+            if command.confidence in ("documented", "verified") and family.source:
+                assert command.source, f"{family.id}:{command.name} has no source"
+
+
+def test_applications_carry_their_own_context():
+    assert {c.context for c in load_family("bpqmail").commands} == {"bbs"}
+    assert {c.context for c in load_family("bpqchat").commands} == {"application"}
+    assert {c.context for c in load_family("bpq32").commands} == {"node"}
+
+
+def test_sysop_commands_are_marked():
+    assert next(c for c in load_family("bpq32").commands if c.name == "PASSWORD").sysop
+    assert next(c for c in load_family("bpqmail").commands if c.name == "KH").sysop
+    assert not next(c for c in load_family("bpqmail").commands if c.name == "LH").sysop

@@ -8,13 +8,18 @@ operator to inspect and commit through the normal terminal send path.
 
 The data is intentionally separate from the future general Python-plugin
 system: these are fixed, documented command shapes, not hooks or automation.
-Adding a new dialect is a data addition here, with its provenance recorded.
+The commands themselves live in the shipped reference files
+(`kissterm/nodes/data/*.toml`, `helper_id` entries), so the helper, the send
+line's suggestions and the Help tab describe a command in the same words.
 """
 
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import lru_cache
+
+from .nodes.reference import load_family
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,38 +74,44 @@ class Profile:
     macros: tuple[Macro, ...]
 
 
-# BPQMail's documented interactive command shapes. Their names were confirmed
-# in a 2026-09-10 WS1EC BPQ BBS help capture; meanings and syntax are cross-
-# checked against the saved BPQ user-command reference. Do not generalize them
-# to another BBS dialect without its own capture or documentation.
-BPQMAIL = Profile(
-    id="bpqmail",
-    name="BPQMail / LinBPQ BBS",
-    note="Commands are put in the compose box only; check the BBS prompt before sending.",
-    macros=(
-        Macro("list-new", "List new mail", "List new messages", "L"),
-        Macro("list-new-oldest", "List new, oldest first", "List new messages, oldest first", "LR"),
-        Macro("list-mine", "List my mail", "List Mine", "LM"),
-        Macro("list-new-status", "List new-status mail", "List messages with N status", "LN"),
-        Macro("list-held", "List held mail", "List Held messages", "LH"),
-        Macro("list-killed", "List killed mail", "List Killed messages", "LK"),
-        Macro("list-forwarded", "List forwarded mail", "List Forwarded messages", "LF"),
-        Macro("list-delivered", "List delivered mail", "List Delivered messages", "LD"),
-        Macro("list-bulletins", "List bulletins", "List Bulletins", "LB"),
-        Macro("list-personal", "List personal mail", "List Personal messages", "LP"),
-        Macro("list-traffic", "List NTS traffic", "List Traffic (NTS messages)", "LT"),
-        Macro("list-categories", "List bulletin categories", "List active bulletin TO fields", "LC"),
-        Macro("list-last", "List last messages", "List the last N messages", "LL {number}", ("number",)),
-        Macro("bye", "Bye", "BYE — disconnect from BBS", "B", aliases=("BYE",)),
-        Macro("read", "Read message", "Read one numbered message", "R {number}", ("number",)),
-        Macro("send", "Send mail", "Start a personal message to a callsign", "SP {callsign}", ("callsign",)),
-    ),
-)
+def _from_family(family_id: str, note: str) -> Profile | None:
+    """A helper profile built from a shipped reference's helper entries.
+
+    The helper used to carry its own copy of BPQMail's commands, and the
+    two copies described the same commands in different words. Now the
+    reference file (`kissterm/nodes/data/bpqmail.toml`) is the one place a
+    BBS command is described; an entry with a `helper_id` is also offered
+    here, with the same summary and the same provenance.
+    """
+    family = load_family(family_id)
+    if family is None:
+        return None
+    macros = tuple(
+        Macro(
+            id=c.helper_id,
+            label=c.helper_label or c.name,
+            summary=c.summary,
+            template=c.template or c.name,
+            fields=c.fields,
+            confidence=c.confidence,
+            aliases=c.aliases,
+        )
+        for c in family.commands
+        if c.helper_id
+    )
+    if not macros:
+        return None
+    return Profile(id=family.id, name=family.name, note=note, macros=macros)
 
 
+@lru_cache(maxsize=None)
 def profiles() -> tuple[Profile, ...]:
     """The shipped BBS dialects, in picker order."""
-    return (BPQMAIL,)
+    bpqmail = _from_family(
+        "bpqmail",
+        "Commands are put in the compose box only; check the BBS prompt before sending.",
+    )
+    return (bpqmail,) if bpqmail is not None else ()
 
 
 def profile(profile_id: str) -> Profile | None:

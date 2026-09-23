@@ -1,90 +1,108 @@
 # BPQ32 / LinBPQ node command reference.
 #
-# provenance: the standard node command set is from G8BPQ's LinBPQ/BPQ32
-# documentation and long-standing on-air convention. The prompt and banner
-# shapes are confirmed against a real deployed node configuration (WS1EC-15,
-# NODEALIAS CCEMA) in the sibling bpq-apps repository.
+# SOURCES, strongest first:
+#   verified   -- present in a real node's own "?" reply. WS1EC-15 (alias
+#                 CCEMA), 2026-09-10, answered "?" with:
+#                 "CCEMA:WS1EC-15} BBS CHAT AI ANTENNA BANDS CALENDAR ... RMS
+#                 ... APPS CONNECT BYE INFO NODES PORTS ROUTES USERS MHEARD".
+#                 The same eight core commands were independently confirmed
+#                 in 12 of 15 real "?" replies in the sibling bpq-apps repo's
+#                 node-map crawl (utilities/nodemap.json, 2026-08-25).
+#   documented -- G8BPQ's "G8BPQ NODE COMMANDS" page (updated July 2023):
+#                 https://www.cantab.net/users/john.wiseman/Documents/NodeCommands.html
+#                 and the older node commands page, for abbreviation rules:
+#                 https://www.cantab.net/users/john.wiseman/Documents/Commands.htm
+#   recalled   -- NOT found in either document or any capture. Shown flagged.
 #
-# [2026-09-10] The commands marked confidence = "verified" below were
-# confirmed for real: a live session against WS1EC-15/CCEMA sent "?" and
-# received "CCEMA:WS1EC-15} BBS CHAT AI ANTENNA BANDS CALENDAR CALLOUT DICT
-# DX FORMS FORTUNE GOPHER GYX NEWS PREDICT REPEATER QRZ RMS SPACE SYSINFO
-# TEST WALL WIKI WX WWW APPS CONNECT BYE INFO NODES PORTS ROUTES USERS
-# MHEARD" -- every shipped core-node command below appears in it under its
-# long form. The names NOT in that list (AI, ANTENNA, BANDS, CALENDAR,
-# CALLOUT, DICT, DX, FORMS, FORTUNE, GOPHER, GYX, NEWS, PREDICT, REPEATER,
-# QRZ, RMS, SPACE, SYSINFO, TEST, WALL, WIKI, WX, WWW, APPS) are this one
-# node's own local `APPLICATION` additions, not stock BPQ32 -- exactly the
-# WS1EC-15 example this package's own docstring already names as what
-# harvesting (not this shipped file) is for, so they are deliberately not
-# added here. STATS/PING/CQ/T were not in that node's "?" output either,
-# but a single node's configuration proves nothing about their absence
-# elsewhere, so they stay at "recalled" rather than being downgraded.
+# ABBREVIATIONS: the older page says "all other commands can be abbreviated to
+# the first character of the command" and application names "must be entered
+# in full". The newer page capitalises the part of each command that must be
+# typed ("PAClen", "LISten", "IDLEtime"); `abbrev` below records that
+# capitalised prefix. It is typography, not a sentence in the document, so
+# treat the longer abbreviations as documented-by-layout.
 #
-# [2026-09-10, cross-check] The same 8 core commands (CONNECT, BYE, INFO,
-# NODES, PORTS, ROUTES, USERS, MHEARD) were independently confirmed, in
-# their long form, by 12 of 15 real captured "?" replies in the sibling
-# bpq-apps repo's own node-map crawl (utilities/nodemap.json,
-# nodemap_version 1.9.1, 2026-08-25) -- a single-node harvest is now a
-# 13-node one. The other 3 real nodes in that crawl (W1KRP-1, WD1F-1,
-# W1ZE-1) returned single-letter-with-parenthetical-long-form command sets
-# ("B(ye)", "J(heard)", "[AEA PK-232M]") that do not match this family's
-# `detect_prompt`/`detect_banner` at all -- they read as a PBBS-style
-# mailbox and an AEA PK-232 TNC mailbox respectively, not BPQ32, despite
-# being tagged "type": "BPQ" by that crawl's own heuristic. See
-# docs/ROADMAP.md P8's "more families" item: worth a real family of their
-# own eventually, but 2-3 samples from one crawl is not enough to ship one
-# confidently yet (AGENTS.md: "a wrong family shown confidently is worse
-# than 'unknown node'"). RMS is added below as `confidence = "documented"`
-# (same treatment as BBS/CHAT) on the strength of that crawl too: 9 of the
-# 15 real nodes (60%) list it as a configured application, which is common
-# enough across independently-run nodes to be worth naming, unlike the
-# clearly node-specific additions (CALENDAR, GYX, EOC, ...) left out above.
+# CORRECTIONS made against the documentation on 2026-09-23 (previously
+# "recalled"): PING is an IP ping on nodes running the IP gateway, not a
+# node reachability test (that is NRR); CQ works only in LISTEN mode; HELP
+# shows a sysop-written help file and is a separate command from "?".
 #
-# Anything marked confidence = "recalled" has NOT been checked against current
-# documentation or a live node. Correct it from a real session rather than
-# from memory -- see docs/ROADMAP.md P8.
+# Local APPLICATION additions (WS1EC-15's CALENDAR, WALL, GOPHER, ...) are one
+# sysop's menu, not stock BPQ32, and belong to harvesting, not this file.
+# BBS, CHAT and RMS are named because they are common across independently
+# run nodes (RMS on 9 of the 15 crawled nodes).
 
 [family]
 id = "bpq32"
 name = "BPQ32 / LinBPQ node"
+kind = "node"
 confidence = "documented"
+source = "https://www.cantab.net/users/john.wiseman/Documents/NodeCommands.html"
+harvest_context = "node"
 note = """
 Most common node software on VHF packet. Applications (BBS, CHAT, and any
-local additions) are configured per node, so the command list here covers the
-node itself -- use "Learn from node" once per node to pick up its own menu.
+local additions) are configured per node and must be typed in full. Other
+commands accept the abbreviation shown.
 """
 
-# The node prompt is CALL:ALIAS} or "de CALL>", both seen on real systems.
-detect_prompt = ['^[A-Z0-9]{1,6}(-\d{1,2})?:[A-Z0-9]{1,6}\}\s*$', '^de [A-Z0-9]{1,6}(-\d{1,2})?>\s*$']
-detect_banner = ['BPQ', 'LinBPQ']
+# The node answers every command with its ALIAS:CALL} prefix -- "CCEMA:WS1EC-15}"
+# on the real node above, "NOTTS:G8BPQ-3}" in the documentation. "de CALL>" is
+# a sysop's own CTEXT on WS1EC-15, kept because it is how that node is first
+# recognised before any command is typed.
+detect_prompt = ['^[A-Z0-9#_]{1,6}:[A-Z0-9]{1,6}(-\d{1,2})?\}', '^de [A-Z0-9]{1,6}(-\d{1,2})?>\s*$']
+detect_banner = ['LinBPQ']
+# "CCEMA:WS1EC-15} Connected to BBS" (WS1EC-15, 2026-09-10): the node hands
+# the session to an application and says which. The name is matched against
+# each application family's `entered_by`.
+enter_pattern = '^[A-Z0-9#_]{1,6}:[A-Z0-9]{1,6}(?:-\d{1,2})?\} Connected to ([A-Z0-9]+)\s*$'
+# Coming back from an application ("Returned to Node" in Commands.htm).
+return_pattern = 'Returned to Node'
 
 [[commands]]
 name = "?"
-aliases = ["H", "HELP"]
-summary = "List the commands this node accepts"
+summary = "List the node's commands, including its applications"
 usage = "?"
-detail = "Cheap on a node, expensive on a verbose BBS -- see the airtime note in the reference pane."
+detail = "Short on a node. On a verbose BBS the same key can cost a minute of airtime."
 confidence = "verified"
+
+[[commands]]
+name = "HELP"
+abbrev = "H"
+summary = "Show the sysop's help file, if the node has one"
+usage = "HELP"
+detail = "Displays NodeHelp.txt when the sysop provided one. \"?\" is the command list."
 
 [[commands]]
 name = "B"
 aliases = ["BYE"]
+abbrev = "B"
 summary = "Disconnect from the node"
 usage = "B"
 confidence = "verified"
 
 [[commands]]
+name = "QUIT"
+abbrev = "Q"
+summary = "Disconnect from the node (same as BYE)"
+usage = "QUIT"
+
+[[commands]]
 name = "C"
 aliases = ["CONNECT"]
-summary = "Connect onward to another station or node"
-usage = "C <call>  |  C <port> <call>"
-detail = "With a port number, connects out on that radio port rather than via the node's routing."
+abbrev = "C"
+summary = "Connect onward to a node, alias or station"
+usage = "C <call|alias>  |  C <port> <call> [v <digi> ...]  |  C <port> !<call>  |  ... S"
+detail = """
+A call in the NODES list needs no port; any other station needs the port number \
+first, optionally with digipeaters after v. ! before the call forces a level-2 \
+connect. S at the end (STAY) returns you to this node when the far end \
+disconnects, instead of dropping you.\
+"""
 confidence = "verified"
 
 [[commands]]
 name = "I"
 aliases = ["INFO"]
+abbrev = "I"
 summary = "Show the node's information text"
 usage = "I"
 confidence = "verified"
@@ -92,14 +110,19 @@ confidence = "verified"
 [[commands]]
 name = "N"
 aliases = ["NODES"]
-summary = "List known NET/ROM nodes"
-usage = "N  |  N <call>"
-detail = "The bare form can be a long list on a busy network -- several thousand bytes, which is minutes of airtime at 1200 baud. Prefer N <call>."
+abbrev = "N"
+summary = "List known NET/ROM nodes, or one node's routes"
+usage = "N  |  N C  |  N <filter*>  |  N <call|alias>  |  N T  |  N VIA <call>  |  N >nnn"
+detail = """
+Bare N can be thousands of bytes on a busy network -- minutes at 1200 baud. \
+Prefer N <call>, a wildcard filter (N GB7*), or N >nnn for quality nnn and above.\
+"""
 confidence = "verified"
 
 [[commands]]
 name = "P"
 aliases = ["PORTS"]
+abbrev = "P"
 summary = "List the node's radio ports"
 usage = "P"
 confidence = "verified"
@@ -107,6 +130,7 @@ confidence = "verified"
 [[commands]]
 name = "R"
 aliases = ["ROUTES"]
+abbrev = "R"
 summary = "List neighbour nodes and route quality"
 usage = "R"
 confidence = "verified"
@@ -114,57 +138,190 @@ confidence = "verified"
 [[commands]]
 name = "U"
 aliases = ["USERS"]
+abbrev = "U"
 summary = "Show who is connected to the node right now"
 usage = "U"
 confidence = "verified"
 
 [[commands]]
 name = "MH"
-aliases = ["MHEARD"]
-summary = "Stations the node has heard, most recent first"
-usage = "MH  |  MH <port>"
+aliases = ["MHEARD", "MHV", "MHU", "MHL"]
+abbrev = "M"
+summary = "Stations the node has heard on a port"
+usage = "MH <port> [call-prefix]"
+detail = "MHV is a verbose layout; MHU and MHL show clock time (UTC or local) instead of time since heard."
 confidence = "verified"
 
 [[commands]]
-name = "STATS"
-summary = "Node traffic and link statistics"
-usage = "STATS"
-confidence = "recalled"
+name = "APRS"
+summary = "APRS stations the node has heard, or its APRS messages"
+usage = "APRS  |  APRS <port>  |  APRS <call-prefix>  |  APRS MSGS  |  APRS SENT"
+detail = "MSGS shows received APRS messages, SENT the node's sent ones. SEND, ENABLEIGATE, DISABLEIGATE and RECONFIG need sysop status."
 
 [[commands]]
-name = "PING"
-summary = "Test reachability of another node"
-usage = "PING <call>"
-confidence = "recalled"
+name = "ATTACH"
+abbrev = "A"
+summary = "Take a single-user port (WINMOR, Pactor) before connecting on it"
+usage = "ATTACH <port>"
+
+[[commands]]
+name = "LINKS"
+abbrev = "L"
+summary = "List active AX.25 sessions, users and node links"
+usage = "LINKS"
+
+[[commands]]
+name = "STATS"
+abbrev = "S"
+summary = "Node and port counters"
+usage = "S  |  S <port>  |  S S"
+detail = "S alone shows system counters and the first seven ports; S <port> starts from that port; S S shows only system counters."
+
+[[commands]]
+name = "VERSION"
+abbrev = "V"
+summary = "The node software's version"
+usage = "VERSION"
+
+[[commands]]
+name = "NRR"
+summary = "Trace the route to a NET/ROM node and back"
+usage = "NRR <call>"
+detail = "Sends a NET/ROM Record Route message; the reply shows the path taken, if the target supports NRR."
+
+[[commands]]
+name = "LISTEN"
+abbrev = "LIS"
+summary = "Watch traffic on a port and take calls there"
+usage = "LISTEN <port(s)>  |  LISTEN OFF"
+detail = """
+While listening on one port, callers reach you at your call with the SSID \
+inverted NET/ROM style (-15 if you connected as SSID 0), and CQ can announce \
+you. You cannot connect elsewhere while listening.\
+"""
 
 [[commands]]
 name = "CQ"
-summary = "Call CQ to other users connected to the node"
+summary = "Send a CQ beacon while in LISTEN mode on one port"
 usage = "CQ <text>"
-confidence = "recalled"
+
+[[commands]]
+name = "UNPROTO"
+abbrev = "UN"
+summary = "Type unconnected UI frames onto a port"
+usage = "UNPROTO <port> <call> [digis]"
+detail = "Everything you type is sent by the node as a UI frame until you send Ctrl+Z."
+
+[[commands]]
+name = "PACLEN"
+abbrev = "PAC"
+summary = "Set the packet length for this session"
+usage = "PACLEN <bytes>"
+
+[[commands]]
+name = "IDLETIME"
+abbrev = "IDLE"
+summary = "Set this session's idle timeout"
+usage = "IDLETIME <value>"
+
+[[commands]]
+name = "L4T1"
+abbrev = "L4"
+summary = "Set the NET/ROM (level 4) retry timer for this session"
+usage = "L4T1 <value>"
+
+[[commands]]
+name = "RADIO"
+abbrev = "RAD"
+summary = "Rig control, where the sysop has set it up"
+usage = "RADIO ..."
+
+[[commands]]
+name = "PASSWORD"
+summary = "Enter sysop mode"
+usage = "PASSWORD"
+sysop = true
+
+[[commands]]
+name = "PING"
+abbrev = "PI"
+summary = "ICMP ping an IP address (nodes running the IP gateway)"
+usage = "PING <a.b.c.d>"
+detail = "An IP ping, not a node reachability test -- use NRR for that."
+
+[[commands]]
+name = "AGWSTATUS"
+abbrev = "AGW"
+summary = "Status of the node's AGWPE emulator"
+usage = "AGWSTATUS"
+
+[[commands]]
+name = "ARP"
+summary = "The IP ARP table (IP gateway nodes)"
+usage = "ARP"
+
+[[commands]]
+name = "AXRESOLVER"
+abbrev = "AXR"
+summary = "The AXIP resolver table for a port"
+usage = "AXRESOLVER <port>"
+
+[[commands]]
+name = "AXMHEARD"
+abbrev = "AXM"
+summary = "The AXIP heard list for a port"
+usage = "AXMHEARD <port>"
+
+[[commands]]
+name = "IPROUTE"
+abbrev = "IPR"
+summary = "The IP routing table (IP gateway nodes)"
+usage = "IPROUTE [filter]"
+
+[[commands]]
+name = "NAT"
+summary = "The IP NAT table (IP gateway nodes)"
+usage = "NAT"
+
+[[commands]]
+name = "TELSTATUS"
+abbrev = "TEL"
+summary = "Telnet server connection status for a port"
+usage = "TELSTATUS <port>"
+
+[[commands]]
+name = "UZ7HO"
+summary = "Send a command to the UZ7HO soundmodem driver"
+usage = "UZ7HO <port> FREQ [hz]  |  UZ7HO <port> MODEM [name|number]"
 
 [[commands]]
 name = "T"
 aliases = ["TALK"]
 summary = "Talk to another user connected to this node"
 usage = "T <call>"
+detail = "Not in G8BPQ's node command pages or any capture; may not exist on current BPQ32."
 confidence = "recalled"
 
 [[commands]]
 name = "BBS"
 summary = "Enter the node's bulletin board, if it has one"
 usage = "BBS"
-detail = "Application name, not a node command -- present only if the sysop configured it."
+detail = "An application, configured by the sysop; must be typed in full."
+confidence = "verified"
+application = true
 
 [[commands]]
 name = "CHAT"
 summary = "Enter the node's chat server, if it has one"
-usage = "CHAT"
-detail = "Application name, not a node command -- present only if the sysop configured it."
+usage = "CHAT  |  CHAT <topic>"
+detail = "An application, configured by the sysop; must be typed in full. A topic name joins that topic directly."
+confidence = "verified"
+application = true
 
 [[commands]]
 name = "RMS"
 summary = "Enter the node's Winlink RMS gateway, if it has one"
 usage = "RMS"
-detail = "Application name, not a node command -- present only if the sysop configured it."
-confidence = "documented"
+detail = "An application, configured by the sysop; must be typed in full."
+confidence = "verified"
+application = true

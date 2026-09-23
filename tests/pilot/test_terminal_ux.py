@@ -403,11 +403,11 @@ async def test_bbs_list_suggestions_are_stacked_with_their_meanings():
         await pilot.pause()
         strip = app.query_one("#suggestion-strip", Static)
         rendered = _plain(strip)
-        assert "LM - List Mine" in rendered
-        assert "LB - List Bulletins" in rendered
-        assert rendered.index("LM - List Mine") < rendered.index("LB - List Bulletins")
+        assert "LM - List messages to you" in rendered
+        assert "LB - List bulletins" in rendered
+        assert rendered.index("LM - List messages to you") < rendered.index("LB - List bulletins")
         assert any(
-            command.name == "LL" and command.summary == "List the last N messages"
+            command.name == "LL" and command.summary == "List the last n messages"
             for command in pane._suggestion_matches
         ), "the shipped reference must not depend on a node having learned it"
     a.close()
@@ -459,11 +459,11 @@ async def test_bbs_helpers_explain_empty_learned_command_suggestions():
         field.value = "L"
         await pilot.pause()
         rendered = _plain(app.query_one("#suggestion-strip", Static))
-        assert "LM - List Mine" in rendered
+        assert "LM - List messages to you" in rendered
         field.value = "LL"
         await pilot.pause()
         rendered = _plain(app.query_one("#suggestion-strip", Static))
-        assert "LL - List the last N messages" in rendered
+        assert "LL - List the last n messages" in rendered
     a.close()
     b.close()
 
@@ -636,8 +636,8 @@ async def test_typing_a_prefix_shows_matching_commands_without_transmitting():
         # line, `NAME - summary`, is the shipped format (see
         # `_update_suggestions`); the whole summary has to survive the wrap,
         # which is the half of this a rendering bug would break.
-        assert "C - Connect onward to another station or node" in shown
-        assert "CQ - Call CQ to other users connected to the node" in shown
+        assert "C - Connect onward to a node, alias or station" in shown
+        assert "CQ - Send a CQ beacon while in LISTEN mode on one port" in shown
         assert "CHAT - Enter the node's chat server, if it has one" in shown
         assert "Tab" in shown
 
@@ -782,7 +782,7 @@ async def test_node_family_is_detected_passively_from_its_banner():
         await asyncio.sleep(0.1)
 
         before = len(app.station.transport.sent)
-        app._on_link_data(app._active_key(), b"Welcome to the node.\rW1AW-7:CCEMA}\r")
+        app._on_link_data(app._active_key(), b"Welcome to the node.\rCCEMA:WS1EC-15}\r")
         await pilot.pause()
         assert app.reference.family is not None
         assert app.reference.family.id == "bpq32"
@@ -1341,7 +1341,7 @@ async def test_hopping_onward_forgets_the_node_it_hopped_through():
         app._bind_link(link)
         await asyncio.sleep(0.1)
         key = app._active_key()
-        _feed(link, b"Welcome.\rW1AW-7:CCEMA}\r")
+        _feed(link, b"Welcome.\rCCEMA:WS1EC-15}\r")
         await pilot.pause()
         assert app.reference.family is not None and app.reference.family.id == "bpq32"
 
@@ -1371,7 +1371,7 @@ async def test_hopping_onward_also_clears_stale_autocomplete_suggestions():
         app._bind_link(link)
         await asyncio.sleep(0.1)
         key = app._active_key()
-        _feed(link, b"Welcome.\rW1AW-7:CCEMA}\r")
+        _feed(link, b"Welcome.\rCCEMA:WS1EC-15}\r")
         await pilot.pause()
 
         field = app.query_one("#session-input", Input)
@@ -1404,7 +1404,7 @@ async def test_a_command_that_merely_starts_with_c_does_not_reset_detection():
         app._bind_link(link)
         await asyncio.sleep(0.1)
         key = app._active_key()
-        _feed(link, b"Welcome.\rW1AW-7:CCEMA}\r")
+        _feed(link, b"Welcome.\rCCEMA:WS1EC-15}\r")
         await pilot.pause()
         assert app.reference.family is not None
 
@@ -1467,7 +1467,7 @@ async def test_a_hop_that_is_refused_leaves_the_node_we_are_still_on_alone():
         app._bind_link(link)
         await asyncio.sleep(0.1)
         key = app._active_key()
-        _feed(link, b"Welcome.\rW1AW-7:CCEMA}\r")
+        _feed(link, b"Welcome.\rCCEMA:WS1EC-15}\r")
         await pilot.pause()
         before = app.reference.family
         assert before is not None and before.id == "bpq32"
@@ -1511,7 +1511,7 @@ async def test_a_hop_that_times_out_leaves_the_node_we_are_still_on_alone():
             app._bind_link(link)
             await asyncio.sleep(0.1)
             key = app._active_key()
-            _feed(link, b"Welcome.\rW1AW-7:CCEMA}\r")
+            _feed(link, b"Welcome.\rCCEMA:WS1EC-15}\r")
             await pilot.pause()
             before = app.reference.family
             assert before is not None

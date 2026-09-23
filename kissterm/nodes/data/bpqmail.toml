@@ -1,0 +1,490 @@
+# BPQMail (the BBS built into BPQ32 / LinBPQ) user command reference.
+#
+# SOURCES, strongest first:
+#   verified   -- in a real BBS's own "?" reply: the WS1EC-2 BBS (BPQMail
+#                 6.0.23.1, reached as "BBS" from WS1EC-15), 2026-09-10,
+#                 saved in the operator's session transcript. Its listing:
+#                   A - Abort Output / B - Logoff / CMSPASS / D num / HOMEBBS /
+#                   INFO / I CALL / I@ / IZ / IH / K num, KM / L, LR, LM, L>,
+#                   L<, L@, LL num, L num-num / LN LY LH LK LF L$ LD (status)
+#                   / LB LP LT (type) / LC / "you can combine most selections
+#                   eg LMP, LMN LB< G8BPQ" / LISTFILES or FILES / N / NODE /
+#                   OP n / PASS / POLLRMS / Q / R num, RM, RMR / READ / S, SP,
+#                   SB, ST, SR, SC / X / YAPP
+#   documented -- G8BPQ's "BPQ Mail Server User and SYSOP commands" page
+#                 (updated December 2020):
+#                 https://www.cantab.net/users/john.wiseman/Documents/BBSUserCommands.html
+#   recalled   -- none. Where the meaning of a status letter is not stated in
+#                 either source, the summary says only what the source says
+#                 and the usual meaning is in `detail`, marked "(recalled)".
+#
+# LH and LK are listed as SYSOP commands on the web page but were offered to
+# an ordinary user in the WS1EC-2 capture, so they are kept as user commands.
+# The web page's "Home" is the capture's "HOMEBBS".
+
+[family]
+id = "bpqmail"
+name = "BPQMail BBS"
+kind = "application"
+confidence = "documented"
+source = "https://www.cantab.net/users/john.wiseman/Documents/BBSUserCommands.html"
+harvest_context = "bbs"
+# Typed at a BPQ32 node to get here ("CCEMA:WS1EC-15} Connected to BBS").
+entered_by = ["BBS"]
+note = """
+The mailbox built into BPQ32. Reached from a node with BBS. Most list
+selections combine (LMP, LMN, LB< G8BPQ). Messages you send end with /EX or
+Ctrl+Z on a line of its own.
+"""
+# The FBB-style SID BPQMail sends on connect ("[BPQ-6.0.23.1-B2FWIHJM$]"),
+# and the prompt seen on WS1EC-2 ("de WS1EC#>"). One BBS observed for the
+# prompt shape; the SID format is common to every BPQMail.
+detect_prompt = ['^\[BPQ-\d+(\.\d+)*-[A-Z0-9$]*\]\s*$', '^de [A-Z0-9]{1,6}(-\d{1,2})?#>\s*$']
+
+[[commands]]
+name = "?"
+aliases = ["HELP"]
+summary = "List the BBS commands"
+usage = "?"
+detail = "Several screens long: about a minute of airtime at 1200 baud."
+confidence = "verified"
+
+[[commands]]
+name = "A"
+summary = "Abort output while the BBS is paging"
+usage = "A"
+confidence = "verified"
+
+[[commands]]
+name = "B"
+aliases = ["BYE"]
+summary = "Log off the BBS and disconnect"
+usage = "B"
+confidence = "verified"
+helper_id = "bye"
+helper_label = "Bye"
+
+[[commands]]
+name = "NODE"
+summary = "Leave the BBS and return to the node"
+usage = "NODE"
+confidence = "verified"
+
+[[commands]]
+name = "L"
+summary = "List new messages since you last used L"
+usage = "L"
+confidence = "verified"
+helper_id = "list-new"
+helper_label = "List new mail"
+
+[[commands]]
+name = "LR"
+summary = "List new messages, oldest first"
+usage = "LR"
+confidence = "verified"
+helper_id = "list-new-oldest"
+helper_label = "List new, oldest first"
+
+[[commands]]
+name = "LM"
+summary = "List messages to you"
+usage = "LM"
+confidence = "verified"
+helper_id = "list-mine"
+helper_label = "List my mail"
+
+[[commands]]
+name = "LL"
+summary = "List the last n messages"
+usage = "LL <n>"
+confidence = "verified"
+helper_id = "list-last"
+helper_label = "List last messages"
+template = "LL {number}"
+fields = ["number"]
+
+[[commands]]
+name = "L>"
+summary = "List messages to a callsign"
+usage = "L> <call>"
+confidence = "verified"
+
+[[commands]]
+name = "L<"
+summary = "List messages from a callsign"
+usage = "L< <call>"
+confidence = "verified"
+
+[[commands]]
+name = "L@"
+summary = "List messages addressed via a BBS"
+usage = "L@ <bbs>"
+confidence = "verified"
+
+[[commands]]
+name = "LB"
+summary = "List bulletins"
+usage = "LB"
+confidence = "verified"
+helper_id = "list-bulletins"
+helper_label = "List bulletins"
+
+[[commands]]
+name = "LP"
+summary = "List personal messages"
+usage = "LP"
+detail = "Listed as a message type in the BBS's own help; not on the web page."
+confidence = "verified"
+helper_id = "list-personal"
+helper_label = "List personal mail"
+
+[[commands]]
+name = "LT"
+summary = "List NTS traffic"
+usage = "LT"
+confidence = "verified"
+helper_id = "list-traffic"
+helper_label = "List NTS traffic"
+
+[[commands]]
+name = "LC"
+summary = "List bulletin categories (the TO fields of active bulletins)"
+usage = "LC"
+confidence = "verified"
+helper_id = "list-categories"
+helper_label = "List bulletin categories"
+
+[[commands]]
+name = "LN"
+summary = "List messages with status N"
+usage = "LN"
+detail = "N usually means not yet read (recalled)."
+confidence = "verified"
+helper_id = "list-new-status"
+helper_label = "List new-status mail"
+
+[[commands]]
+name = "LY"
+summary = "List messages with status Y"
+usage = "LY"
+detail = "Y usually means read (recalled)."
+confidence = "verified"
+
+[[commands]]
+name = "LF"
+summary = "List messages with status F"
+usage = "LF"
+detail = "F usually means forwarded (recalled)."
+confidence = "verified"
+helper_id = "list-forwarded"
+helper_label = "List forwarded mail"
+
+[[commands]]
+name = "LD"
+summary = "List messages with status D (NTS delivered)"
+usage = "LD"
+detail = "D is the status the D command sets on an NTS message."
+confidence = "verified"
+helper_id = "list-delivered"
+helper_label = "List delivered mail"
+
+[[commands]]
+name = "LH"
+summary = "List held messages"
+usage = "LH"
+detail = "The web page lists this as a sysop command; WS1EC-2 offered it to a user."
+confidence = "verified"
+helper_id = "list-held"
+helper_label = "List held mail"
+
+[[commands]]
+name = "LK"
+summary = "List killed messages"
+usage = "LK"
+detail = "The web page lists this as a sysop command; WS1EC-2 offered it to a user."
+confidence = "verified"
+helper_id = "list-killed"
+helper_label = "List killed mail"
+
+[[commands]]
+name = "L$"
+summary = "List messages with status $"
+usage = "L$"
+detail = "$ usually marks a bulletin still to be forwarded (recalled)."
+confidence = "verified"
+
+[[commands]]
+name = "R"
+summary = "Read messages by number"
+usage = "R <num> [<num> ...]"
+confidence = "verified"
+helper_id = "read"
+helper_label = "Read message"
+template = "R {number}"
+fields = ["number"]
+
+[[commands]]
+name = "RM"
+summary = "Read new messages to you"
+usage = "RM"
+confidence = "verified"
+
+[[commands]]
+name = "RMR"
+summary = "Read new messages to you, oldest first"
+usage = "RMR"
+confidence = "verified"
+
+[[commands]]
+name = "K"
+summary = "Kill (delete) a message you sent or received"
+usage = "K <num>"
+confidence = "verified"
+
+[[commands]]
+name = "KM"
+summary = "Kill your messages that you have read"
+usage = "KM"
+detail = "The web page says messages you have NOT read; WS1EC-2's own help says your read messages. Check before using."
+confidence = "verified"
+
+[[commands]]
+name = "SP"
+summary = "Send a personal message"
+usage = "SP <call>  |  SP <call> @ <bbs>"
+detail = "The BBS asks for a title and text; end the text with /EX or Ctrl+Z on a line of its own."
+confidence = "verified"
+helper_id = "send"
+helper_label = "Send mail"
+template = "SP {callsign}"
+fields = ["callsign"]
+
+[[commands]]
+name = "S"
+summary = "Send a message (personal unless a type is given)"
+usage = "S <call>  |  S <call> @ <bbs>"
+confidence = "verified"
+
+[[commands]]
+name = "SB"
+summary = "Send a bulletin"
+usage = "SB <category> [@ <area>]"
+confidence = "verified"
+
+[[commands]]
+name = "ST"
+summary = "Send an NTS message"
+usage = "ST <addressee> [@ <area>]"
+confidence = "verified"
+
+[[commands]]
+name = "SR"
+summary = "Reply to a message"
+usage = "SR <num>"
+confidence = "verified"
+
+[[commands]]
+name = "SC"
+summary = "Copy a message to another callsign"
+usage = "SC <num> <call> [@ <bbs>]"
+confidence = "verified"
+
+[[commands]]
+name = "D"
+summary = "Flag NTS messages as delivered"
+usage = "D <num>"
+confidence = "verified"
+
+[[commands]]
+name = "I"
+aliases = ["INFO"]
+summary = "Show the sysop's information about this BBS"
+usage = "I"
+confidence = "verified"
+
+[[commands]]
+name = "I CALL"
+summary = "Look a callsign up in the white pages (wildcards allowed)"
+usage = "I <call>  |  I *CALL  |  I CALL*"
+confidence = "verified"
+
+[[commands]]
+name = "I@"
+summary = "White pages: users of a BBS"
+usage = "I@ <bbs>"
+confidence = "verified"
+
+[[commands]]
+name = "IH"
+summary = "White pages: users in a hierarchical area (USA, EU ...)"
+usage = "IH <area>"
+confidence = "verified"
+
+[[commands]]
+name = "IZ"
+summary = "White pages: users in a ZIP code area"
+usage = "IZ <zip>"
+confidence = "verified"
+
+[[commands]]
+name = "N"
+summary = "Set your name (up to 12 characters)"
+usage = "N <name>"
+confidence = "verified"
+
+[[commands]]
+name = "Q"
+summary = "Set your QTH"
+usage = "Q <qth>"
+confidence = "verified"
+
+[[commands]]
+name = "Z"
+summary = "Set your ZIP code"
+usage = "Z <zip>"
+
+[[commands]]
+name = "HOMEBBS"
+aliases = ["HOME"]
+summary = "Show or set your home BBS"
+usage = "HOMEBBS  |  HOMEBBS <bbs>  |  HOMEBBS ."
+detail = "A single point clears it."
+confidence = "verified"
+
+[[commands]]
+name = "OP"
+summary = "Set how many lines the BBS sends before pausing"
+usage = "OP <lines>"
+confidence = "verified"
+
+[[commands]]
+name = "X"
+summary = "Toggle expert mode (shorter prompts)"
+usage = "X"
+confidence = "verified"
+
+[[commands]]
+name = "V"
+summary = "BBS and node software version"
+usage = "V"
+
+[[commands]]
+name = "PASS"
+summary = "Set your BBS password"
+usage = "PASS <password>"
+confidence = "verified"
+
+[[commands]]
+name = "CMSPASS"
+summary = "Set your password for Winlink CMS access"
+usage = "CMSPASS <password>"
+confidence = "verified"
+
+[[commands]]
+name = "POLLRMS"
+summary = "Manage polling Winlink RMS for your messages"
+usage = "POLLRMS Enable  |  POLLRMS Disable  |  POLLRMS <ssid> ..."
+detail = "POLLRMS 0 1 15 looks for mail to CALL, CALL-1 and CALL-15."
+confidence = "verified"
+
+[[commands]]
+name = "FILES"
+aliases = ["LISTFILES"]
+summary = "List files available for download"
+usage = "FILES"
+confidence = "verified"
+
+[[commands]]
+name = "READ"
+summary = "Read a file from the files area"
+usage = "READ <name>"
+confidence = "verified"
+
+[[commands]]
+name = "YAPP"
+summary = "Download a file using YAPP"
+usage = "YAPP <name>"
+detail = "Needs a terminal that speaks YAPP -- kissterm's File transfer (F10, Session)."
+confidence = "verified"
+
+# --- Sysop commands (documented on the web page; need sysop status) ---------
+
+[[commands]]
+name = "KH"
+summary = "Kill held messages"
+usage = "KH"
+sysop = true
+
+[[commands]]
+name = "K<"
+summary = "Kill messages from a callsign"
+usage = "K< <call>"
+sysop = true
+
+[[commands]]
+name = "K>"
+summary = "Kill messages to a callsign"
+usage = "K> <call>"
+sysop = true
+
+[[commands]]
+name = "UH"
+summary = "Unhold messages"
+usage = "UH ALL  |  UH <num> ..."
+sysop = true
+
+[[commands]]
+name = "AUTH"
+summary = "Authenticate for remote sysop access"
+usage = "AUTH <passcode>"
+sysop = true
+
+[[commands]]
+name = "EDITUSER"
+aliases = ["EU"]
+summary = "Manage users"
+usage = "EU HELP"
+sysop = true
+
+[[commands]]
+name = "FWD"
+summary = "Manage forwarding"
+usage = "FWD HELP"
+sysop = true
+
+[[commands]]
+name = "EXPORT"
+summary = "Export a message to a file"
+usage = "EXPORT"
+sysop = true
+
+[[commands]]
+name = "IMPORT"
+summary = "Import messages from a file"
+usage = "IMPORT"
+sysop = true
+
+[[commands]]
+name = "DOHOUSEKEEPING"
+summary = "Run the housekeeping process"
+usage = "DOHOUSEKEEPING"
+sysop = true
+
+[[commands]]
+name = "REROUTEMSGS"
+summary = "Rerun message routing"
+usage = "REROUTEMSGS"
+sysop = true
+
+[[commands]]
+name = "SETNEXTMESSAGENUMBER"
+summary = "Set the next message number"
+usage = "SETNEXTMESSAGENUMBER <n>"
+sysop = true
+
+[[commands]]
+name = "SHOWRMSPOLL"
+summary = "Show the RMS polling list"
+usage = "SHOWRMSPOLL"
+sysop = true

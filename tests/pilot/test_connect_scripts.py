@@ -202,7 +202,7 @@ async def test_a_refused_hop_leaves_the_node_we_are_still_on_identified(tmp_path
     _install_relay(
         node,
         {"C W1LH-6": b"*** BUSY\r"},
-        banner=b"Welcome.\rW1AW-7:CCEMA}\r",
+        banner=b"Welcome.\rCCEMA:WS1EC-15}\r",
     )
 
     async with app.run_test(size=(120, 40)) as pilot:

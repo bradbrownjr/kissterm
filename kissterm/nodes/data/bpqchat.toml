@@ -1,0 +1,121 @@
+# BPQChat (the chat server built into BPQ32 / LinBPQ) user command reference.
+#
+# SOURCE: G8BPQ's "The G8BPQ Chat Server" page, "User Commands":
+#   https://www.cantab.net/users/john.wiseman/Documents/ChatServer.html
+# No real chat session has been captured yet, so nothing here is "verified",
+# and there is no prompt or greeting pattern: kissterm only knows it is in
+# chat because the node said "Connected to CHAT".
+#
+# "All commands start with a /. Any text not preceded with a / is sent to
+# connected users in the current topic. Commands can be in upper or lower
+# case." So in chat, a line without / is TRANSMITTED as conversation.
+
+[family]
+id = "bpqchat"
+name = "BPQChat"
+kind = "application"
+confidence = "documented"
+source = "https://www.cantab.net/users/john.wiseman/Documents/ChatServer.html"
+harvest_context = "application"
+entered_by = ["CHAT"]
+note = """
+The chat server built into BPQ32. Reached from a node with CHAT (or CHAT
+<topic>). Commands start with /; anything else you type is sent to everyone
+in your topic.
+"""
+
+[[commands]]
+name = "/U"
+summary = "Show users"
+usage = "/U"
+
+[[commands]]
+name = "/T"
+summary = "Show topics, or join or create one"
+usage = "/T  |  /T <name>"
+
+[[commands]]
+name = "/S"
+summary = "Send text to one station only"
+usage = "/S <call> <text>"
+
+[[commands]]
+name = "/N"
+summary = "Set your name"
+usage = "/N <name>"
+
+[[commands]]
+name = "/Q"
+summary = "Set your QTH"
+usage = "/Q <qth>"
+
+[[commands]]
+name = "/P"
+summary = "Show ports and links"
+usage = "/P"
+
+[[commands]]
+name = "/K"
+summary = "Show known chat nodes"
+usage = "/K"
+
+[[commands]]
+name = "/A"
+summary = "Toggle an alert when a user joins"
+usage = "/A"
+
+[[commands]]
+name = "/E"
+summary = "Toggle echo"
+usage = "/E"
+
+[[commands]]
+name = "/C"
+summary = "Toggle colour mode (console and BPQTerminal only)"
+usage = "/C"
+
+[[commands]]
+name = "/TIME"
+summary = "Toggle a timestamp on each message"
+usage = "/TIME"
+
+[[commands]]
+name = "/SHOWNAMES"
+summary = "Toggle showing names as well as calls"
+usage = "/SHOWNAMES"
+
+[[commands]]
+name = "/KEEPALIVE"
+summary = "Toggle keepalive messages every 10 minutes"
+usage = "/KEEPALIVE"
+
+[[commands]]
+name = "/AUTO"
+summary = "Toggle automatic character set selection"
+usage = "/AUTO"
+
+[[commands]]
+name = "/UTF-8"
+summary = "Toggle UTF-8 or 8-bit output"
+usage = "/UTF-8"
+
+[[commands]]
+name = "/CODEPAGE"
+aliases = ["/CP"]
+summary = "Choose the code page used when UTF-8 is off"
+usage = "/CODEPAGE <page>"
+
+[[commands]]
+name = "/F"
+summary = "Force all chat links to be made"
+usage = "/F"
+
+[[commands]]
+name = "/B"
+summary = "Leave chat and return to the node"
+usage = "/B"
+
+[[commands]]
+name = "/QUIT"
+summary = "Leave chat and disconnect from the node"
+usage = "/QUIT"

@@ -35,6 +35,24 @@ class Command:
     #: by default; a command learned while the operator is inside a BBS keeps
     #: that distinct context all the way to the command picker.
     context: str = "node"
+    #: The shortest form the software accepts, where its documentation says
+    #: ("PAC" for PACLEN). Empty when the source does not say.
+    abbrev: str = ""
+    #: Where this entry's description came from: the family's source URL
+    #: unless the entry names its own. Shown so an operator can check it.
+    source: str = ""
+    #: Needs sysop status. Listed so an operator knows it exists, never
+    #: offered as a completion to someone who is not the sysop.
+    sysop: bool = False
+    #: An application the sysop configured (BBS, CHAT): typed in full, and
+    #: entering it hands the session to a different command language.
+    application: bool = False
+    #: The BBS helper (Ctrl+R) offers this command when it has a helper id.
+    #: `template` fills `fields` ("R {number}"); empty means the bare name.
+    helper_id: str = ""
+    helper_label: str = ""
+    template: str = ""
+    fields: tuple[str, ...] = ()
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -55,6 +73,24 @@ class Family:
     detect_prompt: tuple[str, ...] = ()
     detect_banner: tuple[str, ...] = ()
     commands: tuple[Command, ...] = ()
+    #: "node" (NET/ROM node, TNC command mode, JNOS) or "application" (a
+    #: BBS or chat server reached FROM a node). An application's commands
+    #: mean nothing at the node prompt and vice versa -- "L" lists mail in
+    #: BPQMail and links on the node -- so which one is in effect decides
+    #: what the send line may suggest.
+    kind: str = "node"
+    source: str = ""
+    #: The context a harvested `?` reply is filed under while this family
+    #: is in effect (kissterm.harvested's node / bbs / application).
+    harvest_context: str = "node"
+    #: Application only: the names a node's "Connected to <NAME>" uses for
+    #: it (BPQ32 says "Connected to BBS").
+    entered_by: tuple[str, ...] = ()
+    #: Node only: a line saying the node handed the session to an
+    #: application; group 1 is the application's name.
+    enter_pattern: str = ""
+    #: Node only: a line saying an application handed the session back.
+    return_pattern: str = ""
 
     def identify(self, text: str) -> bool:
         """Does this text look like it came from this family?
@@ -76,6 +112,8 @@ def _parse(path: Path) -> Family:
     with path.open("rb") as fh:
         raw = tomllib.load(fh)
     fam = raw.get("family", {})
+    source = str(fam.get("source", ""))
+    context = str(fam.get("harvest_context", "node"))
     commands = tuple(
         Command(
             name=str(c["name"]),
@@ -84,6 +122,15 @@ def _parse(path: Path) -> Family:
             detail=str(c.get("detail", "")),
             aliases=tuple(str(a) for a in c.get("aliases", ())),
             confidence=str(c.get("confidence", fam.get("confidence", "documented"))),
+            context=context,
+            abbrev=str(c.get("abbrev", "")),
+            source=str(c.get("source", source)),
+            sysop=bool(c.get("sysop", False)),
+            application=bool(c.get("application", False)),
+            helper_id=str(c.get("helper_id", "")),
+            helper_label=str(c.get("helper_label", "")),
+            template=str(c.get("template", "")),
+            fields=tuple(str(f) for f in c.get("fields", ())),
         )
         for c in raw.get("commands", ())
         if c.get("name")
@@ -96,6 +143,12 @@ def _parse(path: Path) -> Family:
         detect_prompt=tuple(fam.get("detect_prompt", ())),
         detect_banner=tuple(fam.get("detect_banner", ())),
         commands=commands,
+        kind=str(fam.get("kind", "node")),
+        source=source,
+        harvest_context=context,
+        entered_by=tuple(str(n).upper() for n in fam.get("entered_by", ())),
+        enter_pattern=str(fam.get("enter_pattern", "")),
+        return_pattern=str(fam.get("return_pattern", "")),
     )
 
 
@@ -124,11 +177,32 @@ def load_family(family_id: str) -> Family | None:
 
 
 def identify_family(text: str) -> Family | None:
-    """Guess the family from a banner or prompt. None when unsure."""
-    for family in load_all():
+    """Guess the family from a banner or prompt. None when unsure.
+
+    Applications are tried first: a BBS is reached through a node, so text
+    from inside one often still carries the node's marks (a BPQMail greeting
+    follows the node's "CCEMA:WS1EC-15} Connected to BBS"), while a node's
+    own text never carries a BBS's SID.
+    """
+    families = load_all()
+    for family in sorted(families, key=lambda f: f.kind != "application"):
         if family.identify(text):
             return family
     return None
+
+
+def application_named(name: str) -> Family | None:
+    """The application family a node's "Connected to NAME" refers to.
+
+    None for an application kissterm ships no reference for (a sysop's own
+    CALENDAR or GOPHER): its commands are unknown, and saying so beats
+    offering the node's.
+    """
+    wanted = name.strip().upper()
+    return next(
+        (f for f in load_all() if f.kind == "application" and wanted in f.entered_by),
+        None,
+    )
 
 
 @dataclass(slots=True)

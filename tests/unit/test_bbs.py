@@ -46,25 +46,17 @@ def test_unknown_profile_is_not_guessed():
 
 
 def test_list_macros_complete_with_their_operator_facing_descriptions():
+    """The helper describes a command in the reference file's own words."""
+    from kissterm.nodes.reference import load_family
+
+    shipped = {c.name: c.summary for c in load_family("bpqmail").commands}
     matches = complete("l")
-    assert [(macro.name, macro.summary) for macro in matches] == [
-        ("L", "List new messages"),
-        ("LR", "List new messages, oldest first"),
-        ("LM", "List Mine"),
-        ("LN", "List messages with N status"),
-        ("LH", "List Held messages"),
-        ("LK", "List Killed messages"),
-        ("LF", "List Forwarded messages"),
-        ("LD", "List Delivered messages"),
-        ("LB", "List Bulletins"),
-        ("LP", "List Personal messages"),
-        ("LT", "List Traffic (NTS messages)"),
-        ("LC", "List active bulletin TO fields"),
-        ("LL", "List the last N messages"),
+    assert [macro.name for macro in matches] == [
+        "L", "LR", "LM", "LL", "LB", "LP", "LT", "LC", "LN", "LF", "LD", "LH", "LK",
     ]
-    assert [(macro.name, macro.summary) for macro in complete("R")] == [
-        ("R", "Read one numbered message"),
-    ]
+    for macro in matches:
+        assert macro.summary == shipped[macro.name]
+    assert [macro.name for macro in complete("R")] == ["R"]
     assert [(macro.name, macro.summary) for macro in complete("BYE")] == [
-        ("B", "BYE — disconnect from BBS")
+        ("B", "Log off the BBS and disconnect")
     ]

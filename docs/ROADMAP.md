@@ -284,17 +284,6 @@ help and auto-complete."
 
 Work items:
 
-- [ ] Move `kissterm/bbs.py`'s macros into data
-  (`kissterm/nodes/data/bpqmail.toml`) using the same schema as node
-  families, with an `application` kind and its own prompt detection.
-- [ ] Complete BPQMail from its published documentation -- every user
-  command it documents, with minimum abbreviations, not a sample. At least
-  the ones operators have already hit without a description: `LD`, `LF`,
-  `LH`, `LK`, `LL`, and `B`/`BYE`. Cite the section for each; anything not
-  found in the documentation is marked `recalled`, never written from
-  memory as `documented`.
-- [ ] Complete the BPQ32 node file the same way (currently 16 commands), and
-  add BPQChat.
 - [ ] Context switch in `TerminalPane` suggestions: node, application or
   unknown, from passive prompt detection. At an unknown prompt, show nothing
   rather than guess.
