@@ -147,3 +147,18 @@ class HarvestedCommands:
         self._by_callsign[key] = merged
         self.save()
         return tuple(command.name for command in merged)
+
+    def forget(self, callsign: str) -> int:
+        """Drop everything learned from `callsign`, in every context, and
+        save. Returns how many names were dropped.
+
+        The shipped references now cover what harvesting used to be the only
+        source for, and a cache written before contexts existed holds a
+        node's and its BBS's `?` replies as one undifferentiated list, prose
+        words included. Re-learning costs airtime again, which is why the
+        screen that calls this asks first.
+        """
+        dropped = self._by_callsign.pop(callsign.strip().upper(), ())
+        if dropped:
+            self.save()
+        return len(dropped)

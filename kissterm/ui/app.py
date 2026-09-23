@@ -2278,6 +2278,31 @@ class KissTermApp(App):
             return family.harvest_context
         return "application" if session.application else "node"
 
+    def learned_node(self, session_key: str) -> tuple[str, int]:
+        """The node this session's learned commands are filed under, and how
+        many there are -- for the reference screen's "Forget learned"."""
+        session = self._sessions.get(session_key)
+        if session is None or session.link is None:
+            return ("", 0)
+        node = session.current_node or str(session.link.peer)
+        return (node, len(self._harvested.records_for_callsign(node)))
+
+    def forget_learned(self, session_key: str) -> int:
+        """Drop everything learned from this session's node, from the cache
+        and from the live references. Sends nothing."""
+        node, _count = self.learned_node(session_key)
+        if not node:
+            return 0
+        dropped = self._harvested.forget(node)
+        session = self._sessions[session_key]
+        session.reference.learned = ()
+        if session.node_reference is not None:
+            session.node_reference.learned = ()
+        self._to_terminal(
+            session_key, "write_note", f"\n*** Forgot {dropped} learned command(s) for {node}.\n"
+        )
+        return dropped
+
     def reference_sections(self, session_key: str) -> tuple[CommandReference, ...]:
         """The command sets reachable from where this session is, other than
         the one in effect: the node's while inside its BBS, and the node's

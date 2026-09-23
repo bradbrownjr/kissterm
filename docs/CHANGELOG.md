@@ -3,6 +3,27 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Forget a node's learned commands
+
+### New Features
+
+- **Ctrl+R has a "Forget learned" button** while the node has learned
+  commands. It asks first, then drops everything learned from that node,
+  in every context, from the cache and the open session. The shipped
+  reference stays, and nothing is transmitted. Requested so a cache written
+  before harvests were filed by context can be cleared: it held a node's
+  and its BBS's `?` replies as one list, with prose words the old parser
+  picked up.
+
+### Confirmed
+
+- The operator confirmed that the shortcut bar follows tab switches and that
+  toasts no longer repeat what is on screen; both are removed from P0.1.
+
+**Files:** `kissterm/harvested.py`, `kissterm/ui/app.py`,
+`kissterm/ui/dialogs.py`, `tests/pilot/test_terminal_ux.py`,
+`tests/unit/test_harvested.py`, `docs/CHANGELOG.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — UTF-8 text from a BBS reads correctly
 
 ### Bug Fixes

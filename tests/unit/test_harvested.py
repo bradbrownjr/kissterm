@@ -88,3 +88,17 @@ def test_keeps_bbs_commands_separate_from_node_commands(tmp_path):
         ("LIST", "bbs"),
         ("SEND", "bbs"),
     ]
+
+
+def test_forget_drops_every_context_for_one_callsign_and_persists(tmp_path):
+    store = HarvestedCommands(tmp_path / "harvested.json")
+    store.add("CCEMA", ("WALL",), context="node")
+    store.add("ccema", ("LM",), context="bbs")
+    store.add("W1AW-7", ("NODES",))
+    assert store.forget("ccema") == 2
+    assert store.forget("CCEMA") == 0
+
+    reloaded = HarvestedCommands(tmp_path / "harvested.json")
+    reloaded.load()
+    assert reloaded.records_for_callsign("CCEMA") == ()
+    assert reloaded.for_callsign("W1AW-7") == ("NODES",)

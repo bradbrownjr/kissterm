@@ -2603,6 +2603,46 @@ class HarvestConfirmScreen(ModalScreen[str | None]):
         self.dismiss(str(self.query_one("#harvest-context", Select).value))
 
 
+class ForgetLearnedScreen(ModalScreen[bool]):
+    """Confirm dropping a node's learned commands.
+
+    Asked first because it cannot be undone without asking the node again,
+    and asking the node again is airtime (`HarvestConfirmScreen`).
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
+
+    def __init__(self, node: str, count: int) -> None:
+        super().__init__()
+        self._node = node
+        self._count = count
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Static
+
+        with Vertical(id="connect-box"):
+            yield Label(f"Forget {self._count} learned command(s) for {self._node}?", id="connect-title")
+            yield Static(
+                "The shipped reference stays. Learning them again means asking "
+                "the node, which is airtime on a shared channel.",
+                id="reminder-detail",
+            )
+            with Horizontal(id="connect-buttons"):
+                yield Button("Forget", variant="error", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#connect-cancel", Button).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#connect-go")
+    def _go(self) -> None:
+        self.dismiss(True)
+
+
 class CommandReferenceScreen(ModalScreen[str | None]):
     """The shipped command reference for the node we are talking to, plus a
     glossary of packet terminology in the same pane.
@@ -2701,6 +2741,7 @@ class CommandReferenceScreen(ModalScreen[str | None]):
                 if self._can_harvest:
                     yield Button("Learn from node", id="ref-harvest")
                     yield Button("Show captured reply", id="ref-show-harvest")
+                yield Button("Forget learned", id="ref-forget")
                 yield Button("Close", id="ref-close")
 
     def _title(self) -> str:
@@ -2730,7 +2771,29 @@ class CommandReferenceScreen(ModalScreen[str | None]):
     def on_mount(self) -> None:
         self._render_columns()
         self._populate("")
+        self._sync_forget()
         self.query_one("#ref-search", Input).focus()
+
+    def _learned_node(self) -> tuple[str, int]:
+        lookup = getattr(self.app, "learned_node", None)
+        return lookup(self._session_key) if lookup is not None else ("", 0)
+
+    def _sync_forget(self) -> None:
+        """Shown only while this node has something learned to forget."""
+        _node, count = self._learned_node()
+        self.query_one("#ref-forget", Button).display = count > 0 and self._mode != "glossary"
+
+    @on(Button.Pressed, "#ref-forget")
+    async def _forget(self) -> None:
+        node, count = self._learned_node()
+        if not count or not await self.app.push_screen_wait(ForgetLearnedScreen(node, count)):
+            return
+        self.app.forget_learned(self._session_key)  # type: ignore[attr-defined]
+        self._others = tuple(
+            type(ref)(family=ref.family) for ref in self._others
+        )
+        self._populate(self.query_one("#ref-search", Input).value)
+        self._sync_forget()
 
     def _render_columns(self) -> None:
         from textual.widgets import DataTable
@@ -2769,6 +2832,7 @@ class CommandReferenceScreen(ModalScreen[str | None]):
             # Nothing to harvest from a glossary -- hide the button rather
             # than leave it sitting there doing nothing while browsing terms.
             self.query_one("#ref-harvest", Button).display = mode != "glossary"
+        self._sync_forget()
 
     def _populate(self, needle: str) -> None:
         if self._mode == "glossary":
@@ -2888,6 +2952,7 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         harvest.label = "Learn from node"
         harvest.disabled = False
         self._populate(self.query_one("#ref-search", Input).value)
+        self._sync_forget()
 
     @on(Button.Pressed, "#ref-show-harvest")
     def _toggle_harvest_output(self) -> None:

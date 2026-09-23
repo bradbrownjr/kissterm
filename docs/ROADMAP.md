@@ -97,28 +97,6 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   timer-flushed partial line open and re-renders it in place when the rest
   arrives; the transcript file now assembles lines the same way. Re-test with
   `L` and a long `R`.
-- [ ] **Shortcut bar keeps the previous tab's actions until the pane is
-  clicked.** `awaiting confirmation`. Reported 2026-09-21 19:06 ("Going from
-  Terminal to APRS keeps connect and disconnect ... until I tab or click
-  within the APRS pane") and again 20:42 ("Position now wasn't shown ...
-  until I clicked inside the text box"). The footer logic it broke has since
-  been replaced wholesale by P0.2's registry-driven bar, which recomposes on
-  tab activation and shows only what applies. Re-test.
-- [ ] **Toasts that report what the operator can already see.**
-  `awaiting confirmation` (2026-09-23). Requested 2026-09-22 ("get rid of the
-  notification pop-up that we've revealed or hidden something, we see what
-  we did already"). Audited every toast that is not an error or warning:
-  sixteen that confirmed a visible change are gone (saved/forgot entries in
-  the Address Book, contacts and Settings lists; "Now using" a transport,
-  which the status bar shows; "Cancelled connect", which the terminal log
-  already says), and three now appear only when something needs acting on
-  (Settings save, the transport Test button, the GPS port scan). Kept on
-  purpose: every error and warning, every transmit notice (arming, beacons,
-  objects -- the rules require them), events from outside (incoming
-  connection, mail waiting, a new device, a watched callsign), menu toggles
-  with no other visible state (APRS SSID filter, APRS beaconing), and
-  results with nowhere else to show (export path, transfer complete).
-
 - [ ] **Accented and typographic characters in BBS messages are garbled.**
   `awaiting confirmation` (2026-09-23). Reported 2026-09-23 ("r 2738 also
   exhibits ... unexpected characters"). WS1EC-2 sent the message as UTF-8;

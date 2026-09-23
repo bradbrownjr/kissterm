@@ -2141,3 +2141,58 @@ async def test_a_note_after_a_partial_line_closes_it():
         ]
     a.close()
     b.close()
+
+
+@pytest.mark.asyncio
+async def test_forgetting_learned_commands_clears_the_cache_and_sends_nothing():
+    """A cache written before contexts existed mixes a node's and its BBS's
+    `?` replies, prose included. The operator can drop it; the shipped
+    reference stays, nothing is transmitted, and it asks first."""
+    from kissterm.ui.dialogs import ForgetLearnedScreen
+
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()
+        key = app._active_key()
+        app._harvested.add(str(PEER), ("WALL", "WILDCARDS"), context="node")
+        app._harvested.add(str(PEER), ("LM",), context="bbs")
+        app.reference.learned = app._learned(str(PEER), "node")
+        _feed(link, b"CCEMA:WS1EC-15} ")
+        await pilot.pause()
+        before = _sent_data_frames(app.station.transport)
+        # Other tests in this file cache names for the same peer; count from
+        # whatever is there rather than assume an empty cache.
+        cached = len(app._harvested.records_for_callsign(str(PEER)))
+        assert cached >= 3
+
+        await pilot.press("ctrl+r")
+        await wait_for(lambda: isinstance(app.screen, CommandReferenceScreen), "Ctrl+R")
+        screen = app.screen
+        assert screen.query_one("#ref-forget").display
+        screen.query_one("#ref-forget").press()
+        await wait_for(lambda: isinstance(app.screen, ForgetLearnedScreen), "the confirm")
+        app.screen.query_one("#connect-cancel").press()
+        await wait_for(lambda: app.screen is screen, "back to Ctrl+R")
+        assert len(app._harvested.records_for_callsign(str(PEER))) == cached, "cancel forgot"
+
+        screen.query_one("#ref-forget").press()
+        await wait_for(lambda: isinstance(app.screen, ForgetLearnedScreen), "the confirm")
+        app.screen.query_one("#connect-go").press()
+        await wait_for(lambda: not app._harvested.records_for_callsign(str(PEER)), "the forget")
+        await pilot.pause()
+        assert app.reference.learned == ()
+        assert app.reference.family.id == "bpq32", "the shipped reference stays"
+        assert not screen.query_one("#ref-forget").display
+        table = screen.query_one("#ref-table")
+        names = {str(table.get_row_at(i)[0]) for i in range(table.row_count)}
+        assert "WALL" not in names and "WILDCARDS" not in names
+        assert _sent_data_frames(app.station.transport) == before
+        assert far.read_nowait() == b""
+        assert app.learned_node(key) == (str(PEER), 0)
+    a.close()
+    b.close()
