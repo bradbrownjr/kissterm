@@ -171,6 +171,11 @@ MonitorPane { layout: vertical; }
 
 /* Heard pane */
 HeardPane { layout: vertical; }
+.message-browser { height: 1fr; }
+.mail-tree { width: 28; height: 1fr; border: round $primary; }
+.mail-right { width: 1fr; height: 1fr; }
+.mail-list { height: 2fr; }
+.mail-reader { height: 3fr; border: round $primary; padding: 0 1; }
 #heard-radar { width: auto; margin-bottom: 1; }
 #heard-table { height: 1fr; }
 #heard-radar-view { height: 1fr; border: round $primary; padding: 0 1; color: $text-muted; }

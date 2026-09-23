@@ -191,6 +191,29 @@ async def main() -> int:
             original_target="N1XYZ-2",
         )
 
+        # Mail: invented messages in the same W1AW/N1ABC range as the rest.
+        from datetime import datetime, timedelta, timezone
+
+        from kissterm.mail import KIND_BULLETIN, Message
+
+        now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+        store = app.mail_store
+        for folder, msg in (
+            ("Mail/BBS/Inbox", Message(sender="N1ABC", to=str(MYCALL), subject="Net control tonight?",
+                                       date=now - timedelta(hours=2), source="BBS N1XYZ",
+                                       body="Can you take net control at 1900?\n73 de N1ABC\n")),
+            ("Mail/BBS/Inbox", Message(sender="KB1QRP", to=str(MYCALL), subject="Antenna party Saturday",
+                                       date=now - timedelta(days=1), source="BBS N1XYZ", status="read",
+                                       body="Bring a ladder.\n")),
+            ("Mail/Winlink/Inbox", Message(sender="W1AW", to=str(MYCALL), subject="ICS-213 exercise",
+                                           date=now - timedelta(hours=5), source="Winlink",
+                                           body="Exercise traffic.\n")),
+            ("Bulletins/WX", Message(sender="N1ABC", to="WX", subject="Coastal flood watch",
+                                     date=now - timedelta(hours=3), kind=KIND_BULLETIN,
+                                     category="WX", body="Coastal flood watch until 6 PM.\n")),
+        ):
+            store.add(folder, msg)
+
         app._refresh_status()  # repaint after populating, not before
         # The slide-outs opened themselves at mount, which was BEFORE any of
         # the above existed, so the tables they painted then were empty.
@@ -207,6 +230,7 @@ async def main() -> int:
         await pilot.pause()
 
         shots = {
+            "mail": "screenshot-mail.svg",
             "terminal": "screenshot.svg",
             "monitor": "screenshot-monitor.svg",
             "heard": "screenshot-heard.svg",
@@ -220,6 +244,15 @@ async def main() -> int:
             await pilot.pause()
             await asyncio.sleep(0.15)
             await pilot.pause()
+            if tab == "mail":
+                from kissterm.ui.mail_pane import MessageBrowser, MessageList
+
+                browser = app.query_one("#mail-browser", MessageBrowser)
+                browser.reload()
+                await pilot.pause()
+                browser.query_one(MessageList).focus()
+                browser.open_selected()
+                await pilot.pause()
             if tab == "heard-radar":
                 from kissterm.ui.heard_pane import HeardPane
 

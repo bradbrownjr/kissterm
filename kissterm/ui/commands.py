@@ -35,9 +35,14 @@ from textual.command import DiscoveryHit, Hit, Hits, Provider
 
 #: Tab ids in on-screen order. The ids never change when labels or keys do:
 #: every `active == "aprs"` check addresses a pane by id.
-TAB_ORDER = ("terminal", "aprs", "heard", "monitor", "settings")
+TAB_ORDER = (
+    "mail", "bulletins", "files", "terminal", "aprs", "heard", "monitor", "settings",
+)
 
 TAB_TITLES = {
+    "mail": "Mail",
+    "bulletins": "Bulletins",
+    "files": "Files",
     "terminal": "Terminal",
     "aprs": "APRS",
     "heard": "Heard",
@@ -49,6 +54,21 @@ TAB_TITLES = {
 #: first thing to do there. Keys are listed below it from the registry, so
 #: these name a key only where the sentence needs it.
 TAB_HELP = {
+    "mail": (
+        "Your mail, filed by kind: BBS, Winlink, and All Inboxes for both "
+        "at once. Choose a folder on the left, then a message: Enter opens "
+        "it, Delete moves it to Deleted, and U in Deleted puts it back. "
+        "Nothing here transmits."
+    ),
+    "bulletins": (
+        "Bulletins by category (WX, ARES, ALL ...). Enter opens one; Delete "
+        "moves it to Deleted. Nothing here transmits."
+    ),
+    "files": (
+        "Files you have downloaded or received, and message attachments. "
+        "Enter shows a text file; nothing here is ever run or opened by "
+        "another program."
+    ),
     "terminal": (
         "Talk to a node, a BBS or another station. Ctrl+N connects. Then type "
         "a command and press Enter to send it. While you type, the commands "
@@ -196,10 +216,13 @@ COMMANDS: tuple[Command, ...] = (
             "Answer only messages to your exact callsign and SSID",
             tabs=("aprs",)),
     # --- View: tabs and what is shown ----------------------------------
-    _tab("terminal", "f2", "T"),
-    _tab("aprs", "f3", "A"),
-    _tab("heard", "f4", "H"),
-    _tab("monitor", "f5", "M"),
+    _tab("mail", "f2", "M"),
+    _tab("bulletins", "f3", "U"),
+    _tab("files", "f4", "I"),
+    _tab("terminal", "f5", "T"),
+    _tab("aprs", "f6", "A"),
+    _tab("heard", "f7", "H"),
+    _tab("monitor", "f8", "O"),
     _tab("settings", "f9", "S"),
     Command("toggle_contacts", "Address book", "View", "B",
             "Show or hide the Address Book", key="ctrl+g",

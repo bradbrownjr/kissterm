@@ -122,18 +122,9 @@ Files
 
 ### Items
 
-The message store (`kissterm/mail/`) shipped 2026-09-23.
+The message store (`kissterm/mail/`), the shared folder-tree/list/reader
+widget and the Mail, Bulletins and Files tabs shipped 2026-09-23.
 
-- [ ] **Shared message-list widget and folder tree.** Mail, Bulletins and
-  Files are the same three panes: tree, list of headers, reader. One widget
-  with a column spec replaces three that would drift apart. Keys follow
-  DESIGN.md section 5 rule 4: Enter opens the message, Insert composes, Delete moves to
-  Deleted, and plain letters (R reply, F forward, S send/receive) work only
-  while the list has focus. The folder tree answers the old "sub-view
-  navigation" question, so there is no sub-tab strip. Medium.
-- [ ] **Mail, Bulletins and Files tabs** at F2, F3 and F4, with the tab
-  move from DESIGN.md section 5.s table done in the same change. Mail becomes the launch
-  tab. Large, mostly composition of the two items above.
 - [ ] **Compose and Outbox.** Composing writes to the Outbox of a chosen
   account (a Winlink account or a BBS). Nothing transmits on save. Sending
   happens only when the operator starts a send/receive, which arms the gate

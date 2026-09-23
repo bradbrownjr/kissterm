@@ -337,7 +337,7 @@ class Config:
     #: this is people/services you MESSAGE over APRS, and conflating the two
     #: would make one entry's fields mean different things depending on
     #: which feature is reading it. See `kissterm/aprs_contacts.py` for the
-    #: dict shape and validation; managed from the APRS pane (F4), not
+    #: dict shape and validation; managed from the APRS pane, not
     #: Settings, the same reason the address book moved to its own tab.
     aprs_contacts: list[dict[str, Any]] = field(default_factory=list)
     #: The operator's own saved APRS messages (`{"name", "text", "gateway"}`)
@@ -477,6 +477,10 @@ class Config:
     #: `themes.resolve_theme_id`, which is the actual validation; this
     #: module does not duplicate Textual's theme registry to check against.
     theme: str = "tokyo-night"
+    #: The tab kissterm opens on: a tab id ("mail", "terminal", ...), or ""
+    #: for the product default, which is Mail (`ui.app.DEFAULT_START_TAB`).
+    #: An operator who mostly types at nodes can keep Terminal.
+    start_tab: str = ""
     #: Only read when `theme == "custom"`. See `CustomThemeConfig`.
     custom_theme: CustomThemeConfig = field(default_factory=CustomThemeConfig)
     #: Header clock. Local time, UTC time and the date are three INDEPENDENT
@@ -737,6 +741,7 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
     cfg.log_sessions = _load_bool(raw, "log_sessions", cfg.log_sessions, warnings)
     cfg.log_dir = _load_str(raw, "log_dir", cfg.log_dir, warnings)
     cfg.theme = _load_str(raw, "theme", cfg.theme, warnings)
+    cfg.start_tab = _load_str(raw, "start_tab", cfg.start_tab, warnings)
     cfg.custom_theme = _load_custom_theme(raw.get("custom_theme"), warnings)
     _load_clock(raw, cfg, warnings)
     cfg.clock_24h = _load_bool(raw, "clock_24h", cfg.clock_24h, warnings)

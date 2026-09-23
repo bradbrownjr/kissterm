@@ -16,6 +16,7 @@ Read this file plus the one pane you are changing.
 |---|---|
 | `app.py` | `KissTermApp`: bindings, `compose()`, tab actions, the frame fan-out, status bar. The **only** place that subscribes to the station. |
 | `styles.py` | All CSS, as `APP_CSS`. Appearance changes go here, not inline. |
+| `mail_pane.py` | `MessageBrowser`: folder tree, list and reader over `kissterm/mail/`, one widget for the Mail, Bulletins and Files tabs; its keys are bound on `MessageList` |
 | `terminal_pane.py` | Session scrollback + input line + sending |
 | `monitor_pane.py` | Channel log + filter bar |
 | `heard_pane.py` | Heard `DataTable` |

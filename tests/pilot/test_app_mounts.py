@@ -893,10 +893,13 @@ async def test_tab_switching_keys_are_not_duplicated_in_the_footer():
 #: no hint at all.
 TAB_BAR = (
     ("F1 Help", "help", "f1"),
-    ("F2 Terminal", "terminal", "f2"),
-    ("F3 APRS", "aprs", "f3"),
-    ("F4 Heard", "heard", "f4"),
-    ("F5 Monitor", "monitor", "f5"),
+    ("F2 Mail", "mail", "f2"),
+    ("F3 Bulletins", "bulletins", "f3"),
+    ("F4 Files", "files", "f4"),
+    ("F5 Terminal", "terminal", "f5"),
+    ("F6 APRS", "aprs", "f6"),
+    ("F7 Heard", "heard", "f7"),
+    ("F8 Monitor", "monitor", "f8"),
     ("F9 Settings", "settings", "f9"),
 )
 
@@ -968,7 +971,7 @@ async def test_ctrl_g_is_a_no_op_on_a_tab_with_no_slideout():
     begin with, which makes "nothing happened" unambiguous."""
     app, ta, tb, station = await _app()
     async with app.run_test(size=(79, 30)) as pilot:
-        await pilot.press("f5")  # Monitor -- no slide-out of its own
+        await pilot.press("f8")  # Monitor -- no slide-out of its own
         await pilot.pause()
         assert not app.query_one("#terminal-addressbook-column").display
         await pilot.press("ctrl+g")
@@ -1456,7 +1459,7 @@ async def test_selecting_a_saved_credential_disables_the_script_box(tmp_path):
 
 @pytest.mark.asyncio
 async def test_tab_keys_work_while_an_input_has_focus():
-    """The regression that made F1-F5 unusable whenever you were typing.
+    """The regression that made the tab keys unusable whenever you were typing.
 
     Textual re-activates a `TabPane` when a widget inside it takes focus.
     Switching tabs while an `Input` in the outgoing pane was still focused
@@ -1470,10 +1473,11 @@ async def test_tab_keys_work_while_an_input_has_focus():
     async with app.run_test(size=(120, 40)) as pilot:
         tabs = app.query_one("#main-tabs", TabbedContent)
         for start, widget, key, dest in (
-            ("terminal", "#session-input", "f3", "aprs"),
+            ("terminal", "#session-input", "f6", "aprs"),
             ("terminal", "#session-input", "f9", "settings"),
-            ("aprs", "#aprs-compose-input", "f5", "monitor"),
-            ("aprs", "#aprs-compose-input", "f4", "heard"),
+            ("aprs", "#aprs-compose-input", "f8", "monitor"),
+            ("aprs", "#aprs-compose-input", "f7", "heard"),
+            ("aprs", "#aprs-compose-input", "f2", "mail"),
         ):
             app.action_show_tab(start)
             await wait_for(lambda: tabs.active == start, f"{start} to open")

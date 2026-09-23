@@ -81,7 +81,7 @@ async def test_settings_is_f9_and_ctrl_g_closes_and_reopens_the_addressbook():
         await pilot.pause()
         assert app.query_one("#main-tabs").active == "settings"
 
-        await pilot.press("f2")
+        await pilot.press("f5")
         await pilot.pause()
         await asyncio.sleep(0.05)
         await pilot.pause()

@@ -173,6 +173,8 @@ is the enforcement.
    shown in the Footer (the Address Book and the APRS contacts table both use
    `E` for Edit). In a text input, typing is typing: no plain-letter binding.
    Edit is not F2, because F2 is a tab.
+   Mail, Bulletins and Files: Enter opens, Delete moves to Deleted, U
+   restores from Deleted.
 5. **The Footer shows only what works right now.** An action that does not
    apply on this tab, or in this state, is absent — not shown and then
    answered with a toast. `KissTermApp.check_action` is where that decision
@@ -187,28 +189,31 @@ is the enforcement.
 | Key | Tab |
 |---|---|
 | F1 | Help: keys, node commands, guides, glossary, About |
-| F2 | Terminal |
-| F3 | APRS |
-| F4 | Heard |
-| F5 | Monitor |
+| F2 | Mail (the launch tab) |
+| F3 | Bulletins |
+| F4 | Files |
+| F5 | Terminal |
+| F6 | APRS |
+| F7 | Heard |
+| F8 | Monitor |
 | F9 | Settings |
 | F10 | Menu |
 
-- **A tab's key is printed in its label, key first** — `F2 Terminal`, the way
-  a menu shows an accelerator. Never `Terminal (F2)`, and never in the Footer
+- **A tab's key is printed in its label, key first** — `F5 Terminal`, the way
+  a menu shows an accelerator. Never `Terminal (F5)`, and never in the Footer
   as well: that put the same words on screen twice, in two corners.
 - **Tabs are ordered by what the product is for**, not by when they were
-  built. Mail, Bulletins and Files take F2–F4 when they land (docs/ROADMAP.md
-  P2), moving Terminal, APRS, Heard and Monitor down; Help, Settings and Menu
-  are on their final keys now so they never move again.
+  built. Mail, Bulletins and Files took F2–F4 on 2026-09-23 and Mail is
+  the launch tab; Terminal, APRS, Heard and Monitor moved to F5–F8. Help,
+  Settings and Menu never move.
 - **Help was a modal and is a tab now**, first in the row so the labels
-  read F1 to F9 left to right. Requested directly: reading "F2 Terminal ...
-  F9 Settings" across the top, the operator looked for F1 there, did not
+  read F1 to F9 left to right. Requested directly: reading the tab row
+  across the top, the operator looked for F1 there, did not
   find it, and reported it missing. As a tab it has room for what a modal
   could not hold -- the shipped node command lists, the guides, the
   glossary, About -- and like every tab key, F1 is not in the Footer too.
-- **The `TabPane` ids never move with the labels** (`help`, `terminal`,
-  `aprs`, `heard`, `monitor`, `settings`): every `active == "aprs"` check addresses a
+- **The `TabPane` ids never move with the labels** (`help`, `mail`,
+  `bulletins`, `files`, `terminal`, `aprs`, `heard`, `monitor`, `settings`): every `active == "aprs"` check addresses a
   pane by id, so a reordering is a table edit, not a search through the app.
 - **F1 and F10 are the two keys a terminal emulator may steal** — GNOME
   Terminal opens its own help on F1 and its menu bar on F10 unless the menu

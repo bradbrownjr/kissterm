@@ -5,6 +5,35 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-23] — Mail, Bulletins and Files tabs; Mail is the launch tab
+
+### New Features
+
+- **Mail (F2), Bulletins (F3) and Files (F4)**, one shared widget
+  (`kissterm/ui/mail_pane.py`): folder tree, list, reader. Mail's tree
+  starts with All Inboxes; unread counts are on the folders; Enter opens
+  and marks read, Delete moves to Deleted, U restores. The reader shows
+  remote text sanitized and never as markup; Files lists files and
+  previews text only. Nothing on these tabs transmits.
+- **Mail is the launch tab**; Settings > Appearance > Open on
+  (`start_tab`) keeps Terminal, APRS or Monitor instead.
+
+### Improvements
+
+- **Tabs renumbered** per DESIGN.md section 5: Terminal F5, APRS F6,
+  Heard F7, Monitor F8. In the F10 View menu Mail is M and Monitor is O.
+- The pilot tests launch on Terminal through `tests/pilot/conftest.py`
+  (they were written before Mail); `tests/unit/test_start_tab.py` checks
+  the real default.
+
+**Files:** `kissterm/ui/mail_pane.py`, `kissterm/ui/app.py`,
+`kissterm/ui/commands.py`, `kissterm/ui/styles.py`,
+`kissterm/ui/settings_schema.py`, `kissterm/config.py`,
+`config.toml.example`, `scripts/generate_screenshot.py`, `assets/`,
+`tests/pilot/test_mail_pane.py`, `tests/pilot/conftest.py`,
+`tests/pilot/test_app_mounts.py`, `tests/unit/test_start_tab.py`,
+`README.md`, `DESIGN.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — Mail: reading BPQMail's replies
 
 ### New Features

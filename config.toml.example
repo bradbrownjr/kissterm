@@ -197,6 +197,10 @@ theme = "tokyo-night"
 show_local_time = true
 show_utc_time = false
 
+# The tab kissterm opens on: "" for Mail (the default), or "terminal",
+# "aprs", "monitor".
+start_tab = ""
+
 # 24-hour clock. True by default: 24-hour is the amateur radio convention,
 # especially for anything logged in UTC.
 clock_24h = true

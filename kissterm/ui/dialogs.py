@@ -1088,7 +1088,7 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
     stays informational, shown on `RadioReminderScreen` before connecting,
     the same way `frequency` always has been. A Telnet/SSH/VARA/Mercury
     transport, or a second entry for hardware already found by a scan, is
-    added from Settings (`F6`) > Transports > New (`TransportEntryScreen`);
+    added from Settings (`F9`) > Transports > New (`TransportEntryScreen`);
     this only lists whatever is already configured there.
 
     "Paclen"/"Window", unlike frequency and connection type, are NOT just a

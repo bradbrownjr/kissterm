@@ -4,7 +4,7 @@ Layout follows the shape a packet operator already has in their head from
 BPQTerminal and EasyTerm, because the goal is a familiar tool that happens to
 be modern, not a novel one they have to relearn:
 
-    F2 Terminal  F3 APRS  F4 Heard  F5 Monitor  F9 Settings
+    F2 Mail  F3 Bulletins  F4 Files  F5 Terminal  F6 APRS  F7 Heard  F8 Monitor  F9 Settings
     +--------------------------------------------+---------+
     | session output (scrollback, selectable)     | Address |
     +--------------------------------------------+ Book,   |
@@ -17,7 +17,7 @@ Keys follow IBM CUA as Midnight Commander uses it: F1 Help, F10 the menu,
 function keys for tabs, a small set of terminal-safe Ctrl keys, and every
 command in the menu. All of it is generated from `commands.COMMANDS`; see
 that module and DESIGN.md section 5. A tab's key is printed in its label
-(`F2 Terminal`), never in the Footer as well.
+(`F5 Terminal`), never in the Footer as well.
 
 **A modal is never a function key.** The command reference -- a modal opened
 over whatever tab is active -- is a menu command (and `Ctrl+R` on APRS), not a function key. A non-tab action
@@ -39,8 +39,7 @@ in how often an operator reaches for it than to Settings -- but *reaching*
 for it is now a keystroke inside the pane it dials from, not a tab switch
 away from it.
 
-This also reserves the F-row for the tabs still to come (Mail, Bulletins,
-Files -- see docs/ROADMAP.md). The ceiling was originally set at F8 (some
+This also kept the F-row free for Mail, Bulletins and Files (ROADMAP P2). The ceiling was originally set at F8 (some
 terminals are unreliable past it), but KC1JMH reports F9/F10 work fine in
 practice on the terminals actually in use here, and Midnight Commander --
 about as widely deployed a terminal-UI precedent as exists -- has used
@@ -48,8 +47,8 @@ F1-F10 for its whole menu row for decades without it being a practical
 problem. F11 is out regardless: it is "toggle fullscreen" in enough
 terminal emulators and window managers that it rarely reaches the
 application at all. **F1 is Help and F10 is the menu, permanently**, so
-tabs have F2-F9: five exist and Mail, Bulletins and Files are planned,
-which is the whole allowance -- see `commands.COMMANDS` and DESIGN.md
+tabs have F2-F9, and Mail, Bulletins and Files took F2-F4 in front of
+Terminal, which fills the whole allowance -- see `commands.COMMANDS` and DESIGN.md
 section 5 for the assignment.
 
 The status bar sits BELOW the Footer's shortcut-key row, not above it -- the
@@ -137,7 +136,15 @@ from ..ax25 import AX25Station, LinkParams, parse_path
 from ..ax25.address import AX25Address, AX25AddressError
 from ..aprs_beacon import AprsBeaconer
 from ..beacon import Beaconer
-from ..config import AprsConfig, BeaconConfig, find_credential, find_script, state_path
+from ..config import (
+    AprsConfig,
+    BeaconConfig,
+    find_credential,
+    find_script,
+    mail_path,
+    state_path,
+)
+from ..mail import MessageStore
 from .. import desktop_notify
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
@@ -155,7 +162,7 @@ from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
 from . import commands as cmdreg
-from .commands import KeyBindingsProvider
+from .commands import TAB_ORDER, KeyBindingsProvider
 from .menu import MenuScreen
 from ..harvested import HarvestedCommands
 from ..nodes import Command, CommandReference
@@ -181,6 +188,7 @@ from .heard_pane import HeardPane
 from .monitor_pane import MonitorPane
 from .settings_pane import SettingsPane
 from .help_pane import HelpPane
+from .mail_pane import MessageBrowser, bulletins_browser, files_browser, mail_browser
 from .styles import APP_CSS
 from .terminal_pane import MAX_TERMINAL_TABS, TerminalPane
 
@@ -561,6 +569,13 @@ class KissTermFooter(Footer):
         self.refresh_bindings()
 
 
+#: The launch tab when `Config.start_tab` is empty. Mail: the operator opens
+#: kissterm to their messages, not to a prompt (ROADMAP P2, the OutpostPM
+#: model). `tests/pilot/conftest.py` pins it to Terminal for the tests
+#: written before Mail existed.
+DEFAULT_START_TAB = "mail"
+
+
 class KissTermApp(App):
     """The application.
 
@@ -595,6 +610,15 @@ class KissTermApp(App):
     ) -> None:
         super().__init__(**kwargs)
         self.config = config
+        #: The message store behind Mail, Bulletins and Files. Under the
+        #: platformdirs data directory, so `_isolate` redirects it in tests.
+        self.mail_store = MessageStore(mail_path())
+        try:
+            self.mail_store.ensure_default_tree()
+        except OSError:
+            # An unwritable data directory must not stop the terminal from
+            # starting; the Mail tab just shows nothing.
+            pass
         #: Why the configured transport would not open at launch, when the
         #: operator chose to start anyway (`kissterm/__main__.py`). On mount
         #: the app lands on Settings > Transports with this in front of them,
@@ -747,18 +771,24 @@ class KissTermApp(App):
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
         yield KissTermHeader(show_clock=True)
-        with TabbedContent(initial="terminal", id="main-tabs"):
+        with TabbedContent(initial=self._start_tab(), id="main-tabs"):
             # Help first: it is on F1, and the row reads F1 to F9 left to
             # right. See `help_pane.py` for why it is a tab, not a modal.
             with TabPane("F1 Help", id="help"):
                 yield HelpPane()
-            with TabPane("F2 Terminal", id="terminal"):
+            with TabPane("F2 Mail", id="mail"):
+                yield mail_browser(self.mail_store)
+            with TabPane("F3 Bulletins", id="bulletins"):
+                yield bulletins_browser(self.mail_store)
+            with TabPane("F4 Files", id="files"):
+                yield files_browser(self.mail_store)
+            with TabPane("F5 Terminal", id="terminal"):
                 yield TerminalPane()
-            with TabPane("F3 APRS", id="aprs"):
+            with TabPane("F6 APRS", id="aprs"):
                 yield AprsPane()
-            with TabPane("F4 Heard", id="heard"):
+            with TabPane("F7 Heard", id="heard"):
                 yield HeardPane()
-            with TabPane("F5 Monitor", id="monitor"):
+            with TabPane("F8 Monitor", id="monitor"):
                 yield MonitorPane()
             with TabPane("F9 Settings", id="settings"):
                 yield SettingsPane()
@@ -770,6 +800,11 @@ class KissTermApp(App):
         with Vertical(id="bottom-bar"):
             yield KissTermFooter(show_command_palette=False)
             yield Static(id="status-bar")
+
+    def _start_tab(self) -> str:
+        """`Config.start_tab` when it names a tab, else `DEFAULT_START_TAB`."""
+        wanted = getattr(self.config, "start_tab", "")
+        return wanted if wanted in TAB_ORDER else DEFAULT_START_TAB
 
     def apply_theme(self) -> None:
         """Resolve and activate `self.config.theme`.
@@ -2627,7 +2662,7 @@ class KissTermApp(App):
             session_key,
             "write_note",
             f"\n*** {link.peer} acknowledged that -- no reply yet. See "
-            "Monitor (F5) for what has come back since.\n",
+            "Monitor (F8) for what has come back since.\n",
         )
 
     # ------------------------------------------------------------------
@@ -3474,7 +3509,7 @@ class KissTermApp(App):
                 self._to_terminal(
                     key,
                     "write_note",
-                    f"*** {attempts} attempt(s) sent. Check the Monitor tab (F5) "
+                    f"*** {attempts} attempt(s) sent. Check the Monitor tab (F8) "
                     "for what went out and what came back.\n",
                 )
             # It was up when we started or we would not be here, so a
@@ -4240,6 +4275,12 @@ class KissTermApp(App):
         """
         if event.pane.id == "heard":
             self._refresh_heard(force=True)
+        elif event.pane.id in ("mail", "bulletins", "files"):
+            # Files arrive from outside the tab (a BBS session, a download,
+            # an operator's own editor), so re-read on every visit.
+            for browser in self._base_query(MessageBrowser):
+                if browser.parent is event.pane:
+                    browser.reload()
         elif event.pane.id == "settings":
             # Same rule as the heard table: a pane must be correct the instant
             # it is visible. Re-rendering also discards half-typed edits the

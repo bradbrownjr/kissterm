@@ -578,6 +578,19 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         "Custom starts out looking identical to it rather than blank.",
         (
             Field(
+                "start_tab",
+                "Open on",
+                "choice",
+                "The tab kissterm shows when it starts.",
+                apply="restart",
+                choices=(
+                    ("Mail (default)", ""),
+                    ("Terminal", "terminal"),
+                    ("APRS", "aprs"),
+                    ("Monitor", "monitor"),
+                ),
+            ),
+            Field(
                 "theme",
                 "Theme",
                 "choice",

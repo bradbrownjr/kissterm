@@ -58,6 +58,17 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
 
 ## Features
 
+- **Mail, Bulletins and Files come first (in progress).** kissterm opens on
+  the Mail tab: a folder tree (All Inboxes, BBS, Winlink), the message
+  list, and a reader. Folders are by kind of mail, not by how you reached
+  the BBS, and each message says where it came from. Every message is a
+  plain text file under kissterm's data folder, so any editor can read
+  one; Delete moves to Deleted, and U puts it back. Collecting mail from a
+  BBS and Winlink are next (`docs/ROADMAP.md`, P2). Settings > Open on
+  keeps Terminal as the first tab if you prefer.
+
+  ![The Mail tab](assets/screenshot-mail.png)
+
 - **Context-aware help, so you never face a bare prompt with no idea what is
   legal.** kissterm identifies the node you connected to -- BPQ32, JNOS, a
   plain TNC2 command mode -- passively, from the banner and prompt it sends
@@ -248,7 +259,7 @@ terminal can actually deliver.
 | Key | What it does |
 |-----|--------------|
 | `F1` | **Help** -- Keys for this tab, guides, glossary and About |
-| `F2` `F3` `F4` `F5` `F9` | Show the Terminal / APRS / Heard / Monitor / Settings tab. Each tab's label starts with its key |
+| `F2` `F3` `F4` `F5` `F6` `F7` `F8` `F9` | Show the Mail / Bulletins / Files / Terminal / APRS / Heard / Monitor / Settings tab. Each tab's label starts with its key |
 | `F10` | **Menu** -- Every command, grouped |
 | `Ctrl+T` | **Transmit on/off** -- The master transmit switch; nothing keys the radio while it is off |
 | `Ctrl+N` | **Connect** -- Connect to a station, node or BBS |
@@ -414,7 +425,7 @@ responses, so kissterm never reports them with the same words:
   one. kissterm sends 6 SABMs over about 18 seconds before saying this;
   `connect_retries` in Settings (F9) changes that.
 
-The **Monitor tab (F5)** is the real instrument. It shows every frame in both
+The **Monitor tab (F8)** is the real instrument. It shows every frame in both
 directions, `>` for what you transmitted and `<` for what was heard, so you
 can see your SABM leave and watch for a reply -- including supervisory
 frames (RR, RNR, REJ), shown by default because on an ordinary one-to-one
