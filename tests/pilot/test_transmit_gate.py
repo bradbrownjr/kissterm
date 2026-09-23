@@ -265,7 +265,9 @@ async def test_a_dead_tnc_link_is_not_reported_as_a_dead_rf_path():
         await asyncio.sleep(0.3)
 
         log = app.query_one(TerminalPane).query_one("#session-log")
-        text = "\n".join(str(line) for line in log.lines)
+        # Joined with spaces: the log wraps to its width, and the phrase can
+        # fall across a line break at any terminal size.
+        text = " ".join(" ".join(strip.text.split()) for strip in log.lines)
         assert "not an RF problem" in text, text
         assert ta.sent == [], "SABMs were sent into a transport that was down"
     station.close()
