@@ -1843,12 +1843,11 @@ async def test_an_unterminated_tail_is_flushed_off_the_event_loop():
     """A prompt with NO terminator at all still has to appear, and the thing
     that makes it appear must not be the pane's message queue.
 
-    `Widget.set_timer` wraps its callback in `call_next`, so it only runs if
-    this pane's own queue is being drained -- and on a real station, twice in
-    one evening, it never was: the timer was armed repeatedly and its callback
-    ran zero times, while `write_incoming` (a plain method call from the link
-    callback) kept working throughout. Nothing reproduces that under
-    `run_test`, which drains those queues itself, so this asserts the
+    On a real station, twice in one evening, a `Widget.set_timer` armed here
+    ran zero times while `write_incoming` kept working. The cause was frames
+    dispatched outside the app's context (tests/pilot/test_frame_context.py),
+    which `run_test` cannot show because its pilot already runs inside that
+    context. The flush stays off Textual's timers regardless, so this asserts the
     mechanism rather than the symptom: the scheduled flush is an
     `asyncio.TimerHandle` on the event loop, not a Textual timer.
     """

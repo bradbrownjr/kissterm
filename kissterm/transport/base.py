@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import contextvars
 import enum
 import logging
 from collections.abc import Awaitable, Callable
@@ -159,6 +160,19 @@ class FrameTransport(Transport):
         super().__init__(info)
         self.ports = ports
         self._handlers: list[FrameHandler] = []
+        #: The context the frame fan-out runs in, or None to run it in
+        #: whatever task delivered the frame. `KissTermApp` sets this to its
+        #: own context when it attaches, because the real launch opens the
+        #: transport -- and so starts the reader task every frame arrives on
+        #: -- BEFORE the app runs, and a task inherits the context it was
+        #: created in. Without it, everything a received frame triggers runs
+        #: with Textual's `active_app` unset: a `set_timer` armed there dies
+        #: in its own task with `LookupError` and its callback never runs,
+        #: with nothing on screen to say so (2026-09-22, the Terminal pane's
+        #: flush timer; tests/pilot/test_frame_context.py). Timers the AX.25
+        #: link schedules from inside the fan-out inherit it too. Kept free
+        #: of any Textual import: to this layer it is only a context.
+        self.callback_context: contextvars.Context | None = None
 
     def subscribe(self, handler: FrameHandler) -> Callable[[], None]:
         """Register a frame callback; returns an unsubscribe callable.
@@ -179,6 +193,18 @@ class FrameTransport(Transport):
 
     async def dispatch(self, frame: AX25Frame, port: int = 0) -> None:
         log.debug("RX port %d: %s", port, frame.summary())
+        if self.callback_context is None:
+            await self._fan_out(frame, port)
+            return
+        # A task, not `Context.run`: handlers may be coroutines, and a
+        # coroutine runs in the context of the task that awaits it. A fresh
+        # copy each time, so one frame's handlers cannot leave context
+        # changes behind for the next frame's.
+        await asyncio.create_task(
+            self._fan_out(frame, port), context=self.callback_context.copy()
+        )
+
+    async def _fan_out(self, frame: AX25Frame, port: int) -> None:
         for handler in list(self._handlers):
             result = handler(frame, port)
             if asyncio.iscoroutine(result):

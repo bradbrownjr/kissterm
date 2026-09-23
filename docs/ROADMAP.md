@@ -144,32 +144,19 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   prompt in both reported sessions; together they also cover a prompt with no
   terminator at all. Three tests in `tests/pilot/test_terminal_ux.py` replay
   the real 53-byte CCEMA frame and all fail without the fix.
-  **Still open underneath this:** WHY that pane's message queue never drains
-  is not explained. The pane has no blocking `await` in any handler, and the
-  app is otherwise responsive. It matters beyond this bug -- anything reaching
-  the pane by `call_next`, `call_after_refresh` or a posted message is
-  affected -- so it needs its own investigation rather than being considered
-  closed by the workaround above.
+  The queue problem underneath it is its own item, below.
   Files: `kissterm/ui/wraplog.py`, `kissterm/ui/terminal_pane.py`,
   `tests/pilot/test_terminal_ux.py`.
 - [ ] **`TerminalPane`'s message queue does not drain on a real station.**
-  `open`. Found 2026-09-22 while diagnosing the missing prompt above, and
-  proven by instrumentation on the operator's own machine: a
-  `Widget.set_timer` scheduled on that pane was armed repeatedly across two
-  consecutive sessions and its callback ran exactly ZERO times, while the
-  event loop stayed healthy throughout (RRs went out on time, frames kept
-  arriving) and direct method calls into the same widget kept working. The
-  prompt bug is worked around by not using that queue, but the queue itself
-  is still broken and **anything reaching this pane by `call_next`,
-  `call_after_refresh`, `set_timer` or a posted message is affected** --
-  which includes `_append`'s own `call_after_refresh(scroll_end)`. Does not
-  reproduce under `run_test`, which drains those queues itself; the real
-  connect path was replayed in full (dialog, Radio Reminder modal, real
-  frames, the operator's config and geometry) without reproducing it. No
-  blocking `await` exists in any of the pane's handlers, so the cause is not
-  yet known. Next step: log from `on_timer` and `on_callback` separately to
-  find which hop dies, and compare a pane timer against an App timer in the
-  same session.
+  `awaiting confirmation` (2026-09-23). Found 2026-09-22: a `set_timer` on
+  the pane was armed repeatedly across two on-air sessions and its callback
+  ran zero times. **Cause, reproduced:** the launch opens the transport
+  before the app runs, so received frames were dispatched from a task with no
+  active Textual app, and `Timer._tick` dies on a bare `active_app.get()`.
+  `run_test` hid it because the pilot already runs inside the app's context.
+  Fixed by running the frame fan-out in the app's context
+  (`FrameTransport.callback_context`); `tests/pilot/test_frame_context.py`
+  reproduces the real launch order. Confirm on the air with any node session.
 - [ ] **`TerminalPane.log` shadows Textual's own `log` property.** `open`.
   `MessagePump.log` is a property returning a `Logger`; the pane defines
   `log(self, session_key, text)` over it. Textual calls `self.log.warning(...)`

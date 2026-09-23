@@ -839,18 +839,15 @@ class TerminalPane(Container):
         """Release a partial line after a short idle, on the EVENT LOOP.
 
         Deliberately `loop.call_later` and not `Widget.set_timer`, which is
-        what this used to be. `MessagePump.set_timer` wraps its callback in
-        `call_next`, so the flush only ever happened if this pane's own
-        message queue was being drained -- while `write_incoming` arrives by
-        a plain method call from the link callback and works regardless. On
-        a real station (KC1JMH, 2026-09-22, two consecutive sessions against
-        CCEMA) that queue never delivered: instrumentation logged the timer
-        being armed over and over and its callback running exactly zero
-        times, leaving `b'de WS1EC>\\r'` unwritten while every RR went out on
-        time and frames kept arriving. Nothing reproduces it under
-        `run_test`, where the pilot drains those queues itself, which is why
-        four earlier fixes were written against a symptom nobody could
-        reproduce.
+        what this used to be. On a real station (KC1JMH, 2026-09-22, two
+        consecutive sessions against CCEMA) instrumentation logged that timer
+        armed over and over and its callback running exactly zero times,
+        leaving `b'de WS1EC>\\r'` unwritten. The cause, found afterwards:
+        received frames were dispatched from a transport task created before
+        the app ran, where Textual's `active_app` is unset, and
+        `Timer._tick` dies on a bare `active_app.get()`. That is fixed at the
+        source (`FrameTransport.callback_context`), but this flush stays off
+        Textual's timers regardless.
 
         The event loop is the right dependency anyway: it is the same one
         already carrying the link callback that put these bytes here, so a

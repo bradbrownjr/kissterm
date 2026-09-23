@@ -109,6 +109,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import contextvars
 import logging
 import re
 import time
@@ -882,6 +883,11 @@ class KissTermApp(App):
         """Attach the one frame fan-out after a station becomes available."""
         if self.station is None:
             return
+        # Runs on the app's own message loop, so this is a context in which
+        # Textual's `active_app` is this app. The transport was opened before
+        # the app existed; see `FrameTransport.callback_context` for what
+        # breaks if received frames are not handled in this context.
+        self.station.transport.callback_context = contextvars.copy_context()
         self._unsubscribe_monitor = self.station.transport.subscribe(self._on_received_frame)
         self._unsubscribe_aprs = self.station.transport.subscribe(self._on_aprs_frame)
         self.station.transport.on_sent.append(self._on_sent_frame)

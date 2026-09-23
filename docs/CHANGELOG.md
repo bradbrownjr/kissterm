@@ -3,6 +3,26 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Received frames are handled inside the app
+
+### Bug Fixes
+
+- **Timers armed by a received frame now fire.** The launch opens the
+  transport before the app runs, so the task every received frame arrives on
+  had no active Textual app. A `set_timer` armed anywhere downstream (the
+  station, the link, the Terminal pane) died silently in its own task with
+  `LookupError: active_app`. This was the root cause of the Terminal pane
+  "message queue" never draining on a real station, and the reason it never
+  reproduced: `run_test` runs the test itself inside the app's context. The
+  app now hands the transport its context (`FrameTransport.callback_context`)
+  and the frame fan-out runs in it. `tests/pilot/test_frame_context.py`
+  delivers frames from a task started before the app, as the real launch
+  does, and fails without the fix.
+
+**Files:** `kissterm/transport/base.py`, `kissterm/ui/app.py`,
+`kissterm/ui/terminal_pane.py`, `tests/pilot/test_frame_context.py`,
+`tests/pilot/test_terminal_ux.py`, `docs/CHANGELOG.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — The glossary is written for operators
 
 ### Improvements

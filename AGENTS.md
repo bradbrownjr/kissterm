@@ -366,6 +366,12 @@ Gotchas that already cost time:
   asyncio-level (link callbacks, timers, `_pump`) — it does not need
   Textual's message pump to make progress — and call `pilot.pause()` at
   most once, right before reading a widget's state.
+- **`run_test` runs the test body inside the app's context; the real launch
+  does not.** The transport is opened before the app, so its reader task has
+  no active Textual app, and a Textual timer armed from a received frame dies
+  silently. `FrameTransport.callback_context` fixes that; a test for anything
+  frame-driven that depends on Textual machinery should deliver frames from a
+  task started before `run_test` (`tests/pilot/test_frame_context.py`).
 - **At 40% frame loss the transfer completes in about 5 s**, not instantly:
   go-back-N with a 4-frame window collapses under that much loss. That is
   correct behaviour, not a stall. 25% is the stable test point.
