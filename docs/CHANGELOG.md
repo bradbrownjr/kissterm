@@ -3,6 +3,22 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — A TNC that is down fails in seconds, not minutes
+
+### Fixes
+
+- **Starting kissterm against a KISS-over-TCP TNC that is down no longer sits
+  on a blank terminal for about two minutes.** Reported from a real station:
+  the TNC host was off the network, gave no RST, and `asyncio.open_connection`
+  waited out the kernel's SYN retries before `Errno 110` appeared. Each connect
+  attempt is now bounded at 10 seconds, the failure says "no answer within
+  10s (host down or unreachable?)" rather than an empty `TimeoutError`
+  message, and startup prints which transport it is opening before it waits.
+  The same unbounded connect in the other TCP transports is on the roadmap.
+
+**Files:** `kissterm/transport/tcp_kiss.py`, `kissterm/__main__.py`,
+`tests/unit/test_tcp_kiss_connect_timeout.py`, `docs/ROADMAP.md`
+
 ## [2026-09-22] — Enter sends again
 
 ### Fixes

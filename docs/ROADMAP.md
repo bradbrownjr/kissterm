@@ -590,6 +590,13 @@ closed by a coding session.
   Local control/data socket test passes; an ARQ contact has not been made.
 - [ ] **BLE KISS (Mobilinkd-class) against real hardware.** Needs: a BLE
   TNC. Shipped 2026-09-17 against mocks only.
+- [ ] **Bound the remaining TCP connects.** `tcp_kiss.py` now gives up after
+  `_CONNECT_TIMEOUT` (10 s) instead of waiting out the kernel's roughly
+  two-minute SYN retries on a host that is down. `agwpe.py`, `telnet.py`,
+  `vara.py` and `aprs_is.py` still call `asyncio.open_connection` unbounded
+  and have the same blank-terminal-then-failure behaviour. Fix them the same
+  way, including naming the timeout in the message (`TimeoutError`'s message
+  is empty). Codeable; no hardware needed.
 - [ ] **AX/IP** -- post-1.0, and only with a named use case (a node reachable
   only over AX/IP) and BPQ32's own wire-format documentation. Node-to-node
   backbone linking is not a terminal's job.

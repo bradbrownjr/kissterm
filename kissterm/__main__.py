@@ -426,6 +426,9 @@ async def _amain(args) -> int:
 
         try:
             transport = build_transport(entry)
+            # Say what we are waiting on: a TNC that is down can take several
+            # seconds to fail, and a blank terminal reads as a hang.
+            print(f"Opening transport {entry.get('name')!r}...", file=sys.stderr, flush=True)
             await transport.open()
         except (TransportError, Exception) as exc:  # noqa: BLE001 - reported, not raised
             print(f"Could not open transport {entry.get('name')!r}: {exc}", file=sys.stderr)
