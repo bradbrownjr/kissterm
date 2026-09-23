@@ -54,8 +54,9 @@ TAB_HELP = {
         "a command and press Enter to send it. While you type, the commands "
         "this node understands appear under the entry line with a short "
         "description: Up and Down choose one, Tab fills it in, and nothing is "
-        "sent until you press Enter. Ctrl+R lists every command for the node "
-        "you are on."
+        "sent until you press Enter. Help > Node commands in the F10 menu "
+        "lists every command for the node you are on, and Ctrl+R reconnects "
+        "to the last station this tab was connected to."
     ),
     "aprs": (
         "APRS messages, positions and objects. Put a callsign in To, type the "
@@ -147,10 +148,15 @@ COMMANDS: tuple[Command, ...] = (
     Command("toggle_transmit", "Transmit on/off", "Session", "T",
             "The master transmit switch; nothing keys the radio while it is off",
             key="ctrl+t", footer=("*",), short="TX"),
+    Command("reconnect", "Reconnect", "Session", "E",
+            "Connect again to the station this Terminal tab was connected to, "
+            "the same way (hops and login included)", key="ctrl+r",
+            tabs=("terminal",), footer=("terminal",)),
     Command("close_tab", "Close tab", "Session", "L",
             "Close the Terminal tab on screen; a connected one is disconnected "
             "first. Delete does the same while the tab row has focus",
-            tabs=("terminal",)),
+            key="ctrl+w", tabs=("terminal",), footer=("terminal",),
+            priority=True, short="Close"),
     Command("beacon_now", "Send beacon", "Session", "B",
             "Send your beacon text once, now"),
     Command("file_transfer", "File transfer", "Session", "F",
@@ -181,7 +187,8 @@ COMMANDS: tuple[Command, ...] = (
             footer=("aprs",)),
     Command("close_tab", "Close conversation", "APRS", "L",
             "Close the conversation tab on screen. Delete does the same while "
-            "the tab row has focus", tabs=("aprs",)),
+            "the tab row has focus", key="ctrl+w", tabs=("aprs",),
+            footer=("aprs",), priority=True, short="Close"),
     Command("aprs_is_watch", "Watch APRS-IS", "APRS", "W",
             "Watch APRS-IS for traffic to or from you (receive only)",
             tabs=("aprs",)),
@@ -218,8 +225,8 @@ COMMANDS: tuple[Command, ...] = (
     Command("help('help-about')", "About", "Help", "A",
             "Version, project links, and where your files are"),
     Command("command_reference", "Node commands", "Help", "N",
-            "Every command the node you are on understands", key="ctrl+r",
-            tabs=("terminal",), footer=("terminal",), short="Commands"),
+            "Every command the node you are on understands",
+            tabs=("terminal",)),
     Command("command_palette", "Search commands", "Help", "S",
             "Find any command by typing part of its name", key="ctrl+p"),
     # --- Not in the menu -----------------------------------------------
@@ -235,6 +242,8 @@ FOOTER_ORDER = (
     "toggle_transmit",
     "connect",
     "disconnect",
+    "reconnect",
+    "close_tab",
     "toggle_contacts",
     "command_reference",
     "find_in_terminal",
@@ -288,8 +297,8 @@ for _command in COMMANDS:
 
 def commands_for(action: str) -> list[Command]:
     """Every registry entry for an action. One action may have two entries
-    that differ by tab -- Ctrl+R is Node commands on Terminal and Services
-    on APRS -- so the label always says what it does where it is pressed."""
+    that differ by tab -- command_reference is Node commands on Terminal
+    and Services on APRS -- so the label always says what it does where it is pressed."""
     return list(_BY_ACTION.get(action, ()))
 
 
@@ -313,7 +322,7 @@ def menu_groups() -> list[tuple[str, list[Command]]]:
 
 def app_bindings() -> list[Binding]:
     """The App's `BINDINGS`, generated. One binding per (key, action) -- the
-    two Ctrl+R entries share one. `show=False` throughout: the Footer is
+    two Ctrl+W entries share one. `show=False` throughout: the Footer is
     drawn from the registry, not from `Binding.show`."""
     seen: set[tuple[str, str]] = set()
     bindings = []

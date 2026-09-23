@@ -41,11 +41,13 @@ ALLOWED_FUNCTION = {f"f{n}" for n in range(1, 11)}
 
 #: Ctrl keys this app may take. Ctrl+I/M/H/[/J are Tab, Enter, Backspace,
 #: Escape and LF; Ctrl+C/Z/\\ are signals; Ctrl+S is flow control; Ctrl+A and
-#: Ctrl+B are the screen and tmux prefixes; Ctrl+A/E/K/U/W are line editing
-#: in an input. What is left is the budget.
+#: Ctrl+B are the screen and tmux prefixes; Ctrl+A/E/K/U are line editing
+#: in an input. What is left is the budget. Ctrl+W was line editing too,
+#: until the operator asked for it as Close tab (2026-09-23); word-delete
+#: moved to Ctrl+Backspace / Ctrl+Delete (`kissterm/ui/inputs.py`).
 ALLOWED_CTRL = {
     "ctrl+q", "ctrl+n", "ctrl+d", "ctrl+t", "ctrl+f", "ctrl+l", "ctrl+g",
-    "ctrl+r", "ctrl+p",
+    "ctrl+r", "ctrl+p", "ctrl+w",
 }
 
 #: The only keys with a modifier that are not in the budget: aliases of
@@ -53,6 +55,12 @@ ALLOWED_CTRL = {
 #: a key on terminals that distinguish them and cost nothing where they do
 #: not. They are `show=False` and nothing depends on them.
 ENTER_ALIASES = {"shift+enter", "ctrl+enter", "alt+enter"}
+
+#: Word-delete in a text field (`kissterm/ui/inputs.py`), the same reasoning:
+#: where a terminal cannot tell Ctrl+Backspace from Backspace, or Ctrl+Delete
+#: from Delete, the key degrades to deleting one character, not to a
+#: different command.
+WORD_DELETE = {"ctrl+backspace", "ctrl+delete"}
 
 
 def _binding_classes():
@@ -83,7 +91,7 @@ def test_every_bound_key_is_terminal_safe():
     for cls in _binding_classes():
         for binding in _bindings(cls):
             for key in _keys(binding):
-                if key in ENTER_ALIASES:
+                if key in ENTER_ALIASES or key in WORD_DELETE:
                     continue
                 allowed = (
                     key in ALLOWED_SPECIAL

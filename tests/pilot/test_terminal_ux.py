@@ -118,6 +118,20 @@ def _sent_data_frames(transport) -> list:
 # ---------------------------------------------------------------------------
 
 
+
+def _open_node_commands(app) -> None:
+    """Help > Node commands, the way the F10 menu runs it (Ctrl+R on this
+    tab is Reconnect now).
+
+    Why the dialog presses in these tests pause first: a `Button.press()`
+    on a screen that has not finished mounting is lost, the test fails with
+    that screen still open, and `run_test` then never returns -- the whole
+    run hangs instead of reporting the failure (found 2026-09-23, about one
+    run in eight under load)."""
+    from kissterm.ui import commands as cmdreg
+
+    app.run_command(cmdreg.command_for("command_reference", "terminal"))
+
 @pytest.mark.asyncio
 async def test_scrollback_is_a_log_not_an_editable_field():
     app, a, b, _ = await _connected_app()
@@ -359,7 +373,7 @@ async def test_bbs_helper_from_reference_reaches_compose_box_without_sending():
         far.read_nowait()
         before = _sent_data_frames(app.station.transport)
 
-        await pilot.press("ctrl+r")
+        _open_node_commands(app)
         await wait_for(
             lambda: isinstance(app.screen, CommandReferenceScreen)
             and app.screen.query_one("#ref-bbs", Button),
@@ -803,7 +817,7 @@ async def test_reference_screen_opens_and_lists_commands():
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.reference = CommandReference(family=load_family("bpq32"))
-        await pilot.press("ctrl+r")
+        _open_node_commands(app)
         await pilot.pause()
         await asyncio.sleep(0.2)
         await pilot.pause()
@@ -821,7 +835,7 @@ async def test_glossary_toggle_shares_the_command_reference_pane():
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.reference = CommandReference(family=load_family("bpq32"))
-        await pilot.press("ctrl+r")
+        _open_node_commands(app)
         await pilot.pause()
         await asyncio.sleep(0.2)
         await pilot.pause()
@@ -892,7 +906,7 @@ async def test_reference_mode_switch_clears_the_other_views_search_filter():
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         app.reference = CommandReference(family=load_family("bpq32"))
-        await pilot.press("ctrl+r")
+        _open_node_commands(app)
         await pilot.pause()
 
         screen = app.screen
@@ -918,7 +932,7 @@ async def test_harvest_button_only_appears_with_a_connected_link():
     app, a, b, incoming = await _connected_app()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
-        await pilot.press("ctrl+r")
+        _open_node_commands(app)
         await pilot.pause()
         await asyncio.sleep(0.2)
         await pilot.pause()
@@ -933,7 +947,7 @@ async def test_harvest_button_only_appears_with_a_connected_link():
         app._bind_link(link)
         await asyncio.sleep(0.1)
         await pilot.pause()
-        await pilot.press("ctrl+r")
+        _open_node_commands(app)
         await pilot.pause()
         await asyncio.sleep(0.2)
         await pilot.pause()
@@ -959,7 +973,7 @@ async def test_cancelling_the_harvest_confirm_sends_nothing():
         far = incoming[0]
         far.read_nowait()  # drain the connect handshake
 
-        await pilot.press("ctrl+r")
+        _open_node_commands(app)
         await pilot.pause()
         await asyncio.sleep(0.2)
         await pilot.pause()
@@ -1012,7 +1026,7 @@ async def test_harvesting_learns_commands_and_caches_them_per_callsign():
             far = incoming[0]
             far.read_nowait()  # drain the connect handshake
 
-            await pilot.press("ctrl+r")
+            _open_node_commands(app)
             await pilot.pause()
             await asyncio.sleep(0.2)
             await pilot.pause()
@@ -1190,7 +1204,7 @@ async def test_a_reconnect_applies_the_cache_with_no_new_airtime():
         far = incoming[0]
         far.read_nowait()
 
-        await pilot.press("ctrl+r")
+        _open_node_commands(app)
         await pilot.pause()
         await asyncio.sleep(0.2)
         await pilot.pause()
@@ -1214,7 +1228,7 @@ async def test_command_picker_labels_harvested_bbs_commands():
         app.reference = CommandReference(
             learned=(Command(name="LIST", confidence="learned", context="bbs"),)
         )
-        await pilot.press("ctrl+r")
+        _open_node_commands(app)
         await pilot.pause()
         screen = app.screen
         assert isinstance(screen, CommandReferenceScreen)
@@ -2033,7 +2047,7 @@ async def test_sysop_commands_are_never_suggested():
 
 @pytest.mark.asyncio
 async def test_the_reference_screen_lists_every_context_with_its_source():
-    """At a BPQ32 node, Ctrl+R lists the node's commands first, then its
+    """At a BPQ32 node, Node commands lists the node's commands first, then its
     BBS's and chat server's, each row saying which context it belongs to
     and where its description came from. A harvested name matching a
     shipped command marks that row; it never adds a second one."""
@@ -2049,8 +2063,9 @@ async def test_the_reference_screen_lists_every_context_with_its_source():
             Command(name="NODES", confidence="learned"),
             Command(name="WALL", confidence="learned"),
         )
-        await pilot.press("ctrl+r")
-        await wait_for(lambda: isinstance(app.screen, CommandReferenceScreen), "Ctrl+R")
+        _open_node_commands(app)
+        await wait_for(lambda: isinstance(app.screen, CommandReferenceScreen), "Node commands")
+        await pilot.pause()  # let the screen compose its table
         table = app.screen.query_one("#ref-table")
         rows = [table.get_row_at(i) for i in range(table.row_count)]
         contexts = [row[3] for row in rows]
@@ -2170,18 +2185,21 @@ async def test_forgetting_learned_commands_clears_the_cache_and_sends_nothing():
         cached = len(app._harvested.records_for_callsign(str(PEER)))
         assert cached >= 3
 
-        await pilot.press("ctrl+r")
-        await wait_for(lambda: isinstance(app.screen, CommandReferenceScreen), "Ctrl+R")
+        _open_node_commands(app)
+        await wait_for(lambda: isinstance(app.screen, CommandReferenceScreen), "Node commands")
+        await pilot.pause()  # let the screen compose its table
         screen = app.screen
         assert screen.query_one("#ref-forget").display
         screen.query_one("#ref-forget").press()
         await wait_for(lambda: isinstance(app.screen, ForgetLearnedScreen), "the confirm")
+        await pilot.pause()  # a press before the dialog is mounted is lost
         app.screen.query_one("#connect-cancel").press()
-        await wait_for(lambda: app.screen is screen, "back to Ctrl+R")
+        await wait_for(lambda: app.screen is screen, "back to Node commands")
         assert len(app._harvested.records_for_callsign(str(PEER))) == cached, "cancel forgot"
 
         screen.query_one("#ref-forget").press()
         await wait_for(lambda: isinstance(app.screen, ForgetLearnedScreen), "the confirm")
+        await pilot.pause()
         app.screen.query_one("#connect-go").press()
         await wait_for(lambda: not app._harvested.records_for_callsign(str(PEER)), "the forget")
         await pilot.pause()

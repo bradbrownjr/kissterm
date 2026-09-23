@@ -3,6 +3,92 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — The status bar says "disconnected"; UTF-8 fix confirmed
+
+### Improvements
+
+- **The status bar shows `disconnected` when no session is on screen**, at
+  launch or after its tab is closed. Before, it showed `WS1EC-7 connected`
+  during a session and `WS1EC-7 disconnected` after one ended, but no link
+  field at all otherwise. Requested: "I would like to see a Disconnected
+  status as well". With no transport configured, it still shows only
+  `NO TRANSPORT`.
+
+### Bug Fixes
+
+- The operator confirmed on air that `R 2738` now shows its UTF-8
+  characters correctly. The item is removed from P0.1.
+- A pilot test that could hang the whole suite now waits for its dialog to
+  mount before pressing a button in it (P0.4).
+
+**Files:** `kissterm/ui/app.py`, `tests/pilot/test_terminal_sessions.py`,
+`tests/pilot/test_terminal_ux.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
+## [2026-09-23] — Ctrl+R reconnects; node commands move to F1 and the menu
+
+### New Features
+
+- **Ctrl+R on the Terminal tab reconnects** to the station that tab was
+  last connected to. Requested: "Let's drop ^R Commands, and let the end user
+  hit F1 for the context aware help tab, and change ^R to Reconnect".
+  - The whole connect is replayed, hop chain, login and port included.
+  - It goes through the ordinary connect flow: the radio reminder, the TNC
+    link check, and the visible transmit arming, as for a dial from the
+    Address Book.
+  - It does nothing to a tab that is still connected. With nothing dialed
+    yet, it says so and sends nothing.
+  - A tab that answered an incoming call has no connect of its own to
+    replay, so Reconnect dials that caller directly.
+
+### Improvements
+
+- **The node command reference has no key on the Terminal tab now.** F1
+  shows the reference for the node you are on. F10 > Help > Node commands
+  opens the screen that fills the send line, with the harvest and Forget
+  learned buttons. On the APRS tab, Ctrl+R is still Services.
+- The guides, README, DESIGN.md and the Help tab's note now point to F1 and
+  the menu instead of Ctrl+R.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/commands.py`,
+`kissterm/ui/help_pane.py`, `kissterm/ui/terminal_pane.py`,
+`kissterm/guides.py`, `tests/pilot/test_connect_scripts.py`,
+`tests/pilot/test_terminal_ux.py`, `tests/pilot/test_menu_and_help.py`,
+`tests/unit/test_commands.py`, `tests/pilot/test_app_mounts.py`, `README.md`,
+`DESIGN.md`, `assets/`, `docs/CHANGELOG.md`
+
+## [2026-09-23] — Close tab is a small X and Ctrl+W
+
+### Improvements
+
+- **The Close button is now a one-cell X at the end of the tab row, and the
+  key is Ctrl+W.** The operator's verdict on the button was "an
+  unnecessarily huge close tab button, and it's present when there are no
+  2nd tab".
+  - The X is one text row, like a tab label. Its tooltip says whether it
+    will disconnect or close.
+  - The Terminal row, X included, is hidden until there is a second
+    session. The earlier version hid only the tabs, so the button showed
+    anyway.
+  - `^W Close` is in the Footer while there is a tab to close: any
+    Terminal session, or an APRS conversation (not All or Bulletins).
+    Reported: "I don't see ^w in the shortcut bar".
+  - Ctrl+W is the tenth global Ctrl key (DESIGN.md section 5). It is
+    priority-bound, so it works while you type in the send line. Inside a
+    dialog it is still delete-word.
+- **Ctrl+Backspace and Ctrl+Delete delete the word to the left and right**
+  in the send line and the APRS To and compose boxes (`WordInput`). Textual
+  had Ctrl+Backspace deleting to the right, and Ctrl+W, the old
+  delete-word, is Close tab now. Some terminals send Ctrl+Backspace as plain
+  Backspace; `scripts/keycheck.py` shows what yours sends.
+
+**Files:** `kissterm/ui/tabclose.py` (new), `kissterm/ui/inputs.py` (new),
+`kissterm/ui/terminal_pane.py`, `kissterm/ui/aprs_pane.py`,
+`kissterm/ui/app.py`, `kissterm/ui/commands.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_terminal_sessions.py`,
+`tests/pilot/test_aprs_conversation_tabs.py`,
+`tests/unit/test_key_standard.py`, `tests/unit/test_docs_keys.py`,
+`DESIGN.md`, `AGENTS.md`, `README.md`, `assets/`, `docs/CHANGELOG.md`
+
 ## [2026-09-23] — Close tab is in the menu and on screen
 
 ### Improvements

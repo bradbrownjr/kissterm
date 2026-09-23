@@ -167,12 +167,17 @@ is the enforcement.
    failure. Ctrl+I, M, H, `[` and J
    are Tab, Enter, Backspace, Esc and LF; Ctrl+C, Z and `\` are signals;
    Ctrl+S is flow control; Ctrl+A and Ctrl+B are the screen and tmux
-   prefixes; Ctrl+A, E, K, U and W are line editing inside an input.
-3. **Nine global Ctrl keys, and that is the whole budget**, each with a
+   prefixes; Ctrl+A, E, K and U are line editing inside an input.
+3. **Ten global Ctrl keys, and that is the whole budget**, each with a
    mnemonic that holds in other software: `Ctrl+Q` Quit, `Ctrl+N` New
    connection, `Ctrl+D` Disconnect, `Ctrl+T` Transmit on/off, `Ctrl+F` Find,
-   `Ctrl+L` Clear, `Ctrl+G` side panel, `Ctrl+R` command reference, `Ctrl+P`
-   palette. Ctrl+D is bound with `priority=True` so it wins over an `Input`'s
+   `Ctrl+L` Clear, `Ctrl+G` side panel, `Ctrl+R` Reconnect (Services on
+   APRS), `Ctrl+P`
+   palette, `Ctrl+W` close tab. Ctrl+W was an input's delete-word until the
+   operator asked for it as close (2026-09-23), as in a browser or editor;
+   the lines typed into all day (`WordInput`) delete a word with
+   Ctrl+Backspace and Ctrl+Delete instead, and inside a dialog Ctrl+W is
+   still delete-word. Ctrl+D is bound with `priority=True` so it wins over an `Input`'s
    own delete-right (the Delete key still does that), and only while there is
    something to disconnect. Everything else — send beacon, send position,
    object, bulletin, gateway form, Watch APRS-IS, SSID filter, file transfer,
@@ -241,12 +246,19 @@ is the enforcement.
 
 ### Context by tab, not a key per pane
 
-`Ctrl+G` and `Ctrl+R` each ask one question whose answer depends on where
-you are, and the registry gives each tab its own label for them. Ctrl+G is
-the Address Book on Terminal and the contacts list on APRS. Ctrl+R is the
-node command reference on Terminal ("what can I say to this node?") and the
-gateway service picker on APRS ("what can I say to this service?"). Both fill
-an input; **neither sends**.
+`Ctrl+G` asks one question whose answer depends on where you are, and the
+registry gives each tab its own label for it: the Address Book on Terminal
+and the contacts list on APRS. The command reference does the same without
+a Terminal key: Node commands on Terminal (F10 > Help, or read-only under
+F1) and the gateway service picker on APRS (`Ctrl+R`). Both fill an input;
+**neither sends**.
+
+`Ctrl+R` is two different commands by tab, which the registry allows only
+because each is scoped to its tab: Reconnect on Terminal (requested
+2026-09-23: "let the end user hit F1 for the context aware help tab, and
+change ^R to Reconnect") and Services on APRS. Reconnect redials the tab's
+last request through the ordinary connect flow, so it arms the transmit
+gate visibly, exactly like dialing from the Address Book.
 
 ### Everything else about keys
 
@@ -355,9 +367,12 @@ hierarchy.
   dozen tabs; either alone is half a notification. The same pair marks the
   callsign in the contacts table, so the two markers for one fact read as
   one marker. Activating the tab clears both.
-- **Closing a tab is `Delete` on the focused strip**, shown in the Footer
-  like every other panel key. Not `Ctrl+W` — `Input` already claims that for
-  delete-word and the compose box is right there.
+- **Closing a tab is `Ctrl+W` from anywhere on the pane, the small `X` at
+  the end of the tab row, or `Delete` on the focused strip** (shown in the
+  Footer like every other panel key). The `X` is one text cell, not a
+  `Button`: a bordered button beside the strip was three rows tall and was
+  called "unnecessarily huge" on a real screen. The row, `X` included, is
+  hidden until there is a second Terminal session.
 
 **The Terminal pane's session strip (`#terminal-session-tabs`) is the same
 recipe, requested directly ("we'll be doing that with the packet terminal
@@ -388,7 +403,7 @@ module docstring for the full reasoning:
 ## 6. The bottom two rows
 
 ```
- ^T TX  ^N Connect  ^G Book  ^R Commands  ^F Find  ^Q Quit  F10 Menu            <- Terminal Footer
+ ^T TX  ^N Connect  ^G Book  ^R Reconnect  ^F Find  ^Q Quit  F10 Menu            <- Terminal Footer
  kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6                    <- status
 ```
 

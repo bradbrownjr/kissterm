@@ -176,7 +176,7 @@ async def test_the_help_menu_opens_each_help_section():
 @pytest.mark.asyncio
 async def test_the_help_tab_transmits_nothing_and_fills_no_input():
     """Browsing references here is reading. The route from a reference to the
-    send line is Ctrl+R on the Terminal tab, and nothing on this tab may
+    send line is Help > Node commands in the menu, and nothing on this tab may
     become a second one (AGENTS.md: suggestions fill the input; they never
     send -- and this tab does not even fill)."""
     import inspect

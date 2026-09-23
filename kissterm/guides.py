@@ -84,9 +84,11 @@ until you press Enter or click Send.**
 
 - **Do not ask a node for its help list just to learn it.** On a 1200-baud
   channel a long help text can take a minute of airtime, during which nobody
-  else on the frequency can transmit. Press {key:command_reference} instead:
-  kissterm ships the command lists of the common node types, and picking one
-  fills in the send line without sending.
+  else on the frequency can transmit. Press {key:help} instead and open
+  **Node commands**: kissterm ships the command lists of the common node
+  types and shows the one for the node you are on. **Help > Node commands**
+  in the {key:menu} menu does the same, and picking a command there fills in
+  the send line without sending.
 - **As you type,** matching commands appear under the send line. Up and Down
   choose, Tab fills in, and Enter still decides what is sent.
 - **To leave,** type the node's own bye command (often `B` or `BYE`), or
@@ -172,8 +174,8 @@ everyone else waits. At 1200 baud, 2 KB of text is about 19 seconds of
 airtime.
 
 - **Do not download long lists just to look at them.** Use
-  {key:command_reference} for command lists; kissterm ships them so you do
-  not have to ask the node.
+  {key:help} **Node commands** for command lists; kissterm ships them so you
+  do not have to ask the node.
 - **Beacon rarely.** kissterm will not beacon more often than every ten
   minutes, and it never beacons an empty message.
 - **Disconnect when you are done** rather than leaving a node holding your

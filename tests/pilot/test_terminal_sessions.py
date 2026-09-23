@@ -278,15 +278,69 @@ async def test_the_suggestion_strip_follows_the_active_sessions_reference():
     station.close()
 
 
-@pytest.mark.asyncio
-async def test_a_session_tab_can_be_closed_from_the_menu_and_its_button():
-    """Requested 2026-09-23: Delete on the focused tab row was the only way,
-    and nothing on screen said so. The menu entry and the Close button both
-    go through the same disconnect-then-close path, and the button says
-    which of the two it will do."""
-    from textual.widgets import Button
+async def _footer_actions(app, pilot) -> list[str]:
+    """The Footer's chip actions after it has had a frame to recompose."""
+    from textual.widgets._footer import FooterKey
 
+    from kissterm.ui.app import KissTermFooter
+
+    await pilot.pause()
+    await pilot.pause()
+    return [chip.action for chip in app.query_one(KissTermFooter).query(FooterKey)]
+
+
+@pytest.mark.asyncio
+async def test_a_session_tab_closes_from_ctrl_w_and_its_x(monkeypatch):
+    """Requested 2026-09-23: Delete on the focused tab row was the only way,
+    and nothing on screen said so. The first answer, a bordered Close button,
+    was "unnecessarily huge" and showed with no second session; now it is a
+    one-cell X at the end of the row, hidden with the row, and Ctrl+W. Both
+    go through the same disconnect-then-close path, and the X's tooltip says
+    which of the two it will do."""
+    from kissterm.ui.tabclose import CloseTabX
     from tests.pilot._wait import wait_for
+
+    app, station, ta = await _bare_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        row = app.query_one("#terminal-session-row")
+        assert not row.display, "no sessions: no tab row and no X"
+        assert "close_tab" not in await _footer_actions(app, pilot), "nothing to close"
+        from tests.pilot.test_terminal_ux import _status_parts
+
+        assert "disconnected" in _status_parts(app, monkeypatch), "no session says so"
+
+        await station._on_frame(_sabm(_caller(1)), 0)
+        await station._on_frame(_sabm(_caller(2)), 0)
+        await pilot.pause()
+        close = app.query_one("#session-close", CloseTabX)
+        assert row.display
+        assert close.size.height == 1, "one text row, not a bordered button"
+        assert str(close.tooltip).startswith("Disconnect"), "a live tab is disconnected first"
+        assert "close_tab" in await _footer_actions(app, pilot), "^W in the Footer"
+
+        await pilot.press("ctrl+w")
+        await wait_for(lambda: not app.session_is_live("W1AW-1"), "the disconnect")
+        await wait_for(lambda: str(close.tooltip).startswith("Close tab"), "the new tooltip")
+        assert pane.session_count == 2, "the first press only disconnects"
+
+        await pilot.click("#session-close")
+        await wait_for(lambda: pane.session_count == 1, "the close")
+        assert not row.display, "one session left: no tab row, as before"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_w_in_a_dialog_does_not_close_the_tab_behind_it():
+    """Ctrl+W is priority-bound for Close tab; under a dialog it must fall
+    through to the dialog's text field (delete-word) instead."""
+    from textual.screen import ModalScreen
+    from textual.widgets import Input
+
+    class _Dialog(ModalScreen):
+        def compose(self):
+            yield Input("one two", id="field")
 
     app, station, ta = await _bare_app()
     async with app.run_test(size=(110, 32)) as pilot:
@@ -295,17 +349,13 @@ async def test_a_session_tab_can_be_closed_from_the_menu_and_its_button():
         await station._on_frame(_sabm(_caller(2)), 0)
         await pilot.pause()
         pane = app.query_one(TerminalPane)
-        row = app.query_one("#terminal-session-row")
-        button = app.query_one("#session-close", Button)
-        assert row.display
-        assert str(button.label) == "Disconnect", "a live tab is disconnected first"
-
-        await app.run_action("close_tab")  # Session > Close tab
-        await wait_for(lambda: not app.session_is_live("W1AW-1"), "the disconnect")
-        await wait_for(lambda: str(button.label) == "Close tab", "the relabel")
-        assert pane.session_count == 2, "the first press only disconnects"
-
-        button.press()
-        await wait_for(lambda: pane.session_count == 1, "the close")
-        assert not row.display, "one session left: no tab row, as before"
+        await app.push_screen(_Dialog())
+        await pilot.pause()
+        field = app.screen.query_one("#field", Input)
+        field.focus()
+        field.cursor_position = len(field.value)
+        await pilot.press("ctrl+w")
+        await pilot.pause()
+        assert field.value == "one ", "delete-word, as in any Input"
+        assert app.session_is_live("W1AW-1") and pane.session_count == 2
     station.close()

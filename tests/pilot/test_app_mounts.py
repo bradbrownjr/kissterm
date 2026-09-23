@@ -878,10 +878,10 @@ async def test_tab_switching_keys_are_not_duplicated_in_the_footer():
         )
         # The only function key in the footer is Menu, which is not a tab.
         # Help is a tab now (F1 Help, first in the row), so it is printed in
-        # the tab label and not here too. The node command reference is a
-        # Ctrl key.
+        # the tab label and not here too. The node command reference is in
+        # F1 and the menu; Ctrl+R on this tab is Reconnect.
         assert [c.key for c in chips if c.key.startswith("f")] == ["f10"]
-        assert "command_reference" in actions
+        assert "command_reference" not in actions
     station.close()
 
 
@@ -987,12 +987,12 @@ async def test_ctrl_g_is_a_no_op_on_a_tab_with_no_slideout():
 @pytest.mark.asyncio
 async def test_the_footer_shows_fewer_keys_at_an_ordinary_terminal_width():
     app, ta, tb, station = await _app()
-    async with app.run_test(size=(60, 30)) as pilot:
+    async with app.run_test(size=(45, 30)) as pilot:
         shown = [c.description for c in await _footer_chips(app, pilot)]
         # The front of the bar survives a narrow terminal, and Menu is
         # pinned to the end because it reaches everything that was dropped.
         for essential in ("TX", "Connect"):
-            assert essential in shown, f"{essential} missing at 60 columns: {shown}"
+            assert essential in shown, f"{essential} missing at 45 columns: {shown}"
         assert shown[-1] == "Menu"
         assert "Quit" not in shown
     station.close()
@@ -1003,7 +1003,7 @@ async def test_the_footer_shows_every_terminal_action_once_wide_enough():
     app, ta, tb, station = await _app()
     async with app.run_test(size=(200, 30)) as pilot:
         shown = {c.description for c in await _footer_chips(app, pilot)}
-        for expected in ("TX", "Connect", "Book", "Commands", "Find", "Quit", "Menu"):
+        for expected in ("TX", "Connect", "Book", "Find", "Quit", "Menu"):
             assert expected in shown, f"{expected} missing at 200 columns: {shown}"
     station.close()
 

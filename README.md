@@ -29,7 +29,7 @@ intimidating is that nothing on screen tells you what you can type. kissterm
 reads the banner and prompt a node already sends and matches them against a
 shipped command reference for that software -- no manual to go find, no
 memorizing that one node's "bye" is another node's "B" is a third node's
-"*BYE*". `Ctrl+R` shows you the actual list, for the actual node you are
+"*BYE*". `F1` shows you the actual list, for the actual node you are
 actually talking to, before you have spent a single byte finding out by
 guessing.
 
@@ -61,7 +61,7 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
 - **Context-aware help, so you never face a bare prompt with no idea what is
   legal.** kissterm identifies the node you connected to -- BPQ32, JNOS, a
   plain TNC2 command mode -- passively, from the banner and prompt it sends
-  you anyway, never by asking it anything extra. `Ctrl+R` then shows that
+  you anyway, never by asking it anything extra. `F1` then shows that
   node's actual command set, with a plain-English glossary of packet jargon
   in the same pane, and picking one fills your input line without sending it.
   Connected to a real node with a local menu of its own? "Learn from node"
@@ -253,8 +253,9 @@ terminal can actually deliver.
 | `Ctrl+T` | **Transmit on/off** -- The master transmit switch; nothing keys the radio while it is off |
 | `Ctrl+N` | **Connect** -- Connect to a station, node or BBS |
 | `Ctrl+D` | **Disconnect** -- End the session on the active Terminal tab, or cancel a connect that is still trying (Terminal) |
+| `Ctrl+R` | Terminal: **Reconnect** -- Connect again to the station this Terminal tab was connected to, the same way (hops and login included); APRS: **Services** -- Pick a gateway service (SMS, email, weather) and fill in the message |
+| `Ctrl+W` | Terminal: **Close tab** -- Close the Terminal tab on screen; a connected one is disconnected first. Delete does the same while the tab row has focus; APRS: **Close conversation** -- Close the conversation tab on screen. Delete does the same while the tab row has focus |
 | `Ctrl+G` | Terminal: **Address book** -- Show or hide the Address Book; APRS: **Contacts** -- Show or hide the contacts list |
-| `Ctrl+R` | Terminal: **Node commands** -- Every command the node you are on understands; APRS: **Services** -- Pick a gateway service (SMS, email, weather) and fill in the message |
 | `Ctrl+F` | **Find** -- Search the terminal scrollback (Terminal) |
 | `Ctrl+L` | **Clear** -- Clear what this tab is showing (Terminal, APRS, Monitor) |
 | `Ctrl+Q` | **Quit** -- Leave kissterm |
@@ -284,12 +285,12 @@ the Help tab, or Menu in the bottom bar, works regardless.
 
 **Closing a tab.** Each connection on the Terminal gets a tab once there is
 more than one, and each APRS correspondent gets one too. Close the one on
-screen with its **Close** button, from the menu (F10, Session > Close tab or
-APRS > Close conversation), or with Delete while the tab row has focus. A
-connected Terminal tab is disconnected first, and its button says
-**Disconnect** until it is. There is no Ctrl key for this: the nine global
-Ctrl keys are all taken, and the usual Ctrl+W deletes a word in the line you
-type into.
+screen with **Ctrl+W**, the small **X** at the end of the tab row, the menu
+(F10, Session > Close tab or APRS > Close conversation), or Delete while the
+tab row has focus. A connected Terminal tab is disconnected first. In the
+send line and the APRS compose box, Ctrl+Backspace and Ctrl+Delete delete
+the word to the left and right. Some terminals send Ctrl+Backspace as plain
+Backspace; `python scripts/keycheck.py` shows what yours delivers.
 
 **The Help tab is written for someone new to packet.** Its *Guides* walk
 through getting on the air, a first connection, the transmit switch, reading
@@ -348,7 +349,7 @@ An entry can carry:
   node, ...), so it's a reminder that matches what you actually have
   configured rather than a note you have to retype consistently by hand.
 
-**BBS mail helpers** are in `Ctrl+R` > **BBS mail helpers**. They provide
+**BBS mail helpers** are in F10 > Help > **Node commands** > **BBS mail helpers**. They provide
 dialect-specific starting commands for listing mail, reading a numbered
 message, and starting a message to a callsign; their displayed confidence tells
 you how much verification backs each command. Choosing one only puts
@@ -367,7 +368,7 @@ suggests nothing rather than guess. Typing `BYE` finds `B`, and Tab fills
 `B`. A parameterised command (`LL`, `R`, `SP`) fills only the command text;
 you supply the number or callsign.
 
-`Ctrl+R` lists every command in reach: the current context's first, then
+F10 > Help > **Node commands** lists every command in reach: the current context's first, then
 the others (the BBS's while at the node, the node's while in the BBS). Each
 row says where it came from: **published** (G8BPQ's documentation, linked
 in the data files), **verified on air** (seen in a real node's own `?`

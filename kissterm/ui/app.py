@@ -20,7 +20,7 @@ that module and DESIGN.md section 5. A tab's key is printed in its label
 (`F2 Terminal`), never in the Footer as well.
 
 **A modal is never a function key.** The command reference -- a modal opened
-over whatever tab is active -- is `Ctrl+R`, not a function key. A non-tab action
+over whatever tab is active -- is a menu command (and `Ctrl+R` on APRS), not a function key. A non-tab action
 squatting on the next free F-number breaks the "F<n> is the n-th tab" pattern
 the moment an n-th tab exists to expect it, which already happened once here
 (Address Book briefly had its own F-key before this). Address Book is now a
@@ -228,7 +228,7 @@ class _TerminalSession:
     #: See `HARVEST_CAPTURE_LIMIT` for why it cannot grow without bound.
     harvest_buffer: str | None = None
     #: Sanitized text from the most recent completed harvest on this live
-    #: session. The Ctrl+R screen shows it after parsing so the operator can
+    #: session. The Node commands screen shows it after parsing so the operator can
     #: judge what the node actually said, rather than trusting a terse list
     #: of names extracted from an opaque exchange. It is deliberately
     #: per-session and in-memory: it is diagnostic context, not a second
@@ -653,6 +653,11 @@ class KissTermApp(App):
         #: out N2 retries with no way to stop them. See `action_connect` and
         #: `action_disconnect`.
         self._connecting: dict[str, tuple[AX25Address, int]] = {}
+        # What each Terminal tab last dialed, for Ctrl+R Reconnect: the whole
+        # request (hops, login, port), not just the callsign, so a reconnect
+        # to a station reached through two nodes goes back the same way.
+        self._last_connect: dict[str, ConnectRequest] = {}
+        self._last_connect_key = ""
         #: The one in-flight SessionTransport.connect() call, if any. Session
         #: transports have no AX.25 link for Ctrl+D to close during setup, so
         #: the task itself is the cancellation handle. It is set only while
@@ -2308,7 +2313,7 @@ class KissTermApp(App):
         the one in effect: the node's while inside its BBS, and the node's
         applications (BPQMail, BPQChat) either way.
 
-        The Ctrl+R screen lists these after the current context's commands,
+        The Node commands screen lists these after the current context's commands,
         so an operator at a node prompt can look up a BBS command before
         spending the airtime to enter the BBS.
         """
@@ -2450,7 +2455,7 @@ class KissTermApp(App):
             self.notify(DISABLED_MESSAGE, severity="warning")
             return ()
         link = session.link
-        # Do not let a second, unanswered harvest make the Ctrl+R screen
+        # Do not let a second, unanswered harvest make the Node commands screen
         # present the previous request's reply as though it were current.
         session.last_harvest_text = ""
         session.harvest_buffer = ""
@@ -2869,6 +2874,18 @@ class KissTermApp(App):
             return "not connected"
         if action == "file_transfer" and not self.can_transfer_on_active_session():
             return "not connected"
+        if action == "close_tab":
+            if self.active_tab() == "aprs":
+                if not any(p.can_close_active_tab() for p in self._base_query(AprsPane)):
+                    return "no conversation open"
+            elif not self._active_key():
+                return "no session open"
+        if action == "reconnect" and self.station is not None:
+            # Session tier: Reconnect is Ctrl+N's flow, always available.
+            if self.can_disconnect_active_session():
+                return "still connected"
+            if self._reconnect_request() is None:
+                return "nothing dialed yet"
         return ""
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
@@ -2889,6 +2906,10 @@ class KissTermApp(App):
                 if len(self.screen_stack) > 1:
                     return False
                 return self.can_disconnect_active_session()
+            if action == "close_tab" and len(self.screen_stack) > 1:
+                # Ctrl+W in a dialog's text field stays delete-word (Input's
+                # own binding) rather than closing a tab behind the dialog.
+                return False
         except Exception:
             # A binding check runs on every Footer render; never let one
             # take the app down.
@@ -3226,7 +3247,9 @@ class KissTermApp(App):
         return True
 
     @work
-    async def action_connect(self, prefill=None, target: str = "") -> None:
+    async def action_connect(
+        self, prefill=None, target: str = "", redial: ConnectRequest | None = None
+    ) -> None:
         """Connect to a station, via the dialog or dialed directly.
 
         `prefill` is an `addressbook.Entry`, passed by `AddressBookPane`
@@ -3236,6 +3259,8 @@ class KissTermApp(App):
         Dialing is a faster way to reach this method, never a second,
         lighter-weight path into it. `target` only prepopulates the dialog
         for a passive NET/ROM claim; it never dials or arms the transmit gate.
+        `redial` is Ctrl+R Reconnect: the request this tab last dialed,
+        replayed through the same flow (reminder, gate, hops, login).
         """
         if self.station is None:
             if self.session_transport is not None:
@@ -3259,7 +3284,9 @@ class KissTermApp(App):
                 return
             self.notify("No transport is open.", severity="error")
             return
-        if prefill is not None:
+        if redial is not None:
+            request = redial
+        elif prefill is not None:
             request = ConnectRequest(
                 prefill.target,
                 prefill.script,
@@ -3361,6 +3388,8 @@ class KissTermApp(App):
             return
         key = self._session_key(path.destination, port)
         pane = self.query_one(TerminalPane)
+        self._last_connect[key] = request
+        self._last_connect_key = key
         if not pane.has_room_for(key):
             self.notify(
                 f"Close a session first -- {MAX_TERMINAL_TABS} connections are "
@@ -3832,13 +3861,14 @@ class KissTermApp(App):
         commits deliberately -- a reference that transmitted on selection would
         be a defect on a shared channel.
 
-        **Context-aware, dispatched on the active tab.** `Ctrl+R` asks one
+        **Context-aware, dispatched on the active tab.** It asks one
         question -- "what can I say to the thing I am talking to?" -- and on
         the APRS pane the answer comes from `kissterm/aprs_services/` instead
         of `kissterm/nodes/`. Same question, same key, different source; this
         is the same per-tab dispatch `action_toggle_contacts` (`Ctrl+G`) uses,
-        and the registry gives it a label for each tab (Commands, Services). Terminal-pane behaviour
-        below is untouched, and every other tab still gets it.
+        and the registry gives it a label for each tab (Node commands,
+        Services). On APRS it is `Ctrl+R`; on Terminal it is a menu command,
+        since Ctrl+R there is Reconnect and F1 shows the same reference.
 
         `can_harvest`/`peer` let the screen offer its "Learn from node"
         button only when there is an actual connected link to ask -- see
@@ -3979,6 +4009,50 @@ class KissTermApp(App):
         connected = session is not None and session.link is not None and session.link.connected
         return connected or session_key in self._connecting
 
+    def _reconnect_request(self) -> ConnectRequest | None:
+        """What Ctrl+R would dial: the Terminal tab on screen's own last
+        request; for a tab that answered an incoming call, its peer; with no
+        tab on screen, the last thing dialed at all."""
+        key = self._active_key()
+        request = self._last_connect.get(key)
+        if request is None and key:
+            call, _, port = key.partition(":")
+            request = ConnectRequest(call, port=int(port) if port.isdigit() else 0)
+        if request is None:
+            request = self._last_connect.get(self._last_connect_key)
+        return request
+
+    def action_reconnect(self) -> None:
+        """Ctrl+R: connect again to the station the Terminal tab on screen
+        was connected to (requested 2026-09-23, replacing Ctrl+R Node
+        commands, which moved to F1 and the menu).
+
+        Replays the tab's own last request -- hops, login and port
+        included -- through `action_connect`, so the radio reminder, the
+        transport check and `_arm_for`'s visible arming all happen exactly
+        as for a dial from the Address Book, which is the same kind of act:
+        one key on a station already named. A tab that answered an incoming
+        call has no request of its own, so its peer is dialed directly. A
+        live tab is left alone: reconnecting it would mean disconnecting it.
+        """
+        if self.station is None:
+            # Session tier: there is one far end, and connecting to it again
+            # is what Ctrl+N already does there.
+            self.action_connect()
+            return
+        key = self._active_key()
+        if key and self.session_is_live(key):
+            self.notify(f"Already connected to {key}.", severity="information")
+            return
+        request = self._reconnect_request()
+        if request is None:
+            self.notify(
+                "Nothing to reconnect to yet. Ctrl+N connects to a station.",
+                severity="warning",
+            )
+            return
+        self.action_connect(redial=request)
+
     def action_close_tab(self) -> None:
         """Session > Close tab, APRS > Close conversation: whichever tab
         row the operator is looking at."""
@@ -4011,6 +4085,7 @@ class KissTermApp(App):
         self._cancel_hop_watch(session_key)
         self._sessions.pop(session_key, None)
         self.query_one(TerminalPane).close_tab(session_key)
+        self.call_after_refresh(self._refresh_context_footer)
 
     # ------------------------------------------------------------------
     # Periodic UI refresh
@@ -4099,6 +4174,15 @@ class KissTermApp(App):
                 parts.append(
                     f"tx {stats.frames_sent} rx {stats.frames_received} rtx {stats.retransmits}"
                 )
+        else:
+            # No session on screen -- at launch, or after its tab was closed.
+            # The link-state field used to vanish instead, so the bar said
+            # "connected" while there was a session and nothing at all
+            # otherwise (requested 2026-09-23: "I would like to see a
+            # Disconnected status as well"). Not with no transport at all:
+            # "NO TRANSPORT" already says more, and needs the room.
+            if self.station is not None or self.session_transport is not None:
+                parts.append("disconnected")
         if getattr(self.config, "accept_incoming", False):
             # The honest counterpart to the opt-in: if this station will
             # transmit with nobody present, that fact is always on screen.

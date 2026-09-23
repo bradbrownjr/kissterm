@@ -531,3 +531,41 @@ async def test_picking_a_different_transport_switches_before_dialing():
         server_b.close()
         await server_a.wait_closed()
         await server_b.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_ctrl_r_reconnects_the_tab_the_same_way(tmp_path):
+    """Requested 2026-09-23: Ctrl+R reconnects to the station the Terminal
+    tab was connected to. The whole request is replayed -- here a hop
+    through WS1EC-7 and a login line -- not just the first callsign, and
+    it is refused while the tab is still connected."""
+    from tests.pilot._wait import wait_for
+
+    app, station, tb = await _app()
+    book = _fresh_book(app, tmp_path)
+    book.record_attempt("W1LH-6", script="MYPASS", hops="WS1EC-7")
+
+    node = AX25Station(NODE, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
+    _install_relay(node, {"C W1LH-6": b"*** CONNECTED to W1LH-6\r"})
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press("ctrl+r")  # nothing dialed yet
+        await pilot.pause()
+        assert station.link_to(NODE) is None, "Ctrl+R before any connect sends nothing"
+
+        await _connect_via_history(app, pilot)
+        await wait_for(lambda: _log_text(app).count("MYPASS") == 1, "the first login")
+        assert app.session_is_live(str(NODE))
+        await pilot.press("ctrl+r")  # still connected: nothing happens
+        await asyncio.sleep(0.3)
+        assert _log_text(app).count("C W1LH-6") == 1
+
+        await pilot.press("ctrl+d")
+        await wait_for(lambda: not app.session_is_live(str(NODE)), "the disconnect")
+        await pilot.press("ctrl+r")
+        await wait_for(lambda: _log_text(app).count("MYPASS") == 2, "the second login")
+        text = _log_text(app)
+        assert text.count("C W1LH-6") == 2, text
+        assert app.query_one(TerminalPane).session_count == 1, "same tab, reused"
+    node.close()
+    station.close()

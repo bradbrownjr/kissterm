@@ -443,7 +443,7 @@ Gotchas that already cost time:
   advertise `^O` for a key bound to Ctrl+Shift+O, which an ordinary terminal
   delivers as Ctrl+O -- a different command. The standard is IBM CUA as
   Midnight Commander uses it (F1 Help, F10 menu, everything in the menu,
-  nine terminal-safe Ctrl keys, plain letters only while a list has focus),
+  ten terminal-safe Ctrl keys, plain letters only while a list has focus),
   written down in DESIGN.md section 5 and enforced by
   `tests/unit/test_key_standard.py`. **Never bind Ctrl+Shift, Ctrl+Alt or
   Alt anything**: without an enhanced keyboard protocol -- which tmux and

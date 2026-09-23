@@ -44,8 +44,9 @@ BOUND_CTRL = {key_label(c.key, short=False) for c in COMMANDS if c.key.startswit
 
 #: Ctrl keys the user docs name on purpose although nothing binds them:
 #: README explains that tmux's prefix (Ctrl+B) is deliberately left alone,
-#: and why closing a tab has no Ctrl+W (delete-word in the send line).
-NAMED_BUT_UNBOUND = {"Ctrl+B", "Ctrl+W"}
+#: and the word-delete keys of a text field, which belong to the input
+#: (`kissterm/ui/inputs.py`), not the command registry.
+NAMED_BUT_UNBOUND = {"Ctrl+B", "Ctrl+BACKSPACE", "Ctrl+DELETE"}
 
 _TITLES = "|".join(TAB_KEYS)
 #: "Settings (`F9`)", "Settings tab (F9)", "`F9` Settings", "F9 Settings".

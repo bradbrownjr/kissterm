@@ -82,13 +82,6 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   Fixed by running the frame fan-out in the app's context
   (`FrameTransport.callback_context`); `tests/pilot/test_frame_context.py`
   reproduces the real launch order. Confirm on the air with any node session.
-- [ ] **Accented and typographic characters in BBS messages are garbled.**
-  `awaiting confirmation` (2026-09-23). Reported 2026-09-23 ("r 2738 also
-  exhibits ... unexpected characters"). WS1EC-2 sent the message as UTF-8;
-  it was decoded as latin-1 with the C1 range stripped as bytes, so curly
-  quotes showed as `â` and a full-width `＠` as `ï¼`. Text is now decoded
-  as UTF-8 when valid, else latin-1 (operator's decision). Re-test with
-  `R 2738`.
 
 ### P0.2 Keyboard standard
 
@@ -130,6 +123,14 @@ above still applies to every new key.
   more failure in `test_app_mounts.py`/`test_transcript_and_color.py`
   happened once and did not reproduce in 11 further runs; identify it from
   the next full-suite failure output.
+  2026-09-23: a new shape, worse than a failure -- a HANG.
+  `test_forgetting_learned_commands_clears_the_cache_and_sends_nothing`
+  pressed a button on a dialog that had not finished mounting, the press
+  was lost, and the failure left the dialog open. Textual's `run_test`
+  then never returned, so the whole suite stalled at 98% with no output
+  (about one run in eight under load). Fixed by pausing before the press.
+  Run the full suite with `-o faulthandler_timeout=180` so a hang prints
+  its stack instead of stalling.
 
 ### P0.5 Documentation diet
 

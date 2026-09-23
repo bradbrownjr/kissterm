@@ -55,8 +55,9 @@ def test_a_key_does_nothing_on_a_tab_it_does_not_apply_to():
 
 
 def test_one_action_can_carry_a_different_label_per_tab():
-    """Ctrl+R asks the same question on both tabs -- "what can I say to the
-    thing I am talking to?" -- and the label has to say which answer."""
+    """The command reference asks the same question on both tabs -- "what
+    can I say to the thing I am talking to?" -- and the label has to say
+    which answer."""
     assert cmd.command_for("command_reference", "terminal").label == "Node commands"
     assert cmd.command_for("command_reference", "aprs").label == "Services"
     assert cmd.command_for("command_reference", "heard") is None

@@ -71,6 +71,8 @@ from ..aprs import AprsPacket, Telemetry, WeatherReport, is_bulletin_addressee
 from ..aprs_contacts import Contact, build_message_body, canned_messages_for
 from ..aprs_conversations import PendingAcks
 from . import slideouts
+from .inputs import WordInput
+from .tabclose import CloseTabX
 from .wraplog import WrapLog
 
 #: How often the retry timer checks for a due, un-acked message. Independent
@@ -279,10 +281,10 @@ class _ConvoTabs(Tabs):
     -- the same rule `_AprsContactTable`'s bindings follow, and the reason
     there is no hint line printed under the tabs.
 
-    Deliberately **not** `Ctrl+W`: `Input` already claims that for
-    delete-word, and the compose box next to this strip is exactly where an
-    operator's hands are. `Delete` is only reachable while the strip itself
-    has focus, so it cannot fire while they are typing a message.
+    `Delete` here works only while the strip itself has focus, so it cannot
+    fire while the operator is typing a message. Ctrl+W, which works from
+    anywhere on the pane, is the app-level Close command
+    (`kissterm/ui/commands.py`).
     """
 
     BINDINGS = [Binding("delete", "close_tab", "Close tab")]
@@ -352,14 +354,13 @@ class AprsPane(Horizontal):
             # called on an empty strip: an add to an empty `Tabs` activates
             # what it just added, which would yank the view to whichever
             # stranger transmitted first.
-            # The Close button makes closing a conversation findable without
-            # knowing that Delete works on the focused strip (requested
-            # 2026-09-23); no key of its own -- see `_ConvoTabs`.
+            # The X makes closing a conversation findable without knowing a
+            # key; see `kissterm/ui/tabclose.py`.
             with Horizontal(id="aprs-convo-row"):
                 yield _ConvoTabs(
                     Tab("All", id=_ALL_TAB), Tab("Bulletins", id=_BULLETINS_TAB), id="aprs-convo-tabs"
                 )
-                yield Button("Close", id="aprs-convo-close", disabled=True)
+                yield CloseTabX(id="aprs-convo-close", tooltip="Close conversation (Ctrl+W)")
             yield Static(id="aprs-sensor-summary")
             # `WrapLog`, not a plain `RichLog`: with the contact list open
             # this column is narrower than `RichLog`'s 78-cell `min_width`,
@@ -367,8 +368,8 @@ class AprsPane(Horizontal):
             # See `kissterm/ui/wraplog.py`.
             yield WrapLog(id="aprs-conversation-log", wrap=True, markup=False)
             with Horizontal(id="aprs-compose-row"):
-                yield Input(placeholder="To (callsign)", id="aprs-to-input")
-                yield Input(placeholder="Message", id="aprs-compose-input")
+                yield WordInput(placeholder="To (callsign)", id="aprs-to-input")
+                yield WordInput(placeholder="Message", id="aprs-compose-input")
                 yield Button("Send", variant="primary", id="aprs-send-button")
         with Vertical(id="aprs-contacts-column"):
             yield _AprsContactTable(id="aprs-contact-table", cursor_type="row", zebra_stripes=True)
@@ -596,12 +597,17 @@ class AprsPane(Horizontal):
         if callsign in self._recent:
             self._recent.remove(callsign)
 
-    @on(Button.Pressed, "#aprs-convo-close")
-    def _close_pressed(self) -> None:
+    @on(CloseTabX.Clicked, "#aprs-convo-close")
+    def _close_clicked(self) -> None:
         self.close_active_tab()
 
+    def can_close_active_tab(self) -> bool:
+        """Whether Ctrl+W has a conversation to close (All and Bulletins
+        never close)."""
+        return self.query_one("#aprs-convo-close", CloseTabX).enabled
+
     def close_active_tab(self) -> None:
-        """`Delete` on the strip, the Close button, or APRS > Close
+        """Ctrl+W, `Delete` on the strip, the X, or APRS > Close
         conversation in the menu. "All" cannot be closed.
 
         It is the one view that is always there and the thing `remove_tab`
@@ -676,7 +682,14 @@ class AprsPane(Horizontal):
         event.stop()
         tab_id = event.tab.id or ""
         # All and Bulletins are permanent; only a conversation can close.
-        self.query_one("#aprs-convo-close", Button).disabled = tab_id in (_ALL_TAB, _BULLETINS_TAB)
+        self.query_one("#aprs-convo-close", CloseTabX).enabled = tab_id not in (
+            _ALL_TAB,
+            _BULLETINS_TAB,
+        )
+        # ^W is in the Footer only while there is a conversation to close.
+        refresh = getattr(self.app, "_refresh_context_footer", None)
+        if refresh is not None:
+            self.call_after_refresh(refresh)
         if tab_id == _ALL_TAB:
             self._show_all()
             return

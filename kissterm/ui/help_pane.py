@@ -15,7 +15,7 @@ tab: Help is somewhere you visit, and the way back should be the way in.
 
 **Nothing here transmits, and nothing here fills the send line.** Browsing
 a node's command list on this tab is reading. The one route from a
-reference to the terminal stays Ctrl+R on the Terminal tab
+reference to the terminal stays Help > Node commands in the F10 menu
 (`CommandReferenceScreen`), which fills the send line and still does not
 send -- see AGENTS.md, "Suggestions and completions fill the input; they
 never send". A second, quieter route from here would be one more place to
@@ -160,7 +160,7 @@ class HelpPane(Vertical):
         parts = [family.note.replace("\n", " ").strip()]
         if family.confidence == "recalled":
             parts.append("This reference is unverified; check a command before spending airtime on it.")
-        parts.append("On the Terminal tab, Ctrl+R puts a command in the send line.")
+        parts.append("To put one in the send line, use Help > Node commands in the F10 menu.")
         note.update(" ".join(p for p in parts if p))
         table = _prose_table(
             Column("Command", style="bold", no_wrap=True),

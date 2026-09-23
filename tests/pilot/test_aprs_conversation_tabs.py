@@ -478,13 +478,12 @@ async def test_a_position_beacon_shows_as_a_readable_line_in_all(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_a_conversation_closes_from_its_button_and_the_menu(tmp_path):
+async def test_a_conversation_closes_from_its_x_and_ctrl_w(tmp_path):
     """Requested 2026-09-23: closing a conversation needed Delete on the
-    focused strip and nothing said so. The Close button is there, enabled
-    only on a conversation (All and Bulletins are permanent), and
-    APRS > Close conversation does the same."""
-    from textual.widgets import Button
-
+    focused strip and nothing said so. The X at the end of the row is
+    enabled only on a conversation (All and Bulletins are permanent), and
+    Ctrl+W (APRS > Close conversation) does the same."""
+    from kissterm.ui.tabclose import CloseTabX
     from tests.pilot._wait import wait_for
 
     app, mine, theirs = await _app(tmp_path)
@@ -492,23 +491,27 @@ async def test_a_conversation_closes_from_its_button_and_the_menu(tmp_path):
         await _aprs_tab(app, pilot)
         pane = app.query_one(AprsPane)
         tabs = app.query_one("#aprs-convo-tabs", Tabs)
-        button = app.query_one("#aprs-convo-close", Button)
-        assert button.disabled, "All cannot be closed"
+        close = app.query_one("#aprs-convo-close", CloseTabX)
+        assert not close.enabled, "All cannot be closed"
 
         pane.select_conversation("WS1EC-15", "WS1EC-15")
-        await wait_for(lambda: not button.disabled, "the button on a conversation")
-        button.press()
+        await wait_for(lambda: close.enabled, "the X on a conversation")
+        from tests.pilot.test_terminal_sessions import _footer_actions
+
+        assert "close_tab" in await _footer_actions(app, pilot), "^W on a conversation"
+        await pilot.click("#aprs-convo-close")
         await wait_for(lambda: tabs.active == _ALL_TAB, "back to All")
         # `remove_tab` completes after the switch back to All.
         await wait_for(
             lambda: _tab_id("WS1EC-15") not in {tab.id for tab in tabs.query("Tab")},
             "the conversation tab to go",
         )
-        await wait_for(lambda: button.disabled, "disabled again on All")
+        await wait_for(lambda: not close.enabled, "disabled again on All")
+        assert "close_tab" not in await _footer_actions(app, pilot), "no ^W on All"
 
         pane.select_conversation("W1AW", "W1AW")
         await wait_for(lambda: tabs.active == _tab_id("W1AW"), "the conversation")
-        await app.run_action("close_tab")  # APRS > Close conversation
-        await wait_for(lambda: tabs.active == _ALL_TAB, "closed from the menu")
+        await pilot.press("ctrl+w")
+        await wait_for(lambda: tabs.active == _ALL_TAB, "closed with Ctrl+W")
     mine.close()
     theirs.close()
