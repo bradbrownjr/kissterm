@@ -3,6 +3,15 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Keyboard standard and command catalog confirmed on air
+
+- The operator confirmed on a live session that suggestions follow the
+  node/BBS context and that F1 opens Help for the tab in use. The roadmap's
+  P0.2 section is reduced to a pointer to DESIGN.md section 5, and the 1.0
+  finish-line items for the keyboard and the command catalog are marked met.
+
+**Files:** `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-23] — Every command row says where it came from
 
 ### Improvements

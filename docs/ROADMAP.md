@@ -42,10 +42,12 @@ to a node or BBS with, and read mail on, without hitting a known bug or a key
 that does not work in their terminal. Concretely:
 
 - P0 is empty, with every live bug confirmed fixed by the operator.
-- The keyboard follows P0.2's standard, enforced by test.
-- The command catalog (P0.3, shipped 2026-09-23) covers BPQ32/LinBPQ node,
-  BPQMail and BPQChat fully from published documentation, plus JNOS,
-  TheNet/X1J and TNC2 at their current level.
+- The keyboard follows P0.2's standard, enforced by test. Met
+  2026-09-23.
+- The command catalog (P0.3) covers BPQ32/LinBPQ node, BPQMail and
+  BPQChat fully from published documentation, plus JNOS, TheNet/X1J and TNC2
+  at their current level. Met 2026-09-23; context-following suggestions
+  confirmed by the operator on a live session the same day.
 - P7's PyPI, pipx/uv and Raspberry Pi items are done.
 - Transports never verified against hardware (kernel AX.25, VARA, Mercury,
   BLE) are labelled **experimental** in Settings, `--doctor` and SETUP.md
@@ -230,23 +232,12 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   with no other visible state (APRS SSID filter, APRS beaconing), and
   results with nowhere else to show (export path, transfer complete).
 
-### P0.2 Keyboard standard -- adopted 2026-09-22
+### P0.2 Keyboard standard
 
-**Shipped.** The standard is IBM CUA as Midnight Commander uses it: F1 Help,
-F10 menu, every command in the menu, nine terminal-safe Ctrl keys, plain
-letters only while a list has focus. It is written down in DESIGN.md section
-5, generated from one table (`kissterm/ui/commands.py`'s `COMMANDS`, which
-produces the bindings, the Footer, the menu, the help screen and Ctrl+P) and
-enforced by `tests/unit/test_key_standard.py`. Every Ctrl+Shift, Ctrl+Alt,
-Alt and Ctrl+digit binding is gone, with them the mismatched `key_display`
-values, and the tabs moved to F2-F9 so Help, Menu and Settings are on their
-final keys. The tab layout for milestone 2 is in DESIGN.md section 5.
-
-Decided 2026-09-23: there is no Info tab. Monitor keeps its name; with
-Mail, Bulletins and Files on F2-F4 in milestone 2, the seven tabs fit F2-F8
-exactly, so nothing needs merging. README's key table is generated from the
-registry (`scripts/sync_docs.py`), and `tests/unit/test_docs_keys.py` checks
-every key named in README, SETUP and DESIGN.
+Done, and confirmed by the operator on a live session 2026-09-23. The
+standard itself lives in DESIGN.md section 5 and is enforced by
+`tests/unit/test_key_standard.py` and `tests/unit/test_docs_keys.py`; rule 6
+above still applies to every new key.
 
 ### P0.4 The pilot suite is flaky under parallel load
 
