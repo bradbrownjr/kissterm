@@ -3,6 +3,24 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — A transport switched in Settings keeps the transmit switch
+
+### Bug Fixes
+
+- **Switching transports live no longer bypasses the transmit gate.** A
+  freshly built transport has its own gate, open by default, and the switch
+  in Settings (or the Connect dialog's transport picker) never replaced it
+  with the operator's. After a switch, anything the station sent went out
+  while the status bar read TX off. Both tiers had it. Found by reading the
+  code while fixing the item below; no report of it on the air.
+- **The monitor, heard list and APRS decoder follow a switched transport.**
+  `rebind_transport` moved only the station's own subscription, so after a
+  switch those three kept listening to the closed transport and showed
+  nothing. `tests/pilot/test_transport_switch.py` covers both.
+
+**Files:** `kissterm/ui/app.py`, `tests/pilot/test_transport_switch.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-23] — Received frames are handled inside the app
 
 ### Bug Fixes

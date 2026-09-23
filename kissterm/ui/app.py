@@ -883,16 +883,36 @@ class KissTermApp(App):
         """Attach the one frame fan-out after a station becomes available."""
         if self.station is None:
             return
+        self._attach_transport(self.station.transport)
+        self.station.on_incoming.append(self._on_incoming_link)
+
+    def _attach_transport(self, transport) -> None:
+        """Wire the app onto `transport`: gate, context and fan-out.
+
+        Called at startup and again after a live transport switch, which is
+        why the station's own `on_incoming` is not in here -- that belongs to
+        the station and survives a switch. Everything below belongs to the
+        transport and does not.
+        """
+        transport.gate = self.gate
         # Runs on the app's own message loop, so this is a context in which
         # Textual's `active_app` is this app. The transport was opened before
         # the app existed; see `FrameTransport.callback_context` for what
         # breaks if received frames are not handled in this context.
-        self.station.transport.callback_context = contextvars.copy_context()
-        self._unsubscribe_monitor = self.station.transport.subscribe(self._on_received_frame)
-        self._unsubscribe_aprs = self.station.transport.subscribe(self._on_aprs_frame)
-        self.station.transport.on_sent.append(self._on_sent_frame)
-        self.station.on_incoming.append(self._on_incoming_link)
-        self._status = f"{self.station.transport.info.detail}"
+        transport.callback_context = contextvars.copy_context()
+        self._unsubscribe_monitor = transport.subscribe(self._on_received_frame)
+        self._unsubscribe_aprs = transport.subscribe(self._on_aprs_frame)
+        transport.on_sent.append(self._on_sent_frame)
+        self._status = f"{transport.info.detail}"
+
+    def _detach_transport(self, transport) -> None:
+        """Undo `_attach_transport`, so a replaced transport feeds nothing."""
+        self._unsubscribe_monitor()
+        self._unsubscribe_aprs()
+        self._unsubscribe_monitor = lambda: None
+        self._unsubscribe_aprs = lambda: None
+        with contextlib.suppress(ValueError):
+            transport.on_sent.remove(self._on_sent_frame)
 
     async def _open_initial_transport(self, name: str) -> bool:
         """Open the first saved transport in an already-mounted onboarding app.
@@ -2963,6 +2983,10 @@ class KissTermApp(App):
 
         try:
             new_transport = transport_mod.build_transport(entry)
+            # The operator's gate, before anything can send on it. A freshly
+            # built transport's own gate is OPEN (kissterm/tx.py), and left in
+            # place it would transmit while the status bar reads TX off.
+            new_transport.gate = self.gate
             await new_transport.open()
         except Exception as exc:
             log.exception("could not open %s", name)
@@ -2987,6 +3011,10 @@ class KissTermApp(App):
                 await new_transport.close()
             return False
 
+        # `rebind_transport` moved only the station's own subscription; the
+        # monitor, heard list, APRS decoder and on_sent are the app's to move.
+        self._detach_transport(old_transport)
+        self._attach_transport(new_transport)
         with contextlib.suppress(Exception):
             await old_transport.close()
 
@@ -3018,6 +3046,10 @@ class KissTermApp(App):
 
         try:
             new_transport = transport_mod.build_transport(entry)
+            # The operator's gate, before anything can send on it. A freshly
+            # built transport's own gate is OPEN (kissterm/tx.py), and left in
+            # place it would transmit while the status bar reads TX off.
+            new_transport.gate = self.gate
             await new_transport.open()
         except Exception as exc:
             log.exception("could not open %s", name)
