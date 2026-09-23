@@ -226,6 +226,9 @@ kissterm/
 │   ├── session_log.py       # per-session plain-text transcript
 │   ├── transcripts.py       # lists/reads saved transcripts for the browser
 │   ├── heard.py             # MHEARD table
+│   ├── glossary.py          # packet terms, for the Help tab's Glossary
+│   ├── guides.py            # built-in how-tos for the Help tab; keys only
+│   │                        #   via {key:action}, never typed by hand
 │   ├── addressbook.py       # station Address Book: connect targets, hop
 │   │                        #   chains, login scripts/credentials
 │   ├── aprs_contacts.py     # APRS messaging contacts (name/callsign/
@@ -255,6 +258,8 @@ kissterm/
 │   ├── ui/                  # Textual panes, one file each (+ AGENTS.md)
 │   │   ├── settings_schema.py  # DECLARATIVE settings; add a field here only
 │   │   ├── settings_pane.py    # generated from the schema, edits nothing else
+│   │   ├── help_pane.py     # the F1 Help tab: keys, node commands, guides,
+│   │   │                    #   glossary, About -- reads, never sends or fills
 │   │   ├── wraplog.py       # WrapLog: a RichLog that wraps to the width it
 │   │   │                    #   is actually shown at -- all three scrollbacks
 │   │   └── slideouts.py     # how wide a Ctrl+G column gets and whether it
@@ -424,8 +429,8 @@ Gotchas that already cost time:
 
 ### One visual language, one place for each fact
 - **The keyboard is one table.** `kissterm/ui/commands.py`'s `COMMANDS`
-  generates the App's `BINDINGS`, the Footer, the F10 menu, the F1 help
-  screen and the Ctrl+P palette. Never hand-write a `Binding` on the App or
+  generates the App's `BINDINGS`, the Footer, the F10 menu, the Keys page
+  of the F1 Help tab and the Ctrl+P palette. Never hand-write a `Binding` on the App or
   a per-tab key list inside a widget: that is how the Footer came to
   advertise `^O` for a key bound to Ctrl+Shift+O, which an ordinary terminal
   delivers as Ctrl+O -- a different command. The standard is IBM CUA as
@@ -454,7 +459,10 @@ Gotchas that already cost time:
   `tests/unit/test_keyboard_protocol.py` guards both the default and the
   operator's `TEXTUAL_DISABLE_KITTY_KEY=0` override.
 - **A tab-switching key is shown in the tab label, never in the footer too.**
-  `F1 Terminal` (key first, like a menu accelerator), not `Terminal (F1)`.
+  `F2 Terminal` (key first, like a menu accelerator), not `Terminal (F2)`.
+  **Help is a tab too** (`F1 Help`, first in the row) -- an operator reading
+  F2..F9 across the top looked for F1 there and concluded it was missing --
+  so F1 is not in the Footer either.
   Textual's `Footer` would otherwise print the same word the tab bar already
   shows, in a different corner of the screen -- exactly the duplication a user
   flagged from a real screenshot. The `Binding`s stay registered with

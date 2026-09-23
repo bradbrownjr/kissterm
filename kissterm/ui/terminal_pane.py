@@ -201,6 +201,35 @@ def _tab_id(session_key: str) -> str:
     return "sess-" + re.sub(r"[^A-Za-z0-9_-]", "_", session_key.strip().upper())
 
 
+class _SessionLog(WrapLog):
+    """The scrollback, which asks its pane to rewrap it whenever its OWN width
+    changes.
+
+    The pane used to ask only from its own `on_resize`, deferred one refresh
+    so the log would report its new width. But opening the Address Book
+    column does not resize the pane -- only the log inside it -- and one
+    refresh was not always enough for the column's layout to land. The pane
+    then recorded the pre-column width as already rewrapped, and closing the
+    column later matched that stale width and skipped the rewrap: old lines
+    stayed wrapped at 39 columns in a 98-column log. It surfaced when adding
+    the Help tab shifted startup timing. The log's own resize is the fact the
+    rewrap depends on, so it is the trigger; `_reflow_scrollback`'s width
+    check keeps a rewrite (which changes the virtual size and so resizes
+    again) from looping.
+
+    A direct call, not a posted message: see docs/ROADMAP.md P0.1 on this
+    pane's message queue.
+    """
+
+    def on_resize(self) -> None:
+        # Textual dispatches `on_resize` to every class in the MRO, so this
+        # runs in addition to `WrapLog.on_resize`, not instead of it.
+        for ancestor in self.ancestors:
+            if isinstance(ancestor, TerminalPane):
+                ancestor._request_scrollback_reflow()
+                return
+
+
 class _SessionTabs(Tabs):
     """The per-connection strip, with `Delete` to disconnect/close the
     focused tab.
@@ -407,7 +436,7 @@ class TerminalPane(Container):
                 # open beside it -- a node's `?` listing arrived cut off
                 # mid-word. See `kissterm/ui/wraplog.py`, which also explains
                 # why the obvious `min_width=0` is the wrong fix.
-                yield WrapLog(
+                yield _SessionLog(
                     id="session-log",
                     wrap=True,
                     markup=False,

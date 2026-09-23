@@ -1,4 +1,4 @@
-"""The F10 menu bar and the F1 help screen.
+"""The F10 menu bar. (F1 Help is a tab now: `kissterm/ui/help_pane.py`.)
 
 The menu is the CUA pull-down menu (Turbo Vision, Midnight Commander): a bar
 of headings across the top row, one open at a time, each listing its
@@ -16,7 +16,7 @@ A command that cannot run right now (Disconnect with nothing connected) is
 listed dimmed with the reason in place of its key, rather than hidden: the
 menu is also where an operator learns what exists.
 
-Neither screen transmits or changes anything itself. The menu returns the
+The menu transmits and changes nothing itself. The menu returns the
 chosen `Command`; `KissTermApp.run_command` runs it exactly as its key would.
 """
 
@@ -26,7 +26,7 @@ from rich.text import Text
 from textual import events, on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import Footer, OptionList, Static
 from textual.widgets.option_list import Option
@@ -188,42 +188,3 @@ class MenuScreen(ModalScreen[Command | None]):
                 else:
                     self.dismiss(command)
                 return
-
-
-class HelpScreen(ModalScreen[None]):
-    """F1: what this tab is for and every key that works on it."""
-
-    DEFAULT_CSS = """
-    HelpScreen {
-        align: center middle;
-        background: $background 60%;
-    }
-    HelpScreen #help-body {
-        width: 90;
-        max-width: 100%;
-        height: auto;
-        max-height: 90%;
-        border: round $accent;
-        border-title-color: $accent;
-        background: $surface;
-        padding: 0 1;
-    }
-    """
-
-    BINDINGS = [
-        Binding("escape", "dismiss(None)", "Close"),
-        Binding("f1", "dismiss(None)", "Close"),
-    ]
-
-    def __init__(self, body) -> None:
-        super().__init__()
-        self.body = body
-
-    def compose(self) -> ComposeResult:
-        with VerticalScroll(id="help-body") as scroll:
-            scroll.border_title = "Help"
-            yield Static(self.body)
-        yield Footer()
-
-    def on_mount(self) -> None:
-        self.query_one("#help-body").focus()

@@ -397,6 +397,24 @@ TranscriptsScreen { align: center middle; }
    stays reachable in one click regardless of which tab is open or how far
    down its list the operator has scrolled -- the single long page this
    replaced put Save at the bottom of several screens' worth of fields. */
+/* Help tab (F1). Its section strip is an inner strip, so it gets the same
+   subordinate treatment as the other inner strips: muted inactive tabs, and
+   the underline bar dimmed to $panel -- the accent bar belongs to the F-key
+   row above it (DESIGN.md, "A second tab strip inside a pane"). */
+HelpPane { layout: vertical; height: 1fr; }
+#help-tabs { height: 1fr; }
+#help-tabs Tab { color: $text-muted; }
+#help-tabs Tab.-active { color: $accent; text-style: bold; }
+#help-tabs Underline > .underline--bar { color: $panel; }
+.help-toolbar { height: auto; padding: 0 1; }
+.help-toolbar-label { width: auto; padding: 1 1 0 0; }
+#help-keys-for, #help-node-family { width: 32; }
+#help-node-search { width: 1fr; }
+#help-node-note { padding: 0 1; color: $text-muted; }
+#help-keys-scroll, #help-guide-scroll { height: 1fr; padding: 0 1; }
+#help-guide-list { width: 30; height: 1fr; }
+#help-node-table, #help-glossary-body { height: 1fr; padding: 0 1; }
+#help-about-scroll { padding: 1 2; }
 SettingsPane { layout: vertical; }
 #settings-tabs { height: 1fr; }
 .settings-tab-scroll { padding: 0 2; }

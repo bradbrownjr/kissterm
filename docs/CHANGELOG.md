@@ -3,6 +3,61 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Help is a tab, with guides, node commands, a glossary and About
+
+### New Features
+
+- **F1 Help is a full-page tab, first in the tab row.** Reported from a real
+  station: reading "F2 Terminal ... F9 Settings" across the top, the operator
+  looked for F1 there and reported it missing -- it was in the bottom bar,
+  opening a modal. The row now reads F1 to F9, and because F1 is a tab key
+  it leaves the bottom bar, like every other tab key. F1 still answers "what
+  can I press here?": it opens on the keys of the tab it was pressed from,
+  with a picker for any other tab, and F1 again goes back.
+- **Guides** (`kissterm/guides.py`): six short how-tos for an operator new
+  to packet -- getting on the air, a first connection, the transmit switch,
+  reading a failed connect, APRS messaging, and sharing the channel. Keys in
+  them are `{key:action}` placeholders resolved from the command registry,
+  so a guide cannot tell anyone to press a key that has moved;
+  `tests/unit/test_guides.py` renders every guide and rejects a key typed
+  by hand.
+- **Node commands**: every shipped node command reference, browsable by node
+  type and searchable, without being connected to anything. Read-only on
+  purpose -- Ctrl+R on the Terminal tab stays the one route from a reference
+  to the send line, and a test asserts the pane has no send or fill path.
+  While connected to a node kissterm has identified, it opens on that node
+  type.
+- **Glossary**, the same terms as the Ctrl+R reference's glossary, with
+  room to read them.
+- **About**: version, license, project and bug-report links, the config
+  file and log directory this station actually uses, and the Python,
+  Textual and OS versions -- what a bug report needs, without a shell.
+- Guides, Glossary and About are in the F10 Help menu and Ctrl+P.
+
+### Improvements
+
+- The old F1 modal (`HelpScreen`) is gone; its content is the Keys page.
+
+### Fixes
+
+- **Closing the Address Book could leave old scrollback wrapped narrow.**
+  The terminal rewrapped its scrollback when the pane resized, one refresh
+  later, and remembered the width it last rewrapped at. Opening the column
+  resizes only the log, and one refresh was not always enough for the
+  column's layout to land, so the pane could record the pre-column width
+  as done; closing the column then matched it and skipped the rewrap. The
+  log now asks for the rewrap on its own resize. Found because adding the
+  Help tab shifted startup timing enough to fail
+  `test_existing_scrollback_rewraps_when_the_addressbook_closes`.
+
+**Files:** `kissterm/ui/help_pane.py` (new), `kissterm/guides.py` (new),
+`kissterm/ui/app.py`, `kissterm/ui/commands.py`, `kissterm/ui/menu.py`,
+`kissterm/ui/styles.py`, `kissterm/ui/terminal_pane.py`,
+`tests/unit/test_guides.py` (new),
+`tests/unit/test_commands.py`, `tests/pilot/test_menu_and_help.py`,
+`tests/pilot/test_app_mounts.py`, `README.md`, `DESIGN.md`, `AGENTS.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-23] — Connecting to the modem: fail fast, and say so
 
 ### Fixes

@@ -1,4 +1,4 @@
-"""F10 (the menu) and F1 (help), and the rule that a key only works where it
+"""F10 (the menu) and F1 (the Help tab), and the rule that a key only works where it
 means something.
 
 `isolate()` runs FIRST, before any other kissterm import -- see
@@ -18,7 +18,7 @@ import pytest  # noqa: E402
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
-from kissterm.ui.menu import HelpScreen, MenuScreen  # noqa: E402
+from kissterm.ui.menu import MenuScreen  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
 MYCALL = AX25Address.parse("N1ABC-1")
@@ -125,28 +125,67 @@ async def test_opening_and_closing_the_menu_transmits_nothing():
 
 
 @pytest.mark.asyncio
-async def test_f1_shows_help_for_the_tab_you_are_on():
+async def test_f1_opens_the_help_tab_on_the_keys_of_the_tab_you_were_on():
+    """Help is a tab now, but F1 still answers "what can I press HERE?":
+    it opens on the keys of the tab it was pressed from. F1 again goes back
+    there -- the way out of Help is the way in."""
+    from rich.console import Console
+    from textual.widgets import Static
+
     app, station, _ta = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
         app.action_show_tab("monitor")
         await _settle(pilot)
         await pilot.press("f1")
         await _settle(pilot)
-        assert isinstance(app.screen, HelpScreen)
-        from rich.console import Console
+        assert app.active_tab() == "help"
+        assert app.query_one("#help-tabs").active == "help-keys"
+        assert app.query_one("#help-keys-for").value == "monitor"
 
         console = Console(width=100, record=True)
-        console.print(app.screen.body)
+        console.print(app.query_one("#help-keys-body", Static).content)
         body = console.export_text()
         assert "Monitor" in body
         assert "Ctrl+T" in body
         # Find searches the terminal scrollback: not a Monitor key. (Connect
         # is listed, because Ctrl+N works from any tab.)
         assert "Find: " not in body
-        await pilot.press("escape")
+
+        await pilot.press("f1")
         await _settle(pilot)
-        assert not isinstance(app.screen, HelpScreen)
+        assert app.active_tab() == "monitor"
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_help_menu_opens_each_help_section():
+    """Guides, Glossary and About have no key; the F10 Help menu and Ctrl+P
+    are how they are found, and each must land on its own section."""
+    app, station, _ta = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        for section in ("help-guides", "help-glossary", "help-about"):
+            app.action_show_tab("terminal")
+            await _settle(pilot)
+            await app.run_action(f"help('{section}')")
+            await _settle(pilot)
+            assert app.active_tab() == "help"
+            assert app.query_one("#help-tabs").active == section
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_help_tab_transmits_nothing_and_fills_no_input():
+    """Browsing references here is reading. The route from a reference to the
+    send line is Ctrl+R on the Terminal tab, and nothing on this tab may
+    become a second one (AGENTS.md: suggestions fill the input; they never
+    send -- and this tab does not even fill)."""
+    import inspect
+
+    from kissterm.ui import help_pane
+
+    source = inspect.getsource(help_pane)
+    for forbidden in ("send_line", ".send(", "suggest(", "send_frame"):
+        assert forbidden not in source, forbidden
 
 
 @pytest.mark.asyncio
@@ -163,4 +202,21 @@ async def test_a_key_for_another_tab_does_nothing_instead_of_explaining():
         await _settle(pilot)
         assert app.active_tab() == "heard"
         assert toasts == []
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_node_commands_opens_on_the_identified_node_type():
+    from kissterm.nodes.reference import CommandReference, available_families, load_family
+
+    families = available_families()
+    assert len(families) > 1, "needs two shipped families to prove a choice was made"
+    wanted = families[-1]
+    app, station, _ta = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _settle(pilot)
+        app.reference = CommandReference(load_family(wanted))
+        await pilot.press("f1")
+        await _settle(pilot)
+        assert app.query_one("#help-node-family").value == wanted
     station.close()

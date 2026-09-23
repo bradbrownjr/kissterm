@@ -136,15 +136,16 @@ command needs a chord of its own to be reachable, so the key budget can stay
 inside what a terminal can actually deliver.
 
 **One table, `kissterm/ui/commands.py`'s `COMMANDS`, generates all of it**:
-the App's `BINDINGS`, the Footer, the F10 menu, the F1 help screen and the
+the App's `BINDINGS`, the Footer, the F10 menu, the Keys page of the F1 Help tab and the
 Ctrl+P palette. Adding a `Binding` by hand, or a per-tab list inside a
 widget, puts the same fact in two places again. `tests/unit/test_key_standard.py`
 is the enforcement.
 
 ### The rules
 
-1. **F1 is Help. F10 is the menu.** Permanently, on every tab. Help is for
-   the tab you are on; the menu is every command, grouped (Session, APRS,
+1. **F1 is Help. F10 is the menu.** Permanently, on every tab. Help is a
+   tab (`F1 Help`, first in the row) that opens on the keys of the tab you
+   pressed it from, and F1 again goes back there; the menu is every command, grouped (Session, APRS,
    View, Help), each with its key beside it. Inside the menu, plain letters
    are the mnemonics — the underlined letter runs that entry — so no Alt
    chord is needed anywhere.
@@ -194,7 +195,7 @@ is the enforcement.
 
 | Key | Tab |
 |---|---|
-| F1 | Help (a screen, not a tab) |
+| F1 | Help: keys, node commands, guides, glossary, About |
 | F2 | Terminal |
 | F3 | APRS |
 | F4 | Heard |
@@ -209,13 +210,19 @@ is the enforcement.
   built. Mail, Bulletins and Files take F2–F4 when they land (docs/ROADMAP.md
   P2), moving Terminal, APRS, Heard and Monitor down; Help, Settings and Menu
   are on their final keys now so they never move again.
-- **The `TabPane` ids never move with the labels** (`terminal`, `aprs`,
-  `heard`, `monitor`, `settings`): every `active == "aprs"` check addresses a
+- **Help was a modal and is a tab now**, first in the row so the labels
+  read F1 to F9 left to right. Requested directly: reading "F2 Terminal ...
+  F9 Settings" across the top, the operator looked for F1 there, did not
+  find it, and reported it missing. As a tab it has room for what a modal
+  could not hold -- the shipped node command lists, the guides, the
+  glossary, About -- and like every tab key, F1 is not in the Footer too.
+- **The `TabPane` ids never move with the labels** (`help`, `terminal`,
+  `aprs`, `heard`, `monitor`, `settings`): every `active == "aprs"` check addresses a
   pane by id, so a reordering is a table edit, not a search through the app.
 - **F1 and F10 are the two keys a terminal emulator may steal** — GNOME
   Terminal opens its own help on F1 and its menu bar on F10 unless the menu
-  accelerator is turned off. The F1 screen says so, and both are clickable in
-  the Footer, with Ctrl+P as the third way in.
+  accelerator is turned off. The Help tab says so. Help can be clicked in
+  the tab row and Menu in the Footer, with Ctrl+P as the third way in.
 
 ### The Footer
 

@@ -155,7 +155,7 @@ from . import themes
 from .clock import KissTermHeader
 from . import commands as cmdreg
 from .commands import KeyBindingsProvider
-from .menu import HelpScreen, MenuScreen
+from .menu import MenuScreen
 from ..harvested import HarvestedCommands
 from ..nodes import Command, CommandReference
 from ..nodes.reference import identify_family, parse_harvested
@@ -174,6 +174,7 @@ from .dialogs import (
 from .heard_pane import HeardPane
 from .monitor_pane import MonitorPane
 from .settings_pane import SettingsPane
+from .help_pane import HelpPane
 from .styles import APP_CSS
 from .terminal_pane import MAX_TERMINAL_TABS, TerminalPane
 
@@ -726,6 +727,10 @@ class KissTermApp(App):
     def compose(self) -> ComposeResult:
         yield KissTermHeader(show_clock=True)
         with TabbedContent(initial="terminal", id="main-tabs"):
+            # Help first: it is on F1, and the row reads F1 to F9 left to
+            # right. See `help_pane.py` for why it is a tab, not a modal.
+            with TabPane("F1 Help", id="help"):
+                yield HelpPane()
             with TabPane("F2 Terminal", id="terminal"):
                 yield TerminalPane()
             with TabPane("F3 APRS", id="aprs"):
@@ -2737,13 +2742,39 @@ class KissTermApp(App):
 
         self.push_screen(MenuScreen(groups, start), _chosen)
 
-    def action_help(self) -> None:
-        """F1: this tab's purpose and keys, from the registry."""
+    def action_help(self, section: str = "help-keys") -> None:
+        """F1: the Help tab, open on the keys of the tab it was pressed from.
+
+        F1 again, from Help, goes back where it came from -- Help is visited,
+        and the way back should be the way in. `section` opens a different
+        part of it (the F10 menu's Guides, Glossary and About entries).
+        """
+        current = self.active_tab()
+        if current == "help" and section == "help-keys":
+            self.action_show_tab(self._help_return_tab)
+            return
+        if current and current != "help":
+            self._help_return_tab = current
+        pane = self.query_one(HelpPane)
+        pane.show_keys(self._help_return_tab)
+        # Node commands opens on the node the operator is talking to, when
+        # it has been identified -- that is the list they came for.
+        family = self.reference.family
+        if family is not None:
+            pane.select_family(family.id)
+        self.action_show_tab("help")
+        self.query_one("#help-tabs", TabbedContent).active = section
+
+    #: Where F1 returns to from Help, and whose keys Help opens on.
+    _help_return_tab = "terminal"
+
+    def help_renderable(self, tab: str):
+        """`tab`'s purpose and keys, from the registry, with this moment's
+        state: which commands cannot run now, and why."""
         from .addressbook_pane import _AddressBookTable
         from .aprs_pane import _AprsContactTable, _ConvoTabs
         from .terminal_pane import _SessionTabs
 
-        tab = self.active_tab()
         widgets = {
             "terminal": [("Address Book", _AddressBookTable), ("session tabs", _SessionTabs)],
             "aprs": [("contacts", _AprsContactTable), ("conversation tabs", _ConvoTabs)],
@@ -2757,9 +2788,7 @@ class KissTermApp(App):
         unavailable = {
             c.action: why for c in cmdreg.COMMANDS if (why := self.command_unavailable(c))
         }
-        self.push_screen(
-            HelpScreen(cmdreg.help_renderable(tab, list_keys, unavailable=unavailable))
-        )
+        return cmdreg.help_renderable(tab, list_keys, unavailable=unavailable)
 
     #: Where focus goes when a tab is opened, so the operator can act
     #: immediately: type at the node, type a message, search the monitor.

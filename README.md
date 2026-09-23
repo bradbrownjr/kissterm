@@ -246,7 +246,7 @@ terminal can actually deliver.
 
 | Key | Action |
 |-----|--------|
-| `F1` | Help for the tab you are on, with its keys |
+| `F1` | The Help tab: keys for the tab you came from, node command lists, guides, a glossary and About. `F1` again goes back |
 | `F10` | The menu: every command, grouped, with its key beside it |
 | `F2`..`F9` | Terminal / APRS / Heard / Monitor, and Settings on `F9` -- shown as the key in each tab's label |
 | `Ctrl+N` | Connect to a station (with a list of stations already tried) |
@@ -278,7 +278,14 @@ everything, and every key in the bar can also be clicked.
 **If `F1` or `F10` does nothing**, your terminal program took it first --
 GNOME Terminal opens its own help on `F1` and its menu bar on `F10` until
 you turn off "Enable the menu accelerator key" in its preferences. Clicking
-Help or Menu in the bottom bar works regardless.
+the Help tab, or Menu in the bottom bar, works regardless.
+
+**The Help tab is written for someone new to packet.** Its *Guides* walk
+through getting on the air, a first connection, the transmit switch, reading
+a failed connect, APRS messaging and sharing the channel. *Node commands*
+lists what each common node type understands, without connecting to one or
+spending airtime asking it. *About* shows the version and where your config
+and logs are, for a bug report.
 
 Connect targets accept a digipeater path: `WS1EC-7 via W1AW-1,W1XYZ`.
 

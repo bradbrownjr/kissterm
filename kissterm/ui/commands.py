@@ -1,5 +1,6 @@
 """The command registry: one table that the key bindings, the Footer, the F10
-menu, the F1 help screen and the Ctrl+P palette are all generated from.
+menu, the F1 Help tab's Keys page and the Ctrl+P palette are all generated
+from.
 
 Why one table. Before this, each of those five read a different list: the
 App's hand-written `BINDINGS`, a per-tab allowlist inside the Footer, a
@@ -44,7 +45,7 @@ TAB_TITLES = {
     "settings": "Settings",
 }
 
-#: One plain paragraph per tab for the F1 screen: what the tab is for and the
+#: One plain paragraph per tab for the Keys page of the F1 Help tab: what the tab is for and the
 #: first thing to do there. Keys are listed below it from the registry, so
 #: these name a key only where the sentence needs it.
 TAB_HELP = {
@@ -198,8 +199,16 @@ COMMANDS: tuple[Command, ...] = (
             "Clear what this tab is showing", key="ctrl+l",
             tabs=("terminal", "aprs", "monitor"), footer=("aprs", "monitor")),
     # --- Help ----------------------------------------------------------
+    # Help is a tab now, so F1 is printed in the tab row and, like every
+    # tab key, not in the Footer as well (DESIGN.md section 5).
     Command("help", "Help", "Help", "H",
-            "Help for this tab, with its keys", key="f1", footer=("*",)),
+            "Keys for this tab, guides, glossary and About", key="f1"),
+    Command("help('help-guides')", "Guides", "Help", "G",
+            "Short how-tos: getting on the air, a first connection, and more"),
+    Command("help('help-glossary')", "Glossary", "Help", "L",
+            "Packet radio terms in plain words"),
+    Command("help('help-about')", "About", "Help", "A",
+            "Version, project links, and where your files are"),
     Command("command_reference", "Node commands", "Help", "N",
             "Every command the node you are on understands", key="ctrl+r",
             tabs=("terminal",), footer=("terminal",), short="Commands"),
@@ -215,7 +224,6 @@ COMMANDS: tuple[Command, ...] = (
 #: is pinned to the right edge and never dropped, because it is the way to
 #: everything the bar had no room for.
 FOOTER_ORDER = (
-    "help",
     "toggle_transmit",
     "connect",
     "disconnect",
@@ -353,7 +361,7 @@ def help_renderable(
     *,
     unavailable: dict[str, str] | None = None,
 ):
-    """The F1 screen for one tab: what it is for, then its keys.
+    """The Help tab's Keys page for one tab: what it is for, then its keys.
 
     `list_keys` is `(where, key, label)` for keys that work only while a list
     or tab strip has focus -- read from those widgets' own `BINDINGS` by the
@@ -389,7 +397,7 @@ def help_renderable(
     tab_keys = ", ".join(
         f"{key_label(c.key)} {c.label}" for c in COMMANDS if c.action.startswith("show_tab")
     )
-    rows.append(("F2-F9", f"Tabs: {tab_keys}"))
+    rows.append(("F1-F9", f"Tabs: F1 Help, {tab_keys}"))
     blocks.append(table(rows))
     if list_keys:
         blocks += [Text(""), Text("In lists", style="bold")]
