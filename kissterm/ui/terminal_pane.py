@@ -128,6 +128,7 @@ from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, RichLog, Static, Tab, Tabs
 
+from ..nodes.reference import UNPUBLISHED
 from ..ansi import to_text
 from . import slideouts
 from ..monitor import sanitize
@@ -1128,7 +1129,7 @@ class TerminalPane(Container):
             # (`KissTermApp._track_application` swaps it when the node hands
             # the session to its BBS and back). Suggesting BPQMail's "L" at a
             # node prompt, where L lists links, is a wrong command offered as
-            # help -- the mix docs/ROADMAP.md P0.3 removed. An unidentified
+            # help -- the mix the 2026-09-23 command catalog removed. An unidentified
             # prompt suggests only what this station itself was heard to
             # offer (a harvest), never another system's commands.
             matches = reference.complete(prefix, limit=20) if reference is not None else ()
@@ -1156,6 +1157,10 @@ class TerminalPane(Container):
             text.append(command.name, style="bold" if index == self._suggestion_index else "dim")
             if command.summary:
                 text.append(f" - {command.summary}", style="dim")
+            elif command.confidence == "learned":
+                # A harvest is a name only. Say where it came from rather
+                # than leave a bare word that reads like documentation.
+                text.append(f" - {UNPUBLISHED}", style="dim italic")
         text.append("\nUp/Down: choose  Tab: fill", style="dim italic")
         strip.update(text)
         strip.display = True

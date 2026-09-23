@@ -22,6 +22,24 @@ DATA_DIR = Path(__file__).parent / "data"
 #: whether to trust a syntax line before spending airtime on it.
 CONFIDENCE_ORDER = ("verified", "documented", "recalled", "learned")
 
+#: What each confidence level is called on screen: where the line came from,
+#: in words an operator can act on, rather than the data file's own term.
+SOURCE_TIERS = {
+    "verified": "verified on air",
+    "documented": "published",
+    "recalled": "recalled, unverified",
+    "learned": "harvested only",
+}
+
+#: A harvested name that matches no shipped command. Said instead of a
+#: description, because a harvest is a name and nothing more.
+UNPUBLISHED = "offered by this node, not in the published reference"
+
+
+def source_tier(command: "Command") -> str:
+    """The source tier shown beside a shipped command."""
+    return SOURCE_TIERS.get(command.confidence, command.confidence)
+
 
 @dataclass(frozen=True, slots=True)
 class Command:
@@ -205,6 +223,15 @@ def application_named(name: str) -> Family | None:
     )
 
 
+def applications_of(family: Family) -> tuple[Family, ...]:
+    """The shipped application families a node family can hand a session to
+    -- BPQMail and BPQChat for BPQ32, through its BBS and CHAT commands."""
+    names = {c.name.upper() for c in family.commands if c.application}
+    return tuple(
+        f for f in load_all() if f.kind == "application" and names & set(f.entered_by)
+    )
+
+
 @dataclass(slots=True)
 class CommandReference:
     """The command set in effect for one session: shipped plus learned.
@@ -220,13 +247,38 @@ class CommandReference:
     def commands(self) -> tuple[Command, ...]:
         """Shipped commands, plus learned ones not already covered.
 
-        Shipped entries win on a name collision: they carry usage and detail
-        text, while a harvested line is usually just a name.
+        Harvested names are an overlay, never a source of meaning. A name
+        that matches a shipped command (or one of its aliases) does not add
+        a row: it marks that row as offered by this node (`offered`). A name
+        that matches nothing is listed with `UNPUBLISHED` in place of a
+        description -- inventing one would pass a guess off as fact.
         """
         shipped = self.family.commands if self.family else ()
         known = {n.upper() for c in shipped for n in c.names}
         extra = tuple(c for c in self.learned if c.name.upper() not in known)
         return shipped + extra
+
+    @property
+    def offered(self) -> frozenset[str]:
+        """Upper-cased names of shipped commands this station was heard to
+        offer in a harvest."""
+        learned = {c.name.upper() for c in self.learned}
+        shipped = self.family.commands if self.family else ()
+        return frozenset(
+            c.name.upper() for c in shipped if learned & {n.upper() for n in c.names}
+        )
+
+    def tier(self, command: Command) -> str:
+        """Where this row came from, for the Source column.
+
+        "published", "verified on air" or "recalled, unverified" for a
+        shipped command, with "offered here" added when this station's own
+        harvest named it; "harvested only" for a name nothing documents.
+        """
+        label = source_tier(command)
+        if command.confidence != "learned" and command.name.upper() in self.offered:
+            label += ", offered here"
+        return label
 
     def complete(self, prefix: str, limit: int = 8) -> tuple[Command, ...]:
         """Candidates for a partly-typed command.

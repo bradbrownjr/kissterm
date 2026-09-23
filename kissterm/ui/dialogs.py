@@ -23,6 +23,7 @@ from textual.widgets import Button, DataTable, Footer, Input, Label, Select, Sta
 
 from ..addressbook import AddressBook
 from ..bbs import Macro, profile, profiles
+from ..nodes.reference import UNPUBLISHED
 from ..aprs_contacts import (
     CannedMessage,
     Contact,
@@ -2639,9 +2640,14 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         session_key: str = "",
         can_harvest: bool = False,
         peer: str = "",
+        others: tuple = (),
     ) -> None:
         super().__init__()
         self._reference = reference
+        # The other contexts reachable from here (the node's commands while
+        # in its BBS, the BBS's while at the node), listed after the current
+        # one and labelled by context -- see `KissTermApp.reference_sections`.
+        self._others = tuple(others)
         self._detected = detected
         self._mode = "commands"
         self._session_key = session_key
@@ -2794,25 +2800,36 @@ class CommandReferenceScreen(ModalScreen[str | None]):
         table = self.query_one("#ref-table", DataTable)
         table.clear()
         self._command_row_values.clear()
-        for index, command in enumerate(self._reference.find(needle)):
-            names = command.name
-            if command.aliases:
-                names += " / " + " / ".join(command.aliases)
-            row_key = f"{index}:{command.context}:{command.name}"
-            self._command_row_values[row_key] = command.name
-            table.add_row(
-                names,
-                command.usage or command.name,
-                command.summary,
-                {"node": "Node", "bbs": "BBS", "application": "Application"}.get(
-                    command.context, command.context.title()
-                ),
-                # Say where each line came from. A reference that silently
-                # mixes documented fact with half-remembered syntax is worse
-                # than none: the operator types it, at 1200 baud, and finds out.
-                command.confidence,
-                key=row_key,
-            )
+        for section, reference in enumerate((self._reference, *self._others)):
+            for index, command in enumerate(reference.find(needle)):
+                names = command.name
+                if command.aliases:
+                    names += " / " + " / ".join(command.aliases)
+                row_key = f"{section}:{index}:{command.context}:{command.name}"
+                self._command_row_values[row_key] = command.name
+                table.add_row(
+                    names,
+                    command.usage or command.name,
+                    command.summary
+                    or (UNPUBLISHED if command.confidence == "learned" else ""),
+                    self._context_label(reference, command),
+                    # Say where each line came from. A reference that silently
+                    # mixes documented fact with half-remembered syntax is
+                    # worse than none: the operator types it, at 1200 baud,
+                    # and finds out.
+                    reference.tier(command),
+                    key=row_key,
+                )
+
+    @staticmethod
+    def _context_label(reference, command) -> str:
+        """Node, BBS, or the application's own name; "sysop" when only the
+        sysop can use it, so it is listed without looking like an offer."""
+        label = {"node": "Node", "bbs": "BBS"}.get(command.context)
+        if label is None:
+            family = reference.family
+            label = family.name if family is not None else "Application"
+        return f"{label}, sysop" if command.sysop else label
 
     @on(Input.Changed, "#ref-search")
     def _search(self, event: Input.Changed) -> None:

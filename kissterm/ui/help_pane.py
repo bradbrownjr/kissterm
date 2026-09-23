@@ -146,7 +146,7 @@ class HelpPane(Vertical):
         self._render_nodes()
 
     def _render_nodes(self) -> None:
-        from ..nodes.reference import CommandReference, load_family
+        from ..nodes.reference import CommandReference, load_family, source_tier
 
         family_id = self.query_one("#help-node-family", Select).value
         family = load_family(family_id) if isinstance(family_id, str) else None
@@ -176,7 +176,7 @@ class HelpPane(Vertical):
                 if what and what[-1] not in ".!?":
                     what += "."
                 what = f"{what} {command.detail}".strip()
-            table.add_row(names, command.usage or command.name, what, command.confidence)
+            table.add_row(names, command.usage or command.name, what, source_tier(command))
         self._write_from_top(log, table)
 
     # -- Guides ---------------------------------------------------------

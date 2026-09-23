@@ -159,7 +159,12 @@ from .commands import KeyBindingsProvider
 from .menu import MenuScreen
 from ..harvested import HarvestedCommands
 from ..nodes import Command, CommandReference
-from ..nodes.reference import application_named, identify_family, parse_harvested
+from ..nodes.reference import (
+    application_named,
+    applications_of,
+    identify_family,
+    parse_harvested,
+)
 from .dialogs import (
     CallsignScreen,
     CommandReferenceScreen,
@@ -2257,7 +2262,7 @@ class KissTermApp(App):
 
         Filtered by context because "L" harvested inside the BBS and "L"
         harvested at the node prompt are different commands; offering the
-        BBS's at the node is the mix-up docs/ROADMAP.md P0.3 exists to end.
+        BBS's at the node is the mix-up the command catalog (docs/CHANGELOG.md, 2026-09-23) ended.
         """
         return tuple(
             Command(name=command.name, confidence="learned", context=command.context)
@@ -2272,6 +2277,36 @@ class KissTermApp(App):
         if family is not None and family.kind == "application":
             return family.harvest_context
         return "application" if session.application else "node"
+
+    def reference_sections(self, session_key: str) -> tuple[CommandReference, ...]:
+        """The command sets reachable from where this session is, other than
+        the one in effect: the node's while inside its BBS, and the node's
+        applications (BPQMail, BPQChat) either way.
+
+        The Ctrl+R screen lists these after the current context's commands,
+        so an operator at a node prompt can look up a BBS command before
+        spending the airtime to enter the BBS.
+        """
+        session = self._sessions.get(session_key)
+        if session is None:
+            return ()
+        current = session.reference
+        node_reference = session.node_reference if session.application else current
+        sections: list[CommandReference] = []
+        if session.application and node_reference is not None:
+            sections.append(node_reference)
+        node_family = node_reference.family if node_reference is not None else None
+        if node_family is not None and node_family.kind == "node":
+            for family in applications_of(node_family):
+                if family is current.family:
+                    continue
+                sections.append(
+                    CommandReference(
+                        family=family,
+                        learned=self._learned(session.current_node, family.harvest_context),
+                    )
+                )
+        return tuple(sections)
 
     def harvest_context(self, session_key: str) -> str:
         """What a `?` asked now would be answered by, for the confirm
@@ -3795,6 +3830,7 @@ class KissTermApp(App):
             CommandReferenceScreen(
                 self.reference,
                 session_key=key,
+                others=self.reference_sections(key),
                 can_harvest=link is not None and link.connected,
                 # The LOGICAL peer: "Ask X for its command list?" has to name
                 # the node that will actually answer, which after a confirmed

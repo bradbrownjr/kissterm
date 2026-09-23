@@ -285,3 +285,17 @@ def test_sysop_commands_are_marked():
     assert next(c for c in load_family("bpq32").commands if c.name == "PASSWORD").sysop
     assert next(c for c in load_family("bpqmail").commands if c.name == "KH").sysop
     assert not next(c for c in load_family("bpqmail").commands if c.name == "LH").sysop
+
+
+def test_a_harvest_marks_shipped_commands_and_never_describes_its_own():
+    ref = CommandReference(
+        family=load_family("bpq32"),
+        learned=(Command("BYE", confidence="learned"), Command("WALL", confidence="learned")),
+    )
+    by_name = {c.name: c for c in ref.commands}
+    assert "BYE" not in by_name, "an alias of B must mark B, not add a row"
+    assert ref.offered == {"B"}
+    assert ref.tier(by_name["B"]) == "verified on air, offered here"
+    assert ref.tier(by_name["NRR"]) == "published"
+    assert ref.tier(by_name["WALL"]) == "harvested only"
+    assert by_name["WALL"].summary == ""

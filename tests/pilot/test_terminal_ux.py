@@ -1221,8 +1221,9 @@ async def test_command_picker_labels_harvested_bbs_commands():
         table = screen.query_one("#ref-table")
         row = table.get_row_at(0)
         assert row[0] == "LIST"
+        assert row[2] == "offered by this node, not in the published reference"
         assert row[3] == "BBS"
-        assert row[4] == "learned"
+        assert row[4] == "harvested only"
     a.close()
     b.close()
 
@@ -1917,7 +1918,7 @@ async def test_an_unterminated_tail_is_flushed_off_the_event_loop():
 
 
 # ---------------------------------------------------------------------------
-# Context: node, application, unknown (docs/ROADMAP.md P0.3)
+# Context: node, application, unknown (command catalog, 2026-09-23)
 # ---------------------------------------------------------------------------
 
 
@@ -2026,5 +2027,46 @@ async def test_sysop_commands_are_never_suggested():
         assert "PASSWORD" not in _suggested(app, "PA")
         app.reference = CommandReference(family=load_family("bpqmail"))
         assert "KH" not in _suggested(app, "K")
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_the_reference_screen_lists_every_context_with_its_source():
+    """At a BPQ32 node, Ctrl+R lists the node's commands first, then its
+    BBS's and chat server's, each row saying which context it belongs to
+    and where its description came from. A harvested name matching a
+    shipped command marks that row; it never adds a second one."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(160, 40)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        _feed(link, b"CCEMA:WS1EC-15} ")
+        await pilot.pause()
+        app.reference.learned = (
+            Command(name="NODES", confidence="learned"),
+            Command(name="WALL", confidence="learned"),
+        )
+        await pilot.press("ctrl+r")
+        await wait_for(lambda: isinstance(app.screen, CommandReferenceScreen), "Ctrl+R")
+        table = app.screen.query_one("#ref-table")
+        rows = [table.get_row_at(i) for i in range(table.row_count)]
+        contexts = [row[3] for row in rows]
+        assert contexts[0] == "Node"
+        assert contexts.index("BBS") > max(
+            i for i, c in enumerate(contexts) if c.startswith("Node")
+        ), "the current context comes first"
+        assert "BPQChat" in contexts
+
+        by_name = {(str(row[0]), row[3]): row for row in rows}
+        assert by_name[("N / NODES", "Node")][4] == "verified on air, offered here"
+        assert by_name[("WALL", "Node")][4] == "harvested only"
+        assert sum(1 for row in rows if str(row[0]).startswith("N / NODES")) == 1
+        assert by_name[("NRR", "Node")][4] == "published"
+        assert by_name[("PASSWORD", "Node, sysop")][4] == "published"
+        assert by_name[("T / TALK", "Node")][4] == "recalled, unverified"
+        assert by_name[("LD", "BBS")][2].startswith("List messages with status D")
     a.close()
     b.close()

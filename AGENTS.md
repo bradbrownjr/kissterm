@@ -241,7 +241,9 @@ kissterm/
 │   │                        #   desktop notification
 │   ├── desktop_notify.py    # cross-desktop delivery: herdr first,
 │   │                        #   notify-send as the fallback
-│   ├── nodes/               # SHIPPED command references (data/*.toml)
+│   ├── nodes/               # SHIPPED command references (data/*.toml):
+│   │                        #   node families and the applications a node
+│   │                        #   hands a session to (BPQMail, BPQChat)
 │   ├── aprs_services/       # SHIPPED APRS gateway directory (data/*.toml):
 │   │                        #   who to address, what it does, what to say to
 │   │                        #   it. Same "ship it, don't ask over the air"

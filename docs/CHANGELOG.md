@@ -3,6 +3,32 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Every command row says where it came from
+
+### Improvements
+
+- **Harvested names are an overlay, not a second list.** A name from a
+  node's own `?` reply that matches a documented command (or one of its
+  aliases) marks that row **offered here** instead of adding a duplicate.
+  A name that matches nothing is listed as "offered by this node, not in
+  the published reference", in the suggestion strip and in Ctrl+R, and
+  never gets an invented description.
+- **Ctrl+R's Source column names the tier**: published, verified on air,
+  recalled (unverified) or harvested only. It lists every context in reach:
+  the current one first, then the node's applications, BPQMail and BPQChat
+  at a BPQ32 node, or the node's commands while in its BBS. Sysop commands
+  are labelled as such. The F1 Help node-command table uses the same tier
+  names.
+- README describes the context-following suggestions and the tiers. P0.3 is
+  closed on the roadmap; FBB, the JNOS mailbox and capturing BPQChat on the
+  air move to P8.
+
+**Files:** `kissterm/nodes/reference.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/app.py`, `kissterm/ui/terminal_pane.py`,
+`kissterm/ui/help_pane.py`, `tests/unit/test_nodes.py`,
+`tests/pilot/test_terminal_ux.py`, `README.md`, `docs/CHANGELOG.md`,
+`docs/ROADMAP.md`
+
 ## [2026-09-23] — Suggestions follow the session into the BBS and back
 
 ### Improvements

@@ -346,17 +346,25 @@ you how much verification backs each command. Choosing one only puts
 the command in the terminal compose box; inspect it and press Enter or Send to
 transmit. This is intentionally not a BBS-output parser: prompt and message
 formats vary too much between systems for a rigid parser to be trustworthy.
-Typing a command prefix also shows a stacked, Tab-to-fill explanation -- for
-example, `LM - List Mine` and `LB - List Bulletins` -- rather than squeezing
-the descriptions off the right edge of a narrow terminal. Up/Down selects a
-candidate; Tab fills the selected command without sending it.
-The BBS helper also shows `B - BYE — disconnect from BBS`; typing `BYE` finds
-that short command and Tab fills `B`.
-BPQMail list filters are described too: `LD` delivered, `LF` forwarded, `LH`
-held, `LK` killed, and `LL n` the last *n* messages. Parameterized entries
-(`LL`, `R`, and `SP`) also remain visible in autocomplete with their published
-meaning; Tab fills only the command text, leaving its number or callsign for
-you to supply.
+Typing a command prefix shows a stacked, Tab-to-fill list of matching
+commands with what each does. Up/Down selects one; Tab fills it without
+sending. The list follows the session. At a BPQ32 node, `L` offers `LINKS`.
+Once the node says `Connected to BBS`, it offers BPQMail's `L`, `LR`, `LM`,
+`LD`, `LF`, `LH`, `LK`, `LL` and the rest. When the node says
+`Returned to Node`, it switches back. kissterm reads these lines from what
+the node sends anyway and never asks. At a prompt it cannot identify, it
+suggests nothing rather than guess. Typing `BYE` finds `B`, and Tab fills
+`B`. A parameterised command (`LL`, `R`, `SP`) fills only the command text;
+you supply the number or callsign.
+
+`Ctrl+R` lists every command in reach: the current context's first, then
+the others (the BBS's while at the node, the node's while in the BBS). Each
+row says where it came from: **published** (G8BPQ's documentation, linked
+in the data files), **verified on air** (seen in a real node's own `?`
+reply), **recalled, unverified**, or **harvested only** (a name this node
+offered in a "Learn from node" reply that no documentation describes;
+kissterm does not invent a description for it). A harvested name that
+matches a documented command marks that row **offered here**.
 
 **Running under tmux or screen?** Nothing needs configuring. kissterm
 deliberately binds no key that a multiplexer eats or that needs an enhanced

@@ -43,9 +43,9 @@ that does not work in their terminal. Concretely:
 
 - P0 is empty, with every live bug confirmed fixed by the operator.
 - The keyboard follows P0.2's standard, enforced by test.
-- The command catalog (P0.3) covers BPQ32/LinBPQ node, BPQMail and BPQChat
-  fully from published documentation, plus JNOS, TheNet/X1J and TNC2 at
-  their current level.
+- The command catalog (P0.3, shipped 2026-09-23) covers BPQ32/LinBPQ node,
+  BPQMail and BPQChat fully from published documentation, plus JNOS,
+  TheNet/X1J and TNC2 at their current level.
 - P7's PyPI, pipx/uv and Raspberry Pi items are done.
 - Transports never verified against hardware (kernel AX.25, VARA, Mercury,
   BLE) are labelled **experimental** in Settings, `--doctor` and SETUP.md
@@ -248,45 +248,6 @@ exactly, so nothing needs merging. README's key table is generated from the
 registry (`scripts/sync_docs.py`), and `tests/unit/test_docs_keys.py` checks
 every key named in README, SETUP and DESIGN.
 
-### P0.3 Command knowledge: one catalog, layered by source and context
-
-**Problem.** Command suggestions currently merge three sources that were
-built at different times: node references as data
-(`kissterm/nodes/data/*.toml`, 16 BPQ node commands), BBS mail helpers as
-Python (`kissterm/bbs.py`, a handful of BPQMail macros), and names harvested
-from a node's `?` output (`kissterm/harvested.py`, names without meanings).
-They are shown together whether the operator is at a node prompt or inside
-the BBS. This produces the reports "I type L and see LB, LM ... but no
-explanation", "BYE is missing", "What about LD, LF, LH, LK, LL", and the
-operator's rule for how to fix it: "we shouldn't rely solely on learned info
-from the node, these are standard node operating systems that should be well
-documented. There's no reason not to include published information in our
-help and auto-complete."
-
-**Model.**
-
-- **Two kinds of reference, both data files with per-command provenance:**
-  *node* families (BPQ32/LinBPQ, JNOS, TheNet/X1J, KA-Node, TNC2 command
-  mode) and *applications* reached through a node (BPQMail, BPQChat, FBB,
-  JNOS mailbox, Winlink RMS, DXSpider). Each command carries name, minimum
-  abbreviation, syntax, one-line description, `source` (URL or document and
-  section) and `confidence`.
-- **Context is detected passively**, as family detection already is: the
-  node prompt, the BBS prompt (`de CALL>`), the chat prompt. Suggestions show
-  the current context's commands only. The reference screen (Ctrl+R) shows
-  all of them, grouped by context.
-- **Harvested names are an overlay, never a source of meaning.** A harvested
-  name that matches a published command marks it "offered by this node". An
-  unmatched name is listed as "offered by this node, not in the published
-  reference". It never gets an invented description.
-- **Every row shows its source tier** (published / verified on air /
-  harvested only), so a guess can never pass for documentation.
-
-Work items:
-
-- [ ] Harvest overlay semantics as described above, replacing the current
-  "harvested alongside" merge.
-
 ### P0.4 The pilot suite is flaky under parallel load
 
 - [ ] **A different test fails on each parallel run; all of them pass
@@ -339,8 +300,8 @@ kissterm to their messages, not to a prompt. The Terminal becomes one of the
 tools that fills the message store, alongside Winlink and scripted BBS
 sessions. Requested 2026-09-22.
 
-Starts after P0. The BBS half depends on P0.3's per-application command
-catalog, because a collection script has to know which BBS it is talking to.
+Starts after P0. The BBS half depends on the per-application command
+catalog (`kissterm/nodes/data/`, application families), because a collection script has to know which BBS it is talking to.
 
 ### The folder tree
 
@@ -436,10 +397,11 @@ anything taken from its behaviour rather than from documentation
   follows every unattended-transmission rule in AGENTS.md: opt-in, a status
   marker, an interval floor, and every line logged.
 
-#### BBS mail (BPQMail first, then the other P0.3 applications)
+#### BBS mail (BPQMail first, then the applications P8 adds)
 
 - [ ] **BBS accounts**: an Address Book entry marked as a mail source, with
-  its BBS application from the P0.3 catalog (BPQMail, FBB, JNOS mailbox),
+  its BBS application from the command catalog (BPQMail now; FBB and the
+  JNOS mailbox once P8 adds them),
   its hop chain and login script, and retrieval options. Small.
 - [ ] **BBS send/receive**: an operator-started session that connects via
   the normal Connect flow, then runs the application's collection
@@ -613,7 +575,7 @@ closed by a coding session.
 - [ ] **Self-update check** against PyPI metadata, never blocking startup --
   post-1.0.
 
-## P8 — Node references (beyond P0.3's 1.0 set)
+## P8 — Node references (beyond the 1.0 set)
 
 Why references ship as data instead of being harvested: measured at 1200
 baud half-duplex, a node's help costs 4.7 s (512 B) to 75 s (8 KB) of
@@ -621,8 +583,14 @@ channel time during which nobody else can transmit. See
 `kissterm/nodes/reference.py` and AGENTS.md "Airtime is the scarce
 resource".
 
-- [ ] **More families:** FBB, KA-Node, DXSpider, Winlink RMS. One data file
-  each, with a detection pattern specific enough never to false-match.
+- [ ] **More families:** FBB, KA-Node, DXSpider, Winlink RMS, the JNOS
+  mailbox. One data file each, with a detection pattern specific enough never
+  to false-match. An application family (`kind = "application"`) also needs
+  `entered_by`, and its node family needs the `enter_pattern` /
+  `return_pattern` lines that hand the session over (see `bpq32.toml`).
+- [ ] **BPQChat and the application hand-off are documented, not seen.**
+  `bpqchat.toml` has no captured chat session behind it, and "Returned to
+  Node" is from G8BPQ's documentation only. Capture both on a real node.
 - [ ] **Verify against live nodes.** `recalled` entries in `bpq32.toml` and
   all of `tnc2.toml`; JNOS and TheNet/X1J are unverified. Needs: sessions
   on real nodes (JNOS reachable via a BPQ hop).
