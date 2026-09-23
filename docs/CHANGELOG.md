@@ -3,6 +3,26 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — UTF-8 text from a BBS reads correctly
+
+### Bug Fixes
+
+- **Curly quotes, accents and other non-ASCII characters in BBS messages
+  display correctly.** WS1EC-2 stores messages as UTF-8, and kissterm decoded
+  everything as latin-1 and stripped bytes 0x80-0x9F. That turned
+  "School No. 200" in curly quotes into `âSchool No. 200â` (`R 2738`).
+  Remote text is now decoded as UTF-8 when it is valid UTF-8 and as latin-1
+  otherwise. A corrupt frame still never raises or loses its readable part.
+  C1 controls are removed after decoding, and bidirectional override
+  characters are removed too, since UTF-8 makes them reachable and they can
+  make a line read differently from what it says. The screen, the Monitor
+  pane and transcripts all use the one decoder. AGENTS.md's
+  "latin-1, never UTF-8" rule is replaced, at the operator's decision.
+
+**Files:** `kissterm/ansi.py`, `kissterm/monitor.py`,
+`kissterm/transport/ssh.py`, `tests/unit/test_ansi.py`, `AGENTS.md`,
+`docs/CHANGELOG.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — Six live bugs confirmed fixed
 
 Confirmed by the operator on a live session with CCEMA/WS1EC-2 and checked

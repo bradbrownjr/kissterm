@@ -30,27 +30,29 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from .ansi import decode_text
 from .ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 
 #: ESC-introduced sequences: CSI, OSC, and the single-character escapes.
 _ANSI_RE = re.compile(rb"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])")
-#: C0 controls except tab, LF and CR, plus DEL and the C1 range.
-_CONTROL_RE = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+#: C0 controls except tab, LF and CR, plus DEL. The C1 range is removed
+#: after decoding, by `ansi.decode_text` -- as bytes it would take UTF-8's
+#: continuation bytes with it.
+_CONTROL_RE = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
 def sanitize(data: bytes, keep_newlines: bool = True) -> str:
     """Make remote-supplied bytes safe to put in a widget.
 
-    Strips escape sequences first, then remaining control bytes, then decodes
-    as latin-1 -- not UTF-8. Packet is a byte-oriented, mostly-ASCII medium and
-    a decoder that raises or inserts replacement characters on the high bytes
-    of a corrupt frame loses the readable part of the line along with the noise.
-    latin-1 is total: every byte maps to something, nothing is lost, and the
-    printable ASCII that makes up real traffic comes through untouched.
+    Strips escape sequences first, then remaining C0 control bytes, then
+    decodes with `ansi.decode_text`: UTF-8 when the bytes are valid UTF-8,
+    latin-1 when they are not, so a corrupt frame never raises and never
+    loses its readable part. C1 controls and bidirectional overrides are
+    removed after decoding; see that function.
     """
     cleaned = _ANSI_RE.sub(b"", data)
     cleaned = _CONTROL_RE.sub(b"", cleaned)
-    text = cleaned.decode("latin-1")
+    text = decode_text(cleaned)
     if not keep_newlines:
         text = text.replace("\r", " ").replace("\n", " ")
     else:

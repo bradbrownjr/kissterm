@@ -13,6 +13,7 @@ from __future__ import annotations
 import pytest
 
 from kissterm.ansi import SAFE_SGR, filter_ansi, strip_ansi, to_text
+from kissterm.monitor import sanitize
 
 
 def esc(text: str) -> bytes:
@@ -133,11 +134,28 @@ def test_an_sgr_with_nothing_allowlisted_left_vanishes_rather_than_resetting():
     assert filter_ansi(esc("ESC[5mx")) == b"x"
 
 
-def test_c1_control_bytes_are_stripped():
+@pytest.mark.parametrize("raw", [b"\x9b2J", "\x9b2J".encode("utf-8")])
+def test_c1_controls_are_stripped(raw):
     """0x9B is CSI on a terminal in 8-bit mode -- an escape sequence with no
-    ESC byte in front of it, which a parser looking only for 0x1B sails past."""
-    out = filter_ansi(b"\x9b2J")
-    assert b"\x9b" not in out
+    ESC byte in front of it, which a parser looking only for 0x1B sails past.
+    Stripped from the decoded text, whether it arrived as a bare byte
+    (latin-1) or as UTF-8's two-byte U+009B."""
+    for text in (to_text(raw).plain, sanitize(raw)):
+        assert "\x9b" not in text and text == "2J"
+
+
+def test_utf8_text_decodes_as_utf8():
+    """WS1EC-2 sent this as UTF-8 (2026-09-23). Decoded as latin-1 with the
+    C1 range stripped as bytes, the quotes came out as a stray letter."""
+    raw = "MAOU \u201cSchool No. 200\u201d aj9n\uff20aol.com".encode("utf-8")
+    assert to_text(raw).plain == "MAOU \u201cSchool No. 200\u201d aj9n\uff20aol.com"
+    assert sanitize(raw) == to_text(raw).plain
+
+
+def test_bidi_overrides_are_stripped():
+    """They reorder how a line reads without changing what it says."""
+    raw = "pay \u202eKC1JMH\u202c now \u2066x\u2069".encode("utf-8")
+    assert to_text(raw).plain == "pay KC1JMH now x"
 
 
 @pytest.mark.parametrize(

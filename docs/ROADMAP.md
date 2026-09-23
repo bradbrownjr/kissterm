@@ -120,14 +120,12 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   results with nowhere else to show (export path, transfer complete).
 
 - [ ] **Accented and typographic characters in BBS messages are garbled.**
-  `open`. Reported 2026-09-23 ("r 2738 also exhibits ... unexpected
-  characters"). **Evidence (that session's transcript):** WS1EC-2 sent the
-  message as UTF-8. Curly quotes (`E2 80 9C`/`9D`) show as `â` because the
-  text is decoded as latin-1 and `sanitize` then strips `80`-`9F` as C1
-  controls; a full-width `＠` became `ï¼`. **Blocked on a decision:** the
-  fix is to decode as UTF-8 when the bytes are valid UTF-8 and fall back to
-  latin-1 otherwise, which changes AGENTS.md's "decode payload text as
-  latin-1, never UTF-8" rule.
+  `awaiting confirmation` (2026-09-23). Reported 2026-09-23 ("r 2738 also
+  exhibits ... unexpected characters"). WS1EC-2 sent the message as UTF-8;
+  it was decoded as latin-1 with the C1 range stripped as bytes, so curly
+  quotes showed as `â` and a full-width `＠` as `ï¼`. Text is now decoded
+  as UTF-8 when valid, else latin-1 (operator's decision). Re-test with
+  `R 2738`.
 
 ### P0.2 Keyboard standard
 

@@ -146,11 +146,11 @@ class SshTransport(SessionTransport):
             # `ssh user@host` -- the remote end's own profile is what runs
             # `telnet` into the actual node for WS1EC's setup. `encoding=
             # None` gets raw bytes rather than asyncssh's own UTF-8 decode,
-            # so kissterm's single latin-1 decode point (ansi.py/monitor.py)
-            # stays the only place that happens -- packet traffic is not
-            # reliably UTF-8 and a second, stricter decode upstream of it
-            # would raise or replace on exactly the bytes latin-1 is meant
-            # to pass through whole.
+            # so kissterm's single decode point (`ansi.decode_text`: UTF-8
+            # when valid, else latin-1) stays the only place that happens --
+            # packet traffic is not reliably UTF-8 and a second, stricter
+            # decode upstream of it would raise or replace on exactly the
+            # bytes the latin-1 fallback is meant to pass through whole.
             self._process = await self._connection.create_process(
                 term_type="ansi", encoding=None
             )

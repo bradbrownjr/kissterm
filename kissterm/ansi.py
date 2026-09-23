@@ -58,11 +58,43 @@ from rich.text import Text
 
 _ESC = 0x1B
 
-#: C0 controls except tab, LF and CR, plus DEL and the whole C1 range. C1 is
-#: stripped because on a terminal in 8-bit mode 0x9B *is* CSI -- an escape
-#: sequence with no ESC byte in front of it, which a parser looking only for
-#: 0x1B would sail straight past.
-_CONTROL_RE = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+#: C0 controls except tab, LF and CR, plus DEL. Stripped as BYTES, before
+#: decoding: every one is a single ASCII byte in UTF-8 and latin-1 alike.
+_CONTROL_RE = re.compile(rb"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+#: Stripped as CHARACTERS, after decoding. The C1 range, because on a
+#: terminal in 8-bit mode U+009B *is* CSI -- an escape sequence with no ESC
+#: in front of it, which a parser looking only for 0x1B would sail straight
+#: past. And the bidirectional overrides and isolates, which reorder how a
+#: line reads without changing what it contains -- a spoofing primitive
+#: that only became reachable once UTF-8 is decoded. C1 cannot be stripped
+#: as bytes any more: 0x80-0x9F are the continuation bytes of UTF-8, and
+#: stripping them turned a curly quote (E2 80 9C) into a stray "a-circumflex".
+_UNSAFE_CHARS_RE = re.compile("[\x80-\x9f\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+
+
+def decode_text(data: bytes) -> str:
+    """Decode remote bytes: UTF-8 when they are valid UTF-8, latin-1 when not.
+
+    latin-1 alone was the rule until 2026-09-23, for a real reason: packet is
+    a byte-oriented medium, and a decoder that raises or inserts replacement
+    characters on a corrupt frame loses the readable part of the line with
+    the noise. But WS1EC-2's BBS stores and sends messages as UTF-8, and
+    latin-1 showed every curly quote and accented name as debris. A strict
+    UTF-8 attempt with a latin-1 fallback keeps both properties: valid UTF-8
+    reads correctly, and anything else -- a corrupt frame, a Windows-1252
+    BBS, a split character -- decodes exactly as it always did. It never
+    raises and never inserts a replacement character.
+
+    Callers decode a complete line where they can (the terminal pane does),
+    because a multi-byte character split across two frames is not valid
+    UTF-8 on its own and falls back to latin-1 for that chunk.
+    """
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        text = data.decode("latin-1")
+    return _UNSAFE_CHARS_RE.sub("", text)
 
 #: SGR parameters that can only change how a glyph is painted.
 SAFE_SGR: frozenset[int] = frozenset(
@@ -98,7 +130,8 @@ _MAX_PARAMS = 32
 
 
 def filter_ansi(data: bytes) -> bytes:
-    """Strip every escape sequence except allowlisted SGR, and every control byte.
+    """Strip every escape sequence except allowlisted SGR, and every C0
+    control byte. (C1 goes after decoding -- see `_UNSAFE_CHARS_RE`.)
 
     Newlines and tabs survive; `\\r\\n` and a lone `\\r` are normalised to
     `\\n`, matching `monitor.sanitize` so the two paths cannot disagree about
@@ -124,12 +157,10 @@ def filter_ansi(data: bytes) -> bytes:
 def to_text(data: bytes) -> Text:
     """Decode remote bytes into a Rich `Text` with allowlisted styles applied.
 
-    latin-1, not UTF-8, for the reason `monitor.sanitize` uses it: packet is a
-    byte-oriented, mostly-ASCII medium, and a decoder that raises or inserts
-    replacement characters on the high bytes of a corrupt frame loses the
-    readable part of the line along with the noise.
+    Decoded by `decode_text` (UTF-8 when valid, else latin-1), the same as
+    `monitor.sanitize`, so the two filters cannot disagree about a character.
     """
-    filtered = filter_ansi(data).decode("latin-1")
+    filtered = decode_text(filter_ansi(data))
     if "\x1b" not in filtered:
         # Nothing to parse. Skipping Rich's decoder here is not just speed:
         # it keeps the overwhelmingly common case on a path with no parser in

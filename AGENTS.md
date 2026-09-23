@@ -858,10 +858,15 @@ Gotchas that already cost time:
   `session_log.py` catches `OSError` everywhere and degrades to a no-op. A
   full disk taking a station off the air mid-net is a regression an operator
   will not forgive.
-- **ALWAYS** decode payload text as `latin-1`, never UTF-8. Packet is a
-  byte-oriented, mostly-ASCII medium; a decoder that raises or inserts
-  replacement characters on a corrupt frame loses the readable part with the
-  noise. latin-1 is total.
+- **ALWAYS** decode payload text with `ansi.decode_text`: UTF-8 when the
+  bytes are valid UTF-8, latin-1 when they are not. Never a bare
+  `.decode("utf-8")`, which raises or inserts replacement characters on a
+  corrupt frame and loses the readable part with the noise. The fallback
+  keeps the old latin-1 guarantee (total, never raises); UTF-8 first is
+  there because real BBSes store messages as UTF-8 (WS1EC-2, 2026-09-23).
+  Decided by the operator 2026-09-23, replacing "latin-1, never UTF-8".
+  C1 controls are therefore stripped from the decoded text, never as bytes
+  -- 0x80-0x9F are UTF-8 continuation bytes.
 - **NEVER** let a decode error, a dropped socket, or a missing optional
   dependency raise out of a background task. Count it and continue. Line noise
   is normal on RF; taking the app down for it is not.
