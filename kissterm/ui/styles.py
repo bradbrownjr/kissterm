@@ -56,6 +56,32 @@ Tabs Tab.-active { background: transparent; text-style: bold; color: $accent; }
 Tabs:focus Tab.-active { background: transparent; text-style: bold; color: $accent; }
 Underline > .underline--bar { color: $accent; }
 
+/* Focus is shown by the border, and only by the border: whichever field,
+   log, list or table has focus is drawn in $accent, and everything else in
+   $primary (DESIGN.md section 2: $accent is "the active/current thing").
+   Reported from a real station: the send box was orange permanently, so after
+   clicking into the scrollback the operator typed and wondered why nothing
+   reached the send line. Kept as type rules so no pane has to remember it --
+   an ID rule that sets `border` would outrank these and pin one colour
+   again, which is exactly the bug. Style a widget's size by ID; leave its
+   border to this block. */
+Input, TextArea, RichLog, DataTable, OptionList, ListView, Switch,
+Select > SelectCurrent { border: round $primary; }
+Input:focus, TextArea:focus, RichLog:focus, DataTable:focus, OptionList:focus,
+ListView:focus, Switch:focus,
+Select:focus > SelectCurrent { border: round $accent; }
+/* Exempt: chrome that is not a field. App CSS outranks every widget's own
+   DEFAULT_CSS, so without these the Ctrl+P palette and the F10 menu's item
+   list would grow boxes. Values are Textual's / menu.py's own defaults. */
+CommandInput, CommandInput:focus { border: blank; }
+CommandList {
+    border-top: blank; border-bottom: hkey black;
+    border-left: none; border-right: none;
+}
+CommandList:focus { border: blank; }
+CommandList.--populating { border-bottom: none; }
+MenuScreen #menu-items, MenuScreen #menu-items:focus { border: none; }
+
 /* The status bar and the Footer live inside ONE bottom-docked container.
    Docking each of them separately lands both in the same region -- the Footer
    paints over the status bar and it is invisible, in either yield order. That
@@ -107,17 +133,17 @@ TerminalPane { layout: horizontal; }
 #terminal-session-tabs Underline > .underline--bar { color: $panel; }
 /* Hidden until Ctrl+F -- see TerminalPane.open_find. */
 #find-row { height: auto; display: none; }
-#find-input { border: round $accent; width: 1fr; }
+#find-input { width: 1fr; }
 #find-status { width: auto; padding: 1 1 0 1; color: $text-muted; }
 #find-close { margin-left: 1; }
-#session-log { border: round $primary; height: 1fr; }
+#session-log { height: 1fr; }
 /* Hidden until there is something to suggest -- see
    `TerminalPane._update_suggestions`. Same subordinate, muted treatment as
    `#find-status`; the top candidate's own bold/dim spans (set in Python,
    not here) are what actually distinguish it from the rest of the row. */
 #suggestion-strip { height: auto; padding: 0 1; color: $text-muted; display: none; }
 #session-send-row { height: auto; }
-#session-input { border: round $accent; width: 1fr; }
+#session-input { width: 1fr; }
 #session-send { margin-left: 1; }  /* shape comes from the base Button rule above */
 
 /* BBS mail helpers are a compact parameter picker, not a second terminal.
@@ -140,7 +166,7 @@ MonitorPane { layout: vertical; }
    already missing there, independent of anything else changed alongside it. */
 #monitor-query { width: 1fr; }
 #monitor-port { width: 16; margin-left: 1; }
-#monitor-log { border: round $primary; height: 1fr; }
+#monitor-log { height: 1fr; }
 
 /* Heard pane */
 HeardPane { layout: vertical; }
@@ -158,7 +184,7 @@ HeardPane { layout: vertical; }
 AddressBookPane { layout: vertical; padding: 0 2; }
 #addressbook-table { height: 1fr; }
 #known-nodes-note { height: auto; margin-top: 1; color: $warning; }
-#known-nodes-table { height: 12; }
+#known-nodes-table { height: 10; }  /* 8 rows inside the focus border */
 .addressbook-actions { height: auto; margin-top: 1; }
 .addressbook-actions Button { margin-right: 1; }
 
@@ -198,15 +224,15 @@ AprsPane { height: 1fr; }
     display: none; height: auto; margin-bottom: 1; padding: 0 1;
     border: round $panel; color: $text-muted;
 }
-#aprs-conversation-log { height: 1fr; border: solid $panel; }
+#aprs-conversation-log { height: 1fr; }
 #aprs-compose-row { height: auto; margin-top: 1; }
-#aprs-to-input { border: round $accent; width: 8; margin-right: 1; }
-#aprs-compose-input { border: round $accent; width: 1fr; margin-right: 1; }
+#aprs-to-input { width: 8; margin-right: 1; }
+#aprs-compose-input { width: 1fr; margin-right: 1; }
 /* The service/template picker (Ctrl+R on this pane). Reuses #ref-box's
    geometry deliberately -- it is the APRS counterpart to the terminal's
    command reference and should not read as a different kind of screen. */
 #aprs-service-table { height: 1fr; }
-#aprs-service-search { border: round $accent; margin-bottom: 1; }
+#aprs-service-search { margin-bottom: 1; }
 
 /* APRS-IS Watch is a diagnostic, not an APRS compose route. */
 AprsIsWatchScreen { align: center middle; }
@@ -215,7 +241,7 @@ AprsIsWatchScreen { align: center middle; }
     border: thick $primary; background: $surface;
 }
 #aprs-is-watch-status { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
-#aprs-is-watch-log { height: 1fr; border: round $primary; margin-top: 1; }
+#aprs-is-watch-log { height: 1fr; margin-top: 1; }
 
 /* The object composer uses the existing dialog shape and the same shared
    symbol picker as APRS Settings. Its coordinate fields read as one pair. */
@@ -259,7 +285,7 @@ ConnectScreen { align: center middle; }
 /* Fixed and short on purpose -- a login script is a handful of lines
    (callsign, password, maybe a mailbox command), not a document, and a
    box that grew with its content would push Connect/Cancel around. */
-#connect-script { height: 4; border: round $primary; margin-top: 1; }
+#connect-script { height: 4; margin-top: 1; }
 
 /* First-run onboarding intentionally asks for one required fact before
    handing off to the established Settings transport editor.  It is a short
@@ -317,7 +343,7 @@ TransportEntryScreen { align: center middle; }
 #transport-script-hint { color: $text-muted; width: 100%; height: auto; }
 #transport-credential { width: 100%; }
 #transport-script-name { width: 100%; margin-top: 1; }
-#transport-script { height: 4; border: round $primary; margin-top: 1; }
+#transport-script { height: 4; margin-top: 1; }
 #transport-script:disabled { border: round $panel; }
 
 .placeholder { padding: 1 2; color: $text-muted; }
@@ -365,7 +391,7 @@ TranscriptsScreen { align: center middle; }
    enough to pick the right session; seeing the text next to the list does. */
 #transcripts-body { height: 1fr; }
 #transcripts-table { width: 40%; }
-#transcripts-preview { width: 60%; border: round $primary; margin-left: 1; }
+#transcripts-preview { width: 60%; margin-left: 1; }
 #transcripts-export-row { height: auto; margin-top: 1; }
 #transcripts-export-row Input { width: 1fr; }
 #transcripts-export-row Button { margin-left: 1; }
@@ -471,8 +497,12 @@ SettingsPane { layout: vertical; }
 .-ascii-safe Button,
 .-ascii-safe Input,
 .-ascii-safe TextArea,
-.-ascii-safe Select,
+.-ascii-safe Select > SelectCurrent,
 .-ascii-safe RichLog,
+.-ascii-safe DataTable,
+.-ascii-safe OptionList,
+.-ascii-safe ListView,
+.-ascii-safe Switch,
 .-ascii-safe #terminal-addressbook-column,
 .-ascii-safe #aprs-contacts-column,
 .-ascii-safe #aprs-sensor-summary,
@@ -481,26 +511,21 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #transport-box,
 .-ascii-safe #ref-box,
 .-ascii-safe #transcripts-box,
-.-ascii-safe #transcripts-preview,
-.-ascii-safe #settings-bar,
-/* These ID selectors normally define the three scrollback borders.  They
-   need the ASCII-mode class too, otherwise their higher specificity beats
-   the generic RichLog rule above. */
-.-ascii-safe #session-log,
-.-ascii-safe #session-input,
-.-ascii-safe #monitor-log,
-.-ascii-safe #find-input,
-.-ascii-safe #monitor-query,
-.-ascii-safe #aprs-to-input,
-.-ascii-safe #aprs-compose-input,
-.-ascii-safe #aprs-service-search,
-.-ascii-safe #aprs-conversation-log,
-/* Login script fields are application-owned dialog controls too.  Their
-   ID-specific round borders otherwise outrank the generic TextArea rule. */
-.-ascii-safe #connect-script,
-.-ascii-safe #transport-script {
+.-ascii-safe #settings-bar {
     border: ascii $primary;
 }
+/* The focus rule above, in ASCII. */
+.-ascii-safe Input:focus,
+.-ascii-safe TextArea:focus,
+.-ascii-safe Select:focus > SelectCurrent,
+.-ascii-safe RichLog:focus,
+.-ascii-safe DataTable:focus,
+.-ascii-safe OptionList:focus,
+.-ascii-safe ListView:focus,
+.-ascii-safe Switch:focus { border: ascii $accent; }
+.-ascii-safe CommandInput, .-ascii-safe CommandInput:focus,
+.-ascii-safe CommandList, .-ascii-safe CommandList:focus { border: blank; }
+.-ascii-safe #menu-items, .-ascii-safe #menu-items:focus { border: none; }
 /* Disabled scripts deliberately use the muted panel colour. Their
    ID-plus-pseudo-class rules outrank the enabled override above. */
 .-ascii-safe #connect-script:disabled,

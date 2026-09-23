@@ -3,6 +3,26 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — The orange border shows where you are typing
+
+### Bug Fixes
+
+- **The accent border follows focus.** Reported from a real station: the
+  send box was orange permanently, so after clicking into the scrollback the
+  operator typed and wondered why nothing reached the send line. Now
+  whatever has focus -- a field, a log, a list or a table -- is drawn in
+  `$accent`, and everything else in `$primary`, across every pane and dialog
+  and in ASCII-safe mode. One type-level rule in `styles.py` does it; the
+  per-widget border colours that pinned one colour are gone.
+- Tables (Address Book, contacts, Heard, known nodes, transcripts) gain the
+  same outlined border as every other panel, so their focus shows too. The
+  known-nodes table is two rows shorter so the Address Book keeps three
+  visible entries. The Ctrl+P palette and the F10 menu keep their own chrome.
+
+**Files:** `kissterm/ui/styles.py`, `DESIGN.md`,
+`tests/pilot/test_focus_border.py`, `assets/*`, `docs/CHANGELOG.md`,
+`docs/ROADMAP.md`
+
 ## [2026-09-23] — The Terminal pane no longer hides Textual's logger
 
 ### Bug Fixes

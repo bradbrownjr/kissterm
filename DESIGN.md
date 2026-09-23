@@ -43,7 +43,7 @@ appearance:
 | `$surface` | Panel interiors, dialog bodies |
 | `$panel` | Header and Footer chrome |
 | `$primary` | Structural borders (pane outlines) |
-| `$accent` | The active/current thing: selected tab, section headings |
+| `$accent` | The active/current thing: selected tab, section headings, and the border of whatever has focus (everything else is `$primary`) |
 | `$text` / `$text-muted` | Body text / secondary text |
 | `$error` `$warning` `$success` | State, and only state |
 

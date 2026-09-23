@@ -158,7 +158,7 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   (`FrameTransport.callback_context`); `tests/pilot/test_frame_context.py`
   reproduces the real launch order. Confirm on the air with any node session.
 - [ ] **The focus highlight never moves: the entry field is always orange.**
-  `open`. Reported 2026-09-22: after clicking into the terminal's receive
+  `awaiting confirmation` (0.1.207, 2026-09-23; see CHANGELOG). Reported 2026-09-22: after clicking into the terminal's receive
   box, "the bright box border remains on the text entry field, so I type and
   wonder at first why my keystrokes aren't going into the entry field."
   Cause, read from the code: `kissterm/ui/styles.py` gives `#session-input`
