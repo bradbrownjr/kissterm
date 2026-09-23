@@ -372,7 +372,7 @@ def test_cli_opens_the_ui_when_callsign_exists_but_no_transport_is_configured(
     seen = {}
 
     class FakeApp:
-        def __init__(self, config, station, session_transport=None):
+        def __init__(self, config, station, session_transport=None, **_kw):
             seen["config"] = config
             seen["station"] = station
             seen["session_transport"] = session_transport
@@ -398,7 +398,7 @@ def test_cli_leaves_a_fresh_install_for_gui_onboarding(tmp_path, monkeypatch):
     seen = {}
 
     class FakeApp:
-        def __init__(self, config, station, session_transport=None):
+        def __init__(self, config, station, session_transport=None, **_kw):
             seen["config"] = config
             seen["station"] = station
             seen["session_transport"] = session_transport
