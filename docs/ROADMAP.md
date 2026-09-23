@@ -191,11 +191,19 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   `awaiting confirmation`. Reported 2026-09-22 15:09 and 15:20 (Address Book
   double-click). Fixed in "Dismiss radio reminder before connecting".
 - [ ] **Had to turn transmit off and on again before the radio keyed.**
-  `open`, not investigated. Reported 2026-09-21 20:30 after an app restart,
-  the same session in which the KISS SoundModem on the other machine also
-  needed a restart. The cause may be the modem, but nobody has read the
-  debug log for that session to find out. Check whether `TX BLOCKED` or
-  `TX FAILED` appears before the toggle.
+  `evidence read, awaiting operator` (2026-09-23). Reported 2026-09-21 20:30
+  after an app restart, the same session in which the KISS SoundModem on the
+  other machine also needed a restart. **What the debug log shows:** no
+  `TX BLOCKED` or `TX FAILED` all evening. After the 20:29:22 restart the
+  first position report (20:29:36) was logged `TX port 0`, meaning the gate
+  was open and SoundModem's socket accepted it, but it never reached APRS-IS.
+  The toggle came at 20:29:46/48, and the identical frame at 20:29:51 was
+  gated by WS1EC-15 two seconds later. Same pattern at 20:15:53: accepted, not
+  heard; SoundModem then dropped the connection at 20:16:21 and the first
+  frame after the reconnect was heard. Toggling TX cannot affect a frame the
+  socket already accepted, so the evidence points downstream of kissterm
+  (SoundModem, radio or RF), not at the gate. Close unless it recurs with a
+  fresh log showing otherwise.
 - [ ] **"Check the Monitor" hint appears when the node is simply waiting on
   the operator.** `open`. Reported 2026-09-22 16:33. `_note_if_no_reply`
   (`kissterm/ui/app.py`) fires when a sent line gets no reply in time. If the
