@@ -84,6 +84,11 @@ class TcpKissTransport(FrameTransport):
         #: immediately and letting the reconnect loop fail silently forever.
         self._first_attempt: asyncio.Event = asyncio.Event()
 
+    @property
+    def connect_timeout(self) -> float:
+        """Seconds one connect attempt may take -- the startup countdown reads it."""
+        return _CONNECT_TIMEOUT
+
     async def open(self) -> None:
         self.state = TransportState.OPENING
         self._error = ""

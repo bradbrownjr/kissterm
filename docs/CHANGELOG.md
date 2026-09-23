@@ -3,7 +3,7 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
-## [2026-09-23] — A TNC that is down fails in seconds, not minutes
+## [2026-09-23] — Connecting to the modem: fail fast, and say so
 
 ### Fixes
 
@@ -16,8 +16,23 @@ touched and any breaking notes.
   message, and startup prints which transport it is opening before it waits.
   The same unbounded connect in the other TCP transports is on the roadmap.
 
+### Improvements
+
+- **Startup says what it is waiting for, and counts down.** Before the TUI
+  opens, kissterm now prints `Connecting to modem '<name>'...` with a
+  once-a-second countdown to the connect timeout (elapsed seconds for a
+  transport with no fixed timeout), so a slow or absent TNC no longer looks
+  like a frozen program. Requested by the operator with newcomers in mind, it
+  also leads with a one-line reminder that fits the connection type -- start
+  Direwolf or the UZ7HO soundmodem, plug in and power the TNC, start VARA --
+  and repeats it if the open fails, because on a first night the commonest
+  "fault" is a modem program that was never started. Telnet and SSH say
+  "node" and carry no modem reminder. Redirected output gets the single line
+  without the animation.
+
 **Files:** `kissterm/transport/tcp_kiss.py`, `kissterm/__main__.py`,
-`tests/unit/test_tcp_kiss_connect_timeout.py`, `docs/ROADMAP.md`
+`tests/unit/test_tcp_kiss_connect_timeout.py`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
 
 ## [2026-09-22] — Enter sends again
 

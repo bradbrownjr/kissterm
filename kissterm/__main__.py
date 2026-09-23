@@ -302,6 +302,78 @@ async def _run_wizard(config, no_network: bool) -> bool:
 # ---------------------------------------------------------------------------
 # App launch
 # ---------------------------------------------------------------------------
+# What to remind a newcomer of while we wait, by transport kind. Packet radio
+# splits the station across several programs and boxes, and the commonest
+# first-night failure is not a fault at all: the soundmodem was never started,
+# or the TNC is unplugged. Saying so while the operator is still watching the
+# terminal costs one line; not saying so costs them the evening.
+_OPEN_HINTS = {
+    "tcp": "Is your modem software (Direwolf, UZ7HO soundmodem) or network TNC running?",
+    "agwpe": "Is your modem software (Direwolf, UZ7HO soundmodem, AGWPE) running?",
+    "serial": "Is the TNC plugged in and powered on?",
+    "bluetooth": "Is the TNC powered on and paired with this computer?",
+    "ble": "Is the TNC powered on and in range?",
+    "kernel": "Is the port set up with kissattach, and is the TNC attached?",
+    "vara": "Is the VARA modem program running?",
+    "varafm": "Is the VARA FM modem program running?",
+    "mercury": "Is the Mercury modem program running?",
+}
+
+# Telnet and SSH reach a node over the internet; there is no modem to start.
+_NETWORK_KINDS = frozenset({"telnet", "ssh"})
+
+
+async def _open_with_progress(transport, entry: dict, stream=None) -> None:
+    """Open `transport`, telling the operator what we are waiting on.
+
+    This runs before the TUI exists, so without it a TNC that is down leaves a
+    blank terminal for up to the connect timeout -- which reads as a hang, and
+    a newcomer's next move is Ctrl+C and a bug report. On a terminal it
+    rewrites one line every second: a countdown when the transport says how
+    long it will wait (`connect_timeout`), elapsed time when it does not.
+    Piped or redirected, it prints the one line and skips the animation, so a
+    log file does not fill with carriage returns.
+    """
+    stream = stream if stream is not None else sys.stderr
+    kind = entry.get("kind", "")
+    what = "node" if kind in _NETWORK_KINDS else "modem"
+    label = f"Connecting to {what} {entry.get('name')!r}..."
+    hint = _OPEN_HINTS.get(kind)
+    if hint:
+        print(f"{hint} Start it first if it is not.", file=stream, flush=True)
+    timeout = getattr(transport, "connect_timeout", None)
+    live = hasattr(stream, "isatty") and stream.isatty()
+    if not live:
+        print(label, file=stream, flush=True)
+        await transport.open()
+        return
+
+    task = asyncio.ensure_future(transport.open())
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    width = 0
+    try:
+        while True:
+            elapsed = loop.time() - started
+            if timeout:
+                tail = f"{max(0, round(timeout - elapsed))}s until timeout"
+            else:
+                tail = f"{int(elapsed)}s"
+            line = f"{label} {tail}"
+            stream.write("\r" + line.ljust(width))
+            stream.flush()
+            width = len(line)
+            done, _ = await asyncio.wait({task}, timeout=1.0)
+            if done:
+                break
+    finally:
+        stream.write("\r" + label.ljust(width) + "\n")
+        stream.flush()
+        if not task.done():
+            task.cancel()
+    task.result()
+
+
 def _select_transport_entry(config, name: str | None) -> dict | None:
     if not config.transports:
         return None
@@ -426,12 +498,11 @@ async def _amain(args) -> int:
 
         try:
             transport = build_transport(entry)
-            # Say what we are waiting on: a TNC that is down can take several
-            # seconds to fail, and a blank terminal reads as a hang.
-            print(f"Opening transport {entry.get('name')!r}...", file=sys.stderr, flush=True)
-            await transport.open()
+            await _open_with_progress(transport, entry)
         except (TransportError, Exception) as exc:  # noqa: BLE001 - reported, not raised
             print(f"Could not open transport {entry.get('name')!r}: {exc}", file=sys.stderr)
+            if entry.get("kind") in _OPEN_HINTS:
+                print(_OPEN_HINTS[entry["kind"]], file=sys.stderr)
             print("Run 'kissterm --doctor' for a full check.", file=sys.stderr)
             return 3
 
