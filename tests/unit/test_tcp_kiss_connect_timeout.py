@@ -91,3 +91,35 @@ async def test_piped_output_gets_one_line_and_no_carriage_returns():
     out = _Tty(tty=False)
     await _open_with_progress(_SlowTransport(0.01), {"kind": "telnet", "name": "gb7x"}, out)
     assert out.text == "Connecting to node 'gb7x'...\n"
+
+
+class _Stdin:
+    def __init__(self, answer, tty=True):
+        self.answer, self._tty = answer, tty
+
+    def isatty(self):
+        return self._tty
+
+    def readline(self):
+        return self.answer
+
+
+@pytest.mark.parametrize(
+    ("answer", "expected"),
+    [("\n", True), ("y\n", True), ("YES\n", True), ("n\n", False), ("", False)],
+)
+def test_start_anyway_defaults_to_yes_and_eof_means_no(answer, expected):
+    from kissterm.__main__ import _offer_start_anyway
+
+    out = _Tty()
+    assert _offer_start_anyway(_Stdin(answer), out) is expected
+    assert "open the TNC settings" in out.text
+
+
+def test_start_anyway_never_prompts_a_script():
+    """A service or pipe keeps the old non-zero exit; it cannot answer."""
+    from kissterm.__main__ import _offer_start_anyway
+
+    out = _Tty(tty=False)
+    assert _offer_start_anyway(_Stdin("y\n", tty=False), out) is False
+    assert out.text == ""

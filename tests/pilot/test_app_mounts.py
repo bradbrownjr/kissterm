@@ -279,6 +279,47 @@ async def test_app_mounts_without_a_transport_so_settings_can_repair_it():
 
 
 @pytest.mark.asyncio
+async def test_starting_anyway_lands_on_transports_and_save_retries_the_open(monkeypatch):
+    """The modem was down at launch and the operator chose to start anyway.
+
+    They must land on the page that fixes it, and Save there -- once the
+    modem software is running -- must open the transport, with Active
+    unchanged. Before this, Save only reopened on a CHANGED Active, and
+    `_switch_frame_transport` refused outright with no station to rebind.
+    """
+    from textual.widgets import TabbedContent
+
+    from kissterm.ui.settings_pane import SettingsPane
+
+    ta, tb = loopback_pair()
+    config = Config(
+        mycall=str(MYCALL),
+        transports=[{"name": "dw", "kind": "tcp", "host": "127.0.0.1", "port": 8001}],
+        active_transport="dw",
+    )
+    app = KissTermApp(config, transport_problem="no answer within 10s")
+
+    from kissterm import transport as transport_mod
+
+    monkeypatch.setattr(transport_mod, "build_transport", lambda entry: ta)
+    monkeypatch.setattr(app, "_save_config", lambda: True)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert app.query_one("#main-tabs", TabbedContent).active == "settings"
+        assert app.query_one("#settings-tabs", TabbedContent).active == "settings-tab-transports"
+        assert app.station is None
+
+        app.query_one(SettingsPane)._save()
+        await app.workers.wait_for_complete()
+        assert app.station is not None and app.station.transport is ta
+        assert app._transport_problem is None
+        assert ta.sent == [], "retrying the open must not transmit"
+    app.station.close()
+    await ta.close()
+    await tb.close()
+
+
+@pytest.mark.asyncio
 async def test_first_saved_transport_opens_without_requiring_a_restart(monkeypatch):
     """Onboarding must leave a live frame station for APRS and beacons."""
     ta, tb = loopback_pair()

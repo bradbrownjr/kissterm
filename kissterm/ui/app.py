@@ -573,10 +573,16 @@ class KissTermApp(App):
         config,
         station: AX25Station | None = None,
         session_transport=None,
+        transport_problem: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.config = config
+        #: Why the configured transport would not open at launch, when the
+        #: operator chose to start anyway (`kissterm/__main__.py`). On mount
+        #: the app lands on Settings > Transports with this in front of them,
+        #: because that is the page that fixes it -- see `_show_transport_problem`.
+        self._transport_problem = transport_problem
         if config.ascii_safe:
             # The stylesheet supplies ASCII alternatives only within this
             # application.  Do not mutate Textual's process-wide glyph tables:
@@ -769,7 +775,13 @@ class KissTermApp(App):
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(2.0, self._refresh_heard)
         self._attach_station()
-        if self.station is None and self.session_transport is None:
+        if self._transport_problem:
+            banner = (
+                f"kissterm {__version__} -- the modem did not answer at startup "
+                f"({self._transport_problem}). Fix it in F9 Settings > Transports, "
+                "then Save to try again.\n"
+            )
+        elif self.station is None and self.session_transport is None:
             banner = (
                 f"kissterm {__version__} -- no transport configured. "
                 "Open F9 Settings, then Transports to add one.\n"
@@ -790,6 +802,26 @@ class KissTermApp(App):
             # Pushing a modal directly from on_mount races Textual's initial
             # focus pass and can leave the callsign box unfocused.
             self.call_after_refresh(self._show_onboarding)
+        elif self._transport_problem:
+            self.call_after_refresh(self._show_transport_problem)
+
+    def _show_transport_problem(self) -> None:
+        """Land on Settings > Transports after a startup open failed.
+
+        The operator was asked at the shell and chose to start anyway; the
+        point of starting is to fix the transport, so put them on the page
+        that does it instead of making a newcomer find it. Saving there
+        retries the open (`SettingsPane._save` -> `_switch_frame_transport`),
+        so once the modem software is running, Save is all it takes.
+        """
+        self.query_one("#main-tabs", TabbedContent).active = "settings"
+        self.query_one("#settings-tabs", TabbedContent).active = "settings-tab-transports"
+        self.notify(
+            f"Could not open the modem: {self._transport_problem}. Start your modem "
+            "software or check the address here, then Save to try again.",
+            severity="warning",
+            timeout=15,
+        )
 
     def _show_onboarding(self) -> None:
         """Guide a fresh install through its one required identity setting.
@@ -2878,6 +2910,14 @@ class KissTermApp(App):
         guessing.
         """
         if self.station is None:
+            # Nothing is open yet -- a first run, or a launch whose transport
+            # would not open and the operator started anyway. There is no
+            # station to rebind, so open this one as the first.
+            if self.session_transport is None:
+                opened = await self._open_initial_transport(name)
+                if opened:
+                    self._transport_problem = None
+                return opened
             return False
         entry = next((t for t in self.config.transports if t.get("name") == name), None)
         if entry is None:

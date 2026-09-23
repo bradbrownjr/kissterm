@@ -374,6 +374,29 @@ async def _open_with_progress(transport, entry: dict, stream=None) -> None:
     task.result()
 
 
+def _offer_start_anyway(stdin=None, stream=None) -> bool:
+    """After a failed open, ask whether to start kissterm and fix it there.
+
+    Exiting with an error leaves a newcomer at a shell prompt with a config
+    file they have never seen; the Settings page that fixes it is inside the
+    app. Only asked on an interactive terminal -- a script or service gets
+    the old non-zero exit, never a prompt it cannot answer. Enter means yes.
+    """
+    stdin = stdin if stdin is not None else sys.stdin
+    stream = stream if stream is not None else sys.stderr
+    if not (stdin.isatty() and stream.isatty()):
+        return False
+    stream.write("Start kissterm anyway and open the TNC settings? [Y/n] ")
+    stream.flush()
+    try:
+        answer = stdin.readline()
+    except (EOFError, KeyboardInterrupt):
+        return False
+    if not answer:
+        return False
+    return answer.strip().lower() in ("", "y", "yes")
+
+
 def _select_transport_entry(config, name: str | None) -> dict | None:
     if not config.transports:
         return None
@@ -490,6 +513,7 @@ async def _amain(args) -> int:
     from .app import KissTermApp
     station = None
     transport = None
+    transport_problem = None
     if entry is not None:
         from .ax25 import AX25Address, AX25Station, LinkParams
         from .transport import build_transport
@@ -503,8 +527,11 @@ async def _amain(args) -> int:
             print(f"Could not open transport {entry.get('name')!r}: {exc}", file=sys.stderr)
             if entry.get("kind") in _OPEN_HINTS:
                 print(_OPEN_HINTS[entry["kind"]], file=sys.stderr)
-            print("Run 'kissterm --doctor' for a full check.", file=sys.stderr)
-            return 3
+            if not _offer_start_anyway():
+                print("Run 'kissterm --doctor' for a full check.", file=sys.stderr)
+                return 3
+            transport_problem = str(exc) or type(exc).__name__
+            transport = None
 
         if isinstance(transport, FrameTransport):
             station = AX25Station(
@@ -544,7 +571,10 @@ async def _amain(args) -> int:
     # but the app still needs a way to reach it: `action_connect` opens it
     # directly, with no AX25Station involved. See KissTermApp.__init__.
     app = KissTermApp(
-        config, station, session_transport=None if station is not None else transport
+        config,
+        station,
+        session_transport=None if station is not None else transport,
+        transport_problem=transport_problem,
     )
     try:
         await app.run_async()

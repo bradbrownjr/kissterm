@@ -29,10 +29,21 @@ touched and any breaking notes.
   "fault" is a modem program that was never started. Telnet and SSH say
   "node" and carry no modem reminder. Redirected output gets the single line
   without the animation.
+- **A modem that will not answer no longer ends at a shell prompt.** When the
+  open fails on an interactive terminal, kissterm asks `Start kissterm anyway
+  and open the TNC settings? [Y/n]`. Yes (or Enter) starts the app on
+  Settings > Transports with the error in the banner and a toast, and Save
+  there retries the open -- so starting the modem software and pressing Save
+  is the whole fix, no restart. Two gaps made that retry impossible before:
+  Save reopened only when Active had CHANGED, and `_switch_frame_transport`
+  refused outright with no station to rebind; with nothing open, both now
+  fall through to `_open_initial_transport`. A script, service or pipe is
+  never prompted and keeps the old exit code 3.
 
 **Files:** `kissterm/transport/tcp_kiss.py`, `kissterm/__main__.py`,
-`tests/unit/test_tcp_kiss_connect_timeout.py`, `docs/ROADMAP.md`,
-`docs/CHANGELOG.md`
+`kissterm/ui/app.py`, `kissterm/ui/settings_pane.py`,
+`tests/unit/test_tcp_kiss_connect_timeout.py`,
+`tests/pilot/test_app_mounts.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
 
 ## [2026-09-22] — Enter sends again
 

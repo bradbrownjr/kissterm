@@ -898,7 +898,16 @@ class SettingsPane(Vertical):
         self.query_one("#settings-footer", Static).update(detail)
         self.app.notify(message, severity="information" if saved else "warning")
 
-        if config.active_transport and config.active_transport != previous_active:
+        # Nothing open at all (the modem was not answering at launch): Save is
+        # the retry, even with Active unchanged -- the operator has just
+        # started the modem software or fixed its address and wants it used.
+        nothing_open = (
+            getattr(self.app, "station", None) is None
+            and getattr(self.app, "session_transport", None) is None
+        )
+        if config.active_transport and (
+            config.active_transport != previous_active or nothing_open
+        ):
             # Picking a different entry from Active used to change this one
             # string and nothing else -- the station kept talking to the OLD
             # transport object, so the status bar kept showing the old TNC no
