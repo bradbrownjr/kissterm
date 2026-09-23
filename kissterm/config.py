@@ -604,6 +604,11 @@ def state_path() -> Path:
     return _DATA_DIR
 
 
+def mail_path() -> Path:
+    """Root of the message store (`kissterm/mail/`): Mail, Bulletins, Files."""
+    return _DATA_DIR / "mail"
+
+
 def find_credential(config: Config, name: str) -> str:
     """The current text of the saved credential named `name`, or `""`.
 

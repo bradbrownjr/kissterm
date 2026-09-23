@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-23] — Mail: the message store
+
+### New Features
+
+- **Message store (`kissterm/mail/`), the first piece of P2 Mail.** One
+  plain-text file per message (`Key: value` headers, blank line, body)
+  in a folder tree that mirrors the planned Mail tab: Winlink, BBS
+  accounts, Local, Bulletins by category, Files. The index is a cache
+  rebuilt from the files. Deleted is a folder; restore puts a message
+  back where it was, and only purge from Deleted removes a file. Raw
+  copies (`.b2f`) move with their message. Lookup by Message-Id is there
+  so BBS collection can avoid filing a message twice. No UI yet.
+
+**Files:** `kissterm/mail/`, `kissterm/config.py` (`mail_path`),
+`tests/unit/test_mail_store.py`, `AGENTS.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — Documentation diet; P0 cleared
 
 ### Improvements

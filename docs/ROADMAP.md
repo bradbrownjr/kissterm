@@ -119,10 +119,8 @@ Files
 
 ### Items
 
-- [ ] **Message store** (`kissterm/mail/`): folders, message files, the
-  rebuildable index, move/delete/restore. No UI, no I/O beyond the data
-  directory, and fully unit-tested like `ax25/`. Tests use `_isolate`.
-  Medium.
+The message store (`kissterm/mail/`) shipped 2026-09-23.
+
 - [ ] **Shared message-list widget and folder tree.** Mail, Bulletins and
   Files are the same three panes: tree, list of headers, reader. One widget
   with a column spec replaces three that would drift apart. Keys follow

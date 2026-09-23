@@ -13,7 +13,7 @@ Companion files: `README.md` (users), `SETUP.md` (getting on the air),
 **`DESIGN.md` (how anything looks or is keyed -- read before changing
 either)**, `docs/ROADMAP.md` (what is open), `docs/CHANGELOG.md` (what
 changed). Each package has its own short `AGENTS.md` (`kissterm/ax25/`,
-`transport/`, `aprs/`, `ui/`).
+`transport/`, `aprs/`, `ui/`, `mail/`).
 
 ---
 
@@ -117,7 +117,7 @@ kissterm/
   session_log.py  transcripts.py  heard.py  locator.py
   addressbook.py  harvested.py  bbs.py  glossary.py  guides.py
   nodes/ aprs_services/   SHIPPED references (data/*.toml)
-  ax25/  aprs/  transport/  ui/   each with its own AGENTS.md
+  ax25/  aprs/  transport/  ui/  mail/   each with its own AGENTS.md
          ui/commands.py is the key table; ui/settings_schema.py drives Settings
 tests/  loopback.py  unit/ (test_ax25_link.py matters most)  pilot/ (_wait.py)
 ```

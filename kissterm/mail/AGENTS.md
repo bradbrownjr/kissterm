@@ -1,0 +1,16 @@
+# kissterm/mail — local contract
+
+The message store for Mail, Bulletins and Files (ROADMAP P2). No UI, no
+network, no transport: only files under one root (`config.mail_path()`).
+Tests: `tests/unit/test_mail_store.py`, with `_isolate` and `tmp_path`.
+
+- **The files are the truth.** One `.txt` per message (`message.py`);
+  `.index.json` is a cache that `refresh()` rebuilds. Never store a fact only
+  in the index.
+- **Deleted is a folder.** `delete()` moves, `restore()` moves back, and only
+  `purge()` from a Deleted folder removes a file.
+- **Raw copies (`<stem>.b2f`) move with their message.** Never drop them.
+- **Every path is checked** (`check_folder`, `MessageStore._path`); folder
+  names come from the operator. Dotfiles and symlinks are skipped.
+- Header values are one line; `format_message` strips CR/LF so a remote
+  subject cannot forge a header.
