@@ -3,6 +3,20 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Six live bugs confirmed fixed
+
+Confirmed by the operator on a live session with CCEMA/WS1EC-2 and checked
+against that session's transcript and debug log, then removed from P0.1:
+the last line or prompt never appearing; the focus highlight stuck on the
+entry field; the "Before connecting" dialog staying up after Connect;
+having to toggle transmit before the radio keyed (it was enabled at
+12:51:03 and the first SABM went out 0.1 s later); the "Check the Monitor"
+note for a node waiting on the operator (an empty line at a pager prompt,
+answered 19 s later, raised no note); and duplicate WXBOT replies (one
+query, one ack, one reply stored).
+
+**Files:** `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-23] — A line split across slow frames stays one line
 
 ### Bug Fixes

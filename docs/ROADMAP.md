@@ -72,83 +72,6 @@ Everything from P9 on comes after milestone 2.
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
-- [ ] **The last line of node output, usually the prompt, never appears.**
-  `awaiting confirmation` (0.1.191, 2026-09-22; five earlier attempts,
-  0.1.179 through 0.1.189). Reported repeatedly ("The last line
-  hides out of view, often the node prompt or the next page continue/abort
-  prompt, so I'm sitting and waiting for more output from the node not
-  knowing it's actually waiting on me"), and confirmed not prompt-specific:
-  "Each node may present differently."
-  **Cause, now measured rather than hypothesised.** The 2026-09-22 review
-  guessed that every previous attempt had fixed the wrong half -- all four
-  changed what happens *when a line is written* (`TerminalPane._append`), and
-  nothing re-followed the bottom when the log got *shorter* after the write.
-  A pilot test written before any code change confirmed it exactly: at 80x24,
-  40 lines of node output ending in a prompt left `scroll_y=27` against
-  `max_scroll_y=34` the moment the suggestion strip appeared -- the last seven
-  lines, prompt included, below the fold with no new write left to bring them
-  back. The find bar reproduces it independently (`scroll_y=27`,
-  `max_scroll_y=37`), which is why the fix had to be general rather than
-  written against the strip.
-  **Fixed** by anchoring the scrollback (`WrapLog.on_mount` calls Textual's
-  own `Widget.anchor()`): the compositor re-applies it on every arrange, so
-  the resize, the strip, the find bar and the slide-out are all covered
-  without any of them knowing a scrollback exists, and an operator scrolled
-  back is not yanked to the bottom. Three pilot tests in
-  `tests/pilot/test_terminal_ux.py` cover both directions and all three fail
-  without the fix.
-  **Re-tested on the air the same evening against CCEMA (WS1EC-15), and the
-  symptom recurred -- from a SECOND, unrelated cause.** The anchor fix is
-  sound and stays; it is simply not what produced this report. Evidence, all
-  from the operator's own machine rather than a hypothesis: the session
-  transcript contains the prompt (`de WS1EC>`), the debug log shows four
-  I-frames of 128/128/128/53 all accepted with V(R) reaching 4, and the
-  operator reports roughly thirty EMPTY rows below the last visible line. So
-  every byte arrived, reached the UI layer, and the scrollback was nowhere
-  near full -- nothing was below any fold, and the prompt was never written
-  at all.
-  **Where it actually goes.** `TerminalPane._flush_incoming` holds back
-  everything after the last line terminator so a word split across a frame
-  boundary does not render as a hard break mid-word. That tail is released
-  only by a newline or by a 0.2s idle timer. The node's last frame ends in an
-  unterminated prompt, so the prompt's entire visibility depended on that
-  timer -- and the timer never ran. The screenshots prove it independently of
-  the prompt: the Terminal pane shows `Emergency Communications Team` and
-  `BYE<tab>- Disconnect` as single joined lines, while the Monitor shows both
-  split across frames. Joined means each tail waited for the NEXT frame to
-  absorb it, across a 58 second gap a 0.2s timer would have split. The one
-  tail with no next frame is the prompt.
-  **Confirmed by instrumentation on a second on-air run (0.1.190).** A
-  diagnostic build logged every scheduling decision plus an independent
-  event-loop watchdog. Result, unambiguous: `flush: Textual timer callback
-  ran` appears ZERO times in the whole session, while the loop watchdog fired
-  every time and reported the timer *still armed*, ending with
-  `unflushed tail is b'de WS1EC>\r'`. Cause: `MessagePump.set_timer` wraps its
-  callback in `call_next`, so the flush only happens if the PANE'S OWN message
-  queue is drained, whereas `write_incoming` arrives by a plain method call
-  from the link callback and works regardless. Nothing reproduces it under
-  `run_test`, which drains those queues itself -- the real connect path
-  (Ctrl+N, the Radio Reminder modal, real frames over the loopback, the
-  operator's own config at their geometry) was replayed and the timer fires
-  every time. That is why four earlier fixes were written against a symptom
-  nobody could reproduce.
-  **Fixed in two places, both measured against the real bytes.** (1) The idle
-  flush is scheduled with `loop.call_later` instead of `Widget.set_timer`, so
-  it no longer depends on the pane's message queue -- the event loop is the
-  same one already carrying the link callback that delivered the bytes, so a
-  flush cannot be starved while data is still arriving. (2) A CR that ends a
-  chunk is no longer held back. It was held in case it was the first half of
-  a CRLF split across two frames (a real BPQ mail-listing defect), but that
-  made every CR-terminated prompt wait on the timer; the log proved the real
-  tail was `b'de WS1EC>\r'`, a COMPLETE line. The line is written immediately
-  now and a LF opening the next chunk is swallowed instead, which cannot
-  produce a blank line or lose one. Either fix alone would have shown the
-  prompt in both reported sessions; together they also cover a prompt with no
-  terminator at all. Three tests in `tests/pilot/test_terminal_ux.py` replay
-  the real 53-byte CCEMA frame and all fail without the fix.
-  The queue problem underneath it is its own item, below.
-  Files: `kissterm/ui/wraplog.py`, `kissterm/ui/terminal_pane.py`,
-  `tests/pilot/test_terminal_ux.py`.
 - [ ] **`TerminalPane`'s message queue does not drain on a real station.**
   `awaiting confirmation` (2026-09-23). Found 2026-09-22: a `set_timer` on
   the pane was armed repeatedly across two on-air sessions and its callback
@@ -159,24 +82,6 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   Fixed by running the frame fan-out in the app's context
   (`FrameTransport.callback_context`); `tests/pilot/test_frame_context.py`
   reproduces the real launch order. Confirm on the air with any node session.
-- [ ] **The focus highlight never moves: the entry field is always orange.**
-  `awaiting confirmation` (0.1.207, 2026-09-23; see CHANGELOG). Reported 2026-09-22: after clicking into the terminal's receive
-  box, "the bright box border remains on the text entry field, so I type and
-  wonder at first why my keystrokes aren't going into the entry field."
-  Cause, read from the code: `kissterm/ui/styles.py` gives `#session-input`
-  `border: round $accent` unconditionally, and `#session-log` has no focus
-  rule, so the accent colour marks the widget and not the focus. **The rule,
-  across the whole app, not just Terminal:** whichever pane or field has
-  focus takes the `$accent` border (orange in the current theme), and
-  everything else uses the standard `$primary` border. When focus leaves the
-  entry field it drops back to `$primary` until it gets focus again. This
-  applies to every focusable scrollback, list, table and input (the Terminal
-  and APRS logs and compose boxes, the Address Book, contacts, Heard,
-  Monitor and dialog fields), and keeps the ASCII-safe border variants in
-  step. DESIGN.md section 2 already defines `$accent` as "the active/current
-  thing", so this brings the CSS in line with the design rather than adding
-  a rule. Add a pilot test that moves focus between the log and the input
-  and asserts which one carries the accent border. Small.
 - [ ] **Blank lines and broken lines in a BBS mail listing (`L`, `LM`,
   `R`).** `fix attempted 3` (2026-09-23), awaiting confirmation. Reported
   2026-09-22 14:26 and 14:44; re-reported 2026-09-23 ("the wrapping of L is
@@ -199,34 +104,6 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   until I clicked inside the text box"). The footer logic it broke has since
   been replaced wholesale by P0.2's registry-driven bar, which recomposes on
   tab activation and shows only what applies. Re-test.
-- [ ] **"Before connecting" dialog stays on screen after Connect.**
-  `awaiting confirmation`. Reported 2026-09-22 15:09 and 15:20 (Address Book
-  double-click). Fixed in "Dismiss radio reminder before connecting".
-- [ ] **Had to turn transmit off and on again before the radio keyed.**
-  `evidence read, awaiting operator` (2026-09-23). Reported 2026-09-21 20:30
-  after an app restart, the same session in which the KISS SoundModem on the
-  other machine also needed a restart. **What the debug log shows:** no
-  `TX BLOCKED` or `TX FAILED` all evening. After the 20:29:22 restart the
-  first position report (20:29:36) was logged `TX port 0`, meaning the gate
-  was open and SoundModem's socket accepted it, but it never reached APRS-IS.
-  The toggle came at 20:29:46/48, and the identical frame at 20:29:51 was
-  gated by WS1EC-15 two seconds later. Same pattern at 20:15:53: accepted, not
-  heard; SoundModem then dropped the connection at 20:16:21 and the first
-  frame after the reconnect was heard. Toggling TX cannot affect a frame the
-  socket already accepted, so the evidence points downstream of kissterm
-  (SoundModem, radio or RF), not at the gate. Close unless it recurs with a
-  fresh log showing otherwise.
-- [ ] **"Check the Monitor" hint appears when the node is simply waiting on
-  the operator.** `awaiting confirmation` (2026-09-23). Reported 2026-09-22
-  16:33. **Evidence (that session's transcript):** the prompt `de WS1EC>`
-  arrived at 16:29:46 but was hidden by the prompt bug above, so at 16:30:19
-  the operator sent an EMPTY line to prod the node; the node ACKed it and
-  rightly said nothing, and the note fired 15 s later. The reply was never
-  scrolled out of view -- there was none. Fixed by not arming the reply watch
-  for a blank line (`log_sent`); a line with content still gets it.
-- [ ] **Duplicate WXBOT replies.** `awaiting confirmation`. Reported
-  2026-09-11 and again 2026-09-12 after the first fix; deduplication plus an
-  extended window shipped 2026-09-12. Confirm across a few requests.
 - [ ] **Toasts that report what the operator can already see.**
   `awaiting confirmation` (2026-09-23). Requested 2026-09-22 ("get rid of the
   notification pop-up that we've revealed or hidden something, we see what
@@ -241,6 +118,16 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   connection, mail waiting, a new device, a watched callsign), menu toggles
   with no other visible state (APRS SSID filter, APRS beaconing), and
   results with nowhere else to show (export path, transfer complete).
+
+- [ ] **Accented and typographic characters in BBS messages are garbled.**
+  `open`. Reported 2026-09-23 ("r 2738 also exhibits ... unexpected
+  characters"). **Evidence (that session's transcript):** WS1EC-2 sent the
+  message as UTF-8. Curly quotes (`E2 80 9C`/`9D`) show as `â` because the
+  text is decoded as latin-1 and `sanitize` then strips `80`-`9F` as C1
+  controls; a full-width `＠` became `ï¼`. **Blocked on a decision:** the
+  fix is to decode as UTF-8 when the bytes are valid UTF-8 and fall back to
+  latin-1 otherwise, which changes AGENTS.md's "decode payload text as
+  latin-1, never UTF-8" rule.
 
 ### P0.2 Keyboard standard
 
