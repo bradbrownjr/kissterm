@@ -314,8 +314,9 @@ contacts panel once that tab exists — is a collapsible column docked on the
   deciding.** Otherwise dragging a window wider re-opens a panel someone just
   closed on purpose.
 - **Escape closes it**, checked after anything else already using Escape on
-  that pane (the Terminal pane's find bar goes first) so the key's meaning
-  stays unambiguous: close whichever thing is actually open.
+  that pane (on the Terminal pane the suggestion list goes first, then the
+  find bar) so the key's meaning stays unambiguous: close whichever thing is
+  actually open, one per press.
 - **Picking a row from the panel closes it — but only a panel that was
   summoned.** When the pane's whole point is to show something *else* once a
   contact is chosen, a panel the operator just called up is covering the

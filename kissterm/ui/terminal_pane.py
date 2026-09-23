@@ -388,6 +388,9 @@ class TerminalPane(Container):
         # the next chunk is that CR's other half and not a blank line. See
         # `_flush_incoming`.
         self._swallow_lf: set[str] = set()
+        # The send-line text Escape hid the suggestion list for; it stays
+        # hidden until that text changes. See `dismiss_suggestions`.
+        self._suggestions_dismissed_for: str | None = None
         # A partial line the idle timer showed before its end arrived, kept
         # so the rest can replace it in place -- see `_flush_incoming`. It is
         # always the LAST record in that session's buffer; anything appended
@@ -963,13 +966,19 @@ class TerminalPane(Container):
     def action_close_find(self) -> None:
         """Escape, or the Close button.
 
-        Also the pane's one Escape handler for the address book slide-out
-        (see `toggle_addressbook`) -- find is checked first, so if both were
-        ever open at once Escape closes find before the slide-out, and a
-        second Escape closes the slide-out. A no-op if neither is open, so
-        binding it at the pane level (see the class docstring) never
+        The pane's one Escape handler, closing whichever thing is open, one
+        per press: the suggestion list first, then find, then the address
+        book slide-out (see `toggle_addressbook`). A no-op if none is open,
+        so binding it at the pane level (see the class docstring) never
         disturbs a plain Escape typed for some other reason.
+
+        The suggestion list goes first because it is the one that covers the
+        scrollback while the operator is still deciding: requested so the
+        node's last lines can be read before a command is sent. Dismissing
+        it leaves the typed text alone.
         """
+        if self.dismiss_suggestions():
+            return
         row = self.query_one("#find-row")
         if row.display:
             row.display = False
@@ -1165,6 +1174,16 @@ class TerminalPane(Container):
         self._update_suggestions(self._cycling_value)
         return True
 
+    def dismiss_suggestions(self) -> bool:
+        """Hide the suggestion list until the send line changes. Returns
+        whether there was one to hide."""
+        strip = self.query_one("#suggestion-strip", Static)
+        if not strip.display:
+            return False
+        self._suggestions_dismissed_for = self.query_one("#session-input", Input).value
+        self._update_suggestions(self._suggestions_dismissed_for)
+        return True
+
     def _update_suggestions(self, prefix: str) -> None:
         """Recompute `#suggestion-strip` for `prefix` against the active
         session's command reference.
@@ -1178,6 +1197,14 @@ class TerminalPane(Container):
         already returns nothing for an empty prefix on its own.
         """
         reference = getattr(self.app, "reference", None)
+        if self._suggestions_dismissed_for is not None:
+            if prefix == self._suggestions_dismissed_for:
+                # Escape hid it; stay hidden -- a tab switch recomputes with
+                # the same text -- until the operator types something else.
+                reference = None
+                self._cycling_value = None
+            else:
+                self._suggestions_dismissed_for = None
         if prefix == self._cycling_value and self._suggestion_matches:
             matches = self._suggestion_matches
         else:
@@ -1217,7 +1244,7 @@ class TerminalPane(Container):
                 # A harvest is a name only. Say where it came from rather
                 # than leave a bare word that reads like documentation.
                 text.append(f" - {UNPUBLISHED}", style="dim italic")
-        text.append("\nUp/Down: choose  Tab: fill", style="dim italic")
+        text.append("\nUp/Down: choose  Tab: fill  Esc: hide", style="dim italic")
         strip.update(text)
         strip.display = True
 

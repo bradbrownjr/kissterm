@@ -2196,3 +2196,41 @@ async def test_forgetting_learned_commands_clears_the_cache_and_sends_nothing():
         assert app.learned_node(key) == (str(PEER), 0)
     a.close()
     b.close()
+
+
+@pytest.mark.asyncio
+async def test_escape_hides_the_suggestion_list_until_the_line_changes():
+    """Requested: Esc hides the list so the scrollback under it can be read
+    before sending. The typed text stays, nothing is sent, and the list
+    comes back as soon as the operator types again."""
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        far.read_nowait()
+        app.reference = CommandReference(family=load_family("bpqmail"))
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.press("l")
+        strip = app.query_one("#suggestion-strip", Static)
+        await wait_for(lambda: strip.display, "the suggestion list")
+        assert "Esc: hide" in _plain(strip)
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not strip.display
+        assert field.value == "l"
+        assert far.read_nowait() == b""
+
+        # A tab repaint recomputes with the same text; still hidden.
+        app.query_one(TerminalPane)._update_suggestions(field.value)
+        assert not strip.display
+
+        await pilot.press("m")
+        await wait_for(lambda: strip.display, "the list after typing again")
+        assert "LM" in _plain(strip)
+    a.close()
+    b.close()

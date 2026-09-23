@@ -3,6 +3,19 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Esc hides the suggestion list
+
+### Improvements
+
+- **Esc hides the send line's suggestion list** so the scrollback under it
+  can be read before a command is sent. The typed text stays, and the list
+  returns on the next keystroke. On the Terminal pane, Esc closes one thing
+  per press: the suggestion list, then the find bar, then the side panel.
+  The list's hint line says so.
+
+**Files:** `kissterm/ui/terminal_pane.py`, `tests/pilot/test_terminal_ux.py`,
+`README.md`, `DESIGN.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-23] — Forget a node's learned commands
 
 ### New Features

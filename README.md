@@ -348,7 +348,8 @@ transmit. This is intentionally not a BBS-output parser: prompt and message
 formats vary too much between systems for a rigid parser to be trustworthy.
 Typing a command prefix shows a stacked, Tab-to-fill list of matching
 commands with what each does. Up/Down selects one; Tab fills it without
-sending. The list follows the session. At a BPQ32 node, `L` offers `LINKS`.
+sending; Esc hides the list until you type again, so you can read the
+node's last lines first. The list follows the session. At a BPQ32 node, `L` offers `LINKS`.
 Once the node says `Connected to BBS`, it offers BPQMail's `L`, `LR`, `LM`,
 `LD`, `LF`, `LH`, `LK`, `LL` and the rest. When the node says
 `Returned to Node`, it switches back. kissterm reads these lines from what
