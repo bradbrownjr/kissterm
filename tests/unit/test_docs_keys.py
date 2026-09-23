@@ -43,8 +43,9 @@ TAB_KEYS["Help"] = "F1"
 BOUND_CTRL = {key_label(c.key, short=False) for c in COMMANDS if c.key.startswith("ctrl+")}
 
 #: Ctrl keys the user docs name on purpose although nothing binds them:
-#: README explains that tmux's prefix is deliberately left alone.
-NAMED_BUT_UNBOUND = {"Ctrl+B"}
+#: README explains that tmux's prefix (Ctrl+B) is deliberately left alone,
+#: and why closing a tab has no Ctrl+W (delete-word in the send line).
+NAMED_BUT_UNBOUND = {"Ctrl+B", "Ctrl+W"}
 
 _TITLES = "|".join(TAB_KEYS)
 #: "Settings (`F9`)", "Settings tab (F9)", "`F9` Settings", "F9 Settings".
