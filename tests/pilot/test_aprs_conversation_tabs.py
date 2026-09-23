@@ -475,3 +475,40 @@ async def test_a_position_beacon_shows_as_a_readable_line_in_all(tmp_path):
         assert app.aprs_conversations.conversations == {}
     mine.close()
     theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_a_conversation_closes_from_its_button_and_the_menu(tmp_path):
+    """Requested 2026-09-23: closing a conversation needed Delete on the
+    focused strip and nothing said so. The Close button is there, enabled
+    only on a conversation (All and Bulletins are permanent), and
+    APRS > Close conversation does the same."""
+    from textual.widgets import Button
+
+    from tests.pilot._wait import wait_for
+
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(120, 36)) as pilot:
+        await _aprs_tab(app, pilot)
+        pane = app.query_one(AprsPane)
+        tabs = app.query_one("#aprs-convo-tabs", Tabs)
+        button = app.query_one("#aprs-convo-close", Button)
+        assert button.disabled, "All cannot be closed"
+
+        pane.select_conversation("WS1EC-15", "WS1EC-15")
+        await wait_for(lambda: not button.disabled, "the button on a conversation")
+        button.press()
+        await wait_for(lambda: tabs.active == _ALL_TAB, "back to All")
+        # `remove_tab` completes after the switch back to All.
+        await wait_for(
+            lambda: _tab_id("WS1EC-15") not in {tab.id for tab in tabs.query("Tab")},
+            "the conversation tab to go",
+        )
+        await wait_for(lambda: button.disabled, "disabled again on All")
+
+        pane.select_conversation("W1AW", "W1AW")
+        await wait_for(lambda: tabs.active == _tab_id("W1AW"), "the conversation")
+        await app.run_action("close_tab")  # APRS > Close conversation
+        await wait_for(lambda: tabs.active == _ALL_TAB, "closed from the menu")
+    mine.close()
+    theirs.close()

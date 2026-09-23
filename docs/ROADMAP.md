@@ -124,6 +124,12 @@ above still applies to every new key.
   before querying. Do not "fix" it by widening the timing budgets until the
   flake hides, and do not drop `-n auto`: the parallelism is not the bug, it
   is what exposes it.
+  2026-09-23: `test_every_tab_can_be_selected` and
+  `test_a_note_appears_once_a_sent_line_goes_unanswered` converted too (the
+  second waited 0.2 s for an ACK that parallel load sometimes delayed). One
+  more failure in `test_app_mounts.py`/`test_transcript_and_color.py`
+  happened once and did not reproduce in 11 further runs; identify it from
+  the next full-suite failure output.
 
 ### P0.5 Documentation diet
 

@@ -3,6 +3,36 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Close tab is in the menu and on screen
+
+### Improvements
+
+- **Terminal and APRS tabs can be closed without knowing a hidden key.**
+  Delete on the focused tab row was the only way (requested: "There needs to
+  be a more evident way to do it"). Each tab row now has a Close button, and
+  the F10 menu has Session > Close tab and APRS > Close conversation.
+  - A connected Terminal tab is disconnected first. Its button reads
+    Disconnect until then.
+  - The APRS button is disabled on All and Bulletins, which stay open.
+- No shortcut key was added. The nine global Ctrl keys are all taken, Ctrl+W
+  is delete-word in the send line, and F6-F8 are reserved for the
+  milestone-2 tabs.
+
+### Bug Fixes
+
+- **Switching to Settings no longer risks crashing the app on shutdown.** An
+  activation still queued as the app closed reached for a pane that was
+  already gone, and `NoMatches` escaped the handler. Found by a test.
+- Two pilot tests that depended on timing now wait on their conditions
+  (P0.4).
+
+**Files:** `kissterm/ui/terminal_pane.py`, `kissterm/ui/aprs_pane.py`,
+`kissterm/ui/app.py`, `kissterm/ui/commands.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_terminal_sessions.py`,
+`tests/pilot/test_aprs_conversation_tabs.py`, `tests/pilot/test_app_mounts.py`,
+`tests/pilot/test_transcript_and_color.py`, `README.md`, `assets/`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-23] — BBS listing line breaks confirmed fixed
 
 - The operator confirmed on a live session (0.1.221, WS1EC-2 `LR` and

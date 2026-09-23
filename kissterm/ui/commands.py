@@ -147,6 +147,10 @@ COMMANDS: tuple[Command, ...] = (
     Command("toggle_transmit", "Transmit on/off", "Session", "T",
             "The master transmit switch; nothing keys the radio while it is off",
             key="ctrl+t", footer=("*",), short="TX"),
+    Command("close_tab", "Close tab", "Session", "L",
+            "Close the Terminal tab on screen; a connected one is disconnected "
+            "first. Delete does the same while the tab row has focus",
+            tabs=("terminal",)),
     Command("beacon_now", "Send beacon", "Session", "B",
             "Send your beacon text once, now"),
     Command("file_transfer", "File transfer", "Session", "F",
@@ -175,6 +179,9 @@ COMMANDS: tuple[Command, ...] = (
     Command("toggle_contacts", "Contacts", "APRS", "C",
             "Show or hide the contacts list", key="ctrl+g", tabs=("aprs",),
             footer=("aprs",)),
+    Command("close_tab", "Close conversation", "APRS", "L",
+            "Close the conversation tab on screen. Delete does the same while "
+            "the tab row has focus", tabs=("aprs",)),
     Command("aprs_is_watch", "Watch APRS-IS", "APRS", "W",
             "Watch APRS-IS for traffic to or from you (receive only)",
             tabs=("aprs",)),

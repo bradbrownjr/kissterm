@@ -352,9 +352,14 @@ class AprsPane(Horizontal):
             # called on an empty strip: an add to an empty `Tabs` activates
             # what it just added, which would yank the view to whichever
             # stranger transmitted first.
-            yield _ConvoTabs(
-                Tab("All", id=_ALL_TAB), Tab("Bulletins", id=_BULLETINS_TAB), id="aprs-convo-tabs"
-            )
+            # The Close button makes closing a conversation findable without
+            # knowing that Delete works on the focused strip (requested
+            # 2026-09-23); no key of its own -- see `_ConvoTabs`.
+            with Horizontal(id="aprs-convo-row"):
+                yield _ConvoTabs(
+                    Tab("All", id=_ALL_TAB), Tab("Bulletins", id=_BULLETINS_TAB), id="aprs-convo-tabs"
+                )
+                yield Button("Close", id="aprs-convo-close", disabled=True)
             yield Static(id="aprs-sensor-summary")
             # `WrapLog`, not a plain `RichLog`: with the contact list open
             # this column is narrower than `RichLog`'s 78-cell `min_width`,
@@ -591,8 +596,13 @@ class AprsPane(Horizontal):
         if callsign in self._recent:
             self._recent.remove(callsign)
 
+    @on(Button.Pressed, "#aprs-convo-close")
+    def _close_pressed(self) -> None:
+        self.close_active_tab()
+
     def close_active_tab(self) -> None:
-        """`Delete` on the strip. "All" cannot be closed.
+        """`Delete` on the strip, the Close button, or APRS > Close
+        conversation in the menu. "All" cannot be closed.
 
         It is the one view that is always there and the thing `remove_tab`
         falls back to when the last conversation goes, so closing it would
@@ -600,7 +610,10 @@ class AprsPane(Horizontal):
         """
         callsign = self._active_callsign()
         if callsign is None:
-            self.app.notify("The All tab stays open.", severity="warning")  # type: ignore[attr-defined]
+            self.app.notify(  # type: ignore[attr-defined]
+                "All and Bulletins stay open; pick a conversation tab to close it.",
+                severity="warning",
+            )
             return
         self._close_tab(callsign)
 
@@ -662,6 +675,8 @@ class AprsPane(Horizontal):
         # climbing past the widget that handled it.
         event.stop()
         tab_id = event.tab.id or ""
+        # All and Bulletins are permanent; only a conversation can close.
+        self.query_one("#aprs-convo-close", Button).disabled = tab_id in (_ALL_TAB, _BULLETINS_TAB)
         if tab_id == _ALL_TAB:
             self._show_all()
             return

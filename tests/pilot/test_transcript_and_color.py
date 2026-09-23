@@ -228,7 +228,11 @@ async def test_a_note_appears_once_a_sent_line_goes_unanswered(tmp_path, monkeyp
     Monitor tab used to hide by default, and nothing else marked it."""
     from kissterm.ui import app as app_module
 
-    monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 0.2)
+    # 1 s, not 0.2: the note is written only if the far end has already
+    # ACKed by then, and under parallel load the loopback's ACK sometimes
+    # took longer than 0.2 s -- the note was then correctly skipped and the
+    # test failed with nothing wrong in the app (P0.4).
+    monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 1.0)
     app, a, b, incoming = await _app(_config(tmp_path))
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()

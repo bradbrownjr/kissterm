@@ -3973,6 +3973,22 @@ class KissTermApp(App):
             return
         self.notify("Not connected.", severity="warning")
 
+    def session_is_live(self, session_key: str) -> bool:
+        """Connected or still connecting: closing it would disconnect first."""
+        session = self._sessions.get(session_key)
+        connected = session is not None and session.link is not None and session.link.connected
+        return connected or session_key in self._connecting
+
+    def action_close_tab(self) -> None:
+        """Session > Close tab, APRS > Close conversation: whichever tab
+        row the operator is looking at."""
+        if self.query_one("#main-tabs", TabbedContent).active == "aprs":
+            for pane in self._base_query(AprsPane):
+                pane.close_active_tab()
+            return
+        for pane in self._base_query(TerminalPane):
+            pane.close_active_tab()
+
     def disconnect_or_close_tab(self, session_key: str) -> None:
         """`Delete` on the focused session tab. Disconnects a live session;
         removes an already-disconnected (or still-connecting) tab outright.
@@ -4102,6 +4118,10 @@ class KissTermApp(App):
         renderable = _status_row(parts)
         for bar in self._base_query("#status-bar"):
             bar.update(renderable)
+        # Link state changes land here, so the Close button's label follows
+        # connect and disconnect without a second hook.
+        for pane in self._base_query(TerminalPane):
+            pane.sync_close_button()
 
     def _refresh_heard(self, force: bool = False) -> None:
         """Repaint the heard table.
@@ -4141,7 +4161,11 @@ class KissTermApp(App):
             # it is visible. Re-rendering also discards half-typed edits the
             # operator navigated away from without saving, which is the
             # behaviour that matches "this shows what is in effect".
-            self.query_one(SettingsPane).render_settings(self.config)
+            # `_base_query`, not `query_one`: an activation still queued when
+            # the app shuts down arrives after the widgets are gone, and a
+            # `NoMatches` raised out of a message handler ends the app.
+            for pane in self._base_query(SettingsPane):
+                pane.render_settings(self.config)
         self._refresh_status()
         # Clicking a tab changes ``TabbedContent.active`` directly and never
         # passes through ``action_show_tab``.  Refresh after this activation's

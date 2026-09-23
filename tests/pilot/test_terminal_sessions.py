@@ -276,3 +276,36 @@ async def test_the_suggestion_strip_follows_the_active_sessions_reference():
         await pilot.pause()
         assert strip.display is True, "switching back must recompute from the input still there"
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_session_tab_can_be_closed_from_the_menu_and_its_button():
+    """Requested 2026-09-23: Delete on the focused tab row was the only way,
+    and nothing on screen said so. The menu entry and the Close button both
+    go through the same disconnect-then-close path, and the button says
+    which of the two it will do."""
+    from textual.widgets import Button
+
+    from tests.pilot._wait import wait_for
+
+    app, station, ta = await _bare_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await station._on_frame(_sabm(_caller(1)), 0)
+        await station._on_frame(_sabm(_caller(2)), 0)
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        row = app.query_one("#terminal-session-row")
+        button = app.query_one("#session-close", Button)
+        assert row.display
+        assert str(button.label) == "Disconnect", "a live tab is disconnected first"
+
+        await app.run_action("close_tab")  # Session > Close tab
+        await wait_for(lambda: not app.session_is_live("W1AW-1"), "the disconnect")
+        await wait_for(lambda: str(button.label) == "Close tab", "the relabel")
+        assert pane.session_count == 2, "the first press only disconnects"
+
+        button.press()
+        await wait_for(lambda: pane.session_count == 1, "the close")
+        assert not row.display, "one session left: no tab row, as before"
+    station.close()

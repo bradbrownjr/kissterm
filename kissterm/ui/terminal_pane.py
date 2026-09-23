@@ -426,7 +426,13 @@ class TerminalPane(Container):
                 # Hidden until a second session exists -- see
                 # `_sync_strip_visibility`; a single connection looks
                 # exactly like it always has.
-                yield _SessionTabs(id="terminal-session-tabs")
+                # The Close button makes closing a session findable without
+                # knowing that Delete works on the focused strip (requested
+                # 2026-09-23). It reads "Disconnect" while the tab is still
+                # live, because that is what pressing it does first.
+                with Horizontal(id="terminal-session-row"):
+                    yield _SessionTabs(id="terminal-session-tabs")
+                    yield Button("Close tab", id="session-close")
                 # Hidden until Ctrl+F -- see `open_find`/`action_close_find`.
                 # Sits above the scrollback, not the send row, so it never
                 # shifts where the operator types.
@@ -577,7 +583,9 @@ class TerminalPane(Container):
     def _sync_strip_visibility(self) -> None:
         # No strip at all below two sessions -- a single connection must
         # look exactly like it always has. See the module docstring.
-        self._tabs().display = self.session_count > 1
+        shown = self.session_count > 1
+        self._tabs().display = shown
+        self.query_one("#terminal-session-row").display = shown
 
     def open_tab(self, session_key: str, *, activate: bool) -> bool:
         """Make sure `session_key` has a tab. Returns False only when it
@@ -632,11 +640,24 @@ class TerminalPane(Container):
         if was_active and self.active_session_key == session_key:
             self.activate_tab("")
 
+    @on(Button.Pressed, "#session-close")
+    def _close_pressed(self) -> None:
+        self.close_active_tab()
+
+    def sync_close_button(self) -> None:
+        """Label the Close button for what it will do to the tab on screen."""
+        for button in self.query("#session-close").results(Button):
+            live = getattr(self.app, "session_is_live", None)
+            key = self.active_session_key
+            button.label = "Disconnect" if key and live is not None and live(key) else "Close tab"
+
     def close_active_tab(self) -> None:
-        """`Delete` on the focused strip. Dispatched to the app, which
-        decides disconnect-vs-close -- see the module docstring."""
+        """`Delete` on the focused strip, the Close button, or Session >
+        Close tab in the menu. Dispatched to the app, which decides
+        disconnect-vs-close -- see the module docstring."""
         key = self.active_session_key
         if not key:
+            self.app.notify("No session tab is open.", severity="warning")
             return
         handler = getattr(self.app, "disconnect_or_close_tab", None)
         if handler is not None:
@@ -658,6 +679,7 @@ class TerminalPane(Container):
         if tabs.active != tab_id and tab_id in self._tab_session_keys:
             tabs.active = tab_id  # posts TabActivated; harmless if it also repaints
         self._replay(self.query_one("#session-log", RichLog), session_key)
+        self.sync_close_button()
         self.set_placeholder(session_key, self._placeholders.get(session_key, ""))
         refresh_status = getattr(self.app, "_refresh_status", None)
         if refresh_status is not None:

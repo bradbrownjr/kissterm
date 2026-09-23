@@ -126,7 +126,11 @@ TerminalPane { layout: horizontal; }
    subordinate-to-the-F-key-bar treatment as `#aprs-convo-tabs` above, for
    the identical reason: a second row of tabs that looked like the first
    would read as two competing navigations rather than a hierarchy. */
-#terminal-session-tabs { height: 2; margin-bottom: 1; }
+#terminal-session-row { height: auto; margin-bottom: 1; }
+/* One row down, so the tab labels line up with the Close button's text
+   and the underline with its bottom border. */
+#terminal-session-tabs { height: 2; width: 1fr; margin-top: 1; }
+#session-close { margin-left: 1; }
 #terminal-session-tabs Tab { color: $text-muted; }
 #terminal-session-tabs Tab.-active { color: $accent; text-style: bold; }
 #terminal-session-tabs Tab.-unread { color: $warning; text-style: bold; }
@@ -210,7 +214,11 @@ AprsPane { height: 1fr; }
    subordinate: the underline bar is dimmed to the panel colour instead of
    the accent, inactive tabs are muted, and only the active tab keeps the
    accent. Same fact, one visual language -- see DESIGN.md. */
-#aprs-convo-tabs { height: 2; margin-bottom: 1; }
+#aprs-convo-row { height: auto; margin-bottom: 1; }
+/* One row down, so the tab labels line up with the Close button's text
+   and the underline with its bottom border. */
+#aprs-convo-tabs { height: 2; width: 1fr; margin-top: 1; }
+#aprs-convo-close { margin-left: 1; }
 #aprs-convo-tabs Tab { color: $text-muted; }
 #aprs-convo-tabs Tab.-active { color: $accent; text-style: bold; }
 /* Unread: `$warning`, the same colour the contacts table's `*` row uses, so

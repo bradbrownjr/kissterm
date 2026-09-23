@@ -282,6 +282,15 @@ GNOME Terminal opens its own help on `F1` and its menu bar on `F10` until
 you turn off "Enable the menu accelerator key" in its preferences. Clicking
 the Help tab, or Menu in the bottom bar, works regardless.
 
+**Closing a tab.** Each connection on the Terminal gets a tab once there is
+more than one, and each APRS correspondent gets one too. Close the one on
+screen with its **Close** button, from the menu (F10, Session > Close tab or
+APRS > Close conversation), or with Delete while the tab row has focus. A
+connected Terminal tab is disconnected first, and its button says
+**Disconnect** until it is. There is no Ctrl key for this: the nine global
+Ctrl keys are all taken, and the usual Ctrl+W deletes a word in the line you
+type into.
+
 **The Help tab is written for someone new to packet.** Its *Guides* walk
 through getting on the air, a first connection, the transmit switch, reading
 a failed connect, APRS messaging and sharing the channel. *Node commands*

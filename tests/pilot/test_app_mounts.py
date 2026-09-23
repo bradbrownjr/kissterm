@@ -464,8 +464,10 @@ async def test_every_tab_can_be_selected():
     async with app.run_test(size=(120, 40)) as pilot:
         for tab in ("monitor", "heard", "aprs", "settings", "terminal"):
             app.action_show_tab(tab)
-            await pilot.pause()
-            assert app.query_one("#main-tabs").active == tab
+            # Waits on the switch rather than one render: under parallel
+            # load a single pause was not always enough (P0.4).
+            await wait_for(lambda: app.query_one("#main-tabs").active == tab, f"the {tab} tab")
+            await pilot.pause()  # let this tab's activation handler run
     station.close()
 
 
