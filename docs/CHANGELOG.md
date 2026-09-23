@@ -3,6 +3,23 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — Fewer toasts: none for what is already on screen
+
+### Improvements
+
+- **Sixteen confirmation toasts removed.** Requested from a real station:
+  "we see what we did already". Saving or forgetting an Address Book entry,
+  an APRS contact, or a Settings transport, credential or script changes the
+  list in front of the operator; "Now using" a transport is in the status
+  bar; "Cancelled connect" is already in the terminal log. The Settings save,
+  the transport Test button and the GPS port scan now toast only when there
+  is a problem, since their result is already written on the page. Errors,
+  transmit notices and events from outside are unchanged.
+
+**Files:** `kissterm/ui/addressbook_pane.py`, `kissterm/ui/app.py`,
+`kissterm/ui/aprs_pane.py`, `kissterm/ui/settings_pane.py`,
+`tests/pilot/test_settings.py`, `docs/CHANGELOG.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — No "no reply yet" note for an empty line
 
 ### Bug Fixes

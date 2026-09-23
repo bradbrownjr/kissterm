@@ -960,7 +960,6 @@ class KissTermApp(App):
             self.session_transport = transport
             self._status = transport.info.detail
         self._refresh_status()
-        self.notify(f"Now using {name}.")
         return True
 
     # ------------------------------------------------------------------
@@ -3024,7 +3023,6 @@ class KissTermApp(App):
             await old_transport.close()
 
         self._refresh_status()
-        self.notify(f"Now using {name}.")
         return True
 
     async def _switch_session_transport(self, name: str) -> bool:
@@ -3068,7 +3066,6 @@ class KissTermApp(App):
                 await old_transport.close()
 
         self._refresh_status()
-        self.notify(f"Now using {name}.")
         return True
 
     @work
@@ -3412,7 +3409,6 @@ class KissTermApp(App):
             # SessionTransport implementations clean up their partly-open
             # connection before propagating this cancellation.
             self._to_terminal("", "write_note", "*** Connect cancelled by operator.\n")
-            self.notify("Cancelled connect.")
             return
         except TransportError as exc:
             self._to_terminal("", "write_note", f"*** Could not connect: {exc}\n")
@@ -3803,7 +3799,6 @@ class KissTermApp(App):
                     "further SABMs will be sent.\n",
                 )
                 connecting.close(reason=CANCELLED_REASON)
-                self.notify(f"Cancelled connect to {connecting.peer}.")
                 return
         session_connect_task = self._session_connect_task
         if (

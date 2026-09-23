@@ -246,7 +246,6 @@ class AddressBookPane(Vertical):
         book = self.app.addressbook  # type: ignore[attr-defined]
         if book.forget(target):
             self.refresh_from(book)
-            self.app.notify(f"Forgot {target!r}.")  # type: ignore[attr-defined]
 
     @on(Button.Pressed, "#addressbook-forget")
     def _forget_pressed(self) -> None:
@@ -292,4 +291,3 @@ class AddressBookPane(Vertical):
             original_target=target or "",
         )
         self.refresh_from(book)
-        self.app.notify(f"Saved {result.target!r}.")  # type: ignore[attr-defined]

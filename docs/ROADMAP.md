@@ -215,16 +215,20 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 - [ ] **Duplicate WXBOT replies.** `awaiting confirmation`. Reported
   2026-09-11 and again 2026-09-12 after the first fix; deduplication plus an
   extended window shipped 2026-09-12. Confirm across a few requests.
-- [ ] **Toasts that report what the operator can already see.** `open`.
-  Requested 2026-09-22 ("get rid of the notification pop-up that we've
-  revealed or hidden something, we see what we did already"). The UI has
-  107 `notify()` calls, and many of them either confirm a visible change or
-  say "Open APRS to ..." for a key pressed on the wrong tab. DESIGN.md
-  section 1 already says "no toast for anything that is not actionable".
-  P0.2 removed the seven wrong-tab toasts: a key that does not apply on this
-  tab is now absent from the footer and inert. What is left is the audit of
-  the rest -- keep errors and transmit-related notices (the rules require
-  those), remove confirmations of something already on screen.
+- [ ] **Toasts that report what the operator can already see.**
+  `awaiting confirmation` (2026-09-23). Requested 2026-09-22 ("get rid of the
+  notification pop-up that we've revealed or hidden something, we see what
+  we did already"). Audited every toast that is not an error or warning:
+  sixteen that confirmed a visible change are gone (saved/forgot entries in
+  the Address Book, contacts and Settings lists; "Now using" a transport,
+  which the status bar shows; "Cancelled connect", which the terminal log
+  already says), and three now appear only when something needs acting on
+  (Settings save, the transport Test button, the GPS port scan). Kept on
+  purpose: every error and warning, every transmit notice (arming, beacons,
+  objects -- the rules require them), events from outside (incoming
+  connection, mail waiting, a new device, a watched callsign), menu toggles
+  with no other visible state (APRS SSID filter, APRS beaconing), and
+  results with nowhere else to show (export path, transfer complete).
 
 ### P0.2 Keyboard standard -- adopted 2026-09-22
 

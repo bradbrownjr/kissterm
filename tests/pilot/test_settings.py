@@ -16,7 +16,7 @@ import asyncio  # noqa: E402
 import dataclasses  # noqa: E402
 
 import pytest  # noqa: E402
-from textual.widgets import Button, Input, Select, TabbedContent  # noqa: E402
+from textual.widgets import Button, Input, Select, Static, TabbedContent  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
@@ -1325,4 +1325,23 @@ async def test_filtering_past_your_own_symbol_keeps_it_selected():
         await asyncio.sleep(0.05)
         assert select.value == "/>"
         assert "/>" in {value for _, value in select._options}
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_successful_save_says_so_in_the_footer_not_a_toast():
+    """Requested 2026-09-22: no toast for something already on screen. The
+    Settings footer already reads "Settings saved.", so a toast saying the
+    same thing in another corner is noise (DESIGN.md section 1)."""
+    app, station = await _app()
+    async with app.run_test(size=(120, 44)) as pilot:
+        await _settings_tab(app, pilot)
+        before = len(app._notifications)
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        footer = str(app.query_one("#settings-footer", Static).render())
+        assert "Settings saved." in footer, footer
+        assert len(app._notifications) == before, [
+            n.message for n in app._notifications
+        ]
     station.close()

@@ -329,7 +329,6 @@ class SettingsPane(Vertical):
         picker.set_options(options or [("No local serial ports found", Select.BLANK)])
         if options:
             picker.value = options[0][1]
-        self.app.notify("GPS serial ports scanned." if options else "No local serial ports found.")
 
     @on(Select.Changed, "#aprs-gps-device-picker")
     def _choose_gps_device(self, event: Select.Changed) -> None:
@@ -896,7 +895,10 @@ class SettingsPane(Vertical):
         if notes:
             detail += " " + " ".join(notes)
         self.query_one("#settings-footer", Static).update(detail)
-        self.app.notify(message, severity="information" if saved else "warning")
+        # The footer above already says "Settings saved"; a toast is only
+        # for the case the operator must act on.
+        if not saved:
+            self.app.notify(message, severity="warning")
 
         # Nothing open at all (the modem was not answering at launch): Save is
         # the retry, even with Active unchanged -- the operator has just
@@ -1045,7 +1047,6 @@ class SettingsPane(Vertical):
         self._render_transports(config)
         self.query_one("#set-active-transport", Select).value = result["name"]
         self._render_transport_detail(config)
-        self.app.notify(f"Saved transport {result['name']!r}.")  # type: ignore[attr-defined]
         # A first-run app has no station yet, so the normal "reopen" path
         # cannot swap a transport underneath one.  Open this newly saved
         # entry now; otherwise every APRS and beacon action correctly but
@@ -1066,7 +1067,6 @@ class SettingsPane(Vertical):
             )
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_transports(config)
-        self.app.notify(f"Forgot transport {name}.")
 
     @on(Select.Changed, "#set-credential")
     def _credential_changed(self) -> None:
@@ -1086,7 +1086,6 @@ class SettingsPane(Vertical):
         self._render_credentials(config)
         self.query_one("#set-credential", Select).value = result.name
         self._render_credential_detail(config)
-        self.app.notify(f"Saved credential {result.name!r}.")  # type: ignore[attr-defined]
 
     @on(Button.Pressed, "#credential-new")
     def _new_credential_pressed(self) -> None:
@@ -1119,7 +1118,6 @@ class SettingsPane(Vertical):
         self._render_credentials(config)
         self.query_one("#set-credential", Select).value = result.name
         self._render_credential_detail(config)
-        self.app.notify(f"Saved credential {result.name!r}.")  # type: ignore[attr-defined]
 
     @on(Button.Pressed, "#credential-edit")
     def _edit_credential_pressed(self) -> None:
@@ -1134,7 +1132,6 @@ class SettingsPane(Vertical):
         config.credentials = [c for c in config.credentials if c.get("name") != name]
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_credentials(config)
-        self.app.notify(f"Forgot credential {name!r}.")  # type: ignore[attr-defined]
 
     @on(Select.Changed, "#set-script")
     def _script_changed(self) -> None:
@@ -1154,7 +1151,6 @@ class SettingsPane(Vertical):
         self._render_scripts(config)
         self.query_one("#set-script", Select).value = result.name
         self._render_script_detail(config)
-        self.app.notify(f"Saved script {result.name!r}.")  # type: ignore[attr-defined]
 
     @on(Button.Pressed, "#script-new")
     def _new_script_pressed(self) -> None:
@@ -1187,7 +1183,6 @@ class SettingsPane(Vertical):
         self._render_scripts(config)
         self.query_one("#set-script", Select).value = result.name
         self._render_script_detail(config)
-        self.app.notify(f"Saved script {result.name!r}.")  # type: ignore[attr-defined]
 
     @on(Button.Pressed, "#script-edit")
     def _edit_script_pressed(self) -> None:
@@ -1202,7 +1197,6 @@ class SettingsPane(Vertical):
         config.scripts = [s for s in config.scripts if s.get("name") != name]
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_scripts(config)
-        self.app.notify(f"Forgot script {name!r}.")  # type: ignore[attr-defined]
 
     @work
     async def _scan(self) -> None:
@@ -1306,7 +1300,9 @@ class SettingsPane(Vertical):
             else "error" if identity.verdict in ("not-a-tnc", "unreachable")
             else "warning"
         )
-        self.app.notify(line, severity=severity)
+        # The result is already in the detail line; toast only a problem.
+        if not identity.is_tnc:
+            self.app.notify(line, severity=severity)
 
     @on(Button.Pressed, "#settings-test")
     def _test_pressed(self) -> None:

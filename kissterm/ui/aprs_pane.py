@@ -1213,7 +1213,6 @@ class AprsPane(Horizontal):
         raw_contacts.append(result.to_dict())
         self.app._save_config()  # type: ignore[attr-defined]
         self.refresh_from(raw_contacts)
-        self.app.notify(f"Saved {result.name!r}.")  # type: ignore[attr-defined]
 
     @on(Button.Pressed, "#aprs-contact-edit")
     def _edit_pressed(self) -> None:
@@ -1233,7 +1232,6 @@ class AprsPane(Horizontal):
         removed = raw_contacts.pop(index)
         self.app._save_config()  # type: ignore[attr-defined]
         self.refresh_from(raw_contacts)
-        self.app.notify(f"Forgot {removed.get('name', '(unnamed)')!r}.")  # type: ignore[attr-defined]
 
     def _hide_service(self, service_id: str) -> None:
         """Delete on a built-in row hides it (`Config.aprs_hidden_services`).
@@ -1287,7 +1285,6 @@ class AprsPane(Horizontal):
             raw_contacts.append(result.to_dict())
         self.app._save_config()  # type: ignore[attr-defined]
         self.refresh_from(raw_contacts)
-        self.app.notify(f"Saved {result.name!r}.")  # type: ignore[attr-defined]
 
     # -- templates -----------------------------------------------------------
     @work
