@@ -46,3 +46,15 @@ def test_search_matches_inside_a_definition_too():
 
 def test_search_with_no_match_returns_nothing():
     assert glossary.search("this term does not exist anywhere") == ()
+
+
+def test_definitions_are_written_for_operators_not_developers():
+    """The glossary is read on the Help tab by someone new to packet. A
+    pointer into the source tree or the project docs means nothing to them,
+    and backticks show literally in plain text."""
+    import re
+
+    for term in glossary.TERMS:
+        text = term.definition
+        assert "`" not in text, term.name
+        assert not re.search(r"kissterm/|\.py\b|\.md\b|AGENTS|ROADMAP|Config\.", text), term.name

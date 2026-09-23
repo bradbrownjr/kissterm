@@ -3,6 +3,26 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — The glossary is written for operators
+
+### Improvements
+
+- **Glossary definitions no longer point into the source tree.** Nine
+  entries referred a newcomer to `kissterm/ax25/window.py`, AGENTS.md, the
+  roadmap or `Config.modulo`, which mean nothing to someone learning what a
+  digipeater is -- visible now that the glossary has its own page on the
+  Help tab. Those pointers are replaced by what an operator can act on
+  (where the setting is, what the Monitor tab shows), and backticks, which
+  plain text shows literally, are gone. `tests/unit/test_glossary.py` now
+  rejects both.
+- **Path / Via no longer says it is the Address Book's hop field.** It is
+  not: a digipeater only repeats frames, while a node hop connects to a node
+  and asks it to connect onward. Confusing the two sends an operator to the
+  wrong field.
+
+**Files:** `kissterm/glossary.py`, `tests/unit/test_glossary.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-23] — Help is a tab, with guides, node commands, a glossary and About
 
 ### New Features

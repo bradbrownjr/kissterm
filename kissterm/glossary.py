@@ -43,8 +43,8 @@ TERMS: tuple[Term, ...] = (
          "Bluetooth, with no interpretation of what is inside them."),
     Term("AX.25", "The link-layer protocol packet radio runs on: addressing, "
          "framing, and -- in connected mode -- the acknowledgement and "
-         "retransmission state machine kissterm implements itself in "
-         "`kissterm/ax25/session.py`."),
+         "retransmission rules kissterm runs itself, which is why it needs "
+         "no special operating-system support."),
     Term("Connected mode", "An AX.25 session with sequence numbers, "
          "acknowledgement and retransmission, the same idea as a TCP "
          "connection. What kissterm's terminal pane holds open with a "
@@ -56,20 +56,20 @@ TERMS: tuple[Term, ...] = (
          "conversation does not."),
     Term("Callsign-SSID", "A station's identity on the air is its amateur "
          "radio callsign plus a Secondary Station Identifier, 0-15, "
-         "written `W1AW-7`. One callsign can run several independent "
-         "AX.25 services -- a BBS on `-1`, a chat port on `-2` -- each its "
+         "written W1AW-7. One callsign can run several independent "
+         "AX.25 services -- a BBS on -1, a chat port on -2 -- each its "
          "own SSID, distinguishable only by that suffix."),
-    Term("SSID", "See Callsign-SSID -- the `-7` half of `W1AW-7`."),
+    Term("SSID", "See Callsign-SSID -- the -7 half of W1AW-7."),
     Term("Digipeater", "A station that repeats a frame addressed through it, "
-         "named in the AX.25 path (`W1AW via K1ABC`). Extends range without "
-         "running a full node; APRS's `WIDE1-1`/`WIDE2-1` paths are the "
+         "named in the AX.25 path (W1AW via K1ABC). Extends range without "
+         "running a full node; APRS's WIDE1-1/WIDE2-1 paths are the "
          "most common use."),
     Term("Node / NET/ROM", "A packet station that itself offers connections "
-         "onward to other stations or services -- typing `C W1AW` at one "
+         "onward to other stations or services -- typing C W1AW at one "
          "node's prompt to reach another over RF, rather than dialing "
-         "`W1AW` directly. NET/ROM is one such routing protocol; BPQ32, "
+         "W1AW directly. NET/ROM is one such routing protocol; BPQ32, "
          "TheNet and KA-Node are node software families kissterm can talk "
-         "to as a client, never run itself (see AGENTS.md's scope note)."),
+         "to. kissterm connects to nodes; it is not one."),
     Term("BBS / Mailbox", "A store-and-forward message system reached over "
          "packet -- read bulletins, leave and collect personal mail. "
          "kissterm is a terminal to one, not a BBS itself."),
@@ -81,14 +81,14 @@ TERMS: tuple[Term, ...] = (
          "per lost frame); long on a clean, fast local link (less "
          "per-frame overhead)."),
     Term("Window (k)", "How many I frames a station may send before it must "
-         "stop and wait for an acknowledgement -- the sliding-window size "
-         "in `kissterm/ax25/window.py`. A bigger window uses a marginal "
+         "stop and wait for an acknowledgement. A bigger window uses a marginal "
          "channel's airtime more efficiently when it works, and wastes "
          "more of it retransmitting when it does not."),
     Term("Modulo 8 / 128", "How far AX.25 sequence numbers count before "
          "wrapping back to zero -- 8 is what almost every TNC on the air "
          "speaks (SABM); 128 (SABME) allows a much bigger window but is "
-         "rarely implemented on the other end. See `Config.modulo`."),
+         "rarely implemented on the other end. Set in Settings; leave it "
+         "at 8 unless you know the far station speaks 128."),
     Term("T1 / T2 / T3", "AX.25's three link timers. T1: \"I sent something "
          "and have not been acknowledged\" -- drives retransmission. T2: "
          "\"wait briefly before acknowledging\", so a reply can piggyback "
@@ -105,7 +105,7 @@ TERMS: tuple[Term, ...] = (
          "the RF path itself."),
     Term("PID", "Protocol ID: one byte in an AX.25 I or UI frame naming what "
          "kind of payload follows -- plain text, NET/ROM routing, or (for "
-         "APRS) `0xF0`, \"no layer 3\"."),
+         "APRS) 0xF0, \"no layer 3\"."),
     Term("Half-duplex", "Only one station on a channel can transmit at a "
          "time and hear the other while doing it -- the normal case for a "
          "packet or voice repeater. Everything in kissterm about airtime "
@@ -119,30 +119,32 @@ TERMS: tuple[Term, ...] = (
          "1200-baud AFSK packet they are equal in practice."),
     Term("Frame", "One complete AX.25 unit on the air: address field, "
          "control field, optional PID and payload, and a trailing checksum "
-         "(FCS), bounded by flag bytes. What a KISS transport moves and "
-         "what `kissterm/ax25/frame.py` encodes and decodes."),
+         "(FCS), bounded by flag bytes. The unit the Monitor tab shows, "
+         "one per line."),
     Term("FCS", "Frame Check Sequence: the CRC at the end of an AX.25 frame "
          "that lets the receiver detect a frame corrupted in transit. A "
          "failed FCS means the frame is silently dropped, not corrected."),
-    Term("Path / Via", "The list of digipeaters a frame is routed through, "
-         "written `DEST via DIGI1,DIGI2`. In the Connect dialog and address "
-         "book, kissterm calls this the \"hops\"/\"via\" field."),
+    Term("Path / Via", "The list of digipeaters a frame is repeated "
+         "through, written DEST via DIGI1,DIGI2 -- type it that way in the "
+         "Connect dialog. Not the same as Node hops in the Address Book: a "
+         "digipeater only repeats frames, while a node hop connects to a "
+         "node and then asks it to connect onward."),
     Term("IGate", "Internet Gateway: a station that relays APRS traffic "
-         "between RF and the internet APRS-IS network. kissterm is "
-         "explicitly not one -- see AGENTS.md's scope boundary and "
-         "`docs/ROADMAP.md` P4 for why igating stays out of scope."),
+         "between RF and the internet APRS-IS network. kissterm is not one "
+         "and does not relay traffic, though it can watch APRS-IS for "
+         "messages to or from you."),
     Term("APRS", "Automatic Packet Reporting System: position, weather and "
-         "short-message traffic riding on unproto UI frames, decoded by "
-         "`kissterm/aprs/` -- a different feature from the plain-text BTEXT "
-         "beacon in `kissterm/beacon.py`, on purpose."),
+         "short-message traffic riding on unproto UI frames, shown on the "
+         "APRS tab. Not the same thing as a plain-text beacon (see Beacon)."),
     Term("Mic-E", "A compact, binary-packed APRS position format -- the "
          "most common one on 2 meters, encoded into what looks like a "
-         "callsign-shaped destination field. See `docs/ROADMAP.md`'s "
-         "caveat: kissterm's decoder is unverified against real traffic."),
+         "callsign-shaped destination field. kissterm's Mic-E decoding has "
+         "not yet been checked against real off-air traffic, so treat an "
+         "odd-looking Mic-E position with suspicion."),
     Term("Beacon (BTEXT)", "An unproto text transmission sent on a timer to "
          "announce a station is on frequency -- free text, not a position. "
-         "Not the same feature as an APRS position beacon; see AGENTS.md's "
-         "beaconing section for why the two are kept deliberately distinct."),
+         "Not the same as an APRS position beacon: they have separate "
+         "settings, and turning on one does not turn on the other."),
 )
 
 
