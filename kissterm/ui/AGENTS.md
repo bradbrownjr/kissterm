@@ -44,7 +44,7 @@ Read this file plus the one pane you are changing.
    reaches a widget. Those bytes came off the air and can carry ANSI escapes
    that repaint the screen or set the window title; a corrupt frame produces
    the same bytes by accident. `TerminalPane.write_incoming` is the sanitized
-   path; `TerminalPane.log` is for text kissterm generated itself. Do not add
+   path; `TerminalPane.write_note` is for text kissterm generated itself. Do not add
    a path around either.
 3. **Lines to a node are CR-terminated, not LF.** Sending LF makes a BPQ32 node
    echo a spurious blank line after every command.

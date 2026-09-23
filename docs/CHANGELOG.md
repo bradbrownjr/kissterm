@@ -3,6 +3,25 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — The Terminal pane no longer hides Textual's logger
+
+### Bug Fixes
+
+- **`TerminalPane.log` is now `write_note`.** The pane's method for local
+  notes was defined over Textual's own `log` property, which Textual calls as
+  `self.log.warning(...)` from its timer and callback dispatch; on this pane
+  that raised `AttributeError` inside Textual. The rename also exposed the
+  hazard's other half: `KissTermApp._to_terminal` looks methods up by name,
+  and a missed `"log"` would have landed silently on Textual's logger, so
+  every one of those calls was renamed with it. The auto-login test in
+  `tests/pilot/test_app_mounts.py` now waits on the peer receiving the lines
+  instead of a fixed two-second sleep.
+
+**Files:** `kissterm/ui/terminal_pane.py`, `kissterm/ui/app.py`,
+`kissterm/ui/AGENTS.md`, `scripts/generate_screenshot.py`,
+`tests/pilot/test_terminal_ux.py`, `tests/pilot/test_terminal_find.py`,
+`tests/pilot/test_app_mounts.py`, `docs/CHANGELOG.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — A transport switched in Settings keeps the transmit switch
 
 ### Bug Fixes

@@ -145,7 +145,7 @@ async def main() -> int:
         from kissterm.ui.terminal_pane import TerminalPane
 
         terminal = app.query_one(TerminalPane)
-        terminal.log("", SESSION)
+        terminal.write_note("", SESSION)
         terminal.set_placeholder("", "connected to W1AW-7")
         app._status = "192.168.1.40:8001"
 

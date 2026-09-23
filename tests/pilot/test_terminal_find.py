@@ -50,7 +50,7 @@ def _fill_log(pane: TerminalPane, marker: str, at: tuple[int, ...], count: int =
         text = f"line {i}"
         if i in at:
             text += f" {marker}"
-        pane.log(pane.active_session_key, text)
+        pane.write_note(pane.active_session_key, text)
     return baseline
 
 

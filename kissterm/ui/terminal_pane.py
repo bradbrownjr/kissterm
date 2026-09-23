@@ -723,7 +723,7 @@ class TerminalPane(Container):
         else:
             self.mark_unread(session_key)
 
-    def log(self, session_key: str, text: str) -> None:
+    def write_note(self, session_key: str, text: str) -> None:
         """Write locally-generated text: status notes, echoes of what we sent.
 
         Deliberately separate from `write_incoming`. Text kissterm produced is
@@ -1238,7 +1238,7 @@ class TerminalPane(Container):
         # operator pasted must not fail to encode mid-session. CR, not LF --
         # see the module docstring.
         await link.send(text.encode("latin-1", "replace") + b"\r")
-        self.log(self.active_session_key, text + "\n")
+        self.write_note(self.active_session_key, text + "\n")
         # The durable half of the same echo. Still one `link.send` in this
         # module: recording what went out is not another way to transmit.
         recorder = getattr(self.app, "log_sent", None)

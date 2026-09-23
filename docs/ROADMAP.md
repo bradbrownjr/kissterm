@@ -157,15 +157,6 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   Fixed by running the frame fan-out in the app's context
   (`FrameTransport.callback_context`); `tests/pilot/test_frame_context.py`
   reproduces the real launch order. Confirm on the air with any node session.
-- [ ] **`TerminalPane.log` shadows Textual's own `log` property.** `open`.
-  `MessagePump.log` is a property returning a `Logger`; the pane defines
-  `log(self, session_key, text)` over it. Textual calls `self.log.warning(...)`
-  on the widget in its own timer- and callback-dispatch paths, which on this
-  pane raises `AttributeError` instead of logging a warning. Not the cause of
-  the missing prompt (that path needs an empty screen stack, which did not
-  happen), but it is a live landmine sitting directly in the message-dispatch
-  machinery the item above is about. Rename the pane's method (`write_note`
-  or similar) and leave Textual's `log` alone.
 - [ ] **The focus highlight never moves: the entry field is always orange.**
   `open`. Reported 2026-09-22: after clicking into the terminal's receive
   box, "the bright box border remains on the text entry field, so I type and

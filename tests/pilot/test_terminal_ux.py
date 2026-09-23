@@ -720,6 +720,24 @@ async def test_tab_moves_focus_normally_when_nothing_is_suggested():
     b.close()
 
 
+@pytest.mark.asyncio
+async def test_the_pane_leaves_textuals_own_log_alone():
+    """Textual calls `self.log.warning(...)` on a widget from its own timer and
+    callback dispatch. The pane used to define `log(session_key, text)` over
+    that property, so those calls raised `AttributeError` inside Textual's
+    machinery instead of logging. Local notes are `write_note`."""
+    app, station, peer, _ = await _connected_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        pane.log.warning("pane logger reachable")  # must not raise
+        pane.write_note(pane.active_session_key, "*** a local note\n")
+        await pilot.pause()
+        assert any("a local note" in line for line in _log_lines(app))
+    station.close()
+    peer.close()
+
+
 def test_send_line_is_the_only_transmit_path_in_the_pane():
     """Read one method to answer 'what can key the transmitter?'.
 
@@ -835,7 +853,7 @@ async def test_existing_scrollback_rewraps_when_the_addressbook_closes():
         log = pane.query_one("#session-log", RichLog)
         assert app.query_one("#terminal-addressbook-column").display
         pane.clear("")
-        pane.log("", "one long old line " * 20)
+        pane.write_note("", "one long old line " * 20)
         await pilot.pause()
         narrow_lines = len(log.lines)
 
@@ -1627,7 +1645,7 @@ async def test_writing_to_a_torn_down_terminal_pane_does_not_raise():
         await pane.query("#session-log").remove()
 
         # Both callback-reachable write paths, neither of which may raise.
-        pane.log("", "*** Disconnected")
+        pane.write_note("", "*** Disconnected")
         pane.write_incoming("", b"hello from the far end\r\n")
         pane._flush_incoming("", final=True)
 

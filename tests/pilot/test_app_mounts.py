@@ -1372,7 +1372,18 @@ async def test_a_saved_script_is_sent_after_the_connect_comes_up(tmp_path):
         await pilot.pause()
         await pilot.click("#connect-go")
         await pilot.pause()
-        await asyncio.sleep(2.0)  # connect, then two lines ~0.75s apart
+        # Connect, then two lines ~0.75s apart. Wait on the peer actually
+        # receiving them, not on a fixed sleep: under parallel load a fixed
+        # budget is what made this fail with an empty log.
+        received = b""
+        deadline = asyncio.get_running_loop().time() + 10.0
+        while asyncio.get_running_loop().time() < deadline:
+            peer_link = peer_station.link_to(MYCALL)
+            if peer_link is not None:
+                received += peer_link.read_nowait()
+                if received.endswith(b"MYPASS\r"):
+                    break
+            await asyncio.sleep(0.05)
         await pilot.pause()
 
         log = app.query_one(TerminalPane).query_one("#session-log")
@@ -1380,9 +1391,8 @@ async def test_a_saved_script_is_sent_after_the_connect_comes_up(tmp_path):
         assert "Auto-login: sending 2 line(s)" in text, text
         assert "CLYDE" in text and "MYPASS" in text, text
 
-        peer_link = peer_station.link_to(MYCALL)
-        assert peer_link is not None, "the connect never reached the peer"
-        assert peer_link.read_nowait() == b"CLYDE\rMYPASS\r"
+        assert peer_station.link_to(MYCALL) is not None, "the connect never reached the peer"
+        assert received == b"CLYDE\rMYPASS\r"
     peer_station.close()
     station.close()
 
