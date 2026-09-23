@@ -3,6 +3,19 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — No "no reply yet" note for an empty line
+
+### Bug Fixes
+
+- **Pressing Enter on an empty line no longer arms the "acknowledged that
+  -- no reply yet" note.** From the CCEMA session of 2026-09-22: with the
+  prompt hidden, the operator sent a blank line to prod the node, the node
+  rightly said nothing, and the note then blamed the far end while the node
+  was waiting on the operator. A line with content still gets the note.
+
+**Files:** `kissterm/ui/app.py`, `tests/pilot/test_transcript_and_color.py`,
+`docs/CHANGELOG.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — The orange border shows where you are typing
 
 ### Bug Fixes

@@ -2005,7 +2005,12 @@ class KissTermApp(App):
         if watch_hop:
             self._watch_typed_hop(session_key, text)
         self._cancel_reply_timer(session_key)
-        if session.link is not None and session.link.connected:
+        # Not for a blank line: that is a nudge, and a node owes it no reply.
+        # From a real report (CCEMA, 2026-09-22): with the prompt hidden, the
+        # operator pressed Enter on an empty line, the node rightly said
+        # nothing, and this note then blamed the far end while the node was
+        # waiting on the operator.
+        if text.strip() and session.link is not None and session.link.connected:
             session.reply_timer = self.set_timer(
                 REPLY_WAIT_SECONDS, lambda: self._note_if_no_reply(session_key)
             )

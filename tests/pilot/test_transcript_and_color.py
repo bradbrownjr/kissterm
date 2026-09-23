@@ -296,3 +296,29 @@ async def test_no_note_while_the_line_is_still_unacknowledged(tmp_path, monkeypa
         assert "acknowledged that" not in text, text
     a.close()
     b.close()
+
+
+@pytest.mark.asyncio
+async def test_no_note_after_an_empty_line(tmp_path, monkeypatch):
+    """From a real report (CCEMA, 2026-09-22 16:30): with the node's prompt
+    hidden, the operator pressed Enter on an empty line to prod the node. It
+    ACKed at the AX.25 layer and, reasonably, said nothing -- and 15 seconds
+    later the note blamed the silence on the far end while the node was
+    waiting on the operator. A blank line is a nudge, not a question."""
+    from kissterm.ui import app as app_module
+
+    monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 0.2)
+    app, a, b, incoming = await _app(_config(tmp_path))
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        await _connect(app, a, b, incoming, pilot)
+        await pilot.pause()
+
+        await app.query_one(TerminalPane).send_line("")
+        await asyncio.sleep(0.5)
+        await pilot.pause()
+
+        text = _rendered(app.query_one(TerminalPane).query_one("#session-log"))
+        assert "acknowledged that" not in text, text
+    a.close()
+    b.close()

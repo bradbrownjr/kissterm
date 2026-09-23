@@ -205,12 +205,13 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   (SoundModem, radio or RF), not at the gate. Close unless it recurs with a
   fresh log showing otherwise.
 - [ ] **"Check the Monitor" hint appears when the node is simply waiting on
-  the operator.** `open`. Reported 2026-09-22 16:33. `_note_if_no_reply`
-  (`kissterm/ui/app.py`) fires when a sent line gets no reply in time. If the
-  reply actually arrived and was only scrolled out of view (the first bug
-  above), the hint is blaming the RF path for a display bug. Re-test once the
-  first item is fixed. If it still fires, decide whether it may fire at all
-  while unread output exists.
+  the operator.** `awaiting confirmation` (2026-09-23). Reported 2026-09-22
+  16:33. **Evidence (that session's transcript):** the prompt `de WS1EC>`
+  arrived at 16:29:46 but was hidden by the prompt bug above, so at 16:30:19
+  the operator sent an EMPTY line to prod the node; the node ACKed it and
+  rightly said nothing, and the note fired 15 s later. The reply was never
+  scrolled out of view -- there was none. Fixed by not arming the reply watch
+  for a blank line (`log_sent`); a line with content still gets it.
 - [ ] **Duplicate WXBOT replies.** `awaiting confirmation`. Reported
   2026-09-11 and again 2026-09-12 after the first fix; deduplication plus an
   extended window shipped 2026-09-12. Confirm across a few requests.
