@@ -2070,3 +2070,74 @@ async def test_the_reference_screen_lists_every_context_with_its_source():
         assert by_name[("LD", "BBS")][2].startswith("List messages with status D")
     a.close()
     b.close()
+
+
+# ---------------------------------------------------------------------------
+# A line whose rest arrives after the idle flush (WS1EC-2 `L`, 2026-09-23)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_line_finished_by_a_later_frame_is_joined_in_place():
+    """At 1200 baud the next 128-byte frame is about a second away, so the
+    idle flush shows the first half of a line before the rest arrives. The
+    rest must continue that line on screen, not start a new one -- and the
+    line's own CR arriving a frame late must not become a blank line. Both
+    boundaries are copied from the operator's transcript of an `L` listing:
+    "2737 ... AMSAT " / " @WW ..." and "... NUMBER  13" / CR "2717 ...".
+    """
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(140, 32)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        pane.clear("")
+
+        async def idle():
+            await asyncio.sleep(0.4)  # longer than the idle flush
+
+        pane.write_incoming("", b"2737   23-Sep BN    6869 AMSAT ")
+        await idle()
+        assert [r.plain for r, _ in pane._buffers[""]] == ["2737   23-Sep BN    6869 AMSAT "], (
+            "a partial line must still be shown after the idle"
+        )
+        pane.write_incoming("", b" @WW     HP2DFA *ARISS News Release No. 26-55*\r")
+        pane.write_incoming("", b"2718   22-Sep BN    2187 WX     @ECBBS  N4SD   NUMBER  13")
+        await idle()
+        pane.write_incoming("", b"\r2717   22-Sep BN    1955 WX     @ECBBS  N4SD   Advisory\r")
+        await pilot.pause()
+
+        expected = [
+            "2737   23-Sep BN    6869 AMSAT  @WW     HP2DFA *ARISS News Release No. 26-55*",
+            "2718   22-Sep BN    2187 WX     @ECBBS  N4SD   NUMBER  13",
+            "2717   22-Sep BN    1955 WX     @ECBBS  N4SD   Advisory",
+        ]
+        assert [r.plain for r, _ in pane._buffers[""]] == expected
+        shown = _log_lines(app)
+        assert "" not in shown, "a late CR became a blank line on screen"
+        # What is on screen is exactly what a full repaint of the buffer
+        # draws: the partial rows were taken back, not left above the rest.
+        pane._replay(app.query_one("#session-log", RichLog), "")
+        assert _log_lines(app) == shown
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_note_after_a_partial_line_closes_it():
+    """Once kissterm writes its own line after a partial one, the partial is
+    no longer last and must not be rewritten when more data arrives."""
+    app, a, b, _ = await _connected_app()
+    async with app.run_test(size=(100, 32)) as pilot:
+        await pilot.pause()
+        pane = app.query_one(TerminalPane)
+        pane.clear("")
+        pane.write_incoming("", b"de WS1EC#>")
+        await asyncio.sleep(0.4)
+        pane.write_note("", "l")
+        pane.write_incoming("", b"2738 listing\r")
+        await pilot.pause()
+        assert [str(r) if isinstance(r, str) else r.plain for r, _ in pane._buffers[""]] == [
+            "de WS1EC#>", "l", "2738 listing",
+        ]
+    a.close()
+    b.close()

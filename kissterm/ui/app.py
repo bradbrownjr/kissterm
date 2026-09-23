@@ -2205,7 +2205,7 @@ class KissTermApp(App):
             # a terminal, so wire bytes with escape sequences in them would
             # reintroduce exactly the problem the pane's filter solves --
             # `cat` on the file would run them.
-            session.transcript.received(sanitize(data))
+            session.transcript.received_stream(data, sanitize)
         self._sniff_node(session_key, data)
         self._capture_harvest(session_key, data)
 

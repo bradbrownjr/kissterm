@@ -370,3 +370,37 @@ def test_started_defaults_to_now_when_omitted(tmp_path):
     # Allow a one-second slop for the truncation to whole seconds in the
     # filename format itself.
     assert before - 1 <= parsed <= after + 1
+
+
+def test_received_stream_writes_whole_lines_across_frame_boundaries(tmp_path):
+    """The boundaries of a real WS1EC-2 `L` listing (2026-09-23): a line
+    split mid-word across frames, and a line whose CR (and LF) arrived in
+    the next frame. The transcript used to show both as broken lines and
+    the second as an extra blank one."""
+    from kissterm.monitor import sanitize
+
+    log = SessionLog(tmp_path, "KC1JMH", "CCEMA", started=time.time(), timestamps=False)
+    log.open()
+    for frame in (
+        b"2737   23-Sep BN    6869 AMSAT ",
+        b" @WW     HP2DFA *ARISS News*\r2718   NUMBER  13",
+        b"\r",
+        b"\n2717   Advisory\r\n",
+        b"\n",  # a genuine blank line, not a split CRLF
+        b"de WS1EC#>",
+    ):
+        log.received_stream(frame, sanitize)
+    log.sent("r 2738")
+    log.close()
+
+    lines = [line for line in log.path.read_text(encoding="utf-8").splitlines()
+             if line and not line.startswith("#")]
+    assert lines == [
+        "< 2737   23-Sep BN    6869 AMSAT  @WW     HP2DFA *ARISS News*",
+        "< 2718   NUMBER  13",
+        "< 2717   Advisory",
+        "< ",
+        "< de WS1EC#>",
+        "> r 2738",
+        "* session closed",
+    ]

@@ -68,6 +68,7 @@ would fight the operator's own scrollback on every repaint.
 
 from __future__ import annotations
 
+from textual.geometry import Size
 from textual.widgets import RichLog
 
 
@@ -87,3 +88,31 @@ class WrapLog(RichLog):
         width = self.scrollable_content_region.width
         if width > 0:
             self.min_width = width
+
+    # -- Taking back the last write -------------------------------------
+    #
+    # The terminal pane shows a partial line (a prompt with no line end, or
+    # the first half of a line whose second half is still on the air) after
+    # a short idle, and must replace it in place when the rest arrives --
+    # otherwise every frame boundary that outlasts the idle becomes a line
+    # break, and a CR arriving a frame late becomes a blank line. RichLog
+    # has no API for that, so these two methods are the only place that
+    # reaches into its internals (`lines`, `_start_line`, `_line_cache`,
+    # `_deferred_renders`, all as of Textual 8.2.8).
+
+    def mark(self) -> tuple[int, int]:
+        """A position to `drop_since` later: rows ever written, and writes
+        still waiting for the widget to learn its size."""
+        return (self._start_line + len(self.lines), len(self._deferred_renders))
+
+    def drop_since(self, mark: tuple[int, int]) -> None:
+        """Remove everything written after `mark`."""
+        rows, deferred = mark
+        while len(self._deferred_renders) > deferred:  # a deque: no slicing
+            self._deferred_renders.pop()
+        extra = self._start_line + len(self.lines) - rows
+        if extra > 0:
+            del self.lines[-extra:]
+            self._line_cache.clear()
+            self.virtual_size = Size(self._widest_line_width, len(self.lines))
+            self.refresh()

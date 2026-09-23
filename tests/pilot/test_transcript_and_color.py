@@ -21,7 +21,8 @@ from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
-from tests.loopback import loopback_pair  # noqa: E402
+from tests.loopback import loopback_pair
+from tests.pilot._wait import wait_for  # noqa: E402
 
 MYCALL = AX25Address.parse("N1ABC-1")
 PEER = AX25Address.parse("WS1EC-7")
@@ -237,10 +238,13 @@ async def test_a_note_appears_once_a_sent_line_goes_unanswered(tmp_path, monkeyp
         await app.query_one(TerminalPane).send_line("L")
         # Nothing sent back on purpose -- b's own link still ACKs the I-frame
         # at the AX.25 layer automatically, same as any real peer would.
-        await asyncio.sleep(0.5)
+        # Waits on the note itself, not a fixed 0.5 s: under parallel load
+        # the ACK plus the 0.2 s reply wait did not always fit (P0.4).
+        log = app.query_one(TerminalPane).query_one("#session-log")
+        await wait_for(lambda: "acknowledged that" in _rendered(log), "the no-reply note")
         await pilot.pause()
 
-        text = _rendered(app.query_one(TerminalPane).query_one("#session-log"))
+        text = _rendered(log)
         assert "acknowledged that" in text, text
         assert str(PEER) in text, text
     a.close()

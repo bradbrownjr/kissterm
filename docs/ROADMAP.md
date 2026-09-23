@@ -177,11 +177,21 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   thing", so this brings the CSS in line with the design rather than adding
   a rule. Add a pilot test that moves focus between the log and the input
   and asserts which one carries the accent border. Small.
-- [ ] **Blank lines between lines of a BBS mail listing (`LM`/`LB`).**
-  `awaiting confirmation`. Reported 2026-09-22 14:26, re-reported 14:44
-  after the first fix; a second fix (hold a trailing CR until it is known
-  whether LF follows) shipped in "Fix BBS line rendering and document
-  commands". Re-test with a real `LM` of more than one page.
+- [ ] **Blank lines and broken lines in a BBS mail listing (`L`, `LM`,
+  `R`).** `fix attempted 3` (2026-09-23), awaiting confirmation. Reported
+  2026-09-22 14:26 and 14:44; re-reported 2026-09-23 ("the wrapping of L is
+  hit or miss, and there's a spare line between messages 2718 and 2717";
+  "r 2738 also exhibits incorrect line breaks").
+  **Root cause, from the 2026-09-23 transcript and debug log.** Both earlier
+  fixes worked on how a CR/LF pair split across two frames is joined. The
+  evidence showed a different split: the pane showed a partial line after
+  0.2 s idle and closed it, but at 1200 baud the next 128-byte frame of the
+  same listing arrived 1 to 9 s later (frames at 12:54:35.4, :36.4, :38.9).
+  So the rest of the line became a new row, and when the line's own CR came
+  in the next frame it became an empty row (2718 / 2717). The fix keeps a
+  timer-flushed partial line open and re-renders it in place when the rest
+  arrives; the transcript file now assembles lines the same way. Re-test with
+  `L` and a long `R`.
 - [ ] **Shortcut bar keeps the previous tab's actions until the pane is
   clicked.** `awaiting confirmation`. Reported 2026-09-21 19:06 ("Going from
   Terminal to APRS keeps connect and disconnect ... until I tab or click

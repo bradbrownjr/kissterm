@@ -25,7 +25,8 @@ does not import or call `kissterm.monitor.sanitize`. Sanitizing here as well
 would be redundant with the monitor pane's own pass and would hide the
 one-sanitizer invariant behind two call sites that could drift out of sync.
 The caller (the pane/session glue) is responsible for calling `sanitize`
-before text reaches `received`, so a transcript file only ever contains
+before text reaches `received` -- or for handing it to `received_stream`,
+which assembles raw frames into lines first -- so a transcript file only ever contains
 already-cleaned text -- but that also means calling this module directly with
 raw wire bytes decoded some other way is a way to reintroduce the exact
 escape-sequence problem `sanitize` exists to prevent.
@@ -43,6 +44,7 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 #: Anything outside this set is stripped, not escaped -- there is no reversible
@@ -109,6 +111,11 @@ class SessionLog:
         self._handle = None
         self._failed = ""
         self._closed = False
+        # `received_stream`'s unterminated tail, and whether the last line
+        # it wrote ended on a CR whose LF may open the next frame.
+        self._partial = b""
+        self._swallow_lf = False
+        self._clean: Callable[[bytes], str] | None = None
 
     @property
     def path(self) -> Path:
@@ -172,12 +179,49 @@ class SessionLog:
             self._handle = None
 
     def sent(self, text: str) -> None:
+        self._flush_partial()
         self._write(">", text)
 
     def received(self, text: str) -> None:
         self._write("<", text)
 
+    def received_stream(self, data: bytes, clean: Callable[[bytes], str]) -> None:
+        """Record raw bytes from the link a line at a time.
+
+        AX.25 delivers a frame at a time, and at 1200 baud the frames of one
+        long line can be seconds apart. Writing each frame as it came made
+        the transcript break lines wherever a frame ended, and write the
+        line's CR, arriving a frame late, as an empty line -- so the file
+        showed the same garbled `L` listing the screen did (2026-09-23), and
+        a transcript is the evidence a bug report is read from. Complete
+        lines are written as they complete; the unterminated tail waits
+        for its end, for something we send, or for `close`.
+
+        `clean` is the caller's sanitizer (`kissterm.monitor.sanitize`),
+        passed in rather than imported, for the reason the module docstring
+        gives: this module never chooses how wire bytes are cleaned.
+        """
+        if self._swallow_lf and data.startswith(b"\n"):
+            data = data[1:]
+        self._swallow_lf = False
+        buf = self._partial + data
+        cut = max(buf.rfind(b"\r"), buf.rfind(b"\n")) + 1
+        self._partial = buf[cut:]
+        if cut:
+            complete = buf[:cut]
+            self._swallow_lf = complete.endswith(b"\r")
+            self._clean = clean
+            self._write("<", clean(complete))
+        elif self._partial:
+            self._clean = clean
+
+    def _flush_partial(self) -> None:
+        if self._partial and self._clean is not None:
+            partial, self._partial = self._partial, b""
+            self._write("<", self._clean(partial))
+
     def note(self, text: str) -> None:
+        self._flush_partial()
         self._write("*", text)
 
     def close(self) -> None:
@@ -190,6 +234,7 @@ class SessionLog:
         """
         if self._closed:
             return
+        self._flush_partial()
         handle = self._handle
         self._closed = True
         if handle is None:

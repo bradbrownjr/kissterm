@@ -388,6 +388,13 @@ class TerminalPane(Container):
         # the next chunk is that CR's other half and not a blank line. See
         # `_flush_incoming`.
         self._swallow_lf: set[str] = set()
+        # A partial line the idle timer showed before its end arrived, kept
+        # so the rest can replace it in place -- see `_flush_incoming`. It is
+        # always the LAST record in that session's buffer; anything appended
+        # after it closes it. `_open_mark` is where it starts in the visible
+        # log (`WrapLog.mark`), for the active session only.
+        self._open_line: dict[str, bytes] = {}
+        self._open_mark: dict[str, tuple[int, int]] = {}
         self._unread: set[str] = set()
         #: Whose session is currently rendered into `#session-log`. `""`
         #: is the pre-connection view -- see the module docstring.
@@ -512,9 +519,7 @@ class TerminalPane(Container):
         old_y = log.scroll_y
         at_end = old_y >= old_max - 1
         log.min_width = width
-        log.clear()
-        for renderable, expand in self._buffers[self.active_session_key]:
-            log.write(renderable, expand=expand)
+        self._replay(log, self.active_session_key)
         if not at_end and old_max > 0:
             # Preserve the reader's approximate place through the transcript.
             # Absolute line numbers no longer mean the same thing after a
@@ -614,6 +619,8 @@ class TerminalPane(Container):
         self._pending_incoming.pop(session_key, None)
         self._unread.discard(session_key)
         self._swallow_lf.discard(session_key)
+        self._open_line.pop(session_key, None)
+        self._open_mark.pop(session_key, None)
         tab_id = _tab_id(session_key)
         self._tab_session_keys.pop(tab_id, None)
         was_active = self.active_session_key == session_key
@@ -647,10 +654,7 @@ class TerminalPane(Container):
         tab_id = _tab_id(session_key) if session_key else ""
         if tabs.active != tab_id and tab_id in self._tab_session_keys:
             tabs.active = tab_id  # posts TabActivated; harmless if it also repaints
-        log = self.query_one("#session-log", RichLog)
-        log.clear()
-        for renderable, expand in self._buffers[session_key]:
-            log.write(renderable, expand=expand)
+        self._replay(self.query_one("#session-log", RichLog), session_key)
         self.set_placeholder(session_key, self._placeholders.get(session_key, ""))
         refresh_status = getattr(self.app, "_refresh_status", None)
         if refresh_status is not None:
@@ -690,22 +694,41 @@ class TerminalPane(Container):
             return widget
         return None
 
-    def _append(self, session_key: str, renderable, *, expand: bool) -> None:
+    def _replay(self, log, session_key: str) -> None:
+        """Repaint `log` from `session_key`'s buffer, re-marking where an
+        open partial line starts, since the row numbers just changed."""
+        log.clear()
+        buf = self._buffers[session_key]
+        for index, (renderable, expand) in enumerate(buf):
+            if index == len(buf) - 1 and session_key in self._open_line:
+                self._open_mark[session_key] = log.mark()
+            log.write(renderable, expand=expand)
+
+    def _append(
+        self, session_key: str, renderable, *, expand: bool, provisional: bool = False
+    ) -> None:
         """Add one already-filtered renderable to `session_key`'s replay
         buffer, trimmed the same way `WrapLog`'s own `max_lines` caps the
         live widget. Writes straight through to the visible log if this is
-        the active session; otherwise marks the tab unread instead."""
+        the active session; otherwise marks the tab unread instead.
+
+        `provisional` marks a partial line the next chunk may replace; any
+        other append closes it, because it is no longer the last record."""
         buf = self._buffers.get(session_key)
         if buf is None:
             # The tab was closed out from under a still-arriving callback
             # (a link outliving the UI) -- nothing left to append to.
             return
+        self._open_line.pop(session_key, None)
+        self._open_mark.pop(session_key, None)
         buf.append((renderable, expand))
         if len(buf) > _BUFFER_LINES:
             del buf[: len(buf) - _BUFFER_LINES]
         if session_key == self.active_session_key:
             log = self._scrollback()
             if log is not None:
+                if provisional:
+                    self._open_mark[session_key] = log.mark()
                 # RichLog's own auto-scroll asks for the bottom before the
                 # new virtual height is incorporated by a refresh. A packet
                 # node's final prompt often has no newline and no following
@@ -755,6 +778,21 @@ class TerminalPane(Container):
         """
         if session_key not in self._pending_incoming:
             return
+        open_line = self._open_line.pop(session_key, None)
+        if open_line is not None:
+            # The rest of a line already on screen: take the partial back
+            # and render it again whole, so a frame that arrived after the
+            # idle flush neither breaks the line nor, if it opens with the
+            # line's own CR, adds a blank one.
+            mark = self._open_mark.pop(session_key, None)
+            buf = self._buffers.get(session_key)
+            if buf:
+                buf.pop()
+            if session_key == self.active_session_key:
+                log = self._scrollback()
+                if log is not None and mark is not None:
+                    log.drop_since(mark)
+            self._pending_incoming[session_key] = open_line + self._pending_incoming[session_key]
         if session_key in self._swallow_lf:
             # The previous chunk ended on a bare CR and that line has already
             # been written. A LF opening this one is the other half of that
@@ -765,10 +803,19 @@ class TerminalPane(Container):
         self._pending_incoming[session_key] += data
         self._flush_incoming(session_key, final=False)
 
-    def _flush_incoming(self, session_key: str, *, final: bool) -> None:
+    def _flush_incoming(
+        self, session_key: str, *, final: bool, provisional: bool = False
+    ) -> None:
         """Write complete buffered lines for `session_key`; `final` also
         flushes a trailing partial one (a prompt with no newline, a dying
-        link, Ctrl+L)."""
+        link, Ctrl+L).
+
+        `provisional` is the idle timer's flush. It shows a partial line so a
+        prompt with no line end is never left unseen, but keeps it open: at
+        1200 baud the next 128-byte frame is about a second away, far longer
+        than the idle, and a flush that closed the line turned every such
+        frame boundary into a line break -- and a CR arriving one frame late
+        into a blank line (WS1EC-2 `L` listing, 2026-09-23)."""
         buf = self._pending_incoming.get(session_key, b"")
         if not buf:
             return
@@ -830,8 +877,15 @@ class TerminalPane(Container):
         lines = list(text.split("\n", allow_blank=True))
         if text.plain.endswith("\n") and lines:
             lines.pop()
-        for line in lines:
-            self._append(session_key, linkify(line), expand=True)
+        partial = provisional and not ready.endswith((b"\r", b"\n"))
+        for index, line in enumerate(lines):
+            last = index == len(lines) - 1
+            self._append(session_key, linkify(line), expand=True, provisional=partial and last)
+        if partial and lines:
+            # The raw bytes of the last, unterminated line: the next chunk is
+            # appended to them and the whole line is filtered again.
+            cut = max(ready.rfind(b"\r"), ready.rfind(b"\n")) + 1
+            self._open_line[session_key] = ready[cut:]
         if not final and self._pending_incoming.get(session_key):
             self._schedule_flush(session_key)
 
@@ -869,13 +923,15 @@ class TerminalPane(Container):
 
     def _on_flush_timer(self, session_key: str) -> None:
         self._flush_timers[session_key] = None
-        self._flush_incoming(session_key, final=True)
+        self._flush_incoming(session_key, final=True, provisional=True)
 
     def clear(self, session_key: str) -> None:
         if session_key not in self._buffers:
             return
         self._pending_incoming[session_key] = b""
         self._swallow_lf.discard(session_key)
+        self._open_line.pop(session_key, None)
+        self._open_mark.pop(session_key, None)
         timer = self._flush_timers.get(session_key)
         if timer is not None:
             timer.cancel()

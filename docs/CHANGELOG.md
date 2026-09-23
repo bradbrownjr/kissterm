@@ -3,6 +3,28 @@
 Format: keep newest at top. One entry per meaningful change. Reference files
 touched and any breaking notes.
 
+## [2026-09-23] — A line split across slow frames stays one line
+
+### Bug Fixes
+
+- **BBS listings no longer break lines at frame boundaries or gain blank
+  lines.** At 1200 baud the frames of one listing arrive about a second
+  apart, which is longer than the 0.2 s idle after which the terminal shows
+  a partial line. The pane then treated the rest of the line as a new row,
+  and a line's CR arriving a frame late as an empty row (WS1EC-2 `L` and
+  `R 2738`). A partial line shown on idle is now kept open and redrawn in
+  place when the rest arrives. A prompt with no line end still appears
+  after the idle.
+- **Transcripts record whole lines.** They used to write one line per
+  frame, so they showed the same breaks.
+- The no-reply-note pilot test now waits on the note rather than a fixed
+  0.5 s. It failed once under parallel load (P0.4).
+
+**Files:** `kissterm/ui/terminal_pane.py`, `kissterm/ui/wraplog.py`,
+`kissterm/session_log.py`, `kissterm/ui/app.py`,
+`tests/pilot/test_terminal_ux.py`, `tests/pilot/test_transcript_and_color.py`,
+`tests/unit/test_session_log.py`, `docs/CHANGELOG.md`, `docs/ROADMAP.md`
+
 ## [2026-09-23] — Keyboard standard and command catalog confirmed on air
 
 - The operator confirmed on a live session that suggestions follow the
