@@ -1,7 +1,8 @@
 # kissterm/mail — local contract
 
-The message store for Mail, Bulletins and Files (ROADMAP P2). No UI, no
-network, no transport: only files under one root (`config.mail_path()`).
+The message store for Mail, Bulletins and Files (ROADMAP P2). No UI and no
+transport: files under one root (`config.mail_path()`), plus `collect.py`,
+which drives a BBS over a link the app has already connected.
 Tests: `tests/unit/test_mail_store.py`, with `_isolate` and `tmp_path`.
 `bpqmail.py` parses BPQMail replies; it is written from the real captures in
 `tests/unit/data/bpqmail/` -- add a capture before changing a pattern.
@@ -20,3 +21,7 @@ Tests: `tests/unit/test_mail_store.py`, with `_isolate` and `tmp_path`.
 - Header values are one line; `format_message` strips CR/LF so a remote
   subject cannot forge a header.
 - **A BBS read is filed only when its end marker arrived** (`BbsRead.complete`).
+- **`collect.py` never sends `K`**, reads only messages the store lacks
+  (`has_bbs_number` before the read, `find` by BID after), and stops by
+  name on anything it does not recognise. Tests use a scripted BBS built
+  from the captures (`tests/unit/test_mail_collect.py`).

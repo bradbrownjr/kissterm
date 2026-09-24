@@ -237,3 +237,17 @@ def test_expired_bulletins(store):
     store.add(wx, _msg(kind=KIND_BULLETIN, category="WX", expires=WHEN + timedelta(days=9)))
     store.add(INBOX, _msg(expires=WHEN))  # mail with an Expires header is still mail
     assert len(store.expired(now=WHEN + timedelta(days=1))) == 1
+
+
+def test_has_bbs_number_by_source_including_deleted(tmp_path):
+    store = MessageStore(tmp_path)
+    store.ensure_default_tree()
+    ref = store.add("Mail/BBS/Inbox", Message(sender="WS1EC", subject="Test", source="BBS WS1EC",
+                                              message_id="2578_WS1EC", extra={"Bbs-Number": "2578"}))
+    assert store.has_bbs_number("BBS WS1EC", 2578)
+    assert not store.has_bbs_number("BBS W1XYZ", 2578)
+    assert not store.has_bbs_number("BBS WS1EC", 2579)
+    store.delete(ref)
+    assert store.has_bbs_number("BBS WS1EC", "2578")
+    # The index is a cache: a fresh store rebuilds the number from the file.
+    assert MessageStore(tmp_path).has_bbs_number("BBS WS1EC", 2578)

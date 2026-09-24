@@ -76,7 +76,7 @@ INDEX_NAME = ".index.json"
 #: folder: nothing is filed here, and each message keeps its own folder so
 #: a reply goes back the way it came. `check_folder` refuses it as a name.
 ALL_INBOXES = "All Inboxes"
-_INDEX_VERSION = 2
+_INDEX_VERSION = 3
 
 #: Folders that exist on a fresh install. Bulletin categories are made as
 #: bulletins are filed.
@@ -152,6 +152,8 @@ class Summary:
     expires: datetime | None
     status: str
     size: int
+    #: The BBS's own message number (`Bbs-Number:`), "" when there is none.
+    bbs_number: str = ""
 
     @property
     def is_read(self) -> bool:
@@ -181,6 +183,7 @@ def _summary_to_json(s: Summary) -> dict:
         "expires": _date_text(s.expires),
         "status": s.status,
         "size": s.size,
+        "bbs_number": s.bbs_number,
     }
 
 
@@ -199,6 +202,7 @@ def _summary_from_json(ref: str, d: dict) -> Summary:
         expires=parse_date(str(d.get("expires", ""))),
         status=str(d.get("status", STATUS_NEW)),
         size=int(d.get("size", 0)),
+        bbs_number=str(d.get("bbs_number", "")),
     )
 
 
@@ -321,6 +325,9 @@ class MessageStore:
             expires=message.expires,
             status=message.status,
             size=stat.st_size,
+            bbs_number=next(
+                (v for k, v in message.extra.items() if k.lower() == "bbs-number"), ""
+            ),
         )
         return stat.st_mtime_ns, stat.st_size, summary
 
@@ -441,6 +448,19 @@ class MessageStore:
             for _m, _z, s in self._index.values()
             if s.message_id == message_id and (not source or s.source == source)
         ]
+
+    def has_bbs_number(self, source: str, number: int | str) -> bool:
+        """Whether a message with this BBS number from `source` is stored.
+
+        A listing (`LM`) shows numbers, not BIDs, so this is the check made
+        before spending airtime on a read; `find` by BID is the second check
+        after it. Deleted counts, as for `find`.
+        """
+        wanted = str(number)
+        self.refresh()
+        return any(
+            s.bbs_number == wanted and s.source == source for _m, _z, s in self._index.values()
+        )
 
     def expired(self, now: datetime | None = None) -> list[Summary]:
         """Bulletins past their expiry that are not already in a Deleted folder."""
