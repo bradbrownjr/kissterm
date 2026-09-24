@@ -50,7 +50,7 @@ def test_defaults_load_with_no_file(tmp_path):
     assert cfg.window == 4
     assert cfg.retries == 10
     assert cfg.t1 == 3.0
-    assert cfg.t2 == 3.0
+    assert cfg.t2 == 1.0
     assert cfg.t3 == 300.0
     assert cfg.monitor_filter == ""
     assert cfg.log_dir == ""
@@ -852,3 +852,9 @@ def test_aprs_ssid_round_trips(tmp_path):
     cfg.aprs.ssid = "9"
     kconfig.save_config(cfg, path=path)
     assert kconfig.load_config(path=path).aprs.ssid == "9"
+
+
+def test_default_timers_pass_the_settings_cross_check():
+    # t1=3, t2=3 shipped for three weeks and Settings warned on every save.
+    from kissterm.ui.settings_schema import cross_check
+    assert not any("T1" in p for p in cross_check(kconfig.Config()))

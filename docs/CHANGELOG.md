@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-24] — Default T2 is 1 s; the shipped timers failed their own check
+
+### Bug Fixes (closed)
+
+- **Saving Settings warned "T1 should be longer than T2" on the default
+  config**: `t1` and `t2` both shipped as 3 s. T2 now defaults to 1 s, as
+  `LinkParams` always did. A value already saved in config.toml is kept.
+
+**Files:** `kissterm/config.py`, `config.toml.example`,
+`tests/unit/test_config.py`, `docs/CHANGELOG.md`
+
 ## [2026-09-24] — A poll while connecting sends the next SABM at once
 
 ### Improvements

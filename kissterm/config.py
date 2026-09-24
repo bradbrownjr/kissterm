@@ -437,8 +437,10 @@ class Config:
     #: T1: how long to wait for an ack before retransmitting (seconds).
     t1: float = 3.0
     #: T2: how long to delay an ack in case an outgoing I-frame can piggyback
-    #: it instead (seconds).
-    t2: float = 3.0
+    #: it instead (seconds). Must stay below `t1` (Settings warns otherwise);
+    #: it was 3.0 alongside t1=3.0 until 2026-09-24, so the shipped defaults
+    #: failed their own check. `LinkParams` has always defaulted to 1.0.
+    t2: float = 1.0
     #: T3: idle-link keepalive poll interval (seconds).
     t3: float = 300.0
     #: Free-text filter applied to the monitor pane, e.g. "APRS" or a callsign.

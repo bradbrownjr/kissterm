@@ -92,7 +92,7 @@ sabm_on_poll = true
 #   t3 - idle-link keepalive: how long a connected link can sit silent
 #        before kissterm pokes it to make sure the other end is still there.
 t1 = 3.0
-t2 = 3.0
+t2 = 1.0
 t3 = 300.0
 
 # Free-text filter applied to the monitor/heard pane. Leave blank to see
