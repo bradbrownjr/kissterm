@@ -423,7 +423,7 @@ responses, so kissterm never reports them with the same words:
   accepts connections from you.
 - **`no answer from <call> after N tries`** -- nothing came back at all. That
   is an antenna, power, squelch or propagation problem, not a configuration
-  one. kissterm sends 6 SABMs over about 18 seconds before saying this;
+  one. kissterm sends 11 SABMs over about 33 seconds before saying this;
   `connect_retries` in Settings (F9) changes that.
 
 The **Monitor tab (F8)** is the real instrument. It shows every frame in both

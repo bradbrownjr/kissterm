@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-24] — Connect retries back to 10, the AX.25 default
+
+### Improvements
+
+- **A connect now sends 11 SABMs (about 33 s) before giving up, not 6.** On
+  the weak path to WS1EC-2 the node heard a SABM but its UA was lost, and
+  its poll for the link it thought was up arrived 6 to 12 s after we had
+  stopped. More SABMs give a UA more chances. Still a separate setting from
+  N2; a `connect_retries` already in config.toml keeps its value.
+
+**Files:** `kissterm/ax25/session.py`, `kissterm/config.py`,
+`kissterm/ui/settings_schema.py`, `config.toml.example`, `README.md`,
+`AGENTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-24] — BPQMail: private read, kill and not-found from captures
 
 ### Improvements

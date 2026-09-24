@@ -101,7 +101,8 @@ docstring is long on purpose. The points that cost time if forgotten:
   from SABME to SABM once. `Config.modulo` selects it; k < modulo.
 - **Answer DM to traffic for a link you do not have**; silence costs the
   caller N2 retries.
-- **Connect retries (5) and N2 (10) are separate budgets on purpose.**
+- **Connect retries and N2 are separate budgets on purpose** (both 10 since
+  2026-09-24; see `DEFAULT_CONNECT_RETRIES`).
 - **Single-threaded per link, no locks.** Never call into a link from a thread.
 - New logic that fits `window.py` or `timers.py` goes there, not into
   `session.py` (the one deliberately large file).

@@ -149,9 +149,9 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "Connect retries",
                 "int",
                 "How many times to resend the connect request (SABM) before "
-                "giving up. Kept lower than N2 on purpose: retrying a connect "
-                "costs one keystroke, while each unanswered attempt is another "
-                "transmission on the channel.",
+                "giving up. The spec default is 10: on a weak path the node "
+                "often hears the request but its reply is lost, so each retry "
+                "is another chance. Lower it on a busy channel.",
                 minimum=1,
                 maximum=100,
             ),

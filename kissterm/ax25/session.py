@@ -92,21 +92,20 @@ log = logging.getLogger(__name__)
 #: Spec default retry count (N2). Beyond this the link is declared failed.
 DEFAULT_RETRIES = 10
 
-#: Retries for the SABM phase only, and deliberately lower than N2.
+#: Retries for the SABM phase only: a separate budget from N2, now with the
+#: same value.
 #:
-#: The two cases are not the same trade, and one number for both is what makes
-#: the spec default feel wrong on a connect. Giving up early on an ESTABLISHED
-#: link throws away a real conversation -- a BBS session, a message half
-#: written -- over what may be one car passing between two antennas, so N2=10
-#: earns its keep there. Giving up early on a CONNECT costs one keystroke:
-#: press Ctrl+N again. Meanwhile each unanswered SABM is a transmission on a
-#: shared channel aimed at a station that, on the evidence so far, is not
-#: listening -- eleven of them is 33 seconds at the default T1, most of a
-#: minute at an HF T1, and the operator watching a screen that says nothing.
+#: It was 5 from 2026-09-05, on the reasoning that an unanswered SABM is a
+#: transmission aimed at a station that is not listening. The log disproved
+#: that on a marginal path (WS1EC-2, 2026-09-24): the node heard a SABM, its
+#: UA was lost, and its RR poll for the link it believed was up arrived 6 to
+#: 12 seconds after we had given up -- we answered it with DM. On a weak path
+#: the node is listening; it is the UA that fails. More SABMs are more chances
+#: for one UA to get through, so the spec default (10) applies here too.
 #:
-#: Five is enough to ride out a fade without turning a dead path into a
-#: monologue.
-DEFAULT_CONNECT_RETRIES = 5
+#: Kept as its own setting so an operator on a busy channel can lower it
+#: without shortening N2 on an established link.
+DEFAULT_CONNECT_RETRIES = 10
 
 FrameSender = Callable[[AX25Frame], Awaitable[None]]
 
@@ -126,7 +125,7 @@ class LinkParams:
     window: int = DEFAULT_WINDOW
     retries: int = DEFAULT_RETRIES
     #: N2 for the SABM phase only. See `DEFAULT_CONNECT_RETRIES` for why this
-    #: is a separate number rather than a smaller `retries`.
+    #: is a separate number from `retries`.
     connect_retries: int = DEFAULT_CONNECT_RETRIES
     t1: float = 8.0
     t2: float = 1.0

@@ -428,11 +428,9 @@ class Config:
     #: actually lives.
     window: int = 4
     retries: int = 10
-    #: N2 for the SABM phase only, deliberately lower than `retries`. Giving up
-    #: early on a connect costs one keystroke; giving up early on an
-    #: established link throws away a real conversation. See
-    #: `ax25/session.py::DEFAULT_CONNECT_RETRIES`.
-    connect_retries: int = 5
+    #: N2 for the SABM phase only, a separate budget from `retries` (both
+    #: default to 10). See `ax25/session.py::DEFAULT_CONNECT_RETRIES`.
+    connect_retries: int = 10
     #: T1: how long to wait for an ack before retransmitting (seconds).
     t1: float = 3.0
     #: T2: how long to delay an ack in case an outgoing I-frame can piggyback

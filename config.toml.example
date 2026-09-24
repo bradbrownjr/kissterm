@@ -71,12 +71,11 @@ window = 4
 retries = 10
 
 # How many times to resend the connect request (SABM) before giving up.
-# Deliberately lower than N2 above, because the two are different trades:
-# retrying a connect costs one keystroke (Ctrl+N again), while every
-# unanswered attempt is another transmission on a shared channel aimed at a
-# station that is evidently not listening. At the default t1 below, 5 gives up
-# after about 18 seconds instead of 33.
-connect_retries = 5
+# Separate from N2 above so it can be lowered on a busy channel. The spec
+# default is 10: on a weak path the node often hears a SABM but its reply is
+# lost, and each retry is another chance for one to get through. At the
+# default t1 below, 10 gives up after about 33 seconds.
+connect_retries = 10
 
 # Link timers, all in seconds:
 #   t1 - how long to wait for an acknowledgement before retransmitting.
