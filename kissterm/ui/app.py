@@ -894,6 +894,10 @@ class KissTermApp(App):
             # the tab -- back to the pane just left.
             with contextlib.suppress(Exception):
                 self.set_focus(self.query_one(target))
+                # The Footer is redrawn on a tab switch, not on focus; without
+                # this the list's keys (G) stayed off it until something else
+                # redrew it.
+                self.query_one(KissTermFooter).refresh_bindings()
 
     def _show_transport_problem(self) -> None:
         """Land on Settings > Transports after a startup open failed.
@@ -2999,14 +3003,18 @@ class KissTermApp(App):
     async def _run_command_action(self, action: str) -> None:
         await self.run_action(action)
 
-    def action_menu(self) -> None:
-        """F10: the menu bar, opened at the heading for this tab's work."""
+    def action_menu(self, group: str = "") -> None:
+        """F10: the menu bar, opened at the heading for this tab's work, or
+        at `group` when a heading in the header was clicked."""
+        if isinstance(self.screen, MenuScreen):
+            self.screen.dismiss(None)
+            return
         tab = self.active_tab()
         groups = [
             (title, [(c, self.command_unavailable(c)) for c in entries])
             for title, entries in cmdreg.menu_groups()
         ]
-        start_title = cmdreg.MENU_GROUP_FOR_TAB.get(tab, "View")
+        start_title = group or cmdreg.MENU_GROUP_FOR_TAB.get(tab, "View")
         start = next(i for i, (title, _e) in enumerate(groups) if title == start_title)
 
         def _chosen(command: cmdreg.Command | None) -> None:
@@ -3326,6 +3334,7 @@ class KissTermApp(App):
         redial: ConnectRequest | None = None,
         on_link=None,
         on_reached=None,
+        focus_session: bool = True,
     ) -> None:
         """Connect to a station, via the dialog or dialed directly.
 
@@ -3341,6 +3350,8 @@ class KissTermApp(App):
         `on_link(link, key)` is called the moment the link is up, before
         anything awaits, and `on_reached(bool)` once the hop chain has (or
         has not) reached the target -- Get mail's hooks (`action_get_mail`).
+        `focus_session=False` leaves focus alone: Get mail runs from the Mail
+        tab, and focus in the hidden send line would switch to Terminal.
         """
         if self.station is None:
             if self.session_transport is not None:
@@ -3605,7 +3616,7 @@ class KissTermApp(App):
         # the terminal pane fixed what the operator watched live but left
         # the durable transcript with the same hole.
         self._note(key, f"\n*** Connected to {link.peer}\n")
-        if pane.active_session_key == key:
+        if focus_session and pane.active_session_key == key:
             # Only if the operator is still looking at this tab -- a long
             # SABM retry (or an HF hop chain below) can outlast several
             # tab switches, and stealing focus back would be exactly the
@@ -3953,7 +3964,7 @@ class KissTermApp(App):
                 link,
                 self.mail_store,
                 options,
-                note=lambda text: self._to_terminal(key, "write_note", f"*** Mail: {text}\n"),
+                note=lambda text: self._mail_note(key, text),
                 sent=lambda text: self._mail_sent(key, text),
                 gate_open=lambda: self.gate.enabled,
             )
@@ -3962,27 +3973,52 @@ class KissTermApp(App):
             state["reached"] = reached
 
         self._collecting = True
-        # The session is where it happens, and the connect puts focus in the
-        # session's send line: shown from the Mail tab, keys pressed there
-        # would be typed into a pane the operator cannot see.
-        self.action_show_tab("terminal")
+        # The operator stays on the Mail tab: a toast says a connect is under
+        # way, and the tab's status line follows it. The whole session is in
+        # the Terminal tab (F5) for anyone who wants to watch.
+        self.notify(f"Connecting to {entry.target} to get mail...", timeout=4)
+        self._mail_status(f"Connecting to {entry.target}...")
         try:
-            worker = self.action_connect(prefill=entry, on_link=on_link, on_reached=on_reached)
+            worker = self.action_connect(
+                prefill=entry, on_link=on_link, on_reached=on_reached, focus_session=False
+            )
             await worker.wait()
             collector = state["collector"]
             if collector is None:
+                self._mail_status(
+                    f"Could not connect to {entry.target}. The Terminal tab (F5) says why."
+                )
                 return
             if not state["reached"]:
                 collector.close()
+                self._mail_status(
+                    f"Did not reach {entry.target}. The Terminal tab (F5) says why."
+                )
                 return
             result = await collector.run()
             key = state["key"]
+            if result.stopped:
+                self._mail_status(f"Stopped: {result.stopped}. {len(result.filed)} filed.")
+            elif result.filed:
+                self._mail_status(f"{len(result.filed)} new message(s).")
+            else:
+                self._mail_status("No new mail.")
             if result.filed:
                 self.notify(f"{len(result.filed)} new message(s) from the Home BBS.")
             self._reload_mail_tabs()
             await self._disconnect_session(key)
         finally:
             self._collecting = False
+
+    def _mail_note(self, key: str, text: str) -> None:
+        """A Get mail progress line: the session log, and the Mail tab's
+        status line."""
+        self._to_terminal(key, "write_note", f"*** Mail: {text}\n")
+        self._mail_status(text)
+
+    def _mail_status(self, text: str) -> None:
+        with contextlib.suppress(Exception):
+            self.query_one("#mail-browser", MessageBrowser).set_status(text)
 
     def _mail_sent(self, key: str, text: str) -> None:
         """Echo a line Get mail sent, as a typed line is echoed."""

@@ -27,8 +27,9 @@ from datetime import datetime, timezone
 
 from rich.text import Text
 from textual.app import ComposeResult
-from textual.widgets import Header
-from textual.widgets._header import HeaderClock, HeaderClockSpace, HeaderIcon, HeaderTitle
+from textual.containers import Horizontal
+from textual.widgets import Header, Static
+from textual.widgets._header import HeaderClock, HeaderClockSpace, HeaderTitle
 
 def format_time(moment: datetime, use_24h: bool, utc: bool) -> str:
     """One clock time, marked as UTC when it is.
@@ -137,8 +138,33 @@ class KissTermClock(HeaderClock):
         )
 
 
+class HeaderMenuTitle(Static):
+    """One always-visible menu heading in the header; a click opens it."""
+
+    DEFAULT_CSS = """
+    HeaderMenuTitle {
+        width: auto;
+        padding: 0 1;
+    }
+    HeaderMenuTitle:hover {
+        background: $accent 30%;
+    }
+    """
+
+    def __init__(self, title: str) -> None:
+        super().__init__(title, classes="header-menu-title")
+        self.title = title
+
+    def on_click(self, event) -> None:
+        event.stop()
+        self.app.action_menu(self.title)  # type: ignore[attr-defined]
+
+
 class KissTermHeader(Header):
-    """`Header`, but with kissterm's configurable clock and no click-to-expand.
+    """`Header`, but with the menu headings, kissterm's configurable clock
+    and no click-to-expand.
+
+    #header-menu is docked left, where Textual's icon was.
 
     Only `compose` and `_on_click` differ from the base class: the icon and
     title are Textual's own. Kept as a subclass rather than a from-scratch
@@ -155,6 +181,14 @@ class KissTermHeader(Header):
     A layout change with no content behind it is not a feature.
     """
 
+    DEFAULT_CSS = """
+    KissTermHeader #header-menu {
+        dock: left;
+        width: auto;
+        height: 1;
+    }
+    """
+
     def _on_click(self, event) -> None:
         # `prevent_default`, not merely overriding `_on_click`: Textual
         # dispatches an event to EVERY matching handler up the MRO, so a
@@ -167,10 +201,16 @@ class KissTermHeader(Header):
         event.prevent_default()
 
     def compose(self) -> ComposeResult:
-        # The Textual default icon is a Unicode ring. Keep the command-palette
-        # affordance in ASCII-safe mode without changing the header geometry.
-        if getattr(self.app.config, "ascii_safe", False):
-            self.icon = "*"
-        yield HeaderIcon().data_bind(Header.icon)
+        # The menu headings, always on show at the left of the top row, as
+        # Midnight Commander's are; a click opens that heading (F10 opens the
+        # one for the tab in front). They replace Textual's command-palette
+        # icon, which Ctrl+P and F10 > Help > Search commands still reach.
+        # The open menu (`MenuScreen`) draws its own bar over this row with
+        # the same padding, so the headings do not move when it opens.
+        from .commands import MENU_GROUPS
+
+        with Horizontal(id="header-menu"):
+            for title in MENU_GROUPS:
+                yield HeaderMenuTitle(title)
         yield HeaderTitle()
         yield KissTermClock() if self._show_clock else HeaderClockSpace()

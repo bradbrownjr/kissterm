@@ -5,6 +5,32 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-24] — Menu headings always shown; Get mail stays on the Mail tab
+
+### Improvements
+
+- **The menu headings are always on the top row** (Session, APRS, View,
+  Help), as in Midnight Commander; a click opens one, and a click anywhere
+  outside the open menu closes it. They replace Textual's palette icon;
+  Ctrl+P still opens the palette.
+- **Get mail leaves you on the Mail tab**: a toast says it is connecting,
+  and a status line above the list follows it (connecting, reading 1 of 2,
+  done or why it stopped). The session is still in the Terminal tab. The
+  connect no longer moves focus into the hidden send line, which is what
+  switched tabs.
+
+### Bug Fixes (closed)
+
+- **G was missing from the bottom bar at launch** although the Mail list
+  had focus: the bar is redrawn on a tab switch, not on focus. It is now
+  redrawn when the launch tab takes focus.
+
+**Files:** `kissterm/ui/clock.py`, `kissterm/ui/menu.py`,
+`kissterm/ui/app.py`, `kissterm/ui/mail_pane.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_get_mail.py`, `tests/pilot/test_menu_and_help.py`,
+`tests/pilot/test_app_mounts.py`, `DESIGN.md`, `assets/`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-24] — Get mail: setup on first use, G in the bar and menu, calmer Settings
 
 ### Improvements

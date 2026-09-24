@@ -220,3 +220,24 @@ async def test_node_commands_opens_on_the_identified_node_type():
         await _settle(pilot)
         assert app.query_one("#help-node-family").value == wanted
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_menu_headings_are_always_shown_and_a_click_opens_and_closes_one():
+    from kissterm.ui.clock import HeaderMenuTitle
+    from kissterm.ui.menu import MenuScreen
+
+    app, station, _ta = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        titles = [t.title for t in app.query(HeaderMenuTitle)]
+        assert titles == ["Session", "APRS", "View", "Help"]
+        aprs = next(t for t in app.query(HeaderMenuTitle) if t.title == "APRS")
+        await pilot.click(aprs)
+        await pilot.pause()
+        assert isinstance(app.screen, MenuScreen)
+        assert app.screen.groups[app.screen.current][0] == "APRS"
+        # A click away from the open list closes it.
+        await pilot.click(offset=(100, 30))
+        await pilot.pause()
+        assert not isinstance(app.screen, MenuScreen)

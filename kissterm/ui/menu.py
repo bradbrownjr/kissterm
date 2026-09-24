@@ -7,8 +7,11 @@ its own to be reachable -- which is what let the key budget shrink to the
 terminal-safe set in `commands.py`. It is generated from `commands.COMMANDS`,
 so nothing can be in the menu under one name and in the Footer under another.
 
-Keys inside the menu: Left/Right change heading, Up/Down move, Enter runs,
-the highlighted letter runs that entry directly, Esc or F10 closes. Letters
+The headings are always on show in the header (`clock.KissTermHeader`), as
+Midnight Commander's are; clicking one opens it. Keys inside the menu:
+Left/Right change heading, Up/Down move, Enter runs, the highlighted letter
+runs that entry directly, Esc or F10 closes, and so does a click anywhere
+outside the open list. Letters
 are handled in `on_key`, not as `BINDINGS`, because a plain-letter binding is
 exactly what the key standard forbids outside a focused list.
 
@@ -162,6 +165,12 @@ class MenuScreen(ModalScreen[Command | None]):
     def _show_hint(self, index: int | None) -> None:
         hint = self._entries()[index][0].help if index is not None else ""
         self.query_one("#menu-hint", Static).update(Text(hint, overflow="fold"))
+
+    def on_click(self, event: events.Click) -> None:
+        """A click anywhere but the open list or a heading closes the menu:
+        an operator who opened it with the mouse has a hand on the mouse."""
+        if event.widget is self or getattr(event.widget, "id", None) == "menu-bar":
+            self.dismiss(None)
 
     def action_step(self, delta: int) -> None:
         self.open_group(self.current + delta)

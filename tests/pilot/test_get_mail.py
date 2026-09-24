@@ -97,8 +97,13 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
         app.query_one("#mail-browser").query_one(MessageList).focus()
         await pilot.press("g")
         await pilot.pause()
-        assert app.query_one("#main-tabs").active == "terminal"  # watch it happen
+        # The operator stays on Mail, told what is happening.
+        assert app.query_one("#main-tabs").active == "mail"
+        assert any("Connecting to WS1EC-2" in str(n.message) for n in app._notifications)
         await wait_for(lambda: app.mail_store.list(BBS_INBOX), "the message to be filed")
+        assert app.query_one("#main-tabs").active == "mail"
+        status = app.query_one("#mail-browser .mail-status")
+        await wait_for(lambda: "1 new message" in str(status.render()), "the status line")
         link = station.link_to(BBS)
         await wait_for(lambda: not link.connected, "the disconnect")
         assert heard == ["LM", "R 2578"]
@@ -190,4 +195,21 @@ async def test_mail_opens_with_its_list_focused_and_g_in_the_footer(tmp_path):
         await pilot.pause()
         assert isinstance(app.focused, MessageList)
         assert "g" not in app.screen.active_bindings  # Mail only
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_launch_footer_shows_g_on_mail(tmp_path):
+    from textual.widgets._footer import FooterKey
+
+    from kissterm.ui.app import KissTermFooter
+
+    app, station, _tb = await _app(tmp_path)
+    app.config.start_tab = "mail"
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await wait_for(
+            lambda: "get_mail" in [k.action for k in app.query_one(KissTermFooter).query(FooterKey)],
+            "G in the footer at launch",
+        )
     station.close()

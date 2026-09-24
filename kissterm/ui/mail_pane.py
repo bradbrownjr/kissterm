@@ -38,7 +38,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
-from textual.widgets import DataTable, Tree
+from textual.widgets import DataTable, Static, Tree
 
 from ..mail import MessageStore
 from ..mail.store import ALL_INBOXES, DELETED, FILES, check_folder, is_deleted_folder
@@ -146,11 +146,20 @@ class MessageBrowser(Horizontal):
         tree.guide_depth = 2
         yield tree
         with Vertical(classes="mail-right"):
+            yield Static("", classes="mail-status")
             yield MessageList(cursor_type="row", zebra_stripes=True, classes="mail-list")
             yield WrapLog(classes="mail-reader", wrap=True, markup=False, highlight=False)
 
     def on_mount(self) -> None:
+        self.query_one(".mail-status", Static).display = False
         self.reload()
+
+    def set_status(self, text: str) -> None:
+        """One line above the list: what Get mail is doing (connecting,
+        reading 2 of 3, done). Hidden when empty."""
+        status = self.query_one(".mail-status", Static)
+        status.update(Text(text))
+        status.display = bool(text)
 
     # -- tree ---------------------------------------------------------------
 

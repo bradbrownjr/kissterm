@@ -1173,9 +1173,8 @@ async def test_clicking_the_header_does_not_reshuffle_the_layout():
         await pilot.pause()
         header = app.query_one("Header")
         before = header.size.height
-        # The TITLE, not the Header origin: the origin is HeaderIcon,
-        # which handles its own click (command palette) and stops it
-        # before the toggle ever sees it. Clicking there proves nothing.
+        # The TITLE, not the menu headings at the left, which answer their
+        # own click. Clicking there proves nothing.
         await pilot.click("HeaderTitle")
         await pilot.pause()
         await asyncio.sleep(0.1)
@@ -1185,16 +1184,18 @@ async def test_clicking_the_header_does_not_reshuffle_the_layout():
         )
         assert not header.has_class("-tall")
 
-        # ...and the one click the header IS supposed to answer still works.
+        # ...and the clicks the header IS supposed to answer still work: the
+        # menu headings (which replaced Textual's palette icon, 2026-09-24).
         # The toggle is suppressed with `prevent_default`, which stops
-        # Textual's MRO walk -- if that had been done by stopping the event
-        # instead, the command palette icon would have gone with it.
-        await pilot.click("HeaderIcon")
+        # Textual's MRO walk -- stopping the event instead would have taken
+        # the headings' clicks with it.
+        await pilot.click(".header-menu-title")
         await pilot.pause()
         await asyncio.sleep(0.1)
-        assert type(app.screen).__name__ == "CommandPalette", (
-            f"the header icon no longer opens the palette (got {type(app.screen).__name__})"
+        assert type(app.screen).__name__ == "MenuScreen", (
+            f"a header menu heading no longer opens the menu (got {type(app.screen).__name__})"
         )
+        assert header.size.height == before
     station.close()
 
 

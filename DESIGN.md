@@ -374,6 +374,16 @@ module docstring for the full reasoning:
   reasoning that keeps a beacon or a disconnect from ever being silent
   elsewhere in this app.
 
+- **The menu headings are always on the top row** (Session, APRS, View,
+  Help), as Midnight Commander's are, where Textual's palette icon was. A
+  click opens that heading; F10 opens the one for the tab in front. The open
+  menu draws its own bar at the same columns, so nothing moves. Esc, F10 or
+  a click anywhere outside the open list closes it: an operator who opened
+  it with the mouse has a hand on the mouse (2026-09-24).
+- **Get mail does not move the operator.** It stays on the Mail tab with a
+  toast and a status line above the list; the session itself is in the
+  Terminal tab for anyone who wants to watch.
+
 ---
 
 ## 6. The bottom two rows
