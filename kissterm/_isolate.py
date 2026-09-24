@@ -37,6 +37,15 @@ import tempfile
 from pathlib import Path
 
 
+#: The scratch tree the first `isolate()` in this process chose.
+_BASE: Path | None = None
+
+
+def isolated_base() -> Path | None:
+    """The scratch tree `isolate()` set up in this process, or None."""
+    return _BASE
+
+
 def isolate(root: str | Path | None = None) -> Path:
     """Monkeypatch `platformdirs` to a scratch directory tree and return it.
 
@@ -50,7 +59,17 @@ def isolate(root: str | Path | None = None) -> Path:
     """
     import platformdirs
 
-    base = Path(root) if root is not None else Path(tempfile.mkdtemp(prefix="kissterm-test-"))
+    global _BASE
+    if root is not None:
+        base = Path(root)
+    elif _BASE is not None:
+        # One scratch tree per process: `tests/conftest.py` isolates before
+        # any test file loads, and each file's own call must land in the
+        # same place or paths computed at import time would disagree.
+        base = _BASE
+    else:
+        base = Path(tempfile.mkdtemp(prefix="kissterm-test-"))
+    _BASE = base
     config_dir = base / "config"
     state_dir = base / "state"
     data_dir = base / "data"
