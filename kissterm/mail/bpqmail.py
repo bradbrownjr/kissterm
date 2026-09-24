@@ -33,8 +33,8 @@ What the captures show:
   With the node's "Include SYSOP msgs in LM" off, `LM` lists only mail to
   the user's own call.
 
-Not yet captured, so not relied on: what `LM` says when there is no mail at
-all.
+- `LM` with no mail at all answers with the prompt alone: no "no messages"
+  line (2026-09-24). An empty listing is an empty list, not an error.
 """
 
 from __future__ import annotations

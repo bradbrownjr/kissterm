@@ -148,3 +148,9 @@ def test_waiting_count_from_the_greeting():
     assert waiting(_lines("read_2578_private.txt")) == 2
     assert waiting(["You have 1 message waiting for you."]) == 1
     assert waiting(["de WS1EC#>"]) is None
+
+
+def test_lm_with_no_mail_is_the_prompt_alone():
+    lines = _lines("list_lm_empty.txt")
+    assert parse_list(lines) == []
+    assert [prompt_call(line) for line in lines if line.strip()] == ["WS1EC"]

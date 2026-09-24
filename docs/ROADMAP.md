@@ -214,7 +214,7 @@ anything taken from its behaviour rather than from documentation
   message once. Large.
   *Progress:* the reply parser (`kissterm/mail/bpqmail.py`) is done from
   WS1EC-2 captures, including a private read, `K` and `R` of a missing
-  message (2026-09-24). Still to capture: `LM` with no mail waiting.
+  message, and `LM` with and without mail (2026-09-24).
 - [ ] **Bulletin collection** into Bulletins/<category>, using the
   same session with a category or keyword filter. Medium.
 

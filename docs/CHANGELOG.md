@@ -57,7 +57,8 @@ you need the history of a specific change.
   operator's WS1EC-2 session. `killed()` and `not_found()` read the last two.
 - **`LM` captured**: it lists read mail as well as unread, so collection will
   go by BID, not status. `waiting()` reads the greeting's unread count.
-  `LM` with no mail at all is still uncaptured.
+  `LM` with no mail at all answers with the prompt alone (captured the same
+  day, `list_lm_empty.txt`).
 
 **Files:** `kissterm/mail/bpqmail.py`, `tests/unit/test_mail_bpqmail.py`,
 `tests/unit/data/bpqmail/`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`

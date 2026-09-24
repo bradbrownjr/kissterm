@@ -24,4 +24,5 @@ removed, and the operator's own keystrokes (`> ...`) dropped.
   nothing unread; lists read private mail only (the node's "Include SYSOP
   msgs in LM" is off).
 
-Not yet captured: the reply to `LM` when there is no mail at all.
+- `list_lm_empty.txt`: 2026-09-24, the reply to a second `LM` with no mail
+  at all: the prompt alone.
