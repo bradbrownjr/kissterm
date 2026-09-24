@@ -14,7 +14,8 @@ you need the history of a specific change.
   every scrollback is built on, has no selection support, and the app holds
   the mouse. `WrapLog` now supplies the selection, so all of them get it.
   The selection is copied when the drag ends, as herdr and other
-  copy-on-highlight terminals do.
+  copy-on-highlight terminals do. The highlight keeps the text's own colour:
+  tokyo-night's selection style is one colour on itself, which hid the text.
 
 **Files:** `kissterm/ui/wraplog.py`, `kissterm/ui/app.py`, `tests/pilot/test_text_selection.py`,
 `tests/unit/test_docs_keys.py`, `README.md`, `DESIGN.md`, `docs/CHANGELOG.md`
