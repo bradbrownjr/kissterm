@@ -375,7 +375,7 @@ module docstring for the full reasoning:
   elsewhere in this app.
 
 - **The menu headings are always on the top row** (Session, APRS, View,
-  Help), as Midnight Commander's are, where Textual's palette icon was. A
+  Help), as Midnight Commander's are, right of Textual's palette icon. A
   click opens that heading; F10 opens the one for the tab in front. The open
   menu draws its own bar at the same columns, so nothing moves. Esc, F10 or
   a click anywhere outside the open list closes it: an operator who opened

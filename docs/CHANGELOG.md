@@ -11,8 +11,8 @@ you need the history of a specific change.
 
 - **The menu headings are always on the top row** (Session, APRS, View,
   Help), as in Midnight Commander; a click opens one, and a click anywhere
-  outside the open menu closes it. They replace Textual's palette icon;
-  Ctrl+P still opens the palette.
+  outside the open menu closes it. Textual's palette icon stays at the far
+  left, with the headings to its right.
 - **Get mail leaves you on the Mail tab**: a toast says it is connecting,
   and a status line above the list follows it (connecting, reading 1 of 2,
   done or why it stopped). The session is still in the Terminal tab. The

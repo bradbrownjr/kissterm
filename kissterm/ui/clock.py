@@ -29,7 +29,7 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import Header, Static
-from textual.widgets._header import HeaderClock, HeaderClockSpace, HeaderTitle
+from textual.widgets._header import HeaderClock, HeaderClockSpace, HeaderIcon, HeaderTitle
 
 def format_time(moment: datetime, use_24h: bool, utc: bool) -> str:
     """One clock time, marked as UTC when it is.
@@ -164,7 +164,7 @@ class KissTermHeader(Header):
     """`Header`, but with the menu headings, kissterm's configurable clock
     and no click-to-expand.
 
-    #header-menu is docked left, where Textual's icon was.
+    #header-menu is docked left: the palette icon, then the menu headings.
 
     Only `compose` and `_on_click` differ from the base class: the icon and
     title are Textual's own. Kept as a subclass rather than a from-scratch
@@ -187,6 +187,10 @@ class KissTermHeader(Header):
         width: auto;
         height: 1;
     }
+    KissTermHeader #header-menu HeaderIcon {
+        dock: none;
+        width: 8;
+    }
     """
 
     def _on_click(self, event) -> None:
@@ -201,15 +205,19 @@ class KissTermHeader(Header):
         event.prevent_default()
 
     def compose(self) -> ComposeResult:
-        # The menu headings, always on show at the left of the top row, as
-        # Midnight Commander's are; a click opens that heading (F10 opens the
-        # one for the tab in front). They replace Textual's command-palette
-        # icon, which Ctrl+P and F10 > Help > Search commands still reach.
-        # The open menu (`MenuScreen`) draws its own bar over this row with
-        # the same padding, so the headings do not move when it opens.
+        # Textual's command-palette icon, then the menu headings, always on
+        # show as Midnight Commander's are; a click opens that heading (F10
+        # opens the one for the tab in front). The open menu (`MenuScreen`)
+        # draws its own bar over this row, led by the same width, so the
+        # headings do not move when it opens.
         from .commands import MENU_GROUPS
 
+        # The Textual default icon is a Unicode ring. Keep the command-palette
+        # affordance in ASCII-safe mode without changing the header geometry.
+        if getattr(self.app.config, "ascii_safe", False):
+            self.icon = "*"
         with Horizontal(id="header-menu"):
+            yield HeaderIcon().data_bind(Header.icon)
             for title in MENU_GROUPS:
                 yield HeaderMenuTitle(title)
         yield HeaderTitle()

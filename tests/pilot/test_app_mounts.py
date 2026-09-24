@@ -1185,7 +1185,7 @@ async def test_clicking_the_header_does_not_reshuffle_the_layout():
         assert not header.has_class("-tall")
 
         # ...and the clicks the header IS supposed to answer still work: the
-        # menu headings (which replaced Textual's palette icon, 2026-09-24).
+        # menu headings, right of Textual's palette icon (2026-09-24).
         # The toggle is suppressed with `prevent_default`, which stops
         # Textual's MRO walk -- stopping the event instead would have taken
         # the headings' clicks with it.
@@ -1196,6 +1196,15 @@ async def test_clicking_the_header_does_not_reshuffle_the_layout():
             f"a header menu heading no longer opens the menu (got {type(app.screen).__name__})"
         )
         assert header.size.height == before
+        await pilot.press("escape")
+        await pilot.pause()
+        # The palette icon stays, left of the headings.
+        await pilot.click("HeaderIcon")
+        await pilot.pause()
+        await asyncio.sleep(0.1)
+        assert type(app.screen).__name__ == "CommandPalette", (
+            f"the header icon no longer opens the palette (got {type(app.screen).__name__})"
+        )
     station.close()
 
 

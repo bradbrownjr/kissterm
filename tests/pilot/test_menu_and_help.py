@@ -232,11 +232,17 @@ async def test_menu_headings_are_always_shown_and_a_click_opens_and_closes_one()
         await pilot.pause()
         titles = [t.title for t in app.query(HeaderMenuTitle)]
         assert titles == ["Session", "APRS", "View", "Help"]
+        closed = [(t.region.x, t.region.width) for t in app.query(HeaderMenuTitle)]
         aprs = next(t for t in app.query(HeaderMenuTitle) if t.title == "APRS")
         await pilot.click(aprs)
         await pilot.pause()
         assert isinstance(app.screen, MenuScreen)
         assert app.screen.groups[app.screen.current][0] == "APRS"
+        # The open menu's headings sit exactly where the header's are.
+        from kissterm.ui.menu import _MenuTitle
+
+        opened = [(t.region.x, t.region.width) for t in app.screen.query(_MenuTitle)]
+        assert opened == closed and closed[0][0] > 0  # the palette icon is first
         # A click away from the open list closes it.
         await pilot.click(offset=(100, 30))
         await pilot.pause()

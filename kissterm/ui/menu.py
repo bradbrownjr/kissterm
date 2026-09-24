@@ -7,7 +7,8 @@ its own to be reachable -- which is what let the key budget shrink to the
 terminal-safe set in `commands.py`. It is generated from `commands.COMMANDS`,
 so nothing can be in the menu under one name and in the Footer under another.
 
-The headings are always on show in the header (`clock.KissTermHeader`), as
+The headings are always on show in the header (`clock.KissTermHeader`),
+right of Textual's command-palette icon, as
 Midnight Commander's are; clicking one opens it. Keys inside the menu:
 Left/Right change heading, Up/Down move, Enter runs, the highlighted letter
 runs that entry directly, Esc or F10 closes, and so does a click anywhere
@@ -75,6 +76,9 @@ class MenuScreen(ModalScreen[Command | None]):
         width: 100%;
         background: $panel;
     }
+    MenuScreen #menu-bar-lead {
+        width: 8;
+    }
     MenuScreen .menu-title {
         width: auto;
         padding: 0 1;
@@ -117,6 +121,8 @@ class MenuScreen(ModalScreen[Command | None]):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="menu-bar"):
+            # Where the header's palette icon is, so the headings line up.
+            yield Static("", id="menu-bar-lead")
             for i, (title, _entries) in enumerate(self.groups):
                 yield _MenuTitle(i, title)
         with Vertical(id="menu-drop"):
@@ -169,7 +175,7 @@ class MenuScreen(ModalScreen[Command | None]):
     def on_click(self, event: events.Click) -> None:
         """A click anywhere but the open list or a heading closes the menu:
         an operator who opened it with the mouse has a hand on the mouse."""
-        if event.widget is self or getattr(event.widget, "id", None) == "menu-bar":
+        if event.widget is self or getattr(event.widget, "id", None) in ("menu-bar", "menu-bar-lead"):
             self.dismiss(None)
 
     def action_step(self, delta: int) -> None:
