@@ -4273,6 +4273,19 @@ class KissTermApp(App):
         for pane in self._base_query(HeardPane):
             pane.refresh_from(self.heard, my_position=my_pos)
 
+    def on_text_selected(self, event: events.TextSelected) -> None:
+        """Copy a mouse selection when the drag ends.
+
+        The terminal cannot select text itself while the app holds the
+        mouse, so a multiplexer that copies on highlight (herdr, tmux's
+        copy-on-select) never sees one. Copying on release gives the same
+        behaviour; Ctrl+C still works too. A plain click, which clears the
+        selection, copies nothing.
+        """
+        text = self.screen.get_selected_text()
+        if text:
+            self.copy_to_clipboard(text)
+
     @on(TabbedContent.TabActivated, "#main-tabs")
     def _on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
         """Populate a pane the instant it becomes visible, not on the next tick.

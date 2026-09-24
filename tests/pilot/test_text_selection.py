@@ -39,6 +39,9 @@ async def test_drag_in_the_terminal_scrollback_selects_and_ctrl_c_copies():
         await pilot.mouse_up(log, offset=(dx + 7, dy + 1))
         await pilot.pause()
         assert app.screen.get_selected_text() == "Message #2578 Killed\nde WS1EC"
+        # Copied on release, the way a copy-on-highlight terminal does.
+        assert app.clipboard == "Message #2578 Killed\nde WS1EC"
+        app._clipboard = ""
         await pilot.press("ctrl+c")
         await pilot.pause()
         assert app.clipboard == "Message #2578 Killed\nde WS1EC"

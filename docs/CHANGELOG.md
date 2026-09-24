@@ -13,8 +13,10 @@ you need the history of a specific change.
   `Ctrl+C` to copy it.** Nothing could be highlighted before: `RichLog`, which
   every scrollback is built on, has no selection support, and the app holds
   the mouse. `WrapLog` now supplies the selection, so all of them get it.
+  The selection is copied when the drag ends, as herdr and other
+  copy-on-highlight terminals do.
 
-**Files:** `kissterm/ui/wraplog.py`, `tests/pilot/test_text_selection.py`,
+**Files:** `kissterm/ui/wraplog.py`, `kissterm/ui/app.py`, `tests/pilot/test_text_selection.py`,
 `tests/unit/test_docs_keys.py`, `README.md`, `DESIGN.md`, `docs/CHANGELOG.md`
 
 ## [2026-09-24] — Default T2 is 1 s; the shipped timers failed their own check
