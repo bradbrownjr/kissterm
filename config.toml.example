@@ -77,6 +77,12 @@ retries = 10
 # default t1 below, 10 gives up after about 33 seconds.
 connect_retries = 10
 
+# While connecting, a poll from the node means it accepted a SABM and its
+# reply (UA) was lost. true sends the next SABM at once instead of waiting
+# out t1, which connects sooner on a weak path. false follows AX.25 2.2
+# exactly and ignores the poll.
+sabm_on_poll = true
+
 # Link timers, all in seconds:
 #   t1 - how long to wait for an acknowledgement before retransmitting.
 #        Longer on HF (where round-trip time and digipeater hops add up),

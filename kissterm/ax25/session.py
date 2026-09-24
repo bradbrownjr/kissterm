@@ -127,6 +127,9 @@ class LinkParams:
     #: N2 for the SABM phase only. See `DEFAULT_CONNECT_RETRIES` for why this
     #: is a separate number from `retries`.
     connect_retries: int = DEFAULT_CONNECT_RETRIES
+    #: While connecting, answer the peer's poll with the next SABM at once
+    #: instead of waiting out T1. See `_on_frame_while_connecting`.
+    sabm_on_poll: bool = True
     t1: float = 8.0
     t2: float = 1.0
     t3: float = 180.0
@@ -415,7 +418,44 @@ class AX25Link:
             self.state = SessionState.DISCONNECTED
             self._emit_state()
 
+    async def _on_frame_while_connecting(self, frame: AX25Frame) -> None:
+        """An I or S frame from the peer while our SABM is unanswered.
+
+        AX.25 2.2 ignores these in the awaiting-connection state. They mean
+        the peer accepted a SABM and its UA was lost -- the pattern on the
+        weak WS1EC-2 path (2026-09-24): its RR polls arrived after we had
+        given up. Answering DM, as for a link we do not have, would tear
+        down the link the peer just set up. With `sabm_on_poll` (the
+        default) a poll ends the T1 wait early: the next SABM goes out now
+        and the peer answers it with a fresh UA. It counts against
+        `connect_retries` like any other SABM, and only a poll triggers it,
+        so the peer's own T1 paces it rather than each frame of a burst.
+        """
+        # UNVERIFIED: whether a BPQ node that already sent its greeting
+        # sends it again after the reset. Watch the first session with this on.
+        if not (self.params.sabm_on_poll and frame.command and frame.pf):
+            return
+        log.debug("link %s: polled while connecting; its UA was lost, SABM now", self.peer)
+        self._stop_t1()
+        await self._retry_sabm()
+
+    async def _retry_sabm(self) -> None:
+        """The next SABM of a connect, or give up once the budget is spent."""
+        self.rc += 1
+        if self.rc > self.params.connect_retries:
+            self._fail(f"no answer from {self.peer} after {self.rc} tries")
+            return
+        await self._send_u(
+            UType.SABME if self.params.modulo == MODULO128 else UType.SABM,
+            pf=True,
+            command=True,
+        )
+        self._start_t1()
+
     async def _on_s(self, frame: AX25Frame) -> None:
+        if self.state is SessionState.CONNECTING:
+            await self._on_frame_while_connecting(frame)
+            return
         if not self.connected:
             # Supervisory traffic for a link we do not have. Tell them so; this
             # is what stops a peer retrying into a terminal that restarted.
@@ -444,6 +484,9 @@ class AX25Link:
         await self._pump()
 
     async def _on_i(self, frame: AX25Frame) -> None:
+        if self.state is SessionState.CONNECTING:
+            await self._on_frame_while_connecting(frame)
+            return
         if not self.connected:
             if frame.command and frame.pf:
                 await self._send_u(UType.DM, pf=True, command=False)
@@ -638,16 +681,7 @@ class AX25Link:
         )
 
         if self.state is SessionState.CONNECTING:
-            self.rc += 1
-            if self.rc > self.params.connect_retries:
-                self._fail(f"no answer from {self.peer} after {self.rc} tries")
-                return
-            await self._send_u(
-                UType.SABME if self.params.modulo == MODULO128 else UType.SABM,
-                pf=True,
-                command=True,
-            )
-            self._start_t1()
+            await self._retry_sabm()
             return
 
         if self.state is SessionState.DISCONNECTING:

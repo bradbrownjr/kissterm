@@ -101,6 +101,9 @@ docstring is long on purpose. The points that cost time if forgotten:
   from SABME to SABM once. `Config.modulo` selects it; k < modulo.
 - **Answer DM to traffic for a link you do not have**; silence costs the
   caller N2 retries.
+- **Deliberate deviation:** a poll while connecting sends the next SABM at
+  once (`sabm_on_poll`, default on; `_on_frame_while_connecting`). Never
+  answer it DM: that tears down the link the peer just accepted.
 - **Connect retries and N2 are separate budgets on purpose** (both 10 since
   2026-09-24; see `DEFAULT_CONNECT_RETRIES`).
 - **Single-threaded per link, no locks.** Never call into a link from a thread.

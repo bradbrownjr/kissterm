@@ -543,6 +543,7 @@ async def _amain(args) -> int:
                     modulo=config.modulo,
                     retries=config.retries,
                     connect_retries=config.connect_retries,
+                    sabm_on_poll=config.sabm_on_poll,
                     t1=config.t1,
                     t2=config.t2,
                     t3=config.t3,

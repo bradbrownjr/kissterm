@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-24] — A poll while connecting sends the next SABM at once
+
+### Improvements
+
+- **When the node polls during a connect, kissterm sends the next SABM
+  straight away** instead of waiting out T1. A poll means the node accepted a
+  SABM and its UA was lost; the fresh SABM gets a fresh UA. Counts against
+  `connect_retries`. On by default; Settings > Link > "Retry at once when
+  polled" (`sabm_on_poll`) turns it off, which follows AX.25 2.2 and ignores
+  the poll.
+- **A frame from the peer during a connect is no longer answered DM**, which
+  told the node to drop the link it had just accepted.
+
+**Files:** `kissterm/ax25/session.py`, `kissterm/config.py`,
+`kissterm/ui/settings_schema.py`, `kissterm/ui/app.py`,
+`kissterm/__main__.py`, `config.toml.example`, `AGENTS.md`,
+`tests/unit/test_ax25_link.py`, `docs/CHANGELOG.md`
+
 ## [2026-09-24] — Connect retries back to 10, the AX.25 default
 
 ### Improvements

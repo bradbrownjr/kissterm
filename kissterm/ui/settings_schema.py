@@ -156,6 +156,15 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 maximum=100,
             ),
             Field(
+                "sabm_on_poll",
+                "Retry at once when polled",
+                "bool",
+                "While connecting, a poll from the node means it heard the "
+                "request and its reply was lost. On: send the next request "
+                "right away instead of waiting out T1. Off: ignore the poll, "
+                "as AX.25 2.2 does.",
+            ),
+            Field(
                 "t1",
                 "T1 -- ack timeout (s)",
                 "float",

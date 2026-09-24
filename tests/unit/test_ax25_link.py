@@ -13,7 +13,7 @@ import asyncio
 import pytest
 
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams
-from kissterm.ax25.frame import MODULO128
+from kissterm.ax25.frame import MODULO128, UType
 from kissterm.transport.base import SessionState
 from tests.loopback import loopback_pair
 
@@ -373,3 +373,60 @@ async def test_second_connect_joins_and_comes_up_once():
     assert first is not None and first is second
     a.close()
     b.close()
+
+
+async def _connecting_link(**params):
+    """A station calling CALL_B with nothing answering, and its link."""
+    ta, _tb = loopback_pair()
+    await ta.open()
+    ta.peer = None
+    a = AX25Station(CALL_A, ta, _params(t1=5.0, connect_retries=3, **params))
+    attempt = asyncio.ensure_future(a.connect(AX25Path(CALL_B, CALL_A)))
+    await asyncio.sleep(0.05)
+    return a, ta, a.link_to(CALL_B), attempt
+
+
+def _from_peer(frame_kind: str, **kw):
+    from kissterm.ax25.frame import AX25Frame, SType
+    path = AX25Path(CALL_A, CALL_B)  # peer -> us
+    if frame_kind == "rr":
+        return AX25Frame.s_frame(path, SType.RR, 0, **kw)
+    return AX25Frame.u_frame(path, UType.UA, **kw)
+
+
+@pytest.mark.asyncio
+async def test_a_poll_while_connecting_sends_the_next_sabm_at_once():
+    # WS1EC-2, 2026-09-24: the node took a SABM, its UA was lost, and its RR
+    # poll arrived with our T1 still running. The poll now ends the wait.
+    a, ta, link, attempt = await _connecting_link()
+    assert _kinds(ta) == ["SABM"]
+    await link.handle(_from_peer("rr", pf=True, command=True))
+    assert _kinds(ta) == ["SABM", "SABM"] and link.rc == 1  # no DM, no T1 wait
+    await link.handle(_from_peer("ua", pf=True, command=False))
+    assert await attempt is link and link.connected
+    a.close()
+
+
+@pytest.mark.asyncio
+async def test_polls_while_connecting_count_against_connect_retries():
+    a, ta, link, attempt = await _connecting_link()
+    for _ in range(4):
+        await link.handle(_from_peer("rr", pf=True, command=True))
+    assert await attempt is None
+    assert _kinds(ta) == ["SABM"] * 4  # the first plus connect_retries=3
+    a.close()
+
+
+@pytest.mark.asyncio
+async def test_with_sabm_on_poll_off_a_poll_while_connecting_is_ignored():
+    a, ta, link, attempt = await _connecting_link(sabm_on_poll=False)
+    await link.handle(_from_peer("rr", pf=True, command=True))
+    await link.handle(_from_peer("rr", pf=False, command=False))
+    assert _kinds(ta) == ["SABM"]  # neither a SABM nor a DM
+    link.close()
+    attempt.cancel()
+    a.close()
+
+
+def _kinds(transport) -> list[str]:
+    return [f.control_name for f in transport.sent]

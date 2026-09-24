@@ -1001,7 +1001,8 @@ class KissTermApp(App):
                 LinkParams(
                     paclen=self.config.paclen, window=self.config.window,
                     modulo=self.config.modulo, retries=self.config.retries,
-                    connect_retries=self.config.connect_retries, t1=self.config.t1,
+                    connect_retries=self.config.connect_retries,
+                    sabm_on_poll=self.config.sabm_on_poll, t1=self.config.t1,
                     t2=self.config.t2, t3=self.config.t3,
                 ),
                 aliases=tuple(AX25Address.parse(item) for item in self.config.mycall_aliases),

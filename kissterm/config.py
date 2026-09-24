@@ -431,6 +431,9 @@ class Config:
     #: N2 for the SABM phase only, a separate budget from `retries` (both
     #: default to 10). See `ax25/session.py::DEFAULT_CONNECT_RETRIES`.
     connect_retries: int = 10
+    #: While connecting, answer the peer's poll with a SABM at once. See
+    #: `ax25/session.py::AX25Link._on_frame_while_connecting`.
+    sabm_on_poll: bool = True
     #: T1: how long to wait for an ack before retransmitting (seconds).
     t1: float = 3.0
     #: T2: how long to delay an ack in case an outgoing I-frame can piggyback
@@ -713,6 +716,7 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
     cfg.connect_retries = _load_int(
         raw, "connect_retries", cfg.connect_retries, warnings
     )
+    cfg.sabm_on_poll = _load_bool(raw, "sabm_on_poll", cfg.sabm_on_poll, warnings)
     cfg.t1 = _load_float(raw, "t1", cfg.t1, warnings)
     cfg.t2 = _load_float(raw, "t2", cfg.t2, warnings)
     cfg.t3 = _load_float(raw, "t3", cfg.t3, warnings)
