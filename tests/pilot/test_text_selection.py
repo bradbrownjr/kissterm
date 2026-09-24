@@ -39,6 +39,11 @@ async def test_drag_in_the_terminal_scrollback_selects_and_ctrl_c_copies():
         await pilot.mouse_up(log, offset=(dx + 7, dy + 1))
         await pilot.pause()
         assert app.screen.get_selected_text() == "Message #2578 Killed\nde WS1EC"
+        # The selected text stays visible: never one colour on itself.
+        selected = log.screen.get_component_rich_style("screen--selection").bgcolor
+        painted = [seg for seg in log.render_line(0) if seg.style and seg.style.bgcolor == selected]
+        assert "".join(seg.text for seg in painted) == "Message #2578 Killed"
+        assert all(seg.style.color != selected for seg in painted), painted
         # Copied on release, the way a copy-on-highlight terminal does.
         assert app.clipboard == "Message #2578 Killed\nde WS1EC"
         app._clipboard = ""

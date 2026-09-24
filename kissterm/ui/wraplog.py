@@ -79,6 +79,7 @@ to the terminal as OSC 52).
 from __future__ import annotations
 
 from rich.segment import Segment
+from rich.style import Style
 from textual.geometry import Size
 from textual.selection import Selection
 from textual.strip import Strip
@@ -150,7 +151,14 @@ class WrapLog(RichLog):
             if span is not None:
                 start, end = span
                 end = line.cell_length if end == -1 else end
-                style = self.screen.get_component_rich_style("screen--selection")
+                # The theme's selection style can resolve to one colour on
+                # itself (tokyo-night: #6a5a8e on #6a5a8e), which hid the
+                # selected text. Take its background; keep the text's colour.
+                chosen_style = self.screen.get_component_rich_style("screen--selection")
+                style = Style(
+                    bgcolor=chosen_style.bgcolor,
+                    color=None if chosen_style.color == chosen_style.bgcolor else chosen_style.color,
+                )
                 parts = line.divide([start, end, line.cell_length])
                 if len(parts) >= 2:
                     # post_style: the selection colours win over the text's own.
