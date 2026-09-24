@@ -447,3 +447,38 @@ async def test_a_saved_paclen_override_reaches_the_actual_link(tmp_path):
         assert link.params.window == 2
         peer_station.close()
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_one_click_selects_and_a_double_click_dials(tmp_path):
+    """A dial transmits. One click on the highlighted row dialed WS1EC-2
+    (DataTable selects on a click of the cursor row), and a double click
+    dialed it twice (2026-09-24). One click selects; a double click dials
+    once."""
+    app, station, ta, tb = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        book = _fresh_book(app, tmp_path)
+        book.record_attempt("WS1EC-7")
+        book.record_attempt("WS1EC-2")
+        await _addressbook_tab(app, pilot)
+        app.query_one(AddressBookPane).refresh_from(book)
+        await pilot.pause()
+        table = app.query_one("#addressbook-table", DataTable)
+        table.move_cursor(row=0)
+        await pilot.pause()
+        first = str(table.coordinate_to_cell_key(table.cursor_coordinate)[0].value)
+
+        await pilot.click(table, offset=(3, 2))  # the row that has the cursor (border, header)
+        await pilot.click(table, offset=(3, 3))  # the next row
+        await pilot.pause()
+        await asyncio.sleep(0.3)
+        assert not ta.sent, "a single click transmitted"
+        assert table.cursor_row == 1
+
+        await pilot.click(table, offset=(3, 2), times=2)
+        await pilot.pause()
+        await asyncio.sleep(0.3)
+        assert ta.sent, "a double click did not dial"
+        assert book.find(first).attempts == 2
+        assert len(station.links) == 1
+    station.close()

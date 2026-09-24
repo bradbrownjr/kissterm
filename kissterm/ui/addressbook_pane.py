@@ -25,7 +25,7 @@ a second, cheaper way to transmit.
 
 from __future__ import annotations
 
-from textual import on, work
+from textual import events, on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -34,8 +34,8 @@ from textual.widgets import Button, DataTable, Input, Static
 
 class _AddressBookTable(DataTable):
     """The table itself, with `syncterm`-style dialing-directory keys:
-    Enter connects (its own default `select_cursor` binding, handled as
-    `DataTable.RowSelected`), Insert adds, E edits, Delete forgets.
+    Enter or a double click connects (its own default `select_cursor`
+    binding, handled as `DataTable.RowSelected`), Insert adds, E edits, Delete forgets.
     A plain letter is safe here because it is bound on the table, which
     has no text entry; F2 would have shadowed the Terminal tab key.
 
@@ -52,6 +52,26 @@ class _AddressBookTable(DataTable):
         Binding("e", "edit_entry", "Edit"),
         Binding("delete", "forget_entry", "Forget"),
     ]
+
+    #: The click chain being handled, or None outside a click. A dial
+    #: transmits, so one click only moves the cursor and a double click
+    #: dials. DataTable itself selects on a single click of the row that
+    #: already has the cursor -- the top row, at launch -- which dialed
+    #: WS1EC-2 on one click, and twice on a double click (2026-09-24).
+    _click_chain: int | None = None
+
+    def _on_click(self, event: events.Click) -> None:
+        # Runs before DataTable's own `_on_click` (Textual walks the MRO);
+        # cleared once this click has been handled.
+        self._click_chain = event.chain
+        self.call_next(self._click_done)
+
+    def _click_done(self) -> None:
+        self._click_chain = None
+
+    def _post_selected_message(self) -> None:
+        if self._click_chain in (None, 2):
+            super()._post_selected_message()
 
     def action_new_entry(self) -> None:
         self.app.query_one(AddressBookPane)._new_entry()  # type: ignore[attr-defined]

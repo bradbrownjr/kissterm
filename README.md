@@ -275,7 +275,8 @@ terminal can actually deliver.
 
 Inside a list -- the Address Book, APRS contacts -- `Enter` is the default
 action, `Insert` adds, `E` edits and `Delete` forgets, and those keys appear
-in the bottom bar while the list has focus.
+in the bottom bar while the list has focus. In the Address Book a single
+click only selects a station; `Enter` or a double click dials it.
 
 Everything else is in the **F10 menu**: send a beacon, send a position
 report, objects, bulletins, gateway forms, Watch APRS-IS, the SSID filter,

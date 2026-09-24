@@ -5,7 +5,7 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
-## [2026-09-24] — A double click sent two connect attempts that jammed each other
+## [2026-09-24] — One click dialed; a double click dialed twice and jammed the connect
 
 ### Bug Fixes (open until confirmed on the air)
 
@@ -17,10 +17,16 @@ you need the history of a specific change.
   second request while one is calling is refused ("Already connecting"),
   and `AX25Station.connect` joins a link still in its SABM phase instead of
   orphaning it.
+- **One click on an Address Book row dialed it.** DataTable selects on a
+  click of the row that already has the cursor (the top row at launch), so
+  one click on WS1EC-2 transmitted, and a double click dialed twice. WS1EC-2
+  has no frequency on file, so no "Before connecting" reminder stood in the
+  way. Now one click selects; `Enter` or a double click dials once.
 
 **Files:** `kissterm/ax25/session.py`, `kissterm/ax25/station.py`,
-`kissterm/ui/app.py`, `tests/unit/test_ax25_link.py`,
-`tests/pilot/test_connect_scripts.py`, `docs/CHANGELOG.md`
+`kissterm/ui/app.py`, `kissterm/ui/addressbook_pane.py`,
+`tests/unit/test_ax25_link.py`, `tests/pilot/test_connect_scripts.py`,
+`tests/pilot/test_addressbook_pane.py`, `README.md`, `docs/CHANGELOG.md`
 
 ## [2026-09-24] — Tests could overwrite the operator's real config
 
