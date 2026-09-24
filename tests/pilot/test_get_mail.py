@@ -20,7 +20,7 @@ from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.mail import MessageStore  # noqa: E402
 from kissterm.mail.collect import BBS_INBOX  # noqa: E402
-from kissterm.ui.mail_pane import MessageList  # noqa: E402
+from kissterm.ui.mail_pane import FolderTree, MessageList  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 from tests.pilot._wait import wait_for  # noqa: E402
@@ -128,14 +128,66 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_g_without_a_home_bbs_says_where_to_set_it(tmp_path):
-    app, station, _tb = await _app(tmp_path, route="")
+async def test_g_without_a_home_bbs_asks_for_the_entry_then_gets_mail(tmp_path):
+    from kissterm.ui.dialogs import HomeBbsSetupScreen
+
+    app, station, tb = await _app(tmp_path, route="")
+    bbs = AX25Station(BBS, tb, FAST)
+    heard: list[str] = []
+    _bpqmail(bbs, heard)
     async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()  # let startup finish before switching tabs
         app.action_show_tab("mail")
-        await pilot.pause()
-        app.query_one("#mail-browser").query_one(MessageList).focus()
+        await wait_for(lambda: isinstance(app.focused, (MessageList, FolderTree)),
+                       "the Mail tab to take focus")
         await pilot.press("g")
+        await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the setup dialog")
+        assert not station.transport.sent  # nothing transmitted to ask
         await pilot.pause()
-        assert not station.transport.sent  # nothing transmitted
-        assert any("Home BBS" in str(n.message) for n in app._notifications)
+        await pilot.click("#connect-go")
+        await wait_for(lambda: app.mail_store.list(BBS_INBOX), "the message to be filed")
+        assert app.config.home_bbs.route == "WS1EC-2"
+    bbs.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_g_with_an_empty_address_book_explains_and_sends_nothing(tmp_path):
+    from kissterm.ui.dialogs import HomeBbsSetupScreen
+
+    app, station, _tb = await _app(tmp_path, route="")
+    app.addressbook = AddressBook(tmp_path / "empty.json")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()  # let startup finish before switching tabs
+        app.action_show_tab("mail")
+        await wait_for(lambda: isinstance(app.focused, (MessageList, FolderTree)),
+                       "the Mail tab to take focus")
+        await pilot.press("g")
+        await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the setup dialog")
+        assert "Address Book" in str(app.screen.query_one("#reminder-detail").render())
+        await pilot.pause()
+        await pilot.click("#connect-cancel")
+        await pilot.pause()
+        assert not isinstance(app.screen, HomeBbsSetupScreen)
+        assert not station.transport.sent
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_mail_opens_with_its_list_focused_and_g_in_the_footer(tmp_path):
+    app, station, _tb = await _app(tmp_path)
+    app.config.start_tab = "mail"
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        assert isinstance(app.focused, MessageList)
+        assert "g" in app.screen.active_bindings
+        app.query_one("#mail-browser").query_one(FolderTree).focus()
+        await pilot.pause()
+        assert "g" in app.screen.active_bindings  # the tree too
+        app.action_show_tab("bulletins")
+        await pilot.pause()
+        await pilot.pause()
+        assert isinstance(app.focused, MessageList)
+        assert "g" not in app.screen.active_bindings  # Mail only
     station.close()

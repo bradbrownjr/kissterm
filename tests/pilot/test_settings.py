@@ -1354,3 +1354,22 @@ async def test_a_successful_save_says_so_in_the_footer_not_a_toast():
             n.message for n in app._notifications
         ]
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_home_bbs_sets_off_its_optional_fields_and_no_takes_effect_now():
+    from textual.widgets import Label, Rule, Static
+
+    app, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.action_show_tab("settings")
+        await pilot.pause()
+        pane = app.query_one(SettingsPane)
+        rule_labels = [str(w.render()) for w in pane.query(".settings-rule-label").results(Static)]
+        assert rule_labels == ["Only if the BBS software is not identified automatically"]
+        assert len(list(pane.query(".settings-rule").results(Rule))) == 1
+        notes = {str(w.render()) for w in pane.query(".settings-apply").results(Label)}
+        assert "takes effect now" not in notes
+        assert "next connection" in notes  # the ones that matter stay
+    station.close()

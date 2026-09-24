@@ -217,9 +217,9 @@ the rest.
 
 **Nothing you answer at setup is locked in.** The Settings tab (`F9`)
 edits your callsign, which TNC or modem to use, AX.25 timing (paclen, window,
-T1/T2/T3, retries) and APRS beaconing -- with validation, and a note on each
-field saying whether it takes effect now, on the next connection, or at
-restart. "Scan for hardware" re-runs discovery from inside the app, so moving
+T1/T2/T3, retries) and APRS beaconing -- with validation. Everything takes
+effect when you press Save; a field that waits for the next connection or a
+restart says so. "Scan for hardware" re-runs discovery from inside the app, so moving
 your Direwolf host to a new IP does not mean editing a TOML file.
 
 **"New" adds a transport a scan cannot find.** Discovery can only identify a

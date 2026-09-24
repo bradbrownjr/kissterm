@@ -462,6 +462,8 @@ SettingsPane { layout: vertical; }
 .settings-label { width: 26; padding: 1 1 0 0; }
 .settings-apply { width: 20; padding: 1 0 0 2; color: $text-muted; }
 .settings-help { padding: 0 1 0 27; color: $text-muted; max-width: 92; }
+.settings-rule { margin: 1 0 0 0; color: $panel; }
+.settings-rule-label { padding: 0 1 1 1; color: $text-muted; text-style: italic; }
 .settings-error { padding: 0 1 0 27; color: $error; display: none; }
 /* Fixed, not 1fr: a control that stretches with the window makes the
    apply-note column drift and the page lose its vertical alignment. */

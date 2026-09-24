@@ -66,6 +66,9 @@ class Field:
     #: this flag: they still read and write the field by its ordinary id,
     #: because the hand-written composer used that same id on purpose.
     custom_render: bool = False
+    #: A rule drawn above this field with this text under it, to set off
+    #: the fields after it from those before (Home BBS's "only if ...").
+    rule_before: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -544,9 +547,9 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "home_bbs.ready_text",
                 "Ready text",
                 "text",
-                "Only for a BBS whose prompt is not recognised: the text "
-                "that means it is ready for a command.",
+                "The text that means the BBS is ready for a command.",
                 apply="live",
+                rule_before="Only if the BBS software is not identified automatically",
             ),
             Field(
                 "home_bbs.login_prompt",

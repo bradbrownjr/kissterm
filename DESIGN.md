@@ -435,9 +435,10 @@ session to end.
 The interface text is part of the design, and it does the same job the
 docstrings do: explain *why*, at the moment it matters.
 
-- **Say when a setting takes effect** — "takes effect now" / "next connection"
-  / "needs a restart". "I changed paclen and nothing happened" is a support
-  question worth pre-empting.
+- **Say when a setting takes effect, if not on Save** — "next connection" /
+  "needs a restart". "I changed paclen and nothing happened" is a support
+  question worth pre-empting. Nothing is printed for a field that applies on
+  Save: "takes effect now" beside every field was noise (2026-09-24).
 - **Explain the trade-off, not just the field.** "A shorter frame gives QRM
   and fading less to hit" tells an operator how to choose; "Maximum frame
   length" does not.

@@ -107,3 +107,12 @@ def test_help_names_the_tab_and_its_keys():
     assert "highlighted letter" in body
     # An APRS-only command has no business in Terminal's key list.
     assert "Send position" not in body
+
+
+def test_a_list_key_shows_beside_its_menu_entry_but_is_not_an_app_binding():
+    from kissterm.ui.menu import _entry_text
+
+    get_mail = next(c for c in cmd.COMMANDS if c.action == "get_mail")
+    assert get_mail.list_key == "g" and not get_mail.key
+    assert _entry_text(get_mail, "", 30).plain.rstrip().endswith("G")
+    assert all(b.action != "get_mail" for b in cmd.app_bindings())

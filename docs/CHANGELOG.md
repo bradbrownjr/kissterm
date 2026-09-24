@@ -5,6 +5,31 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-24] — Get mail: setup on first use, G in the bar and menu, calmer Settings
+
+### Improvements
+
+- **G with no Home BBS asks which Address Book entry reaches the BBS**,
+  saves it and carries on, instead of pointing at Settings. With an empty
+  Address Book it says to connect to the BBS once first. Nothing is sent
+  until the normal connect.
+- **G shows in the bottom bar and beside Get mail in the F10 menu.** The
+  Mail tab now focuses its message list when it opens, including at
+  launch, and G works from the folder tree too. Before, focus sat on the
+  tab strip and the Mail keys were neither shown nor working.
+- **Settings no longer prints "takes effect now" beside most fields**:
+  Save applies them. "next connection" and "needs a restart" stay.
+- **Home BBS sets off its last three fields** under a rule: "Only if the
+  BBS software is not identified automatically".
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/mail_pane.py`, `kissterm/ui/commands.py`,
+`kissterm/ui/menu.py`, `kissterm/ui/settings_pane.py`,
+`kissterm/ui/settings_schema.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_get_mail.py`, `tests/pilot/test_settings.py`,
+`tests/unit/test_commands.py`, `tests/unit/test_key_standard.py`,
+`README.md`, `DESIGN.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-24] — Get mail: collect from the Home BBS (Mail tab, G)
 
 ### New Features

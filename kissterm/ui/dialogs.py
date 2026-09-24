@@ -11,6 +11,7 @@ modals here.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -1377,6 +1378,78 @@ class RadioReminderScreen(ModalScreen[bool]):
     @on(Button.Pressed, "#connect-go")
     def _go(self) -> None:
         self.dismiss(True)
+
+
+class HomeBbsSetupScreen(ModalScreen[str | None]):
+    """Get mail's first-run step: which Address Book entry reaches the BBS.
+
+    Shown when G is pressed with no Home BBS set, or one whose entry is no
+    longer in the Address Book. Only the one choice Get mail cannot run
+    without; everything else in Settings > Home BBS has a working default
+    (the BBS callsign comes from its prompt, BPQMail is recognised). Returns
+    the chosen entry's target, or None. Saving it transmits nothing: the
+    connect that follows is the normal one, reminder and all.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, targets: list[str], missing: str = "") -> None:
+        super().__init__()
+        self._targets = targets
+        self._missing = missing
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("Set up Get mail", id="connect-title")
+            if self._missing:
+                intro = (
+                    f"The Home BBS entry {self._missing} is no longer in the "
+                    "Address Book. "
+                )
+            else:
+                intro = ""
+            if not self._targets:
+                yield Static(
+                    intro + "Get mail dials your home BBS from the Address "
+                    "Book, which is empty. Connect to the BBS once with "
+                    "Ctrl+N (the station is saved there), then press G again.",
+                    id="reminder-detail",
+                )
+                with Horizontal(id="connect-buttons"):
+                    yield Button("Close", id="connect-cancel")
+                return
+            yield Static(
+                intro + "Get mail dials your home BBS, lists your mail with LM "
+                "and reads only what is new. Which Address Book entry reaches "
+                "it?",
+                id="reminder-detail",
+            )
+            yield Select(
+                [(target, target) for target in self._targets],
+                value=self._targets[0],
+                allow_blank=False,
+                id="home-bbs-route",
+            )
+            yield Label(
+                "The rest is optional, in Settings (F9) > Home BBS.",
+                id="connect-hint",
+            )
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save and get mail", variant="primary", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        with contextlib.suppress(Exception):
+            self.query_one("#connect-go", Button).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#connect-go")
+    def _go(self) -> None:
+        value = self.query_one("#home-bbs-route", Select).value
+        self.dismiss(value if isinstance(value, str) else None)
 
 
 class SessionTransportPickerScreen(ModalScreen[str | None]):

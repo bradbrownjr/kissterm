@@ -58,7 +58,21 @@ def _short_date(value: datetime | None) -> str:
 
 
 class FolderTree(Tree):
-    """The folder tree. Each node's data is a folder path or `ALL_INBOXES`."""
+    """The folder tree. Each node's data is a folder path or `ALL_INBOXES`.
+
+    G works here as on the list, so it is in the Footer whichever of the
+    two has focus.
+    """
+
+    BINDINGS = [Binding("g", "get_mail", "Get mail")]
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        if action == "get_mail":
+            return self.query_ancestor(MessageBrowser).id == "mail-browser"
+        return True
+
+    def action_get_mail(self) -> None:
+        self.app.action_get_mail()  # type: ignore[attr-defined]
 
 
 class MessageList(DataTable):

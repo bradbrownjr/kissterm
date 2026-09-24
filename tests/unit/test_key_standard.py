@@ -120,7 +120,7 @@ def test_a_plain_letter_is_only_bound_where_typing_is_not_the_point():
         if not letters:
             continue
         bases = {base.__name__ for base in cls.__mro__}
-        assert bases & {"DataTable", "OptionList", "ListView", "Tabs"}, (
+        assert bases & {"DataTable", "OptionList", "ListView", "Tabs", "Tree"}, (
             f"{cls.__name__} binds {letters} but is not a list widget"
         )
 

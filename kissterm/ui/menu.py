@@ -51,7 +51,7 @@ class _MenuTitle(Static):
 def _entry_text(command: Command, reason: str, width: int) -> Text:
     label = Text(command.label)
     pos = command.label.upper().find(command.mnemonic)
-    right = reason or key_label(command.key, short=False)
+    right = reason or key_label(command.key or command.list_key, short=False)
     if reason:
         label.stylize("dim")
     elif pos >= 0:
@@ -134,7 +134,7 @@ class MenuScreen(ModalScreen[Command | None]):
         entries = self._entries()
         width = max(
             (
-                len(c.label) + len(reason or key_label(c.key, short=False)) + 4
+                len(c.label) + len(reason or key_label(c.key or c.list_key, short=False)) + 4
                 for c, reason in entries
             ),
             default=20,

@@ -134,6 +134,9 @@ class Command:
     #: Bound with priority, so it wins over the focused widget's own use of
     #: the same key (Ctrl+D is the Input's delete-right; Delete does that).
     priority: bool = False
+    #: A plain key bound on the tab's lists, not on the App (DESIGN.md 5
+    #: rule 4): shown beside the menu entry, never an App binding.
+    list_key: str = ""
 
     @property
     def footer_label(self) -> str:
@@ -184,7 +187,7 @@ COMMANDS: tuple[Command, ...] = (
             tabs=("terminal",)),
     Command("get_mail", "Get mail", "Session", "G",
             "Dial the Home BBS, read new mail into Mail, and disconnect",
-            tabs=("mail",)),
+            tabs=("mail",), list_key="g"),
     Command("show_transcripts", "Transcripts", "Session", "R",
             "Read saved session transcripts"),
     Command("set_callsign", "My callsign", "Session", "M",

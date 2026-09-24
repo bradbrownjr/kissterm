@@ -35,6 +35,7 @@ from textual.widgets import (
     Button,
     Input,
     Label,
+    Rule,
     Select,
     Static,
     Switch,
@@ -72,8 +73,11 @@ _CUSTOM_LABEL = "Custom..."
 #: then tuning.
 TRANSPORTS_AFTER_SECTION = "Station"
 
+#: Shown beside a field only where Save alone is not the whole story: every
+#: field takes effect on Save, so saying "takes effect now" beside most of
+#: them was noise (operator, 2026-09-24).
 APPLY_NOTE = {
-    "live": "takes effect now",
+    "live": "",
     "connect": "next connection",
     "restart": "needs a restart",
 }
@@ -259,6 +263,9 @@ class SettingsPane(Vertical):
                 yield from self._compose_gps_device(spec)
             return
         wid = _widget_id(spec.path)
+        if spec.rule_before:
+            yield Rule(classes="settings-rule")
+            yield Static(spec.rule_before, classes="settings-rule-label")
         with Horizontal(classes="settings-row"):
             yield Label(spec.label, classes="settings-label")
             if spec.kind == "bool":

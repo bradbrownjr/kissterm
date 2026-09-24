@@ -122,7 +122,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.timer import Timer
-from textual.widgets import Footer, Static, TabbedContent, TabPane
+from textual.widgets import Footer, Static, TabbedContent, TabPane, Tabs
 from textual.widgets._footer import FooterKey
 
 from .. import __version__
@@ -181,6 +181,7 @@ from .dialogs import (
     AprsObjectRequest,
     AprsIsWatchScreen,
     RadioReminderScreen,
+    HomeBbsSetupScreen,
     TranscriptsScreen,
     FileTransferScreen,
 )
@@ -188,7 +189,7 @@ from .heard_pane import HeardPane
 from .monitor_pane import MonitorPane
 from .settings_pane import SettingsPane
 from .help_pane import HelpPane
-from .mail_pane import MessageBrowser, bulletins_browser, files_browser, mail_browser
+from .mail_pane import MessageBrowser, MessageList, bulletins_browser, files_browser, mail_browser
 from .styles import APP_CSS
 from .terminal_pane import MAX_TERMINAL_TABS, TerminalPane
 
@@ -867,6 +868,32 @@ class KissTermApp(App):
             self.call_after_refresh(self._show_onboarding)
         elif self._transport_problem:
             self.call_after_refresh(self._show_transport_problem)
+        else:
+            self.call_after_refresh(self._focus_start_tab)
+
+    def _focus_start_tab(self) -> None:
+        """Focus the launch tab's working widget, as a tab switch does, so
+        the Mail list's keys (G) work and show from the first keystroke."""
+        # The tab showing now, not the configured one, and only into a
+        # vacuum: focusing a widget in a pane already left re-activates it
+        # (`action_show_tab`'s docstring).
+        tabs = self.query_one("#main-tabs", TabbedContent)
+        # Textual's own first focus lands on the tab strip; that is not a
+        # choice anyone made, so it counts as empty.
+        strip = isinstance(self.focused, Tabs) and self.focused.parent is tabs
+        if (self.focused is not None and not strip) or self.screen is not self.screen_stack[0]:
+            return
+        # Only the message tabs: Terminal and APRS have their own startup
+        # focus, and a tab already switched away from is left alone.
+        if tabs.active != self._start_tab() or tabs.active not in ("mail", "bulletins", "files"):
+            return
+        target = self._TAB_FOCUS.get(tabs.active)
+        if target is not None:
+            # `set_focus`, not `widget.focus()`: that one is deferred, and a
+            # tab switch landing in between would have it pull focus -- and
+            # the tab -- back to the pane just left.
+            with contextlib.suppress(Exception):
+                self.set_focus(self.query_one(target))
 
     def _show_transport_problem(self) -> None:
         """Land on Settings > Transports after a startup open failed.
@@ -3024,6 +3051,9 @@ class KissTermApp(App):
         widgets = {
             "terminal": [("Address Book", _AddressBookTable), ("session tabs", _SessionTabs)],
             "aprs": [("contacts", _AprsContactTable), ("conversation tabs", _ConvoTabs)],
+            "mail": [("the folder and message lists", MessageList)],
+            "bulletins": [("the folder and message lists", MessageList)],
+            "files": [("the file list", MessageList)],
         }.get(tab, [])
         list_keys = [
             (where, b.key, b.description)
@@ -3044,6 +3074,10 @@ class KissTermApp(App):
         "terminal": "#session-input",
         "aprs": "#aprs-compose-input",
         "monitor": "#monitor-query",
+        # The list, so its keys (Enter, Delete, G) work and show at once.
+        "mail": "#mail-browser .mail-list",
+        "bulletins": "#bulletins-browser .mail-list",
+        "files": "#files-browser .mail-list",
     }
 
     def action_show_tab(self, tab: str) -> None:
@@ -3874,20 +3908,24 @@ class KissTermApp(App):
         from ..mail.collect import BbsCollector, CollectOptions
 
         home = self.config.home_bbs
-        if not home.route.strip():
-            self.notify(
-                "No Home BBS yet: set Settings (F9) > Home BBS > Dial.", severity="warning"
-            )
-            return
         if self._collecting:
             self.notify("Already getting mail.", severity="warning")
             return
-        entry = self.addressbook.find(home.route.strip())
+        entry = self.addressbook.find(home.route.strip()) if home.route.strip() else None
         if entry is None:
-            self.notify(
-                f"Home BBS: {home.route} is not in the Address Book.", severity="warning"
+            # First use, or the entry was forgotten: ask for the one thing
+            # Get mail cannot run without, then carry on.
+            chosen = await self.push_screen_wait(
+                HomeBbsSetupScreen(
+                    [e.target for e in self.addressbook.entries], missing=home.route.strip()
+                )
             )
-            return
+            entry = self.addressbook.find(chosen) if chosen else None
+            if entry is None:
+                return
+            home.route = entry.target
+            self._save_config()
+            self.query_one(SettingsPane).render_settings(self.config)
         first = [h.strip() for h in entry.hops.split(",") if h.strip()] or [entry.target]
         peer = parse_path(first[0]).destination
         if any(
