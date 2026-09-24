@@ -154,6 +154,10 @@ def _fully_populated_config() -> kconfig.Config:
         {"name": "kantronics", "kind": "serial", "device": "/dev/ttyUSB0", "baud": 9600},
     ]
     cfg.active_transport = "direwolf"
+    cfg.home_bbs = kconfig.HomeBbsConfig(
+        route="WS1EC-2", call="WS1EC", software="bpqmail", ready_text="BBS>",
+        login_prompt="Password:", credential="bbs",
+    )
     cfg.paclen = 128
     cfg.window = 7
     cfg.retries = 5
@@ -858,3 +862,12 @@ def test_default_timers_pass_the_settings_cross_check():
     # t1=3, t2=3 shipped for three weeks and Settings warned on every save.
     from kissterm.ui.settings_schema import cross_check
     assert not any("T1" in p for p in cross_check(kconfig.Config()))
+
+
+def test_home_bbs_loads_and_normalises(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[home_bbs]\nroute = "WS1EC-2"\ncall = " ws1ec "\nsoftware = "JNOS"\n')
+    cfg = kconfig.load_config(path=path)
+    assert (cfg.home_bbs.route, cfg.home_bbs.call, cfg.home_bbs.software) == (
+        "WS1EC-2", "WS1EC", "auto")
+    assert any("home_bbs.software" in w for w in cfg.warnings)

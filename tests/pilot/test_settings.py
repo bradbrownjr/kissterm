@@ -92,6 +92,7 @@ NOT_IN_SCHEMA = {
     # covered field-by-field by the nested tests below, which is stricter
     # than this top-level check, not an exemption from it.
     "beacon",
+    "home_bbs",
     "custom_theme",
     "watched_callsigns",
 }
@@ -140,6 +141,14 @@ def test_every_nested_beacon_field_is_editable():
     paths = {f.path for s in SETTINGS_SCHEMA for f in s.fields}
     for f in dataclasses.fields(BeaconConfig):
         assert f"beacon.{f.name}" in paths, f"beacon.{f.name} has no Settings UI"
+
+
+def test_every_nested_home_bbs_field_is_editable():
+    from kissterm.config import HomeBbsConfig
+
+    paths = {f.path for s in SETTINGS_SCHEMA for f in s.fields}
+    for f in dataclasses.fields(HomeBbsConfig):
+        assert f"home_bbs.{f.name}" in paths, f"home_bbs.{f.name} has no Settings UI"
 
 
 def test_every_nested_watched_callsign_field_is_editable():

@@ -292,6 +292,23 @@ dark = true
 # transmission happens one full interval after you enable it (never at
 # startup), and intervals below 10 minutes are clamped up to 10 -- your
 # beacon is time nobody else on the frequency can transmit.
+[home_bbs]
+# The BBS that Get mail (Mail tab, G) collects your mail from. route is an
+# Address Book entry, dialled the normal way (reminder, hops, login). Mail
+# is filed by the BBS's own callsign, whatever the route.
+route = ""
+# The BBS's callsign; empty reads it from its prompt ("de WS1EC#>").
+call = ""
+# auto identifies the BBS from what it sends; bpqmail skips that.
+software = "auto"
+# For a BBS whose prompt kissterm does not know: the text that means it is
+# ready for a command. Empty waits for the BPQMail prompt.
+ready_text = ""
+# Send the named saved credential after this text (Telnet BBSes ask for a
+# login; RF ones usually do not). Empty sends none.
+login_prompt = ""
+credential = ""
+
 [beacon]
 enabled = false
 

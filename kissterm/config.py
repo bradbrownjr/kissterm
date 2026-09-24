@@ -239,6 +239,32 @@ class BeaconConfig:
 
 
 @dataclass
+class HomeBbsConfig:
+    """The BBS that Get mail (Mail tab, G) collects from. ROADMAP P2.
+
+    `route` names an Address Book entry, so the connect is the normal one --
+    its frequency reminder, hop chain and login included -- and changing
+    how the BBS is reached never changes where mail is filed: that goes by
+    the BBS's own callsign (`call`, or the one in its prompt). See
+    `kissterm/mail/collect.py`.
+    """
+
+    #: The Address Book entry to dial, exactly as listed ("WS1EC-2").
+    route: str = ""
+    #: The BBS's callsign for `Source:`; "" reads it from its prompt.
+    call: str = ""
+    #: "auto" identifies the BBS from what it sends; "bpqmail" skips that.
+    software: str = "auto"
+    #: Text meaning "ready for the first command", for a BBS whose prompt
+    #: kissterm does not recognise; "" waits for the BPQMail prompt.
+    ready_text: str = ""
+    #: Text after which the credential below is sent; "" sends none.
+    login_prompt: str = ""
+    #: Name of a saved credential (Settings > Credentials).
+    credential: str = ""
+
+
+@dataclass
 class WatchedCallsignConfig:
     """Passive local alerts for address claims heard in received frames."""
 
@@ -522,6 +548,7 @@ class Config:
     slideouts_auto_open: bool = True
     aprs: AprsConfig = field(default_factory=AprsConfig)
     beacon: BeaconConfig = field(default_factory=BeaconConfig)
+    home_bbs: HomeBbsConfig = field(default_factory=HomeBbsConfig)
     watched_callsigns: WatchedCallsignConfig = field(default_factory=WatchedCallsignConfig)
     #: Saved connect targets: dicts with at least a "target" callsign and
     #: optionally a "path" (digipeater route) and a "transport" name.
@@ -757,6 +784,7 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
     )
     cfg.aprs = _load_aprs(raw.get("aprs", {}), warnings)
     cfg.beacon = _load_beacon(raw.get("beacon", {}), warnings)
+    cfg.home_bbs = _load_home_bbs(raw.get("home_bbs", {}), warnings)
     cfg.watched_callsigns = _load_watched_callsigns(raw.get("watched_callsigns", {}), warnings)
     cfg.autoconnect = _load_dict_list(raw.get("autoconnect", []), "autoconnect", warnings)
 
@@ -1081,6 +1109,24 @@ def _load_beacon(value: Any, warnings: list[str]) -> BeaconConfig:
             "transmitted. An empty beacon is pure channel occupancy."
         )
     return beacon
+
+
+def _load_home_bbs(value: Any, warnings: list[str]) -> HomeBbsConfig:
+    default = HomeBbsConfig()
+    if not isinstance(value, dict):
+        if value not in ({}, None):
+            warnings.append(f"'home_bbs' should be a table, got {value!r}; using defaults")
+        return default
+    home = HomeBbsConfig()
+    for name in ("route", "call", "ready_text", "login_prompt", "credential"):
+        setattr(home, name, _load_str(value, name, getattr(default, name), warnings))
+    home.call = home.call.strip().upper()
+    software = _load_str(value, "software", default.software, warnings).strip().lower()
+    if software not in ("auto", "bpqmail"):
+        warnings.append(f"home_bbs.software {software!r} is not auto or bpqmail; using auto")
+        software = "auto"
+    home.software = software
+    return home
 
 
 def _load_watched_callsigns(value: Any, warnings: list[str]) -> WatchedCallsignConfig:

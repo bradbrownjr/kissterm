@@ -507,6 +507,65 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         ),
     ),
     Section(
+        "Home BBS",
+        "Where Get mail (Mail tab, G) collects your mail. It dials an Address "
+        "Book entry the usual way, lists your mail with LM and reads only "
+        "what is new. Messages stay on the BBS.",
+        (
+            Field(
+                "home_bbs.route",
+                "Dial",
+                "text",
+                "The Address Book entry that reaches the BBS, exactly as "
+                "listed: WS1EC-2 direct, or a node entry whose login script "
+                "sends BBS. Its frequency reminder, hops and login apply.",
+                apply="live",
+                placeholder="WS1EC-2",
+            ),
+            Field(
+                "home_bbs.call",
+                "BBS callsign",
+                "text",
+                "Files mail as coming from this BBS however it was reached. "
+                "Leave empty to read it from the BBS's prompt.",
+                apply="live",
+                placeholder="from the prompt",
+            ),
+            Field(
+                "home_bbs.software",
+                "Software",
+                "choice",
+                "Automatic recognises BPQMail from what it sends. Only "
+                "BPQMail can be collected from so far.",
+                choices=(("Automatic", "auto"), ("BPQMail", "bpqmail")),
+                apply="live",
+            ),
+            Field(
+                "home_bbs.ready_text",
+                "Ready text",
+                "text",
+                "Only for a BBS whose prompt is not recognised: the text "
+                "that means it is ready for a command.",
+                apply="live",
+            ),
+            Field(
+                "home_bbs.login_prompt",
+                "Login prompt",
+                "text",
+                "Text after which the credential below is sent. Telnet "
+                "BBSes ask for a login; RF ones usually do not.",
+                apply="live",
+            ),
+            Field(
+                "home_bbs.credential",
+                "Credential",
+                "text",
+                "The name of a saved credential (Settings > Credentials).",
+                apply="live",
+            ),
+        ),
+    ),
+    Section(
         "Beacon",
         "A short text transmitted on a timer to say you are here. This is "
         "NOT APRS beaconing above -- that sends your position in APRS "
