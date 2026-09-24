@@ -278,6 +278,11 @@ action, `Insert` adds, `E` edits and `Delete` forgets, and those keys appear
 in the bottom bar while the list has focus. In the Address Book a single
 click only selects a station; `Enter` or a double click dials it.
 
+To copy text from the terminal, Monitor, APRS or mail reader, drag over it
+with the mouse and press `Ctrl+C`. The copy reaches your clipboard through
+the terminal (OSC 52); a multiplexer such as tmux has to be set to pass that
+through.
+
 Everything else is in the **F10 menu**: send a beacon, send a position
 report, objects, bulletins, gateway forms, Watch APRS-IS, the SSID filter,
 file transfer, the NET/ROM panel, your callsign and saved transcripts. Open

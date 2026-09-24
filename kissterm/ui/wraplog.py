@@ -64,11 +64,24 @@ bottom, and scrolling back down restores it (`_check_anchor`). Do not
 "simplify" this into a `scroll_end` in `on_resize`: that reads the state
 *after* the resize, when what is at the bottom has already changed, and it
 would fight the operator's own scrollback on every repaint.
+
+**Text selection.** `RichLog` does not support Textual's mouse selection:
+its lines are pre-rendered `Strip`s, `Widget.get_selection` finds no `Text`
+to extract, and its strips carry no offsets for the screen to map the
+pointer to. So a drag in the terminal pane, the Monitor or the mail reader
+selected nothing, and with the mouse captured by the app the terminal's own
+selection is unavailable too (reported 2026-09-24). `_render_line` below adds
+the offsets and paints the selected span; `get_selection` returns the plain
+text of the rows. Ctrl+C then copies it (Textual's `screen.copy_text`, sent
+to the terminal as OSC 52).
 """
 
 from __future__ import annotations
 
+from rich.segment import Segment
 from textual.geometry import Size
+from textual.selection import Selection
+from textual.strip import Strip
 from textual.widgets import RichLog
 
 
@@ -116,3 +129,35 @@ class WrapLog(RichLog):
             self._line_cache.clear()
             self.virtual_size = Size(self._widest_line_width, len(self.lines))
             self.refresh()
+
+    # -- Mouse selection (see the module docstring) -----------------------
+
+    def get_selection(self, selection: Selection) -> tuple[str, str] | None:
+        text = "\n".join(strip.text.rstrip() for strip in self.lines)
+        return selection.extract(text), "\n"
+
+    def selection_updated(self, selection: Selection | None) -> None:
+        self._line_cache.clear()
+        self.refresh()
+
+    def _render_line(self, y: int, scroll_x: int, width: int) -> Strip:
+        selection = self.text_selection
+        if selection is None or y >= len(self.lines):
+            line = super()._render_line(y, scroll_x, width)
+        else:
+            line = self.lines[y]
+            span = selection.get_span(y)
+            if span is not None:
+                start, end = span
+                end = line.cell_length if end == -1 else end
+                style = self.screen.get_component_rich_style("screen--selection")
+                parts = line.divide([start, end, line.cell_length])
+                if len(parts) >= 2:
+                    # post_style: the selection colours win over the text's own.
+                    chosen = Strip(
+                        Segment.apply_style(parts[1], post_style=style), parts[1].cell_length
+                    )
+                    parts = [parts[0], chosen, *parts[2:]]
+                    line = Strip.join(parts)
+            line = line.crop_extend(scroll_x, scroll_x + width, self.rich_style)
+        return line.apply_offsets(scroll_x, y)
