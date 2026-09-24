@@ -213,8 +213,8 @@ anything taken from its behaviour rather than from documentation
   that. Winlink needs no equivalent, because the CMS delivers each
   message once. Large.
   *Progress:* the reply parser (`kissterm/mail/bpqmail.py`) is done from
-  WS1EC-2 captures. Still to capture: a private message read to its end,
-  `K`, and the empty replies to `LM` and `R`.
+  WS1EC-2 captures, including a private read, `K` and `R` of a missing
+  message (2026-09-24). Still to capture: `LM` with no mail waiting.
 - [ ] **Bulletin collection** into Bulletins/<category>, using the
   same session with a category or keyword filter. Medium.
 

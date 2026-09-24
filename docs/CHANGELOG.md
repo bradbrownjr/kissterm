@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-24] — BPQMail: private read, kill and not-found from captures
+
+### Improvements
+
+- **The BPQMail parser now covers a private message read to its end, the
+  reply to `K`, and `R` of a message that does not exist**, from the
+  operator's WS1EC-2 session. `killed()` and `not_found()` read the last two.
+  `LM` with no mail is still uncaptured.
+
+**Files:** `kissterm/mail/bpqmail.py`, `tests/unit/test_mail_bpqmail.py`,
+`tests/unit/data/bpqmail/`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-24] — One click dialed; a double click dialed twice and jammed the connect
 
 ### Bug Fixes (open until confirmed on the air)

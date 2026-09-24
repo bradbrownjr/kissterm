@@ -22,9 +22,12 @@ What the captures show:
   if whole is worse than one that is fetched again next time.
 - `Date/Time:` has no year (`21-Sep 08:37Z`); `infer_date` supplies one.
 
-Not yet captured, so not relied on: a private message's read (assumed the
-same shape; `# UNVERIFIED:`), the reply to `K`, and what `LM` or `R` say
-when there is nothing to show.
+- A private message reads the same way (2026-09-24, `R 2578`): `Type/Status:
+  PY`, no `R:` lines, two blank lines before the body.
+- `K 2578` answers `Message #2578 Killed`; `R 99999` answers `Message 99999
+  not found` (no `#`). Both are followed by the prompt.
+
+Not yet captured, so not relied on: what `LM` says when there is no mail.
 """
 
 from __future__ import annotations
@@ -41,6 +44,8 @@ PAGE_PROMPT_RE = re.compile(r"<A>bort,.*?Continue\.\.>[ \t]*")
 END_RE = re.compile(r"^\[End of Message #(\d+) from ([A-Za-z0-9/-]+)\]\s*$")
 ABORTED = "Output aborted"
 PROMPT_RE = re.compile(r"^de ([A-Z0-9]{1,6})(?:-\d{1,2})?#>\s*$")
+KILLED_RE = re.compile(r"^Message #(\d+) Killed\s*$")
+NOT_FOUND_RE = re.compile(r"^Message (\d+) not found\s*$")
 
 #: `2705   22-Sep B$     472 WP     @WS1EC  WD1O   WP Update`
 LIST_RE = re.compile(
@@ -104,6 +109,24 @@ def prompt_call(line: str) -> str:
     """The BBS's callsign from its prompt (`de WS1EC#>` -> `WS1EC`), or ""."""
     match = PROMPT_RE.match(line.strip())
     return match.group(1) if match else ""
+
+
+def killed(lines: list[str]) -> int | None:
+    """The message number a `K` reply confirms killed, or None."""
+    return _first_number(KILLED_RE, lines)
+
+
+def not_found(lines: list[str]) -> int | None:
+    """The message number an `R` or `K` reply says does not exist, or None."""
+    return _first_number(NOT_FOUND_RE, lines)
+
+
+def _first_number(pattern: re.Pattern[str], lines: list[str]) -> int | None:
+    for line in lines:
+        match = pattern.match((strip_page_prompts(line) or "").strip())
+        if match is not None:
+            return int(match.group(1))
+    return None
 
 
 @dataclass

@@ -10,6 +10,8 @@ from pathlib import Path  # noqa: E402
 from kissterm.mail import KIND_BULLETIN  # noqa: E402
 from kissterm.mail.bpqmail import (  # noqa: E402
     infer_date,
+    killed,
+    not_found,
     parse_list,
     parse_list_line,
     parse_read,
@@ -109,3 +111,23 @@ def test_a_page_prompt_glued_to_text_is_cut_out():
     lines = ["From: N4SD", "Title: t", "", "one", "<A>bort, <CR> Continue..>two",
              "[End of Message #1 from N4SD]"]
     assert parse_read(lines).body == ["one", "two"]
+
+
+def test_private_message_read_to_its_end():
+    # R 2578 on 2026-09-24: PY, no routing lines, two blank lines first.
+    read = parse_read(_lines("read_2578_private.txt"))
+    assert read.complete and read.number == 2578 and read.routes == []
+    assert read.headers["Type/Status"] == "PY"
+    assert read.body == ["test test", "", "de WS1EC"]
+    message = to_message(read, "WS1EC", NOW)
+    assert (message.kind, message.message_id, message.subject) == (
+        "mail", "2578_WS1EC", "Test message")
+    assert message.date == datetime(2026, 9, 16, 16, 33, tzinfo=timezone.utc)
+
+
+def test_kill_confirmation_and_not_found():
+    assert killed(_lines("kill_2578.txt")) == 2578
+    assert not_found(_lines("kill_2578.txt")) is None
+    lines = _lines("read_99999_not_found.txt")
+    assert not_found(lines) == 99999 and killed(lines) is None
+    assert parse_read(lines) is None

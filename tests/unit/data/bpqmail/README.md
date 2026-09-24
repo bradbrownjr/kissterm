@@ -15,5 +15,9 @@ removed, and the operator's own keystrokes (`> ...`) dropped.
   the pre-2026-09-22 display bug split at frame boundaries are rejoined.
   Nothing else is changed.
 
-Not yet captured: reading a private message, `K` (kill), and the reply to
-`LM` or `R` when there is nothing to show.
+- `read_2578_private.txt`: 2026-09-24, direct connect (SID, greeting,
+  prompt), then `R 2578`, a private message read to its end marker.
+- `kill_2578.txt`: the reply to `K 2578`.
+- `read_99999_not_found.txt`: the reply to `R 99999`.
+
+Not yet captured: the reply to `LM` when there is no mail.

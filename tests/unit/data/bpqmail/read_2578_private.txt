@@ -1,0 +1,18 @@
+[BPQ-6.0.23.1-B2FWIHJM$]
+Hello Bradley. Welcome back to WS1EC-2 BBS. 
+Latest Message is 2773, Last listed is 1176.
+You have 2 messages waiting for you.
+de WS1EC#>
+From: WS1EC
+To: KC1JMH
+Type/Status: PY
+Date/Time: 16-Sep 16:33Z
+Bid: 2578_WS1EC
+Title: Test message
+
+
+test test
+
+de WS1EC
+[End of Message #2578 from WS1EC]
+de WS1EC#>
