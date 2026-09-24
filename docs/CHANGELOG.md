@@ -15,7 +15,7 @@ you need the history of a specific change.
   the mouse. `WrapLog` now supplies the selection, so all of them get it.
 
 **Files:** `kissterm/ui/wraplog.py`, `tests/pilot/test_text_selection.py`,
-`README.md`, `docs/CHANGELOG.md`
+`tests/unit/test_docs_keys.py`, `README.md`, `DESIGN.md`, `docs/CHANGELOG.md`
 
 ## [2026-09-24] — Default T2 is 1 s; the shipped timers failed their own check
 

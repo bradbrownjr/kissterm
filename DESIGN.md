@@ -153,7 +153,8 @@ is the enforcement.
    ssh), speak an enhanced keyboard protocol. **kissterm switches that
    protocol off outright** (`kissterm/__init__.py` says why). Ctrl+I, M, H,
    `[` and J
-   are Tab, Enter, Backspace, Esc and LF; Ctrl+C, Z and `\` are signals;
+   are Tab, Enter, Backspace, Esc and LF; Ctrl+C, Z and `\` are signals
+   (Ctrl+C is left to Textual's own "copy the selection", never rebound);
    Ctrl+S is flow control; Ctrl+A and Ctrl+B are the screen and tmux
    prefixes; Ctrl+A, E, K and U are line editing inside an input.
 3. **Ten global Ctrl keys, and that is the whole budget**, each with a
