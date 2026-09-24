@@ -17,9 +17,10 @@ the store (`kissterm/mail/`) it shows:
 The folder tree replaces a sub-tab strip. Keys follow DESIGN.md section 5
 rule 4, bound on the list itself so they work only while it has focus and
 never while typing: Enter opens, Delete moves to Deleted, U restores from
-Deleted. Each key is shown only where it works (`MessageList.check_action`).
-Compose (Insert), reply and send/receive are added when they exist, not
-before.
+Deleted, and on the Mail tab G gets mail from the Home BBS
+(`KissTermApp.action_get_mail`). Each key is shown only where it works
+(`MessageList.check_action`). Compose (Insert) and reply are added when
+they exist, not before.
 
 Message text came off the air: the reader shows it through
 `monitor.sanitize` as plain `Text`, never as markup. The Files tab lists
@@ -67,6 +68,7 @@ class MessageList(DataTable):
         Binding("enter", "open_message", "Open"),
         Binding("delete", "delete_message", "Delete"),
         Binding("u", "restore_message", "Restore"),
+        Binding("g", "get_mail", "Get mail"),
     ]
 
     def _browser(self) -> "MessageBrowser":
@@ -80,6 +82,8 @@ class MessageList(DataTable):
             return self.row_count > 0 and browser.can_delete()
         if action == "restore_message":
             return self.row_count > 0 and browser.can_restore()
+        if action == "get_mail":
+            return browser.id == "mail-browser"
         return True
 
     def action_open_message(self) -> None:
@@ -90,6 +94,9 @@ class MessageList(DataTable):
 
     def action_restore_message(self) -> None:
         self._browser().restore_selected()
+
+    def action_get_mail(self) -> None:
+        self.app.action_get_mail()  # type: ignore[attr-defined]
 
 
 class MessageBrowser(Horizontal):

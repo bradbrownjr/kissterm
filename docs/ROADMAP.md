@@ -177,44 +177,16 @@ anything taken from its behaviour rather than from documentation
 
 #### BBS mail (BPQMail first, then the applications P8 adds)
 
-- [ ] **Home BBS**: the BBS's own callsign (its identity for `Source:` and
-  duplicate checks), its application from the command catalog (BPQMail
-  now; FBB and the JNOS mailbox once P8 adds them), and retrieval options.
-  Any Address Book entry that reaches it (node then `BBS`, a NET/ROM alias,
-  direct) can be the route for a send/receive; the route never changes
-  where mail is filed. As in Outpost: the BBS software is identified
-  automatically from its banner and prompt (`nodes.reference.identify_family`;
-  BPQMail and JNOS are in the catalog), with a manual override, plus two
-  optional fields for a BBS that does not match: the text that means
-  "connected and ready" (wait for it before the first command) and the
-  prompt after which the saved credential is sent (Telnet BBSes ask for a
-  login; RF ones usually do not). Today's Address Book login script sends
-  its lines blind on a timer; this waits for what it expects and stops if
-  it does not see it. Small to medium.
-- [ ] **BBS send/receive**: an operator-started session that connects via
-  the normal Connect flow, then runs the application's collection
-  sequence from the catalog: list mine, read each new message into
-  Mail/BBS/Inbox, send the Outbox, and disconnect. Every line is echoed to
-  the terminal log and the transcript as it goes, as the auto-login script
-  already does. It stops, and does not guess, on any reply it does not
-  recognise. **Reproduce-first applies here:** the per-application
-  description of where a read message starts and ends is written from
-  captured real sessions (CCEMA's BPQMail first), stored as data beside the
-  command catalog, and tested against those captures. Retrieval filtering
-  (private, NTS or bulletins; skipping this station's own) is part of this
-  item; the P11 notes below describe how Outpost does it. **Decided
-  2026-09-22: messages stay on the BBS by default.** Deleting is the
-  operator's choice, as it is at the node, where a message is read and
-  then killed by command. Kill is an explicit per-message action (or an
-  opt-in per-account setting), never a side effect of downloading.
-  **Never download the same message twice:** each filed message records
-  its BBS message number plus the BID/MID where the BBS shows one, keyed
-  by the BBS's callsign rather than the route (`MessageStore.find`), so a later session lists new mail and reads only
-  that. Winlink needs no equivalent, because the CMS delivers each
-  message once. Large.
-  *Progress:* the reply parser (`kissterm/mail/bpqmail.py`) is done from
-  WS1EC-2 captures, including a private read, `K` and `R` of a missing
-  message, and `LM` with and without mail (2026-09-24).
+- [ ] **BBS send**: the other half of Get mail -- after collecting, send
+  what is in Mail/BBS/Outbox (needs Compose, above). Each message goes out
+  with BPQMail's `SP`/`SB`, and is moved to Sent only when the BBS confirms
+  it. The send replies are not captured yet: capture them first. Medium.
+  *Done 2026-09-24:* Home BBS (Settings) and receive (Mail tab, G):
+  `kissterm/mail/collect.py` lists with `LM`, reads only what the store
+  lacks (by BBS number, then BID), files complete reads, never sends `K`,
+  and stops by name on anything it does not recognise. Retrieval filters
+  beyond `LM` (NTS, bulletins) are still open; the P11 notes below describe
+  Outpost's.
 - [ ] **Bulletin collection** into Bulletins/<category>, using the
   same session with a category or keyword filter. Medium.
 

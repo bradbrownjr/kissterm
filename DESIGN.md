@@ -175,7 +175,7 @@ is the enforcement.
    `E` for Edit). In a text input, typing is typing: no plain-letter binding.
    Edit is not F2, because F2 is a tab.
    Mail, Bulletins and Files: Enter opens, Delete moves to Deleted, U
-   restores from Deleted.
+   restores from Deleted; on Mail, G gets mail from the Home BBS.
 5. **The Footer shows only what works right now.** An action that does not
    apply on this tab, or in this state, is absent — not shown and then
    answered with a toast. `KissTermApp.check_action` is where that decision

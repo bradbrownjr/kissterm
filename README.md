@@ -63,9 +63,13 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   list, and a reader. Folders are by kind of mail, not by how you reached
   the BBS, and each message says where it came from. Every message is a
   plain text file under kissterm's data folder, so any editor can read
-  one; Delete moves to Deleted, and U puts it back. Collecting mail from a
-  BBS and Winlink are next (`docs/ROADMAP.md`, P2). Settings > Open on
-  keeps Terminal as the first tab if you prefer.
+  one; Delete moves to Deleted, and U puts it back. **G gets your mail**
+  from the BBS set in Settings > Home BBS (BPQMail so far): it dials the
+  Address Book entry you name there, lists your mail with `LM`, reads only
+  what kissterm does not already have, and disconnects, all shown in the
+  Terminal tab as it happens. Messages stay on the BBS. Sending mail and
+  Winlink are next (`docs/ROADMAP.md`, P2). Settings > Open on keeps
+  Terminal as the first tab if you prefer.
 
   ![The Mail tab](assets/screenshot-mail.png)
 

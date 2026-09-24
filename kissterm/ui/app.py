@@ -677,6 +677,8 @@ class KissTermApp(App):
         #: out N2 retries with no way to stop them. See `action_connect` and
         #: `action_disconnect`.
         self._connecting: dict[str, tuple[AX25Address, int]] = {}
+        #: True while Get mail runs (`action_get_mail`); one at a time.
+        self._collecting = False
         # What each Terminal tab last dialed, for Ctrl+R Reconnect: the whole
         # request (hops, login, port), not just the callsign, so a reconnect
         # to a station reached through two nodes goes back the same way.
@@ -3284,7 +3286,12 @@ class KissTermApp(App):
 
     @work
     async def action_connect(
-        self, prefill=None, target: str = "", redial: ConnectRequest | None = None
+        self,
+        prefill=None,
+        target: str = "",
+        redial: ConnectRequest | None = None,
+        on_link=None,
+        on_reached=None,
     ) -> None:
         """Connect to a station, via the dialog or dialed directly.
 
@@ -3297,6 +3304,9 @@ class KissTermApp(App):
         for a passive NET/ROM claim; it never dials or arms the transmit gate.
         `redial` is Ctrl+R Reconnect: the request this tab last dialed,
         replayed through the same flow (reminder, gate, hops, login).
+        `on_link(link, key)` is called the moment the link is up, before
+        anything awaits, and `on_reached(bool)` once the hop chain has (or
+        has not) reached the target -- Get mail's hooks (`action_get_mail`).
         """
         if self.station is None:
             if self.session_transport is not None:
@@ -3537,6 +3547,8 @@ class KissTermApp(App):
             )
             return
         self._bind_link(link, key)
+        if on_link is not None:
+            on_link(link, key)
         # Explicit, not left to the `on_state` callback `_bind_link` just
         # registered: `AX25Station.connect` already ran the SABM/UA exchange
         # to completion before returning this link, so the transition INTO
@@ -3577,6 +3589,8 @@ class KissTermApp(App):
             # operator can continue by hand from there, or Ctrl+D. Neither
             # the address book nor a login script should treat a chain that
             # stalled partway as having reached `target`.
+            if on_reached is not None:
+                on_reached(False)
             return
         # Separate from the attempt the dialog already recorded: "tried ten
         # times, never got in" is a different fact from "this one works", and
@@ -3588,6 +3602,8 @@ class KissTermApp(App):
         )
         if login_text.strip():
             self._run_connect_script(link, key, login_text)
+        if on_reached is not None:
+            on_reached(True)
 
     async def _connect_session_transport(self) -> None:
         """Connect through a session-tier transport (Telnet, SSH, VARA,
@@ -3841,6 +3857,105 @@ class KissTermApp(App):
             self._to_terminal(session_key, "write_note", line + "\n")
             self.log_sent(session_key, line)
             await asyncio.sleep(CONNECT_SCRIPT_LINE_DELAY)
+
+    @work(exclusive=False)
+    async def action_get_mail(self) -> None:
+        """Collect mail from the Home BBS (Mail tab, G). ROADMAP P2.
+
+        The connect is `action_connect` with the Home BBS route as a dial:
+        the reminder, the transmit gate, the hop chain and the route's own
+        login all apply, and nothing here arms anything. The collector
+        (`kissterm/mail/collect.py`) subscribes the moment the link is up,
+        so the BBS's greeting is not missed, and starts once the chain has
+        reached the target. It switches to the Terminal tab, where every line
+        it sends is echoed and the transcript kept. When it finishes, the
+        link is disconnected; Ctrl+D stops it at any point.
+        """
+        from ..mail.collect import BbsCollector, CollectOptions
+
+        home = self.config.home_bbs
+        if not home.route.strip():
+            self.notify(
+                "No Home BBS yet: set Settings (F9) > Home BBS > Dial.", severity="warning"
+            )
+            return
+        if self._collecting:
+            self.notify("Already getting mail.", severity="warning")
+            return
+        entry = self.addressbook.find(home.route.strip())
+        if entry is None:
+            self.notify(
+                f"Home BBS: {home.route} is not in the Address Book.", severity="warning"
+            )
+            return
+        first = [h.strip() for h in entry.hops.split(",") if h.strip()] or [entry.target]
+        peer = parse_path(first[0]).destination
+        if any(
+            s.link is not None and s.link.connected
+            and (s.link.peer.callsign, s.link.peer.ssid) == (peer.callsign, peer.ssid)
+            for s in self._sessions.values()
+        ):
+            self.notify(
+                f"Already connected to {peer}. Disconnect first, then press G.",
+                severity="warning",
+            )
+            return
+        options = CollectOptions(
+            bbs_call=home.call,
+            software=home.software,
+            ready_text=home.ready_text,
+            login_prompt=home.login_prompt,
+            login_text=find_credential(self.config, home.credential) if home.credential else "",
+        )
+        state: dict = {"collector": None, "key": "", "reached": False}
+
+        def on_link(link, key: str) -> None:
+            state["key"] = key
+            state["collector"] = BbsCollector(
+                link,
+                self.mail_store,
+                options,
+                note=lambda text: self._to_terminal(key, "write_note", f"*** Mail: {text}\n"),
+                sent=lambda text: self._mail_sent(key, text),
+                gate_open=lambda: self.gate.enabled,
+            )
+
+        def on_reached(reached: bool) -> None:
+            state["reached"] = reached
+
+        self._collecting = True
+        # The session is where it happens, and the connect puts focus in the
+        # session's send line: shown from the Mail tab, keys pressed there
+        # would be typed into a pane the operator cannot see.
+        self.action_show_tab("terminal")
+        try:
+            worker = self.action_connect(prefill=entry, on_link=on_link, on_reached=on_reached)
+            await worker.wait()
+            collector = state["collector"]
+            if collector is None:
+                return
+            if not state["reached"]:
+                collector.close()
+                return
+            result = await collector.run()
+            key = state["key"]
+            if result.filed:
+                self.notify(f"{len(result.filed)} new message(s) from the Home BBS.")
+            self._reload_mail_tabs()
+            await self._disconnect_session(key)
+        finally:
+            self._collecting = False
+
+    def _mail_sent(self, key: str, text: str) -> None:
+        """Echo a line Get mail sent, as a typed line is echoed."""
+        self._to_terminal(key, "write_note", text + "\n")
+        self.log_sent(key, text, watch_hop=False)
+
+    def _reload_mail_tabs(self) -> None:
+        from .mail_pane import MessageBrowser
+
+        for browser in self.query(MessageBrowser):
+            browser.reload()
 
     @work
     async def action_set_callsign(self) -> None:

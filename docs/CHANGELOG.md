@@ -5,6 +5,33 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-24] — Get mail: collect from the Home BBS (Mail tab, G)
+
+### New Features
+
+- **G on the Mail tab gets your mail from the Home BBS.** It dials the
+  Address Book entry named in Settings > Home BBS the normal way (reminder,
+  transmit gate, hops, the entry's login), switches to the Terminal tab,
+  waits for the BBS prompt, lists with `LM` and reads only messages
+  kissterm does not already have, oldest first. Each complete read is filed
+  in Mail/BBS/Inbox with the raw reply beside it (`.bbs`); then it
+  disconnects. Page prompts are answered with Enter. It stops by name on a
+  dropped link, a closed transmit gate, five minutes of silence, a reply it
+  does not recognise or a BBS that is not BPQMail. Messages stay on the
+  BBS. Ctrl+D stops it at any time.
+- **Settings > Home BBS**: the entry to dial, the BBS callsign (read from
+  its prompt when empty), software (automatic or BPQMail), and for other
+  BBSes a ready text and a login prompt with a saved credential.
+
+**Files:** `kissterm/mail/collect.py`, `kissterm/mail/store.py`,
+`kissterm/config.py`, `kissterm/ui/app.py`, `kissterm/ui/mail_pane.py`,
+`kissterm/ui/commands.py`, `kissterm/ui/settings_schema.py`,
+`config.toml.example`, `tests/unit/test_mail_collect.py`,
+`tests/unit/test_mail_store.py`, `tests/unit/test_config.py`,
+`tests/pilot/test_get_mail.py`, `tests/pilot/test_settings.py`,
+`README.md`, `DESIGN.md`, `kissterm/mail/AGENTS.md`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-24] — Select and copy text in the scrollbacks
 
 ### Improvements
