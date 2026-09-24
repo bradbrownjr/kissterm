@@ -187,8 +187,21 @@ anything taken from its behaviour rather than from documentation
   and stops by name on anything it does not recognise. Retrieval filters
   beyond `LM` (NTS, bulletins) are still open; the P11 notes below describe
   Outpost's.
-- [ ] **Bulletin collection** into Bulletins/<category>, using the
-  same session with a category or keyword filter. Medium.
+- [ ] **Bulletin collection** (Bulletins tab, G), into Bulletins/<category>,
+  from the Home BBS. Decided 2026-09-24 with the operator:
+  - **Subscriptions, not everything**: a BBS holds hundreds of bulletins and
+    the weak path moved 9 listing lines in 4 minutes. The first G connects,
+    sends `LC` (list categories) and offers them as a checklist, with All;
+    the picks are saved.
+  - **New categories are offered**: each G sends `LC`; a category not seen
+    before on that BBS is offered while connected ("subscribe?"). Declined
+    ones are remembered and not offered again.
+  - **Read them all**: every subscribed bulletin the store lacks is read and
+    filed, as mail is (`has_bbs_number`, then BID). Never `K`.
+  - **S on the Bulletins tab** edits the subscriptions offline from the
+    categories last seen; also a Settings > Home BBS field.
+  - **Capture first**: `LC`, `LB> <cat>` (or `L> <cat>`) and one full
+    bulletin read, from WS1EC-2. Asked for 2026-09-24. Medium.
 
 #### Forms
 
