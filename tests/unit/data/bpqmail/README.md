@@ -20,4 +20,8 @@ removed, and the operator's own keystrokes (`> ...`) dropped.
 - `kill_2578.txt`: the reply to `K 2578`.
 - `read_99999_not_found.txt`: the reply to `R 99999`.
 
-Not yet captured: the reply to `LM` when there is no mail.
+- `list_lm.txt`: 2026-09-24, `LM` typed before the greeting arrived, with
+  nothing unread; lists read private mail only (the node's "Include SYSOP
+  msgs in LM" is off).
+
+Not yet captured: the reply to `LM` when there is no mail at all.

@@ -1,0 +1,15 @@
+[BPQ-6.0.23.1-B2FWIHJM$]
+Hello Bradley. Welcome back to WS1EC-2 BBS. 
+Latest Message is 2777, Last listed is 1176.
+You have 0 messages waiting for you.
+de WS1EC#>
+2501   12-Sep PY     192 KC1JMH @WS1EC  WS1EC  RE: TEST OUTPOST
+2429   08-Sep PY     443 KC1JMH @WS1EC  W1BKW  BULLETIN - Bulletin Message
+2426   08-Sep PY     449 KC1JMH @WS1EC  W1BKW  BULLETIN - Bulletin Message
+2425   08-Sep PY     447 KC1JMH @WS1EC  W1BKW  BULLETIN - Bulletin Message
+2424   08-Sep PY     447 KC1JMH @WS1EC  W1BKW  BULLETIN - Bulletin Message
+2418   08-Sep PY     477 KC1JMH @WS1EC  W1BKW  BULLETIN - Bulletin Message
+2417   08-Sep PY     477 KC1JMH @WS1EC  W1BKW  BULLETIN - Bulletin Message
+2350   04-Sep PY     115 KC1JMH @ME     W1BKW  Test of shortened HA to just ME.USA.NOAM
+2349   04-Sep PY     246 KC1JMH @WS1EC  W1BKW  Test of Routing to KC1JMH SP
+de WS1EC#>

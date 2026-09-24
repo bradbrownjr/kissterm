@@ -18,6 +18,7 @@ from kissterm.mail.bpqmail import (  # noqa: E402
     prompt_call,
     strip_page_prompts,
     to_message,
+    waiting,
 )
 
 DATA = Path(__file__).parent / "data" / "bpqmail"
@@ -131,3 +132,19 @@ def test_kill_confirmation_and_not_found():
     lines = _lines("read_99999_not_found.txt")
     assert not_found(lines) == 99999 and killed(lines) is None
     assert parse_read(lines) is None
+
+
+def test_lm_lists_read_mail_after_the_greeting():
+    # LM on 2026-09-24, typed before the greeting arrived; nothing unread.
+    lines = _lines("list_lm.txt")
+    assert waiting(lines) == 0
+    entries = parse_list(lines)
+    assert [e.number for e in entries] == [2501, 2429, 2426, 2425, 2424, 2418, 2417, 2350, 2349]
+    assert all((e.type, e.status, e.to) == ("P", "Y", "KC1JMH") for e in entries)
+    assert entries[7].at == "ME" and entries[7].title == "Test of shortened HA to just ME.USA.NOAM"
+
+
+def test_waiting_count_from_the_greeting():
+    assert waiting(_lines("read_2578_private.txt")) == 2
+    assert waiting(["You have 1 message waiting for you."]) == 1
+    assert waiting(["de WS1EC#>"]) is None

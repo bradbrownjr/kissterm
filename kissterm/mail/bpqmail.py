@@ -27,7 +27,14 @@ What the captures show:
 - `K 2578` answers `Message #2578 Killed`; `R 99999` answers `Message 99999
   not found` (no `#`). Both are followed by the prompt.
 
-Not yet captured, so not relied on: what `LM` says when there is no mail.
+- The greeting says `You have N messages waiting for you.` -- N counts
+  unread mail only. `LM` lists read mail too (status `Y`), so a collector
+  decides what it already has by BID (`MessageStore.find`), not by status.
+  With the node's "Include SYSOP msgs in LM" off, `LM` lists only mail to
+  the user's own call.
+
+Not yet captured, so not relied on: what `LM` says when there is no mail at
+all.
 """
 
 from __future__ import annotations
@@ -46,6 +53,8 @@ ABORTED = "Output aborted"
 PROMPT_RE = re.compile(r"^de ([A-Z0-9]{1,6})(?:-\d{1,2})?#>\s*$")
 KILLED_RE = re.compile(r"^Message #(\d+) Killed\s*$")
 NOT_FOUND_RE = re.compile(r"^Message (\d+) not found\s*$")
+# UNVERIFIED: the singular ("1 message"); only 0 and 2 are captured.
+WAITING_RE = re.compile(r"^You have (\d+) messages? waiting for you\.?\s*$")
 
 #: `2705   22-Sep B$     472 WP     @WS1EC  WD1O   WP Update`
 LIST_RE = re.compile(
@@ -119,6 +128,11 @@ def killed(lines: list[str]) -> int | None:
 def not_found(lines: list[str]) -> int | None:
     """The message number an `R` or `K` reply says does not exist, or None."""
     return _first_number(NOT_FOUND_RE, lines)
+
+
+def waiting(lines: list[str]) -> int | None:
+    """The unread count from the login greeting, or None if it is not there."""
+    return _first_number(WAITING_RE, lines)
 
 
 def _first_number(pattern: re.Pattern[str], lines: list[str]) -> int | None:

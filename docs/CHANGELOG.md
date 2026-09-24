@@ -12,7 +12,9 @@ you need the history of a specific change.
 - **The BPQMail parser now covers a private message read to its end, the
   reply to `K`, and `R` of a message that does not exist**, from the
   operator's WS1EC-2 session. `killed()` and `not_found()` read the last two.
-  `LM` with no mail is still uncaptured.
+- **`LM` captured**: it lists read mail as well as unread, so collection will
+  go by BID, not status. `waiting()` reads the greeting's unread count.
+  `LM` with no mail at all is still uncaptured.
 
 **Files:** `kissterm/mail/bpqmail.py`, `tests/unit/test_mail_bpqmail.py`,
 `tests/unit/data/bpqmail/`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
