@@ -144,6 +144,10 @@ changes.
 - **Call `kissterm._isolate.isolate()` before the first `kissterm` import** in
   any test or script. `config.py` resolves the real `~/.config/kissterm` at
   import time. **Never `shutil.rmtree()` a `platformdirs` path.**
+- **`tests/conftest.py` isolates before any test file loads** and stops
+  pytest if kissterm's paths are real; never remove either. Without it, a
+  run that listed a unit file before a pilot file overwrote the operator's
+  config.toml (2026-09-23).
 - **Run only the tests for what you changed.** Requested repeatedly by the
   operator (CPU, power, tokens). The full suite (`-n auto`, several minutes on
   every core) is for cross-cutting changes -- transport, the AX.25 state

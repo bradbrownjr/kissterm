@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-24] — Tests could overwrite the operator's real config
+
+### Bug Fixes (closed)
+
+- **A test run replaced the operator's config.toml with test settings**
+  (callsign N1ABC-1, no transports), so the next launch asked for the
+  callsign and radio again. Cause: many unit test files import kissterm
+  without `isolate()`; when one was listed ahead of pilot tests in a
+  parallel run, that worker fixed `kissterm.config`'s paths on the real
+  directories, and a pilot test that saves a callsign wrote the real file.
+  Reproduced under a throwaway HOME. Fix: `tests/conftest.py` isolates
+  before any test file loads, `isolate()` reuses one scratch tree per
+  process, and `pytest_configure` refuses to run if the paths are not the
+  scratch tree.
+
+**Files:** `tests/conftest.py`, `kissterm/_isolate.py`, `AGENTS.md`
+
 ## [2026-09-23] — Mail, Bulletins and Files tabs; Mail is the launch tab
 
 ### New Features
