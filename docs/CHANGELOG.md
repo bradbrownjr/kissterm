@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-24] — A double click sent two connect attempts that jammed each other
+
+### Bug Fixes (open until confirmed on the air)
+
+- **Connects to WS1EC-2 failed while the node was answering.** The log shows
+  two connects to the same station 200-400 ms apart (a double click on the
+  dial and again on the reminder's Connect), so every SABM went out twice.
+  Our second SABM keyed the radio over the node's UA, so we never heard it;
+  the node then polled a link it thought was up, and we answered DM. Now a
+  second request while one is calling is refused ("Already connecting"),
+  and `AX25Station.connect` joins a link still in its SABM phase instead of
+  orphaning it.
+
+**Files:** `kissterm/ax25/session.py`, `kissterm/ax25/station.py`,
+`kissterm/ui/app.py`, `tests/unit/test_ax25_link.py`,
+`tests/pilot/test_connect_scripts.py`, `docs/CHANGELOG.md`
+
 ## [2026-09-24] — Tests could overwrite the operator's real config
 
 ### Bug Fixes (closed)

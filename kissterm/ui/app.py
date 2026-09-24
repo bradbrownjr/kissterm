@@ -3423,6 +3423,13 @@ class KissTermApp(App):
             return
         key = self._session_key(path.destination, port)
         pane = self.query_one(TerminalPane)
+        if key in self._connecting:
+            # A second request while the first is still calling (a double
+            # click on the dial and on the reminder's Connect, 2026-09-24).
+            # Two SABM streams key the radio over the peer's UA, and a join
+            # would run the login script twice; say so and drop this one.
+            self.notify(f"Already connecting to {path.destination}.", severity="warning")
+            return
         self._last_connect[key] = request
         self._last_connect_key = key
         if not pane.has_room_for(key):

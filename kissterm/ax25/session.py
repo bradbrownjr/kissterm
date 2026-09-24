@@ -256,6 +256,12 @@ class AX25Link:
         """
         if self.connected:
             return True
+        # A second call during the SABM phase joins the attempt in flight.
+        # Restarting it would send a second SABM stream; two streams 200 ms
+        # apart key the radio over the peer's UA, so neither ever connects
+        # (seen on the air 2026-09-23/24; `test_second_connect_joins_...`).
+        if self._connect_result is not None and not self._connect_result.done():
+            return await asyncio.shield(self._connect_result)
         self._reset_sequences()
         self.state = SessionState.CONNECTING
         self._emit_state()

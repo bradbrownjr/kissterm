@@ -116,6 +116,11 @@ class AX25Station:
         link = self.links.get(key)
         if link is not None and link.connected:
             return link
+        if link is not None and link.state is SessionState.CONNECTING:
+            # Never replace a link that is still sending SABMs: the old one
+            # would keep transmitting, orphaned, and its SABMs would key the
+            # radio over the UA meant for the new one. Join its attempt.
+            return link if await link.connect() else None
 
         overrides = {}
         if paclen is not None:

@@ -342,3 +342,34 @@ async def test_an_established_link_still_gets_the_full_n2_budget():
     )
     a.close()
     b.close()
+
+
+@pytest.mark.asyncio
+async def test_second_connect_joins_the_attempt_in_flight():
+    # Two connects to one peer 200 ms apart sent two SABM streams on the air
+    # (2026-09-24): the second keyed the radio over the node's UA. The second
+    # call must join the first attempt, not replace its link.
+    ta, tb = loopback_pair()
+    await ta.open()
+    ta.peer = None
+    a = AX25Station(CALL_A, ta, _params(connect_retries=2))
+    path = AX25Path(CALL_B, CALL_A)
+    first = asyncio.ensure_future(a.connect(path))
+    await asyncio.sleep(0.05)
+    link = a.link_to(CALL_B)
+    second = asyncio.ensure_future(a.connect(path))
+    assert await first is None and await second is None
+    assert a.link_to(CALL_B) is link
+    # One stream: the SABM plus one per retry, as for a single connect.
+    assert 2 <= len(ta.sent) <= 4
+    a.close()
+
+
+@pytest.mark.asyncio
+async def test_second_connect_joins_and_comes_up_once():
+    a, b, *_ = await _pair()
+    path = AX25Path(CALL_B, CALL_A)
+    first, second = await asyncio.gather(a.connect(path), a.connect(path))
+    assert first is not None and first is second
+    a.close()
+    b.close()

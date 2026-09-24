@@ -29,6 +29,7 @@ import pytest  # noqa: E402
 from kissterm.addressbook import AddressBook  # noqa: E402
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
+from kissterm.ax25.frame import UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
@@ -443,6 +444,33 @@ async def test_dialing_from_the_addressbook_pane_also_shows_the_reminder(tmp_pat
 
         assert not isinstance(app.screen, RadioReminderScreen)
         assert station.transport.sent
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_second_dial_while_calling_sends_no_second_sabm_stream(tmp_path):
+    """A double click on a dial and on the reminder's Connect started two
+    connects 200 ms apart (2026-09-24). Two SABM streams key the radio over
+    the node's UA, so neither ever came up. The second request is dropped."""
+    app, station, tb = await _app()
+    station.params = LinkParams(t1=0.3, t2=0.05, t3=5.0, connect_retries=1)
+    station.transport.peer = None  # nobody answers: it stays in its SABM phase
+    book = _fresh_book(app, tmp_path)
+    book.record_attempt("WS1EC-7")
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        entry = book.find("WS1EC-7")
+        app.action_connect(prefill=entry)
+        await asyncio.sleep(0.1)
+        link = station.link_to(NODE)
+        assert link is not None
+        app.action_connect(prefill=entry)
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+        assert station.link_to(NODE) is link
+        await asyncio.sleep(1.2)  # let the attempt run out
+        # One stream: the SABM plus one retry. Two streams would be four.
+        assert sum(1 for f in station.transport.sent if f.utype is UType.SABM) == 2
     station.close()
 
 
