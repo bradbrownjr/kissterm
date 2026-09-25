@@ -54,33 +54,34 @@ class ComposeScreen(ModalScreen[Message | None]):
     def compose(self) -> ComposeResult:
         original = self._reply_to
         with Vertical(id="compose-box"):
-            if original is None:
-                yield Label("New message", id="connect-title")
-                yield Select(_TYPES, value=SEND_PRIVATE, allow_blank=False, id="compose-type")
-            else:
-                number = original.extra.get("Bbs-Number", "")
-                title = f"Reply to #{number}" if number else "Reply"
-                yield Label(f"{title} from {original.sender}", id="connect-title")
+            with Horizontal(classes="compose-row"):
+                if original is None:
+                    yield Label("New message", id="compose-heading")
+                    yield Select(_TYPES, value=SEND_PRIVATE, allow_blank=False,
+                                 compact=True, id="compose-type")
+                else:
+                    number = original.extra.get("Bbs-Number", "")
+                    title = f"Reply to #{number}" if number else "Reply"
+                    yield Label(f"{title} from {original.sender}", id="compose-heading")
+                    if self._by_number:
+                        bbs = original.source.removeprefix("BBS ")
+                        yield Static(
+                            f"sent as SR {number}: {bbs} addresses and titles it",
+                            id="compose-note",
+                        )
             with Horizontal(classes="compose-row"):
                 yield Label("To", classes="compose-label")
-                yield Input(id="compose-to", placeholder="Callsign, e.g. W1BKW")
+                yield Input(id="compose-to", placeholder="Callsign, e.g. W1BKW", compact=True)
                 yield Label("@", classes="compose-label compose-at-label")
-                yield Input(id="compose-at", placeholder="optional: the BBS adds it")
+                yield Input(id="compose-at", placeholder="optional: the BBS adds it", compact=True)
             with Horizontal(classes="compose-row"):
                 yield Label("Title", classes="compose-label")
-                yield Input(id="compose-title")
-            if self._by_number:
-                yield Static(
-                    f"Sent as SR {original.extra['Bbs-Number']}: "
-                    f"{original.source.removeprefix('BBS ')} addresses and titles "
-                    "the reply itself.",
-                    id="compose-note",
-                )
+                yield Input(id="compose-title", compact=True)
             yield TextArea(id="compose-body", tab_behavior="focus", soft_wrap=True)
-            yield Label("", id="compose-error")
-            with Horizontal(id="connect-buttons"):
-                yield Button("Save to Outbox", variant="primary", id="compose-save")
-                yield Button("Cancel", id="compose-cancel")
+            with Horizontal(id="compose-foot"):
+                yield Label("", id="compose-error")
+                yield Button("Save to Outbox", variant="primary", compact=True, id="compose-save")
+                yield Button("Cancel", compact=True, id="compose-cancel")
         yield Footer()
 
     def on_mount(self) -> None:

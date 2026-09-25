@@ -143,3 +143,20 @@ async def test_esc_asks_before_discarding_typed_text(tmp_path):
         await pilot.press("escape")
         await wait_for(lambda: not isinstance(app.screen, ComposeScreen), "the screen to close")
         assert store.list(BBS_OUTBOX) == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size,rows", [((80, 24), 12), ((100, 30), 17)])
+async def test_the_text_gets_the_height(tmp_path, size, rows):
+    """DESIGN.md section 3, "Dense where the content is the point": the
+    compose dialog had two rows to write in at 80x24 (2026-09-25)."""
+    app, _store = _app(tmp_path)
+    async with app.run_test(size=size) as pilot:
+        await _focus_list(app, pilot)
+        await pilot.press("r")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen")
+        await pilot.pause()
+        body = app.screen.query_one("#compose-body", TextArea)
+        assert body.region.height >= rows, body.region
+        for wid in ("#compose-to", "#compose-title"):
+            assert app.screen.query_one(wid).region.height == 1

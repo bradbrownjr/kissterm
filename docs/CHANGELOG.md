@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — Compose gives its rows to the text
+
+### Improvements
+
+- **The compose dialog has no empty rows**: one-row (compact) To, @ and
+  Title fields, the SR note beside the heading, the buttons and any error
+  on one row, and the message text takes everything left. At 80x24 the
+  text went from 2 rows to 12 or more. DESIGN.md section 3, "Dense where
+  the content is the point", makes this the rule for any screen whose
+  job is writing or reading text, with compact controls that show focus
+  as a tint.
+
+**Files:** `kissterm/ui/compose.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_compose.py`, `DESIGN.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-25] — G sends the Outbox, then reads
 
 ### New Features

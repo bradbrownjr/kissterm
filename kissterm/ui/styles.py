@@ -70,6 +70,21 @@ Select > SelectCurrent { border: round $primary; }
 Input:focus, TextArea:focus, RichLog:focus, DataTable:focus, OptionList:focus,
 ListView:focus, Switch:focus,
 Select:focus > SelectCurrent { border: round $accent; }
+/* Compact controls (`compact=True`): one row, no border, for screens where
+   the text being written needs the height (DESIGN.md section 3, "Dense
+   where the content is the point"). Focus is still shown in the same two
+   colours, as a background tint instead of a border. */
+Input.-textual-compact, Select.-textual-compact > SelectCurrent {
+    border: none; height: 1; background: $primary 15%;
+}
+Input.-textual-compact:focus, Select.-textual-compact:focus > SelectCurrent {
+    border: none; background: $accent 25%;
+}
+Button.-textual-compact {
+    border: none; height: 1; min-width: 0; padding: 0 1; background: $primary 15%;
+}
+Button.-textual-compact:focus { background: $accent 25%; }
+Button.-textual-compact.-primary { color: $primary; }
 /* Exempt: chrome that is not a field. App CSS outranks every widget's own
    DEFAULT_CSS, so without these the Ctrl+P palette and the F10 menu's item
    list would grow boxes. Values are Textual's / menu.py's own defaults. */
@@ -294,22 +309,25 @@ ConnectScreen { align: center middle; }
    box that grew with its content would push Connect/Cancel around. */
 #connect-script { height: 4; margin-top: 1; }
 
-/* ComposeScreen: most of the screen, since a message is a document; the
-   body takes whatever height is left so Save stays on screen. Reuses
-   #connect-title and #connect-buttons. */
+/* ComposeScreen: a dialog, but one with no empty rows in it -- one-row
+   controls, the SR note beside the heading, the error beside the buttons,
+   and every row left over goes to the text (DESIGN.md section 3). */
 ComposeScreen { align: center middle; }
 #compose-box {
-    width: 100; max-width: 95%; height: 90%; padding: 1 2;
+    width: 100; max-width: 95%; height: 90%; padding: 0 1;
     border: thick $primary; background: $surface;
 }
-#compose-type { width: 100%; margin-top: 1; }
-.compose-row { height: auto; margin-top: 1; }
-.compose-label { width: 7; padding: 1 1 0 0; color: $text-muted; }
-.compose-at-label { width: 3; padding: 1 1 0 1; }
+.compose-row { height: 1; }
+#compose-heading { width: 1fr; text-style: bold; color: $text; }
+#compose-type { width: 26; }
+.compose-label { width: 7; color: $text-muted; }
+.compose-at-label { width: 4; padding: 0 1; }
 .compose-row Input { width: 1fr; }
-#compose-note { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
-#compose-body { height: 1fr; margin-top: 1; }
-#compose-error { color: $error; width: 100%; height: auto; }
+#compose-note { width: 1fr; color: $text-muted; }
+#compose-body { height: 1fr; }
+#compose-foot { height: auto; }
+#compose-error { width: 1fr; height: auto; color: $error; }
+#compose-foot Button { margin-left: 1; }
 
 /* First-run onboarding intentionally asks for one required fact before
    handing off to the established Settings transport editor.  It is a short

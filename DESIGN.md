@@ -72,7 +72,23 @@ was restyled, and it was spotted immediately in a screenshot.
   classes (`-primary`, `-error`, ...) change **only** border and text color,
   never shape or fill.
 - **Controls are all 3 rows tall** (`Input`, `Select`, `Switch`, `Button`), so
-  a form row is one consistent height regardless of which control it holds.
+  a form row is one consistent height regardless of which control it holds
+  -- in forms. A screen whose job is writing or reading text uses compact
+  controls instead (next rule).
+- **Dense where the content is the point** (2026-09-25). Rows are scarce
+  in a terminal; a screen for writing or reading text gives them to the
+  text, not to chrome. The compose screen is the reference:
+  - **Compact controls** (`compact=True`): one row, no border. Focus shows
+    as a tint, `$primary 15%` at rest and `$accent 25%` focused
+    (`styles.py`), so the one-colour-for-focus rule still holds.
+  - **No empty rows inside the dialog**: fields sit on consecutive rows; a
+    note shares the heading's row; the error shares the buttons' row and
+    grows only while there is an error.
+  - **The text area takes every row left over** (`height: 1fr`) in a box
+    sized to the screen (`height: 90%`), never a fixed or content-sized
+    height. Two rows to write a message in was the bug that set this rule.
+  - A short checkpoint dialog (a reminder, a confirm) keeps the roomier
+    3-row form style: there the space is the readability.
 - **Never use Textual's default `border: tall`** on an interactive widget. It
   renders as a raised 3D bezel that belongs to a different design era than
   everything else here.
