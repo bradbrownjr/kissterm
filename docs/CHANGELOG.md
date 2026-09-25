@@ -7,6 +7,14 @@ you need the history of a specific change.
 
 ## [2026-09-25] — Get mail progress in the status bar; where messages go
 
+### Decisions
+
+- **A poll that arrives after a connect has failed is still answered DM**,
+  as AX.25 2.2 says. The WS1EC-2 log of 2026-09-25 02:00 showed the node
+  accepting our last SABM and polling after we gave up, while hearing none
+  of our 7 DMs: an uplink RF problem, not one to paper over in the stack.
+  Recorded in AGENTS.md section 3.
+
 ### Improvements
 
 - **Get mail no longer pushes a status line in above the message list.**
@@ -21,7 +29,7 @@ you need the history of a specific change.
 
 **Files:** `kissterm/ui/app.py`, `kissterm/ui/mail_pane.py`,
 `kissterm/ui/styles.py`, `kissterm/mail/collect.py`,
-`tests/pilot/test_get_mail.py`, `DESIGN.md`, `docs/CHANGELOG.md`
+`tests/pilot/test_get_mail.py`, `DESIGN.md`, `AGENTS.md`, `docs/CHANGELOG.md`
 
 ## [2026-09-24] — Menu headings always shown; Get mail stays on the Mail tab
 

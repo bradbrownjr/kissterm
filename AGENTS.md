@@ -104,6 +104,9 @@ docstring is long on purpose. The points that cost time if forgotten:
 - **Deliberate deviation:** a poll while connecting sends the next SABM at
   once (`sabm_on_poll`, default on; `_on_frame_while_connecting`). Never
   answer it DM: that tears down the link the peer just accepted.
+- **A poll after a failed connect is answered DM, per spec.** Adopting it
+  as a late UA was proposed and declined by the operator (2026-09-25:
+  "stay on spec"); a node that hears us that rarely is an RF problem.
 - **Connect retries and N2 are separate budgets on purpose** (both 10 since
   2026-09-24; see `DEFAULT_CONNECT_RETRIES`).
 - **Single-threaded per link, no locks.** Never call into a link from a thread.
