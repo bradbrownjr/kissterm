@@ -290,9 +290,15 @@ from the Address Book.
 ### Slide-out panels
 
 A contact list that a pane needs but does not want permanently on screen —
-the Terminal pane's Address Book, the APRS pane's contacts list, Mail's own
-contacts panel once that tab exists — is a collapsible column docked on the
-**right** edge of its pane, not a tab and not a modal.
+the Terminal pane's Address Book, the APRS pane's contacts list, the
+Address Book again on Mail, Bulletins and Files (to pick a BBS and dial it)
+— is a collapsible column docked on the **right** edge of its pane, not a
+tab and not a modal.
+
+- **On the mail tabs it never opens by itself**, shows stations only (the
+  NET/ROM claims stay on Terminal), and splits only what is right of the
+  folder tree: the list and reader give way, down to the panel taking their
+  place on a narrow screen. A dial from it closes it and goes to Terminal.
 
 - **One key opens or closes whichever slide-out belongs to the active
   pane**: `Ctrl+G`. The key's meaning does not change tab to tab; a tab with

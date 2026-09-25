@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — The Address Book on Mail, Bulletins and Files
+
+### Improvements
+
+- **Ctrl+G on Mail, Bulletins or Files slides the Address Book in** to pick
+  a BBS and dial it, without going to Terminal first. It never opens by
+  itself there, lists stations only, and takes its width from the list and
+  reader rather than the folder tree (on 80 columns it replaces them while
+  open). A dial closes it and moves to Terminal; Escape closes it. An edit
+  made in any copy shows in all of them.
+
+**Files:** `kissterm/ui/mail_pane.py`, `kissterm/ui/addressbook_pane.py`,
+`kissterm/ui/app.py`, `kissterm/ui/commands.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_mail_addressbook.py`, `README.md`, `DESIGN.md`,
+`docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-25] — Address Book entry dialog: every field whole, fits 80x24
 
 ### Bug Fixes (awaiting operator confirmation)

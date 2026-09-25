@@ -14,7 +14,8 @@ has been active and whether you heard them directly:
 ![The heard list](assets/screenshot-heard.png)
 
 Every station you've connected to, or set up in advance -- `Ctrl+G` opens the
-Address Book as a slide-out on the Terminal pane, and dials one directly, with
+Address Book as a slide-out on the Terminal pane (and on Mail, Bulletins
+and Files, to pick a BBS), and dials one directly, with
 its node-hop chain, saved login and frequency reminder all still applying:
 
 ![The address book slide-out](assets/screenshot-addressbook.png)
@@ -274,7 +275,7 @@ terminal can actually deliver.
 | `Ctrl+D` | **Disconnect** -- End the session on the active Terminal tab, or cancel a connect that is still trying (Terminal) |
 | `Ctrl+R` | Terminal: **Reconnect** -- Connect again to the station this Terminal tab was connected to, the same way (hops and login included); APRS: **Services** -- Pick a gateway service (SMS, email, weather) and fill in the message |
 | `Ctrl+W` | Terminal: **Close tab** -- Close the Terminal tab on screen; a connected one is disconnected first. Delete does the same while the tab row has focus; APRS: **Close conversation** -- Close the conversation tab on screen. Delete does the same while the tab row has focus |
-| `Ctrl+G` | Terminal: **Address book** -- Show or hide the Address Book; APRS: **Contacts** -- Show or hide the contacts list |
+| `Ctrl+G` | Terminal, Mail, Bulletins, Files: **Address book** -- Show or hide the Address Book; APRS: **Contacts** -- Show or hide the contacts list |
 | `Ctrl+F` | **Find** -- Search the terminal scrollback (Terminal) |
 | `Ctrl+L` | **Clear** -- Clear what this tab is showing (Terminal, APRS, Monitor) |
 | `Ctrl+Q` | **Quit** -- Leave kissterm |
@@ -347,7 +348,7 @@ way -- a frame-tier KISS TNC to a session-tier Telnet/SSH/VARA host, or back
 -- is not supported live; Settings (`F9`) > Transports still needs a restart
 for that.
 
-**The Address Book slide-out (`Ctrl+G`, from the Terminal pane) is the same
+**The Address Book slide-out (`Ctrl+G`, from Terminal or a mail tab) is the same
 list, with room to manage it.** A table of every saved station -- add one in
 advance, fix a typo in its hop chain, or dial it directly (Enter or the
 Connect button) without opening Ctrl+N first. Insert/E/Delete match

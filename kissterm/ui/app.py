@@ -3166,6 +3166,8 @@ class KissTermApp(App):
             self.query_one(TerminalPane).toggle_addressbook()
         elif active == "aprs":
             self.query_one(AprsPane).toggle_contacts()
+        elif active in ("mail", "bulletins", "files"):
+            self.query_one(f"#{active}-browser", MessageBrowser).toggle_addressbook()
 
     def action_toggle_known_nodes(self) -> None:
         """Menu: View > NET/ROM nodes. Collapse passive NET/ROM claims."""
@@ -3504,6 +3506,14 @@ class KissTermApp(App):
         # connection tab. This is after every validation/reminder above: a
         # cancelled dialog must not change the operator's layout.
         pane.close_addressbook_for_connection()
+        # A dial from a mail tab's Address Book: the slide-out has done its
+        # job, and the connect is watched on Terminal, as from Terminal's own
+        # (Send/Receive's `focus_session=False` stays on the Mail tab).
+        dialed_from_mail = False
+        for browser in self.query(MessageBrowser):
+            dialed_from_mail |= browser.close_addressbook(refocus=False)
+        if dialed_from_mail and focus_session:
+            self.action_show_tab("terminal")
         # This session's own tab, opened and put on screen before anything
         # below writes to it, including the TNC-link check right after --
         # a reconnect to a peer whose tab is still open reuses it (and its
@@ -3688,6 +3698,9 @@ class KissTermApp(App):
             self.notify("Already connected.", severity="warning")
             return
         self.query_one(TerminalPane).close_addressbook_for_connection()
+        for browser in self.query(MessageBrowser):
+            if browser.close_addressbook(refocus=False):
+                self.action_show_tab("terminal")
         self._arm_for(f"connect via {transport.info.detail}")
         self.query_one(TerminalPane).clear("")
         self._to_terminal("", "write_note", f"\n*** Connecting to {transport.info.detail}...\n")

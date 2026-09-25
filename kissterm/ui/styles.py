@@ -190,6 +190,9 @@ HeardPane { layout: vertical; }
 .message-browser { height: 1fr; }
 .mail-tree { width: 28; height: 1fr; border: round $primary; }
 .mail-right { width: 1fr; height: 1fr; }
+/* Ctrl+G's Address Book on the Mail, Bulletins and Files tabs: the same
+   column as Terminal's; `slideouts.SlideOut` sets its width. */
+.mail-addressbook-column { width: 58%; height: 1fr; border-left: solid $panel; }
 .mail-list { height: 2fr; }
 .mail-reader { height: 3fr; border: round $primary; padding: 0 1; }
 #heard-radar { width: auto; margin-bottom: 1; }
@@ -567,6 +570,7 @@ SettingsPane { layout: vertical; }
 .-ascii-safe ListView,
 .-ascii-safe Switch,
 .-ascii-safe #terminal-addressbook-column,
+.-ascii-safe .mail-addressbook-column,
 .-ascii-safe #aprs-contacts-column,
 .-ascii-safe #aprs-sensor-summary,
 .-ascii-safe #connect-box,

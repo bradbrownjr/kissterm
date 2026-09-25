@@ -43,6 +43,7 @@ from textual.widgets import DataTable, Tree
 from ..mail import MessageStore
 from ..mail.store import ALL_INBOXES, DELETED, FILES, check_folder, is_deleted_folder
 from ..monitor import sanitize
+from . import slideouts
 from .wraplog import WrapLog
 
 #: Inbox, Outbox, Sent first and Deleted last, as every mail client orders
@@ -154,10 +155,20 @@ class MessageList(DataTable):
 class MessageBrowser(Horizontal):
     """Tree, list and reader over one part of the message store.
 
+    Ctrl+G slides the Address Book in on the right, as on Terminal, so a
+    BBS can be picked and dialed from here (operator, 2026-09-25). Its
+    `AddressBookPane` is mounted the first time it is opened, not at
+    launch: the Terminal's stays the app's first, and three idle copies
+    would cost a table rebuild each for nothing. It never opens by itself
+    here -- the message list needs the width more than a list of stations
+    nobody asked for.
+
     `roots` are the top-level store folders shown (`("Mail",)`); their
     children become the tree's top level. `all_inboxes` adds the combined
     view at the top. `files` switches the list to files instead of messages.
     """
+
+    BINDINGS = [Binding("escape", "close_addressbook", "Close", show=False)]
 
     def __init__(
         self,
@@ -186,9 +197,64 @@ class MessageBrowser(Horizontal):
         with Vertical(classes="mail-right"):
             yield MessageList(cursor_type="row", zebra_stripes=True, classes="mail-list")
             yield WrapLog(classes="mail-reader", wrap=True, markup=False, highlight=False)
+        yield Vertical(classes="mail-addressbook-column")
 
     def on_mount(self) -> None:
+        column = self.query_one(".mail-addressbook-column")
+        self._slideout = slideouts.SlideOut(column, self.query_one(".mail-right"))
+        column.display = False
         self.reload()
+
+    def on_resize(self) -> None:
+        # Split what is right of the folder tree, not the whole tab: the
+        # tree keeps its width and the list and reader give way, down to
+        # the slide-out replacing them on a narrow screen (`slideouts.split`).
+        # `allowed=False`: never opens by itself on this tab (see above).
+        tree = self.query_one(".mail-tree").outer_size.width
+        self._slideout.resized(max(self.size.width - tree, 0), allowed=False)
+
+    # -- the Address Book slide-out ------------------------------------------
+
+    def toggle_addressbook(self) -> None:
+        """Ctrl+G on this tab, from `KissTermApp.action_toggle_contacts`."""
+        from .addressbook_pane import AddressBookPane
+
+        column = self.query_one(".mail-addressbook-column")
+        opened = self._slideout.toggle()
+        if not opened:
+            self.query_one(MessageList).focus()
+            return
+        panes = column.query(AddressBookPane)
+        if panes:
+            self._show_addressbook(panes.first())
+        else:
+            self.call_later(self._mount_addressbook, column, AddressBookPane())
+
+    async def _mount_addressbook(self, column, pane) -> None:
+        await column.mount(pane)
+        self._show_addressbook(pane)
+
+    def _show_addressbook(self, pane) -> None:
+        # Stations only: the passive NET/ROM claims stay on the Terminal
+        # tab, where they are used to build hops.
+        pane.set_known_nodes_visible(False)
+        pane.refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
+        pane.query_one("#addressbook-table").focus()
+
+    def close_addressbook(self, *, refocus: bool = True) -> bool:
+        """Close the slide-out if it is open; returns whether it was.
+
+        A dial passes `refocus=False`: focus in this tab's list would pull
+        the Mail tab back over Terminal (`KissTermApp.action_show_tab`).
+        """
+        if self._slideout.close_by_hand():
+            if refocus:
+                self.query_one(MessageList).focus()
+            return True
+        return False
+
+    def action_close_addressbook(self) -> None:
+        self.close_addressbook()
 
     # -- tree ---------------------------------------------------------------
 

@@ -8,7 +8,7 @@ A ticked item is removed once the matching ROADMAP or CHANGELOG entry
 records it.
 
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
-Terminal tab (E edits an entry); Mail is F2.
+Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Mail: Send/Receive (G on the Mail tab)
 
@@ -50,6 +50,9 @@ Terminal tab (E edits an entry); Mail is F2.
 
 ## Connecting
 
+- [ ] **Address Book on the Mail tab** (Ctrl+G there): pick WS1EC-2, Enter.
+  It should close, move to Terminal, and connect through the frequency
+  reminder as from Terminal. (Not a radio test until the connect.)
 - [ ] **Address Book entry dialog** (Ctrl+G, then E on an entry): every
   field on its own row with a label, Paclen and Window visible, Save and
   Cancel on screen at your terminal size. (Not a radio test, but yours to

@@ -73,14 +73,16 @@ class _AddressBookTable(DataTable):
         if self._click_chain in (None, 2):
             super()._post_selected_message()
 
+    # The pane this table is in, not the app's first: the Mail, Bulletins
+    # and Files tabs each have their own copy beside the Terminal's.
     def action_new_entry(self) -> None:
-        self.app.query_one(AddressBookPane)._new_entry()  # type: ignore[attr-defined]
+        self.query_ancestor(AddressBookPane)._new_entry()
 
     def action_edit_entry(self) -> None:
-        self.app.query_one(AddressBookPane)._edit_selected()  # type: ignore[attr-defined]
+        self.query_ancestor(AddressBookPane)._edit_selected()
 
     def action_forget_entry(self) -> None:
-        self.app.query_one(AddressBookPane)._forget_selected()  # type: ignore[attr-defined]
+        self.query_ancestor(AddressBookPane)._forget_selected()
 
 
 class _KnownNodesTable(DataTable):
@@ -202,6 +204,11 @@ class AddressBookPane(Vertical):
             )
 
     # ------------------------------------------------------------------
+    def _refresh_every_copy(self, book) -> None:
+        """An edit in one copy (Terminal's, or a mail tab's) shows in all."""
+        for pane in self.app.query(AddressBookPane):
+            pane.refresh_from(book)
+
     def _selected_target(self) -> str | None:
         table = self.query_one("#addressbook-table", DataTable)
         if table.row_count == 0 or table.cursor_coordinate is None:
@@ -265,7 +272,7 @@ class AddressBookPane(Vertical):
             return
         book = self.app.addressbook  # type: ignore[attr-defined]
         if book.forget(target):
-            self.refresh_from(book)
+            self._refresh_every_copy(book)
 
     @on(Button.Pressed, "#addressbook-forget")
     def _forget_pressed(self) -> None:
@@ -310,4 +317,4 @@ class AddressBookPane(Vertical):
             note=result.note,
             original_target=target or "",
         )
-        self.refresh_from(book)
+        self._refresh_every_copy(book)
