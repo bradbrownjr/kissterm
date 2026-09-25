@@ -162,15 +162,22 @@ class SessionLog:
             return ""
         return f"[{time.strftime('%H:%M:%S')}] "
 
-    def _write(self, marker: str, text: str) -> None:
+    def _write(self, marker: str, text: str, *, exact: bool = False) -> None:
         if self._handle is None or self._failed or self._closed:
             return
         prefix = self._prefix()
         # rstrip("\n") first so a trailing newline in the caller's text does
         # not produce a dangling, unprefixed blank line at the end -- every
         # line of the entry gets the same marker or none of it reads as one
-        # coherent record years later.
-        lines = text.rstrip("\n").split("\n")
+        # coherent record years later. Received lines (`exact`) drop only
+        # their own terminator: the ones before it are blank lines the far
+        # end sent, and a run of complete lines can end on one (`Hi Dave,
+        # CR CR` closing a 128-byte frame lost the blank line after it,
+        # 2026-09-25).
+        if exact:
+            lines = text.removesuffix("\n").split("\n")
+        else:
+            lines = text.rstrip("\n").split("\n")
         try:
             for line in lines:
                 self._handle.write(f"{prefix}{marker} {line}\n")
@@ -211,7 +218,7 @@ class SessionLog:
             complete = buf[:cut]
             self._swallow_lf = complete.endswith(b"\r")
             self._clean = clean
-            self._write("<", clean(complete))
+            self._write("<", clean(complete), exact=True)
         elif self._partial:
             self._clean = clean
 

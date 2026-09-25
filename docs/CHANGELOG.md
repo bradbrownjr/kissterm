@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — Transcript keeps a blank line that ends a frame
+
+### Bug Fixes (closed)
+
+- **The session transcript dropped a blank line that fell at the end of a
+  frame**, so messages 2801 and 2803 read back from WS1EC-2 looked as if
+  BPQMail had lost blank lines between paragraphs. The frames carried
+  them (the first ended `Hi Dave,\r\rI received y`); the terminal showed
+  them; only the transcript file stripped them. Found in the operator's
+  own capture, so closed.
+
+**Files:** `kissterm/session_log.py`, `tests/unit/test_session_log.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-25] — Get mail progress in the status bar; where messages go
 
 - **Get mail says "1 received", not "1 filed"**: at a glance "filed" read

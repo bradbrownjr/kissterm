@@ -404,3 +404,24 @@ def test_received_stream_writes_whole_lines_across_frame_boundaries(tmp_path):
         "> r 2738",
         "* session closed",
     ]
+
+
+def test_a_blank_line_ending_a_frame_is_kept(tmp_path):
+    """Message 2801 read back from WS1EC-2 (2026-09-25): the first 128-byte
+    frame ended `Hi Dave,\r\rI received y`, and the transcript dropped the
+    blank line between the two."""
+    from kissterm.monitor import sanitize
+
+    log = SessionLog(tmp_path, "KC1JMH", "WS1EC-2", started=time.time(), timestamps=False)
+    log.open()
+    for frame in (b"Title: Re:Test message \r\rHi Dave,\r\rI received y",
+                  b"our message!\r\r73 de KC1JMH\r"):
+        log.received_stream(frame, sanitize)
+    log.close()
+
+    lines = [line for line in log.path.read_text(encoding="utf-8").splitlines()
+             if line and not line.startswith("#")]
+    assert lines == [
+        "< Title: Re:Test message ", "< ", "< Hi Dave,", "< ",
+        "< I received your message!", "< ", "< 73 de KC1JMH", "* session closed",
+    ]
