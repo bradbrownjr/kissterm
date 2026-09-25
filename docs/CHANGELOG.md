@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — Get mail progress in the status bar; where messages go
+
+### Improvements
+
+- **Get mail no longer pushes a status line in above the message list.**
+  Its progress is a status-bar field (`GET MAIL connecting WS1EC-2`,
+  `GET MAIL reading 1/3`) that goes away when it ends; the start and the
+  outcome (new messages, no new mail, stopped and why, could not connect)
+  are toasts.
+- **DESIGN.md section 6, "Where a message goes"**: a lasting state goes in
+  the status bar, an event in a toast, the session record in the terminal;
+  never a line inserted into a pane's content, and no message in two
+  places.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/mail_pane.py`,
+`kissterm/ui/styles.py`, `kissterm/mail/collect.py`,
+`tests/pilot/test_get_mail.py`, `DESIGN.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-24] — Menu headings always shown; Get mail stays on the Mail tab
 
 ### Improvements

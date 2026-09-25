@@ -27,7 +27,9 @@ message reached by another route or deleted in kissterm is never fetched
 again. Messages stay on the BBS: this never sends `K` (decided 2026-09-22).
 
 **Visible.** Every line sent goes through `sent`, which the app echoes to
-the terminal pane and the transcript, and progress goes through `note`.
+the terminal pane and the transcript; progress goes through `note` (a
+sentence for the session log) and `progress` (a few words for the status
+bar, DESIGN.md section 6).
 
 Pure asyncio over a link-shaped object (`send`, `on_data`, `connected`),
 so the tests drive it with a scripted BBS built from the real captures.
@@ -104,6 +106,7 @@ class BbsCollector:
         note: Callable[[str], None],
         sent: Callable[[str], None],
         gate_open: Callable[[], bool] = lambda: True,
+        progress: Callable[[str], None] = lambda _phase: None,
     ) -> None:
         self.link = link
         self.store = store
@@ -111,6 +114,9 @@ class BbsCollector:
         self._note = note
         self._sent = sent
         self._gate_open = gate_open
+        #: A few words for the status bar ("reading 2/3"); `note` has the
+        #: full sentence for the session log.
+        self._progress = progress
         self._pending = bytearray()
         self._lines: list[str] = []
         self._transcript: list[str] = []
@@ -244,6 +250,7 @@ class BbsCollector:
 
     async def _collect(self, result: CollectResult) -> None:
         self._note("Waiting for the BBS prompt...")
+        self._progress("waiting for the prompt")
         call = await self._until_ready()
         self._check_software()
         bbs_call = (self.options.bbs_call or call).upper()
@@ -253,6 +260,7 @@ class BbsCollector:
             )
         source = f"BBS {bbs_call}"
 
+        self._progress("listing")
         await self._send("LM")
         listing, _ = await self._until_prompt()
         entries = bpqmail.parse_list(listing)
@@ -268,6 +276,7 @@ class BbsCollector:
         self._note(f"{len(new)} new of {len(entries)} listed.")
 
         for position, entry in enumerate(new, 1):
+            self._progress(f"reading {position}/{len(new)}")
             self._note(
                 f"Reading {position} of {len(new)}: #{entry.number} from "
                 f"{entry.sender}, {entry.title or '(no title)'}"

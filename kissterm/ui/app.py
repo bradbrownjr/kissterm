@@ -680,6 +680,8 @@ class KissTermApp(App):
         self._connecting: dict[str, tuple[AX25Address, int]] = {}
         #: True while Get mail runs (`action_get_mail`); one at a time.
         self._collecting = False
+        #: A background job's status-bar field (`GET MAIL reading 1/3`).
+        self._activity = ""
         # What each Terminal tab last dialed, for Ctrl+R Reconnect: the whole
         # request (hops, login, port), not just the callsign, so a reconnect
         # to a station reached through two nodes goes back the same way.
@@ -3912,9 +3914,11 @@ class KissTermApp(App):
         login all apply, and nothing here arms anything. The collector
         (`kissterm/mail/collect.py`) subscribes the moment the link is up,
         so the BBS's greeting is not missed, and starts once the chain has
-        reached the target. It switches to the Terminal tab, where every line
-        it sends is echoed and the transcript kept. When it finishes, the
-        link is disconnected; Ctrl+D stops it at any point.
+        reached the target. The operator stays where they are: a toast says
+        it started, the status bar shows `GET MAIL <phase>` while it runs,
+        and a toast gives the outcome (DESIGN.md section 6). Every line it
+        sends is echoed in the session's Terminal tab and the transcript.
+        When it finishes, the link is disconnected; Ctrl+D stops it.
         """
         from ..mail.collect import BbsCollector, CollectOptions
 
@@ -3967,6 +3971,7 @@ class KissTermApp(App):
                 note=lambda text: self._mail_note(key, text),
                 sent=lambda text: self._mail_sent(key, text),
                 gate_open=lambda: self.gate.enabled,
+                progress=self._mail_status,
             )
 
         def on_reached(reached: bool) -> None:
@@ -3974,10 +3979,10 @@ class KissTermApp(App):
 
         self._collecting = True
         # The operator stays on the Mail tab: a toast says a connect is under
-        # way, and the tab's status line follows it. The whole session is in
-        # the Terminal tab (F5) for anyone who wants to watch.
+        # way, and the status bar follows it. The whole session is in the
+        # Terminal tab (F5) for anyone who wants to watch.
         self.notify(f"Connecting to {entry.target} to get mail...", timeout=4)
-        self._mail_status(f"Connecting to {entry.target}...")
+        self._mail_status(f"connecting {entry.target}")
         try:
             worker = self.action_connect(
                 prefill=entry, on_link=on_link, on_reached=on_reached, focus_session=False
@@ -3985,40 +3990,48 @@ class KissTermApp(App):
             await worker.wait()
             collector = state["collector"]
             if collector is None:
-                self._mail_status(
-                    f"Could not connect to {entry.target}. The Terminal tab (F5) says why."
+                self.notify(
+                    f"Get mail: could not connect to {entry.target}. "
+                    "The Terminal tab (F5) says why.",
+                    severity="error",
                 )
                 return
             if not state["reached"]:
                 collector.close()
-                self._mail_status(
-                    f"Did not reach {entry.target}. The Terminal tab (F5) says why."
+                self.notify(
+                    f"Get mail: did not reach {entry.target}. The Terminal tab (F5) says why.",
+                    severity="error",
                 )
                 return
             result = await collector.run()
             key = state["key"]
+            self._mail_status("done")
             if result.stopped:
-                self._mail_status(f"Stopped: {result.stopped}. {len(result.filed)} filed.")
+                self.notify(
+                    f"Get mail stopped: {result.stopped}. {len(result.filed)} filed.",
+                    severity="warning",
+                )
             elif result.filed:
-                self._mail_status(f"{len(result.filed)} new message(s).")
-            else:
-                self._mail_status("No new mail.")
-            if result.filed:
                 self.notify(f"{len(result.filed)} new message(s) from the Home BBS.")
+            else:
+                self.notify("No new mail on the Home BBS.", timeout=4)
             self._reload_mail_tabs()
             await self._disconnect_session(key)
         finally:
             self._collecting = False
+            self._mail_status("")
 
     def _mail_note(self, key: str, text: str) -> None:
-        """A Get mail progress line: the session log, and the Mail tab's
-        status line."""
+        """A Get mail progress sentence, for the session log."""
         self._to_terminal(key, "write_note", f"*** Mail: {text}\n")
-        self._mail_status(text)
 
-    def _mail_status(self, text: str) -> None:
-        with contextlib.suppress(Exception):
-            self.query_one("#mail-browser", MessageBrowser).set_status(text)
+    def _mail_status(self, phase: str) -> None:
+        """Get mail's status-bar field (`GET MAIL <phase>`); "" removes it.
+
+        Ongoing state goes in the status bar, never in a line inserted
+        above a pane's content (DESIGN.md section 6)."""
+        self._activity = f"GET MAIL {phase}" if phase else ""
+        self._refresh_status()
 
     def _mail_sent(self, key: str, text: str) -> None:
         """Echo a line Get mail sent, as a typed line is echoed."""
@@ -4415,6 +4428,8 @@ class KissTermApp(App):
             # "NO TRANSPORT" already says more, and needs the room.
             if self.station is not None or self.session_transport is not None:
                 parts.append("disconnected")
+        if self._activity:
+            parts.append(self._activity)
         if getattr(self.config, "accept_incoming", False):
             # The honest counterpart to the opt-in: if this station will
             # transmit with nobody present, that fact is always on screen.

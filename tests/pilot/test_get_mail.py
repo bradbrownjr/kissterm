@@ -80,6 +80,11 @@ async def _app(tmp_path, route: str = "WS1EC-2"):
     return app, station, tb
 
 
+def _status_text(app) -> str:
+    table = app.query_one("#status-bar").content
+    return " ".join(str(cell) for column in table.columns for cell in column._cells)
+
+
 def _log_text(app) -> str:
     log = app.query_one(TerminalPane).query_one("#session-log")
     return "\n".join(str(line) for line in log.lines)
@@ -95,15 +100,41 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
         app.action_show_tab("mail")
         await pilot.pause()
         app.query_one("#mail-browser").query_one(MessageList).focus()
+        tree_region = app.query_one("#mail-browser").query_one(MessageList).region
+        shown: list[str] = []
+        real_status = app._mail_status
+
+        def _record(phase: str) -> None:
+            real_status(phase)
+            shown.append(_status_text(app))
+
+        app._mail_status = _record
+        toasts: list[str] = []
+        real_notify = app.notify
+
+        def _toast(message, *args, **kwargs):
+            toasts.append(str(message))
+            return real_notify(message, *args, **kwargs)
+
+        app.notify = _toast
         await pilot.press("g")
         await pilot.pause()
-        # The operator stays on Mail, told what is happening.
+        # The operator stays on Mail, told what is happening: a toast, and
+        # the status bar -- never a line pushed in above the list.
         assert app.query_one("#main-tabs").active == "mail"
-        assert any("Connecting to WS1EC-2" in str(n.message) for n in app._notifications)
+        await wait_for(lambda: shown, "the status-bar field")
+        assert any("Connecting to WS1EC-2" in t for t in toasts)
+        assert "GET MAIL connecting WS1EC-2" in shown[0]
+        assert app.query_one("#mail-browser").query_one(MessageList).region == tree_region
         await wait_for(lambda: app.mail_store.list(BBS_INBOX), "the message to be filed")
         assert app.query_one("#main-tabs").active == "mail"
-        status = app.query_one("#mail-browser .mail-status")
-        await wait_for(lambda: "1 new message" in str(status.render()), "the status line")
+        await wait_for(
+            lambda: any("1 new message" in t for t in toasts),
+            "the outcome toast",
+        )
+        await wait_for(lambda: not app._activity, "the status-bar field to clear")
+        assert any("GET MAIL reading 1/1" in text for text in shown)
+        assert "GET MAIL" not in _status_text(app)
         link = station.link_to(BBS)
         await wait_for(lambda: not link.connected, "the disconnect")
         assert heard == ["LM", "R 2578"]

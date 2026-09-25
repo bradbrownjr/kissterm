@@ -380,9 +380,10 @@ module docstring for the full reasoning:
   menu draws its own bar at the same columns, so nothing moves. Esc, F10 or
   a click anywhere outside the open list closes it: an operator who opened
   it with the mouse has a hand on the mouse (2026-09-24).
-- **Get mail does not move the operator.** It stays on the Mail tab with a
-  toast and a status line above the list; the session itself is in the
-  Terminal tab for anyone who wants to watch.
+- **Get mail does not move the operator.** It stays on the Mail tab: a
+  toast when it starts, `GET MAIL <phase>` in the status bar while it runs,
+  a toast with the outcome. The session itself is in the Terminal tab for
+  anyone who wants to watch (section 6, "Where a message goes").
 
 ---
 
@@ -407,6 +408,35 @@ session to end.
 - **Status fields spread across the full width** (`Table.grid`, equal-ratio
   columns, first left-anchored, last right-anchored). A joined string bunches
   at the left and leaves a wide terminal mostly blank.
+
+### Where a message goes
+
+Every message the app raises on its own goes to exactly one of three
+places, chosen by how long it stays true. **Never insert a line above or
+inside a pane's content to report status**: it pushes the content down
+while it shows and pulls it back when it goes, and the operator loses
+their place (Get mail's line above the message list, removed 2026-09-25).
+
+| What it is | Where | Examples |
+|---|---|---|
+| A state that lasts (seconds or more) | Status bar field, removed when it ends | `TX OFF`, `ANSWERING`, `BEACON`, `GET MAIL reading 2/3` |
+| An event: something started, finished or failed | Toast (`notify`); `warning` or `error` severity for a problem | "Connecting to WS1EC-2 to get mail...", "No new mail", "Get mail stopped: ..." |
+| The record of a session | The Terminal pane's scrollback and transcript | `*** Mail: Reading 1 of 3: #2578 ...`, every line sent |
+
+- **No redundancy between them.** A state is in the status bar *or* a
+  toast, not both: a job's start and outcome are toasts, its progress is
+  the status-bar field. The terminal record may repeat either, because it
+  is the log, not a notice.
+- **Status-bar fields are a few words, upper-case name first**
+  (`GET MAIL connecting WS1EC-2`). A sentence belongs in a toast or the
+  log; a long field is truncated in its share of the row.
+- **A toast says what to do next when there is something to do** ("The
+  Terminal tab (F5) says why"), and is not raised for anything the operator
+  cannot act on or would not miss (section 1).
+- **Pane-owned text is not status.** A field's validation error beside the
+  field, a Settings banner listing config.toml problems, and a pane's own
+  summary strip (APRS weather) are content of that pane, laid out with it,
+  and may stay.
 
 ---
 

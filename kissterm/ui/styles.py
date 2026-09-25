@@ -175,7 +175,6 @@ HeardPane { layout: vertical; }
 .mail-tree { width: 28; height: 1fr; border: round $primary; }
 .mail-right { width: 1fr; height: 1fr; }
 .mail-list { height: 2fr; }
-.mail-status { height: 1; padding: 0 1; color: $warning; text-style: bold; }
 .mail-reader { height: 3fr; border: round $primary; padding: 0 1; }
 #heard-radar { width: auto; margin-bottom: 1; }
 #heard-table { height: 1fr; }
