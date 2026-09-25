@@ -26,3 +26,11 @@ removed, and the operator's own keystrokes (`> ...`) dropped.
 
 - `list_lm_empty.txt`: 2026-09-24, the reply to a second `LM` with no mail
   at all: the prompt alone.
+
+- `send_sr_2784.txt`, `send_sp_w1bkw.txt`: 2026-09-25, a reply (`SR
+  2784`) and a new private message (`SP W1BKW`), **with the operator's
+  lines kept**, since what is sent is the point: `SR` asks no title; both
+  add the @ address from the recipient's Home BBS; a bare `SP` is refused;
+  `/EX` ends the text; acceptance is `Message: N Bid:  N_WS1EC Size: S`
+  (two spaces after `Bid:`). Size counts CRLF line endings: 54 and 214
+  match the bodies with their blank lines, so the BBS stored them.

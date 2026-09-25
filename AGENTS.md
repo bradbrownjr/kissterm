@@ -203,6 +203,11 @@ changes.
   `kissterm/aprs/symbols.py`'s `Symbol.emoji`, UI-only, operator-requested.
 - **Never write a doubled curly brace in Markdown** (Jekyll/Liquid breaks the
   author's GitHub Pages builds).
+- **Research a protocol from its source or specification before building
+  on it, then verify against a capture** (operator, 2026-09-25: "shouldn't
+  we have researched how BPQ BBS is supposed to work rather than rely on
+  captures?"). Captures alone show one BBS's settings; the source shows
+  the rules. Cite both in the module docstring.
 - **Mark inferred protocol details `# UNVERIFIED:` or `# RESEARCH:`.** Never
   present a guessed wire format as fact.
 

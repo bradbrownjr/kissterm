@@ -35,6 +35,30 @@ What the captures show:
 
 - `LM` with no mail at all answers with the prompt alone: no "no messages"
   line (2026-09-24). An empty listing is an empty list, not an error.
+
+Sending, researched from the LinBPQ source (`github.com/g8bpq/linbpq`,
+`BBSUtilities.c`: `DoSendCommand`, `ProcessMsgLine`; summarised with
+citations in `packet-net/pdn-bbs` `docs/linbpq-mail-compat.md` sections
+1.3-1.5) and confirmed by the 2026-09-25 captures `send_sr_2784.txt` and
+`send_sp_w1bkw.txt`:
+
+- `S[P|B|T] TO [@ AT] [$BID]`. TO is cut to 6 characters and loses its
+  SSID; AT is at most 40. Without `@`, BPQMail adds one from the
+  recipient's Home BBS or White Pages: `Address @W1BKW.#OXFO.ME.USA.NOAM
+  added from HomeBBS`. A missing TO: `*** Error: The 'TO' callsign is
+  missing`; a malformed line: `*** Error: Invalid Format`.
+- `Enter Title (only):` (at most 60 characters stored). **An empty title
+  cancels** (`*** Message Cancelled`) -- the only way out once started.
+- `SR n` replies to message n with no title prompt; the title becomes
+  `Re:<title>`. `SC n CALL` copies (`Fwd:`).
+- `Enter Message Text (end with /ex or ctrl/z)`. The text ends at a line
+  that is `/ex` in any case, or starts with Ctrl-Z, so a body line like
+  that must never be sent as written.
+- Accepted: `Message: 2801 Bid:  2801_WS1EC Size: 54` (two spaces after
+  `Bid:`; Size counts CRLF endings), sometimes followed by a warning that
+  no forwarding route is known, then the prompt.
+- NTS traffic is `ST <zip> @ NTS<state>` (`ST 04005 @ NTSME`); a
+  bulletin is `SB <category> @ <distribution>` (`SB WX @ ALLUS`).
 """
 
 from __future__ import annotations

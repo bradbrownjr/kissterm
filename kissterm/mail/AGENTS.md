@@ -4,8 +4,11 @@ The message store for Mail, Bulletins and Files (ROADMAP P2). No UI and no
 transport: files under one root (`config.mail_path()`), plus `collect.py`,
 which drives a BBS over a link the app has already connected.
 Tests: `tests/unit/test_mail_store.py`, with `_isolate` and `tmp_path`.
-`bpqmail.py` parses BPQMail replies; it is written from the real captures in
-`tests/unit/data/bpqmail/` -- add a capture before changing a pattern.
+`bpqmail.py` parses BPQMail replies. **Research first, then verify**: read
+what LinBPQ's source says (`g8bpq/linbpq`, `BBSUtilities.c`; the
+`bpqmail.py` docstring cites it), then confirm against a real capture in
+`tests/unit/data/bpqmail/` before a pattern ships. A detail with only one
+of the two is marked `# UNVERIFIED:`.
 
 - **The files are the truth.** One `.txt` per message (`message.py`);
   `.index.json` is a cache that `refresh()` rebuilds. Never store a fact only

@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — BPQMail send researched; plan for compose and send
+
+### Improvements
+
+- **How BPQMail takes a message is written down**, from the LinBPQ source
+  and the operator's SP and SR captures (`bpqmail.py` docstring, two new
+  fixtures). Size in the acceptance line counts CRLF endings, which
+  confirms the BBS stored the blank lines the transcript had dropped.
+- **Rule: research a protocol from its source first, then verify with a
+  capture** (AGENTS.md section 7, `kissterm/mail/AGENTS.md`).
+- ROADMAP P2: the compose, reply (SR), send, SB and ST radiogram plan.
+
+**Files:** `kissterm/mail/bpqmail.py`, `kissterm/mail/AGENTS.md`,
+`AGENTS.md`, `tests/unit/data/bpqmail/`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-25] — Transcript keeps a blank line that ends a frame
 
 ### Bug Fixes (awaiting operator confirmation)

@@ -1,0 +1,20 @@
+de WS1EC#>
+sp
+*** Error: The 'TO' callsign is missing
+de WS1EC#>
+sp w1bkw
+Address @W1BKW.#OXFO.ME.USA.NOAM added from HomeBBS
+Enter Title (only):
+Received your radiogram
+Enter Message Text (end with /ex or ctrl/z)
+Hi Brian,
+
+Jim KY2D sent the radiogram from you to my gmail. He was unable to raise someone from Waterboro on the phone net.
+
+I look forward to breakfast. Hopefully the weather behaves.
+
+73 de KC1JMH,
+Brad
+/EX
+Message: 2803 Bid:  2803_WS1EC Size: 214
+de WS1EC#>

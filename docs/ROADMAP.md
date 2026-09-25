@@ -129,6 +129,27 @@ widget and the Mail, Bulletins and Files tabs shipped 2026-09-23.
   account (a Winlink account or a BBS). Nothing transmits on save. Sending
   happens only when the operator starts a send/receive, which arms the gate
   through `_arm_for` exactly as Ctrl+N does. Medium.
+  Plan for BBS mail (2026-09-25, research in `bpqmail.py`'s docstring):
+  1. **Compose screen**: Type (Private SP, Bulletin SB, NTS radiogram ST),
+     To, @ (optional; BPQMail fills it from the Home BBS), Title, Body;
+     Save to Outbox, Cancel. Insert on the Mail list opens New; R on a
+     message opens Reply. Checks before saving: TO is a callsign of at
+     most 6 characters, title 1-60 characters (an empty title cancels on
+     the BBS), no body line that would end the text early (`/ex`,
+     Ctrl-Z). No quoting of the original by default (airtime).
+  2. **Reply uses `SR n`** when the message came from the Home BBS with a
+     BBS number: one prompt fewer on air than SP, and the BBS addresses
+     it. Otherwise SP to the sender, titled `Re:`.
+  3. **Send in Get mail** (G becomes send and receive): Outbox first, one
+     message at a time, moved to Sent with the BBS's number and BID only
+     after `Message: N Bid: ...`; any `*** Error` stops the run by name
+     and leaves the message in the Outbox.
+  4. **ST radiogram form**, ported from bpq-apps' `forms.py` (CC0, same
+     author): the `radiogram.frm` fields, `normalize_nts_text`,
+     `count_nts_check`, 5-word groups, `ST <zip> @ NTS<state>`, and the
+     title `CITY CALLSIGN`.
+  5. **SB**: category and distribution (`WX @ ALLUS`), with the common
+     distributions offered.
 
 #### Winlink
 
@@ -180,7 +201,8 @@ anything taken from its behaviour rather than from documentation
 - [ ] **BBS send**: the other half of Get mail -- after collecting, send
   what is in Mail/BBS/Outbox (needs Compose, above). Each message goes out
   with BPQMail's `SP`/`SB`, and is moved to Sent only when the BBS confirms
-  it. The send replies are not captured yet: capture them first. Medium.
+  it. SP and SR are researched and captured (2026-09-25); SB and ST are
+  researched only -- capture one of each on first use. Medium.
   *Done 2026-09-24:* Home BBS (Settings) and receive (Mail tab, G):
   `kissterm/mail/collect.py` lists with `LM`, reads only what the store
   lacks (by BBS number, then BID), files complete reads, never sends `K`,
