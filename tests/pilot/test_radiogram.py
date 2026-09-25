@@ -66,10 +66,10 @@ async def test_a_radiogram_is_saved_as_st_to_the_outbox(tmp_path):
         assert screen.query_one("#rg-number", Input).value == "1"
         await _fill(screen, pilot, "ARL 50. See you at the hamfest?")
         preview = str(screen.query_one("#rg-preview", Static).render())
-        assert "ARL FIFTY X SEE YOU AT THE HAMFEST QUERY" in preview
-        assert "Greetings by Amateur Radio" in preview
+        assert preview == "ARL FIFTY = Greetings by Amateur Radio."
+        assert str(screen.query_one("#rg-check", Static).render()) == "ARL 9"
         status = str(screen.query_one("#rg-status", Static).render())
-        assert "Check ARL 9" in status and "ST 04330 @ NTSME" in status
+        assert "ST 04330 @ NTSME" in status and "QTC AUGUSTA / 207 555" in status
         await pilot.click("#rg-save")
         await wait_for(lambda: store.list(BBS_OUTBOX), "the Outbox message")
         [summary] = store.list(BBS_OUTBOX)
@@ -115,5 +115,27 @@ async def test_fits_80x24(tmp_path):
                     "#rg-state", "#rg-zip", "#rg-save", "#rg-cancel"):
             region = screen.query_one(wid).region
             assert region.width > 0 and region.right <= box.right, wid
-        assert screen.query_one("#rg-status").region.height >= 1
-        assert screen.query_one("#rg-save").region.bottom <= 24
+        for wid in ("#rg-status", "#rg-save", "#rg-cancel"):
+            region = screen.query_one(wid).region
+            assert region.height >= 1 and region.bottom <= box.bottom - 1, wid
+
+
+@pytest.mark.asyncio
+async def test_words_convert_as_typed_and_the_final_x_goes_on_leaving(tmp_path):
+    app, _ = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open(app, pilot)
+        area = screen.query_one("#rg-text", TextArea)
+        area.focus()
+        await pilot.pause()
+        await pilot.press(*"arl", "space", "4", "6", "full_stop", "space", *"hi", "question_mark")
+        await pilot.pause()
+        # The word being typed is left alone until it is finished.
+        assert area.text == "ARL FORTY SIX X hi?"
+        await pilot.press("space", *"ok", "full_stop", "space")
+        await pilot.pause()
+        assert area.text == "ARL FORTY SIX X HI QUERY OK X "
+        assert str(screen.query_one("#rg-check", Static).render()) == "ARL 7"
+        await pilot.press("tab")
+        await pilot.pause()
+        assert area.text == "ARL FORTY SIX X HI QUERY OK"

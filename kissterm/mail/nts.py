@@ -130,8 +130,15 @@ def encode_email(address: str) -> str:
     return " ".join(text.split())
 
 
-def encode_text(raw: str) -> str:
-    """The text as groups, punctuation spelled out (MPG 1.3.1-1.3.3)."""
+def encode_text(raw: str, *, final: bool = True) -> str:
+    """The text as groups, punctuation spelled out (MPG 1.3.1-1.3.3).
+
+    Every rule works one word at a time (a quote mark opening a word is
+    QUOTE, one closing it UNQUOTE), so the form can convert each word as
+    it is finished and the result is the same as converting the whole text
+    at once. `final=False` is that live conversion: a trailing X stays,
+    since the operator is still typing; the finished text never ends in X.
+    """
     text = raw.upper().replace("’", "'")
     text = _EMAIL_RE.sub(lambda m: f" {encode_email(m.group(0))} ", text)
     text = re.sub(r"(\d)\.(\d)", r"\1R\2", text)  # 7013.5 -> 7013R5
@@ -141,8 +148,8 @@ def encode_text(raw: str) -> str:
     # Handling convention, not in MPG chapter 1: QUOTE/UNQUOTE and
     # PAREN/UNPAREN around a quoted or bracketed passage; an apostrophe is
     # dropped (DONT); `#5` is NR 5.
-    text = re.sub(r'"([^"]*)"', r" QUOTE \1 UNQUOTE ", text)
-    text = re.sub(r"\(([^()]*)\)", r" PAREN \1 UNPAREN ", text)
+    text = re.sub(r'(^|\s)"', r"\1 QUOTE ", text).replace('"', " UNQUOTE ")
+    text = text.replace("(", " PAREN ").replace(")", " UNPAREN ")
     text = text.replace("'", "")
     text = re.sub(r"#\s*(?=\d)", " NR ", text)
     for char, word in _SPELLED.items():
@@ -151,7 +158,7 @@ def encode_text(raw: str) -> str:
     groups = _spell_arl_numbers(text.split())
     # X is never the last group (1.3.1), and one period is one X.
     groups = [g for i, g in enumerate(groups) if not (g == "X" and i and groups[i - 1] == "X")]
-    while groups and groups[-1] == "X":
+    while final and groups and groups[-1] == "X":
         groups.pop()
     return " ".join(groups)
 

@@ -108,3 +108,14 @@ def test_arl_texts_ship_complete_and_numbers_are_spelled():
 def test_arl_used_takes_the_longest_number():
     used = nts.arl_used("ARL SIXTY TWO CHRISTMAS X ARL SIXTY BIRTHDAY X ARL ONE")
     assert [t.number for t in used] == [62, 60, 1]
+
+
+def test_live_conversion_word_by_word_matches_the_whole_text():
+    raw = 'He said "call 207-555-1212 (after 6)". Dont be late. ARL 46.'
+    live = ""
+    for word in raw.split():
+        live = nts.encode_text(f"{live} {word} ", final=False)
+    assert live.endswith(" X")  # still typing: the period stays
+    assert nts.encode_text(live) == nts.encode_text(raw)
+    assert "QUOTE CALL 207 555 1212 PAREN AFTER 6 UNPAREN UNQUOTE X" in live
+    assert nts.encode_text(live) == nts.encode_text(nts.encode_text(live))

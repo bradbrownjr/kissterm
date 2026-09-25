@@ -73,9 +73,10 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   message, R replies and Q replies with the original quoted** (Settings >
   Mail can make R quote too); it waits in Mail > BBS > Outbox, and G sends
   it before reading, moving it to Sent once the BBS accepts it. **Type: NTS
-  radiogram** opens an ARRL radiogram form: it shows the text as it will
-  be sent (punctuation spelled out, ARL numbers with their meanings), the
-  check and the `ST <zip> @ NTS<state>` routing as you type, and suggests
+  radiogram** opens an ARRL radiogram form: each word converts to its
+  radiogram form as you finish it (a period becomes X, `ARL 46` ARL FORTY
+  SIX, with its meaning shown), the Check field counts the groups, the
+  `ST <zip> @ NTS<state>` routing shows as you type, and it suggests
   your next message number. Winlink is next (`docs/ROADMAP.md`, P2). Settings > Open on keeps
   Terminal as the first tab if you prefer.
 

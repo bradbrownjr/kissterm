@@ -338,11 +338,14 @@ ComposeScreen { align: center middle; }
    line always show what will be sent. */
 RadiogramScreen { align: center middle; }
 #rg-box {
-    width: 100; max-width: 95%; height: 90%; padding: 0 1;
+    width: 90; max-width: 95%; height: auto; max-height: 95%; padding: 0 1;
     border: thick $primary; background: $surface;
 }
 #rg-heading { width: 1fr; text-style: bold; color: $text; }
-#rg-form { height: 1fr; }
+/* The form scrolls rather than push the check line and buttons off a
+   small terminal: 60vh leaves them room at 80x24. */
+#rg-form { height: auto; max-height: 60vh; }
+#rg-check { width: 8; background: $boost; padding: 0 1; }
 .rg-row { height: 1; }
 .rg-heading2 { height: 1; text-style: bold; color: $accent; }
 .rg-label { width: 10; color: $text-muted; }
@@ -355,7 +358,7 @@ RadiogramScreen { align: center middle; }
 #rg-date { padding: 0 1; color: $text-muted; }
 #rg-arl { width: 1fr; }
 #rg-text { height: 5; }
-#rg-preview { height: auto; color: $text-muted; }
+#rg-preview { height: auto; color: $text-muted; display: none; }
 #rg-status { height: auto; }
 #rg-foot { height: auto; }
 #rg-error { width: 1fr; height: auto; color: $error; }

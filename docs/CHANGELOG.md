@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — Radiogram form: live conversion, Check field, compact
+
+### Improvements
+
+- **The radiogram text converts as you type**: each word becomes its
+  radiogram form when you finish it (space or Enter), so `.` turns into X
+  and `?` into QUERY in front of you; leaving the text drops a final X
+  (MPG 1.3.1). An edit mid-text converts when you leave, so the cursor
+  never jumps.
+- **A read-only Check field** counts the groups beside the date.
+- **The dialog is only as tall as its content** and narrower (90 columns);
+  the form scrolls rather than push Save off an 80x24 screen.
+
+**Files:** `kissterm/mail/nts.py`, `kissterm/ui/radiogram.py`,
+`kissterm/ui/styles.py`, `tests/unit/test_mail_nts.py`,
+`tests/pilot/test_radiogram.py`, `README.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-25] — NTS radiograms (ST)
 
 ### New Features

@@ -7,12 +7,17 @@ fields and shows the result. **Saving never transmits**: the radiogram
 waits in the Outbox and goes out as `ST <zip> @ NTS<state>` on the next
 Send/Receive (G).
 
-**What makes it self-explanatory** is the status line and the preview,
-both recomputed on every keystroke: the check, the BBS subject and the
-routing, and the text exactly as it will be sent -- punctuation spelled
-out, ARL numbers written as words with their meanings beside them. A new
-operator sees what the rules did to their text before anything is saved,
-instead of learning it from a relay station's service message.
+**What makes it self-explanatory** is that the text converts as it is
+typed: each word is converted to its radiogram form when it is finished
+(space or Enter), so a period becomes X, `?` QUERY and `ARL 46` ARL FORTY
+SIX in front of the operator, and leaving the text drops a final X (MPG
+1.3.1: X is never the last group). The Check field counts the groups; the
+meaning of each ARL text used is shown under the text, and the status
+line shows the BBS routing and subject. A new operator sees what the
+rules did to their text before anything is saved, instead of learning it
+from a relay station's service message. Only a word typed at the end of
+the text converts live; an edit in the middle converts when the operator
+leaves the text, so the cursor never jumps under them.
 
 Laid out like the compose screen and Settings: one row per field, compact
 controls, no field taller than it needs (DESIGN.md section 3).
@@ -22,7 +27,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from textual import on
+from textual import events, on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -31,7 +36,7 @@ from textual.widgets import Button, Checkbox, Footer, Input, Label, Select, Stat
 
 from ..mail import Message
 from ..mail.compose import ends_text_early, radiogram_message
-from ..mail.nts import PRECEDENCES, Radiogram, arl_texts, arl_used, date_filed
+from ..mail.nts import PRECEDENCES, Radiogram, arl_texts, arl_used, date_filed, encode_text
 
 #: The Input fields, by id suffix, and the `Radiogram` attribute each fills.
 _INPUTS = {
@@ -79,6 +84,8 @@ class RadiogramScreen(ModalScreen[Message | None]):
                     yield Input(id="rg-time", placeholder="e.g. 1830Z", compact=True,
                                 classes="rg-short")
                     yield Label(f"Date  {date_filed(datetime.now(timezone.utc))} (UTC)", id="rg-date")
+                    yield Label("Check", classes="rg-label2")
+                    yield Static("0", id="rg-check")
                 yield Static("To", classes="rg-heading2")
                 with Horizontal(classes="rg-row"):
                     yield Label("Name", classes="rg-label")
@@ -152,17 +159,43 @@ class RadiogramScreen(ModalScreen[Message | None]):
         gram = self.radiogram()
         encoded = gram.encoded_text
         meanings = [f"{t.groups} = {t.text}" for t in arl_used(encoded)]
-        preview = f"Sent as: {encoded}" if encoded else "Sent as: (type the message above)"
-        if meanings:
-            preview += "\n" + "\n".join(meanings)
-        self.query_one("#rg-preview", Static).update(preview)
+        preview = self.query_one("#rg-preview", Static)
+        preview.update("\n".join(meanings))
+        preview.display = bool(meanings)
+        self.query_one("#rg-check", Static).update(gram.check)
         to, at = gram.routing()
         route = f"ST {to or '<zip>'} @ {at if len(at) == 5 else 'NTS<state>'}"
-        status = f"Check {gram.check}   {route}   {gram.subject()}"
+        status = f"{route}   {gram.subject()}"
         warnings = gram.warnings()
         if warnings:
             status += "\n" + " ".join(warnings)
         self.query_one("#rg-status", Static).update(status)
+
+    @on(TextArea.Changed, "#rg-text")
+    def _convert_as_typed(self) -> None:
+        """Convert the text when a word is finished at the end of it."""
+        area = self.query_one("#rg-text", TextArea)
+        text = area.text
+        if not text or not text[-1].isspace() or area.cursor_location != area.document.end:
+            return
+        converted = encode_text(text, final=False)
+        converted = f"{converted} " if converted else ""
+        if converted != text:
+            self._set_text(area, converted)
+
+    def on_descendant_blur(self, event: events.DescendantBlur) -> None:
+        """Leaving the text converts all of it, final X dropped."""
+        if event.widget.id != "rg-text":
+            return
+        area = self.query_one("#rg-text", TextArea)
+        converted = encode_text(area.text)
+        if converted != area.text:
+            self._set_text(area, converted)
+
+    @staticmethod
+    def _set_text(area: TextArea, text: str) -> None:
+        area.text = text
+        area.move_cursor(area.document.end)
 
     @on(Select.Changed, "#rg-arl")
     def _insert_arl(self, event: Select.Changed) -> None:
