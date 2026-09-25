@@ -33,7 +33,7 @@ from datetime import datetime
 from pathlib import Path
 
 from rich.text import Text
-from textual import on
+from textual import events, on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
@@ -99,6 +99,20 @@ class MessageList(DataTable):
         if action == "get_mail":
             return browser.id == "mail-browser"
         return True
+
+    async def _on_click(self, event: events.Click) -> None:
+        """A click on a row opens it in the reader, as Enter does.
+
+        `DataTable` only moves the cursor on the first click (it selects on
+        a second click of the same row), so a message clicked once stayed
+        unread in the list with the reader empty (2026-09-25). Clicking to
+        read transmits nothing, so a single click is enough here; the
+        Address Book, where Enter dials, keeps the two-step behaviour.
+        """
+        await super()._on_click(event)
+        meta = event.style.meta
+        if meta.get("row", -1) >= 0 and self.row_count:
+            self._browser().open_selected()
 
     def action_open_message(self) -> None:
         self._browser().open_selected()

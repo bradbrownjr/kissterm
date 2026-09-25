@@ -380,6 +380,10 @@ module docstring for the full reasoning:
   menu draws its own bar at the same columns, so nothing moves. Esc, F10 or
   a click anywhere outside the open list closes it: an operator who opened
   it with the mouse has a hand on the mouse (2026-09-24).
+- **A click opens what is safe to open; a click never transmits.** One
+  click on a message shows it in the reader, as Enter does. One click on
+  an Address Book entry only selects it, because opening it dials:
+  double click or Enter (2026-09-25).
 - **Get mail does not move the operator.** It stays on the Mail tab: a
   toast when it starts, `GET MAIL <phase>` in the status bar while it runs,
   a toast with the outcome. The session itself is in the Terminal tab for

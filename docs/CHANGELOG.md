@@ -10,6 +10,10 @@ you need the history of a specific change.
 - **Get mail says "1 received", not "1 filed"**: at a glance "filed" read
   as "failed" (2026-09-25). An incomplete read now says "nothing saved".
 
+- **One click on a message shows it in the reader**, as Enter does; it
+  used to take Enter (or a second click). The Address Book keeps
+  click-to-select, since opening an entry there dials.
+
 ### Decisions
 
 - **A poll that arrives after a connect has failed is still answered DM**,
@@ -32,6 +36,7 @@ you need the history of a specific change.
 
 **Files:** `kissterm/ui/app.py`, `kissterm/ui/mail_pane.py`,
 `kissterm/ui/styles.py`, `kissterm/mail/collect.py`,
+`kissterm/ui/mail_pane.py`, `tests/pilot/test_mail_pane.py`,
 `tests/unit/test_mail_collect.py`, `tests/pilot/test_get_mail.py`, `DESIGN.md`, `AGENTS.md`, `docs/CHANGELOG.md`
 
 ## [2026-09-24] — Menu headings always shown; Get mail stays on the Mail tab

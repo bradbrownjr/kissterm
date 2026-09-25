@@ -98,6 +98,21 @@ async def test_enter_opens_and_marks_read_delete_and_restore(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_one_click_on_a_message_shows_it(tmp_path):
+    app, store = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        mail = _browser(app, "mail")
+        table = mail.query_one(MessageList)
+        assert "Net tonight" not in _reader_text(mail)
+        # Below the list's top edge and header row: the first message.
+        await pilot.click(MessageList, offset=(3, 2))
+        await pilot.pause()
+        assert "Subject: Net tonight" in _reader_text(mail)
+        assert table.cursor_row == 0
+
+
+@pytest.mark.asyncio
 async def test_bulletins_by_category_and_remote_text_is_inert(tmp_path):
     app, _store = _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
