@@ -333,6 +333,34 @@ ComposeScreen { align: center middle; }
 #compose-error { width: 1fr; height: auto; color: $error; }
 #compose-foot Button { margin-left: 1; }
 
+/* RadiogramScreen: the compose dialog's shape. One row per line of the
+   message form, short fields beside each other; the preview and the check
+   line always show what will be sent. */
+RadiogramScreen { align: center middle; }
+#rg-box {
+    width: 100; max-width: 95%; height: 90%; padding: 0 1;
+    border: thick $primary; background: $surface;
+}
+#rg-heading { width: 1fr; text-style: bold; color: $text; }
+#rg-form { height: 1fr; }
+.rg-row { height: 1; }
+.rg-heading2 { height: 1; text-style: bold; color: $accent; }
+.rg-label { width: 10; color: $text-muted; }
+.rg-label2 { width: auto; padding: 0 1; color: $text-muted; }
+.rg-row Input { width: 1fr; }
+.rg-row Input.rg-short { width: 12; }
+.rg-row Input.rg-tiny { width: 4; }
+#rg-precedence { width: 14; }
+#rg-test { margin-left: 1; }
+#rg-date { padding: 0 1; color: $text-muted; }
+#rg-arl { width: 1fr; }
+#rg-text { height: 5; }
+#rg-preview { height: auto; color: $text-muted; }
+#rg-status { height: auto; }
+#rg-foot { height: auto; }
+#rg-error { width: 1fr; height: auto; color: $error; }
+#rg-foot Button { margin-left: 1; }
+
 /* First-run onboarding intentionally asks for one required fact before
    handing off to the established Settings transport editor.  It is a short
    guide, not a second settings page. */

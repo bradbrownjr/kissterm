@@ -33,6 +33,13 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   BBS carries (for example `TEST` or one from `LC`), @ a local
   distribution. Then G. SB is built from the LinBPQ source only; the
   transcript of this first send becomes the test fixture.
+- [ ] **First radiogram (ST).** Insert, Type: NTS radiogram. Address it
+  to someone you can check with, TEST ticked if it is an exercise. The
+  status line should read `ST <zip> @ NTS<state>` and `QTC <town> / ...`.
+  Then G: the BBS should ask for the title, take the `QTC` subject, and
+  answer `Message: N Bid: ...`. Afterwards, `L` on the BBS shows it as
+  type T. ST is built from the ARRL MPG 6.2.1 and LinBPQ only; the
+  transcript of this first send becomes the test fixture.
 - [x] **Reply by number (SR)** went out and was accepted as #2820
   (2026-09-25), and moved to Mail > BBS > Sent with its number and BID.
 

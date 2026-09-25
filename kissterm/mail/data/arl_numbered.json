@@ -1,0 +1,614 @@
+{
+ "source": "ARRL/RRI ARL Numbered Radiogram Texts, final-approved version 3.0, released 2025-10-07 (https://nts2.arrl.org/numbered-texts/). Groups (emergency/routine) from bpq-apps' arl_messages.json (CC0).",
+ "texts": [
+  {
+   "number": 1,
+   "word": "ONE",
+   "group": "emergency",
+   "text": "Everyone safe here. Please don't worry.",
+   "blanks": 0
+  },
+  {
+   "number": 2,
+   "word": "TWO",
+   "group": "emergency",
+   "text": "Coming home as soon as possible.",
+   "blanks": 0
+  },
+  {
+   "number": 3,
+   "word": "THREE",
+   "group": "emergency",
+   "text": "Am in _____ hospital. Receiving excellent care and recovering fine.",
+   "blanks": 1
+  },
+  {
+   "number": 4,
+   "word": "FOUR",
+   "group": "emergency",
+   "text": "Only slight property damage here. Do not be concerned about disaster reports.",
+   "blanks": 0
+  },
+  {
+   "number": 5,
+   "word": "FIVE",
+   "group": "emergency",
+   "text": "Am moving to new location. Send no further mail or communication. Will inform you of new address when relocated. Will contact you as soon as possible.",
+   "blanks": 0
+  },
+  {
+   "number": 6,
+   "word": "SIX",
+   "group": "emergency",
+   "text": "Will contact you as soon as possible.",
+   "blanks": 0
+  },
+  {
+   "number": 7,
+   "word": "SEVEN",
+   "group": "emergency",
+   "text": "Please reply by Amateur Radio through the amateur delivering this message. This is a free public service.",
+   "blanks": 0
+  },
+  {
+   "number": 8,
+   "word": "EIGHT",
+   "group": "emergency",
+   "text": "Need additional _____ mobile or portable equipment for immediate emergency use.",
+   "blanks": 1
+  },
+  {
+   "number": 9,
+   "word": "NINE",
+   "group": "emergency",
+   "text": "Additional _____ radio operators needed to assist with emergency at this location.",
+   "blanks": 1
+  },
+  {
+   "number": 10,
+   "word": "TEN",
+   "group": "emergency",
+   "text": "Please contact _____. Advise to standby and provide further emergency information, instructions or assistance.",
+   "blanks": 1
+  },
+  {
+   "number": 11,
+   "word": "ELEVEN",
+   "group": "emergency",
+   "text": "Establish Amateur Radio emergency communications with _____ on _____ MHz.",
+   "blanks": 2
+  },
+  {
+   "number": 12,
+   "word": "TWELVE",
+   "group": "emergency",
+   "text": "Anxious to hear from you. No word in some time. Please contact me as soon as possible.",
+   "blanks": 0
+  },
+  {
+   "number": 13,
+   "word": "THIRTEEN",
+   "group": "emergency",
+   "text": "Medical emergency situation exists here.",
+   "blanks": 0
+  },
+  {
+   "number": 14,
+   "word": "FOURTEEN",
+   "group": "emergency",
+   "text": "Situation here becoming critical. Losses and damage from _____ increasing.",
+   "blanks": 1
+  },
+  {
+   "number": 15,
+   "word": "FIFTEEN",
+   "group": "emergency",
+   "text": "Please advise your condition and what help is needed.",
+   "blanks": 0
+  },
+  {
+   "number": 16,
+   "word": "SIXTEEN",
+   "group": "emergency",
+   "text": "Property damage very severe in this area.",
+   "blanks": 0
+  },
+  {
+   "number": 17,
+   "word": "SEVENTEEN",
+   "group": "emergency",
+   "text": "REACT communications services also available. Establish REACT communication with _____ on channel _____.",
+   "blanks": 2
+  },
+  {
+   "number": 18,
+   "word": "EIGHTEEN",
+   "group": "emergency",
+   "text": "Please contact me as soon as possible at _____.",
+   "blanks": 1
+  },
+  {
+   "number": 19,
+   "word": "NINETEEN",
+   "group": "emergency",
+   "text": "Request health and welfare report on _____. (State name, address and telephone number)",
+   "blanks": 1
+  },
+  {
+   "number": 20,
+   "word": "TWENTY",
+   "group": "emergency",
+   "text": "Temporarily stranded. Will need some assistance. Please contact me at _____.",
+   "blanks": 1
+  },
+  {
+   "number": 21,
+   "word": "TWENTY ONE",
+   "group": "emergency",
+   "text": "Search and Rescue assistance is needed by local authorities here. Advise availability.",
+   "blanks": 0
+  },
+  {
+   "number": 22,
+   "word": "TWENTY TWO",
+   "group": "emergency",
+   "text": "Need accurate information on the extent and type of conditions now existing at your location. Please furnish this information and reply without delay.",
+   "blanks": 0
+  },
+  {
+   "number": 23,
+   "word": "TWENTY THREE",
+   "group": "emergency",
+   "text": "Report at once the accessibility and best way to reach your location.",
+   "blanks": 0
+  },
+  {
+   "number": 24,
+   "word": "TWENTY FOUR",
+   "group": "emergency",
+   "text": "Evacuation of residents from this area urgently needed. Advise plans for help.",
+   "blanks": 0
+  },
+  {
+   "number": 25,
+   "word": "TWENTY FIVE",
+   "group": "emergency",
+   "text": "Furnish as soon as possible the weather conditions at your location.",
+   "blanks": 0
+  },
+  {
+   "number": 26,
+   "word": "TWENTY SIX",
+   "group": "emergency",
+   "text": "Help and care for evacuation of sick and injured from this location needed at once.",
+   "blanks": 0
+  },
+  {
+   "number": 27,
+   "word": "TWENTY SEVEN",
+   "group": "emergency",
+   "text": "I am safe and well.",
+   "blanks": 0
+  },
+  {
+   "number": 28,
+   "word": "TWENTY EIGHT",
+   "group": "emergency",
+   "text": "Household safe and well.",
+   "blanks": 0
+  },
+  {
+   "number": 29,
+   "word": "TWENTY NINE",
+   "group": "emergency",
+   "text": "Currently at shelter.",
+   "blanks": 0
+  },
+  {
+   "number": 30,
+   "word": "THIRTY",
+   "group": "emergency",
+   "text": "Currently at home.",
+   "blanks": 0
+  },
+  {
+   "number": 31,
+   "word": "THIRTY ONE",
+   "group": "emergency",
+   "text": "Currently at family/friend's house.",
+   "blanks": 0
+  },
+  {
+   "number": 32,
+   "word": "THIRTY TWO",
+   "group": "emergency",
+   "text": "Currently at hotel.",
+   "blanks": 0
+  },
+  {
+   "number": 33,
+   "word": "THIRTY THREE",
+   "group": "emergency",
+   "text": "Safe but moving to a safer location.",
+   "blanks": 0
+  },
+  {
+   "number": 34,
+   "word": "THIRTY FOUR",
+   "group": "emergency",
+   "text": "Evacuating to a shelter.",
+   "blanks": 0
+  },
+  {
+   "number": 35,
+   "word": "THIRTY FIVE",
+   "group": "emergency",
+   "text": "Evacuating to family member/friend's house.",
+   "blanks": 0
+  },
+  {
+   "number": 36,
+   "word": "THIRTY SIX",
+   "group": "emergency",
+   "text": "Evacuating and safe.",
+   "blanks": 0
+  },
+  {
+   "number": 37,
+   "word": "THIRTY SEVEN",
+   "group": "emergency",
+   "text": "At home and plan to remain here.",
+   "blanks": 0
+  },
+  {
+   "number": 38,
+   "word": "THIRTY EIGHT",
+   "group": "emergency",
+   "text": "Will contact you when able.",
+   "blanks": 0
+  },
+  {
+   "number": 39,
+   "word": "THIRTY NINE",
+   "group": "emergency",
+   "text": "All communications are down.",
+   "blanks": 0
+  },
+  {
+   "number": 40,
+   "word": "FORTY",
+   "group": "emergency",
+   "text": "Share this message with others.",
+   "blanks": 0
+  },
+  {
+   "number": 46,
+   "word": "FORTY SIX",
+   "group": "routine",
+   "text": "Greetings on your birthday and best wishes for many more to come.",
+   "blanks": 0
+  },
+  {
+   "number": 47,
+   "word": "FORTY SEVEN",
+   "group": "routine",
+   "text": "Reference your message number _____ to _____ delivered on _____ at _____ UTC.",
+   "blanks": 4
+  },
+  {
+   "number": 48,
+   "word": "FORTY EIGHT",
+   "group": "routine",
+   "text": "Reference your message number _____ to _____ not delivered. Telephone _____ (insert number as received) inoperative. Please give better address.",
+   "blanks": 3
+  },
+  {
+   "number": 49,
+   "word": "FORTY NINE",
+   "group": "routine",
+   "text": "Reference your message number _____ to _____ . Unable to contact addressee or receive confirmation of delivery.",
+   "blanks": 2
+  },
+  {
+   "number": 50,
+   "word": "FIFTY",
+   "group": "routine",
+   "text": "Greetings by Amateur Radio.",
+   "blanks": 0
+  },
+  {
+   "number": 51,
+   "word": "FIFTY ONE",
+   "group": "routine",
+   "text": "Greetings by Amateur Radio. This message is sent as a free public service by ham radio operators at _____. Am having a wonderful time.",
+   "blanks": 1
+  },
+  {
+   "number": 52,
+   "word": "FIFTY TWO",
+   "group": "routine",
+   "text": "Really enjoyed being with you. Looking forward to getting together again.",
+   "blanks": 0
+  },
+  {
+   "number": 53,
+   "word": "FIFTY THREE",
+   "group": "routine",
+   "text": "Received your _____. It's appreciated; many thanks.",
+   "blanks": 1
+  },
+  {
+   "number": 54,
+   "word": "FIFTY FOUR",
+   "group": "routine",
+   "text": "Many thanks for your good wishes.",
+   "blanks": 0
+  },
+  {
+   "number": 55,
+   "word": "FIFTY FIVE",
+   "group": "routine",
+   "text": "Good news is always welcome. Very delighted to hear about yours.",
+   "blanks": 0
+  },
+  {
+   "number": 56,
+   "word": "FIFTY SIX",
+   "group": "routine",
+   "text": "Congratulations on your _____, a most worthy and deserved achievement.",
+   "blanks": 1
+  },
+  {
+   "number": 57,
+   "word": "FIFTY SEVEN",
+   "group": "routine",
+   "text": "Wish we could be together.",
+   "blanks": 0
+  },
+  {
+   "number": 58,
+   "word": "FIFTY EIGHT",
+   "group": "routine",
+   "text": "Have a wonderful time. Let us know when you return.",
+   "blanks": 0
+  },
+  {
+   "number": 59,
+   "word": "FIFTY NINE",
+   "group": "routine",
+   "text": "Congratulations on the new arrival. Hope mother and child are well.",
+   "blanks": 0
+  },
+  {
+   "number": 60,
+   "word": "SIXTY",
+   "group": "routine",
+   "text": "Wishing you the best of everything on _____.",
+   "blanks": 1
+  },
+  {
+   "number": 61,
+   "word": "SIXTY ONE",
+   "group": "routine",
+   "text": "Wishing you a very Merry Christmas and a Happy New Year.",
+   "blanks": 0
+  },
+  {
+   "number": 62,
+   "word": "SIXTY TWO",
+   "group": "routine",
+   "text": "Greetings and best wishes to you for a pleasant _____ holiday season.",
+   "blanks": 1
+  },
+  {
+   "number": 63,
+   "word": "SIXTY THREE",
+   "group": "routine",
+   "text": "Victory or defeat, our best wishes are with you. Hope you win.",
+   "blanks": 0
+  },
+  {
+   "number": 64,
+   "word": "SIXTY FOUR",
+   "group": "routine",
+   "text": "Arrived safely at _____.",
+   "blanks": 1
+  },
+  {
+   "number": 65,
+   "word": "SIXTY FIVE",
+   "group": "routine",
+   "text": "Arriving _____ on _____. Please arrange to meet me there.",
+   "blanks": 2
+  },
+  {
+   "number": 66,
+   "word": "SIXTY SIX",
+   "group": "routine",
+   "text": "DX QSLs are on hand for you at the _____ QSL Bureau. Send _____ self addressed envelopes.",
+   "blanks": 2
+  },
+  {
+   "number": 67,
+   "word": "SIXTY SEVEN",
+   "group": "routine",
+   "text": "Your message number _____ undeliverable because of _____. Please advise.",
+   "blanks": 2
+  },
+  {
+   "number": 68,
+   "word": "SIXTY EIGHT",
+   "group": "routine",
+   "text": "Sorry to hear you are ill. Best wishes for a speedy recovery.",
+   "blanks": 0
+  },
+  {
+   "number": 69,
+   "word": "SIXTY NINE",
+   "group": "routine",
+   "text": "Welcome to the _____. We are glad to have you with us and hope you will enjoy the fun and fellowship of the organization.",
+   "blanks": 1
+  },
+  {
+   "number": 70,
+   "word": "SEVENTY",
+   "group": "routine",
+   "text": "Thank you for the QSO on _____ (frequency/band) _____ (mode) at _____ (time) _____ (date).",
+   "blanks": 4
+  },
+  {
+   "number": 71,
+   "word": "SEVENTY ONE",
+   "group": "routine",
+   "text": "Order wire net established on _____ (frequency) to coordinate and prioritize access to _____ (digital network name) on _____ (frequency)_____ (mode).",
+   "blanks": 4
+  },
+  {
+   "number": 72,
+   "word": "SEVENTY TWO",
+   "group": "routine",
+   "text": "Establish communications with _____ (name of EmComm group) on _____ frequency _____ mode.",
+   "blanks": 3
+  },
+  {
+   "number": 73,
+   "word": "SEVENTY THREE",
+   "group": "routine",
+   "text": "Establish communications with _____ agency on channel _____ (spell channel number) _____ (mode).",
+   "blanks": 3
+  },
+  {
+   "number": 74,
+   "word": "SEVENTY FOUR",
+   "group": "routine",
+   "text": "Establish communications with _____ agency on _____ (frequency) _____ mode.",
+   "blanks": 3
+  },
+  {
+   "number": 75,
+   "word": "SEVENTY FIVE",
+   "group": "routine",
+   "text": "Priority Entry Point frequencies established on _____ (list frequencies and modes)",
+   "blanks": 1
+  },
+  {
+   "number": 76,
+   "word": "SEVENTY SIX",
+   "group": "routine",
+   "text": "Point to point circuit established on _____ (frequency) _____ (mode). Please establish liaison.",
+   "blanks": 2
+  },
+  {
+   "number": 78,
+   "word": "SEVENTY EIGHT",
+   "group": "routine",
+   "text": "SITREP messages requested every _____ (spell number) hours your location. Transmit to station _____ (call sign) in _____ (state/section).",
+   "blanks": 3
+  },
+  {
+   "number": 79,
+   "word": "SEVENTY NINE",
+   "group": "routine",
+   "text": "WXOBS messages requested every _____ (spell number) hours your location. Transmit to station _____ (call sign) in _____ (state/section).",
+   "blanks": 3
+  },
+  {
+   "number": 80,
+   "word": "EIGHTY",
+   "group": "routine",
+   "text": "OPRED messages requested your station. Update when changes occur. Transmit to station _____ (call sign) in _____ (state/section).",
+   "blanks": 2
+  },
+  {
+   "number": 82,
+   "word": "EIGHTY TWO",
+   "group": "routine",
+   "text": "Digital Traffic Station connect/download frequency at _____ (spell number) minute intervals requested in support of disaster operations.",
+   "blanks": 1
+  },
+  {
+   "number": 83,
+   "word": "EIGHTY THREE",
+   "group": "routine",
+   "text": "RRI Winlink gateway connect/download frequency at _____ (spell number) minute intervals requested in support of disaster operations.",
+   "blanks": 1
+  },
+  {
+   "number": 84,
+   "word": "EIGHTY FOUR",
+   "group": "routine",
+   "text": "Request activate _____ Region Net until further notice.",
+   "blanks": 1
+  },
+  {
+   "number": 85,
+   "word": "EIGHTY FIVE",
+   "group": "routine",
+   "text": "Request activate _____ Area Net until further notice.",
+   "blanks": 1
+  },
+  {
+   "number": 86,
+   "word": "EIGHTY SIX",
+   "group": "routine",
+   "text": "Advise frequency and mode of _____ state/section nets.",
+   "blanks": 1
+  },
+  {
+   "number": 87,
+   "word": "EIGHTY SEVEN",
+   "group": "routine",
+   "text": "Request assistance with establishment of a temporary message center at _____ (address and/or agency).",
+   "blanks": 1
+  },
+  {
+   "number": 88,
+   "word": "EIGHTY EIGHT",
+   "group": "routine",
+   "text": "Welfare traffic being originated on (frequency/mode). Request assistance with RRI/NTS liaison",
+   "blanks": 0
+  },
+  {
+   "number": 89,
+   "word": "EIGHTY NINE",
+   "group": "routine",
+   "text": "Priority and/or emergency traffic being originated on _____ (frequency/mode). Request assistance with RRI/NTS liaison.",
+   "blanks": 1
+  },
+  {
+   "number": 90,
+   "word": "NINETY",
+   "group": "routine",
+   "text": "Please provide a list of stations operational on National SOS Radio Network.",
+   "blanks": 0
+  },
+  {
+   "number": 91,
+   "word": "NINETY ONE",
+   "group": "routine",
+   "text": "Widespread disruptions to cellular data and public switched telephone network this location.",
+   "blanks": 0
+  },
+  {
+   "number": 92,
+   "word": "NINETY TWO",
+   "group": "routine",
+   "text": "Widespread disruptions to Internet service this location.",
+   "blanks": 0
+  },
+  {
+   "number": 93,
+   "word": "NINETY THREE",
+   "group": "routine",
+   "text": "The following broadcast stations are off-air in this area (list call sign, frequency/channel).",
+   "blanks": 0
+  },
+  {
+   "number": 94,
+   "word": "NINETY FOUR",
+   "group": "routine",
+   "text": "Received your message _____ (number) for _____ (addressee) from _____ (station) _____ on _____ (date) _____ (time). Relayed/delivered to _____ (station) on _____ (date) _____ (time) via _____ (net/method)",
+   "blanks": 10
+  }
+ ]
+}

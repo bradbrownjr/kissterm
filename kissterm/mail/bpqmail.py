@@ -57,7 +57,9 @@ citations in `packet-net/pdn-bbs` `docs/linbpq-mail-compat.md` sections
 - Accepted: `Message: 2801 Bid:  2801_WS1EC Size: 54` (two spaces after
   `Bid:`; Size counts CRLF endings), sometimes followed by a warning that
   no forwarding route is known, then the prompt.
-- NTS traffic is `ST <zip> @ NTS<state>` (`ST 04005 @ NTSME`); a
+- NTS traffic is `ST <zip> @ NTS<state>` (`ST 04005 @ NTSME`), titled
+  `QTC <town> / <area code> <exchange>` (ARRL MPG 6.2.1; the body is
+  built by `nts.py`); a
   bulletin is `SB <category> @ <distribution>` (`SB WX @ ALLUS`).
 """
 

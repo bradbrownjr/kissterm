@@ -4,7 +4,8 @@ ROADMAP P2 "Compose and Outbox". A composed message is an ordinary
 `Message` in Mail/BBS/Outbox; nothing here transmits. The send headers in
 `Message.extra` say how it goes out when Send/Receive sends the Outbox:
 
-- `Send-Type`: `P` private, `B` bulletin (`T` NTS traffic, later).
+- `Send-Type`: `P` private, `B` bulletin, `T` NTS traffic (a radiogram,
+  `radiogram_message`; its `To` is the ZIP and `Send-At` is `NTS<state>`).
 - `Send-At`: the `@` part, or "" to let BPQMail add it from the
   recipient's Home BBS ("Address @... added from HomeBBS").
 - `Reply-Number`, `Reply-Source`: set on a reply to a message read from a
@@ -41,6 +42,7 @@ BBS_OUTBOX = f"{MAIL}/BBS/{_OUTBOX}"
 
 SEND_PRIVATE = "P"
 SEND_BULLETIN = "B"
+SEND_TRAFFIC = "T"
 
 #: BPQMail's limits (`BBSUtilities.c`, `DoSendCommand` / `CreateMessage`).
 MAX_TO = 6
@@ -170,3 +172,48 @@ def send_command(message: Message, bbs_source: str) -> tuple[str, bool]:
     if at:
         line += f" @ {at}"
     return line, True
+
+
+def radiogram_message(gram, sender: str) -> Message:
+    """A filled `nts.Radiogram` as an Outbox message: `ST <zip> @ NTS<st>`
+    titled with its `QTC` subject (MPG 6.2.1). `Nts-Number` and
+    `Nts-Place` let the next radiogram suggest its number and place."""
+    to, at = gram.routing()
+    return Message(
+        sender=sender.upper(),
+        to=to,
+        subject=gram.subject(),
+        date=datetime.now(timezone.utc),
+        body=gram.body(),
+        extra={
+            "Send-Type": SEND_TRAFFIC,
+            "Send-At": at,
+            "Nts-Number": gram.number.strip(),
+            "Nts-Place": gram.place.strip().upper(),
+        },
+    )
+
+
+def radiogram_defaults(store) -> tuple[str, str]:
+    """The next radiogram's number and place of origin, from the ones in
+    the BBS Outbox and Sent: one past the highest number used, and the
+    newest place (so a station numbering its traffic keeps counting)."""
+    from .nts import next_number
+    from .store import SENT
+
+    numbers: list[str] = []
+    place, newest = "", None
+    for folder in (BBS_OUTBOX, f"{MAIL}/BBS/{SENT}"):
+        for summary in store.list(folder):
+            if not summary.subject.startswith("QTC "):
+                continue
+            try:
+                message = store.read(summary.ref)
+            except (OSError, ValueError):
+                continue
+            if message.extra.get("Send-Type") != SEND_TRAFFIC:
+                continue
+            numbers.append(message.extra.get("Nts-Number", ""))
+            if message.extra.get("Nts-Place") and (newest is None or (summary.date and summary.date > newest)):
+                place, newest = message.extra["Nts-Place"], summary.date
+    return next_number(numbers), place

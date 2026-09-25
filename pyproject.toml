@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.270"
+version = "0.1.271"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -73,6 +73,8 @@ kissterm = "kissterm.__main__:main"
 # the Templates picker in the APRS pane is silently empty in an installed
 # wheel while working perfectly in a source checkout.
 "kissterm.aprs_services" = ["data/*.toml"]
+# And for the ARRL numbered radiogram texts the radiogram form offers.
+"kissterm.mail" = ["data/*.json"]
 
 [tool.setuptools.packages.find]
 include = ["kissterm*"]

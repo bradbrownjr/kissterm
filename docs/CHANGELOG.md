@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — NTS radiograms (ST)
+
+### New Features
+
+- **Type: NTS radiogram** in the compose screen opens an ARRL radiogram
+  form, saved to the Outbox and sent by G as `ST <zip> @ NTS<state>` with
+  the `QTC <town> / <phone>` title (ARRL MPG 6.2.1). The preview shows the
+  text as it will be sent and what each ARL number means; the status line
+  shows the check, routing and title as you type. The next message number
+  and place of origin are suggested from earlier radiograms.
+- Formatting follows the MPG chapter 1 rules, and ARL numbered texts are
+  the v3.0 list (2025-10-07). Where bpq-apps' `forms.py` differed, the MPG
+  wins; `nts.py`'s docstring lists each difference.
+
+**Files:** `kissterm/mail/nts.py`, `kissterm/mail/data/arl_numbered.json`,
+`kissterm/mail/compose.py`, `kissterm/mail/AGENTS.md`, `kissterm/ui/radiogram.py`,
+`kissterm/ui/compose.py`, `kissterm/ui/app.py`, `kissterm/ui/styles.py`,
+`pyproject.toml`, `tests/unit/test_mail_nts.py`, `tests/pilot/test_radiogram.py`,
+`README.md`, `docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-25] — Settings, simplified
 
 ### Improvements

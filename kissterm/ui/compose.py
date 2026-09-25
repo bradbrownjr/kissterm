@@ -27,6 +27,7 @@ from ..mail import Message
 from ..mail.compose import (
     SEND_BULLETIN,
     SEND_PRIVATE,
+    SEND_TRAFFIC,
     can_reply_by_number,
     check,
     outbox_message,
@@ -34,10 +35,19 @@ from ..mail.compose import (
     reply_title,
 )
 
-_TYPES = [("Private message (SP)", SEND_PRIVATE), ("Bulletin (SB)", SEND_BULLETIN)]
+_TYPES = [
+    ("Private message (SP)", SEND_PRIVATE),
+    ("Bulletin (SB)", SEND_BULLETIN),
+    ("NTS radiogram (ST)", SEND_TRAFFIC),
+]
+
+#: What the screen returns when the operator picks "NTS radiogram": a
+#: radiogram has its own form (`radiogram.RadiogramScreen`), which the app
+#: opens in its place.
+RADIOGRAM = "radiogram"
 
 
-class ComposeScreen(ModalScreen[Message | None]):
+class ComposeScreen(ModalScreen["Message | str | None"]):
     """Write one message. Returns the Outbox message, or None."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
@@ -107,6 +117,9 @@ class ComposeScreen(ModalScreen[Message | None]):
 
     @on(Select.Changed, "#compose-type")
     def _type_changed(self, event: Select.Changed) -> None:
+        if event.value == SEND_TRAFFIC:
+            self.dismiss(RADIOGRAM)
+            return
         bulletin = event.value == SEND_BULLETIN
         self.query_one("#compose-to", Input).placeholder = (
             "Category, e.g. WX" if bulletin else "Callsign, e.g. W1BKW"

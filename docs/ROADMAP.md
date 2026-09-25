@@ -135,8 +135,8 @@ widget and the Mail, Bulletins and Files tabs shipped 2026-09-23.
   through `_arm_for` exactly as Ctrl+N does. Medium.
   *Done 2026-09-25:* steps 1-3 below: the compose screen for SP and SB,
   replies (R, Q, Settings > Mail > Quote in replies), and G sending the
-  Outbox. Next: step 4 (ST radiogram). SB is researched but not yet
-  captured on air: capture the first one.
+  Outbox. Step 4 (ST radiogram) done the same day. Next: step 5. SB and
+  ST are researched but not yet captured on air: capture the first of each.
   Plan for BBS mail (2026-09-25, research in `bpqmail.py`'s docstring):
   1. **Compose screen**: Type (Private SP, Bulletin SB, NTS radiogram ST),
      To, @ (optional; BPQMail fills it from the Home BBS), Title, Body;
@@ -152,10 +152,6 @@ widget and the Mail, Bulletins and Files tabs shipped 2026-09-23.
      message at a time, moved to Sent with the BBS's number and BID only
      after `Message: N Bid: ...`; any `*** Error` stops the run by name
      and leaves the message in the Outbox.
-  4. **ST radiogram form**, ported from bpq-apps' `forms.py` (CC0, same
-     author): the `radiogram.frm` fields, `normalize_nts_text`,
-     `count_nts_check`, 5-word groups, `ST <zip> @ NTS<state>`, and the
-     title `CITY CALLSIGN`.
   5. **SB**: category and distribution (`WX @ ALLUS`), with the common
      distributions offered.
 
