@@ -66,9 +66,18 @@ class Field:
     #: this flag: they still read and write the field by its ordinary id,
     #: because the hand-written composer used that same id on purpose.
     custom_render: bool = False
-    #: A rule drawn above this field with this text under it, to set off
-    #: the fields after it from those before (Home BBS's "only if ...").
+    #: A heading drawn above this field, to set off the fields after it
+    #: from those before (Mail's "Home BBS").
     rule_before: str = ""
+    #: Folded under its section's "Advanced", shut until opened. Tuning a
+    #: new operator never needs to see to get on the air; the defaults are
+    #: right for 1200-baud VHF (operator, 2026-09-25: "new user
+    #: approachable, not overwhelming").
+    advanced: bool = False
+    #: `(path, value)`: shown only while that other field is set to that
+    #: value -- the custom theme colours, while Theme is Custom. Still saved
+    #: while hidden, so nothing is lost by switching back and forth.
+    only_when: tuple[str, Any] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,8 +89,8 @@ class Section:
 
 SETTINGS_SCHEMA: tuple[Section, ...] = (
     Section(
-        "Station",
-        "Who you are on the air.",
+        'Station',
+        'Who you are on the air.',
         (
             Field(
                 "mycall",
@@ -103,9 +112,9 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         ),
     ),
     Section(
-        "Link",
-        "AX.25 timing and framing. The defaults suit 1200-baud VHF; HF wants "
-        "shorter frames and longer timers.",
+        'Link',
+        'How your station talks AX.25 to another. The defaults suit '
+        '1200-baud VHF; on HF or a poor path, try a smaller frame size.',
         (
             Field(
                 "paclen",
@@ -116,15 +125,6 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "-- usually the right trade on HF even though it carries less.",
                 minimum=1,
                 maximum=256,
-            ),
-            Field(
-                "modulo",
-                "Sequence mode",
-                "choice",
-                "Leave this at 8. Every BPQ32 node, KA-Node and TNC2-class "
-                "station on the air speaks it. A peer that does not understand "
-                "128 answers DM and kissterm falls back by itself.",
-                choices=(("8 (standard)", 8), ("128 (extended)", 128)),
             ),
             Field(
                 "window",
@@ -138,6 +138,16 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 maximum=127,
             ),
             Field(
+                "modulo",
+                "Sequence mode",
+                "choice",
+                "Leave this at 8. Every BPQ32 node, KA-Node and TNC2-class "
+                "station on the air speaks it. A peer that does not understand "
+                "128 answers DM and kissterm falls back by itself.",
+                choices=(("8 (standard)", 8), ("128 (extended)", 128)),
+                advanced=True,
+            ),
+            Field(
                 "retries",
                 "Retries (N2)",
                 "int",
@@ -146,6 +156,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "drop a working session over a momentary fade.",
                 minimum=1,
                 maximum=100,
+                advanced=True,
             ),
             Field(
                 "connect_retries",
@@ -157,6 +168,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "is another chance. Lower it on a busy channel.",
                 minimum=1,
                 maximum=100,
+                advanced=True,
             ),
             Field(
                 "sabm_on_poll",
@@ -166,6 +178,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "request and its reply was lost. On: send the next request "
                 "right away instead of waiting out T1. Off: ignore the poll, "
                 "as AX.25 2.2 does.",
+                advanced=True,
             ),
             Field(
                 "t1",
@@ -177,6 +190,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "1.8 s on the air before the reply even starts.",
                 minimum=0.1,
                 maximum=120.0,
+                advanced=True,
             ),
             Field(
                 "t2",
@@ -187,6 +201,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "transmissions on a two-way conversation.",
                 minimum=0.0,
                 maximum=30.0,
+                advanced=True,
             ),
             Field(
                 "t3",
@@ -197,12 +212,88 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "looking connected forever.",
                 minimum=0.0,
                 maximum=3600.0,
+                advanced=True,
             ),
         ),
     ),
     Section(
-        "APRS",
-        "APRS rides on the same AX.25 UI frames the monitor already decodes.",
+        'Mail',
+        'Writing mail, and the BBS that holds it. On the Mail tab: Insert '
+        'writes, R replies, Q replies quoting, G sends and receives.',
+        (
+            Field(
+                "reply_quote",
+                "Quote in replies (R)",
+                "bool",
+                "On: R quotes the original under your reply, as Q does. Off: "
+                "R starts empty. Quoted lines are airtime, and you can edit "
+                "or delete them either way.",
+                apply="live",
+            ),
+            Field(
+                "home_bbs.route",
+                "Dial",
+                "text",
+                "The Address Book entry that reaches the BBS, exactly as "
+                "listed: WS1EC-2 direct, or a node entry whose login script "
+                "sends BBS. Its frequency reminder, hops and login apply.",
+                apply="live",
+                placeholder="WS1EC-2",
+                rule_before="Home BBS: where Send/Receive (G on the Mail tab) sends and collects your mail",
+            ),
+            Field(
+                "home_bbs.call",
+                "BBS callsign",
+                "text",
+                "Files mail as coming from this BBS however it was reached. "
+                "Leave empty to read it from the BBS's prompt.",
+                apply="live",
+                placeholder="from the prompt",
+            ),
+            Field(
+                "home_bbs.software",
+                "Software",
+                "choice",
+                "Automatic recognises BPQMail from what it sends. Only "
+                "BPQMail can be collected from so far.",
+                choices=(("Automatic", "auto"), ("BPQMail", "bpqmail")),
+                apply="live",
+            ),
+            Field(
+                "home_bbs.ready_text",
+                "Ready text",
+                "text",
+                "The text that means the BBS is ready for a command.",
+                apply="live",
+                rule_before="Only if the BBS software is not identified automatically",
+                advanced=True,
+                placeholder='e.g. de WS1EC>',
+            ),
+            Field(
+                "home_bbs.login_prompt",
+                "Login prompt",
+                "text",
+                "Text after which the credential below is sent. Telnet "
+                "BBSes ask for a login; RF ones usually do not.",
+                apply="live",
+                advanced=True,
+                placeholder='e.g. Password:',
+            ),
+            Field(
+                "home_bbs.credential",
+                "Credential",
+                "text",
+                "The name of a saved credential (Settings > Logins).",
+                apply="live",
+                advanced=True,
+                placeholder="a saved login's name",
+            ),
+        ),
+    ),
+    Section(
+        'APRS',
+        'Your position and APRS messages. Nothing is sent until you turn '
+        'beaconing on or send a message.',
         (
             Field(
                 "aprs.enabled",
@@ -222,31 +313,6 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "separate from the callsign connected-mode packet uses.",
                 apply="live",
                 placeholder="e.g. 9",
-            ),
-            Field(
-                "aprs.filter_by_ssid",
-                "Only answer messages to my exact SSID",
-                "bool",
-                "On by default, matching how most APRS apps behave: a "
-                "message addressed to a different SSID of your callsign "
-                "(someone else's mobile or handheld persona, say) is "
-                "ignored by this session rather than answered under an "
-                "identity it was never sent to. Turn off to answer a "
-                "message sent to ANY SSID of your callsign -- the F10 menu's APRS > SSID filter "
-                "toggles this without opening Settings.",
-                apply="live",
-            ),
-            Field(
-                "aprs.beacon_interval_minutes",
-                "Beacon every (min)",
-                "int",
-                "Ten minutes is the floor and it is enforced, not "
-                "suggested -- a shorter interval on a shared channel is "
-                "antisocial unless you are moving. Thirty or sixty is "
-                "normal for a fixed station.",
-                minimum=10,
-                maximum=1440,
-                apply="live",
             ),
             Field(
                 "aprs.latitude",
@@ -279,99 +345,31 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 custom_render=True,
             ),
             Field(
-                "aprs.gps_device",
-                "GPS serial device",
-                "text",
-                "Optional NMEA-0183 serial device, such as /dev/ttyUSB1 or "
-                "/dev/rfcomm0. When set, beacons use only a current GPS fix; "
-                "the fixed position above is left unchanged.",
-                apply="live",
-                placeholder="/dev/ttyUSB1",
-                custom_render=True,
-            ),
-            Field(
-                "aprs.smart_beaconing",
-                "Use SmartBeaconing",
-                "bool",
-                "With a live GPS, shortens position-report timing while moving "
-                "and reports significant turns. It never arms transmit; the "
-                "normal TX gate still controls every automatic beacon.",
-                apply="live",
-            ),
-            Field(
-                "aprs.smart_fast_rate_seconds",
-                "Smart fast rate (s)",
-                "int",
-                "Moving at or above the fast speed uses this interval. Fifteen "
-                "seconds is the enforced floor for shared-channel courtesy.",
-                minimum=15,
-                maximum=3600,
-                apply="live",
-            ),
-            Field(
-                "aprs.smart_slow_rate_minutes",
-                "Smart slow rate (min)",
-                "int",
-                "At or below the slow speed, use this parked/low-speed interval.",
-                minimum=1,
-                maximum=1440,
-                apply="live",
-            ),
-            Field(
-                "aprs.smart_fast_speed_knots",
-                "Smart fast speed (kt)",
-                "int",
-                "At or above this GPS speed, use the fast rate. GPS reports knots.",
-                minimum=1,
-                maximum=300,
-                apply="live",
-            ),
-            Field(
-                "aprs.smart_slow_speed_knots",
-                "Smart slow speed (kt)",
-                "int",
-                "At or below this GPS speed, use the slow rate; it must be below "
-                "the fast speed.",
-                minimum=0,
-                maximum=299,
-                apply="live",
-            ),
-            Field(
-                "aprs.smart_turn_angle_degrees",
-                "Smart turn angle (deg)",
-                "int",
-                "Base heading change that can report a corner. The threshold grows "
-                "at low speed to reject GPS course jitter.",
-                minimum=1,
-                maximum=180,
-                apply="live",
-            ),
-            Field(
-                "aprs.smart_turn_slope",
-                "Smart turn slope",
-                "int",
-                "Extra turn threshold divided by speed in knots. Higher values make "
-                "low-speed corner reports less sensitive.",
-                minimum=0,
-                maximum=720,
-                apply="live",
-            ),
-            Field(
-                "aprs.smart_min_turn_seconds",
-                "Smart minimum turn (s)",
-                "int",
-                "Minimum time between any position report and a corner report; "
-                "enforced to avoid flooding winding roads.",
-                minimum=15,
-                maximum=3600,
-                apply="live",
-            ),
-            Field(
                 "aprs.symbol",
                 "Map symbol",
                 "filtered_choice",
                 "Two characters: table selector then symbol code. Type to "
                 "filter by name.",
+                apply="live",
+            ),
+            Field(
+                "aprs.comment",
+                "Beacon comment",
+                "text",
+                "Free text appended to your position report.",
+                apply="live",
+                placeholder='e.g. Mobile, monitoring 146.52',
+            ),
+            Field(
+                "aprs.beacon_interval_minutes",
+                "Beacon every (min)",
+                "int",
+                "Ten minutes is the floor and it is enforced, not "
+                "suggested -- a shorter interval on a shared channel is "
+                "antisocial unless you are moving. Thirty or sixty is "
+                "normal for a fixed station.",
+                minimum=10,
+                maximum=1440,
                 apply="live",
             ),
             Field(
@@ -396,10 +394,12 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 placeholder="e.g. WIDE1-1,WIDE1-1",
             ),
             Field(
-                "aprs.comment",
-                "Beacon comment",
-                "text",
-                "Free text appended to your position report.",
+                "aprs.smart_beaconing",
+                "Use SmartBeaconing",
+                "bool",
+                "With a live GPS, shortens position-report timing while moving "
+                "and reports significant turns. It never arms transmit; the "
+                "normal TX gate still controls every automatic beacon.",
                 apply="live",
             ),
             Field(
@@ -412,185 +412,154 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "Documented at winlink.org/APRSLink.",
                 apply="live",
             ),
-        ),
-    ),
-    Section(
-        "APRS messaging",
-        "SMS/email gateway defaults for the APRS pane's contact editor. "
-        "UNVERIFIED: gateway callsigns and message-body formats vary by "
-        "region and change over time -- confirm your own gateway's current "
-        "convention before relying on these operationally.",
-        (
+            Field(
+                "aprs.filter_by_ssid",
+                "Exact SSID only",
+                "bool",
+                "On by default, matching how most APRS apps behave: a "
+                "message addressed to a different SSID of your callsign "
+                "(someone else's mobile or handheld persona, say) is "
+                "ignored by this session rather than answered under an "
+                "identity it was never sent to. Turn off to answer a "
+                "message sent to ANY SSID of your callsign -- the F10 menu's APRS > SSID filter "
+                "toggles this without opening Settings.",
+                apply="live",
+                advanced=True,
+            ),
+            Field(
+                "aprs.gps_device",
+                "GPS serial device",
+                "text",
+                "Optional NMEA-0183 serial device, such as /dev/ttyUSB1 or "
+                "/dev/rfcomm0. When set, beacons use only a current GPS fix; "
+                "the fixed position above is left unchanged.",
+                apply="live",
+                placeholder="/dev/ttyUSB1",
+                custom_render=True,
+                advanced=True,
+            ),
+            Field(
+                "aprs.smart_fast_rate_seconds",
+                "Smart fast rate (s)",
+                "int",
+                "Moving at or above the fast speed uses this interval. Fifteen "
+                "seconds is the enforced floor for shared-channel courtesy.",
+                minimum=15,
+                maximum=3600,
+                apply="live",
+                advanced=True,
+            ),
+            Field(
+                "aprs.smart_slow_rate_minutes",
+                "Smart slow rate (min)",
+                "int",
+                "At or below the slow speed, use this parked/low-speed interval.",
+                minimum=1,
+                maximum=1440,
+                apply="live",
+                advanced=True,
+            ),
+            Field(
+                "aprs.smart_fast_speed_knots",
+                "Smart fast speed (kt)",
+                "int",
+                "At or above this GPS speed, use the fast rate. GPS reports knots.",
+                minimum=1,
+                maximum=300,
+                apply="live",
+                advanced=True,
+            ),
+            Field(
+                "aprs.smart_slow_speed_knots",
+                "Smart slow speed (kt)",
+                "int",
+                "At or below this GPS speed, use the slow rate; it must be below "
+                "the fast speed.",
+                minimum=0,
+                maximum=299,
+                apply="live",
+                advanced=True,
+            ),
+            Field(
+                "aprs.smart_turn_angle_degrees",
+                "Smart turn angle (deg)",
+                "int",
+                "Base heading change that can report a corner. The threshold grows "
+                "at low speed to reject GPS course jitter.",
+                minimum=1,
+                maximum=180,
+                apply="live",
+                advanced=True,
+            ),
+            Field(
+                "aprs.smart_turn_slope",
+                "Smart turn slope",
+                "int",
+                "Extra turn threshold divided by speed in knots. Higher values make "
+                "low-speed corner reports less sensitive.",
+                minimum=0,
+                maximum=720,
+                apply="live",
+                advanced=True,
+            ),
+            Field(
+                "aprs.smart_min_turn_seconds",
+                "Smart minimum turn (s)",
+                "int",
+                "Minimum time between any position report and a corner report; "
+                "enforced to avoid flooding winding roads.",
+                minimum=15,
+                maximum=3600,
+                apply="live",
+                advanced=True,
+            ),
             Field(
                 "aprs_sms_gateway",
-                "Default SMS gateway callsign",
+                "SMS gateway",
                 "text",
                 "Pre-fills a new SMS contact's callsign in the APRS pane's "
                 "contact editor. Blank means no default -- type the "
                 "gateway's callsign into each contact by hand.",
                 apply="live",
                 placeholder="e.g. SMSGTE",
+                advanced=True,
+                rule_before="SMS and email gateways (UNVERIFIED: conventions vary by region; check yours)",
             ),
             Field(
                 "aprs_email_gateway",
-                "Default email gateway callsign",
+                "Email gateway",
                 "text",
                 "Same idea as the SMS gateway above, for email contacts.",
                 apply="live",
                 placeholder="e.g. EMAIL2",
+                advanced=True,
             ),
             Field(
                 "aprs_sms_template",
-                "SMS message-body template",
+                "SMS template",
                 "text",
                 "{detail} is the contact's phone number, {text} what you "
                 "typed. The commonly-documented convention is phone number "
                 "then message text -- edit this if your gateway differs.",
                 apply="live",
                 placeholder="{detail} {text}",
+                advanced=True,
             ),
             Field(
                 "aprs_email_template",
-                "Email message-body template",
+                "Email template",
                 "text",
                 "Same idea as the SMS template above, for email contacts.",
                 apply="live",
                 placeholder="{detail} {text}",
+                advanced=True,
             ),
         ),
     ),
     Section(
-        "Unattended operation",
-        "Answering a call transmits under your callsign with nobody present. "
-        "You remain the control operator. Off unless you turn it on.",
-        (
-            Field(
-                "tx_armed_at_start",
-                "Enable transmit at startup",
-                "bool",
-                "Off by default: kissterm starts unable to key the radio, "
-                "and Ctrl+T arms it -- the same way WSJT-X's Enable Tx "
-                "resets every launch. Turn this on only for a station meant "
-                "to run unattended, where a restart quietly taking it off "
-                "the air is the worse failure.",
-                apply="restart",
-            ),
-            Field(
-                "accept_incoming",
-                "Answer incoming calls",
-                "bool",
-                "When off, a station calling you gets a polite refusal (DM) so "
-                "it stops retrying instead of burning its whole retry budget. "
-                "When on, kissterm answers and sends the banner below -- "
-                "unattended, under your callsign, whether or not you are at "
-                "the keyboard. Check what your licence allows for automatic "
-                "control on the band you are using.",
-                apply="live",
-            ),
-            Field(
-                "connect_banner",
-                "Connect banner",
-                "text",
-                "Sent to whoever connects. BPQ32 calls this CTEXT. Use \\r "
-                "for a line break -- packet is carriage-return oriented.",
-                apply="live",
-            ),
-            Field(
-                "aprs_auto_ack",
-                "Auto-ack APRS messages addressed to me",
-                "bool",
-                "On by default: an APRS message you never ack is not safely "
-                "delivered, it is just broken -- this is a single, fixed "
-                "reply with no content you did not already choose by using "
-                "two-way messaging at all, and it is still gated by the "
-                "transmit switch above like everything else. Turn off for "
-                "manual-ack-only.",
-                apply="live",
-            ),
-        ),
-    ),
-    Section(
-        "Mail",
-        "Writing messages. On the Mail tab, Insert starts a new message, R "
-        "replies and Q replies with the original quoted. Saving puts it in "
-        "the Outbox; nothing is sent until you send it.",
-        (
-            Field(
-                "reply_quote",
-                "Quote in replies (R)",
-                "bool",
-                "On: R quotes the original under your reply, as Q does. Off: "
-                "R starts empty. Quoted lines are airtime, and you can edit "
-                "or delete them either way.",
-                apply="live",
-            ),
-        ),
-    ),
-    Section(
-        "Home BBS",
-        "Where Send/Receive (Mail tab, G) sends and collects your mail. It dials an Address "
-        "Book entry the usual way, lists your mail with LM and reads only "
-        "what is new. Messages stay on the BBS.",
-        (
-            Field(
-                "home_bbs.route",
-                "Dial",
-                "text",
-                "The Address Book entry that reaches the BBS, exactly as "
-                "listed: WS1EC-2 direct, or a node entry whose login script "
-                "sends BBS. Its frequency reminder, hops and login apply.",
-                apply="live",
-                placeholder="WS1EC-2",
-            ),
-            Field(
-                "home_bbs.call",
-                "BBS callsign",
-                "text",
-                "Files mail as coming from this BBS however it was reached. "
-                "Leave empty to read it from the BBS's prompt.",
-                apply="live",
-                placeholder="from the prompt",
-            ),
-            Field(
-                "home_bbs.software",
-                "Software",
-                "choice",
-                "Automatic recognises BPQMail from what it sends. Only "
-                "BPQMail can be collected from so far.",
-                choices=(("Automatic", "auto"), ("BPQMail", "bpqmail")),
-                apply="live",
-            ),
-            Field(
-                "home_bbs.ready_text",
-                "Ready text",
-                "text",
-                "The text that means the BBS is ready for a command.",
-                apply="live",
-                rule_before="Only if the BBS software is not identified automatically",
-            ),
-            Field(
-                "home_bbs.login_prompt",
-                "Login prompt",
-                "text",
-                "Text after which the credential below is sent. Telnet "
-                "BBSes ask for a login; RF ones usually do not.",
-                apply="live",
-            ),
-            Field(
-                "home_bbs.credential",
-                "Credential",
-                "text",
-                "The name of a saved credential (Settings > Credentials).",
-                apply="live",
-            ),
-        ),
-    ),
-    Section(
-        "Beacon",
-        "A short text transmitted on a timer to say you are here. This is "
-        "NOT APRS beaconing above -- that sends your position in APRS "
-        "format; this sends free text. Both key the radio with nobody "
-        "present, and both are off until you turn them on.",
+        'Beacon',
+        'Free text sent on a timer to say you are here. Not APRS: APRS '
+        'sends your position. Off until you turn it on.',
         (
             Field(
                 "beacon.enabled",
@@ -634,6 +603,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "Nobody answers it -- the frame is unconnected.",
                 apply="live",
                 placeholder="BEACON",
+                advanced=True,
             ),
             Field(
                 "beacon.path",
@@ -644,6 +614,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "digipeaters is the reason beacons have a bad name.",
                 apply="live",
                 placeholder="(direct)",
+                advanced=True,
             ),
             Field(
                 "beacon.port",
@@ -654,16 +625,90 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 minimum=0,
                 maximum=15,
                 apply="live",
+                advanced=True,
             ),
         ),
     ),
     Section(
-        "Appearance",
-        "Every color in kissterm is a theme variable, so switching here "
-        "repaints instantly -- nothing to restart. The eleven fields below "
-        "only matter when Theme is set to Custom; they are ignored "
-        "otherwise, and are pre-filled with Tokyo Night's own values so "
-        "Custom starts out looking identical to it rather than blank.",
+        'Answering',
+        'Transmitting with nobody at the keyboard. You remain the control '
+        'operator. Everything here is off until you turn it on.',
+        (
+            Field(
+                "tx_armed_at_start",
+                "Enable transmit at startup",
+                "bool",
+                "Off by default: kissterm starts unable to key the radio, "
+                "and Ctrl+T arms it -- the same way WSJT-X's Enable Tx "
+                "resets every launch. Turn this on only for a station meant "
+                "to run unattended, where a restart quietly taking it off "
+                "the air is the worse failure.",
+                apply="restart",
+            ),
+            Field(
+                "accept_incoming",
+                "Answer incoming calls",
+                "bool",
+                "When off, a station calling you gets a polite refusal (DM) so "
+                "it stops retrying instead of burning its whole retry budget. "
+                "When on, kissterm answers and sends the banner below -- "
+                "unattended, under your callsign, whether or not you are at "
+                "the keyboard. Check what your licence allows for automatic "
+                "control on the band you are using.",
+                apply="live",
+            ),
+            Field(
+                "connect_banner",
+                "Connect banner",
+                "text",
+                "Sent to whoever connects. BPQ32 calls this CTEXT. Use \\r "
+                "for a line break -- packet is carriage-return oriented.",
+                apply="live",
+            ),
+            Field(
+                "aprs_auto_ack",
+                "Auto-ack APRS messages",
+                "bool",
+                "On by default: an APRS message you never ack is not safely "
+                "delivered, it is just broken -- this is a single, fixed "
+                "reply with no content you did not already choose by using "
+                "two-way messaging at all, and it is still gated by the "
+                "transmit switch above like everything else. Turn off for "
+                "manual-ack-only.",
+                apply="live",
+            ),
+        ),
+    ),
+    Section(
+        'Alerts',
+        'A local alert when a watched callsign is heard. A callsign in a '
+        'frame is a claim, not proof of who sent it. Alerts never transmit.',
+        (
+            Field("watched_callsigns.enabled", "Watch for callsigns", "bool",
+                  "Off by default. Uses the existing receive path only.", apply="live"),
+            Field("watched_callsigns.callsigns", "Watch callsigns", "calllist",
+                  "Comma-separated callsign claims to watch in a frame source or digipeater path.",
+                  apply="live", placeholder="N1ABC, W1AW-2"),
+            Field("watched_callsigns.cooldown_minutes", "Repeat cooldown (min)", "int",
+                  "One alert per callsign claim during this interval.", minimum=0, maximum=1440,
+                  apply="live", advanced=True),
+            Field("watched_callsigns.hourly_cap", "Alerts per hour", "int",
+                  "Global cap across watched callsigns; resets on the local clock hour.", minimum=0,
+                  maximum=120, apply="live", advanced=True),
+            Field("watched_callsigns.quiet_start_hour", "Quiet hours start", "int",
+                  "Local hour 0-23; use -1 with the end hour to disable quiet hours.",
+                  minimum=-1, maximum=23, apply="live", advanced=True),
+            Field("watched_callsigns.quiet_end_hour", "Quiet hours end", "int",
+                  "Local hour 0-23; quiet hours can cross midnight. Use -1 to disable.", minimum=-1, maximum=23,
+                  apply="live", advanced=True),
+            Field("watched_callsigns.active_suppression_seconds", "Suppress while active (s)", "int",
+                  "After local keyboard use, skip alerts because the monitor is already visible; 0 disables.",
+                  minimum=0, maximum=3600, apply="live", advanced=True),
+        ),
+    ),
+    Section(
+        'Appearance',
+        'How kissterm looks. Changes show at once.',
         (
             Field(
                 "start_tab",
@@ -691,119 +736,96 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "custom_theme.primary",
-                "Custom: Primary",
+                "Primary",
                 "color",
                 "Structural borders -- pane outlines.",
                 apply="live",
+                rule_before="Custom theme colours",
+                only_when=("theme", "custom"),
             ),
             Field(
                 "custom_theme.secondary",
-                "Custom: Secondary",
+                "Secondary",
                 "color",
                 "A second accent, used sparingly alongside Primary.",
                 apply="live",
+                only_when=("theme", "custom"),
             ),
             Field(
                 "custom_theme.accent",
-                "Custom: Accent",
+                "Accent",
                 "color",
                 "The active/current thing: the selected tab, section "
                 "headings.",
                 apply="live",
+                only_when=("theme", "custom"),
             ),
             Field(
                 "custom_theme.foreground",
-                "Custom: Foreground",
+                "Foreground",
                 "color",
                 "Body text.",
                 apply="live",
+                only_when=("theme", "custom"),
             ),
             Field(
                 "custom_theme.background",
-                "Custom: Background",
+                "Background",
                 "color",
                 "The app's own ground -- tab bar, status bar.",
                 apply="live",
+                only_when=("theme", "custom"),
             ),
             Field(
                 "custom_theme.surface",
-                "Custom: Surface",
+                "Surface",
                 "color",
                 "Panel interiors, dialog bodies.",
                 apply="live",
+                only_when=("theme", "custom"),
             ),
             Field(
                 "custom_theme.panel",
-                "Custom: Panel",
+                "Panel",
                 "color",
                 "Header and Footer chrome.",
                 apply="live",
+                only_when=("theme", "custom"),
             ),
             Field(
                 "custom_theme.warning",
-                "Custom: Warning",
+                "Warning",
                 "color",
                 "State, not emphasis -- something needs attention.",
                 apply="live",
+                only_when=("theme", "custom"),
             ),
             Field(
                 "custom_theme.error",
-                "Custom: Error",
+                "Error",
                 "color",
                 "State, not emphasis -- something is wrong.",
                 apply="live",
+                only_when=("theme", "custom"),
             ),
             Field(
                 "custom_theme.success",
-                "Custom: Success",
+                "Success",
                 "color",
                 "State, not emphasis -- something worked.",
                 apply="live",
+                only_when=("theme", "custom"),
             ),
             Field(
                 "custom_theme.dark",
-                "Custom: Dark theme",
+                "Dark theme",
                 "bool",
                 "Whether Textual should treat Custom as a dark or light "
                 "palette, for the few built-in widgets that pick their own "
                 "contrast from it. Not a color itself.",
                 apply="live",
+                only_when=("theme", "custom"),
             ),
-        ),
-    ),
-    Section(
-        "Watched callsigns",
-        "Passive local alerts for callsign claims carried by received frames. "
-        "A claim is not an authenticated identity; alerts never transmit or connect.",
-        (
-            Field("watched_callsigns.enabled", "Enable watched callsigns", "bool",
-                  "Off by default. Uses the existing receive path only.", apply="live"),
-            Field("watched_callsigns.callsigns", "Watch callsigns", "calllist",
-                  "Comma-separated callsign claims to watch in a frame source or digipeater path.",
-                  apply="live", placeholder="N1ABC, W1AW-2"),
-            Field("watched_callsigns.cooldown_minutes", "Repeat cooldown (min)", "int",
-                  "One alert per callsign claim during this interval.", minimum=0, maximum=1440,
-                  apply="live"),
-            Field("watched_callsigns.hourly_cap", "Alerts per hour", "int",
-                  "Global cap across watched callsigns; resets on the local clock hour.", minimum=0,
-                  maximum=120, apply="live"),
-            Field("watched_callsigns.quiet_start_hour", "Quiet hours start", "int",
-                  "Local hour 0-23; use -1 with the end hour to disable quiet hours.",
-                  minimum=-1, maximum=23, apply="live"),
-            Field("watched_callsigns.quiet_end_hour", "Quiet hours end", "int",
-                  "Local hour 0-23; quiet hours can cross midnight. Use -1 to disable.", minimum=-1, maximum=23,
-                  apply="live"),
-            Field("watched_callsigns.active_suppression_seconds", "Suppress while active (s)", "int",
-                  "After local keyboard use, skip alerts because the monitor is already visible; 0 disables.",
-                  minimum=0, maximum=3600, apply="live"),
-        ),
-    ),
-    Section(
-        "Clock",
-        "Three independent toggles for the title bar. Amateur radio runs on "
-        "UTC while you live in local time, so showing both is a real "
-        "operating mode -- and turning all three off is allowed too.",
-        (
             Field(
                 "show_local_time",
                 "Local time",
@@ -838,28 +860,13 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "they differ.",
                 apply="live",
             ),
-        ),
-    ),
-    Section(
-        "Display and logging",
-        "Local only -- none of this reaches the air.",
-        (
             Field(
-                "monitor_filter",
-                "Monitor filter",
-                "text",
-                "Starting filter for the Monitor pane: a callsign, or text to "
-                "match in the payload.",
-                apply="live",
-            ),
-            Field(
-                "aprs_is_watch_debug",
-                "Background APRS-IS watch in debug logs",
+                "ascii_safe",
+                "ASCII-safe mode",
                 "bool",
-                "While kissterm runs with --log-level debug, keep a receive-only "
-                "APRS-IS stream open for your packets and replies addressed to you. "
-                "It never keys RF or publishes to APRS-IS. Off by default.",
-                apply="live",
+                "Plain ASCII instead of Unicode box-drawing, for a terminal "
+                "that mangles anything past code page 437.",
+                apply="restart",
             ),
             Field(
                 "remote_color",
@@ -871,6 +878,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "this is a readability choice, not a safety one. Turn it off "
                 "on a terminal that renders colour badly.",
                 apply="live",
+                advanced=True,
             ),
             Field(
                 "slideouts_auto_open",
@@ -882,15 +890,15 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "Ctrl+G still opens and closes either at any width, and doing "
                 "so takes the decision away from this setting until restart.",
                 apply="restart",
+                advanced=True,
             ),
-            Field(
-                "ascii_safe",
-                "ASCII-safe mode",
-                "bool",
-                "Plain ASCII instead of Unicode box-drawing, for a terminal "
-                "that mangles anything past code page 437.",
-                apply="restart",
-            ),
+        ),
+    ),
+    Section(
+        'Logging',
+        'What kissterm keeps on disk. Local only: none of this reaches the '
+        'air.',
+        (
             Field(
                 "log_sessions",
                 "Save session transcripts",
@@ -908,6 +916,26 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "Leave empty to use the default. 'kissterm --doctor' prints "
                 "where that is.",
                 apply="restart",
+                placeholder='the default folder',
+            ),
+            Field(
+                "monitor_filter",
+                "Monitor filter",
+                "text",
+                "Starting filter for the Monitor pane: a callsign, or text to "
+                "match in the payload.",
+                apply="live",
+                placeholder='a callsign or text; empty shows all',
+            ),
+            Field(
+                "aprs_is_watch_debug",
+                "APRS-IS watch in debug log",
+                "bool",
+                "While kissterm runs with --log-level debug, keep a receive-only "
+                "APRS-IS stream open for your packets and replies addressed to you. "
+                "It never keys RF or publishes to APRS-IS. Off by default.",
+                apply="live",
+                advanced=True,
             ),
         ),
     ),

@@ -28,20 +28,21 @@ from __future__ import annotations
 
 import logging
 
-from textual import on, work
+from textual import events, on, work
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import (
     Button,
+    Checkbox,
+    Collapsible,
+    ContentSwitcher,
     Input,
     Label,
-    Rule,
+    OptionList,
     Select,
     Static,
-    Switch,
-    TabbedContent,
-    TabPane,
 )
+from textual.widgets.option_list import Option
 
 from ..aprs import symbols
 from ..gps import discover_serial_gps
@@ -67,20 +68,26 @@ log = logging.getLogger(__name__)
 _CUSTOM_SENTINEL = "__custom__"
 _CUSTOM_LABEL = "Custom..."
 
-#: The Transports block is emitted immediately after this schema section.
-#: "Station" puts callsign and aliases at the very top of the page, with the
-#: hardware they talk through right below -- identity first, then the radio,
-#: then tuning.
+#: The two hand-built sections: transports, and saved logins and scripts.
+RADIO = "Radio"
+LOGINS = "Logins"
+
+#: Radio comes straight after this schema section. "Station" puts callsign
+#: and aliases at the very top, with the hardware they talk through right
+#: below -- identity first, then the radio, then tuning.
 TRANSPORTS_AFTER_SECTION = "Station"
 
-#: Shown beside a field only where Save alone is not the whole story: every
-#: field takes effect on Save, so saying "takes effect now" beside most of
-#: them was noise (operator, 2026-09-24).
+#: Added to a field's help line only where Save alone is not the whole
+#: story: every field takes effect on Save, so saying so for most of them
+#: was noise (operator, 2026-09-24).
 APPLY_NOTE = {
     "live": "",
-    "connect": "next connection",
-    "restart": "needs a restart",
+    "connect": "Used from the next connection.",
+    "restart": "Needs a restart.",
 }
+
+#: The help line before any field has focus.
+_HELP_IDLE = "Tab moves into the fields; help for the one you are on shows here."
 
 
 def _widget_id(path: str) -> str:
@@ -89,11 +96,19 @@ def _widget_id(path: str) -> str:
 
 
 def _tab_id(title: str) -> str:
-    """A DOM-safe id for a section's `TabPane` (`"Link"` -> `settings-tab-link`)."""
+    """A DOM-safe id for a section (`"Link"` -> `settings-tab-link`)."""
     return "settings-tab-" + title.lower().replace(" ", "-")
 
 
-#: What "Test selected" prints for each `discovery.Identity.verdict`. An
+def section_titles() -> list[str]:
+    """The section list, top to bottom: the schema's, plus Radio and Logins."""
+    titles = [section.title for section in SETTINGS_SCHEMA]
+    titles.insert(titles.index(TRANSPORTS_AFTER_SECTION) + 1, RADIO)
+    titles.append(LOGINS)
+    return titles
+
+
+#: What "Test" prints for each `discovery.Identity.verdict`. An
 #: operator pressing this button wants OK or FAILED, not the paragraph
 #: `identity.summary` carries for the scan results list -- that wording stays
 #: in `discovery.py` for the audience that has never seen a silent KISS port
@@ -126,76 +141,183 @@ def _test_result_line(host: str, port: int, identity) -> str:
 
 
 class SettingsPane(Vertical):
-    """A tabbed form over the whole schema, plus transport management.
+    """A section list, one section's fields, and a bar that never scrolls.
 
-    One `TabPane` per schema section rather than one long scrolling page.
-    The single-scroll version put Save at the bottom of a page that could run
-    to several screens once Beacon, APRS and Link params were all on it --
-    reaching it meant scrolling past everything else first, every time. Save
-    and Reload now live in a bar below the tabs that never scrolls, so they
-    are always one click away regardless of which section is open or how far
-    down it the operator has scrolled.
+    Rebuilt 2026-09-25 for a new operator (operator: "new user approachable,
+    not overwhelming, but as self explanatory as we can, simply"). What it
+    replaced, and why each part changed:
+
+    * **Sixteen tabs in one strip ran off the right edge**, hiding six
+      sections. The sections are now a list down the left, all visible, the
+      way the Mail tab's folders are.
+    * **Every field took four to five rows** (bordered box, apply note,
+      help paragraph, error line), so the Link section showed a field and a
+      half per screen. A field is now one row: its label and a compact
+      control. **The help is one line at the bottom** for whichever field has
+      focus, with when a change takes effect and any error in red. None of
+      the help text was dropped; it is shown one field at a time.
+    * **Everything had the same weight**: the callsign beside SmartBeaconing's
+      turn slope. Tuning the defaults already get right is folded under each
+      section's shut "Advanced" (`Field.advanced`), and the custom theme
+      colours appear only while Theme is Custom (`Field.only_when`).
+
+    It also made startup faster: the form had been three quarters of the
+    app's widgets, built and styled before the first screen was drawn.
+
+    Every field's widget keeps its `set-...` id, and Save and render still
+    walk the whole schema, folded or not.
     """
 
+    def __init__(self) -> None:
+        super().__init__()
+        #: Row id -> (label, help, apply) for the help line.
+        self._row_help: dict[str, tuple[str, str, str]] = {}
+        #: Field widget id -> the id of the row that shows it.
+        self._wid_row: dict[str, str] = {}
+        #: Field widget id -> its current validation error.
+        self._errors: dict[str, str] = {}
+        #: Group container id -> the `Field.only_when` that shows it.
+        self._conditional: dict[str, tuple[str, object]] = {}
+
     def compose(self) -> ComposeResult:
-        # Schema order decides the tab order, with one exception: the
-        # hand-built Transports tab is inserted straight after whichever
-        # section is named below. Who you are on the air (Station: callsign,
-        # aliases) belongs first -- it is the first thing a new operator sets
-        # and the thing most often changed later -- and the hardware you talk
-        # through belongs immediately after it. Everything else is tuning.
-        with TabbedContent(id="settings-tabs"):
-            for section in SETTINGS_SCHEMA:
-                with TabPane(section.title, id=_tab_id(section.title)):
-                    with VerticalScroll(classes="settings-tab-scroll"):
+        with Horizontal(id="settings-body"):
+            yield OptionList(
+                *(Option(title, id=_tab_id(title)) for title in section_titles()),
+                id="settings-sections",
+            )
+            with ContentSwitcher(id="settings-switcher", initial=_tab_id(SETTINGS_SCHEMA[0].title)):
+                for section in SETTINGS_SCHEMA:
+                    with VerticalScroll(id=_tab_id(section.title), classes="settings-section"):
                         yield Static(section.note, classes="settings-note")
-                        for spec in section.fields:
-                            yield from self._compose_field(spec)
-                if section.title == TRANSPORTS_AFTER_SECTION:
-                    with TabPane("Transports", id=_tab_id("Transports")):
-                        with VerticalScroll(classes="settings-tab-scroll"):
+                        yield from self._compose_fields([f for f in section.fields if not f.advanced])
+                        advanced = [f for f in section.fields if f.advanced]
+                        if advanced:
+                            with Collapsible(
+                                title="Advanced", collapsed=True, classes="settings-advanced",
+                                id=f"{_tab_id(section.title)}-advanced",
+                            ):
+                                yield from self._compose_fields(advanced)
+                    if section.title == TRANSPORTS_AFTER_SECTION:
+                        with VerticalScroll(id=_tab_id(RADIO), classes="settings-section"):
                             yield from self._compose_transports()
-                    with TabPane("Credentials", id=_tab_id("Credentials")):
-                        with VerticalScroll(classes="settings-tab-scroll"):
-                            yield from self._compose_credentials()
-                    with TabPane("Scripts", id=_tab_id("Scripts")):
-                        with VerticalScroll(classes="settings-tab-scroll"):
-                            yield from self._compose_scripts()
+                with VerticalScroll(id=_tab_id(LOGINS), classes="settings-section"):
+                    yield from self._compose_credentials()
+                    yield from self._compose_scripts()
 
         with Vertical(id="settings-bar"):
             yield Static("", id="settings-banner", classes="settings-banner")
-            with Horizontal(classes="settings-row settings-actions"):
-                yield Button("Save", variant="primary", id="settings-save")
-                yield Button("Reload", id="settings-reload")
-            yield Static("", id="settings-footer", classes="settings-note")
+            yield Static(_HELP_IDLE, id="settings-help-line")
+            with Horizontal(classes="settings-actions"):
+                yield Static("", id="settings-footer")
+                yield Button("Save", variant="primary", compact=True, id="settings-save")
+                yield Button("Reload", compact=True, id="settings-reload")
+
+    # -- sections and the help line ------------------------------------------
+
+    def show_section(self, title: str) -> None:
+        """Open a section by its title (`"Radio"`) or its id."""
+        tab = title if title.startswith("settings-tab-") else _tab_id(title)
+        self.query_one("#settings-switcher", ContentSwitcher).current = tab
+        sections = self.query_one("#settings-sections", OptionList)
+        index = sections.get_option_index(tab)
+        if sections.highlighted != index:
+            sections.highlighted = index
+
+    @property
+    def current_section(self) -> str:
+        return self.query_one("#settings-switcher", ContentSwitcher).current or ""
+
+    @on(Checkbox.Changed)
+    def _say_on_or_off(self, event: Checkbox.Changed) -> None:
+        event.checkbox.label = "on" if event.value else "off"
+
+    @on(OptionList.OptionHighlighted, "#settings-sections")
+    def _section_highlighted(self, event: OptionList.OptionHighlighted) -> None:
+        if event.option.id:
+            self.query_one("#settings-switcher", ContentSwitcher).current = event.option.id
+
+    def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        node = event.control
+        while node is not None and node is not self:
+            if node.id in self._row_help:
+                self._show_help(node.id)
+                return
+            node = node.parent
+        self._show_help("")
+
+    def _show_help(self, row_id: str) -> None:
+        line = self.query_one("#settings-help-line", Static)
+        if row_id not in self._row_help:
+            line.update(_HELP_IDLE)
+            line.remove_class("-error")
+            return
+        label, text, apply = self._row_help[row_id]
+        error = next(
+            (self._errors[w] for w, row in self._wid_row.items() if row == row_id and w in self._errors),
+            "",
+        )
+        if error:
+            line.update(f"{label}: {error}")
+        else:
+            line.update(f"{label}: {text} {APPLY_NOTE.get(apply, '')}".rstrip())
+        line.set_class(bool(error), "-error")
+
+    def _register_row(self, row_id: str, label: str, text: str, apply: str, *wids: str) -> str:
+        self._row_help[row_id] = (label, text, apply)
+        for wid in wids:
+            self._wid_row[wid] = row_id
+        return row_id
+
+    def error_for(self, wid: str) -> str:
+        """The validation error Save found in this field, or ""."""
+        return self._errors.get(wid, "")
+
+    # -- building the form ---------------------------------------------------
+
+    def _compose_fields(self, fields: list[Field]) -> ComposeResult:
+        """Fields in order, with each run of `only_when` fields in one group
+        that is shown and hidden as a whole."""
+        index = 0
+        while index < len(fields):
+            spec = fields[index]
+            if not spec.only_when:
+                yield from self._compose_field(spec)
+                index += 1
+                continue
+            group = [f for f in fields[index:] if f.only_when == spec.only_when]
+            group_id = f"{_widget_id(spec.path)}-group"
+            self._conditional[group_id] = spec.only_when
+            with Vertical(classes="settings-conditional", id=group_id):
+                for member in group:
+                    yield from self._compose_field(member)
+            index += len(group)
 
     def _compose_transports(self) -> ComposeResult:
         """The one hand-built tab -- see the module docstring for why
         transports cannot be schema fields (a list of dicts with
         kind-specific keys, not scalars)."""
         yield Static(
-            "Which TNC or modem kissterm talks to. Changing this reopens the "
-            "connection, so disconnect first. USB and serial TNCs are noticed "
-            "automatically when you plug them in; scanning the network is "
-            "manual, because a sweep is around 1500 connection attempts and "
-            "does not belong on a timer. 'Scan for hardware' only finds a "
-            "KISS TNC or AGWPE engine it can identify by itself -- add a "
-            "VARA/Mercury modem, a Telnet or SSH node, or a second entry for "
-            "hardware already found with 'New'.",
+            "The TNC or modem kissterm talks through. USB and serial TNCs are "
+            "noticed when you plug them in. 'Scan for hardware' looks on the "
+            "network and paired Bluetooth; add a VARA or Mercury modem, a "
+            "Telnet or SSH node with 'New'. Nothing here transmits.",
             classes="settings-note",
         )
-        with Horizontal(classes="settings-row"):
+        row = self._register_row(
+            "set-active-transport-row", "Active",
+            "Which one kissterm uses. Changing it reopens the connection, so "
+            "disconnect first.", "live", "set-active-transport",
+        )
+        with Horizontal(classes="settings-row", id=row):
             yield Label("Active", classes="settings-label")
-            yield Select([], id="set-active-transport", allow_blank=True)
-            yield Label("", classes="settings-apply")
-        with Horizontal(classes="settings-row"):
-            yield Label("", classes="settings-label")
-            yield Button("Scan for hardware", id="settings-scan")
-            yield Button("New", id="transport-new")
-            yield Button("Edit", id="transport-edit")
-            yield Button("Test selected", id="settings-test")
-            yield Button("Forget", id="settings-forget")
-        yield Static("", id="settings-transport-detail", classes="settings-help")
+            yield Select([], id="set-active-transport", allow_blank=True, compact=True)
+        with Horizontal(classes="settings-row settings-buttons"):
+            yield Button("Scan for hardware", compact=True, id="settings-scan")
+            yield Button("New", compact=True, id="transport-new")
+            yield Button("Edit", compact=True, id="transport-edit")
+            yield Button("Test", compact=True, id="settings-test")
+            yield Button("Forget", compact=True, id="settings-forget")
+        yield Static("", id="settings-transport-detail", classes="settings-detail")
 
     def _compose_credentials(self) -> ComposeResult:
         """Saved logins, referenced by name from a station's Connect entry.
@@ -206,22 +328,23 @@ class SettingsPane(Vertical):
         open `CredentialScreen` rather than being generated.
         """
         yield Static(
-            "Reusable logins a station's Connect entry can point at by name "
-            "instead of storing its own copy -- change one here and every "
-            "entry that names it uses the new text on its next connect. "
-            "Nothing here is sent until a Connect entry actually references it.",
+            "Logins and command scripts an Address Book entry can use by name, "
+            "so a change here reaches every entry that uses it. Nothing is "
+            "sent until a connect uses one.",
             classes="settings-note",
         )
-        with Horizontal(classes="settings-row"):
-            yield Label("Saved", classes="settings-label")
-            yield Select([], id="set-credential", allow_blank=True)
-            yield Label("", classes="settings-apply")
-        with Horizontal(classes="settings-row"):
-            yield Label("", classes="settings-label")
-            yield Button("New", id="credential-new")
-            yield Button("Edit", id="credential-edit")
-            yield Button("Forget", id="credential-forget")
-        yield Static("", id="settings-credential-detail", classes="settings-help")
+        row = self._register_row(
+            "set-credential-row", "Login", "A saved login: the lines sent after "
+            "connecting, often a callsign and a password.", "live", "set-credential",
+        )
+        with Horizontal(classes="settings-row", id=row):
+            yield Label("Login", classes="settings-label")
+            yield Select([], id="set-credential", allow_blank=True, compact=True)
+        with Horizontal(classes="settings-row settings-buttons"):
+            yield Button("New", compact=True, id="credential-new")
+            yield Button("Edit", compact=True, id="credential-edit")
+            yield Button("Forget", compact=True, id="credential-forget")
+        yield Static("", id="settings-credential-detail", classes="settings-detail")
 
     def _compose_scripts(self) -> ComposeResult:
         """Saved command sequences, referenced by name from a station's
@@ -232,25 +355,19 @@ class SettingsPane(Vertical):
         connecting, named for what it does -- "Check WS1EC mail", not an
         account name. See `Config.scripts`'s docstring.
         """
-        yield Static(
-            "Reusable command sequences a station's Connect entry can point "
-            "at by name instead of storing its own copy -- a login followed "
-            "by a node hop, a mailbox check, anything sent one line at a "
-            "time after connecting. Checked after a saved credential, "
-            "before any literal text typed into an entry directly. Nothing "
-            "here is sent until a Connect entry actually references it.",
-            classes="settings-note",
+        row = self._register_row(
+            "set-script-row", "Script", "Commands sent one line at a time after "
+            "connecting, after any login: a node hop, a mailbox check.", "live",
+            "set-script",
         )
-        with Horizontal(classes="settings-row"):
-            yield Label("Saved", classes="settings-label")
-            yield Select([], id="set-script", allow_blank=True)
-            yield Label("", classes="settings-apply")
-        with Horizontal(classes="settings-row"):
-            yield Label("", classes="settings-label")
-            yield Button("New", id="script-new")
-            yield Button("Edit", id="script-edit")
-            yield Button("Forget", id="script-forget")
-        yield Static("", id="settings-script-detail", classes="settings-help")
+        with Horizontal(classes="settings-row", id=row):
+            yield Label("Script", classes="settings-label")
+            yield Select([], id="set-script", allow_blank=True, compact=True)
+        with Horizontal(classes="settings-row settings-buttons"):
+            yield Button("New", compact=True, id="script-new")
+            yield Button("Edit", compact=True, id="script-edit")
+            yield Button("Forget", compact=True, id="script-forget")
+        yield Static("", id="settings-script-detail", classes="settings-detail")
 
     def _compose_field(self, spec: Field) -> ComposeResult:
         if spec.custom_render:
@@ -264,17 +381,20 @@ class SettingsPane(Vertical):
             return
         wid = _widget_id(spec.path)
         if spec.rule_before:
-            yield Rule(classes="settings-rule")
             yield Static(spec.rule_before, classes="settings-rule-label")
-        with Horizontal(classes="settings-row"):
+        row = self._register_row(f"{wid}-row", spec.label, spec.help, spec.apply, wid)
+        with Horizontal(classes="settings-row", id=row):
             yield Label(spec.label, classes="settings-label")
             if spec.kind == "bool":
-                yield Switch(id=wid)
+                # Labelled "on"/"off": a compact box alone differs only by the
+                # brightness of its X, which a new operator cannot read.
+                yield Checkbox("off", id=wid, compact=True)
             elif spec.kind == "choice":
                 yield Select(
                     [(label, value) for label, value in spec.choices],
                     id=wid,
                     allow_blank=False,
+                    compact=True,
                 )
             elif spec.kind == "custom_choice":
                 # Only `aprs.path` uses this today -- see `_CUSTOM_SENTINEL`.
@@ -284,10 +404,11 @@ class SettingsPane(Vertical):
                         + [(_CUSTOM_LABEL, _CUSTOM_SENTINEL)],
                         id=wid,
                         allow_blank=False,
+                        compact=True,
                     )
                     yield Input(
                         id=f"{wid}-custom", placeholder=spec.placeholder,
-                        classes="settings-custom-choice-input",
+                        classes="settings-custom-choice-input", compact=True,
                     )
             elif spec.kind == "filtered_choice":
                 # Only `aprs.symbol` uses this today. The full table is
@@ -296,35 +417,30 @@ class SettingsPane(Vertical):
                 # time; typing in the filter Input narrows it live.
                 yield SymbolPicker(
                     picker_id=f"{wid}-picker", select_id=wid,
-                    ascii_safe=self.app.config.ascii_safe,
+                    ascii_safe=self.app.config.ascii_safe, compact=True,
                 )
             elif spec.kind == "color":
                 yield Input(
                     id=wid, placeholder=spec.placeholder or "#1A1B26",
-                    classes="settings-color-input",
+                    classes="settings-color-input", compact=True,
                 )
                 yield Static("", id=f"{wid}-swatch", classes="settings-swatch")
             else:
-                yield Input(id=wid, placeholder=spec.placeholder)
-            yield Label(APPLY_NOTE.get(spec.apply, ""), classes="settings-apply")
-        if spec.help:
-            yield Static(spec.help, classes="settings-help")
-        yield Label("", id=f"{wid}-error", classes="settings-error")
+                yield Input(id=wid, placeholder=spec.placeholder, compact=True)
 
     def _compose_gps_device(self, spec: Field) -> ComposeResult:
         """A local serial-port chooser, not a path the operator must know."""
         wid = _widget_id(spec.path)
-        with Horizontal(classes="settings-row"):
+        row = self._register_row(f"{wid}-row", spec.label, spec.help, spec.apply, wid)
+        with Horizontal(classes="settings-row", id=row):
             yield Label(spec.label, classes="settings-label")
             with Vertical(classes="settings-custom-choice"):
-                yield Input(id=wid, placeholder=spec.placeholder)
+                yield Input(id=wid, placeholder=spec.placeholder, compact=True)
                 yield Select(
                     [("Scan local serial ports first", Select.BLANK)],
-                    id="aprs-gps-device-picker", allow_blank=True,
+                    id="aprs-gps-device-picker", allow_blank=True, compact=True,
                 )
-            yield Button("Scan", id="aprs-gps-scan")
-        yield Static(spec.help, classes="settings-help")
-        yield Label("", id=f"{wid}-error", classes="settings-error")
+            yield Button("Scan", compact=True, id="aprs-gps-scan")
 
     @on(Button.Pressed, "#aprs-gps-scan")
     @work
@@ -352,34 +468,36 @@ class SettingsPane(Vertical):
         other field -- this only changes what builds their widgets, not how
         their values are read, written, or validated.
         """
-        with Horizontal(classes="settings-row"):
+        both = (
+            "Decimal degrees or a Maidenhead grid square (4, 6 or 8 "
+            "characters). Both edit the same position; switching converts "
+            "what is already entered."
+        )
+        row = self._register_row("aprs-position-mode-row", "Position", both, "live")
+        with Horizontal(classes="settings-row", id=row):
             yield Label("Position entry", classes="settings-label")
             yield Select(
                 [("Decimal degrees", "decimal"), ("Maidenhead grid square", "grid")],
                 id="aprs-position-mode",
                 allow_blank=False,
                 value="decimal",
+                compact=True,
             )
-            yield Label("", classes="settings-apply")
-        with Horizontal(classes="settings-row", id="aprs-decimal-row"):
+        row = self._register_row(
+            "aprs-decimal-row", "Latitude / Longitude",
+            "Decimal degrees, north and east positive: 43.6 / -70.7.", "live",
+            "set-aprs-latitude", "set-aprs-longitude",
+        )
+        with Horizontal(classes="settings-row", id=row):
             yield Label("Latitude / Longitude", classes="settings-label")
             with Horizontal(classes="settings-decimal-pair"):
-                yield Input(id="set-aprs-latitude", placeholder="41.7")
-                yield Input(id="set-aprs-longitude", placeholder="-72.7")
-            yield Label(APPLY_NOTE["live"], classes="settings-apply")
-        yield Label("", id="set-aprs-latitude-error", classes="settings-error")
-        yield Label("", id="set-aprs-longitude-error", classes="settings-error")
-        with Horizontal(classes="settings-row", id="aprs-grid-row"):
+                yield Input(id="set-aprs-latitude", placeholder="41.7", compact=True)
+                yield Input(id="set-aprs-longitude", placeholder="-72.7", compact=True)
+        row = self._register_row("aprs-grid-row", "Grid square", both, "live", "set-aprs-grid_square")
+        with Horizontal(classes="settings-row", id=row):
             yield Label("Grid square", classes="settings-label")
-            yield Input(id="set-aprs-grid_square", placeholder="FN31pr")
-            yield Label(APPLY_NOTE["live"], classes="settings-apply")
-        yield Label("", id="set-aprs-grid_square-error", classes="settings-error")
-        yield Static(
-            "Decimal degrees or a Maidenhead grid square (4, 6, or 8 "
-            "characters) -- both edit the same underlying position; "
-            "switching modes converts whatever is already entered.",
-            classes="settings-help",
-        )
+            yield Input(id="set-aprs-grid_square", placeholder="FN31pr", compact=True)
+
 
     # ------------------------------------------------------------------
     # Loading
@@ -415,7 +533,7 @@ class SettingsPane(Vertical):
                     log.warning("settings schema references unknown %s", spec.path)
                     continue
                 if spec.kind == "bool":
-                    self.query_one(f"#{wid}", Switch).value = bool(value)
+                    self.query_one(f"#{wid}", Checkbox).value = bool(value)
                 elif spec.kind == "choice":
                     self._set_select_value(wid, spec, value)
                 elif spec.kind == "custom_choice":
@@ -455,6 +573,19 @@ class SettingsPane(Vertical):
         self._render_scripts(config)
         self._render_banner(config)
         self._sync_aprs_position_mode(config)
+        self._sync_conditionals()
+
+    def _sync_conditionals(self) -> None:
+        """Show each `only_when` group while its controlling field says so."""
+        for group_id, (path, value) in self._conditional.items():
+            control = self.query_one(f"#{_widget_id(path)}", Select)
+            self.query_one(f"#{group_id}").display = control.value == value
+
+    @on(Select.Changed)
+    def _maybe_conditional_changed(self, event: Select.Changed) -> None:
+        controls = {_widget_id(path) for path, _value in self._conditional.values()}
+        if event.select.id in controls:
+            self._sync_conditionals()
 
     def _set_custom_choice_value(self, wid: str, spec: Field, value) -> None:
         """Select a matching preset, or fall back to Custom + the literal
@@ -809,9 +940,16 @@ class SettingsPane(Vertical):
             banner.display = False
 
     def _set_error(self, wid: str, message: str) -> None:
-        label = self.query_one(f"#{wid}-error", Label)
-        label.update(message)
-        label.display = bool(message)
+        """Record or clear a field's error; its row's label turns red."""
+        if message:
+            self._errors[wid] = message
+        else:
+            self._errors.pop(wid, None)
+        row_id = self._wid_row.get(wid)
+        if row_id is None:
+            return
+        failing = any(w in self._errors for w, row in self._wid_row.items() if row == row_id)
+        self.query_one(f"#{row_id}").set_class(failing, "-invalid")
 
     # ------------------------------------------------------------------
     # Saving
@@ -822,13 +960,14 @@ class SettingsPane(Vertical):
         previous_active = config.active_transport
         pending: dict[str, object] = {}
         failed = False
-        failed_sections: set[str] = set()
+        #: (section title, field), in schema order: the first is opened.
+        failures: list[tuple[str, Field]] = []
 
         for section in SETTINGS_SCHEMA:
             for spec in section.fields:
                 wid = _widget_id(spec.path)
                 if spec.kind == "bool":
-                    raw = self.query_one(f"#{wid}", Switch).value
+                    raw = self.query_one(f"#{wid}", Checkbox).value
                 elif spec.kind == "choice":
                     raw = self.query_one(f"#{wid}", Select).value
                 elif spec.kind == "custom_choice":
@@ -848,7 +987,7 @@ class SettingsPane(Vertical):
                 except ValidationError as exc:
                     self._set_error(wid, str(exc))
                     failed = True
-                    failed_sections.add(section.title)
+                    failures.append((section.title, spec))
 
         # These two values have a relationship no one Field can express. Do
         # it before mutating Config so an invalid pair gets the same all-or-
@@ -864,20 +1003,22 @@ class SettingsPane(Vertical):
             self._set_error("set-aprs-smart_slow_speed_knots", message)
             self._set_error("set-aprs-smart_fast_speed_knots", message)
             failed = True
-            failed_sections.add("APRS")
+            failures.extend(
+                (section.title, spec)
+                for section in SETTINGS_SCHEMA
+                for spec in section.fields
+                if spec.path in ("aprs.smart_slow_speed_knots", "aprs.smart_fast_speed_knots")
+            )
 
         if failed:
             # Nothing is written. A partial save leaves the operator unable to
-            # tell which values took -- worse than refusing outright. Naming
-            # the tabs matters now that a bad field is not necessarily on the
-            # one currently open, and jumping to the first one means the
-            # operator does not have to go hunting for it themselves.
-            self.query_one("#settings-tabs", TabbedContent).active = _tab_id(
-                sorted(failed_sections)[0]
-            )
-            self.query_one("#settings-footer", Static).update(
-                "Not saved -- fix the fields in: " + ", ".join(sorted(failed_sections))
-            )
+            # tell which values took -- worse than refusing outright. A bad
+            # field is not necessarily in the open section, or it may be
+            # folded under Advanced, so open the first one and put the
+            # cursor on it: its error is then in the help line.
+            self._open_field(*failures[0])
+            names = ", ".join(dict.fromkeys(f"{spec.label} ({title})" for title, spec in failures))
+            self.query_one("#settings-footer", Static).update(f"Not saved -- fix: {names}")
             self.app.notify("Settings not saved: some values are invalid.", severity="error")
             return
 
@@ -922,6 +1063,15 @@ class SettingsPane(Vertical):
             # transport object, so the status bar kept showing the old TNC no
             # matter how many times this ran. See `_reopen_transport`.
             self._reopen_transport(config)
+
+    def _open_field(self, section_title: str, spec: Field) -> None:
+        """Show a field: its section, its Advanced fold, the cursor on it."""
+        self.show_section(section_title)
+        if spec.advanced:
+            self.query_one(f"#{_tab_id(section_title)}-advanced", Collapsible).collapsed = False
+        target = self.query(f"#{_widget_id(spec.path)}")
+        if target:
+            self.call_after_refresh(target.first().focus)
 
     def _apply_live(self, config) -> None:
         """Push the settings that can change under a running app.

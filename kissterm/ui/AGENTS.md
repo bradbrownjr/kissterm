@@ -76,8 +76,8 @@ Read this file plus the one pane you are changing.
     When it shows something the assertions did not, add a geometry test.
 11. **Never hand-write a settings widget.** `settings_pane.py` is generated
     from `SETTINGS_SCHEMA`. Adding a setting is one entry in
-    `settings_schema.py` — label, kind, help, bounds, and when it takes
-    effect. A hand-built form goes stale the first time someone adds a config
+    `settings_schema.py` — label, kind, help, bounds, when it takes
+    effect, and whether it is `advanced` (folded shut) for a new operator. A hand-built form goes stale the first time someone adds a config
     option and forgets the UI, which already happened once here.
 12. **Validate everything, then save; never save partially.** A half-applied
     save leaves the operator unable to tell which values took.

@@ -260,7 +260,7 @@ class HomeBbsConfig:
     ready_text: str = ""
     #: Text after which the credential below is sent; "" sends none.
     login_prompt: str = ""
-    #: Name of a saved credential (Settings > Credentials).
+    #: Name of a saved credential (Settings > Logins).
     credential: str = ""
 
 

@@ -277,11 +277,10 @@ async def main() -> int:
         # make the off-by-default and configured wording reviewable without
         # any desktop-notification endpoint or received-frame activity.
         from kissterm.ui.settings_pane import SettingsPane
-        from textual.widgets import TabbedContent
 
         app.action_show_tab("settings")
-        settings_tabs = app.query_one("#settings-tabs", TabbedContent)
-        settings_tabs.active = "settings-tab-watched-callsigns"
+        settings = app.query_one(SettingsPane)
+        settings.show_section("Alerts")
         await pilot.pause()
         watch_disabled = ASSETS / "screenshot-watched-callsigns-disabled.svg"
         app.save_screenshot(str(watch_disabled))
@@ -294,8 +293,11 @@ async def main() -> int:
         app.config.watched_callsigns.quiet_start_hour = 22
         app.config.watched_callsigns.quiet_end_hour = 7
         app.config.watched_callsigns.active_suppression_seconds = 90
-        app.query_one(SettingsPane).render_settings(app.config)
-        settings_tabs.active = "settings-tab-watched-callsigns"
+        settings.render_settings(app.config)
+        settings.show_section("Alerts")
+        from textual.widgets import Collapsible
+
+        settings.query_one("#settings-tab-alerts-advanced", Collapsible).collapsed = False
         await pilot.pause()
         watch_configured = ASSETS / "screenshot-watched-callsigns-configured.svg"
         app.save_screenshot(str(watch_configured))

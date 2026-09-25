@@ -1376,7 +1376,7 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
 
     Shown when G is pressed with no Home BBS set, or one whose entry is no
     longer in the Address Book. Only the one choice Send/Receive cannot run
-    without; everything else in Settings > Home BBS has a working default
+    without; everything else in Settings > Mail has a working default
     (the BBS callsign comes from its prompt, BPQMail is recognised). Returns
     the chosen entry's target, or None. Saving it transmits nothing: the
     connect that follows is the normal one, reminder and all.
@@ -1780,11 +1780,11 @@ class AprsContactScreen(ModalScreen[Contact | None]):
         hint = self.query_one("#aprs-contact-detail-hint", Static)
         if service == "sms":
             detail.placeholder = "Phone number the SMS gateway delivers to"
-            note = "" if self._sms_gateway else " (no default gateway set -- Settings > APRS messaging)"
+            note = "" if self._sms_gateway else " (no default gateway set -- Settings > APRS, Advanced)"
             hint.update(f"SMS gateway: the gateway's own callsign goes above.{note}")
         elif service == "email":
             detail.placeholder = "Email address the email gateway delivers to"
-            note = "" if self._email_gateway else " (no default gateway set -- Settings > APRS messaging)"
+            note = "" if self._email_gateway else " (no default gateway set -- Settings > APRS, Advanced)"
             hint.update(f"Email gateway: the gateway's own callsign goes above.{note}")
         else:
             detail.placeholder = "(not used for a plain station contact)"
@@ -1899,7 +1899,7 @@ _TRANSPORT_KINDS: dict[str, tuple[bool, tuple[_TransportField, ...]]] = {
 
 
 class TransportEntryScreen(ModalScreen[dict | None]):
-    """Add or hand-edit one `[[transports]]` entry (Settings > Transports).
+    """Add or hand-edit one `[[transports]]` entry (Settings > Radio).
 
     'Scan for hardware' only finds what a network probe or a serial listing
     can identify by itself -- KISS TNCs and AGWPE engines (see `discovery.

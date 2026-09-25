@@ -128,7 +128,7 @@ directions. What you see there tells you where the problem is.
 
 - **The status bar says DOWN or RECONNECTING.** kissterm cannot reach the
   TNC itself. This is not a radio problem. Check that the modem program is
-  running and that the address in Settings > Transports is right.
+  running and that the address in Settings > Radio is right.
 - **Your connect requests go out, and nothing comes back.** The far station
   did not hear you, or you did not hear it. Check the frequency, antenna,
   power and audio levels, or try a digipeater.

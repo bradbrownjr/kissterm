@@ -339,7 +339,7 @@ class BbsCollector:
             what = family.name if family is not None else "a BBS kissterm could not identify"
             raise CollectStopped(
                 f"this is {what}; kissterm can only collect from BPQMail so far. "
-                "If it is BPQMail, set Software to BPQMail in Settings > Home BBS."
+                "If it is BPQMail, set Software to BPQMail in Settings > Mail."
             )
 
     async def run(self) -> CollectResult:
@@ -361,7 +361,7 @@ class BbsCollector:
         bbs_call = (self.options.bbs_call or call).upper()
         if not bbs_call:
             raise CollectStopped(
-                "the BBS's callsign is not known; set it in Settings > Home BBS"
+                "the BBS's callsign is not known; set it in Settings > Mail"
             )
         source = f"BBS {bbs_call}"
 

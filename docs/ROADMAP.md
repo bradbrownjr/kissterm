@@ -229,7 +229,7 @@ anything taken from its behaviour rather than from documentation
   - **Read them all**: every subscribed bulletin the store lacks is read and
     filed, as mail is (`has_bbs_number`, then BID). Never `K`.
   - **S on the Bulletins tab** edits the subscriptions offline from the
-    categories last seen; also a Settings > Home BBS field.
+    categories last seen; also a Settings > Mail field.
   - **Capture first**: `LC`, `LB> <cat>` (or `L> <cat>`) and one full
     bulletin read, from WS1EC-2. Asked for 2026-09-24. Medium.
 

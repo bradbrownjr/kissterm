@@ -19,11 +19,13 @@ class SymbolPicker(Vertical):
     """Filterable selection over the established APRS symbol table."""
 
     def __init__(
-        self, *, picker_id: str, select_id: str | None = None, ascii_safe: bool, value: str = "/>"
+        self, *, picker_id: str, select_id: str | None = None, ascii_safe: bool, value: str = "/>",
+        compact: bool = False,
     ) -> None:
         super().__init__(id=picker_id, classes="settings-filtered-choice")
         self._ascii_safe = ascii_safe
         self._value = value
+        self._compact = compact
         self._select_id = select_id or f"{picker_id}-select"
 
     @property
@@ -36,12 +38,13 @@ class SymbolPicker(Vertical):
         return f"{self._select_id}-filter"
 
     def compose(self) -> ComposeResult:
-        yield Input(id=self._filter_id, placeholder="Filter by name...", classes="settings-filtered-choice-filter")
+        yield Input(id=self._filter_id, placeholder="Filter by name...", classes="settings-filtered-choice-filter", compact=self._compact)
         yield Select(
             [(s.display_label(ascii_safe=self._ascii_safe), s.key) for s in symbols.SYMBOLS],
             id=self.select_id,
             allow_blank=False,
             value=self._value if self._value in {s.key for s in symbols.SYMBOLS} else symbols.SYMBOLS[0].key,
+            compact=self._compact,
         )
 
     @property

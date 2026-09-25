@@ -332,7 +332,7 @@ async def test_connect_button_dials_the_selected_station(tmp_path):
 
 @pytest.mark.asyncio
 async def test_connection_type_lists_the_operators_own_configured_transports(tmp_path):
-    """The picker shows what is actually in Settings > Transports, by name
+    """The picker shows what is actually in Settings > Radio, by name
     -- not free text the operator has to remember to spell consistently."""
     config = Config(
         mycall=str(MYCALL),

@@ -16,7 +16,7 @@ import asyncio  # noqa: E402
 import dataclasses  # noqa: E402
 
 import pytest  # noqa: E402
-from textual.widgets import Button, Input, Select, Static, TabbedContent  # noqa: E402
+from textual.widgets import Button, Input, Select, Static  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
@@ -179,7 +179,7 @@ def test_beacon_and_aprs_are_not_presented_as_the_same_feature():
     """
     sections = {s.title: s for s in SETTINGS_SCHEMA}
     assert "Beacon" in sections and "APRS" in sections
-    assert "NOT APRS" in sections["Beacon"].note
+    assert "NOT APRS" in sections["Beacon"].note.upper()
     for section in (sections["Beacon"], sections["APRS"]):
         labels = [f.label for f in section.fields]
         assert len(labels) == len(set(labels)), "duplicate label within a section"
@@ -309,8 +309,17 @@ async def test_an_invalid_field_saves_nothing_at_all():
         await pilot.pause()
 
         assert app.config.paclen == before, "a valid field was saved beside a bad one"
-        err = app.query_one(f"#{_widget_id('retries')}-error")
-        assert err.display and str(err.render()).strip()
+        pane = app.query_one(SettingsPane)
+        wid = _widget_id("retries")
+        assert pane.error_for(wid)
+        # Folded under Link's Advanced: Save opened it and put the cursor on
+        # the field, so its error is in the help line.
+        await pilot.pause()
+        assert pane.current_section == "settings-tab-link"
+        assert "-invalid" in app.query_one(f"#{wid}-row").classes
+        assert app.focused is app.query_one(f"#{wid}")
+        help_line = app.query_one("#settings-help-line")
+        assert "-error" in help_line.classes and "Retries" in str(help_line.render())
     station.close()
 
 
@@ -338,8 +347,7 @@ async def test_a_bad_custom_theme_color_marks_the_swatch_and_saves_nothing():
         app.query_one(SettingsPane)._save()
         await pilot.pause()
         assert app.config.custom_theme.primary == before, "invalid color must not be saved"
-        err = app.query_one(f"#{wid}-error")
-        assert err.display and str(err.render()).strip()
+        assert app.query_one(SettingsPane).error_for(wid)
     station.close()
 
 
@@ -844,7 +852,7 @@ async def test_switching_the_active_transport_and_saving_reopens_it():
     try:
         async with app.run_test(size=(120, 44)) as pilot:
             await _settings_tab(app, pilot)
-            app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-transports"
+            app.query_one(SettingsPane).show_section("Radio")
             await pilot.pause()
 
             app.query_one("#set-active-transport", Select).value = "second"
@@ -914,7 +922,7 @@ async def test_switching_transport_while_connected_is_refused_not_silent():
             assert app.link is not None and app.link.connected, "setup: link never came up"
 
             await _settings_tab(app, pilot)
-            app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-transports"
+            app.query_one(SettingsPane).show_section("Radio")
             await pilot.pause()
             app.query_one("#set-active-transport", Select).value = "other"
             await pilot.pause()
@@ -941,7 +949,7 @@ async def test_new_credential_is_saved_and_selectable():
     app, station = await _app(Config(mycall=str(MYCALL)))
     async with app.run_test(size=(120, 44)) as pilot:
         await _settings_tab(app, pilot)
-        app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-credentials"
+        app.query_one(SettingsPane).show_section("Logins")
         await pilot.pause()
 
         pane = app.query_one(SettingsPane)
@@ -971,7 +979,7 @@ async def test_editing_a_credential_renames_it_without_leaving_a_duplicate():
     app, station = await _app(cfg)
     async with app.run_test(size=(120, 44)) as pilot:
         await _settings_tab(app, pilot)
-        app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-credentials"
+        app.query_one(SettingsPane).show_section("Logins")
         await pilot.pause()
         app.query_one("#set-credential", Select).value = "Old name"
         await pilot.pause()
@@ -1000,7 +1008,7 @@ async def test_forgetting_a_credential():
     app, station = await _app(cfg)
     async with app.run_test(size=(120, 44)) as pilot:
         await _settings_tab(app, pilot)
-        app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-credentials"
+        app.query_one(SettingsPane).show_section("Logins")
         await pilot.pause()
         app.query_one("#set-credential", Select).value = "Drop me"
         await pilot.pause()
@@ -1357,8 +1365,10 @@ async def test_a_successful_save_says_so_in_the_footer_not_a_toast():
 
 
 @pytest.mark.asyncio
-async def test_home_bbs_sets_off_its_optional_fields_and_no_takes_effect_now():
-    from textual.widgets import Label, Rule, Static
+async def test_headings_set_off_groups_and_the_help_line_says_when_it_applies():
+    """Mail's Home BBS and its optional fields are set off by headings, and
+    a field's help line says "next connection" only where that matters."""
+    from textual.widgets import Static
 
     app, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
@@ -1366,10 +1376,70 @@ async def test_home_bbs_sets_off_its_optional_fields_and_no_takes_effect_now():
         app.action_show_tab("settings")
         await pilot.pause()
         pane = app.query_one(SettingsPane)
-        rule_labels = [str(w.render()) for w in pane.query(".settings-rule-label").results(Static)]
-        assert rule_labels == ["Only if the BBS software is not identified automatically"]
-        assert len(list(pane.query(".settings-rule").results(Rule))) == 1
-        notes = {str(w.render()) for w in pane.query(".settings-apply").results(Label)}
-        assert "takes effect now" not in notes
-        assert "next connection" in notes  # the ones that matter stay
+        headings = [str(w.render()) for w in pane.query(".settings-rule-label").results(Static)]
+        assert headings[0].startswith("Home BBS")
+        assert "Only if the BBS software is not identified automatically" in headings
+        help_line = app.query_one("#settings-help-line")
+        pane.show_section("Link")
+        await pilot.pause()
+        app.query_one(f"#{_widget_id('paclen')}").focus()
+        await pilot.pause()
+        assert "next connection" in str(help_line.render())
+        pane.show_section("Station")
+        await pilot.pause()
+        app.query_one(f"#{_widget_id('mycall_aliases')}").focus()
+        await pilot.pause()
+        text = str(help_line.render())
+        assert text.startswith("Also answer to") and "takes effect now" not in text
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_every_section_is_listed_and_fits_80x24_one_row_per_field():
+    """The 2026-09-25 rebuild (`SettingsPane`'s docstring): all sections in
+    a list that fits, one row per field, tuning folded shut, and no control
+    running off the right edge of an 80-column screen."""
+    from textual.widgets import Collapsible, OptionList
+
+    from kissterm.ui.settings_pane import section_titles
+
+    app, station = await _app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _settings_tab(app, pilot)
+        pane = app.query_one(SettingsPane)
+        sections = app.query_one("#settings-sections", OptionList)
+        assert [sections.get_option_at_index(i).prompt for i in range(sections.option_count)] == section_titles()
+        assert sections.region.height >= len(section_titles()) + 2  # all visible, no scrolling
+        assert all(c.collapsed for c in pane.query(Collapsible))
+        for title in section_titles():
+            pane.show_section(title)
+            await pilot.pause()
+            for row in pane.query(".settings-row"):
+                if row.region.height == 0:
+                    continue  # folded, or in another section
+                assert row.region.right <= 80, (title, row.id, row.region)
+                for child in row.children:
+                    if child.region.width:
+                        assert child.region.right <= 80, (title, row.id, child)
+        pane.show_section("Link")
+        await pilot.pause()
+        for wid in ("paclen", "window"):
+            assert app.query_one(f"#{_widget_id(wid)}-row").region.height == 1
+        assert app.query_one(f"#{_widget_id('t1')}-row").region.height == 0  # folded
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_custom_colours_show_only_for_the_custom_theme():
+    app, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _settings_tab(app, pilot)
+        pane = app.query_one(SettingsPane)
+        pane.show_section("Appearance")
+        await pilot.pause()
+        group = app.query_one(f"#{_widget_id('custom_theme.primary')}-group")
+        assert not group.display
+        app.query_one(f"#{_widget_id('theme')}", Select).value = "custom"
+        await pilot.pause()
+        assert group.display
     station.close()

@@ -132,16 +132,20 @@ start on the way back. Applies to section notes, help text and banners.
 - 1 blank row between fields, 2 above a section heading.
 - **Section headings carry a rule** (`border-bottom: solid $panel`). With bold
   accent text alone, sections blur together while scrolling.
-- Settings deliberately favors **readability over density** — it is a form the
-  operator visits occasionally. The operational panes (Monitor, Heard) go the
-  other way: those are dense on purpose, because scanning a lot of frames
-  quickly is the entire job.
+- **Settings is one row per field** (operator, 2026-09-25: "new user
+  approachable, not overwhelming ... KISS"): a label and a compact control,
+  its sections listed down the left, and the focused field's help, when it
+  takes effect and any error in one line at the bottom. Tuning the defaults
+  already get right goes under the section's shut **Advanced**
+  (`Field.advanced`); a field that only matters for another's value is
+  shown only then (`Field.only_when`). A new setting chooses one of the two
+  before it ships.
 
 ### Information order
 
 **Identity first, then hardware, then tuning.** Settings opens with Station
 (callsign, aliases) — the first thing a new operator sets and the most often
-changed later — then Transports, then everything else.
+changed later — then Radio (the TNC or modem), then everything else.
 
 ---
 

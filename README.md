@@ -66,7 +66,7 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   plain text file under kissterm's data folder, so any editor can read
   one; Delete moves to Deleted, and U puts it back. **G is Send/Receive**:
   it sends your Outbox and gets your mail
-  from the BBS set in Settings > Home BBS (BPQMail so far): it dials the
+  from the BBS set in Settings > Mail (BPQMail so far): it dials the
   Address Book entry you name there, lists your mail with `LM`, reads only
   what kissterm does not already have, and disconnects, all shown in the
   Terminal tab as it happens. Messages stay on the BBS. **Insert writes a
@@ -221,21 +221,23 @@ First run asks for your callsign and then goes looking for your TNC. See
 the rest.
 
 **Nothing you answer at setup is locked in.** The Settings tab (`F9`)
-edits your callsign, which TNC or modem to use, AX.25 timing (paclen, window,
-T1/T2/T3, retries) and APRS beaconing -- with validation. Everything takes
-effect when you press Save; a field that waits for the next connection or a
-restart says so. "Scan for hardware" re-runs discovery from inside the app, so moving
+lists its sections down the left -- Station, Radio, Link, Mail, APRS and the
+rest -- with one row per field, and the help for the field you are on in a
+line at the bottom. Tuning a new operator never needs (T1/T2/T3, retries,
+SmartBeaconing's curve) is folded under each section's Advanced. Everything
+takes effect when you press Save; the help line says when a field waits for
+the next connection or a restart. "Scan for hardware" re-runs discovery from inside the app, so moving
 your Direwolf host to a new IP does not mean editing a TOML file.
 
 **"New" adds a transport a scan cannot find.** Discovery can only identify a
 KISS TNC or an AGWPE engine by probing it -- it has no way to invent a VARA
 modem's callsign, a Telnet host, or an SSH login nobody has typed yet. "New"
-in Settings > Transports opens a form for exactly those (and a second entry
+in Settings > Radio opens a form for exactly those (and a second entry
 for hardware a scan already found); the fields shown change with the kind you
 pick, and a Telnet/SSH/VARA/Mercury entry gets the same auto-login section
 the Connect dialog has, sent right after that transport connects.
 
-**"Test selected" asks a configured host what it actually is.** Port 8000 and
+**"Test" asks a configured host what it actually is.** Port 8000 and
 8001 are as popular with self-hosted web apps as with packet software, so a
 scan that matched on port number alone would offer you a media server as a
 TNC. The test settles it: an AGWPE engine is confirmed outright by its version
@@ -345,7 +347,7 @@ two Telnet/SSH hosts. With only one configured (the usual case) there is no
 dropdown to get in the way; with two or more, it defaults to whichever is
 active and switches live if you pick a different one. Switching TIERS this
 way -- a frame-tier KISS TNC to a session-tier Telnet/SSH/VARA host, or back
--- is not supported live; Settings (`F9`) > Transports still needs a restart
+-- is not supported live; Settings (`F9`) > Radio still needs a restart
 for that.
 
 **The Address Book slide-out (`Ctrl+G`, from Terminal or a mail tab) is the same
@@ -359,8 +361,8 @@ An entry can carry:
   exists, so kissterm connects to the first node and sends `C <node>` over
   that link for each remaining hop, waiting for its own CONNECTED reply
   before the next;
-- a **saved credential** (managed in Settings > Credentials) or a **saved
-  script** (Settings > Scripts) instead of its own typed-out login, looked
+- a **saved credential** (managed in Settings > Logins) or a **saved
+  script** (Settings > Logins) instead of its own typed-out login, looked
   up fresh every connect so changing one updates every station that points
   at it. The two are kept as separate lists on purpose: a credential is a
   login, named for the account it belongs to; a script is any sequence of
@@ -371,7 +373,7 @@ An entry can carry:
   cannot tune a radio or start a modem for you, but it will ask you to
   confirm both are set before a connect that has them on file goes out.
   Connection type picks from whatever you've already set up in
-  Settings (`F9`) > Transports (a TCP KISS TNC, VARA HF, a Telnet or SSH
+  Settings (`F9`) > Radio (a TCP KISS TNC, VARA HF, a Telnet or SSH
   node, ...), so it's a reminder that matches what you actually have
   configured rather than a note you have to retype consistently by hand.
 
@@ -493,7 +495,7 @@ operator and April 3rd to nearly everyone else, and packet is international.
 On the nights the local and UTC dates disagree, each reading carries its own
 date rather than one covering both.
 
-Set it in Settings (`F9`) under Clock, or in `config.toml`
+Set it in Settings (`F9`) under Appearance, or in `config.toml`
 (`show_local_time`, `show_utc_time`, `clock_24h`, `show_date`).
 
 ## Themes

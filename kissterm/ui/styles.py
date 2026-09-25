@@ -460,33 +460,6 @@ TranscriptsScreen { align: center middle; }
 #transcripts-export-row Input { width: 1fr; }
 #transcripts-export-row Button { margin-left: 1; }
 
-/* Settings form. Generated from settings_schema, so these rules style whole
-   classes of row rather than any particular field -- adding a setting must
-   never mean adding CSS.
-
-   THE COLUMN GRID. Every row is the same three columns, so labels, controls
-   and apply-notes line up down the whole page instead of each row finding its
-   own edges:
-
-       |<-- 26 -->|<------- 46 ------->|<-- 20 -->|
-        Callsign    [ N1ABC-1        ]   next connection
-        ^label      ^control             ^apply note
-
-   The help/error indent (27) is the label width plus its right padding, so
-   help text hangs under the CONTROL, not under the label. If you change
-   --label width, change the help indent by the same amount; they are two
-   numbers that have to agree and Textual CSS has no arithmetic to tie them.
-
-   Body text is capped at 92 columns (`max-width` on notes and help). A help
-   line running the full width of an ultrawide terminal is technically
-   readable and practically not -- the eye loses the line start on the way
-   back. The form column itself is ~92 wide, so the two agree. */
-/* Settings is now a TabbedContent (one tab per schema section) over a bar
-   that never scrolls. `#settings-tabs` takes all the vertical space the tab
-   content is given; `#settings-bar` is sized to its own content so Save
-   stays reachable in one click regardless of which tab is open or how far
-   down its list the operator has scrolled -- the single long page this
-   replaced put Save at the bottom of several screens' worth of fields. */
 /* Help tab (F1). Its section strip is an inner strip, so it gets the same
    subordinate treatment as the other inner strips: muted inactive tabs, and
    the underline bar dimmed to $panel -- the accent bar belongs to the F-key
@@ -505,52 +478,63 @@ HelpPane { layout: vertical; height: 1fr; }
 #help-guide-list { width: 30; height: 1fr; }
 #help-node-table, #help-glossary-body { height: 1fr; padding: 0 1; }
 #help-about-scroll { padding: 1 2; }
+/* Settings (F9): a section list, one section's fields, and a bar that never
+   scrolls. Generated from settings_schema, so these rules style whole
+   classes of row rather than any particular field -- adding a setting must
+   never mean adding CSS. See `SettingsPane`'s docstring for why a field is
+   one row and its help is one line at the bottom (DESIGN.md section 3,
+   "Dense where the content is the point"). */
 SettingsPane { layout: vertical; }
-#settings-tabs { height: 1fr; }
-.settings-tab-scroll { padding: 0 2; }
-#settings-bar { height: auto; padding: 1 2 0 2; border-top: solid $panel; }
+#settings-body { height: 1fr; }
+#settings-sections { width: 18; height: 1fr; border: round $primary; }
+#settings-switcher { width: 1fr; height: 1fr; }
+.settings-section { padding: 0 1; }
+.settings-note { padding: 0 0 1 0; color: $text-muted; max-width: 92; }
+.settings-row { height: auto; min-height: 1; }
+.settings-label { width: 27; padding: 0 1 0 0; }
+.settings-row.-invalid .settings-label { color: $error; text-style: bold; }
+/* Up to 46 wide, narrower on a small screen rather than cut off. */
+.settings-row Input, .settings-row Select { width: 1fr; max-width: 46; }
+.settings-row Button { margin-left: 1; }
+.settings-buttons { height: auto; margin: 0; }
+.settings-buttons Button { margin: 0 1 0 0; }
+.settings-detail { padding: 0 0 1 0; color: $text-muted; max-width: 92; }
+/* A switch as one row: the track only, no box around it. */
+.settings-row Checkbox { width: auto; }
+/* A heading inside a section (Mail's Home BBS, the custom colours). */
+.settings-rule-label {
+    margin: 1 0 0 0; color: $text-muted; text-style: bold;
+    border-bottom: solid $panel; max-width: 92;
+}
+.settings-conditional { height: auto; }
+.settings-advanced { margin: 1 0 0 0; padding: 0; border: none; background: transparent; }
+.settings-advanced > Contents { padding: 0; }
+#settings-bar { height: auto; padding: 0 1; border-top: solid $panel; }
 .settings-banner {
-    padding: 1 2; margin: 0 0 1 0;
+    padding: 0 1; margin: 0 0 1 0;
     background: $warning-darken-2; color: $text;
     max-width: 92;
 }
-.settings-note { padding: 0 1 1 1; color: $text-muted; max-width: 92; }
-.settings-row { height: auto; padding: 0 1; margin-top: 1; }
-.settings-label { width: 26; padding: 1 1 0 0; }
-.settings-apply { width: 20; padding: 1 0 0 2; color: $text-muted; }
-.settings-help { padding: 0 1 0 27; color: $text-muted; max-width: 92; }
-.settings-rule { margin: 1 0 0 0; color: $panel; }
-.settings-rule-label { padding: 0 1 1 1; color: $text-muted; text-style: italic; }
-.settings-error { padding: 0 1 0 27; color: $error; display: none; }
-/* Fixed, not 1fr: a control that stretches with the window makes the
-   apply-note column drift and the page lose its vertical alignment. */
-.settings-row Input { width: 46; }
-.settings-row Select { width: 46; }
-.settings-row Button { margin-right: 1; }
-/* A hex value is short; the full 46-wide Input would be mostly empty and
-   would crowd the swatch out of the row. */
-.settings-row Input.settings-color-input { width: 20; }
+#settings-help-line { height: auto; min-height: 2; max-height: 5; color: $text-muted; }
+#settings-help-line.-error { color: $error; }
+.settings-actions { height: auto; }
+#settings-footer { width: 1fr; height: auto; }
+.settings-actions Button { margin-left: 1; }
+/* A hex value is short; the full 46-wide Input would be mostly empty. */
+.settings-row Input.settings-color-input { width: 12; max-width: 12; }
 /* The swatch's fill is the one legitimate exception to "never hardcode a
    hex value" (DESIGN.md#2): it renders an arbitrary color the operator
    typed, not a piece of kissterm's own chrome, so it is set at runtime from
-   the field's value rather than from a theme token. Only its border --
-   which IS kissterm's own chrome -- uses one, and switches to $error the
-   moment the typed value stops being a color Theme can accept. */
-.settings-swatch { width: 4; height: 1; margin: 1 0 0 1; border: round $panel; }
-.settings-swatch.-invalid { border: round $error; }
-/* Its own bar now, not the last row of a field column -- no label-column
-   indent to match, just enough top margin to separate it from the banner. */
-.settings-actions { margin-top: 1; }
+   the field's value. An invalid value shows as an error-coloured block. */
+.settings-swatch { width: 4; height: 1; margin: 0 0 0 1; }
+.settings-swatch.-invalid { background: $error 40%; }
 /* custom_choice / filtered_choice: a Select stacked over its companion
-   Input inside one field's widget column, rather than a second settings-row
-   -- keeps the preset/custom (or filter/pick) pair visually grouped as one
-   control instead of reading as two unrelated fields. */
-.settings-custom-choice, .settings-filtered-choice { height: auto; width: 46; }
-.settings-custom-choice-input, .settings-filtered-choice-filter { margin-top: 1; }
-/* Position entry: latitude and longitude side by side, narrower than the
-   default 46 so the pair fits the same column a single field would. */
-.settings-decimal-pair { height: auto; }
-.settings-decimal-pair Input { width: 22; margin-right: 1; }
+   Input inside one field's control column, so the pair reads as one
+   control rather than two unrelated fields. */
+.settings-custom-choice, .settings-filtered-choice { height: auto; width: 1fr; max-width: 46; }
+/* Position entry: latitude and longitude side by side in one column. */
+.settings-decimal-pair { height: auto; width: 1fr; max-width: 46; }
+.settings-decimal-pair Input { width: 1fr; margin-right: 1; }
 
 /* ASCII-safe mode is deliberately a stylesheet concern: unlike mutating
    Textual's global border table it cannot leak into another mounted app or a
@@ -578,7 +562,7 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #transport-box,
 .-ascii-safe #ref-box,
 .-ascii-safe #transcripts-box,
-.-ascii-safe #settings-bar {
+.-ascii-safe #settings-sections {
     border: ascii $primary;
 }
 /* The focus rule above, in ASCII. */
@@ -596,12 +580,12 @@ SettingsPane { layout: vertical; }
 /* Disabled scripts deliberately use the muted panel colour. Their
    ID-plus-pseudo-class rules outrank the enabled override above. */
 .-ascii-safe #connect-script:disabled,
-.-ascii-safe #transport-script:disabled,
-.-ascii-safe .settings-swatch { border: ascii $panel; }
-.-ascii-safe .settings-swatch.-invalid { border: ascii $error; }
+.-ascii-safe #transport-script:disabled { border: ascii $panel; }
+.-ascii-safe #settings-bar { border-top: ascii $panel; }
+.-ascii-safe .settings-rule-label { border-bottom: ascii $panel; }
 .-ascii-safe Underline { display: none; }
 .-ascii-safe WrapLog,
-.-ascii-safe .settings-tab-scroll,
+.-ascii-safe .settings-section,
 .-ascii-safe #ref-box,
 .-ascii-safe #transcripts-box { scrollbar-visibility: hidden; }
 

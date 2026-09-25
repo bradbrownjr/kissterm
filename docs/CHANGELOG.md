@@ -5,6 +5,31 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — Settings, simplified
+
+### Improvements
+
+- **The sections are a list down the left**, all visible. The 16 tabs ran
+  off the right edge and hid six sections. They are now 11: Station, Radio,
+  Link, Mail, APRS, Beacon, Answering, Alerts, Appearance, Logging, Logins.
+- **One row per field**, with the help for the focused field in one line
+  at the bottom, including when it takes effect and any error in red. Save
+  with a bad value opens that field and puts the cursor on it.
+- **Tuning is folded under each section's Advanced**, shut by default: a
+  new operator sees 38 fields instead of 83. The custom theme
+  colours show only while Theme is Custom. On/off fields are a checkbox
+  that says "on" or "off".
+- Fits 80x24. Startup is about 0.6 s faster (Settings went from 677
+  widgets to 407).
+
+**Files:** `kissterm/ui/settings_pane.py`, `kissterm/ui/settings_schema.py`,
+`kissterm/ui/symbol_picker.py`, `kissterm/ui/styles.py`, `kissterm/ui/app.py`,
+`kissterm/ui/dialogs.py`, `kissterm/mail/collect.py`, `kissterm/guides.py`,
+`kissterm/config.py`, `tests/pilot/test_settings.py`,
+`tests/pilot/test_app_mounts.py`, `tests/pilot/test_addressbook_pane.py`,
+`scripts/generate_screenshot.py`, `assets/`, `README.md`, `SETUP.md`,
+`DESIGN.md`, `kissterm/ui/AGENTS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-25] — The Address Book on Mail, Bulletins and Files
 
 ### Improvements

@@ -311,7 +311,7 @@ async def test_starting_anyway_lands_on_transports_and_save_retries_the_open(mon
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         assert app.query_one("#main-tabs", TabbedContent).active == "settings"
-        assert app.query_one("#settings-tabs", TabbedContent).active == "settings-tab-transports"
+        assert app.query_one(SettingsPane).current_section == "settings-tab-radio"
         assert app.station is None
 
         app.query_one(SettingsPane)._save()
@@ -372,7 +372,7 @@ async def test_first_run_onboarding_requires_a_callsign_then_opens_transport_set
         assert app.config.tx_armed_at_start is False
         assert app.gate.enabled is False
         assert app.query_one("#main-tabs", TabbedContent).active == "settings"
-        assert app.query_one("#settings-tabs", TabbedContent).active == "settings-tab-transports"
+        assert app.query_one(SettingsPane).current_section == "settings-tab-radio"
 
 
 @pytest.mark.asyncio
@@ -437,7 +437,9 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
         # one into view so this assertion inspects its rendered border rather
         # than merely the widget tree.
         app.action_show_tab("settings")
-        app.query_one("#settings-tabs", TabbedContent).active = "settings-tab-appearance"
+        settings = app.query_one(SettingsPane)
+        settings.show_section("Appearance")
+        app.query_one("#set-theme", Select).value = "custom"  # shows the colours
         await pilot.pause()
         swatch = app.query_one(".settings-swatch")
         swatch.scroll_visible(immediate=True)

@@ -623,7 +623,7 @@ class KissTermApp(App):
             pass
         #: Why the configured transport would not open at launch, when the
         #: operator chose to start anyway (`kissterm/__main__.py`). On mount
-        #: the app lands on Settings > Transports with this in front of them,
+        #: the app lands on Settings > Radio with this in front of them,
         #: because that is the page that fixes it -- see `_show_transport_problem`.
         self._transport_problem = transport_problem
         if config.ascii_safe:
@@ -845,7 +845,7 @@ class KissTermApp(App):
         if self._transport_problem:
             banner = (
                 f"kissterm {__version__} -- the modem did not answer at startup "
-                f"({self._transport_problem}). Fix it in F9 Settings > Transports, "
+                f"({self._transport_problem}). Fix it in F9 Settings > Radio, "
                 "then Save to try again.\n"
             )
         elif self.station is None and self.session_transport is None:
@@ -903,7 +903,7 @@ class KissTermApp(App):
                 self.query_one(KissTermFooter).refresh_bindings()
 
     def _show_transport_problem(self) -> None:
-        """Land on Settings > Transports after a startup open failed.
+        """Land on Settings > Radio after a startup open failed.
 
         The operator was asked at the shell and chose to start anyway; the
         point of starting is to fix the transport, so put them on the page
@@ -912,7 +912,7 @@ class KissTermApp(App):
         so once the modem software is running, Save is all it takes.
         """
         self.query_one("#main-tabs", TabbedContent).active = "settings"
-        self.query_one("#settings-tabs", TabbedContent).active = "settings-tab-transports"
+        self.query_one(SettingsPane).show_section("Radio")
         self.notify(
             f"Could not open the modem: {self._transport_problem}. Start your modem "
             "software or check the address here, then Save to try again.",
@@ -961,7 +961,7 @@ class KissTermApp(App):
         if request.set_up_transport:
             main_tabs = self.query_one("#main-tabs", TabbedContent)
             main_tabs.active = "settings"
-            self.query_one("#settings-tabs", TabbedContent).active = "settings-tab-transports"
+            self.query_one(SettingsPane).show_section("Radio")
             self.notify(
                 "Callsign saved. Add a transport with New or Scan for hardware.",
                 severity="information",
@@ -3670,7 +3670,7 @@ class KissTermApp(App):
 
         There is exactly one destination a session transport can reach:
         whatever host and port (or callsign, for VARA/kernel AX.25) it was
-        configured with at startup, in Settings > Transports. Routing that
+        configured with at startup, in Settings > Radio. Routing that
         through the FrameTransport flow above would force AX.25-shaped
         concepts -- a target to parse, a digipeater path, per-station
         hops -- onto an addressing model that genuinely has none of them;
