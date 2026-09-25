@@ -5,6 +5,31 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — Write, reply to and quote BBS mail into the Outbox
+
+### New Features
+
+- **Compose BBS mail from the Mail tab.** Insert writes a new private
+  message (SP) or bulletin (SB); R replies; Q replies with the original
+  quoted as `> ` lines. Saving files it in Mail > BBS > Outbox and
+  transmits nothing; sending the Outbox is the next step.
+- **A reply to a message read from the Home BBS goes out as `SR <n>`**:
+  the BBS addresses and titles it, one prompt fewer on air. To and Title
+  are shown but not editable, and the screen says why.
+- **BPQMail's limits are checked before saving**: To of 6 characters with
+  no SSID, a title of 1-60 characters, `@` of 40, and no body line that
+  would end the message early (`/ex`, Ctrl-Z).
+- **Settings > Mail > Quote in replies (R)**, off by default. Q always
+  quotes; the quote is editable text either way. Esc asks before
+  discarding typed text.
+
+**Files:** `kissterm/mail/compose.py`, `kissterm/ui/compose.py`,
+`kissterm/ui/mail_pane.py`, `kissterm/ui/app.py`, `kissterm/ui/commands.py`,
+`kissterm/ui/styles.py`, `kissterm/ui/settings_schema.py`,
+`kissterm/config.py`, `config.toml.example`, `tests/unit/test_mail_compose.py`,
+`tests/pilot/test_compose.py`, `README.md`, `DESIGN.md`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-25] — BPQMail send researched; plan for compose and send
 
 ### Improvements

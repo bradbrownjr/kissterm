@@ -64,15 +64,21 @@ class FolderTree(Tree):
     two has focus.
     """
 
-    BINDINGS = [Binding("g", "get_mail", "Get mail")]
+    BINDINGS = [
+        Binding("insert", "new_message", "New"),
+        Binding("g", "get_mail", "Get mail"),
+    ]
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
-        if action == "get_mail":
+        if action in ("get_mail", "new_message"):
             return self.query_ancestor(MessageBrowser).id == "mail-browser"
         return True
 
     def action_get_mail(self) -> None:
         self.app.action_get_mail()  # type: ignore[attr-defined]
+
+    def action_new_message(self) -> None:
+        self.app.action_compose_mail()  # type: ignore[attr-defined]
 
 
 class MessageList(DataTable):
@@ -80,6 +86,9 @@ class MessageList(DataTable):
 
     BINDINGS = [
         Binding("enter", "open_message", "Open"),
+        Binding("insert", "new_message", "New"),
+        Binding("r", "reply", "Reply"),
+        Binding("q", "reply_quoted", "Reply quoted"),
         Binding("delete", "delete_message", "Delete"),
         Binding("u", "restore_message", "Restore"),
         Binding("g", "get_mail", "Get mail"),
@@ -96,9 +105,24 @@ class MessageList(DataTable):
             return self.row_count > 0 and browser.can_delete()
         if action == "restore_message":
             return self.row_count > 0 and browser.can_restore()
-        if action == "get_mail":
+        if action in ("get_mail", "new_message"):
             return browser.id == "mail-browser"
+        if action in ("reply", "reply_quoted"):
+            return self.row_count > 0 and not browser.files
         return True
+
+    def action_new_message(self) -> None:
+        self.app.action_compose_mail()  # type: ignore[attr-defined]
+
+    def action_reply(self) -> None:
+        ref = self._browser().selected_ref()
+        if ref:
+            self.app.action_compose_mail(ref, quoted=None)  # type: ignore[attr-defined]
+
+    def action_reply_quoted(self) -> None:
+        ref = self._browser().selected_ref()
+        if ref:
+            self.app.action_compose_mail(ref, quoted=True)  # type: ignore[attr-defined]
 
     async def _on_click(self, event: events.Click) -> None:
         """A click on a row opens it in the reader, as Enter does.
@@ -284,6 +308,10 @@ class MessageBrowser(Horizontal):
             key=lambda p: p.stat().st_mtime,
             reverse=True,
         )
+
+    def selected_ref(self) -> str:
+        """The highlighted message's store ref, or "" (none, or a file)."""
+        return "" if self.files else self._selected()
 
     def _selected(self) -> str:
         table = self.query_one(MessageList)

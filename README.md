@@ -67,8 +67,10 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   from the BBS set in Settings > Home BBS (BPQMail so far): it dials the
   Address Book entry you name there, lists your mail with `LM`, reads only
   what kissterm does not already have, and disconnects, all shown in the
-  Terminal tab as it happens. Messages stay on the BBS. Sending mail and
-  Winlink are next (`docs/ROADMAP.md`, P2). Settings > Open on keeps
+  Terminal tab as it happens. Messages stay on the BBS. **Insert writes a
+  message, R replies and Q replies with the original quoted** (Settings >
+  Mail can make R quote too); it waits in Mail > BBS > Outbox. Sending the
+  Outbox and Winlink are next (`docs/ROADMAP.md`, P2). Settings > Open on keeps
   Terminal as the first tab if you prefer.
 
   ![The Mail tab](assets/screenshot-mail.png)

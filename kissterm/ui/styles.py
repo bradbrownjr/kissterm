@@ -294,6 +294,23 @@ ConnectScreen { align: center middle; }
    box that grew with its content would push Connect/Cancel around. */
 #connect-script { height: 4; margin-top: 1; }
 
+/* ComposeScreen: most of the screen, since a message is a document; the
+   body takes whatever height is left so Save stays on screen. Reuses
+   #connect-title and #connect-buttons. */
+ComposeScreen { align: center middle; }
+#compose-box {
+    width: 100; max-width: 95%; height: 90%; padding: 1 2;
+    border: thick $primary; background: $surface;
+}
+#compose-type { width: 100%; margin-top: 1; }
+.compose-row { height: auto; margin-top: 1; }
+.compose-label { width: 7; padding: 1 1 0 0; color: $text-muted; }
+.compose-at-label { width: 3; padding: 1 1 0 1; }
+.compose-row Input { width: 1fr; }
+#compose-note { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
+#compose-body { height: 1fr; margin-top: 1; }
+#compose-error { color: $error; width: 100%; height: auto; }
+
 /* First-run onboarding intentionally asks for one required fact before
    handing off to the established Settings transport editor.  It is a short
    guide, not a second settings page. */

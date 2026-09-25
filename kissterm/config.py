@@ -546,6 +546,10 @@ class Config:
     #: the decision away from this setting for the rest of the session.
     #: Turn it off to have both start closed however wide the terminal is.
     slideouts_auto_open: bool = True
+    #: R (Reply) on a message quotes the original as `> ` lines. Off by
+    #: default: every quoted line is airtime. Q always quotes. See
+    #: `kissterm/mail/compose.py`.
+    reply_quote: bool = False
     aprs: AprsConfig = field(default_factory=AprsConfig)
     beacon: BeaconConfig = field(default_factory=BeaconConfig)
     home_bbs: HomeBbsConfig = field(default_factory=HomeBbsConfig)
@@ -782,6 +786,7 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
     cfg.slideouts_auto_open = _load_bool(
         raw, "slideouts_auto_open", cfg.slideouts_auto_open, warnings
     )
+    cfg.reply_quote = _load_bool(raw, "reply_quote", cfg.reply_quote, warnings)
     cfg.aprs = _load_aprs(raw.get("aprs", {}), warnings)
     cfg.beacon = _load_beacon(raw.get("beacon", {}), warnings)
     cfg.home_bbs = _load_home_bbs(raw.get("home_bbs", {}), warnings)

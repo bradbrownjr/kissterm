@@ -3906,6 +3906,35 @@ class KissTermApp(App):
             await asyncio.sleep(CONNECT_SCRIPT_LINE_DELAY)
 
     @work(exclusive=False)
+    async def action_compose_mail(self, reply: str = "", quoted: bool | None = False) -> None:
+        """Write a message into Mail/BBS/Outbox (Mail tab: Insert, R, Q).
+
+        `reply` is the store ref of the message answered; `quoted` None
+        means "as Settings > Mail says" (R), True always quotes (Q).
+        Nothing transmits: the message waits in the Outbox.
+        """
+        from ..mail.compose import BBS_OUTBOX
+        from .compose import ComposeScreen
+
+        original = None
+        if reply:
+            try:
+                original = self.mail_store.read(reply)
+            except (OSError, ValueError) as exc:
+                self.notify(f"Cannot open that message: {exc}", severity="error")
+                return
+        if quoted is None:
+            quoted = self.config.reply_quote
+        message = await self.push_screen_wait(
+            ComposeScreen(str(self.config.mycall or ""), reply_to=original, quoted=bool(quoted))
+        )
+        if message is None:
+            return
+        self.mail_store.add(BBS_OUTBOX, message)
+        self._reload_mail_tabs()
+        self.notify(f"Saved to the Outbox: {message.subject}", timeout=4)
+
+    @work(exclusive=False)
     async def action_get_mail(self) -> None:
         """Collect mail from the Home BBS (Mail tab, G). ROADMAP P2.
 

@@ -145,6 +145,10 @@ aprs_is_watch_debug = false
 # station's log-keeping.
 log_dir = ""
 
+# Mail: R (Reply) quotes the original message as "> " lines when true.
+# Off by default, since every quoted line is airtime; Q always quotes.
+reply_quote = false
+
 # Every color in kissterm is a Textual theme variable, so this repaints the
 # whole app instantly -- nothing to restart, and no CSS to touch. Pick one of
 # the built-in ids below, or "custom" for the [custom_theme] table further

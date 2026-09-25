@@ -510,6 +510,23 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         ),
     ),
     Section(
+        "Mail",
+        "Writing messages. On the Mail tab, Insert starts a new message, R "
+        "replies and Q replies with the original quoted. Saving puts it in "
+        "the Outbox; nothing is sent until you send it.",
+        (
+            Field(
+                "reply_quote",
+                "Quote in replies (R)",
+                "bool",
+                "On: R quotes the original under your reply, as Q does. Off: "
+                "R starts empty. Quoted lines are airtime, and you can edit "
+                "or delete them either way.",
+                apply="live",
+            ),
+        ),
+    ),
+    Section(
         "Home BBS",
         "Where Get mail (Mail tab, G) collects your mail. It dials an Address "
         "Book entry the usual way, lists your mail with LM and reads only "
