@@ -377,9 +377,46 @@ closed by a coding session.
   and documented.
 - [ ] **Raspberry Pi note** in SETUP.md: serial backend fallback, `dialout`
   group, GPIO UART.
+- [ ] **Standalone binaries** -- post-1.0: Windows, macOS and Linux, each
+  on x86-64 and ARM64, so an operator installs one file with no Python.
+  Built per platform on CI runners (Nuitka or PyInstaller cannot
+  cross-compile), with serial, Bluetooth (`bleak`) and the optional
+  transports checked on each. **Not a speed fix**: startup time is
+  Textual building and styling widgets (2026-09-25: 3.0 s import, about
+  5 s to the first screen, 677 of 876 widgets are the Settings form), and
+  compiling Python does not change that work. A one-file PyInstaller
+  build starts slower, since it unpacks itself first. Startup is fixed in
+  the code, not by packaging.
 - [ ] **Debian package** -- post-1.0.
 - [ ] **Self-update check** against PyPI metadata, never blocking startup --
   post-1.0.
+
+## P7a — One back end, three front ends (post-milestone 2)
+
+Meet operators where they are: the terminal UI for those at home in one,
+a desktop GUI for those who are not, and a browser version for a shelter
+laptop, a tablet or a station run from another room. All three drive one
+back end, so a protocol fix or a new transport lands everywhere at once.
+
+- [ ] **Extract the core from `ui/app.py`.** The protocol layers are
+  already UI-free (`ax25/`, `transport/`, `mail/`, `aprs/`, `config.py`
+  import nothing from Textual; keep it so). What is not: the connect flow
+  (frequency reminder, transmit-gate arming, hops, login), Send/Receive,
+  the APRS retry queue and beaconing all live in the Textual app. Move
+  them into a UI-free service with events out (link state, lines
+  received, progress, toasts) and requests in, each with the same
+  gate and confirmation rules. The Textual UI becomes the first client
+  of it, with no change the operator can see. Do this before either
+  front end below.
+- [ ] **Web front end.** Cheapest first step: `textual serve` (P6) runs
+  the existing UI in a browser unchanged. A real web client later talks
+  to the core over a local WebSocket API. **Bound to localhost by
+  default**; anything reachable from another machine needs
+  authentication first, because it can key a transmitter.
+- [ ] **Desktop GUI** for Windows, macOS and Linux, on the same core.
+  Toolkit to be chosen when this starts (for example Qt, or the web
+  client in a native window so the two share one UI).
+- [ ] **Binaries of each** (P7's standalone binaries).
 
 ## P8 — Node references (beyond the 1.0 set)
 
