@@ -525,6 +525,10 @@ class MessageStore:
         os.replace(tmp, path)
         self._touch_index(ref)
 
+    def update(self, ref: str, message: Message) -> None:
+        """Replace a message's file in place (headers and body)."""
+        self._rewrite(ref, message)
+
     def set_read(self, ref: str, read: bool = True) -> None:
         message = self.read(ref)
         status = STATUS_READ if read else STATUS_NEW

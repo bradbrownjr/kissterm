@@ -4035,13 +4035,17 @@ class KissTermApp(App):
             result = await collector.run()
             key = state["key"]
             self._mail_status("done")
+            sent = f"{len(result.sent)} sent, " if result.sent else ""
             if result.stopped:
                 self.notify(
-                    f"Get mail stopped: {result.stopped}. {len(result.filed)} received.",
+                    f"Get mail stopped: {result.stopped}. "
+                    f"{sent}{len(result.filed)} received.",
                     severity="warning",
                 )
             elif result.filed:
-                self.notify(f"{len(result.filed)} new message(s) from the Home BBS.")
+                self.notify(f"{sent}{len(result.filed)} new message(s) from the Home BBS.")
+            elif result.sent:
+                self.notify(f"{len(result.sent)} sent. No new mail on the Home BBS.")
             else:
                 self.notify("No new mail on the Home BBS.", timeout=4)
             self._reload_mail_tabs()

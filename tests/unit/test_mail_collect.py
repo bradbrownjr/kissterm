@@ -16,9 +16,11 @@ import pytest  # noqa: E402
 from kissterm.mail import Message, MessageStore  # noqa: E402
 from kissterm.mail.collect import (  # noqa: E402
     BBS_INBOX,
+    BBS_SENT,
     BbsCollector,
     CollectOptions,
 )
+from kissterm.mail.compose import BBS_OUTBOX, outbox_message  # noqa: E402
 
 DATA = Path(__file__).parent / "data" / "bpqmail"
 PROMPT = "de WS1EC#>"
@@ -70,11 +72,13 @@ class ScriptedBbs:
                 callback(data)
 
     async def send(self, data: bytes) -> None:
-        command = data.decode("latin-1").rstrip("\r")
-        self.sent.append(command)
-        reply = self.replies.get(command)
-        if reply is not None:
-            asyncio.get_event_loop().call_later(0.01, self._deliver, reply)
+        # One send can carry several lines (a message body): each is a
+        # command to the script, as it would be to the BBS.
+        for command in data.decode("latin-1").split("\r")[:-1]:
+            self.sent.append(command)
+            reply = self.replies.get(command)
+            if reply is not None:
+                asyncio.get_event_loop().call_later(0.01, self._deliver, reply)
 
 
 def _store(tmp_path) -> MessageStore:
@@ -199,3 +203,67 @@ async def test_silence_and_a_closed_gate_stop_by_name(tmp_path):
     bbs = ScriptedBbs({"LM": LIST_TWO})
     result, _notes, _ = await _run(bbs, _store(tmp_path), gate=lambda: False)
     assert result.stopped == "transmit is off" and bbs.sent == []
+
+
+# -- sending the Outbox (captures send_sr_2784.txt, send_sp_w1bkw.txt) ----------
+
+SR = _capture("send_sr_2784.txt")
+SP = _capture("send_sp_w1bkw.txt")
+DAVE = Message(sender="KC1UIX", to="KC1JMH", subject="Test message", source="BBS WS1EC",
+               extra={"Bbs-Number": "2784"})
+
+
+def _outbox(store, **fields):
+    return store.add(BBS_OUTBOX, outbox_message(sender="KC1JMH", **fields))
+
+
+@pytest.mark.asyncio
+async def test_a_reply_goes_out_as_sr_and_moves_to_sent(tmp_path):
+    store = _store(tmp_path)
+    _outbox(store, to="KC1UIX", at="", title="Re:Test message",
+            body="Hi Dave,\n\nI received your message!\n\n73 de KC1JMH\n", reply_to=DAVE)
+    bbs = ScriptedBbs({"SR 2784": SR[2:4], "/EX": SR[10:12],
+                       "LM": _capture("list_lm_empty.txt")})
+    result, notes, shown = await _run(bbs, store)
+    assert bbs.sent == ["SR 2784", "Hi Dave,", "", "I received your message!", "",
+                        "73 de KC1JMH", "/EX", "LM"]
+    assert not result.stopped and store.list(BBS_OUTBOX) == []
+    [ref] = result.sent
+    sent = store.read(ref)
+    assert ref.startswith(BBS_SENT) and sent.extra["Bbs-Number"] == "2801"
+    assert sent.message_id == "2801_WS1EC" and sent.source == "BBS WS1EC"
+    assert any("Sent as #2801" in n for n in notes)
+
+
+@pytest.mark.asyncio
+async def test_a_new_message_answers_the_title_prompt(tmp_path):
+    store = _store(tmp_path)
+    _outbox(store, to="W1BKW", at="", title="Received your radiogram", body="Hi Brian,\n73\n")
+    bbs = ScriptedBbs({"SP W1BKW": SP[5:7], "Received your radiogram": SP[8:9],
+                       "/EX": SP[18:20], "LM": _capture("list_lm_empty.txt")})
+    result, _notes, _ = await _run(bbs, store)
+    assert bbs.sent == ["SP W1BKW", "Received your radiogram", "Hi Brian,", "73", "/EX", "LM"]
+    assert not result.stopped and len(result.sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_refusal_stops_the_run_and_keeps_the_message(tmp_path):
+    store = _store(tmp_path)
+    _outbox(store, to="W1BKW", at="", title="Hello", body="Hi\n")
+    bbs = ScriptedBbs({"SP W1BKW": SP[2:4], "LM": LIST_TWO})
+    result, _notes, _ = await _run(bbs, store)
+    assert "refused 'SP W1BKW'" in result.stopped and "'TO' callsign" in result.stopped
+    assert bbs.sent == ["SP W1BKW"]  # no body, no LM
+    assert len(store.list(BBS_OUTBOX)) == 1 and result.sent == []
+
+
+@pytest.mark.asyncio
+async def test_a_reply_from_another_bbs_goes_as_sp(tmp_path):
+    store = _store(tmp_path)
+    elsewhere = Message(sender="KC1UIX", subject="Test", source="BBS N1XYZ",
+                        extra={"Bbs-Number": "12"})
+    _outbox(store, to="KC1UIX", at="", title="Re:Test", body="Hi\n", reply_to=elsewhere)
+    bbs = ScriptedBbs({"SP KC1UIX": SP[5:7], "Re:Test": SP[8:9], "/EX": SP[18:20],
+                       "LM": _capture("list_lm_empty.txt")})
+    result, _notes, _ = await _run(bbs, store)
+    assert bbs.sent[:2] == ["SP KC1UIX", "Re:Test"] and not result.stopped

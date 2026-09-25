@@ -74,7 +74,21 @@ from .message import KIND_BULLETIN, KIND_MAIL, Message
 PAGE_PROMPT_RE = re.compile(r"<A>bort,.*?Continue\.\.>[ \t]*")
 END_RE = re.compile(r"^\[End of Message #(\d+) from ([A-Za-z0-9/-]+)\]\s*$")
 ABORTED = "Output aborted"
-PROMPT_RE = re.compile(r"^de ([A-Z0-9]{1,6})(?:-\d{1,2})?#>\s*$")
+#: The BBS prompt. LinBPQ's default is `de CALL>` (`BBSUtilities.c`:
+#: `sprintf(Prompt, "de %s>\r\n", BBSName)`); WS1EC's sysop made it
+#: `de WS1EC#>`. Both match. A body line that happens to look like one ends
+#: a read early, which leaves it without its end marker: never filed.
+PROMPT_RE = re.compile(r"^de ([A-Z0-9]{1,6})(?:-\d{1,2})?#?>\s*$")
+# Sending (`BBSUtilities.c` DoSendCommand / ProcessMsgLine; captured
+# 2026-09-25 in send_sr_2784.txt and send_sp_w1bkw.txt).
+TITLE_PROMPT_RE = re.compile(r"^Enter Title \(only\):\s*$")
+TEXT_PROMPT_RE = re.compile(r"^Enter Message Text \(end with /ex or ctrl/z\)\s*$", re.I)
+#: `Message: 2801 Bid:  2801_WS1EC Size: 54` -- two spaces after `Bid:`.
+ACCEPTED_RE = re.compile(r"^Message: (\d+) Bid:\s+(\S+) Size: (\d+)\s*$")
+#: `*** Error: The 'TO' callsign is missing`, `*** Error- Duplicate BID`,
+#: `*** Message Cancelled`: every refusal starts with three stars.
+REFUSED_RE = re.compile(r"^\*\*\*\s*(.+?)\s*$")
+ADDRESS_ADDED_RE = re.compile(r"^Address @(\S+) added from (\S+)\s*$")
 KILLED_RE = re.compile(r"^Message #(\d+) Killed\s*$")
 NOT_FOUND_RE = re.compile(r"^Message (\d+) not found\s*$")
 # UNVERIFIED: the singular ("1 message"); only 0 and 2 are captured.

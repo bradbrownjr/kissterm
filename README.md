@@ -69,8 +69,9 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   what kissterm does not already have, and disconnects, all shown in the
   Terminal tab as it happens. Messages stay on the BBS. **Insert writes a
   message, R replies and Q replies with the original quoted** (Settings >
-  Mail can make R quote too); it waits in Mail > BBS > Outbox. Sending the
-  Outbox and Winlink are next (`docs/ROADMAP.md`, P2). Settings > Open on keeps
+  Mail can make R quote too); it waits in Mail > BBS > Outbox, and G sends
+  it before reading, moving it to Sent once the BBS accepts it. Radiograms
+  (ST) and Winlink are next (`docs/ROADMAP.md`, P2). Settings > Open on keeps
   Terminal as the first tab if you prefer.
 
   ![The Mail tab](assets/screenshot-mail.png)

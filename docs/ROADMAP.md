@@ -129,8 +129,10 @@ widget and the Mail, Bulletins and Files tabs shipped 2026-09-23.
   account (a Winlink account or a BBS). Nothing transmits on save. Sending
   happens only when the operator starts a send/receive, which arms the gate
   through `_arm_for` exactly as Ctrl+N does. Medium.
-  *Done 2026-09-25:* steps 1 and 2 below, the compose screen for SP and SB
-  and replies (R, Q, Settings > Mail > Quote in replies). Next: step 3.
+  *Done 2026-09-25:* steps 1-3 below: the compose screen for SP and SB,
+  replies (R, Q, Settings > Mail > Quote in replies), and G sending the
+  Outbox. Next: step 4 (ST radiogram). SB is researched but not yet
+  captured on air: capture the first one.
   Plan for BBS mail (2026-09-25, research in `bpqmail.py`'s docstring):
   1. **Compose screen**: Type (Private SP, Bulletin SB, NTS radiogram ST),
      To, @ (optional; BPQMail fills it from the Home BBS), Title, Body;

@@ -10,9 +10,14 @@ would at the keyboard:
    If a login prompt is configured and seen first, send the credential.
 2. Check what answered. BPQMail is the only application whose replies are
    captured (`bpqmail.py`), so anything else stops here, by name.
-3. `LM`, then `R <n>` for each listed message not already in the store,
+3. Send Mail/BBS/Outbox, oldest first (`compose.send_command`: `SR n` for
+   a reply to this BBS's message n, else `SP`/`SB`). Title if asked, the
+   body, `/EX`. A message moves to Mail/BBS/Sent, with the BBS's number and
+   BID, only after `Message: N Bid: ...`; a refusal (`*** ...`) stops the
+   run and leaves it in the Outbox.
+4. `LM`, then `R <n>` for each listed message not already in the store,
    oldest first. A page prompt is answered with Enter.
-4. File each complete read in Mail/BBS/Inbox (a bulletin under
+5. File each complete read in Mail/BBS/Inbox (a bulletin under
    Bulletins/<category>), with the raw reply beside it as `.bbs`.
 
 **It stops rather than guesses.** A reply it does not recognise, a read
@@ -45,11 +50,14 @@ from dataclasses import dataclass, field
 
 from ..ansi import decode_text
 from . import bpqmail
+from .compose import BBS_OUTBOX, ends_text_early, send_command
 from .message import KIND_BULLETIN
-from .store import BULLETINS, INBOX, MAIL, MessageStore
+from .store import BULLETINS, INBOX, MAIL, SENT, MessageStore
 
 #: Where BBS private mail is filed.
 BBS_INBOX = f"{MAIL}/BBS/{INBOX}"
+#: Where a message goes once the BBS has accepted it.
+BBS_SENT = f"{MAIL}/BBS/{SENT}"
 #: Suffix of the raw reply kept beside each filed message.
 RAW_SUFFIX = ".bbs"
 #: Seconds of silence from the BBS before giving up. Long on purpose: on the
@@ -85,6 +93,8 @@ class CollectResult:
     filed: list[str] = field(default_factory=list)
     already_had: int = 0
     not_found: list[int] = field(default_factory=list)
+    #: Refs in Mail/BBS/Sent of the messages the BBS accepted.
+    sent: list[str] = field(default_factory=list)
     stopped: str = ""
 
 
@@ -176,7 +186,92 @@ class BbsCollector:
         await self.link.send(text.encode("latin-1", "replace") + b"\r")
         self._sent(text if shown is None else shown)
 
+    async def _send_lines(self, lines: list[str]) -> None:
+        """Several lines in one link send: the link packs them into as few
+        frames as paclen allows, instead of one frame per line."""
+        if not self.link.connected:
+            raise CollectStopped("the link dropped")
+        if not self._gate_open():
+            raise CollectStopped("transmit is off")
+        data = "".join(f"{line}\r" for line in lines)
+        await self.link.send(data.encode("latin-1", "replace"))
+        for line in lines:
+            self._sent(line)
+
     # -- the conversation ----------------------------------------------------
+
+    async def _until_one_of(
+        self, *patterns: re.Pattern[str]
+    ) -> tuple[int, re.Match[str] | None, list[str]]:
+        """Read lines until one matches a pattern (its index and match) or
+        is the BBS prompt (index -1). Also returns the lines before it."""
+        before: list[str] = []
+        while True:
+            self._arrived.clear()
+            lines = self._take_lines()
+            for position, line in enumerate(lines):
+                found = _match_any(line, patterns)
+                if found is not None or bpqmail.prompt_call(line):
+                    # Whatever followed stays for the next wait.
+                    self._lines = lines[position + 1:] + self._lines
+                    return (*found, before) if found else (-1, None, before)
+                before.append(line)
+            partial = self._partial
+            found = _match_any(partial, patterns)
+            if found is not None or bpqmail.prompt_call(partial):
+                self._pending.clear()
+                return (*found, before) if found else (-1, None, before)
+            await self._wait_for_data()
+
+    async def _send_one(self, ref: str, source: str) -> str:
+        """Send one Outbox message; returns its new ref in Sent."""
+        message = self.store.read(ref)
+        command, _asks_title = send_command(message, source)
+        body = message.body.rstrip("\n").split("\n")
+        if any(ends_text_early(line) for line in body):
+            # Checked when it was saved; a file edited by hand since then
+            # must still never end the text early on air.
+            raise CollectStopped(
+                f"{message.subject!r} has a line that would end it early (/ex); nothing sent"
+            )
+        title_re, text_re = bpqmail.TITLE_PROMPT_RE, bpqmail.TEXT_PROMPT_RE
+        refused_re = bpqmail.REFUSED_RE
+        await self._send(command)
+        index, match, _ = await self._until_one_of(title_re, text_re, refused_re)
+        if index == 0:
+            # SP/SB/ST ask for the title; SR does not (the BBS makes it).
+            await self._send(message.subject)
+            index, match, _ = await self._until_one_of(title_re, text_re, refused_re)
+        if index == 2 and match is not None:
+            raise CollectStopped(f"the BBS refused {command!r}: {match.group(1)}")
+        if index != 1:
+            raise CollectStopped(f"the BBS did not start {command!r}; nothing sent")
+        await self._send_lines([*body, "/EX"])
+        index, match, _ = await self._until_one_of(bpqmail.ACCEPTED_RE, refused_re)
+        if index != 0 or match is None:
+            why = match.group(1) if match is not None else "no acceptance line"
+            raise CollectStopped(f"the BBS did not accept {message.subject!r}: {why}")
+        number, bid = match.group(1), match.group(2)
+        warnings, _ = await self._until_prompt()
+        for warning in warnings:
+            if warning.strip():
+                self._note(f"BBS: {warning.strip()}")
+        message.extra["Bbs-Number"] = number
+        message.message_id = bid
+        message.source = source
+        new_ref = self.store.move(ref, BBS_SENT)
+        self.store.update(new_ref, message)
+        self._note(f"Sent as #{number} ({bid}).")
+        return new_ref
+
+    async def _send_outbox(self, result: CollectResult, source: str) -> None:
+        # `list` is newest first; send in the order they were written.
+        refs = [summary.ref for summary in reversed(self.store.list(BBS_OUTBOX))]
+        for position, ref in enumerate(refs, 1):
+            subject = self.store.read(ref).subject
+            self._progress(f"sending {position}/{len(refs)}")
+            self._note(f"Sending {position} of {len(refs)}: {subject}")
+            result.sent.append(await self._send_one(ref, source))
 
     async def _until_prompt(self) -> tuple[list[str], str]:
         """Lines up to the BBS prompt, answering page prompts with Enter.
@@ -260,6 +355,7 @@ class BbsCollector:
             )
         source = f"BBS {bbs_call}"
 
+        await self._send_outbox(result, source)
         self._progress("listing")
         await self._send("LM")
         listing, _ = await self._until_prompt()
@@ -303,6 +399,15 @@ class BbsCollector:
             raw = ("\r".join(reply) + "\r").encode("utf-8")
             result.filed.append(self.store.add(folder, message, raw=raw, raw_suffix=RAW_SUFFIX))
         self._note(f"Done: {len(result.filed)} received.")
+
+
+def _match_any(
+    line: str, patterns: tuple[re.Pattern[str], ...]
+) -> tuple[int, re.Match[str]] | None:
+    for index, pattern in enumerate(patterns):
+        if (match := pattern.match(line.strip())):
+            return index, match
+    return None
 
 
 def _category_folder(category: str) -> str:

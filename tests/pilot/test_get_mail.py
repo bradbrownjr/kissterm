@@ -34,6 +34,10 @@ GREETING = (
     b"You have 1 messages waiting for you.\rde WS1EC#>\r"
 )
 REPLIES = {
+    # From send_sp_w1bkw.txt (2026-09-25).
+    "SP W1BKW": b"Address @W1BKW.#OXFO.ME.USA.NOAM added from HomeBBS\rEnter Title (only):\r",
+    "Breakfast": b"Enter Message Text (end with /ex or ctrl/z)\r",
+    "/EX": b"Message: 2803 Bid:  2803_WS1EC Size: 12\rde WS1EC#>\r",
     "LM": b"2578   16-Sep PN      25 KC1JMH @WS1EC  WS1EC  Test message\rde WS1EC#>\r",
     "R 2578": (
         b"From: WS1EC\rTo: KC1JMH\rType/Status: PN\rDate/Time: 16-Sep 16:33Z\r"
@@ -46,11 +50,13 @@ REPLIES = {
 def _bpqmail(bbs: AX25Station, heard: list[str]) -> None:
     def _greet(link) -> None:
         def _answer(data: bytes) -> None:
-            command = data.decode("latin-1").strip()
-            heard.append(command)
-            reply = REPLIES.get(command)
-            if reply is not None:
-                asyncio.get_event_loop().create_task(link.send(reply))
+            # A message body arrives as several lines in one send.
+            for command in data.decode("latin-1").split("\r")[:-1]:
+                command = command.strip()
+                heard.append(command)
+                reply = REPLIES.get(command)
+                if reply is not None:
+                    asyncio.get_event_loop().create_task(link.send(reply))
 
         link.on_data.append(_answer)
 
@@ -243,4 +249,34 @@ async def test_the_launch_footer_shows_g_on_mail(tmp_path):
             lambda: "get_mail" in [k.action for k in app.query_one(KissTermFooter).query(FooterKey)],
             "G in the footer at launch",
         )
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_g_sends_the_outbox_before_reading(tmp_path):
+    from kissterm.mail.collect import BBS_SENT
+    from kissterm.mail.compose import BBS_OUTBOX, outbox_message
+
+    app, station, tb = await _app(tmp_path)
+    app.mail_store.add(BBS_OUTBOX, outbox_message(
+        sender="KC1JMH", to="W1BKW", at="", title="Breakfast", body="See you there\n"))
+    bbs = AX25Station(BBS, tb, FAST)
+    heard: list[str] = []
+    _bpqmail(bbs, heard)
+    toasts: list[str] = []
+    async with app.run_test(size=(120, 40)) as pilot:
+        real_notify = app.notify
+        app.notify = lambda m, *a, **k: (toasts.append(str(m)), real_notify(m, *a, **k))[1]
+        app.action_show_tab("mail")
+        await pilot.pause()
+        app.query_one("#mail-browser").query_one(MessageList).focus()
+        await pilot.press("g")
+        await wait_for(lambda: app.mail_store.list(BBS_INBOX) and not app._collecting,
+                       "the run to finish")
+        assert heard[:5] == ["SP W1BKW", "Breakfast", "See you there", "/EX", "LM"]
+        assert app.mail_store.list(BBS_OUTBOX) == []
+        [sent] = app.mail_store.list(BBS_SENT)
+        assert app.mail_store.read(sent.ref).extra["Bbs-Number"] == "2803"
+        assert any("1 sent, 1 new message" in t for t in toasts), toasts
+    bbs.close()
     station.close()

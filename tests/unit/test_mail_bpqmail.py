@@ -50,6 +50,7 @@ def test_prompts_and_page_prompts_are_not_list_lines():
     assert parse_list_line("<A>bort, <R Message>, <CR> = Continue..>") is None
     assert parse_list_line("de WS1EC#>") is None
     assert prompt_call("de WS1EC#>") == "WS1EC"
+    assert prompt_call("de GB7BPQ>") == "GB7BPQ"  # LinBPQ's default prompt
     assert prompt_call("Hello Bradley.") == ""
 
 

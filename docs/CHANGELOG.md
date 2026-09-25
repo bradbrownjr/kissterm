@@ -5,6 +5,30 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — G sends the Outbox, then reads
+
+### New Features
+
+- **Get mail (G) sends Mail > BBS > Outbox before it lists and reads**,
+  oldest first: `SR n` for a reply to that BBS's message n, else `SP` or
+  `SB`, the title when asked, the body in as few frames as paclen allows,
+  `/EX`. A message moves to Sent, with the BBS's number and BID, only
+  after `Message: N Bid: ...`. A refusal (`*** ...`) stops the run, names
+  the reason and leaves the message in the Outbox. The toast counts sent
+  and received.
+
+### Improvements
+
+- **The BBS prompt pattern accepts LinBPQ's default `de CALL>`** as well
+  as WS1EC's `de WS1EC#>`: the source says the default; only the captures
+  had the `#`.
+
+**Files:** `kissterm/mail/collect.py`, `kissterm/mail/bpqmail.py`,
+`kissterm/mail/store.py`, `kissterm/ui/app.py`, `kissterm/ui/commands.py`,
+`tests/unit/test_mail_collect.py`, `tests/unit/test_mail_bpqmail.py`,
+`tests/pilot/test_get_mail.py`, `README.md`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-25] — Write, reply to and quote BBS mail into the Outbox
 
 ### New Features

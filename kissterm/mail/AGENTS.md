@@ -28,3 +28,7 @@ of the two is marked `# UNVERIFIED:`.
   (`has_bbs_number` before the read, `find` by BID after), and stops by
   name on anything it does not recognise. Tests use a scripted BBS built
   from the captures (`tests/unit/test_mail_collect.py`).
+- **A sent message moves to Sent only after the BBS's `Message: N Bid:`
+  line**; any refusal stops the run and leaves it in the Outbox. A body
+  line that would end the text early (`/ex`) is refused before anything
+  is sent, even if the file was edited by hand after saving.
