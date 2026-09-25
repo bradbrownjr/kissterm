@@ -1138,73 +1138,64 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         self.transports = transports or []
 
     def compose(self) -> ComposeResult:
+        # Labelled one-row fields (DESIGN.md section 3, "Dense where the
+        # content is the point"): the roomy three-row version was taller
+        # than 80x24, put Save/Cancel off the bottom, and named a filled-in
+        # field only by a placeholder that had disappeared (2026-09-25).
+        # The fields scroll inside the box on a smaller screen still.
         with Vertical(id="connect-box"):
             yield Label("Address book entry", id="connect-title")
-            yield Input(
-                value=self._target,
-                placeholder="WS1EC-7  or  WS1EC-7 via W1AW-1",
-                id="connect-target",
-            )
-            yield Input(
-                value=self._hops,
-                placeholder="Node hops, e.g. N1QFY, AB1KI-15 (optional)",
-                id="connect-hops",
-            )
-            with Horizontal(id="addressbook-radio-row"):
-                yield Input(
-                    value=self._frequency,
-                    placeholder="Frequency (optional)",
-                    id="addressbook-frequency",
+            with VerticalScroll(id="addressbook-form"):
+                with Horizontal(classes="ab-row"):
+                    yield Label("Station", classes="ab-label")
+                    yield Input(value=self._target, compact=True, id="connect-target",
+                                placeholder="WS1EC-7  or  WS1EC-7 via W1AW-1")
+                with Horizontal(classes="ab-row"):
+                    yield Label("Hops", classes="ab-label")
+                    yield Input(value=self._hops, compact=True, id="connect-hops",
+                                placeholder="optional, e.g. N1QFY, AB1KI-15")
+                with Horizontal(id="addressbook-radio-row", classes="ab-row"):
+                    yield Label("Freq", classes="ab-label")
+                    yield Input(value=self._frequency, compact=True,
+                                id="addressbook-frequency", placeholder="optional, e.g. 145.050")
+                    yield Label("Port", classes="ab-label ab-label-2")
+                    yield Select([], id="addressbook-connection-type", allow_blank=True,
+                                 prompt="Connection type", compact=True)
+                with Horizontal(id="addressbook-link-row", classes="ab-row"):
+                    yield Label("Paclen", classes="ab-label")
+                    yield Input(value=self._paclen, compact=True, id="addressbook-paclen",
+                                placeholder="default from Settings")
+                    yield Label("Window", classes="ab-label ab-label-2")
+                    yield Input(value=self._window, compact=True, id="addressbook-window",
+                                placeholder="default from Settings")
+                with Horizontal(classes="ab-row"):
+                    yield Label("Note", classes="ab-label")
+                    yield Input(value=self._note, compact=True, id="addressbook-note",
+                                placeholder="shown before connecting, e.g. 'BBS is on -2'")
+                with Horizontal(classes="ab-row ab-heading"):
+                    yield Label("Auto-login", id="connect-script-title")
+                    yield Static(
+                        "optional: a saved credential, a saved script, or lines below",
+                        id="connect-script-hint",
+                    )
+                with Horizontal(classes="ab-row"):
+                    yield Label("Login", classes="ab-label")
+                    yield Select([], id="connect-credential", allow_blank=True,
+                                 prompt="Saved credential", compact=True)
+                    yield Label("", classes="ab-gap")
+                    yield Select([], id="connect-script-name", allow_blank=True,
+                                 prompt="Saved script", compact=True)
+                yield TextArea(
+                    self._script,
+                    id="connect-script",
+                    tab_behavior="focus",
+                    compact=True,
+                    placeholder="One line per prompt, e.g. your callsign then password",
                 )
-                yield Select(
-                    [],
-                    id="addressbook-connection-type",
-                    allow_blank=True,
-                    prompt="Connection type",
-                )
-            with Horizontal(id="addressbook-link-row"):
-                yield Input(
-                    value=self._paclen,
-                    placeholder="Paclen (optional, default from Settings)",
-                    id="addressbook-paclen",
-                )
-                yield Input(
-                    value=self._window,
-                    placeholder="Window/k (optional, default from Settings)",
-                    id="addressbook-window",
-                )
-            yield Input(
-                value=self._note,
-                placeholder="Note, shown before connecting (e.g. 'BBS is on -2')",
-                id="addressbook-note",
-            )
-            yield Label("", id="connect-error")
-            yield Label("Auto-login (optional)", id="connect-script-title")
-            yield Static(
-                "Pick a saved credential or script, or type a login below.",
-                id="connect-script-hint",
-            )
-            yield Select(
-                [],
-                id="connect-credential",
-                allow_blank=True,
-                prompt="Saved credential",
-            )
-            yield Select(
-                [],
-                id="connect-script-name",
-                allow_blank=True,
-                prompt="Saved script",
-            )
-            yield TextArea(
-                self._script,
-                id="connect-script",
-                tab_behavior="focus",
-                placeholder="One line per prompt, e.g. your callsign then password",
-            )
-            with Horizontal(id="connect-buttons"):
-                yield Button("Save", variant="primary", id="connect-go")
-                yield Button("Cancel", id="connect-cancel")
+            with Horizontal(id="connect-buttons", classes="ab-foot"):
+                yield Label("", id="connect-error")
+                yield Button("Save", variant="primary", id="connect-go", compact=True)
+                yield Button("Cancel", id="connect-cancel", compact=True)
 
     def on_mount(self) -> None:
         credential_select = self.query_one("#connect-credential", Select)

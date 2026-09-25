@@ -87,6 +87,12 @@ was restyled, and it was spotted immediately in a screenshot.
   - **The text area takes every row left over** (`height: 1fr`) in a box
     sized to the screen (`height: 90%`), never a fixed or content-sized
     height. Two rows to write a message in was the bug that set this rule.
+  - **A dialog form that would not fit 80x24 in the roomy style goes
+    compact too, with a label at the start of every row**: a placeholder
+    names an empty field only, so a filled-in compact field needs its
+    label. The Address Book entry dialog is the reference (2026-09-25).
+    Its fields still scroll inside a box capped at 90% of the screen, so
+    Save and Cancel are never below the bottom edge.
   - A short checkpoint dialog (a reminder, a confirm) keeps the roomier
     3-row form style: there the space is the readability.
 - **Never use Textual's default `border: tall`** on an interactive widget. It

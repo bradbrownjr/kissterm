@@ -84,6 +84,7 @@ Button.-textual-compact {
     border: none; height: 1; min-width: 0; padding: 0 1; background: $primary 15%;
 }
 Button.-textual-compact:focus { background: $accent 25%; }
+TextArea.-textual-compact { border: none; }
 Button.-textual-compact.-primary { color: $primary; }
 /* Exempt: chrome that is not a field. App CSS outranks every widget's own
    DEFAULT_CSS, so without these the Ctrl+P palette and the F10 menu's item
@@ -362,9 +363,27 @@ AprsContactScreen { align: center middle; }
 /* AddressBookEntryScreen's frequency/connection-type row -- two short
    fields side by side rather than stacked, since both together are still
    shorter than the target line above them. */
-#addressbook-radio-row { height: auto; margin-top: 1; }
-#addressbook-radio-row Input, #addressbook-radio-row Select { width: 1fr; }
-#addressbook-radio-row Input:first-child { margin-right: 1; }
+/* AddressBookEntryScreen: labelled one-row fields, no empty rows (DESIGN.md
+   section 3). Capped, with the fields scrolling inside, so Save/Cancel
+   stay on screen on anything smaller than it needs (about 18 rows). */
+AddressBookEntryScreen { align: center middle; }
+AddressBookEntryScreen #connect-box { max-height: 90%; padding: 0 1; }
+AddressBookEntryScreen #connect-title { text-style: bold; }
+#addressbook-form { height: auto; max-height: 1fr; }
+.ab-row { height: 1; }
+.ab-row Input, .ab-row Select { width: 1fr; }
+.ab-label { width: 8; color: $text-muted; }
+.ab-label-2 { padding-left: 1; }
+.ab-gap { width: 1; }
+AddressBookEntryScreen #connect-script-title { width: auto; margin-top: 0; padding-right: 1; }
+AddressBookEntryScreen #connect-script-hint { width: 1fr; height: 1; }
+AddressBookEntryScreen #connect-credential { width: 1fr; }
+AddressBookEntryScreen #connect-hops,
+AddressBookEntryScreen #connect-script-name { margin-top: 0; width: 1fr; }
+AddressBookEntryScreen #connect-script { height: 4; margin-top: 0; background: $primary 15%; }
+AddressBookEntryScreen #connect-script:focus { background: $accent 25%; }
+AddressBookEntryScreen #connect-buttons { height: auto; margin-top: 0; }
+.ab-foot #connect-error { width: 1fr; height: auto; color: $error; }
 /* RadioReminderScreen -- a checkpoint, not a form; sized to its short
    fixed content rather than the wider #connect-box default. */
 #reminder-detail { color: $text; padding: 0 0 1 0; }

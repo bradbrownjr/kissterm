@@ -50,6 +50,10 @@ Terminal tab (E edits an entry); Mail is F2.
 
 ## Connecting
 
+- [ ] **Address Book entry dialog** (Ctrl+G, then E on an entry): every
+  field on its own row with a label, Paclen and Window visible, Save and
+  Cancel on screen at your terminal size. (Not a radio test, but yours to
+  confirm.)
 - [ ] **Immediate SABM when polled** (Settings > Link > Retry at once when
   polled, on). On a marginal connect, the Monitor should show a SABM right
   after a poll from the node instead of waiting out T1.

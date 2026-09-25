@@ -482,3 +482,31 @@ async def test_one_click_selects_and_a_double_click_dials(tmp_path):
         assert book.find(first).attempts == 2
         assert len(station.links) == 1
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_entry_dialog_fits_80x24_with_every_row_whole():
+    """2026-09-25: the Paclen/Window row had no height and was drawn crushed
+    behind Note, and Save/Cancel were below the bottom of the screen."""
+    from textual.widgets import Button
+
+    from kissterm.config import Config
+    from kissterm.ui.app import KissTermApp
+    from kissterm.ui.dialogs import AddressBookEntryScreen
+
+    config = Config(mycall="KC1JMH")
+    config.transports = [{"name": "tnc", "kind": "tcp", "host": "127.0.0.1", "port": 8001}]
+    app = KissTermApp(config)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        app.push_screen(AddressBookEntryScreen(target="WS1EC-2"))
+        await pilot.pause()
+        await pilot.pause()
+        screen = app.screen
+        rows = ["#connect-target", "#connect-hops", "#addressbook-frequency",
+                "#addressbook-paclen", "#addressbook-note", "#connect-credential"]
+        tops = [screen.query_one(wid).region.y for wid in rows]
+        assert tops == sorted(set(tops)), tops  # one row each, none overlapping
+        assert all(screen.query_one(wid).region.height == 1 for wid in rows)
+        save = screen.query_one("#connect-go", Button).region
+        assert save.height == 1 and save.bottom <= 24 and save.y > tops[-1]

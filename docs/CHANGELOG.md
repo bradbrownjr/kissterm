@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — Address Book entry dialog: every field whole, fits 80x24
+
+### Bug Fixes (awaiting operator confirmation)
+
+- **The Paclen/Window row was drawn crushed behind the Note field**: it had
+  no CSS, so it got no height. **Save and Cancel were below the bottom of
+  an 80x24 screen**, unreachable. The dialog is now labelled one-row
+  fields (Station, Hops, Freq/Port, Paclen/Window, Note, Login, the login
+  lines), fits 80x24 whole, and scrolls its fields inside a capped box on
+  anything smaller, with the buttons always on screen.
+
+**Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_addressbook_pane.py`, `DESIGN.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-25] — Send/Receive, green progress, and a stalled frame named
 
 ### Improvements
