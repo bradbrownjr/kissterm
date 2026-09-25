@@ -4008,7 +4008,7 @@ class KissTermApp(App):
             self._mail_status("done")
             if result.stopped:
                 self.notify(
-                    f"Get mail stopped: {result.stopped}. {len(result.filed)} filed.",
+                    f"Get mail stopped: {result.stopped}. {len(result.filed)} received.",
                     severity="warning",
                 )
             elif result.filed:

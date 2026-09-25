@@ -290,7 +290,7 @@ class BbsCollector:
             read = bpqmail.parse_read(reply)
             if read is None or not read.complete:
                 raise CollectStopped(
-                    f"the reply to R {entry.number} was not a complete message; nothing filed"
+                    f"the reply to R {entry.number} was not a complete message; nothing saved"
                 )
             message = bpqmail.to_message(read, bbs_call)
             if message.message_id and self.store.find(message.message_id):
@@ -302,7 +302,7 @@ class BbsCollector:
                 folder = f"{BULLETINS}/{_category_folder(message.category)}"
             raw = ("\r".join(reply) + "\r").encode("utf-8")
             result.filed.append(self.store.add(folder, message, raw=raw, raw_suffix=RAW_SUFFIX))
-        self._note(f"Done: {len(result.filed)} filed.")
+        self._note(f"Done: {len(result.filed)} received.")
 
 
 def _category_folder(category: str) -> str:

@@ -113,6 +113,7 @@ async def test_reads_only_new_mail_and_files_it_with_the_raw_reply(tmp_path):
     [raw] = store.raw_files(ref)
     assert raw.suffix == ".bbs" and b"[End of Message #2578 from WS1EC]" in raw.read_bytes()
     assert any("Reading 1 of 1: #2578" in n for n in notes)
+    assert "Done: 1 received." in notes  # not "filed", which reads as "failed"
 
 
 @pytest.mark.asyncio
