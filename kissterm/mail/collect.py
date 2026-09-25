@@ -124,7 +124,7 @@ class BbsCollector:
         self._note = note
         self._sent = sent
         self._gate_open = gate_open
-        #: A few words for the status bar ("reading 2/3"); `note` has the
+        #: A few words for the status bar ("Receiving 2 of 3"); `note` has the
         #: full sentence for the session log.
         self._progress = progress
         self._pending = bytearray()
@@ -170,6 +170,16 @@ class BbsCollector:
         try:
             await asyncio.wait_for(self._arrived.wait(), self.options.idle_timeout)
         except asyncio.TimeoutError:
+            unacked = list(getattr(self.link, "unacked_sizes", []) or [])
+            if unacked:
+                # The link is up and the BBS answers polls, but what we sent
+                # has not arrived: a path problem, not a silent BBS.
+                raise CollectStopped(
+                    f"what was sent had not reached the BBS after "
+                    f"{self.options.idle_timeout:.0f} s of retries ({len(unacked)} "
+                    f"frame(s), up to {max(unacked)} bytes). On a weak path, a "
+                    "smaller paclen on this Address Book entry sends shorter frames"
+                ) from None
             raise CollectStopped(
                 f"nothing from the BBS for {self.options.idle_timeout:.0f} s"
             ) from None
@@ -269,7 +279,7 @@ class BbsCollector:
         refs = [summary.ref for summary in reversed(self.store.list(BBS_OUTBOX))]
         for position, ref in enumerate(refs, 1):
             subject = self.store.read(ref).subject
-            self._progress(f"sending {position}/{len(refs)}")
+            self._progress(f"Sending {position} of {len(refs)}")
             self._note(f"Sending {position} of {len(refs)}: {subject}")
             result.sent.append(await self._send_one(ref, source))
 
@@ -345,7 +355,7 @@ class BbsCollector:
 
     async def _collect(self, result: CollectResult) -> None:
         self._note("Waiting for the BBS prompt...")
-        self._progress("waiting for the prompt")
+        self._progress("Waiting for the BBS")
         call = await self._until_ready()
         self._check_software()
         bbs_call = (self.options.bbs_call or call).upper()
@@ -356,7 +366,7 @@ class BbsCollector:
         source = f"BBS {bbs_call}"
 
         await self._send_outbox(result, source)
-        self._progress("listing")
+        self._progress("Checking for mail")
         await self._send("LM")
         listing, _ = await self._until_prompt()
         entries = bpqmail.parse_list(listing)
@@ -372,7 +382,7 @@ class BbsCollector:
         self._note(f"{len(new)} new of {len(entries)} listed.")
 
         for position, entry in enumerate(new, 1):
-            self._progress(f"reading {position}/{len(new)}")
+            self._progress(f"Receiving {position} of {len(new)}")
             self._note(
                 f"Reading {position} of {len(new)}: #{entry.number} from "
                 f"{entry.sender}, {entry.title or '(no title)'}"

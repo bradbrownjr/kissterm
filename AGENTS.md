@@ -193,6 +193,11 @@ changes.
   README.
 - **System-wide read-only commands are pre-approved**; ask before system-wide
   writes, installs or service changes.
+- **Anything that needs the radio to confirm goes in
+  `docs/ON-AIR-TESTS.md`** the same day it ships, as a checkbox with what
+  to do and what to expect (operator, 2026-09-25: "keep a list of tests I
+  need to run later in a document that I can find"). Only the operator
+  ticks one.
 - **Update CHANGELOG and ROADMAP when something ships**: a dated section with
   a `**Files:**` line; delete the roadmap item the same day. New capabilities
   go under "New Features", improvements to existing ones under

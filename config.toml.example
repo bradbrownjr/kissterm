@@ -297,7 +297,7 @@ dark = true
 # startup), and intervals below 10 minutes are clamped up to 10 -- your
 # beacon is time nobody else on the frequency can transmit.
 [home_bbs]
-# The BBS that Get mail (Mail tab, G) collects your mail from. route is an
+# The BBS that Send/Receive (Mail tab, G) sends and collects mail with. route is an
 # Address Book entry, dialled the normal way (reminder, hops, login). Mail
 # is filed by the BBS's own callsign, whatever the route.
 route = ""

@@ -63,7 +63,8 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   list, and a reader. Folders are by kind of mail, not by how you reached
   the BBS, and each message says where it came from. Every message is a
   plain text file under kissterm's data folder, so any editor can read
-  one; Delete moves to Deleted, and U puts it back. **G gets your mail**
+  one; Delete moves to Deleted, and U puts it back. **G is Send/Receive**:
+  it sends your Outbox and gets your mail
   from the BBS set in Settings > Home BBS (BPQMail so far): it dials the
   Address Book entry you name there, lists your mail with `LM`, reads only
   what kissterm does not already have, and disconnects, all shown in the

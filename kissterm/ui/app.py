@@ -117,6 +117,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from rich.table import Table
+from rich.text import Text
 from textual import events, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -260,7 +261,7 @@ class _TerminalSession:
     line_buffer: str = ""
 
 
-def _status_row(parts: list[str]) -> Table:
+def _status_row(parts: list[str | Text]) -> Table:
     """Lay `parts` out across the FULL width of the status bar, not bunched
     at the left with the rest of the row empty.
 
@@ -678,9 +679,9 @@ class KissTermApp(App):
         #: out N2 retries with no way to stop them. See `action_connect` and
         #: `action_disconnect`.
         self._connecting: dict[str, tuple[AX25Address, int]] = {}
-        #: True while Get mail runs (`action_get_mail`); one at a time.
+        #: True while Send/Receive runs (`action_get_mail`); one at a time.
         self._collecting = False
-        #: A background job's status-bar field (`GET MAIL reading 1/3`).
+        #: A background job's status-bar field ("Receiving 1 of 3"), shown green.
         self._activity = ""
         # What each Terminal tab last dialed, for Ctrl+R Reconnect: the whole
         # request (hops, login, port), not just the callsign, so a reconnect
@@ -3351,8 +3352,8 @@ class KissTermApp(App):
         replayed through the same flow (reminder, gate, hops, login).
         `on_link(link, key)` is called the moment the link is up, before
         anything awaits, and `on_reached(bool)` once the hop chain has (or
-        has not) reached the target -- Get mail's hooks (`action_get_mail`).
-        `focus_session=False` leaves focus alone: Get mail runs from the Mail
+        has not) reached the target -- Send/Receive's hooks (`action_get_mail`).
+        `focus_session=False` leaves focus alone: Send/Receive runs from the Mail
         tab, and focus in the hidden send line would switch to Terminal.
         """
         if self.station is None:
@@ -3944,7 +3945,8 @@ class KissTermApp(App):
         (`kissterm/mail/collect.py`) subscribes the moment the link is up,
         so the BBS's greeting is not missed, and starts once the chain has
         reached the target. The operator stays where they are: a toast says
-        it started, the status bar shows `GET MAIL <phase>` while it runs,
+        it started, the status bar shows its phase in green while it runs
+        ("Sending 1 of 2", "Receiving 2 of 4"),
         and a toast gives the outcome (DESIGN.md section 6). Every line it
         sends is echoed in the session's Terminal tab and the transcript.
         When it finishes, the link is disconnected; Ctrl+D stops it.
@@ -3958,7 +3960,7 @@ class KissTermApp(App):
         entry = self.addressbook.find(home.route.strip()) if home.route.strip() else None
         if entry is None:
             # First use, or the entry was forgotten: ask for the one thing
-            # Get mail cannot run without, then carry on.
+            # Send/Receive cannot run without, then carry on.
             chosen = await self.push_screen_wait(
                 HomeBbsSetupScreen(
                     [e.target for e in self.addressbook.entries], missing=home.route.strip()
@@ -4010,8 +4012,8 @@ class KissTermApp(App):
         # The operator stays on the Mail tab: a toast says a connect is under
         # way, and the status bar follows it. The whole session is in the
         # Terminal tab (F5) for anyone who wants to watch.
-        self.notify(f"Connecting to {entry.target} to get mail...", timeout=4)
-        self._mail_status(f"connecting {entry.target}")
+        self.notify(f"Connecting to {entry.target} to send and receive mail...", timeout=4)
+        self._mail_status(f"Connecting to {entry.target}")
         try:
             worker = self.action_connect(
                 prefill=entry, on_link=on_link, on_reached=on_reached, focus_session=False
@@ -4020,7 +4022,7 @@ class KissTermApp(App):
             collector = state["collector"]
             if collector is None:
                 self.notify(
-                    f"Get mail: could not connect to {entry.target}. "
+                    f"Send/Receive: could not connect to {entry.target}. "
                     "The Terminal tab (F5) says why.",
                     severity="error",
                 )
@@ -4028,17 +4030,16 @@ class KissTermApp(App):
             if not state["reached"]:
                 collector.close()
                 self.notify(
-                    f"Get mail: did not reach {entry.target}. The Terminal tab (F5) says why.",
+                    f"Send/Receive: did not reach {entry.target}. The Terminal tab (F5) says why.",
                     severity="error",
                 )
                 return
             result = await collector.run()
             key = state["key"]
-            self._mail_status("done")
             sent = f"{len(result.sent)} sent, " if result.sent else ""
             if result.stopped:
                 self.notify(
-                    f"Get mail stopped: {result.stopped}. "
+                    f"Send/Receive stopped: {result.stopped}. "
                     f"{sent}{len(result.filed)} received.",
                     severity="warning",
                 )
@@ -4055,19 +4056,28 @@ class KissTermApp(App):
             self._mail_status("")
 
     def _mail_note(self, key: str, text: str) -> None:
-        """A Get mail progress sentence, for the session log."""
+        """A Send/Receive progress sentence, for the session log."""
         self._to_terminal(key, "write_note", f"*** Mail: {text}\n")
 
     def _mail_status(self, phase: str) -> None:
-        """Get mail's status-bar field (`GET MAIL <phase>`); "" removes it.
+        """Send/Receive's status-bar field, in green ("Sending 1 of 2"); ""
+        removes it.
 
         Ongoing state goes in the status bar, never in a line inserted
         above a pane's content (DESIGN.md section 6)."""
-        self._activity = f"GET MAIL {phase}" if phase else ""
+        self._activity = phase
         self._refresh_status()
 
+    def _success_colour(self) -> str:
+        """The theme's `$success` for a Rich renderable, which cannot name
+        a CSS variable (the same lookup the APRS pane uses for `$warning`)."""
+        try:
+            return self.get_css_variables().get("success", "") or "green"
+        except Exception:  # noqa: BLE001 -- before the theme is applied
+            return "green"
+
     def _mail_sent(self, key: str, text: str) -> None:
-        """Echo a line Get mail sent, as a typed line is echoed."""
+        """Echo a line Send/Receive sent, as a typed line is echoed."""
         self._to_terminal(key, "write_note", text + "\n")
         self.log_sent(key, text, watch_hop=False)
 
@@ -4462,7 +4472,9 @@ class KissTermApp(App):
             if self.station is not None or self.session_transport is not None:
                 parts.append("disconnected")
         if self._activity:
-            parts.append(self._activity)
+            # Green, like a status light: something is under way that the
+            # operator started, and the words say how far it has got.
+            parts.append(Text(self._activity, style=f"bold {self._success_colour()}"))
         if getattr(self.config, "accept_incoming", False):
             # The honest counterpart to the opt-in: if this station will
             # transmit with nobody present, that fact is always on screen.

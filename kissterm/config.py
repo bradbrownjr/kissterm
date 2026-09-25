@@ -240,7 +240,7 @@ class BeaconConfig:
 
 @dataclass
 class HomeBbsConfig:
-    """The BBS that Get mail (Mail tab, G) collects from. ROADMAP P2.
+    """The BBS that Send/Receive (Mail tab, G) works with. ROADMAP P2.
 
     `route` names an Address Book entry, so the connect is the normal one --
     its frequency reminder, hop chain and login included -- and changing

@@ -5,6 +5,33 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-25] — Send/Receive, green progress, and a stalled frame named
+
+### Improvements
+
+- **G is now Send/Receive** (menu: Session > Send/Receive, S), since it
+  sends the Outbox as well as collecting.
+- **The status bar shows its progress in green words**: `Connecting to
+  WS1EC-2`, `Sending 1 of 2`, `Checking for mail`, `Receiving 2 of 4`,
+  instead of `GET MAIL <phase>` (DESIGN.md section 6).
+- **A send whose text never reaches the BBS says so.** On 2026-09-25 the
+  body of a message to W1BKW went as one 182-byte frame, was retried
+  30-37 times in each of three runs, and never arrived, while the node
+  answered every poll; the run reported "nothing from the BBS for 300 s".
+  It now reports that what was sent had not reached the BBS, the frame
+  size, and that a smaller paclen on the Address Book entry sends shorter
+  frames. `AX25Link.unacked_sizes` (read-only) is what tells the two apart.
+- **`docs/ON-AIR-TESTS.md`**: the tests waiting for the radio, with what
+  to do and what to expect (AGENTS.md section 7).
+
+**Files:** `kissterm/ax25/session.py`, `kissterm/mail/collect.py`,
+`kissterm/mail/compose.py`, `kissterm/ui/app.py`, `kissterm/ui/commands.py`,
+`kissterm/ui/mail_pane.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/settings_schema.py`, `kissterm/config.py`,
+`config.toml.example`, `tests/unit/test_mail_collect.py`,
+`tests/pilot/test_get_mail.py`, `README.md`, `DESIGN.md`, `AGENTS.md`,
+`docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-25] — Compose gives its rows to the text
 
 ### Improvements

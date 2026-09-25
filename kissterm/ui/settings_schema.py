@@ -528,7 +528,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         "Home BBS",
-        "Where Get mail (Mail tab, G) collects your mail. It dials an Address "
+        "Where Send/Receive (Mail tab, G) sends and collects your mail. It dials an Address "
         "Book entry the usual way, lists your mail with LM and reads only "
         "what is new. Messages stay on the BBS.",
         (

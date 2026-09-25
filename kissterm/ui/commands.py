@@ -185,7 +185,7 @@ COMMANDS: tuple[Command, ...] = (
     Command("file_transfer", "File transfer", "Session", "F",
             "Send or receive a file (YAPP or AutoBIN) on the connected session",
             tabs=("terminal",)),
-    Command("get_mail", "Get mail", "Session", "G",
+    Command("get_mail", "Send/Receive", "Session", "S",
             "Dial the Home BBS, send the Outbox, read new mail into Mail, "
             "and disconnect",
             tabs=("mail",), list_key="g"),

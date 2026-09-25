@@ -1381,10 +1381,10 @@ class RadioReminderScreen(ModalScreen[bool]):
 
 
 class HomeBbsSetupScreen(ModalScreen[str | None]):
-    """Get mail's first-run step: which Address Book entry reaches the BBS.
+    """Send/Receive's first-run step: which Address Book entry reaches the BBS.
 
     Shown when G is pressed with no Home BBS set, or one whose entry is no
-    longer in the Address Book. Only the one choice Get mail cannot run
+    longer in the Address Book. Only the one choice Send/Receive cannot run
     without; everything else in Settings > Home BBS has a working default
     (the BBS callsign comes from its prompt, BPQMail is recognised). Returns
     the chosen entry's target, or None. Saving it transmits nothing: the
@@ -1400,7 +1400,7 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
-            yield Label("Set up Get mail", id="connect-title")
+            yield Label("Set up Send/Receive", id="connect-title")
             if self._missing:
                 intro = (
                     f"The Home BBS entry {self._missing} is no longer in the "
@@ -1410,7 +1410,7 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
                 intro = ""
             if not self._targets:
                 yield Static(
-                    intro + "Get mail dials your home BBS from the Address "
+                    intro + "Send/Receive dials your home BBS from the Address "
                     "Book, which is empty. Connect to the BBS once with "
                     "Ctrl+N (the station is saved there), then press G again.",
                     id="reminder-detail",
@@ -1419,7 +1419,7 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
                     yield Button("Close", id="connect-cancel")
                 return
             yield Static(
-                intro + "Get mail dials your home BBS, lists your mail with LM "
+                intro + "Send/Receive dials your home BBS, sends your Outbox, lists your mail with LM "
                 "and reads only what is new. Which Address Book entry reaches "
                 "it?",
                 id="reminder-detail",
@@ -1435,7 +1435,7 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
                 id="connect-hint",
             )
             with Horizontal(id="connect-buttons"):
-                yield Button("Save and get mail", variant="primary", id="connect-go")
+                yield Button("Save and send/receive", variant="primary", id="connect-go")
                 yield Button("Cancel", id="connect-cancel")
 
     def on_mount(self) -> None:

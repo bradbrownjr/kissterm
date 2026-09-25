@@ -267,3 +267,17 @@ async def test_a_reply_from_another_bbs_goes_as_sp(tmp_path):
                        "LM": _capture("list_lm_empty.txt")})
     result, _notes, _ = await _run(bbs, store)
     assert bbs.sent[:2] == ["SP KC1UIX", "Re:Test"] and not result.stopped
+
+
+
+@pytest.mark.asyncio
+async def test_a_frame_that_never_arrives_is_named_as_such(tmp_path):
+    """2026-09-25: the body's 182-byte frame was retried for five minutes
+    while the node answered every poll. That is not a silent BBS."""
+    store = _store(tmp_path)
+    _outbox(store, to="W1BKW", at="", title="Hello", body="Hi\n")
+    bbs = ScriptedBbs({"SP W1BKW": SP[5:7], "Hello": SP[8:9]})
+    bbs.unacked_sizes = [182]
+    result, _notes, _ = await _run(bbs, store, idle_timeout=0.3)
+    assert "had not reached the BBS" in result.stopped and "182 bytes" in result.stopped
+    assert "paclen" in result.stopped and len(store.list(BBS_OUTBOX)) == 1

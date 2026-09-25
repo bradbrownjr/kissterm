@@ -246,6 +246,17 @@ class AX25Link:
         return self._win.sent
 
     @property
+    def unacked_sizes(self) -> list[int]:
+        """Payload length of each I frame sent and not yet acknowledged.
+
+        Read-only, for a caller that has to tell "the far end is silent"
+        from "our frames are not getting through" (the BBS collector, which
+        on a weak path saw a 182-byte frame fail 37 times while the node
+        answered every poll, 2026-09-25).
+        """
+        return [len(info) for info in self._win.sent.values()]
+
+    @property
     def connected(self) -> bool:
         return self.state in (SessionState.CONNECTED, SessionState.TIMER_RECOVERY)
 

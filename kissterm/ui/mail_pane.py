@@ -66,7 +66,7 @@ class FolderTree(Tree):
 
     BINDINGS = [
         Binding("insert", "new_message", "New"),
-        Binding("g", "get_mail", "Get mail"),
+        Binding("g", "get_mail", "Send/Receive"),
     ]
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
@@ -91,7 +91,7 @@ class MessageList(DataTable):
         Binding("q", "reply_quoted", "Reply quoted"),
         Binding("delete", "delete_message", "Delete"),
         Binding("u", "restore_message", "Restore"),
-        Binding("g", "get_mail", "Get mail"),
+        Binding("g", "get_mail", "Send/Receive"),
     ]
 
     def _browser(self) -> "MessageBrowser":

@@ -4,6 +4,10 @@ What is still open, in the order it should be done. Shipped work moves to
 `CHANGELOG.md` (dated section) and is deleted from this file the same day;
 nothing here is ever checked off and left in place.
 
+
+Waiting on the radio: `docs/ON-AIR-TESTS.md` lists what the operator
+still has to try on the air.
+
 ## How to work this file -- read before picking anything up
 
 These rules exist because of a failure mode found in the 2026-09-22 review

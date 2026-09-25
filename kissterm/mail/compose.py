@@ -2,7 +2,7 @@
 
 ROADMAP P2 "Compose and Outbox". A composed message is an ordinary
 `Message` in Mail/BBS/Outbox; nothing here transmits. The send headers in
-`Message.extra` say how it goes out when Get mail sends the Outbox:
+`Message.extra` say how it goes out when Send/Receive sends the Outbox:
 
 - `Send-Type`: `P` private, `B` bulletin (`T` NTS traffic, later).
 - `Send-At`: the `@` part, or "" to let BPQMail add it from the

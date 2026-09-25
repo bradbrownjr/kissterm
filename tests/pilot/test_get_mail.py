@@ -1,4 +1,5 @@
-"""Get mail (Mail tab, G) end to end: dial the Home BBS, collect, disconnect.
+"""Send/Receive (Mail tab, G) end to end: dial the Home BBS, send, collect,
+disconnect.
 
 The BBS is a second `AX25Station` on the loopback answering the way
 WS1EC-2's BPQMail did in the captures (`tests/unit/data/bpqmail/`).
@@ -110,9 +111,15 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
         shown: list[str] = []
         real_status = app._mail_status
 
+        styled: list[str] = []
+
         def _record(phase: str) -> None:
             real_status(phase)
             shown.append(_status_text(app))
+            table = app.query_one("#status-bar").content
+            styled.extend(str(cell.style) for column in table.columns
+                          for cell in column._cells
+                          if hasattr(cell, "plain") and cell.plain == phase and phase)
 
         app._mail_status = _record
         toasts: list[str] = []
@@ -130,7 +137,7 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
         assert app.query_one("#main-tabs").active == "mail"
         await wait_for(lambda: shown, "the status-bar field")
         assert any("Connecting to WS1EC-2" in t for t in toasts)
-        assert "GET MAIL connecting WS1EC-2" in shown[0]
+        assert "Connecting to WS1EC-2" in shown[0]
         assert app.query_one("#mail-browser").query_one(MessageList).region == tree_region
         await wait_for(lambda: app.mail_store.list(BBS_INBOX), "the message to be filed")
         assert app.query_one("#main-tabs").active == "mail"
@@ -139,8 +146,10 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
             "the outcome toast",
         )
         await wait_for(lambda: not app._activity, "the status-bar field to clear")
-        assert any("GET MAIL reading 1/1" in text for text in shown)
-        assert "GET MAIL" not in _status_text(app)
+        assert any("Receiving 1 of 1" in text for text in shown)
+        # Green and bold: the theme's $success, not a plain status word.
+        assert styled and all(style.startswith("bold ") and len(style) > 5 for style in styled)
+        assert "Receiving" not in _status_text(app)
         link = station.link_to(BBS)
         await wait_for(lambda: not link.connected, "the disconnect")
         assert heard == ["LM", "R 2578"]
