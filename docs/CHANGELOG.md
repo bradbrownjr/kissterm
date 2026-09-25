@@ -7,14 +7,13 @@ you need the history of a specific change.
 
 ## [2026-09-25] — Transcript keeps a blank line that ends a frame
 
-### Bug Fixes (closed)
+### Bug Fixes (awaiting operator confirmation)
 
 - **The session transcript dropped a blank line that fell at the end of a
   frame**, so messages 2801 and 2803 read back from WS1EC-2 looked as if
   BPQMail had lost blank lines between paragraphs. The frames carried
   them (the first ended `Hi Dave,\r\rI received y`); the terminal showed
-  them; only the transcript file stripped them. Found in the operator's
-  own capture, so closed.
+  them; only the transcript file stripped them.
 
 **Files:** `kissterm/session_log.py`, `tests/unit/test_session_log.py`,
 `docs/CHANGELOG.md`
