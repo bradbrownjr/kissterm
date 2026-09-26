@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Address Book buttons fit a narrow slide-out
+
+### Bug Fixes
+
+- **The Address Book's buttons no longer run off the screen** (P0.1,
+  awaiting confirmation). On the Mail tab's Ctrl+G slide-out the four
+  buttons need 44 columns and got 27; below that they now sit two by two.
+- **The Home BBS setup dialog and ON-AIR-TESTS named a Settings section
+  that does not exist** ("Connections"); an SSH connection is added under
+  Settings > Radio > New, kind SSH.
+
+**Files:** `kissterm/ui/addressbook_pane.py`, `kissterm/ui/styles.py`,
+`kissterm/ui/dialogs.py`, `tests/pilot/test_app_mounts.py`,
+`docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — I: Send/Receive by Internet
 
 ### New Features

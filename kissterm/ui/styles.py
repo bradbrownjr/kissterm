@@ -212,6 +212,9 @@ AddressBookPane { layout: vertical; padding: 0 2; }
 #known-nodes-table { height: 10; }  /* 8 rows inside the focus border */
 .addressbook-actions { height: auto; margin-top: 1; }
 .addressbook-actions Button { margin-right: 1; }
+/* Too narrow for the row (`AddressBookPane.on_resize`): two by two. */
+.addressbook-actions.-narrow { layout: grid; grid-size: 2; grid-gutter: 0 1; grid-rows: 3; }
+.addressbook-actions.-narrow Button { width: 100%; margin-right: 0; }
 
 /* APRS pane */
 AprsPane { height: 1fr; }

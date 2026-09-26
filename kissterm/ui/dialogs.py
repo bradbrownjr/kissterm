@@ -1459,9 +1459,9 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
                 yield Static(
                     intro + "I reaches your home BBS through a Telnet or SSH "
                     "connection, and none is configured. Add one in Settings (F9) "
-                    "> Connections -- for WS1EC, SSH to ws1ec.mainepacketradio.org "
-                    "port 4122 as packet, with its host key in a known_hosts file "
-                    "-- then press I again.",
+                    "> Radio > New, kind SSH -- for WS1EC, host "
+                    "ws1ec.mainepacketradio.org, port 4122, username packet, with "
+                    "its host key in a known-hosts file -- then press I again.",
                     id="reminder-detail",
                 )
                 with Horizontal(id="connect-buttons"):

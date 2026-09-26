@@ -1527,3 +1527,29 @@ async def test_opening_a_tab_focuses_something_worth_typing_into():
                 f"{tab} focused {app.focused.id if app.focused else None}"
             )
     station.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size", [(100, 33), (80, 24), (160, 40)])
+async def test_address_book_buttons_stay_inside_the_slide_out(size):
+    """Reported 2026-09-26: "Buttons are getting cut off on the address
+    book." The Mail tab's Ctrl+G slide-out at 100 columns left 27 columns
+    for four buttons that need 44; Edit and Forget ran off the screen. Below
+    that the row becomes a 2x2 grid (`AddressBookPane.on_resize`)."""
+    app, ta, tb, station = await _app()
+    app.config.start_tab = "mail"
+    async with app.run_test(size=size) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+g")
+        for _ in range(3):
+            await pilot.pause()
+        row = app.screen.query_one("#addressbook-buttons")
+        pane = row.parent.region
+        assert pane.width > 0, "the Address Book did not open"
+        for button in row.query("Button"):
+            r = button.region
+            assert r.width >= 10, f"{button.id} shrank to {r.width}"
+            assert pane.x <= r.x and r.right <= pane.right, (
+                f"{button.id} at {r} runs outside the pane {pane} at {size}")
+            assert r.bottom <= pane.bottom, f"{button.id} below the pane at {size}"
+    station.close()

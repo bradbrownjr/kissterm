@@ -137,7 +137,7 @@ saved (Settings > Mail > Winlink, Settings > Logins).
   the toast said: the likely cause is the CMS not accepting "kissterm"
   as a client name.
 - [ ] **Home BBS by Internet (SSH to WS1EC)** (no radio): add the
-  connection first -- Settings (F9) > Connections, SSH, host
+  connection first -- Settings (F9) > Radio > New, kind SSH, host
   ws1ec.mainepacketradio.org, port 4122, user packet, and a known_hosts
   file holding its host key. Then on BBS > Inbox press I: pick that
   connection, give your node password. Expect in the transcript (Session

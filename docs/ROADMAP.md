@@ -79,7 +79,12 @@ under rule 2 above, with the date and their words:
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
-(none open)
+- **Address Book buttons cut off** (2026-09-26, `awaiting confirmation`):
+  "Buttons are getting cut off on the address book." Mail tab, Ctrl+G
+  slide-out at 100 columns: the pane has 27 columns for four buttons that
+  need 43, so Edit and Forget ran off the screen. Fix: the row becomes a
+  2x2 grid when it does not fit (`AddressBookPane.on_resize`); geometry
+  test in `tests/pilot/test_app_mounts.py`.
 
 ---
 
