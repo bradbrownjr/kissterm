@@ -1457,6 +1457,55 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
         self.dismiss(value if isinstance(value, str) else None)
 
 
+class LoginAskScreen(ModalScreen[str | None]):
+    """Send/Receive's ask-before-dialing step for a login it needs and does
+    not have: the Winlink password, or a Home BBS login when Settings names
+    a login prompt (operator, 2026-09-26: "will the application ask me?").
+
+    Asked before anything is dialed, so a missing login never costs a
+    connect's airtime. One masked line; the caller saves it as a saved
+    login (the system keyring when there is one) under `name` and points
+    Settings at it. Returns the text, or None if cancelled.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, title: str, detail: str, name: str, *, secret: bool = True) -> None:
+        super().__init__()
+        self._title = title
+        self._detail = detail
+        self._name = name
+        self._secret = secret
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label(self._title, id="connect-title")
+            yield Static(self._detail, id="reminder-detail")
+            yield Input(password=self._secret, id="login-ask-text")
+            yield Label("", id="login-ask-error")
+            yield Label(f"Saved as the login \"{self._name}\" (Settings > Logins).",
+                        id="connect-hint")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save and send/receive", variant="primary", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#login-ask-text", Input).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#connect-go")
+    @on(Input.Submitted, "#login-ask-text")
+    def _go(self) -> None:
+        text = self.query_one("#login-ask-text", Input).value
+        if not text.strip():
+            self.query_one("#login-ask-error", Label).update("Empty: type it, or Cancel.")
+            return
+        self.dismiss(text)
+
+
 class SessionTransportPickerScreen(ModalScreen[str | None]):
     """Pick which session-tier transport to connect through (Telnet, SSH,
     VARA, Mercury, kernel AX.25) -- `Ctrl+N`'s equivalent of `ConnectScreen`

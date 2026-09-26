@@ -186,8 +186,8 @@ COMMANDS: tuple[Command, ...] = (
             "Send or receive a file (YAPP or AutoBIN) on the connected session",
             tabs=("terminal",)),
     Command("get_mail", "Send/Receive", "Session", "S",
-            "Dial the Home BBS (on a Winlink folder, the Winlink gateway), "
-            "send the Outbox, read new mail into Mail, and disconnect",
+            "Dial the Home BBS, the Winlink gateway on a Winlink folder, or "
+            "both from All Inboxes; send the Outbox, read new mail, disconnect",
             tabs=("mail",), list_key="g"),
     Command("compose_mail", "New message", "Session", "N",
             "Write a BBS message; it waits in the Outbox until sent",

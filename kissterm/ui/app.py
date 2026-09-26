@@ -148,7 +148,7 @@ from ..config import (
     state_path,
 )
 from ..mail import MessageStore
-from ..mail.store import INBOX, MAIL, SENT
+from ..mail.store import ALL_INBOXES, INBOX, MAIL, SENT
 from ..mail.winlink_collect import WINLINK_FOLDER
 from .. import desktop_notify
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
@@ -187,6 +187,7 @@ from .dialogs import (
     AprsIsWatchScreen,
     RadioReminderScreen,
     HomeBbsSetupScreen,
+    LoginAskScreen,
     TranscriptsScreen,
     FileTransferScreen,
 )
@@ -4047,10 +4048,12 @@ class KissTermApp(App):
     async def action_get_mail(self) -> None:
         """Send/Receive (Mail tab, G). ROADMAP P2.
 
-        G follows the folder in front (operator, 2026-09-26): on a
-        Mail/Winlink folder it runs a Winlink exchange
-        (`_winlink_send_receive`), anywhere else the Home BBS
-        (`_bbs_send_receive`). Both dial through `_dial_for_mail`, so the
+        G follows the folder in front (operator, 2026-09-26,
+        `send_receive_kind`): a Winlink folder runs Winlink, a BBS folder
+        the Home BBS, and All Inboxes each one that has a dial entry, the
+        Home BBS first. Missing logins are asked before the first dial
+        (`_bbs_prepare`, `_winlink_prepare`). Each run dials through
+        `_dial_for_mail`, so the
         reminder, the transmit gate, the hop chain and the route's own
         login all apply, and nothing here arms anything. The operator stays
         where they are: a toast says it started, the status bar shows its
@@ -4065,14 +4068,42 @@ class KissTermApp(App):
             return
         self._collecting = True
         try:
-            folder = self._mail_folder()
-            if folder == WINLINK_FOLDER or folder.startswith(f"{WINLINK_FOLDER}/"):
-                await self._winlink_send_receive()
-            else:
-                await self._bbs_send_receive()
+            kind = self.send_receive_kind(self._mail_folder())
+            # Everything that has to be asked is asked before the first
+            # dial, so a run of both never stops in between for a question.
+            runs = []
+            if kind in ("bbs", "all"):
+                prepared = await self._bbs_prepare()
+                if prepared is None:
+                    return
+                runs.append((self._bbs_run, prepared))
+            if kind in ("winlink", "all"):
+                prepared = await self._winlink_prepare()
+                if prepared is None:
+                    return
+                runs.append((self._winlink_run, prepared))
+            for run, (entry, options) in runs:
+                await run(entry, options)
         finally:
             self._collecting = False
             self._mail_status("")
+
+    def send_receive_kind(self, folder: str) -> str:
+        """What G does from `folder` (operator, 2026-09-26): "winlink" on a
+        Winlink folder; on All Inboxes "all" (the Home BBS, then Winlink)
+        when both have a dial entry, else whichever has one; "bbs"
+        anywhere else, and on All Inboxes when neither is set up yet (the
+        Home BBS's first-run question)."""
+        if folder == WINLINK_FOLDER or folder.startswith(f"{WINLINK_FOLDER}/"):
+            return "winlink"
+        if folder == ALL_INBOXES:
+            bbs = bool(self.config.home_bbs.route.strip())
+            winlink = bool(self.config.winlink.route.strip())
+            if bbs and winlink:
+                return "all"
+            if winlink:
+                return "winlink"
+        return "bbs"
 
     def _mail_folder(self) -> str:
         from .mail_pane import MessageBrowser
@@ -4104,6 +4135,29 @@ class KissTermApp(App):
         self._save_config()
         self.query_one(SettingsPane).render_settings(self.config)
         return entry
+
+    async def _ask_login(self, current: str, default_name: str, title: str, detail: str,
+                         *, secret: bool = True) -> tuple[str, str] | None:
+        """The saved login `current` names, as (name, text); if there is
+        none or it cannot be read, ask for it before dialing and save it
+        (`LoginAskScreen`). None if the operator cancelled."""
+        from ..config import set_credential
+
+        text = find_credential(self.config, current) if current else ""
+        if text:
+            return current, text
+        name = current or default_name
+        text = await self.push_screen_wait(LoginAskScreen(title, detail, name, secret=secret))
+        if not text:
+            return None
+        where = set_credential(self.config, name, text)
+        self._save_config()
+        self.notify(
+            f"Saved the login \"{name}\" in "
+            + ("the system keyring." if where == "keyring" else "config.toml (no system keyring here)."),
+            timeout=4,
+        )
+        return name, text
 
     async def _dial_for_mail(self, entry, build, what: str):
         """Dial `entry` for Send/Receive. `build(link, key)` makes the
@@ -4158,21 +4212,43 @@ class KissTermApp(App):
             return None
         return runner, state["key"]
 
-    async def _bbs_send_receive(self) -> None:
-        """The Home BBS: `kissterm/mail/collect.py` drives it."""
-        from ..mail.collect import BbsCollector, CollectOptions
+    async def _bbs_prepare(self):
+        """Everything the Home BBS run needs before dialing, asking for
+        what is missing: (entry, options), or None if cancelled."""
+        from ..mail.collect import CollectOptions
 
         home = self.config.home_bbs
         entry = await self._mail_route(home.route)
         if entry is None:
-            return
+            return None
+        login_text = ""
+        if home.login_prompt:
+            # Settings says the BBS asks for a login: have it before dialing.
+            login = await self._ask_login(
+                home.credential, "Home BBS", "Home BBS login",
+                f"The Home BBS asks for a login after \"{home.login_prompt}\" "
+                "(Settings > Mail), and no saved login answers it. What should be "
+                "sent? For more than one line, edit it later in Settings > Logins.",
+            )
+            if login is None:
+                return None
+            if home.credential != login[0]:
+                home.credential = login[0]
+                self._save_config()
+                self.query_one(SettingsPane).render_settings(self.config)
+            login_text = login[1]
         options = CollectOptions(
             bbs_call=home.call,
             software=home.software,
             ready_text=home.ready_text,
             login_prompt=home.login_prompt,
-            login_text=find_credential(self.config, home.credential) if home.credential else "",
+            login_text=login_text,
         )
+        return entry, options
+
+    async def _bbs_run(self, entry, options) -> None:
+        """The Home BBS: `kissterm/mail/collect.py` drives it."""
+        from ..mail.collect import BbsCollector
 
         def build(link, key: str):
             return BbsCollector(
@@ -4206,7 +4282,42 @@ class KissTermApp(App):
         self._reload_mail_tabs()
         await self._disconnect_session(key)
 
-    async def _winlink_send_receive(self) -> None:
+    async def _winlink_prepare(self):
+        """Everything the Winlink run needs before dialing, asking for what
+        is missing: (entry, options), or None if cancelled."""
+        from ..config import winlink_account
+        from ..mail.winlink_collect import WinlinkOptions
+
+        winlink = self.config.winlink
+        account = winlink_account(self.config)
+        if not account:
+            self.notify("Set your callsign first (Session > My callsign).", severity="warning")
+            return None
+        entry = await self._mail_route(winlink.route, winlink=True)
+        if entry is None:
+            return None
+        # Have the password before dialing, so a missing one never costs a
+        # connect. UNVERIFIED: that every gateway challenges (Winlink
+        # accounts have passwords; wl2k-go answers ;PQ whenever it comes).
+        login = await self._ask_login(
+            winlink.credential, "Winlink", "Winlink password",
+            f"The Winlink password for {account}. It never goes on the air: "
+            "the gateway sends a challenge, and only the answer to it is sent.",
+        )
+        if login is None:
+            return None
+        if winlink.credential != login[0]:
+            winlink.credential = login[0]
+            self._save_config()
+            self.query_one(SettingsPane).render_settings(self.config)
+        return entry, WinlinkOptions(
+            account,
+            password=login[1],
+            target=str(parse_path(entry.target).destination),
+            locator=winlink.locator or self.config.aprs.grid_square,
+        )
+
+    async def _winlink_run(self, entry, options) -> None:
         """Winlink over the route Settings > Mail names:
         `kissterm/mail/winlink_collect.py` drives the B2F exchange.
 
@@ -4216,23 +4327,7 @@ class KissTermApp(App):
         suppression a file transfer uses, `_transfer_active`). What arrived
         before the exchange started (the node's banner, the hop chain) was
         shown as usual."""
-        from ..config import winlink_account
-        from ..mail.winlink_collect import WinlinkCollector, WinlinkOptions
-
-        winlink = self.config.winlink
-        account = winlink_account(self.config)
-        if not account:
-            self.notify("Set your callsign first (Session > My callsign).", severity="warning")
-            return
-        entry = await self._mail_route(winlink.route, winlink=True)
-        if entry is None:
-            return
-        options = WinlinkOptions(
-            account,
-            password=(find_credential(self.config, winlink.credential) or "") if winlink.credential else "",
-            target=str(parse_path(entry.target).destination),
-            locator=winlink.locator or self.config.aprs.grid_square,
-        )
+        from ..mail.winlink_collect import WinlinkCollector
 
         def build(link, key: str):
             return WinlinkCollector(

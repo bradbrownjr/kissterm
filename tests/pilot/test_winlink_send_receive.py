@@ -56,6 +56,8 @@ async def _app(tmp_path, route: str = "WS1EC-10"):
     config.tx_armed_at_start = True
     config.slideouts_auto_open = False
     config.winlink.route = route
+    config.winlink.credential = "winlink"
+    config.credentials = [{"name": "winlink", "text": "FooBar"}]
     station = AX25Station(MYCALL, ta, FAST)
     app = KissTermApp(config, station)
     app.addressbook = AddressBook(tmp_path / "addressbook.json")
@@ -81,12 +83,13 @@ async def test_g_on_a_winlink_folder_sends_and_receives_with_winlink(tmp_path):
         sender="KC1JMH", to="W1AW", subject="Net report", body="All accounted for.\n",
         date=datetime(2026, 9, 26, 12, 0, tzinfo=timezone.utc)))
     rms = AX25Station(RMS, tb, FAST)
-    gateway = Gateway([REAL.read_bytes()])
+    gateway = Gateway([REAL.read_bytes()], challenge=True)
     _gateway(rms, gateway)
     async with app.run_test(size=(120, 40)) as pilot:
         app.action_show_tab("mail")
         await pilot.pause()
         browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder("Mail/BBS/Inbox")
         browser.query_one(MessageList).focus()
         await pilot.pause()
         assert "get_mail" in _footer_actions(app) and "get_winlink" not in _footer_actions(app)
@@ -106,6 +109,7 @@ async def test_g_on_a_winlink_folder_sends_and_receives_with_winlink(tmp_path):
         assert not app.mail_store.list(BBS_INBOX)
         assert gateway.handshake[0] == ";FW: KC1JMH"  # the account, no SSID
         assert gateway.handshake[-1] == "; WS1EC-10 DE KC1JMH ()"
+        assert ";PR: 95074758" in gateway.handshake  # the saved login answered it
         text = _log_text(app)
         assert "[WL2K-5.0-B2FWIHJM$]" in text and "FC EM " in text
         assert "[message " in text  # the compressed bytes, summarised
@@ -137,4 +141,120 @@ async def test_g_on_winlink_without_a_route_asks_with_winlink_words(tmp_path):
         await pilot.click("#connect-cancel")
         await wait_for(lambda: not isinstance(app.screen, HomeBbsSetupScreen), "the dialog to close")
         assert app.config.winlink.route == "" and app.config.home_bbs.route == ""
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_without_a_password_g_asks_before_dialing(tmp_path):
+    from textual.widgets import Input
+
+    from kissterm.config import find_credential
+    from kissterm.ui.dialogs import LoginAskScreen
+
+    app, station, tb = await _app(tmp_path)
+    app.config.winlink.credential = ""
+    app.config.credentials = []
+    rms = AX25Station(RMS, tb, FAST)
+    gateway = Gateway(challenge=True)
+    _gateway(rms, gateway)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder(WINLINK_INBOX)
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("g")
+        await wait_for(lambda: isinstance(app.screen, LoginAskScreen), "the password question")
+        assert not station.transport.sent  # asked before anything was dialed
+        field = app.screen.query_one("#login-ask-text", Input)
+        assert field.password  # masked
+        field.value = "FooBar"
+        await pilot.press("enter")
+        await wait_for(lambda: gateway.handshake and gateway.handshake[-1].startswith("; "),
+                       "the handshake", timeout=20)
+        assert ";PR: 95074758" in gateway.handshake
+        assert app.config.winlink.credential == "Winlink"
+        assert find_credential(app.config, "Winlink") == "FooBar"
+        await wait_for(lambda: not app._collecting, "the run to finish", timeout=20)
+    rms.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_cancelling_the_password_question_sends_nothing(tmp_path):
+    from kissterm.ui.dialogs import LoginAskScreen
+
+    app, station, _tb = await _app(tmp_path)
+    app.config.winlink.credential = ""
+    app.config.credentials = []
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder(WINLINK_INBOX)
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("g")
+        await wait_for(lambda: isinstance(app.screen, LoginAskScreen), "the password question")
+        await pilot.pause()
+        await pilot.click("#connect-cancel")
+        await wait_for(lambda: not app._collecting, "G to give up")
+        assert not station.transport.sent and app.config.credentials == []
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_all_inboxes_label_follows_what_is_set_up(tmp_path):
+    from kissterm.mail.store import ALL_INBOXES
+
+    app, station, _tb = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder(ALL_INBOXES)
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        assert "get_winlink" in _footer_actions(app)  # only Winlink set up
+        app.config.home_bbs.route = "WS1EC-2"
+        app.screen.refresh_bindings()
+        await pilot.pause()
+        assert "get_all" in _footer_actions(app)
+        assert not {"get_mail", "get_winlink"} & _footer_actions(app)
+        browser.show_folder("Mail/BBS/Inbox")
+        await pilot.pause()
+        assert "get_mail" in _footer_actions(app) and "get_all" not in _footer_actions(app)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_g_on_all_inboxes_runs_the_bbs_then_winlink(tmp_path):
+    from kissterm.mail.store import ALL_INBOXES
+    from tests.pilot.test_get_mail import BBS, _bpqmail
+
+    app, station, tb = await _app(tmp_path)
+    app.config.home_bbs.route = "WS1EC-2"
+    app.addressbook.record_attempt("WS1EC-2")
+    bbs = AX25Station(BBS, tb, FAST)
+    heard: list[str] = []
+    _bpqmail(bbs, heard)
+    rms = AX25Station(RMS, tb, FAST)
+    gateway = Gateway([REAL.read_bytes()])
+    _gateway(rms, gateway)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder(ALL_INBOXES)
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("g")
+        await wait_for(lambda: app.mail_store.list(BBS_INBOX) and app.mail_store.list(WINLINK_INBOX),
+                       "mail from both", timeout=30)
+        assert heard[:2] == ["LM", "R 2578"]  # the BBS came first
+        await wait_for(lambda: not app._collecting, "both runs to finish", timeout=20)
+        assert not station.link_to(BBS).connected and not station.link_to(RMS).connected
+    bbs.close()
+    rms.close()
     station.close()

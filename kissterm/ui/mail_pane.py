@@ -17,9 +17,9 @@ the store (`kissterm/mail/`) it shows:
 The folder tree replaces a sub-tab strip. Keys follow DESIGN.md section 5
 rule 4, bound on the list itself so they work only while it has focus and
 never while typing: Enter opens, Delete moves to Deleted, U restores from
-Deleted, and on the Mail tab G sends and receives: with the Home BBS, or
-on a Winlink folder with Winlink (`KissTermApp.action_get_mail`; the
-Footer says which). Each key is shown only where it works
+Deleted, and on the Mail tab G sends and receives: with the Home BBS on a
+BBS folder, with Winlink on a Winlink folder, and with each one set up on
+All Inboxes (`KissTermApp.send_receive_kind`; the Footer says which). Each key is shown only where it works
 (`MessageList.check_action`). Compose (Insert) and reply are added when
 they exist, not before.
 
@@ -60,6 +60,11 @@ def _short_date(value: datetime | None) -> str:
     return value.astimezone().strftime("%m-%d %H:%M") if value else ""
 
 
+#: G's three Footer labels, by what it does from the folder in front
+#: (`KissTermApp.send_receive_kind`): only the one that applies is shown.
+_G_KIND = {"get_mail": "bbs", "get_winlink": "winlink", "get_all": "all"}
+
+
 class FolderTree(Tree):
     """The folder tree. Each node's data is a folder path or `ALL_INBOXES`.
 
@@ -71,12 +76,13 @@ class FolderTree(Tree):
         Binding("insert", "new_message", "New"),
         Binding("g", "get_mail", "Send/Receive"),
         Binding("g", "get_winlink", "Send/Receive Winlink"),
+        Binding("g", "get_all", "Send/Receive all"),
     ]
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         browser = self.query_ancestor(MessageBrowser)
-        if action in ("get_mail", "get_winlink"):
-            return browser.id == "mail-browser" and (action == "get_winlink") == browser.on_winlink()
+        if action in _G_KIND:
+            return browser.id == "mail-browser" and browser.g_kind() == _G_KIND[action]
         if action == "new_message":
             return browser.id == "mail-browser"
         return True
@@ -85,6 +91,9 @@ class FolderTree(Tree):
         self.app.action_get_mail()  # type: ignore[attr-defined]
 
     def action_get_winlink(self) -> None:
+        self.app.action_get_mail()  # type: ignore[attr-defined]
+
+    def action_get_all(self) -> None:
         self.app.action_get_mail()  # type: ignore[attr-defined]
 
     def action_new_message(self) -> None:
@@ -103,6 +112,7 @@ class MessageList(DataTable):
         Binding("u", "restore_message", "Restore"),
         Binding("g", "get_mail", "Send/Receive"),
         Binding("g", "get_winlink", "Send/Receive Winlink"),
+        Binding("g", "get_all", "Send/Receive all"),
         Binding("v", "toggle_form", "Form/text"),
     ]
 
@@ -117,8 +127,8 @@ class MessageList(DataTable):
             return self.row_count > 0 and browser.can_delete()
         if action == "restore_message":
             return self.row_count > 0 and browser.can_restore()
-        if action in ("get_mail", "get_winlink"):
-            return browser.id == "mail-browser" and (action == "get_winlink") == browser.on_winlink()
+        if action in _G_KIND:
+            return browser.id == "mail-browser" and browser.g_kind() == _G_KIND[action]
         if action == "new_message":
             return browser.id == "mail-browser"
         if action in ("reply", "reply_quoted"):
@@ -170,6 +180,9 @@ class MessageList(DataTable):
         self.app.action_get_mail()  # type: ignore[attr-defined]
 
     def action_get_winlink(self) -> None:
+        self.app.action_get_mail()  # type: ignore[attr-defined]
+
+    def action_get_all(self) -> None:
         self.app.action_get_mail()  # type: ignore[attr-defined]
 
 
@@ -412,11 +425,9 @@ class MessageBrowser(Horizontal):
             return ""
         return self._rows[table.cursor_row]
 
-    def on_winlink(self) -> bool:
-        """G sends and receives with Winlink here, not the Home BBS."""
-        from ..mail.winlink_collect import WINLINK_FOLDER
-
-        return self.folder == WINLINK_FOLDER or self.folder.startswith(f"{WINLINK_FOLDER}/")
+    def g_kind(self) -> str:
+        """What G does from this folder: "bbs", "winlink" or "all"."""
+        return self.app.send_receive_kind(self.folder)  # type: ignore[attr-defined]
 
     def can_delete(self) -> bool:
         return not self.files and self.folder != "" and (

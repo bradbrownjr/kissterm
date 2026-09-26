@@ -281,3 +281,41 @@ async def test_a_frame_that_never_arrives_is_named_as_such(tmp_path):
     result, _notes, _ = await _run(bbs, store, idle_timeout=0.3)
     assert "had not reached the BBS" in result.stopped and "182 bytes" in result.stopped
     assert "paclen" in result.stopped and len(store.list(BBS_OUTBOX)) == 1
+
+
+@pytest.mark.asyncio
+async def test_an_unanswered_bpq_login_prompt_stops_by_name(tmp_path, monkeypatch):
+    from kissterm.mail import collect
+
+    monkeypatch.setattr(collect, "LOGIN_WAIT", 0.1)
+    # BPQ's default LOGINPROMPT, sent with no line ending (TelnetV6.c).
+    bbs = ScriptedBbs({}, greeting=[])
+    bbs.start = lambda: asyncio.get_event_loop().call_later(
+        0.01, lambda: [cb(b"user:") for cb in list(bbs.on_data)])
+    result, _notes, _ = await _run(bbs, _store(tmp_path))
+    assert 'asks for a login ("user:") and none is set up' in result.stopped
+    assert bbs.sent == []
+
+
+@pytest.mark.asyncio
+async def test_a_login_asked_for_again_says_ours_may_be_wrong(tmp_path, monkeypatch):
+    from kissterm.mail import collect
+
+    monkeypatch.setattr(collect, "LOGIN_WAIT", 0.1)
+    bbs = ScriptedBbs({"KC1JMH": ["password:"]}, greeting=[])
+    bbs.start = lambda: asyncio.get_event_loop().call_later(
+        0.01, lambda: [cb(b"user:") for cb in list(bbs.on_data)])
+    bbs._deliver = lambda chunks: [cb(c.encode("latin-1")) for c in chunks for cb in list(bbs.on_data)]
+    result, _notes, _ = await _run(bbs, _store(tmp_path), login_prompt="user:", login_text="KC1JMH")
+    assert "asked for a login again" in result.stopped and "may be wrong" in result.stopped
+
+
+@pytest.mark.asyncio
+async def test_a_login_prompt_the_route_answered_is_not_a_stop(tmp_path, monkeypatch):
+    from kissterm.mail import collect
+
+    monkeypatch.setattr(collect, "LOGIN_WAIT", 0.1)
+    # The route's login script answered "user:"; the BBS carried on.
+    bbs = ScriptedBbs({"LM": ["de WS1EC#>"]}, greeting=["user:", *GREETING])
+    result, _notes, _ = await _run(bbs, _store(tmp_path))
+    assert not result.stopped and bbs.sent == ["LM"]

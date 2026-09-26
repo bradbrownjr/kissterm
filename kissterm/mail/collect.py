@@ -8,6 +8,9 @@ would at the keyboard:
 1. Wait for the BBS to be ready: its prompt (`de WS1EC#>`), or the
    operator's own "ready" text for a BBS whose prompt is not recognised.
    If a login prompt is configured and seen first, send the credential.
+   A BPQ Telnet login prompt (`LOGIN_PROMPTS`) left unanswered for
+   `LOGIN_WAIT` seconds stops the run by name -- no login set up, or ours
+   refused -- instead of waiting out the idle timeout.
 2. Check what answered. BPQMail is the only application whose replies are
    captured (`bpqmail.py`), so anything else stops here, by name.
 3. Send Mail/BBS/Outbox, oldest first (`compose.send_command`: `SR n` for
@@ -64,6 +67,16 @@ RAW_SUFFIX = ".bbs"
 #: weak WS1EC-2 path a nine-line listing took almost four minutes, with
 #: gaps of two between lines (2026-09-24).
 DEFAULT_IDLE_TIMEOUT = 300.0
+
+#: BPQ's Telnet login prompts, from LinBPQ `TelnetV6.c`: the defaults of
+#: LOGINPROMPT and PASSWORDPROMPT ("user:", "password:", sent with no line
+#: ending) and relay mode's "Callsign :" / "Password :".
+# UNVERIFIED: not yet seen in a capture, and a sysop can change the first
+# two, so a prompt this does not know still ends in the idle timeout.
+LOGIN_PROMPTS = ("user:", "password:", "callsign :", "password :")
+#: Seconds a login prompt may stand unanswered before the run stops: long
+#: enough for the route's own login script to have answered it.
+LOGIN_WAIT = 20.0
 
 SOFTWARE_AUTO = "auto"
 SOFTWARE_BPQMAIL = "bpqmail"
@@ -131,6 +144,8 @@ class BbsCollector:
         self._lines: list[str] = []
         self._transcript: list[str] = []
         self._arrived = asyncio.Event()
+        #: The last line or partial line heard, for a login prompt check.
+        self._last = ""
         link.on_data.append(self._on_data)
 
     def close(self) -> None:
@@ -161,15 +176,28 @@ class BbsCollector:
         lines, self._lines = self._lines, []
         return lines
 
-    async def _wait_for_data(self) -> None:
+    async def _wait_for_data(self, login_prompt: str = "", login_was_sent: bool = False) -> None:
         # The event is cleared by the loops before they look at the input,
         # never here: data that arrived while a loop was sending has already
         # set it, and clearing now would sleep through it.
         if not self.link.connected:
             raise CollectStopped("the link dropped")
         try:
-            await asyncio.wait_for(self._arrived.wait(), self.options.idle_timeout)
+            await asyncio.wait_for(self._arrived.wait(),
+                                   LOGIN_WAIT if login_prompt else self.options.idle_timeout)
         except asyncio.TimeoutError:
+            if login_prompt and login_was_sent:
+                raise CollectStopped(
+                    f"the BBS asked for a login again (\"{login_prompt}\") after ours was "
+                    "sent: the saved login may be wrong (Settings > Logins)"
+                ) from None
+            if login_prompt:
+                # Nothing answered it: not the route's script, not us.
+                raise CollectStopped(
+                    f"the BBS asks for a login (\"{login_prompt}\") and none is set up. "
+                    "In Settings > Mail, set Login prompt to that text; G then asks "
+                    "for the login"
+                ) from None
             unacked = list(getattr(self.link, "unacked_sizes", []) or [])
             if unacked:
                 # The link is up and the BBS answers polls, but what we sent
@@ -307,7 +335,8 @@ class BbsCollector:
     async def _until_ready(self) -> str:
         """Wait for the BBS to be ready; returns the prompt's call, or ""."""
         ready = self.options.ready_text
-        login_sent = not (self.options.login_prompt and self.options.login_text)
+        configured = bool(self.options.login_prompt and self.options.login_text)
+        login_sent = not configured
         while True:
             self._arrived.clear()
             lines = self._take_lines()
@@ -327,7 +356,15 @@ class BbsCollector:
                     if (call := bpqmail.prompt_call(candidate)):
                         self._pending.clear()
                         return call
-            await self._wait_for_data()
+            if lines or self._partial:
+                self._last = self._partial or lines[-1]
+            unanswered = ""
+            if login_sent and self._last.strip().lower() in LOGIN_PROMPTS:
+                # A login prompt is the last thing heard and nothing is left
+                # to answer it: stop soon, by name, rather than after the
+                # idle timeout.
+                unanswered = self._last.strip()
+            await self._wait_for_data(login_prompt=unanswered, login_was_sent=configured)
 
     def _check_software(self) -> None:
         if self.options.software == SOFTWARE_BPQMAIL:

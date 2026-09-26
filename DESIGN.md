@@ -202,8 +202,9 @@ is the enforcement.
    Edit is not F2, because F2 is a tab.
    Mail, Bulletins and Files: Enter opens, Delete moves to Deleted, U
    restores from Deleted; on Mail, G sends and receives -- with Winlink on
-   a Mail/Winlink folder, with the Home BBS anywhere else, the Footer
-   saying which (operator, 2026-09-26) -- and Insert writes a new message; on Mail and Bulletins, V switches a message
+   a Winlink folder, the Home BBS on a BBS folder, and on All Inboxes
+   each one that is set up, the Home BBS first, the Footer saying which
+   (operator, 2026-09-26) -- and Insert writes a new message; on Mail and Bulletins, V switches a message
    received as a form between the form and its text, R replies and Q
    replies with the original quoted. None of them transmits.
 5. **The Footer shows only what works right now.** An action that does not

@@ -289,3 +289,26 @@ async def test_g_sends_the_outbox_before_reading(tmp_path):
         assert any("1 sent, 1 new message" in t for t in toasts), toasts
     bbs.close()
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_login_prompt_without_a_saved_login_is_asked_before_dialing(tmp_path):
+    from kissterm.ui.dialogs import LoginAskScreen
+
+    app, station, _tb = await _app(tmp_path)
+    app.config.home_bbs.login_prompt = "password:"
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.action_show_tab("mail")
+        browser = app.query_one("#mail-browser")
+        browser.show_folder("Mail/BBS/Inbox")
+        await wait_for(lambda: isinstance(app.focused, (MessageList, FolderTree)),
+                       "the Mail tab to take focus")
+        await pilot.press("g")
+        await wait_for(lambda: isinstance(app.screen, LoginAskScreen), "the login question")
+        assert "Home BBS login" in str(app.screen.query_one("#connect-title").render())
+        await pilot.pause()
+        await pilot.click("#connect-cancel")
+        await wait_for(lambda: not app._collecting, "G to give up")
+        assert not station.transport.sent
+    station.close()
