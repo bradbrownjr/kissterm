@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Winlink message format
+
+### New Features
+
+- **Winlink messages in B2 format**: read and write the headers, body and
+  attachments a Winlink message carries, with new message IDs, the date
+  layouts seen in the wild, and non-ASCII subjects and file names. A real
+  message with a picture attached (wl2k-go's test data) reads and writes
+  back byte for byte. No UI yet.
+
+**Files:** `kissterm/winlink/message.py` (new), `kissterm/winlink/__init__.py`,
+`tests/unit/test_winlink_message.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Winlink groundwork: secure login and LZHUF
 
 ### New Features
