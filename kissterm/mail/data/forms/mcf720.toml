@@ -1,0 +1,7 @@
+# MCF720 PRICE SURVEY: SitRepNet's local price survey strip, as bpq-apps
+# ships it (apps/forms/mcf720-price-survey.frm v1.0, same author), prompts
+# verbatim. "(@0=Local/Regional Chain, ...)" keeps its "/" (see forms.py).
+id = "mcf720"
+title = "MCF720 Price Survey (strip)"
+source = "bpq-apps mcf720-price-survey.frm v1.0 (SitRepNet MCF720)"
+strip = "MCF720 PRICE SURVEY/STATE (ST) or Region:/GRID (GR) Maidenhead Grid or NA:/MILK 1gal (ML):/EGGS 1doz (EG):/COFFEE Ground (CF):/BEEF Ground 1lb (BF):/BEER 24 pack (BR):/BREAD Loaf (BD):/GASOLINE 1gal (GA):/DIESEL 1gal (DS):/SOURCE (@0=Local/Regional Chain, @1=Walmart, @2=Other):/POWER RELIABILITY (@0=No Outages, @1=One+ Outages in 7 days):/ADDITIONAL INFO (AI)://"

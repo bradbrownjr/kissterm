@@ -1,0 +1,7 @@
+# GYX WEATHER: the SKYWARN observation strip for NWS Gray, Maine (GYX),
+# as bpq-apps ships it (apps/forms/gyx-weather.frm v1.1, same author),
+# with its prompts verbatim, including the unmatched ")" after TOWN.
+id = "gyx_weather"
+title = "GYX Weather Report (strip)"
+source = "bpq-apps gyx-weather.frm v1.1 (NWS Gray ME SKYWARN strip)"
+strip = "GYX WEATHER/DATE (MM-DD-YYYY)/TIME (HHMML OR HHMMZ)/CALL SIGN/SPOTTER ID (OR NA)/SOURCE (Amateur Radio, Trained Spotter, Media, Public Service Radio, Other 3rd Party, Direct Messaging)/LOCATION ROAD, TOWN)/STATE (AA)/CURRENT WEATHER (RELEVANT INFO, BE BRIEF)/SNOW, SLEET (INCHES OR NA, IF STORM TOTAL ADD * EG 2.6 or 3.5*)/ICE ACCRETION (INCHES OR NA)/RAINFALL (INCHES OR NA, IF STORM TOTAL ADD * EG 2.6 or 3.5*)/HAIL SIZE (INCHES OR NA)/WIND DIRECTION & SPEED (AAA@MPH)/STORM DAMAGE (WIND, FLOODING, ICE JAMS, OTHER DETAILS)/MODE (Personal Observation, FM Repeater, Winlink, DMR, Direct Messaging. For Others Leave Blank)/NET (NAME OF RADIO NET OR OTHER EG EMAIL, SLACK)//"

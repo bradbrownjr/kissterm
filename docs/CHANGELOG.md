@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Forms: information strips
+
+### New Features
+
+- **Information strips** (`TITLE/question/.../question//`): GYX Weather
+  Report (the NWS Gray SKYWARN strip) and MCF720 Price Survey ship as
+  Types; "Information strip (paste)" answers any other. Each question is
+  a field, your call and grid fill themselves, and the answer goes out
+  as one line with an empty answer as three spaces.
+- **Answer strip** on a reply whose original carries a request strip:
+  the answer becomes the reply's text.
+- A `/` inside parentheses stays in its question (MCF720's
+  "Local/Regional Chain"), unlike bpq-apps, which splits it.
+
+**Files:** `kissterm/mail/forms.py`, `kissterm/mail/data/forms/`,
+`kissterm/ui/form_screen.py`, `kissterm/ui/compose.py`, `kissterm/ui/app.py`,
+`tests/unit/test_mail_forms.py`, `tests/pilot/test_forms.py`, `README.md`,
+`docs/PROTOCOL_GUIDE.md`, `docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`,
+`kissterm/mail/AGENTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Forms: situation reports
 
 ### New Features

@@ -3931,7 +3931,7 @@ class KissTermApp(App):
         from ..locator import to_grid
         from ..mail import forms
         from ..mail.compose import BBS_OUTBOX, radiogram_defaults
-        from .compose import FORM_PREFIX, RADIOGRAM, ComposeScreen
+        from .compose import ANSWER_STRIP, FORM_PREFIX, RADIOGRAM, ComposeScreen
         from .form_screen import FormScreen
         from .radiogram import RadiogramScreen
 
@@ -3947,19 +3947,38 @@ class KissTermApp(App):
         message = await self.push_screen_wait(
             ComposeScreen(str(self.config.mycall or ""), reply_to=original, quoted=bool(quoted))
         )
-        if isinstance(message, str) and message.startswith(FORM_PREFIX):
-            # A form: fill it in, then address it in the compose screen.
-            form = forms.get_form(message.removeprefix(FORM_PREFIX))
-            remembered_at = state_path() / "forms.json"
-            aprs = self.config.aprs
-            grid = to_grid(aprs.latitude, aprs.longitude) if aprs.latitude or aprs.longitude else ""
+        remembered_at = state_path() / "forms.json"
+        aprs = self.config.aprs
+        grid = to_grid(aprs.latitude, aprs.longitude) if aprs.latitude or aprs.longitude else ""
+
+        async def fill(form: forms.FormDef):
             draft = await self.push_screen_wait(FormScreen(
                 form, mycall=str(self.config.mycall or ""), grid=grid,
                 remembered=forms.load_remembered(remembered_at, form.id),
             ))
+            if draft is not None:
+                forms.save_remembered(remembered_at, form.id,
+                                      forms.to_remember(form, draft.form_values))
+            return draft
+
+        if message == ANSWER_STRIP and original is not None:
+            # The original's request strip as a form; the answer is the
+            # reply's text, addressed and titled as any reply.
+            draft = await fill(forms.strip_form(forms.find_strip(original.body)))
             if draft is None:
                 return
-            forms.save_remembered(remembered_at, form.id, forms.to_remember(form, draft.form_values))
+            message = await self.push_screen_wait(ComposeScreen(
+                str(self.config.mycall or ""), reply_to=original, draft=draft,
+            ))
+        if isinstance(message, str) and message.startswith(FORM_PREFIX):
+            # A form: fill it in, then address it in the compose screen.
+            # A pasted strip is two forms: the paste, then its questions.
+            form = forms.get_form(message.removeprefix(FORM_PREFIX))
+            draft = await fill(form)
+            if draft is not None and form is forms.PASTE_STRIP:
+                draft = await fill(forms.strip_form(forms.find_strip(draft.form_values["strip"])))
+            if draft is None:
+                return
             message = await self.push_screen_wait(
                 ComposeScreen(str(self.config.mycall or ""), draft=draft)
             )

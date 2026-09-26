@@ -16,6 +16,10 @@ rows as they need to fit 80 columns, each input labelled by its
 placeholder (a column with choices is a select). Computed columns and
 values (`sum_of`, `derived`, `totals`) are not shown: the preview in the
 compose screen has them.
+
+An information strip (`forms.strip_form`) is an ordinary form here: one
+text field per question, labelled with the question cut to fit, the whole
+question on the help line.
 """
 
 from __future__ import annotations
@@ -101,7 +105,7 @@ class FormScreen(ModalScreen["Draft | None"]):
                 yield Label(f.label, classes="form-label form-rows-label")
             yield Button("Add line", compact=True, id=f"{wid}-add", classes="form-add")
             return
-        if f.kind == "multiline":
+        if f.kind in ("multiline", "strip"):
             yield Label(f.label, classes="form-label form-label-alone")
             yield TextArea(value, id=wid, tab_behavior="focus", soft_wrap=True, classes="form-multiline")
             return
@@ -180,7 +184,7 @@ class FormScreen(ModalScreen["Draft | None"]):
                     {c.id: self._cell(f"#form-{f.id}-{n}-{c.id}") for c in f.columns if not c.sum_of}
                     for n in range(1, self._row_counts[f.id] + 1)
                 ]
-            elif f.kind == "multiline":
+            elif f.kind in ("multiline", "strip"):
                 values[f.id] = self.query_one(wid, TextArea).text
             elif f.kind == "choice":
                 chosen = self.query_one(wid, Select).value

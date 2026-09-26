@@ -252,11 +252,11 @@ transcribed).
 
 Phases, each shipped and tested on its own. Phases A (the engine,
 ICS-213 and ICS-213RR), B (Winlink and PKTNET check-ins) and C (Field
-Situation Report, Severe WX, Damage Assessment, Incident Status) shipped
-2026-09-26.
+Situation Report, Severe WX, Damage Assessment, Incident Status) and D
+(information strips: GYX WEATHER, MCF720, paste any strip, Answer strip
+on a reply) shipped 2026-09-26. ROSTER is not shipped: it is bpq-apps'
+README example, not a form any net publishes; paste it.
 
-- [ ] **D. Strips**: a generic strip responder, GYX WEATHER, MCF720 and
-  ROSTER shipped, and answering a request strip from a received message.
 - [ ] **E. Logs**: ICS-309, ICS-214, ICS-205 (the `rows` field kind).
 - [ ] **F. Radiogram-ICS213** (RRI/NTS 2.0, Feb 2026 guidelines).
 - [ ] **Received forms render as forms.** A message kissterm or bpq-apps

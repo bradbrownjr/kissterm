@@ -174,3 +174,38 @@ def test_incident_status_prints_what_the_template_drops():
     assert "(Check one):\n  ACTIVATED\n" in body
     assert "Status\n  Local disaster declaration 2026-09-26 12:00\n" in body
     assert "    YES - Description:\n    Route 5 north\n" in body
+
+
+def test_a_strip_splits_outside_parentheses_only():
+    title, prompts = forms.split_strip(
+        "MCF720 PRICE SURVEY/STATE (ST):/SOURCE (@0=Local/Regional Chain, @1=Walmart)://")
+    assert title == "MCF720 PRICE SURVEY"
+    assert prompts == ["STATE (ST):", "SOURCE (@0=Local/Regional Chain, @1=Walmart):"]
+    # GYX's unmatched ")" must not swallow the rest of the strip.
+    assert forms.split_strip("GYX WEATHER/LOCATION ROAD, TOWN)/STATE (AA)//")[1] == [
+        "LOCATION ROAD, TOWN)", "STATE (AA)"]
+
+
+def test_a_strip_answer_is_one_line_with_blanks_as_three_spaces():
+    form = forms.get_form("gyx_weather")
+    assert len(form.fields) == 16
+    values = forms.defaults(form, mycall="KC1JMH-1", now=NOW)
+    assert values["s3"] == "KC1JMH"  # CALL SIGN
+    values.update(s1="09-26-2026", s2="1405L", s7="ME", s8="HEAVY  RAIN\nAND WIND")
+    subject, body = forms.render(form, values)
+    assert subject == "GYX WEATHER"
+    assert body == ("GYX WEATHER/09-26-2026/1405L/KC1JMH/   /   /   /ME/HEAVY RAIN AND WIND"
+                    + "/   " * 8 + "//\n")
+    values["s6"] = "ROUTE 5/ROUTE 202"
+    assert any("cannot contain /" in p for p in forms.problems(form, values))
+
+
+def test_a_strip_is_found_in_a_message_even_when_wrapped():
+    body = ("Please answer:\n\nROSTER/HAM CALL SIGN/FIRST NAME/TOWN/LAT (e.g. 44.123N)/LON\n"
+            "(e.g. 069.123W)/WINLINK (Y,N)//\n\n73, net control\n")
+    strip = forms.find_strip(body)
+    assert strip == "ROSTER/HAM CALL SIGN/FIRST NAME/TOWN/LAT (e.g. 44.123N)/LON (e.g. 069.123W)/WINLINK (Y,N)//"
+    form = forms.strip_form(strip)
+    assert [f.label for f in form.fields] == ["HAM CALL SIGN", "FIRST NAME", "TOWN", "LAT", "LON", "WINLINK"]
+    assert forms.find_strip("See https://example.org/a/b for details.\n") == ""
+    assert forms.problems(forms.PASTE_STRIP, {"strip": "hello there"})

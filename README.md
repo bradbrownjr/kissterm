@@ -82,7 +82,9 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   Situation Report, Severe WX Report, Damage Assessment and Incident
   Status Report are Types too, laid out as their published forms so any station reads them
   (the PKTNET check-in comes back addressed `SB PKTNET@USA`); you fill in the form, then
-  address it like any message. More forms and Winlink are next
+  address it like any message. **Information strips** (`TITLE/question/.../question//`):
+  GYX Weather Report and MCF720 ship, "Information strip (paste)" answers any other, and a
+  reply to a message carrying a strip offers Answer strip. More forms and Winlink are next
   (`docs/ROADMAP.md`, P2). Settings > Open on keeps
   Terminal as the first tab if you prefer.
 

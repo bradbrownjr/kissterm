@@ -56,6 +56,14 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   Check-in (form), Continue: it should come back as a bulletin to
   `PKTNET @ USA` titled "Name, Call, Town, State". Save, G, and look for
   your call in that month's results on vden.org.
+- [ ] **GYX Weather strip** during a SKYWARN activation or net: Insert,
+  Type: GYX Weather Report (strip), fill it, address it as the net asks.
+  The body should be one line, `GYX WEATHER/.../...//`; ask net control
+  whether it pasted into their sheet, and whether blanks as three spaces
+  are what they want.
+- [ ] **Answer strip on a reply**: when a net sends a request strip, R on
+  it, Answer strip, fill, Save. The reply's text should be the answer
+  strip alone, sent as SR.
 - [x] **Reply by number (SR)** went out and was accepted as #2820
   (2026-09-25), and moved to Mail > BBS > Sent with its number and BID.
 

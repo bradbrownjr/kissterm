@@ -42,5 +42,8 @@ of the two is marked `# UNVERIFIED:`.
   A new form is a data file plus a golden test in
   `tests/unit/test_mail_forms.py`; `forms.py` refuses a template naming
   an unknown field.
+- **An information strip is split on `/` outside parentheses only**, and
+  an answer containing `/` is refused (`forms.split_strip`,
+  `test_mail_forms.py`).
   The check counts groups as originated; ARL texts ship as
   `data/arl_numbered.json` (v3.0), tested by `tests/unit/test_mail_nts.py`.

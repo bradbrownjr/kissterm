@@ -229,6 +229,7 @@ differences are in `forms.py`'s docstring.
 | ICS 213 RR Resource Request | [FEMA ICS 213 RR v3](https://training.fema.gov/emiweb/is/icsresource/assets/ics%20forms/ics%20form%20213rr,%20resource%20request%20message%20(v3).pdf) | Block numbering. Blocks 10-19 are Logistics' and Finance's. |
 | PKTNET forms | vden.org PKTNET forms, local copy in the sibling `pktnet` directory (v1.1, 2023-11); [live](https://vden.org/pktnet/) | The PKTNET check-in body (`check_in.html`). Its ICS-213 uses the paper form's labels; Winlink's layout is used instead. |
 | PKTNET addressing | [Packet Bulletin Net announcement, May 2026](http://vden.org/docs/PacketBulletinNet-May2026.pdf) | `SB PKTNET@USA`, subject "Your Name, Your Call, Your Town, Your State". |
+| Information strips | bpq-apps `apps/forms/` (same author): `strip.frm`, `gyx-weather.frm` v1.1, `mcf720-price-survey.frm` v1.0 and the README's ROSTER example | The only source found. No published MARS/SHARES strip specification was found; the empty answer as three spaces is bpq-apps' "MARS convention" and is marked `# UNVERIFIED` in `forms.py`. MCF is a JS8Call form family and does not apply. |
 | A working ICS-213 over BPQ | [BPQ-Alt-Webmail v1.8.0](https://github.com/jayflanzbaum-svg/BPQ-Alt-Webmail/releases/tag/v1.8.0) | Supporting: another BPQ client sends Winlink's ICS-213 text without the XML, for the same reason (G8BPQ: binary attachments are not readable on the BBS). |
 
 ## Current boundaries and known gaps

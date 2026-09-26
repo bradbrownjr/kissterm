@@ -38,6 +38,20 @@ imperial ones, to two decimals as its `toFixed(2)`), a `rows` column's
 `totals` (the sum of a column over all lines). They are rendered only;
 the operator never types them.
 
+**Information strips** (MARS/SHARES style, and the local GYX WEATHER
+SKYWARN strip): `TITLE/prompt/prompt/.../prompt//` asks for one answer
+per prompt, and the answer is the same shape, `TITLE/answer/.../answer//`,
+one line, so a net can paste the answers into a spreadsheet. A form with
+a `strip` template gets one field per prompt; `strip_form()` builds the
+same from any strip pasted or found in a received message. The rules are
+bpq-apps' (`forms.py` fill_strip_form, same author):
+
+- a `/` inside parentheses belongs to the prompt ("(@0=Local/Regional
+  Chain, ...)" in MCF720), not a separator -- forms.py split on it;
+- an answer may not contain `/` (it would add a field);
+- an empty answer is three spaces. # UNVERIFIED: bpq-apps calls this the
+  MARS convention; no published source was found for it.
+
 `<if name>` ... `</if>` keeps a block only when that field is filled
 (the PKTNET check-in's agency line and the blank line after it). A form's
 `to_field` is the field that becomes the compose screen's To, and its
@@ -64,7 +78,7 @@ from pathlib import Path
 from typing import Any
 
 #: Field kinds a form file may use.
-KINDS = ("text", "multiline", "choice", "date", "time", "datetime", "check", "rows")
+KINDS = ("text", "multiline", "choice", "date", "time", "datetime", "check", "rows", "strip")
 
 _VAR_RE = re.compile(r"<var\s+(\w+)\s*>", re.IGNORECASE)
 _EACH_RE = re.compile(r"<each\s+(\w+)\s*>\n?(.*?)</each>\n?", re.IGNORECASE | re.DOTALL)
@@ -151,6 +165,8 @@ class FormDef:
     to_field: str = ""
     subject_var: str = ""
     totals: tuple[Total, ...] = ()
+    #: An information strip's template; the fields are its prompts.
+    strip: str = ""
 
     def field(self, field_id: str) -> Field:
         return next(f for f in self.fields if f.id == field_id)
@@ -172,8 +188,83 @@ def _field(raw: dict[str, Any]) -> Field:
                     "derived": derived})
 
 
+def split_strip(text: str) -> tuple[str, list[str]]:
+    """`TITLE/a/b//` -> ("TITLE", ["a", "b"]); a `/` inside parentheses
+    stays in its segment, and an unmatched `)` is ignored."""
+    text = " ".join(text.split())
+    text = text[:-2] if text.endswith("//") else text.rstrip("/")
+    segments, current, depth = [], [], 0
+    for char in text:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth = max(depth - 1, 0)
+        if char == "/" and depth == 0:
+            segments.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+    segments.append("".join(current).strip())
+    return segments[0], [s for s in segments[1:] if s]
+
+
+_CALL_PROMPT_RE = re.compile(r"^(HAM )?CALL ?SIGN\b", re.IGNORECASE)
+_GRID_PROMPT_RE = re.compile(r"^(MAIDENHEAD )?GRID\b", re.IGNORECASE)
+_LABEL_WIDTH = 16
+
+
+def _strip_label(prompt: str) -> str:
+    """A prompt cut to the label column: before any "(", at a word when
+    that keeps at least half of it; the help line shows it whole."""
+    short = prompt.split("(")[0].strip(" :),&") or prompt
+    if len(short) <= _LABEL_WIDTH:
+        return short
+    cut = short[:_LABEL_WIDTH + 1].rsplit(" ", 1)[0].rstrip(" ,&:")
+    return cut if len(cut) >= _LABEL_WIDTH // 2 else short[:_LABEL_WIDTH - 1] + "."
+
+
+def _strip_fields(prompts: list[str]) -> tuple[Field, ...]:
+    fields = []
+    for number, prompt in enumerate(prompts, 1):
+        auto = ("mycall" if _CALL_PROMPT_RE.match(prompt)
+                else "grid" if _GRID_PROMPT_RE.match(prompt) else "")
+        # The placeholder is the prompt's hint, "(MM-DD-YYYY)" -> MM-DD-YYYY.
+        hint = prompt.partition("(")[2].rsplit(")", 1)[0].strip()
+        fields.append(Field(id=f"s{number}", label=_strip_label(prompt), help=prompt,
+                            placeholder=hint, auto=auto))
+    return tuple(fields)
+
+
+def strip_form(text: str, *, form_id: str = "strip", title: str = "", source: str = "") -> FormDef:
+    """A form answering one information strip."""
+    strip_title, prompts = split_strip(text)
+    if not strip_title or not prompts:
+        raise ValueError("A strip is TITLE/prompt/.../prompt// with at least one prompt.")
+    return FormDef(id=form_id, title=title or f"{strip_title} (strip)", source=source or "pasted strip",
+                   subject=strip_title, body="", fields=_strip_fields(prompts), strip=text)
+
+
+_STRIP_LINE_RE = re.compile(r"^\s*[A-Z0-9][^/\n]*/.*//\s*$", re.IGNORECASE)
+
+
+def find_strip(body: str) -> str:
+    """The first information strip in a message body, "" if none. A strip
+    wrapped over several lines by a mail reader is joined back up."""
+    lines = body.splitlines()
+    for start, line in enumerate(lines):
+        if "/" not in line or not re.match(r"^\s*[A-Z0-9][A-Z0-9 ]*/", line, re.IGNORECASE):
+            continue
+        for end in range(start, min(start + 20, len(lines))):
+            joined = " ".join(l.strip() for l in lines[start:end + 1])
+            if _STRIP_LINE_RE.match(joined):
+                return joined.strip()
+    return ""
+
+
 def parse_form(text: str) -> FormDef:
     raw = tomllib.loads(text)
+    if "strip" in raw and "fields" not in raw:
+        return strip_form(raw["strip"], form_id=raw["id"], title=raw["title"], source=raw["source"])
     fields = tuple(_field(f) for f in raw.pop("fields"))
     totals = tuple(Total(**t) for t in raw.pop("totals", ()))
     form = FormDef(**raw, fields=fields, totals=totals)
@@ -198,7 +289,19 @@ def load_forms() -> tuple[FormDef, ...]:
     return tuple(sorted(forms, key=lambda f: f.title))
 
 
+#: The first step of answering any strip: paste it. `strip_form()` of
+#: what comes back is the second.
+PASTE_STRIP = FormDef(
+    id="strip", title="Information strip (paste)", source="bpq-apps strip.frm",
+    subject="", body="<var strip>",
+    fields=(Field(id="strip", label="Request strip", kind="strip", required=True,
+                  help="Paste the request strip: TITLE/question/question/.../question//"),),
+)
+
+
 def get_form(form_id: str) -> FormDef:
+    if form_id == PASTE_STRIP.id:
+        return PASTE_STRIP
     return next(f for f in load_forms() if f.id == form_id)
 
 
@@ -278,6 +381,9 @@ def problems(form: FormDef, values: Values) -> list[str]:
     found = []
     for f in form.fields:
         value = values.get(f.id, "")
+        if form.strip and "/" in str(value):
+            found.append(f"{f.label}: an answer cannot contain / (it separates the answers).")
+            continue
         if f.kind == "rows":
             rows = filled_rows(f, value or [])
             if f.required and not rows:
@@ -295,6 +401,8 @@ def problems(form: FormDef, values: Values) -> list[str]:
             found.append(f"{f.label} is at most {f.max_length} characters.")
         elif f.kind == "choice" and text and text not in f.choices:
             found.append(f"{f.label}: choose one of {', '.join(f.choices)}.")
+        elif f.kind == "strip" and text and not find_strip(text):
+            found.append("That is not a strip: TITLE/question/.../question// on one line.")
         elif f.derived and text and _number(text) is None:
             found.append(f"{f.label} is a number.")
     return found
@@ -352,6 +460,9 @@ def _fill(template: str, values: dict[str, str]) -> str:
 
 def render(form: FormDef, values: Values) -> tuple[str, str]:
     """(subject, body) as they will be sent."""
+    if form.strip:
+        answers = [" ".join(str(values.get(f.id, "")).split()) or "   " for f in form.fields]
+        return form.subject, f"{form.subject}/{'/'.join(answers)}//\n"
     flat = {f.id: str(values.get(f.id, "")).strip() for f in form.fields if f.kind != "rows"}
     for f in form.fields:
         if f.kind == "check":

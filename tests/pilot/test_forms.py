@@ -125,7 +125,7 @@ async def test_213rr_adds_order_lines(tmp_path):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("form_id", [f.id for f in load_forms()])
+@pytest.mark.parametrize("form_id", [f.id for f in load_forms()] + ["strip"])
 async def test_fits_80x24(tmp_path, form_id):
     app, _ = _app(tmp_path)
     async with app.run_test(size=(80, 24)) as pilot:
@@ -189,3 +189,59 @@ async def test_a_status_and_its_comment_share_a_row_and_computed_columns_are_not
     async with app.run_test(size=(120, 40)) as pilot:
         screen = await _open(app, pilot, "damage_assessment")
         assert screen.query("#form-damage-1-Aff") and not screen.query("#form-damage-1-total")
+
+
+@pytest.mark.asyncio
+async def test_a_pasted_strip_becomes_its_questions(tmp_path):
+    app, store = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open(app, pilot, "strip")
+        _fill(screen, strip="ROSTER/CALL SIGN/NAME/LOCATION//")
+        await pilot.pause()
+        screen.query_one("#form-continue", Button).press()
+        await wait_for(lambda: isinstance(app.screen, FormScreen) and app.screen is not screen,
+                       "the strip's own form")
+        await pilot.pause()
+        questions = app.screen
+        assert questions.query_one("#form-s1", Input).value == "KC1JMH"
+        _fill(questions, s2="BRAD")
+        await pilot.pause()
+        questions.query_one("#form-continue", Button).press()
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen again")
+        await pilot.pause()
+        assert app.screen.query_one("#compose-title", Input).value == "ROSTER"
+        assert app.screen.query_one("#compose-body", TextArea).text == "ROSTER/KC1JMH/BRAD/   //\n"
+
+
+@pytest.mark.asyncio
+async def test_a_reply_answers_the_strip_in_the_original(tmp_path):
+    from datetime import datetime, timezone
+
+    from kissterm.mail import Message
+
+    app, store = _app(tmp_path)
+    store.add("Mail/BBS/Inbox", Message(
+        sender="KY2D", to="KC1JMH", subject="Roster", date=datetime(2026, 9, 26, tzinfo=timezone.utc),
+        source="BBS WS1EC", body="Please reply:\nROSTER/CALL SIGN/NAME//\n",
+        extra={"Bbs-Number": "2790", "Bbs-Type": "PN"}))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.query_one("#mail-browser", MessageBrowser).query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("r")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the reply")
+        await pilot.pause()
+        app.screen.query_one("#compose-strip", Button).press()
+        await wait_for(lambda: isinstance(app.screen, FormScreen), "the strip form")
+        await pilot.pause()
+        _fill(app.screen, s2="BRAD")
+        await pilot.pause()
+        app.screen.query_one("#form-continue", Button).press()
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the reply again")
+        await pilot.pause()
+        reply = app.screen
+        assert reply.query_one("#compose-body", TextArea).text == "ROSTER/KC1JMH/BRAD//\n"
+        reply.query_one("#compose-save", Button).press()
+        await wait_for(lambda: store.list(BBS_OUTBOX), "the Outbox message")
+        message = store.read(store.list(BBS_OUTBOX)[0].ref)
+        assert message.extra["Reply-Number"] == "2790"

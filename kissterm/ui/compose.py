@@ -35,7 +35,7 @@ from ..mail.compose import (
     quote,
     reply_title,
 )
-from ..mail.forms import load_forms
+from ..mail.forms import PASTE_STRIP, find_strip, load_forms
 
 _TYPES = [
     ("Private message (SP)", SEND_PRIVATE),
@@ -52,9 +52,15 @@ RADIOGRAM = "radiogram"
 #: opens `form_screen.FormScreen`, which returns a `Draft` to this screen.
 FORM_PREFIX = "form:"
 
+#: What a reply returns for "Answer strip": the original carries a request
+#: strip, and the app opens it as a form, then this screen again with the
+#: answer as the reply's text.
+ANSWER_STRIP = "answer-strip"
+
 
 def _types() -> list[tuple[str, str]]:
-    return _TYPES + [(f"{f.title} (form)", FORM_PREFIX + f.id) for f in load_forms()]
+    shipped = [(f"{f.title} (form)", FORM_PREFIX + f.id) for f in load_forms()]
+    return _TYPES + [(f"{PASTE_STRIP.title} (form)", FORM_PREFIX + PASTE_STRIP.id)] + shipped
 
 
 class ComposeScreen(ModalScreen["Message | str | None"]):
@@ -108,6 +114,8 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
             yield TextArea(id="compose-body", tab_behavior="focus", soft_wrap=True)
             with Horizontal(id="compose-foot"):
                 yield Label("", id="compose-error")
+                if original is not None and self._draft is None and find_strip(original.body):
+                    yield Button("Answer strip", compact=True, id="compose-strip")
                 yield Button("Save to Outbox", variant="primary", compact=True, id="compose-save")
                 yield Button("Cancel", compact=True, id="compose-cancel")
         yield Footer()
@@ -132,7 +140,7 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
             title.disabled = True
             self.query_one("#compose-at", Input).disabled = True
         body = self.query_one("#compose-body", TextArea)
-        if self._quoted:
+        if draft is None and self._quoted:
             # Two blank lines above the quote for the reply itself.
             body.text = "\n\n" + quote(original)
         self._start_body = body.text
@@ -171,6 +179,10 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
             )
             return
         self.dismiss(None)
+
+    @on(Button.Pressed, "#compose-strip")
+    def _answer_strip(self) -> None:
+        self.dismiss(ANSWER_STRIP)
 
     @on(Button.Pressed, "#compose-cancel")
     def _cancel(self) -> None:
