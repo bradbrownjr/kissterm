@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Radiogram sources recorded
+
+### Improvements
+
+- `docs/PROTOCOL_GUIDE.md` gains "NTS radiograms: sources and
+  precedence": every source link behind `nts.py`, what each is used for,
+  which wins where they disagree, and the open question (the BBS title).
+
+**Files:** `docs/PROTOCOL_GUIDE.md`, `kissterm/mail/nts.py`,
+`kissterm/mail/AGENTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Radiograms: RRI 2026 layout and KY2D's title
 
 ### Improvements

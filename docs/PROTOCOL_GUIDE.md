@@ -1,4 +1,4 @@
-# Protocol guide: AX.25, KISS, and APRS
+# Protocol guide: AX.25, KISS, APRS and NTS radiograms
 
 This is the development baseline for frames that kissterm receives or puts on
 the air. It exists because familiar-looking packet-radio terms hide different
@@ -184,6 +184,34 @@ Before merging a protocol-related change:
 6. Record an interoperability observation separately from the normative rule:
    peer software/version, transport, mode/path, raw frame (with any sensitive
    content redacted), and whether it was RF or synthetic.
+
+## NTS radiograms: sources and precedence
+
+`kissterm/mail/nts.py` formats ARRL radiograms sent to a BBS as `ST <zip> @
+NTS<state>`. The sources disagree in places, so they are ranked: a newer
+RRI/NTS document wins over the 2002 ARRL guide, and a point a working
+traffic handler reviewed wins over an unreviewed one. Cite the section or
+example used in the code comment and test, as for the protocols above.
+
+| Scope | Source to use | Status in this project |
+|---|---|---|
+| Radiogram layout and punctuation today | [RRI/NTS 2.0, *Guidelines for Origination, Relay and Delivery of Radiogram-ICS213 Messages*, final 27 Feb 2026](https://nts2.arrl.org/wp-content/uploads/2026/04/Guidelines-for-Origination-Relay-and-Delivery-of-Radiogram-ICS213-Messages-F-A.pdf) | First authority. BT separators, five groups a line, QUERY, spelled-out COMMA, `ATSIGN` in email. |
+| Sample RRI radiogram | [RRI, *Certified Radiogram Implementation*](https://radiorelay.org/certified-radiogram-implementation/) | Supporting example: BT separators, phone as digit groups with no TEL. |
+| Preamble, address, text and check rules | [ARRL NTS MPG chapter 1, *The ARRL Message Format* (v1.04, 2002)](https://www.arrl.org/files/file/Public%20Service/MPG104A.pdf) | Baseline where RRI 2026 is silent. Section numbers are cited in `nts.py`. |
+| Packet BBS upload (`ST`, title, body) | [ARRL NTS MPG chapter 6, *NTS Digital*, 6.2.1 (2002)](https://www.arrl.org/files/file/Public%20Service/MPG604A.pdf) | `ST` routing, the 30-character title limit and `NR` before the number. Its blank-line separators and `QTC` title are superseded (see below). |
+| ARL numbered texts | [ARL Numbered Radiogram Texts v3.0, 7 Oct 2025](https://nts2.arrl.org/numbered-texts/) ([RRI copy](https://radiorelay.org/files/reference/ARL_Numbered_Radiogram_Texts.pdf)) | Shipped as `kissterm/mail/data/arl_numbered.json`. Check counts groups "as originated". |
+| Review by a traffic handler | [Jim Kutsch KY2D's review of the bpq-apps form (commit `ef6612c`, forms v1.28, 25 May 2026)](https://github.com/bradbrownjr/bpq-apps/commit/ef6612c) | Two BTs and no AR, no `TO:`, call after the name, `#` as NR, and the BBS title `CITY CALLSIGN` / `CITY NXX NXX` / `CITY - -`. |
+| Packet NTS how-to (2006) | [Outpost, *Introduction to the National Traffic System for Packet*, rev 1.4](https://outpostpm.org/docs/NTS-14.pdf) | Supporting: BT separators and five words a line. Its `QTC 1 R CITY ST (NXX-NXX)` title is one of several conventions. |
+| Section packet procedures | [Eastern Massachusetts ARRL, *Packet Procedures*](https://ema.arrl.org/packet-procedures/) | Supporting: `ST <zip> @ NTS<st>`; titles like `CHICAGO 312-267`. |
+
+**Not a source:** the Winlink `fixpunct()` rules that bpq-apps' `forms.py`
+copied (INT for a question mark, comma to X, a check counted per five
+digits). RRI 2026 contradicts them.
+
+**Open:** the BBS title. The guides above disagree and RRI publishes none;
+kissterm uses KY2D's, marked `# UNVERIFIED` in `nts.py` until an `LT`
+listing on a BBS carrying NTS traffic shows what stations actually use
+(`docs/ON-AIR-TESTS.md`).
 
 ## Current boundaries and known gaps
 

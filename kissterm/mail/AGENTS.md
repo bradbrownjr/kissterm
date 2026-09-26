@@ -34,6 +34,7 @@ of the two is marked `# UNVERIFIED:`.
   is sent, even if the file was edited by hand after saving.
 - **Radiograms follow the 2026 RRI guidelines, then KY2D's review, then
   the ARRL MPG**, not the Winlink punctuation in bpq-apps' `forms.py`
-  (`nts.py`'s docstring cites each source and each difference).
+  (`nts.py`'s docstring cites each source and each difference; the links
+  are in `docs/PROTOCOL_GUIDE.md`, "NTS radiograms").
   The check counts groups as originated; ARL texts ship as
   `data/arl_numbered.json` (v3.0), tested by `tests/unit/test_mail_nts.py`.

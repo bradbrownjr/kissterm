@@ -5,7 +5,9 @@ operator typed into a correctly formatted radiogram, its check, the BBS
 subject and the `ST` routing, and says what is wrong before anything is
 saved.
 
-**Sources, researched before building (AGENTS.md section 7):**
+**Sources, researched before building (AGENTS.md section 7)**, with links
+and their order of precedence in `docs/PROTOCOL_GUIDE.md` ("NTS
+radiograms"):
 
 - ARRL NTS Methods and Practices Guidelines, chapter 1, "The ARRL Message
   Format" (MPG v1.04, 5/02): the preamble (1.1), the address (1.2), text
