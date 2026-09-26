@@ -1,0 +1,145 @@
+# ICS 205 Incident Radio Communications Plan. Body, subject, field names
+# and limits: Winlink Standard Forms 1.1.20.0, "ICS USA Forms/ICS205
+# Radio Plan.txt" and "ICS205 Radio Plan_Initial.html" (template "ICS205-
+# v 19.5"). Blocks and codes: FEMA ICS 205 (v3), whose instructions give
+# N or W for the bandwidth and A, D or M (analog, digital, mixed) for the
+# mode; Winlink takes any one letter. Deliberate differences: channel
+# lines are printed once per filled line, not ten; the Express footer is
+# left out.
+id = "ics205"
+title = "ICS-205 Radio Plan"
+source = "Winlink Standard Forms 1.1.20.0 (ICS205- v 19.5); FEMA ICS 205 v3"
+subject = "ICS 205 - <var Incident_Name> - <var ActivityDateTime2>"
+body = '''
+<var FormTitle>
+
+1. Incident Name:	<var Incident_Name>
+2. Date & Time Prepared:	<var ActivityDateTime2>
+
+3. Operational Period:
+From:	<var DateFrom>	<var TimeFrom>
+To:	<var DateTo>	<var TimeTo>
+
+4. BASIC RADIO CHANNEL USE:
+
+ZONE GRP:	CH#:	FUNCTION:	CH NAME:	ASSIGNMENT:	RX FREQ:	N or W:	RX TONE:	TX FREQ:	N or W:	TX TONE:	MODE:	REMARKS:
+<each channels>
+<var ZoneGrp>	<var Ch>	<var Function>	<var ChannelName>	<var Assignment>	<var RX>	<var NWMode>	<var RXTone>	<var TX>	<var TNWMode>	<var TXTone>	<var Mode>	<var Remarks>
+</each>
+
+--------------------------------------
+5. Special Instructions:
+
+<var SpecialInstructions>
+
+--------------------------------------
+6. Approved by:	<var PreparedName>	Date/Time:	<var ActivityDateTime1>
+IAP Page:	<var IAP_Page>
+
+Express Sender:	<var MsgSender>
+'''
+
+[[fields]]
+id = "FormTitle"
+label = "Agency/group"
+max_length = 50
+remember = true
+help = "Optional agency or group title printed at the top. Remembered."
+
+[[fields]]
+id = "Incident_Name"
+label = "1. Incident"
+required = true
+max_length = 55
+
+[[fields]]
+id = "ActivityDateTime2"
+label = "2. Prepared"
+kind = "datetime"
+required = true
+max_length = 23
+
+[[fields]]
+id = "DateFrom"
+label = "3. From date"
+kind = "date"
+required = true
+max_length = 12
+beside = "TimeFrom"
+
+[[fields]]
+id = "TimeFrom"
+label = "From time"
+kind = "time"
+max_length = 10
+placeholder = "HH:MM"
+
+[[fields]]
+id = "DateTo"
+label = "3. To date"
+required = true
+max_length = 12
+placeholder = "YYYY-MM-DD"
+beside = "TimeTo"
+
+[[fields]]
+id = "TimeTo"
+label = "To time"
+max_length = 10
+placeholder = "HH:MM"
+
+[[fields]]
+id = "channels"
+label = "4. Channels"
+kind = "rows"
+required = true
+max_rows = 10
+help = "One line per channel. N or W: narrow or wide. Mode: A analog, D digital, M mixed. Winlink's form holds ten."
+columns = [
+  { id = "ZoneGrp", label = "Zn", max_length = 2 },
+  { id = "Ch", label = "Ch#", max_length = 3 },
+  { id = "Function", label = "Function", max_length = 20 },
+  { id = "ChannelName", label = "Channel name", max_length = 20 },
+  { id = "Assignment", label = "Assignment", max_length = 20 },
+  { id = "RX", label = "RX freq", max_length = 9 },
+  { id = "NWMode", label = "RX N/W", choices = ["N", "W"] },
+  { id = "RXTone", label = "RX tone", max_length = 6 },
+  { id = "TX", label = "TX freq", max_length = 9 },
+  { id = "TNWMode", label = "TX N/W", choices = ["N", "W"] },
+  { id = "TXTone", label = "TX tone", max_length = 6 },
+  { id = "Mode", label = "Mode", choices = ["A", "D", "M"] },
+  { id = "Remarks", label = "Remarks", max_length = 45 },
+]
+
+[[fields]]
+id = "SpecialInstructions"
+label = "5. Instructions"
+kind = "multiline"
+help = "Special instructions for the plan."
+
+[[fields]]
+id = "PreparedName"
+label = "6. Approved by"
+required = true
+max_length = 35
+remember = true
+help = "Name of the communications unit leader approving the plan. Remembered."
+
+[[fields]]
+id = "ActivityDateTime1"
+label = "6. Date/time"
+kind = "datetime"
+required = true
+max_length = 23
+
+[[fields]]
+id = "IAP_Page"
+label = "IAP page"
+required = true
+max_length = 2
+
+[[fields]]
+id = "MsgSender"
+label = "Sender"
+max_length = 16
+auto = "mycall"

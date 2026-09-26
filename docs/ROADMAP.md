@@ -254,10 +254,13 @@ Phases, each shipped and tested on its own. Phases A (the engine,
 ICS-213 and ICS-213RR), B (Winlink and PKTNET check-ins) and C (Field
 Situation Report, Severe WX, Damage Assessment, Incident Status) and D
 (information strips: GYX WEATHER, MCF720, paste any strip, Answer strip
-on a reply) shipped 2026-09-26. ROSTER is not shipped: it is bpq-apps'
-README example, not a form any net publishes; paste it.
+on a reply) and E (ICS-309, ICS-214, ICS-205) shipped 2026-09-26.
+ROSTER is not shipped: it is bpq-apps' README example, not a form any
+net publishes; paste it.
 
-- [ ] **E. Logs**: ICS-309, ICS-214, ICS-205 (the `rows` field kind).
+- [ ] **ICS-309 from the mail kissterm passed.** Offer to fill the log's
+  lines from the Outbox, Sent and Inbox for a chosen period, so the
+  operator does not retype what kissterm already recorded. Small.
 - [ ] **F. Radiogram-ICS213** (RRI/NTS 2.0, Feb 2026 guidelines).
 - [ ] **Received forms render as forms.** A message kissterm or bpq-apps
   produced is recognised and shown in the form layout, with the raw text one

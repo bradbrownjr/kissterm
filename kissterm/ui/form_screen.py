@@ -44,7 +44,8 @@ _WIDE = 20
 
 def _column_width(column: Column) -> int:
     if column.choices:
-        return max(len(c) for c in column.choices) + 4
+        # Wide enough for the prompt (the column's label) as well.
+        return max(*(len(c) for c in column.choices), len(column.label)) + 4
     if column.max_length >= 40:
         return _WIDE
     return max(6, min(column.max_length + 2, 18), len(column.label) + 2)

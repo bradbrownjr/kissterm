@@ -56,6 +56,9 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   Check-in (form), Continue: it should come back as a bulletin to
   `PKTNET @ USA` titled "Name, Call, Town, State". Save, G, and look for
   your call in that month's results on vden.org.
+- [ ] **ICS-309 to a Winlink station**: after an exercise, send the
+  log as a P message to someone on Winlink Express and ask whether it
+  reads as a 309 (tabs arrive as spaces; the 214 and 205 likewise).
 - [ ] **GYX Weather strip** during a SKYWARN activation or net: Insert,
   Type: GYX Weather Report (strip), fill it, address it as the net asks.
   The body should be one line, `GYX WEATHER/.../...//`; ask net control

@@ -393,6 +393,9 @@ def problems(form: FormDef, values: Values) -> list[str]:
                     if c.max_length and len(row.get(c.id, "")) > c.max_length:
                         found.append(f"{f.label} line {number}: {c.label} is at most "
                                      f"{c.max_length} characters.")
+                    elif c.choices and row.get(c.id, "") and row[c.id] not in c.choices:
+                        found.append(f"{f.label} line {number}: {c.label} is one of "
+                                     f"{', '.join(c.choices)}.")
             continue
         text = str(value).strip()
         if f.required and not text:

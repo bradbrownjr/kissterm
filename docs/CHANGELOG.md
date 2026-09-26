@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Forms: ICS-309, ICS-214 and ICS-205
+
+### New Features
+
+- **ICS-309 Communications Log**, **ICS-214 Activity Log** and **ICS-205
+  Radio Plan**, from Winlink's standard templates: one line per logged
+  message, activity or channel, with "Add line" up to Winlink's limit,
+  and only the filled lines sent. Your name, position, agency and group
+  title are remembered.
+- The 205's bandwidth and mode are FEMA's codes (N/W; A, D or M), chosen
+  from a list and checked; the 214's Prepared By is block 8 as on FEMA's
+  form (Winlink's text calls it 4).
+
+### Improvements
+
+- A column chosen from a list is wide enough to show its name.
+
+**Files:** `kissterm/mail/data/forms/`, `kissterm/mail/forms.py`,
+`kissterm/ui/form_screen.py`, `tests/unit/test_mail_forms.py`, `README.md`,
+`docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Forms: information strips
 
 ### New Features

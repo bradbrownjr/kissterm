@@ -209,3 +209,42 @@ def test_a_strip_is_found_in_a_message_even_when_wrapped():
     assert [f.label for f in form.fields] == ["HAM CALL SIGN", "FIRST NAME", "TOWN", "LAT", "LON", "WINLINK"]
     assert forms.find_strip("See https://example.org/a/b for details.\n") == ""
     assert forms.problems(forms.PASTE_STRIP, {"strip": "hello there"})
+
+
+def test_ics309_prints_one_block_per_logged_message():
+    form = forms.get_form("ics309")
+    values = forms.defaults(form, mycall="KC1JMH-1", now=NOW)
+    values.update(Title="CUMBERLAND ARES", OpName="B BROWN", log=[
+        {"Time": "2026-09-26 14:10", "From": "EOC", "To": "SHELTER1", "Sub": "Cots needed"},
+        {"Time": "", "From": "", "To": "", "Sub": ""}])
+    subject, body = forms.render(form, values)
+    assert subject == "Form 309- CUMBERLAND ARES - B BROWN - KC1JMH - 2026-09-26 14:05"
+    assert body.endswith("----------------------------\nTIME: 2026-09-26 14:10\nFROM: EOC\n"
+                         "TO: SHELTER1\nSUBJECT:\n Cots needed\n")
+    assert "STATION ID:\n" not in body
+
+
+def test_ics214_numbers_prepared_by_as_fema_does():
+    form = forms.get_form("ics214")
+    values = forms.defaults(form, now=NOW)
+    values.update(Incident_Name="ICE STORM", DateTimeTo="2026-09-26 20:00", Name="B BROWN",
+                  ICS_Position="RADIO OPERATOR", Home_Agency="CUMBERLAND ARES", PreparedName="B BROWN",
+                  activity=[{"ActTime": "2026-09-26 14:30", "Activity": "Net opened"}])
+    assert forms.problems(form, values) == []
+    subject, body = forms.render(form, values)
+    assert subject == "214- ICE STORM - B BROWN-2026-09-26 14:05 - 2026-09-26 20:00"
+    assert "DATE & TIME\tACTIVITY\n2026-09-26 14:30\tNet opened\n---" in body
+    assert "8. PREPARED BY:\tB BROWN\n" in body and "\\" not in body
+
+
+def test_ics205_channel_codes_are_femas():
+    form = forms.get_form("ics205")
+    values = forms.defaults(form, mycall="KC1JMH", now=NOW)
+    values.update(Incident_Name="ICE STORM", DateTo="2026-09-27", PreparedName="B BROWN", IAP_Page="3",
+                  channels=[{"Ch": "1", "Function": "Command", "RX": "147.090", "NWMode": "W",
+                             "TX": "147.690", "Mode": "A"}])
+    subject, body = forms.render(form, values)
+    assert subject == "ICS 205 - ICE STORM - 2026-09-26 14:05"
+    assert "\t1\tCommand\t\t\t147.090\tW\t\t147.690\t\t\tA\n" in body
+    values["channels"][0]["Mode"] = "X"
+    assert forms.problems(form, values)

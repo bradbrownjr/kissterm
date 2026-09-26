@@ -1,0 +1,129 @@
+# ICS 214 Activity Log. Body, subject, field names and limits: Winlink
+# Standard Forms 1.1.20.0, "ICS USA Forms/ICS214 Activity Log.txt" and
+# ICS214_Initial.html (template "ICS 214 v 17.10"). Blocks: FEMA ICS 214
+# (v3). Deliberate differences: rows are printed once per filled line;
+# Prepared By is numbered 8 as on FEMA's form (Winlink's text says 4);
+# the stray "\" after the title, the template's repeated
+# ActivityDateTime23 on line 24, and the Express footer are left out.
+id = "ics214"
+title = "ICS-214 Activity Log"
+source = "Winlink Standard Forms 1.1.20.0 (ICS 214 v 17.10); FEMA ICS 214 v3"
+subject = "214- <var Incident_Name> - <var Name>-<var DateTimeFrom> - <var DateTimeTo>"
+body = '''
+ICS214
+<var FormTitle>
+PAGE # <var Page>
+1. Incident or Event Name:	<var Incident_Name>
+2. Operational Period:
+ From:	<var DateTimeFrom>
+ To:	<var DateTimeTo>
+3: Name:	<var Name>
+4: ICS Position:	<var ICS_Position>
+5  Home Agency & Unit:	<var Home_Agency>
+----------------------------------------------
+6. RESOURCES ASSIGNED:
+NAME	ICS POSITION	HOME AGENCY
+<each resources>
+<var RName>	<var RPosition>	<var RAgency>
+</each>
+----------------------------------------------
+7.ACTIVITY LOG OF NOTABLE EVENTS:
+DATE & TIME	ACTIVITY
+<each activity>
+<var ActTime>	<var Activity>
+</each>
+---------------------------------------------
+8. PREPARED BY:	<var PreparedName>
+---------------------------------------------
+'''
+
+[[fields]]
+id = "FormTitle"
+label = "Agency/group"
+max_length = 50
+remember = true
+help = "Optional agency or group title printed above the log. Remembered."
+
+[[fields]]
+id = "Incident_Name"
+label = "1. Incident"
+required = true
+max_length = 55
+
+[[fields]]
+id = "DateTimeFrom"
+label = "2. From"
+kind = "datetime"
+required = true
+max_length = 22
+help = "Start of the operational period."
+
+[[fields]]
+id = "DateTimeTo"
+label = "2. To"
+required = true
+max_length = 22
+placeholder = "YYYY-MM-DD HH:MM"
+help = "End of the operational period."
+
+[[fields]]
+id = "Name"
+label = "3. Name"
+required = true
+max_length = 40
+remember = true
+help = "Your name. Remembered."
+
+[[fields]]
+id = "ICS_Position"
+label = "4. ICS position"
+required = true
+max_length = 40
+remember = true
+help = "Your ICS position, e.g. Radio Operator. Remembered."
+
+[[fields]]
+id = "Home_Agency"
+label = "5. Home agency"
+required = true
+max_length = 50
+remember = true
+help = "Home agency and unit, e.g. Cumberland County ARES. Remembered."
+
+[[fields]]
+id = "resources"
+label = "6. Resources"
+kind = "rows"
+max_rows = 8
+help = "People assigned with you: name, ICS position, home agency. Winlink's form holds eight."
+columns = [
+  { id = "RName", label = "Name", max_length = 30 },
+  { id = "RPosition", label = "ICS position", max_length = 35 },
+  { id = "RAgency", label = "Home agency", max_length = 50 },
+]
+
+[[fields]]
+id = "activity"
+label = "7. Activity"
+kind = "rows"
+required = true
+max_rows = 24
+help = "Notable activities with the date and time of each. Winlink's form holds twenty-four."
+columns = [
+  { id = "ActTime", label = "YYYY-MM-DD HH:MM", max_length = 20 },
+  { id = "Activity", label = "Activity", max_length = 100 },
+]
+
+[[fields]]
+id = "PreparedName"
+label = "8. Prepared by"
+required = true
+max_length = 35
+remember = true
+help = "Name and position of the preparer. Remembered."
+
+[[fields]]
+id = "Page"
+label = "Page #"
+max_length = 2
+default = "1"

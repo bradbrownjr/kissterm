@@ -1,0 +1,112 @@
+# ICS 309 Communications Log. Body, subject, field names and limits:
+# Winlink Standard Forms 1.1.20.0, "ICS USA Forms/Form-309 Communications
+# Log.txt" and Form-309_Initial.html (template "Form 309 v13.12"). Meaning
+# of each column: FEMA ICS 309 (v3). Deliberate differences, as in the
+# other forms: log lines are printed once per filled line, not thirty
+# numbered blocks; the empty "STATION ID:" label under each TIME (the
+# template names no variable for it) and the Express footer are left out.
+id = "ics309"
+title = "ICS-309 Communications Log"
+source = "Winlink Standard Forms 1.1.20.0 (Form 309 v13.12); FEMA ICS 309 v3"
+subject = "Form 309- <var Title> - <var OpName> - <var OperId> - <var ActivityDateTime1>"
+body = '''
+<var Title> - Form 309
+
+PAGE #: <var Page>
+
+Task#: <var Task>
+Task Name: <var TaskName>
+
+Date/Time Prepared: <var ActivityDateTime1>
+Operational Period #: <var OpPer>
+
+Radio Operator Name:<var OpName>
+Station ID: <var OperId>
+Express Sender: <var MsgSender>
+
+         LOG
+----------------------------
+<each log>
+TIME: <var Time>
+FROM: <var From>
+TO: <var To>
+SUBJECT:
+ <var Sub>
+
+</each>
+'''
+
+[[fields]]
+id = "Title"
+label = "Agency/group"
+required = true
+max_length = 50
+remember = true
+help = "The agency or group title that heads the log (Winlink asks for it first). Remembered."
+
+[[fields]]
+id = "Task"
+label = "Task #"
+max_length = 7
+
+[[fields]]
+id = "TaskName"
+label = "Task name"
+max_length = 50
+
+[[fields]]
+id = "ActivityDateTime1"
+label = "Prepared"
+kind = "datetime"
+required = true
+max_length = 18
+help = "Date and time the log was prepared."
+
+[[fields]]
+id = "OpPer"
+label = "Op period #"
+max_length = 15
+help = "The operational period number."
+
+[[fields]]
+id = "OpName"
+label = "Operator name"
+required = true
+max_length = 35
+remember = true
+help = "The radio operator keeping this log. Remembered."
+
+[[fields]]
+id = "OperId"
+label = "Station ID"
+required = true
+max_length = 13
+auto = "mycall"
+help = "The station's call sign or tactical ID."
+
+[[fields]]
+id = "MsgSender"
+label = "Sender"
+max_length = 16
+auto = "mycall"
+help = "The call that sends this log."
+
+[[fields]]
+id = "Page"
+label = "Page #"
+max_length = 2
+default = "1"
+
+[[fields]]
+id = "log"
+label = "Log"
+kind = "rows"
+required = true
+max_rows = 30
+help = "One line per message passed: when, from, to and its subject. Winlink's form holds thirty."
+columns = [
+  { id = "Time", label = "YYYY-MM-DD HH:MM", max_length = 23 },
+  { id = "From", label = "From", max_length = 13 },
+  { id = "To", label = "To", max_length = 13 },
+  { id = "Sub", label = "Subject", max_length = 90 },
+]
