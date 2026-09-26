@@ -176,6 +176,8 @@ anything taken from its behaviour rather than from documentation
 
 #### BBS mail (BPQMail first, then the applications P8 adds)
 
+- **On hold until the operator's Yagi is up** (2026-09-26): retrieval
+  filters and bulletin collection below both need listings from WS1EC-2.
 - [ ] **Retrieval filters beyond `LM`** (NTS traffic for your area,
   bulletins); the P11 notes below describe Outpost's. Medium.
 - [ ] **Bulletin collection** (Bulletins tab, G), into Bulletins/<category>,
