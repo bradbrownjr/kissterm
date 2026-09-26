@@ -154,10 +154,12 @@ exchange confirms it.
   upstream gateway when the local node's Internet is down (operator,
   2026-09-26). The B2F exchange starts when the gateway's `[WL2K-...]`
   line arrives, however the route got there. Small.
-- [ ] **B2F client** (`kissterm/winlink/`): handshake and SID exchange,
-  proposal/accept, send Outbox, receive to Inbox, clean disconnect.
-  Unit-tested against recorded exchanges. Secure login, LZHUF and the B2
-  message format are done (2026-09-26). Large.
+- [ ] **B2F client wiring**: the exchange itself is done (`kissterm/winlink/`,
+  2026-09-26: secure login, LZHUF, B2 messages, handshake, proposals,
+  send and receive, tested against wl2k-go's recorded CMS sessions).
+  Left: run it over a connected link, file Received in Mail/Winlink/Inbox
+  with the raw `.b2f`, move Sent from the Outbox, log every line, and
+  disconnect cleanly. Medium.
 - [ ] **CMS over Telnet first.** It is the test path that needs no radio.
   Pat's documented form is `cms.winlink.org:8772`. Confirm the host, port
   and Telnet-layer login from Winlink's own documentation. Operator-initiated

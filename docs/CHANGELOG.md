@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Winlink B2F exchange
+
+### New Features
+
+- **The Winlink exchange itself**: the handshake with a gateway (secure
+  login included), proposals, sending and receiving messages in blocks,
+  every check the protocol has, and a clear reason when it stops (a
+  wrong password in the gateway's own words, a damaged message, a
+  dropped link). It waits for the gateway's `[WL2K-...]` line, so a
+  node's own lines before it do no harm. Tested against wl2k-go's
+  recorded CMS sessions; not yet run over a link, and no UI yet.
+
+**Files:** `kissterm/winlink/b2f.py` (new), `kissterm/winlink/__init__.py`,
+`tests/unit/test_winlink_b2f.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Winlink message format
 
 ### New Features

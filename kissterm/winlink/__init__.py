@@ -9,6 +9,7 @@ gateway's `[WL2K-...]` line arrives).
 - `secure.py`: the answer to the CMS's `;PQ:` password challenge.
 - `lzhuf.py`: the LZHUF compression every B2 message travels in.
 - `message.py`: one message in B2 format (headers, body, attachments), MIDs.
+- `b2f.py`: the exchange itself, as a client, bytes in and bytes out.
 
 **Sources.** The protocol is documented by its implementations, not by a
 published specification: wl2k-go (Martin Hebnes Pedersen LA5NTA, MIT
