@@ -637,6 +637,13 @@ timer recovery — is exercised without a radio.
 
 MIT. See [LICENSE](LICENSE).
 
+The Winlink secure login and LZHUF code (`kissterm/winlink/`) are ports of
+[wl2k-go](https://github.com/la5nta/wl2k-go), Copyright 2015-2016 Martin
+Hebnes Pedersen (LA5NTA), MIT licence, and its test data ships in
+`tests/unit/data/winlink/`. LZHUF itself comes from JNOS 2's `lzhuf.c`
+(Okumura, Yoshizaki, Rikitake), whose authors' terms are "Use, distribute,
+and modify this program freely".
+
 Portions of this project were developed with AI assistance (Claude).
 
 ## Author

@@ -142,9 +142,10 @@ same `_SessionLinkAdapter` seam the terminal uses. It needs no new transport.
 Sources: Winlink's published B2F and secure-login documentation, and **Pat**
 (getpat.io, github.com/la5nta/pat, with its protocol library wl2k-go). Pat
 is a working open-source Winlink client and the best reference
-implementation. Check its licence before porting any code, and mark
-anything taken from its behaviour rather than from documentation
-`# UNVERIFIED:` until a live exchange confirms it.
+implementation; wl2k-go is MIT, and its secure login and LZHUF are ported
+(2026-09-26, credited in the README). Mark anything taken from its
+behaviour rather than from documentation `# UNVERIFIED:` until a live
+exchange confirms it.
 
 - [ ] **Winlink account in Settings**: callsign, the password as a named
   credential (in the OS keyring since 2026-09-26), and the Address Book
@@ -153,11 +154,10 @@ anything taken from its behaviour rather than from documentation
   upstream gateway when the local node's Internet is down (operator,
   2026-09-26). The B2F exchange starts when the gateway's `[WL2K-...]`
   line arrives, however the route got there. Small.
-- [ ] **B2F client** (`kissterm/winlink/`): handshake and SID exchange,
-  secure login, proposal/accept, LZHUF compress and decompress, send
-  Outbox, receive to Inbox, clean disconnect. Unit-tested against recorded
-  exchanges. `# RESEARCH:` the exact secure-login hash and the SID flags
-  from the published docs. Large.
+- [ ] **B2F client** (`kissterm/winlink/`): the B2 message format and
+  MIDs, handshake and SID exchange, proposal/accept, send Outbox, receive
+  to Inbox, clean disconnect. Unit-tested against recorded exchanges.
+  Secure login and LZHUF are done (2026-09-26). Large.
 - [ ] **CMS over Telnet first.** It is the test path that needs no radio.
   Pat's documented form is `cms.winlink.org:8772`. Confirm the host, port
   and Telnet-layer login from Winlink's own documentation. Operator-initiated

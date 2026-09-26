@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Winlink groundwork: secure login and LZHUF
+
+### New Features
+
+- **The first two pieces of Winlink over packet**, with no UI yet: the
+  answer to the CMS's password challenge (`;PQ:`/`;PR:`, the password
+  never sent), and LZHUF in the B2 container that every Winlink message
+  travels in. Both are ports of wl2k-go (MIT) and match its test vectors
+  byte for byte, including a real message with a picture attached.
+
+**Files:** `kissterm/winlink/` (new: `__init__.py`, `secure.py`,
+`lzhuf.py`, `AGENTS.md`), `tests/unit/test_winlink_secure.py`,
+`tests/unit/test_winlink_lzhuf.py`, `tests/unit/data/winlink/` (new),
+`README.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Saved logins in the system keyring
 
 ### Improvements
