@@ -58,8 +58,8 @@ citations in `packet-net/pdn-bbs` `docs/linbpq-mail-compat.md` sections
   `Bid:`; Size counts CRLF endings), sometimes followed by a warning that
   no forwarding route is known, then the prompt.
 - NTS traffic is `ST <zip> @ NTS<state>` (`ST 04005 @ NTSME`), titled
-  `QTC <town> / <area code> <exchange>` (ARRL MPG 6.2.1; the body is
-  built by `nts.py`); a
+  `<town> <call>` or `<town> <area code> <exchange>` (the title and
+  body are built by `nts.py`, which cites its sources); a
   bulletin is `SB <category> @ <distribution>` (`SB WX @ ALLUS`).
 """
 

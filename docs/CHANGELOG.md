@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Radiograms: RRI 2026 layout and KY2D's title
+
+### Improvements
+
+- **BT separates the address, text and signature**, as in RRI/NTS 2.0's
+  February 2026 radiogram guidelines, KY2D's review of the bpq-apps form
+  and the Outpost packet guide; the 2002 MPG's blank lines are gone.
+- **The BBS title is `CITY CALLSIGN`, `CITY NXX NXX` or `CITY - -`**
+  (KY2D), replacing the MPG's `QTC CITY / NXX NXX`. The published guides
+  disagree on the title; an on-air listing check is in ON-AIR-TESTS.
+- An email address is written `ATSIGN` (RRI 2026) and `#` in an address
+  is NR (KY2D). QUERY, spelled-out COMMA and the check rules were
+  already what RRI 2026 says, so the Winlink-style punctuation in
+  bpq-apps was not brought across.
+
+**Files:** `kissterm/mail/nts.py`, `kissterm/mail/compose.py`,
+`kissterm/mail/bpqmail.py`, `kissterm/mail/AGENTS.md`,
+`tests/unit/test_mail_nts.py`, `tests/pilot/test_radiogram.py`,
+`docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-25] — Radiogram form: live conversion, Check field, compact
 
 ### Improvements

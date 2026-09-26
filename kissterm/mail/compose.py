@@ -176,7 +176,7 @@ def send_command(message: Message, bbs_source: str) -> tuple[str, bool]:
 
 def radiogram_message(gram, sender: str) -> Message:
     """A filled `nts.Radiogram` as an Outbox message: `ST <zip> @ NTS<st>`
-    titled with its `QTC` subject (MPG 6.2.1). `Nts-Number` and
+    titled with its `subject()`. `Nts-Number` and
     `Nts-Place` let the next radiogram suggest its number and place."""
     to, at = gram.routing()
     return Message(
@@ -205,8 +205,8 @@ def radiogram_defaults(store) -> tuple[str, str]:
     place, newest = "", None
     for folder in (BBS_OUTBOX, f"{MAIL}/BBS/{SENT}"):
         for summary in store.list(folder):
-            if not summary.subject.startswith("QTC "):
-                continue
+            if not (summary.to.isdigit() and len(summary.to) == 5):
+                continue  # an ST message is addressed to a ZIP
             try:
                 message = store.read(summary.ref)
             except (OSError, ValueError):

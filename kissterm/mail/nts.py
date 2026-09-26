@@ -16,13 +16,32 @@ saved.
   subject (30 characters at most), a preamble starting `NR`, no blank line
   between preamble and address, a blank line before and after the text,
   and five words per text line.
+- RRI / ARRL NTS 2.0, "Guidelines for Origination, Relay and Delivery of
+  Radiogram-ICS213 Messages", final-approved 27 Feb 2026
+  (nts2.arrl.org). The current word where it and the 2002 MPG differ:
+  BT separates the address from the text and the text from the signature
+  (the MPG's packet example used blank lines); an email address is
+  `... ATSIGN ...`; a question mark is QUERY and other punctuation is
+  spelled out (COMMA), confirming MPG 1.3.1; five groups to a text line.
+- Jim Kutsch KY2D's review of the bpq-apps radiogram form (bpq-apps
+  commit ef6612c, forms v1.28, 2026-05-25): two BTs and no AR, no `TO:`,
+  call sign after the name with no comma, `#` in an address as NR, and
+  the BBS title `CITY CALLSIGN` / `CITY NXX NXX` / `CITY - -`. Sources
+  for the title disagree -- MPG 6.2.1 has `QTC TOWN / NXX NXX`, the
+  Outpost "NTS for Packet" guide (rev 1.4, 2006) `QTC 1 R CITY ST
+  (NXX-NXX)` -- and none is from RRI, so the one a working traffic
+  handler checked is used.
+  # UNVERIFIED: the title against a live NTS listing (`LT` on a BBS
+  # carrying NTS traffic); nothing in the captures shows one yet.
 - ARL Numbered Radiogram Texts, final-approved version 3.0, 2025-10-07
   (ARRL/RRI, nts2.arrl.org/numbered-texts), shipped as
   `data/arl_numbered.json`. Its instruction 1: the check counts the groups
   "as originated, NOT as translated".
 
 **Where this differs from bpq-apps' `forms.py`**, which it was ported from
-(same author, CC0), each because the MPG says otherwise:
+(same author, CC0). `forms.py` copied Winlink's `fixpunct()` for the text;
+these are the points where the MPG and the 2026 RRI guidelines say
+otherwise, none of them part of KY2D's review:
 
 - The check is the number of groups, whatever their length (1.3.4: "each
   ... group of connected digits ... constitutes one group"). `forms.py`
@@ -34,7 +53,6 @@ saved.
 - EMERGENCY is always spelled out in the preamble (1.1.2); the day has no
   leading zero (1.1.9); a time filed carries its zone, "1830Z" (1.1.7).
 - The telephone line is the digit groups alone, no TEL prefix (1.2.4).
-- The subject is `QTC ...` (6.2.1), not `CITY CALLSIGN`.
 
 The preview in the form shows the encoded text as it will be sent, so an
 encoding the operator does not want is seen and rewritten before saving.
@@ -85,7 +103,7 @@ _MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT",
 #: to 25 words or less"). More is allowed, with a warning.
 USUAL_MAX_GROUPS = 25
 
-#: The BBS subject limit for NTS traffic, "QTC" included (MPG 6.2.1).
+#: The BBS subject limit for NTS traffic (MPG 6.2.1).
 MAX_SUBJECT = 30
 
 #: Spelled-out punctuation (MPG 1.3.1: X for a period; "other punctuation
@@ -123,9 +141,10 @@ def number_words(n: int) -> str:
 
 
 def encode_email(address: str) -> str:
-    """`w3xxx@aol.com` -> `W3XXX AT AOL DOT COM` (MPG 1.3.2)."""
+    """`w3xxx@aol.com` -> `W3XXX ATSIGN AOL DOT COM` (RRI 2026 guidelines'
+    example; MPG 1.3.2 allows AT, which is also an ordinary word)."""
     text = address.strip().upper()
-    for char, word in (("@", "AT"), (".", "DOT"), ("-", "DASH"), ("_", "UNDERSCORE")):
+    for char, word in (("@", "ATSIGN"), (".", "DOT"), ("-", "DASH"), ("_", "UNDERSCORE")):
         text = text.replace(char, f" {word} ")
     return " ".join(text.split())
 
@@ -183,8 +202,9 @@ def check(encoded_text: str) -> str:
 
 def encode_address(line: str) -> str:
     """An address line without punctuation (MPG 1.2.6): a needed dash is
-    spelled DASH, "/" may stay, anything else becomes a space."""
-    text = line.upper()
+    spelled DASH, `#` is NR (KY2D), "/" may stay, anything else becomes a
+    space."""
+    text = re.sub(r"#\s*", " NR ", line.upper())
     text = re.sub(r"(\w)\s*-\s*(\w)", r"\1 DASH \2", text)
     text = re.sub(r"[^A-Z0-9/\s]", " ", text)
     return " ".join(text.split())
@@ -282,31 +302,34 @@ class Radiogram:
         return [line for line in lines if line]
 
     def body(self) -> str:
-        """The message body as MPG 6.2.1 lays it out for a packet BBS."""
+        """The message body for a packet BBS: preamble, address, BT, the
+        text five groups to a line, BT, signature; no AR (RRI 2026, KY2D)."""
         groups = self.encoded_text.split()
         text_lines = [" ".join(groups[i:i + 5]) for i in range(0, len(groups), 5)]
-        lines = [self.preamble(), *self.address(), "", *text_lines, "",
+        lines = [self.preamble(), *self.address(), "BT", *text_lines, "BT",
                  encode_address(self.signature)]
         if self.sig_op_note.strip():
             lines.append(f"OP NOTE {encode_address(self.sig_op_note)}")
         return "\n".join(lines) + "\n"
 
     def subject(self) -> str:
-        """`QTC SOMETOWN / 555 555`: the destination town and the phone's
-        area code and exchange, or NO PHONE, and/or the addressee's call
-        sign -- 30 characters at most (MPG 6.2.1)."""
+        """The BBS title: `AUGUSTA KC1ABC` for a ham addressee, else
+        `AUGUSTA 207 555` (area code and exchange), else `AUGUSTA - -`
+        (KY2D; see the module docstring). At most 30 characters (MPG 6.2.1)
+        -- the town is shortened, never the call or the phone."""
         digits = re.sub(r"\D", "", self.to_phone)
         if len(digits) == 11 and digits.startswith("1"):
             digits = digits[1:]
-        tail = f"{digits[:3]} {digits[3:6]}" if len(digits) == 10 else ""
         call = self.to_call.strip().upper()
-        if not tail:
-            tail = call or "NO PHONE"
-        elif call and len(f"QTC X / {tail} {call}") <= MAX_SUBJECT:
-            tail = f"{tail} {call}"
-        room = MAX_SUBJECT - len(f"QTC  / {tail}")
+        if call:
+            tail = call
+        elif len(digits) == 10:
+            tail = f"{digits[:3]} {digits[3:6]}"
+        else:
+            tail = "- -"
+        room = MAX_SUBJECT - len(tail) - 1
         town = encode_address(self.to_city)[:max(room, 1)].rstrip()
-        return f"QTC {town} / {tail}"[:MAX_SUBJECT]
+        return f"{town} {tail}"[:MAX_SUBJECT]
 
     def routing(self) -> tuple[str, str]:
         """(`to`, `at`) for `ST <zip> @ NTS<state>` (MPG 6.2.1)."""

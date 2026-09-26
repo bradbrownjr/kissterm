@@ -32,7 +32,8 @@ of the two is marked `# UNVERIFIED:`.
   line**; any refusal stops the run and leaves it in the Outbox. A body
   line that would end the text early (`/ex`) is refused before anything
   is sent, even if the file was edited by hand after saving.
-- **Radiograms follow the ARRL MPG, not bpq-apps' `forms.py`** where the
-  two differ (`nts.py`'s docstring lists each, with MPG section numbers).
+- **Radiograms follow the 2026 RRI guidelines, then KY2D's review, then
+  the ARRL MPG**, not the Winlink punctuation in bpq-apps' `forms.py`
+  (`nts.py`'s docstring cites each source and each difference).
   The check counts groups as originated; ARL texts ship as
   `data/arl_numbered.json` (v3.0), tested by `tests/unit/test_mail_nts.py`.

@@ -40,7 +40,7 @@ def test_mpg_1_3_4_group_counting():
 
 def test_punctuation_is_spelled_and_x_never_ends_the_text():
     assert nts.encode_text("Call 207-555-1212, or write w1aw@arrl.org.") == (
-        "CALL 207 555 1212 COMMA OR WRITE W1AW AT ARRL DOT ORG"
+        "CALL 207 555 1212 COMMA OR WRITE W1AW ATSIGN ARRL DOT ORG"
     )
     assert nts.encode_text("Don't worry!") == "DONT WORRY EXCLAMATION"
     assert nts.encode_text("See you...") == "SEE YOU"
@@ -54,7 +54,7 @@ def test_preamble_follows_1_1():
     assert gram.preamble().startswith("NR 1 TEST R HXE")
 
 
-def test_mpg_6_2_1_packet_upload_example():
+def test_mpg_6_2_1_packet_upload_with_rri_2026_separators():
     gram = Radiogram(
         number="1", precedence="R", handling="HXG", origin="N3QA", place="Chestertown MD",
         filed=JAN_1, to_name="Guy Anyone", to_street="123 Main Street", to_city="Sometown",
@@ -64,9 +64,9 @@ def test_mpg_6_2_1_packet_upload_example():
     assert gram.body() == (
         "NR 1 R HXG N3QA ARL 5 CHESTERTOWN MD JAN 1\n"
         "GUY ANYONE\n123 MAIN STREET\nSOMETOWN CA 99999\n555 555 5555\n"
-        "\nARL FIFTY SEE YOU SOON\n\nJOHN Q PUBLIC\n"
+        "BT\nARL FIFTY SEE YOU SOON\nBT\nJOHN Q PUBLIC\n"
     )
-    assert gram.subject() == "QTC SOMETOWN / 555 555"
+    assert gram.subject() == "SOMETOWN 555 555"
     assert gram.routing() == ("99999", "NTSCA")
     assert gram.problems() == []
 
@@ -75,16 +75,19 @@ def test_address_rules_1_2():
     gram = Radiogram(to_name="John R Smith", to_call="w3xyz", to_street="23 East Oak Dr. SW, Apt #34",
                      to_city="Owings Mills", to_state="md", to_zip="21117-2345")
     assert gram.address()[:3] == [
-        "JOHN R SMITH W3XYZ", "23 EAST OAK DR SW APT 34", "OWINGS MILLS MD 21117 DASH 2345",
+        "JOHN R SMITH W3XYZ", "23 EAST OAK DR SW APT NR 34", "OWINGS MILLS MD 21117 DASH 2345",
     ]
     assert gram.routing() == ("21117", "NTSMD")
 
 
-def test_subject_without_a_phone_and_its_30_character_limit():
-    assert Radiogram(to_city="Waldorf").subject() == "QTC WALDORF / NO PHONE"
-    assert Radiogram(to_city="Waldorf", to_call="kc1abc").subject() == "QTC WALDORF / KC1ABC"
+def test_subject_follows_ky2d_and_its_30_character_limit():
+    assert Radiogram(to_city="Waldorf").subject() == "WALDORF - -"
+    assert Radiogram(to_city="Waldorf", to_phone="301 555 1212").subject() == "WALDORF 301 555"
+    # A ham addressee is named by call, even with a phone.
+    assert Radiogram(to_city="Waldorf", to_call="kc1abc", to_phone="3015551212").subject() == (
+        "WALDORF KC1ABC")
     long = Radiogram(to_city="North Saint Paul Heights Township", to_phone="6515551212")
-    assert len(long.subject()) <= nts.MAX_SUBJECT and long.subject().endswith("/ 651 555")
+    assert len(long.subject()) <= nts.MAX_SUBJECT and long.subject().endswith(" 651 555")
 
 
 def test_problems_name_each_field():

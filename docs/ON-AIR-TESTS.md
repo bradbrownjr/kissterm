@@ -35,11 +35,17 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   transcript of this first send becomes the test fixture.
 - [ ] **First radiogram (ST).** Insert, Type: NTS radiogram. Address it
   to someone you can check with, TEST ticked if it is an exercise. The
-  status line should read `ST <zip> @ NTS<state>` and `QTC <town> / ...`.
-  Then G: the BBS should ask for the title, take the `QTC` subject, and
-  answer `Message: N Bid: ...`. Afterwards, `L` on the BBS shows it as
-  type T. ST is built from the ARRL MPG 6.2.1 and LinBPQ only; the
-  transcript of this first send becomes the test fixture.
+  status line should read `ST <zip> @ NTS<state>` and a title like
+  `AUGUSTA 207 555`. Then G: the BBS should ask for the title, take it,
+  and answer `Message: N Bid: ...`. Afterwards, `L` on the BBS shows it
+  as type T. ST is built from the ARRL MPG, the 2026 RRI guidelines,
+  KY2D's review and LinBPQ; the transcript of this first send becomes
+  the test fixture.
+- [ ] **What NTS titles look like on WS1EC.** While connected, `LT`
+  lists the NTS traffic the BBS holds (one listing, no reads). Note the
+  titles other stations use: kissterm's `CITY CALLSIGN` / `CITY NXX NXX`
+  / `CITY - -` came from KY2D, and the published guides disagree, so a
+  real listing settles it (`nts.py`'s docstring marks it UNVERIFIED).
 - [x] **Reply by number (SR)** went out and was accepted as #2820
   (2026-09-25), and moved to Mail > BBS > Sent with its number and BID.
 

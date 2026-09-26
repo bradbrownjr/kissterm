@@ -69,12 +69,12 @@ async def test_a_radiogram_is_saved_as_st_to_the_outbox(tmp_path):
         assert preview == "ARL FIFTY = Greetings by Amateur Radio."
         assert str(screen.query_one("#rg-check", Static).render()) == "ARL 9"
         status = str(screen.query_one("#rg-status", Static).render())
-        assert "ST 04330 @ NTSME" in status and "QTC AUGUSTA / 207 555" in status
+        assert "ST 04330 @ NTSME" in status and "AUGUSTA 207 555" in status
         await pilot.click("#rg-save")
         await wait_for(lambda: store.list(BBS_OUTBOX), "the Outbox message")
         [summary] = store.list(BBS_OUTBOX)
         message = store.read(summary.ref)
-        assert message.subject == "QTC AUGUSTA / 207 555"
+        assert message.subject == "AUGUSTA 207 555"
         assert message.body.startswith("NR 1 R KC1JMH ARL 9 WATERBORO ME ")
         assert send_command(message, "BBS WS1EC") == ("ST 04330 @ NTSME", True)
 
