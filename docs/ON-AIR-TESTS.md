@@ -111,6 +111,14 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 - [ ] **T1 and T2**: your saved values were t1=3, t2=3; the defaults are
   now T1 5 and T2 1. Check Settings > Link shows what you want.
 
+## Saved logins
+
+- [ ] **Keyring on your desktop** (not a radio test): launch kissterm from
+  your desktop session. A notice should say your saved logins moved into
+  the system keyring; Settings > Logins should say "in the system
+  keyring" for each, config.toml should hold only their names, and a
+  connect that uses one should still log in.
+
 ## Standing verifications (from AGENTS.md section 8)
 
 - [ ] **Mic-E** decoding against a real off-air packet.

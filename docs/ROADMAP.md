@@ -146,9 +146,13 @@ implementation. Check its licence before porting any code, and mark
 anything taken from its behaviour rather than from documentation
 `# UNVERIFIED:` until a live exchange confirms it.
 
-- [ ] **Winlink account in Settings**: callsign, and a password kept as a
-  named credential (`Config.credentials`, as Address Book logins already
-  are), never in plain config text if the OS keyring is available. Small.
+- [ ] **Winlink account in Settings**: callsign, the password as a named
+  credential (in the OS keyring since 2026-09-26), and the Address Book
+  route that reaches a gateway -- a direct `-10` RMS SSID, a NET/ROM
+  alias, the node plus an `RMS` script line, or a hop chain to an
+  upstream gateway when the local node's Internet is down (operator,
+  2026-09-26). The B2F exchange starts when the gateway's `[WL2K-...]`
+  line arrives, however the route got there. Small.
 - [ ] **B2F client** (`kissterm/winlink/`): handshake and SID exchange,
   secure login, proposal/accept, LZHUF compress and decompress, send
   Outbox, receive to Inbox, clean disconnect. Unit-tested against recorded

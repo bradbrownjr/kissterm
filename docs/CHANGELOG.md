@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Saved logins in the system keyring
+
+### Improvements
+
+- **Saved logins go to the system keyring** (GNOME Keyring, KWallet,
+  macOS Keychain, Windows Credential Locker) when there is one;
+  config.toml keeps only their names. Logins already in config.toml
+  move at launch, with a notice. Without a keyring (a headless SSH
+  session) they stay in config.toml, and Settings > Logins says where
+  each one is kept. Tests never touch the real keyring.
+- New dependency: `keyring`.
+
+**Files:** `kissterm/keystore.py` (new), `kissterm/config.py`,
+`kissterm/_isolate.py`, `kissterm/ui/app.py`, `kissterm/ui/settings_pane.py`,
+`pyproject.toml`, `tests/unit/test_keystore.py`, `README.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Bulletin categories and distributions
 
 ### Improvements

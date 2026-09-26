@@ -44,6 +44,7 @@ from textual.widgets import (
 )
 from textual.widgets.option_list import Option
 
+from ..config import credential_store, find_credential, forget_credential, set_credential
 from ..aprs import symbols
 from ..gps import discover_serial_gps
 from ..locator import LocatorError, from_grid, to_grid
@@ -902,8 +903,14 @@ class SettingsPane(Vertical):
                 "storing its own copy of the text."
             )
             return
-        lines = str(entry.get("text", "")).count("\n") + 1 if entry.get("text") else 0
-        detail.update(f"{lines} line(s) saved." if lines else "(empty)")
+        text = find_credential(config, str(name))
+        lines = text.count("\n") + 1 if text else 0
+        where = ("in the system keyring" if credential_store(config, str(name)) == "keyring"
+                 else "in config.toml (no system keyring here)")
+        if not text and credential_store(config, str(name)) == "keyring":
+            detail.update("Kept in the system keyring, which did not answer: unlock it, or Edit to save it again.")
+            return
+        detail.update(f"{lines} line(s) saved, {where}." if lines else "(empty)")
 
     def _render_scripts(self, config) -> None:
         select = self.query_one("#set-script", Select)
@@ -1237,8 +1244,7 @@ class SettingsPane(Vertical):
         if result is None:
             return
         config = self.app.config  # type: ignore[attr-defined]
-        config.credentials = [c for c in config.credentials if c.get("name") != result.name]
-        config.credentials.append({"name": result.name, "text": result.text})
+        set_credential(config, result.name, result.text)
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_credentials(config)
         self.query_one("#set-credential", Select).value = result.name
@@ -1259,7 +1265,7 @@ class SettingsPane(Vertical):
             self.app.notify("Select a credential first.", severity="warning")  # type: ignore[attr-defined]
             return
         result = await self.app.push_screen_wait(
-            CredentialScreen(entry.get("name", ""), entry.get("text", ""))
+            CredentialScreen(entry.get("name", ""), find_credential(config, entry.get("name", "")))
         )
         if result is None:
             return
@@ -1267,10 +1273,7 @@ class SettingsPane(Vertical):
         # with an existing entry) before re-adding, so a rename replaces
         # the old entry in place rather than leaving a stale duplicate a
         # station could still resolve to.
-        config.credentials = [
-            c for c in config.credentials if c.get("name") not in (name, result.name)
-        ]
-        config.credentials.append({"name": result.name, "text": result.text})
+        set_credential(config, result.name, result.text, old_name=str(name))
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_credentials(config)
         self.query_one("#set-credential", Select).value = result.name
@@ -1286,7 +1289,7 @@ class SettingsPane(Vertical):
         name = self.query_one("#set-credential", Select).value
         if not name or name == Select.NULL:
             return
-        config.credentials = [c for c in config.credentials if c.get("name") != name]
+        forget_credential(config, str(name))
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_credentials(config)
 

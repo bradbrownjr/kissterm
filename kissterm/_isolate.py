@@ -33,6 +33,7 @@ config directory gets destroyed by what looked like a scoped test.
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 
@@ -79,5 +80,17 @@ def isolate(root: str | Path | None = None) -> Path:
     platformdirs.user_config_dir = lambda *a, **k: str(config_dir)  # type: ignore[assignment]
     platformdirs.user_state_dir = lambda *a, **k: str(state_dir)  # type: ignore[assignment]
     platformdirs.user_data_dir = lambda *a, **k: str(data_dir)  # type: ignore[assignment]
+
+    # Saved logins go to the OS keyring (`kissterm/keystore.py`): a test must
+    # never read or write the operator's. The environment variable covers a
+    # later `import keyring`; `set_keyring` covers one already made.
+    os.environ["PYTHON_KEYRING_BACKEND"] = "keyring.backends.fail.Keyring"
+    try:
+        import keyring
+        from keyring.backends import fail
+    except ImportError:
+        pass
+    else:
+        keyring.set_keyring(fail.Keyring())
 
     return base

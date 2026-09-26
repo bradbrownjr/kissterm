@@ -384,7 +384,11 @@ An entry can carry:
   login, named for the account it belongs to; a script is any sequence of
   commands sent after connecting -- a login followed by a node hop, a
   mailbox check, whatever you do after every connect to some station --
-  named for what it does. A credential wins if both happen to be set;
+  named for what it does. A credential wins if both happen to be set.
+  Credentials are kept in your system keyring (GNOME Keyring, KWallet,
+  macOS Keychain, Windows Credential Locker) when there is one, and
+  config.toml holds only their names; without one they stay in
+  config.toml, and Settings says which;
 - a **frequency and connection type**, purely informational -- kissterm
   cannot tune a radio or start a modem for you, but it will ask you to
   confirm both are set before a connect that has them on file goes out.

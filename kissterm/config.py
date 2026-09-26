@@ -660,8 +660,65 @@ def find_credential(config: Config, name: str) -> str:
         return ""
     for entry in config.credentials:
         if entry.get("name") == name:
+            if entry.get("store") == "keyring":
+                from . import keystore
+
+                return keystore.get(name) or ""
             return str(entry.get("text", ""))
     return ""
+
+
+def set_credential(config: Config, name: str, text: str, *, old_name: str = "") -> str:
+    """Save (or rename and save) the credential `name`; returns where it
+    went, "keyring" or "config". The OS keyring when there is one
+    (`kissterm/keystore.py`), config.toml otherwise. Any same-named entry
+    is replaced, not shadowed: `find_credential` takes the first match.
+    The caller saves the config."""
+    from . import keystore
+
+    if old_name and old_name != name:
+        keystore.delete(old_name)  # renamed: the old name is gone
+    config.credentials = [c for c in config.credentials if c.get("name") not in (name, old_name)]
+    if keystore.put(name, text):
+        config.credentials.append({"name": name, "store": "keyring"})
+        return "keyring"
+    config.credentials.append({"name": name, "text": text})
+    return "config"
+
+
+def forget_credential(config: Config, name: str) -> None:
+    """Remove the credential `name` from config and the keyring."""
+    from . import keystore
+
+    keystore.delete(name)
+    config.credentials = [c for c in config.credentials if c.get("name") != name]
+
+
+def credential_store(config: Config, name: str) -> str:
+    """"keyring", "config", or "" (no such credential), for Settings to say."""
+    entry = next((c for c in config.credentials if c.get("name") == name), None)
+    if entry is None:
+        return ""
+    return "keyring" if entry.get("store") == "keyring" else "config"
+
+
+def move_credentials_to_keyring(config: Config) -> int:
+    """Move every credential still held as text in config.toml into the OS
+    keyring, when there is one; returns how many moved. The caller saves
+    the config and says so. Run once at launch, off the UI thread."""
+    from . import keystore
+
+    if not keystore.available():
+        return 0
+    moved = 0
+    for entry in config.credentials:
+        name = entry.get("name")
+        if name and entry.get("store") != "keyring" and "text" in entry:
+            if keystore.put(name, str(entry["text"])):
+                entry.pop("text")
+                entry["store"] = "keyring"
+                moved += 1
+    return moved
 
 
 def find_script(config: Config, name: str) -> str:

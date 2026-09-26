@@ -141,6 +141,8 @@ from ..config import (
     AprsConfig,
     BeaconConfig,
     find_credential,
+    move_credentials_to_keyring,
+    set_credential,
     find_script,
     mail_path,
     state_path,
@@ -832,6 +834,23 @@ class KissTermApp(App):
             log.warning(warning)
         self.theme = resolved
 
+    @work(thread=True, exclusive=True, group="keyring")
+    def _move_credentials_to_keyring(self) -> None:
+        """Logins saved as text in config.toml move to the OS keyring when
+        there is one (`kissterm/keystore.py`); off the UI thread, since a
+        keyring may be slow to answer or ask to be unlocked."""
+        try:
+            moved = move_credentials_to_keyring(self.config)
+        except Exception as exc:  # noqa: BLE001 - never disturb the launch
+            log.warning("keyring: moving saved logins failed: %s", exc)
+            return
+        if moved:
+            self.call_from_thread(self._save_config)
+            self.call_from_thread(
+                self.notify,
+                f"Moved {moved} saved login{'s' if moved != 1 else ''} from config.toml "
+                "into the system keyring.", timeout=6)
+
     def on_mount(self) -> None:
         self.query_one(SettingsPane).render_settings(self.config)
         # Paint once immediately, then on a timer. Without the eager call the
@@ -840,6 +859,7 @@ class KissTermApp(App):
         # moment the operator is looking for confirmation that it has.
         self._refresh_status()
         self._start_port_watcher()
+        self._move_credentials_to_keyring()
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(2.0, self._refresh_heard)
         self._attach_station()
@@ -3422,20 +3442,7 @@ class KissTermApp(App):
                 # duplicate: `find_credential` returns the FIRST match, so a
                 # second entry with the same name would silently never be
                 # the one used.
-                existing = next(
-                    (
-                        c
-                        for c in self.config.credentials
-                        if c.get("name") == request.credential
-                    ),
-                    None,
-                )
-                if existing is not None:
-                    existing["text"] = request.new_credential_text
-                else:
-                    self.config.credentials.append(
-                        {"name": request.credential, "text": request.new_credential_text}
-                    )
+                set_credential(self.config, request.credential, request.new_credential_text)
                 self._save_config()
             if request.transport_name and request.transport_name != self.config.active_transport:
                 self.config.active_transport = request.transport_name

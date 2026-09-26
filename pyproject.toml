@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.287"
+version = "0.1.288"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,7 +15,7 @@ keywords = ["amateur radio", "ham radio", "packet radio", "ax25", "kiss", "aprs"
 # commonly receive from mapping and public-safety tools (UTM/MGRS) to the
 # WGS-84 decimal degrees APRS encodes on air.  Keeping that projection logic
 # in one maintained library is safer than separate hand-rolled algorithms.
-dependencies = ["textual", "rich", "pyserial", "platformdirs", "pygeodesy>=26.9"]
+dependencies = ["textual", "rich", "pyserial", "platformdirs", "pygeodesy>=26.9", "keyring>=25"]
 
 classifiers = [
     "Development Status :: 3 - Alpha",
