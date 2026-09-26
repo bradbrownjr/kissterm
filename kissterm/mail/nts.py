@@ -15,7 +15,8 @@ radiograms"):
   (1.3.4). Section numbers are cited in the code below.
 - The same MPG, chapter 6, "NTS Digital", 6.2.1: the packet upload -- the
   `ST 99999 @ NTSCA` line, the `QTC <town> / <area code> <exchange>`
-  subject (30 characters at most), a preamble starting `NR`, no blank line
+  subject (30 characters at most), a preamble starting `NR` (superseded:
+  see below), no blank line
   between preamble and address, a blank line before and after the text,
   and five words per text line.
 - RRI / ARRL NTS 2.0, "Guidelines for Origination, Relay and Delivery of
@@ -36,7 +37,8 @@ radiograms"):
   net's May 2026 instructions name and which was set up with KY2D
   (tprfn.net/radiogram-form, read 2026-09-26), titles traffic `CITY
   CALL` too. It and RRI's 2026 sample also leave `NR` off the preamble,
-  which MPG 6.2.1 has; kissterm keeps `NR` until the operator decides.
+  which MPG 6.2.1 has; the newer standard is followed and the preamble
+  starts with the number (operator's decision, 2026-09-26).
   # UNVERIFIED: the title against a live NTS listing (`LT` on a BBS
   # carrying NTS traffic); nothing in the captures shows one yet.
 - **Radiogram-ICS213** (the same RRI 2026 guidelines): an ICS-213
@@ -296,7 +298,7 @@ class Radiogram:
         if self.test:
             precedence = f"TEST {precedence}"
         parts = [
-            "NR", self.number.strip(), precedence, self.handling.strip().upper(),
+            self.number.strip(), precedence, self.handling.strip().upper(),
             self.origin.strip().upper(), self.check, encode_address(self.place),
             self.time_filed.strip().upper(), date_filed(self.filed),
         ]

@@ -75,7 +75,7 @@ async def test_a_radiogram_is_saved_as_st_to_the_outbox(tmp_path):
         [summary] = store.list(BBS_OUTBOX)
         message = store.read(summary.ref)
         assert message.subject == "AUGUSTA 207 555"
-        assert message.body.startswith("NR 1 R KC1JMH ARL 9 WATERBORO ME ")
+        assert message.body.startswith("1 R KC1JMH ARL 9 WATERBORO ME ")
         assert send_command(message, "BBS WS1EC") == ("ST 04330 @ NTSME", True)
 
 
@@ -155,6 +155,6 @@ async def test_a_radiogram_ics213_carries_hxi_and_its_subject(tmp_path):
         await pilot.click("#rg-save")
         await wait_for(lambda: store.list(BBS_OUTBOX), "the Outbox message")
         message = store.read(store.list(BBS_OUTBOX)[0].ref)
-        assert message.body.startswith("NR 1 R HXI KC1JMH 2 WATERBORO ME ")
+        assert message.body.startswith("1 R HXI KC1JMH 2 WATERBORO ME ")
         assert message.body.endswith("BT\nBRAD\nSHELTER STATUS 1400\n")
         assert message.extra["Form"] == "radiogram_ics213"

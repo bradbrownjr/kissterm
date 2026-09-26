@@ -49,9 +49,9 @@ def test_punctuation_is_spelled_and_x_never_ends_the_text():
 def test_preamble_follows_1_1():
     gram = Radiogram(number="1", precedence="EMERGENCY", handling="hxe", origin="w1aw",
                      place="Newington, CT", time_filed="1830z", filed=JAN_1, text="Hi")
-    assert gram.preamble() == "NR 1 EMERGENCY HXE W1AW 1 NEWINGTON CT 1830Z JAN 1"
+    assert gram.preamble() == "1 EMERGENCY HXE W1AW 1 NEWINGTON CT 1830Z JAN 1"
     gram.test, gram.precedence = True, "R"
-    assert gram.preamble().startswith("NR 1 TEST R HXE")
+    assert gram.preamble().startswith("1 TEST R HXE")
 
 
 def test_mpg_6_2_1_packet_upload_with_rri_2026_separators():
@@ -62,7 +62,7 @@ def test_mpg_6_2_1_packet_upload_with_rri_2026_separators():
         signature="John Q Public",
     )
     assert gram.body() == (
-        "NR 1 R HXG N3QA ARL 5 CHESTERTOWN MD JAN 1\n"
+        "1 R HXG N3QA ARL 5 CHESTERTOWN MD JAN 1\n"
         "GUY ANYONE\n123 MAIN STREET\nSOMETOWN CA 99999\n555 555 5555\n"
         "BT\nARL FIFTY SEE YOU SOON\nBT\nJOHN Q PUBLIC\n"
     )
@@ -137,7 +137,7 @@ def test_radiogram_ics213_follows_rri_2026():
         ics_subject="New template push 0916",
     )
     assert gram.body() == (
-        "NR 46 R HXI KB1TCE 15 OWLS HEAD ME 1214Z SEP 5\n"
+        "46 R HXI KB1TCE 15 OWLS HEAD ME 1214Z SEP 5\n"
         "JAMES WADES WB8SIW\n810 SKYLINE DR\nMARION IL 62959\n833 377 0722\n"
         "BT\nTHE NEW RRI 213 HAS\nNOW BEEN PUSHED TO ALL\nWINLINK EXPRESS USERS X 73\n"
         "BT\nSTEVE HANSEN KB1TCE RRI LIAISON\nNEW TEMPLATE PUSH 0916\n"

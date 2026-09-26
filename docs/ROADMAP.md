@@ -231,7 +231,8 @@ anything taken from its behaviour rather than from documentation
 
 #### Forms
 
-Decided 2026-09-26 (operator approved the plan), replacing the 2026-09-22
+Decided 2026-09-26 (operator approved the plan, and confirmed that the
+newer published standards win over bpq-apps' forms), replacing the 2026-09-22
 decision to port bpq-apps' `.frm` files with byte-identical output: **each
 form copies the published layout its readers expect** -- the Winlink
 standard template's text body, with the owning agency's numbering (FEMA

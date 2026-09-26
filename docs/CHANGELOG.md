@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Radiogram preamble without NR
+
+### Improvements
+
+- A radiogram's preamble starts with its number (`46 R HXG ...`), as in
+  RRI's 2026 guidelines and TPRFN's generator; the 2002 MPG's `NR` is
+  dropped (operator's decision).
+
+**Files:** `kissterm/mail/nts.py`, `tests/unit/test_mail_nts.py`,
+`tests/pilot/test_radiogram.py`, `docs/PROTOCOL_GUIDE.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Radiogram-ICS213
 
 ### New Features
