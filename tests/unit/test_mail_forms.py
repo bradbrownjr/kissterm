@@ -248,3 +248,18 @@ def test_ics205_channel_codes_are_femas():
     assert "\t1\tCommand\t\t\t147.090\tW\t\t147.690\t\t\tA\n" in body
     values["channels"][0]["Mode"] = "X"
     assert forms.problems(form, values)
+
+
+def test_a_309_log_comes_from_mail_since_a_time():
+    from datetime import timedelta
+
+    form = forms.get_form("ics309")
+    log = form.field("log")
+    since = forms.parse_since("2026-09-26 14:00")
+    entries = [forms.MailEntry(since + timedelta(minutes=30), "W1AW", "KC1JMH", "Cots"),
+               forms.MailEntry(since - timedelta(minutes=1), "W1AW", "KC1JMH", "Too early"),
+               forms.MailEntry(since + timedelta(minutes=5), "KC1JMH", "EOC", "Shelter open")]
+    assert forms.mail_log_rows(log, entries, since) == [
+        {"Time": "2026-09-26 14:05", "From": "KC1JMH", "To": "EOC", "Sub": "Shelter open"},
+        {"Time": "2026-09-26 14:30", "From": "W1AW", "To": "KC1JMH", "Sub": "Cots"}]
+    assert forms.parse_since("yesterday") is None

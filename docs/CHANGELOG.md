@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — ICS-309 from mail
+
+### New Features
+
+- **Fill from mail** on the ICS-309: one log line per message in your
+  Mail Inbox and Sent folders (BBS and Winlink, subfolders included)
+  since the time you give, today by default, oldest first. It fills
+  empty lines before adding new ones and never repeats a message
+  already on the log. A form file turns it on with `mail_log`.
+
+**Files:** `kissterm/mail/forms.py`, `kissterm/mail/data/forms/ics309.toml`,
+`kissterm/ui/form_screen.py`, `kissterm/ui/app.py`, `kissterm/ui/styles.py`,
+`tests/unit/test_mail_forms.py`, `tests/pilot/test_forms.py`, `README.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Radiogram preamble without NR
 
 ### Improvements

@@ -17,12 +17,21 @@ placeholder (a column with choices is a select). Computed columns and
 values (`sum_of`, `derived`, `totals`) are not shown: the preview in the
 compose screen has them.
 
+A log with `mail_log` (the ICS-309) also offers "Fill from mail": one
+line per message in the Mail Inbox and Sent folders since the time given
+(today by default), oldest first, into empty lines before new ones, and
+never a message already on the log. The app supplies the messages
+(`mail=`); the operator still reads and edits every line.
+
 An information strip (`forms.strip_form`) is an ordinary form here: one
 text field per question, labelled with the question cut to fit, the whole
 question on the help line.
 """
 
 from __future__ import annotations
+
+from collections.abc import Callable
+from datetime import datetime
 
 from textual import events, on
 from textual.app import ComposeResult
@@ -33,7 +42,19 @@ from textual.widget import Widget
 from textual.widgets import Button, Checkbox, Footer, Input, Label, Select, Static, TextArea
 
 from ..mail.compose import MAX_TITLE, Draft
-from ..mail.forms import Column, Field, FormDef, Values, defaults, problems, render
+from ..mail.forms import (
+    MAIL_LOG_TIME,
+    Column,
+    Field,
+    FormDef,
+    MailEntry,
+    Values,
+    defaults,
+    mail_log_rows,
+    parse_since,
+    problems,
+    render,
+)
 
 #: Width budget for one line of a `rows` field: what an 80-column screen
 #: leaves beside the row label. A column of 40 or more characters takes
@@ -73,9 +94,11 @@ class FormScreen(ModalScreen["Draft | None"]):
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
     def __init__(self, form: FormDef, *, mycall: str = "", grid: str = "",
-                 remembered: Values | None = None) -> None:
+                 remembered: Values | None = None,
+                 mail: Callable[[], list[MailEntry]] | None = None) -> None:
         super().__init__()
         self.form = form
+        self._mail = mail
         self._values = defaults(form, mycall=mycall, grid=grid, remembered=remembered)
         self._start = dict(self._values)
         self._confirm_discard = False
@@ -105,6 +128,13 @@ class FormScreen(ModalScreen["Draft | None"]):
             with Vertical(id=wid, classes="form-rows"):
                 yield Label(f.label, classes="form-label form-rows-label")
             yield Button("Add line", compact=True, id=f"{wid}-add", classes="form-add")
+            if f.mail_log and self._mail is not None:
+                today = datetime.now().replace(hour=0, minute=0).strftime(MAIL_LOG_TIME)
+                with Horizontal(classes="form-row"):
+                    yield Label("From mail", classes="form-label")
+                    yield Input(today, id=f"{wid}-since", placeholder="since YYYY-MM-DD HH:MM",
+                                compact=True, classes="form-since")
+                    yield Button("Fill from mail", compact=True, id=f"{wid}-mail", classes="form-mail")
             return
         if f.kind in ("multiline", "strip"):
             yield Label(f.label, classes="form-label form-label-alone")
@@ -174,6 +204,38 @@ class FormScreen(ModalScreen["Draft | None"]):
         first = self.form.field(field_id).columns[0].id
         self.query_one(f"#form-{field_id}-{number}-{first}").focus()
 
+    @on(Button.Pressed, ".form-mail")
+    async def _fill_from_mail(self, event: Button.Pressed) -> None:
+        field_id = (event.button.id or "").removeprefix("form-").removesuffix("-mail")
+        f = self.form.field(field_id)
+        note = self.query_one("#form-error", Label)
+        since = parse_since(self.query_one(f"#form-{field_id}-since", Input).value)
+        if since is None:
+            note.update("Since: a date and time, e.g. 2026-09-26 14:00.")
+            return
+        columns = [c.id for c in f.columns if not c.sum_of]
+        lines = [{c: self._cell(f"#form-{field_id}-{n}-{c}") for c in columns}
+                 for n in range(1, self._row_counts[field_id] + 1)]
+        added = skipped = 0
+        for row in mail_log_rows(f, self._mail() if self._mail else [], since):
+            if row in lines:
+                continue  # already on the log
+            number = next((n for n, line in enumerate(lines, 1) if not any(line.values())), 0)
+            if not number:
+                if self._row_counts[field_id] >= f.max_rows:
+                    skipped += 1
+                    continue
+                await self._add_row(f)
+                number = self._row_counts[field_id]
+                lines.append({})
+            for column, value in row.items():
+                self.query_one(f"#form-{field_id}-{number}-{column}", Input).value = value
+            lines[number - 1] = row
+            added += 1
+        full = f"; {skipped} more than the form holds" if skipped else ""
+        note.update(f"Filled {added} line{'s' if added != 1 else ''} from mail{full}."
+                    if added or skipped else "No mail since then that is not on the log already.")
+
     # -- values ----------------------------------------------------------------
 
     def values(self) -> Values:
@@ -220,6 +282,11 @@ class FormScreen(ModalScreen["Draft | None"]):
         try:
             f = self.form.field(field_id)
         except StopIteration:
+            return
+        if wid.endswith(("-since", "-mail")):
+            self.query_one("#form-help", Static).update(
+                "Fill from mail adds a line for each message in your Mail Inbox and Sent "
+                "folders since this time, oldest first.")
             return
         limit = f" At most {f.max_length} characters." if f.max_length else ""
         needed = " Needed." if f.required else ""

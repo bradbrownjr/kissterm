@@ -82,7 +82,7 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   ICS-213RR Resource Request, Winlink Check-in, PKTNET Check-in, Field
   Situation Report, Severe WX Report, Damage Assessment, Incident
   Status Report, ICS-309 Communications Log, ICS-214 Activity Log and
-  ICS-205 Radio Plan are Types too, laid out as their published forms so any station reads them
+  ICS-205 Radio Plan are Types too (the 309 can fill its log from your mail), laid out as their published forms so any station reads them
   (the PKTNET check-in comes back addressed `SB PKTNET@USA`); you fill in the form, then
   address it like any message. **Information strips** (`TITLE/question/.../question//`):
   GYX Weather Report and MCF720 ship, "Information strip (paste)" answers any other, and a

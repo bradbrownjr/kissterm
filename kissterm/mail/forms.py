@@ -147,6 +147,10 @@ class Field:
     remember: bool = False
     columns: tuple[Column, ...] = ()
     max_rows: int = 0
+    #: A `rows` log the form screen can fill from the mail kissterm passed
+    #: (the ICS-309): which column takes each message's time, from, to and
+    #: subject, as (key, column id) pairs. See `mail_log_rows`.
+    mail_log: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -184,8 +188,12 @@ def _field(raw: dict[str, Any]) -> Field:
         for c in raw.get("columns", ())
     )
     derived = tuple(Derived(**d) for d in raw.get("derived", ()))
+    mail_log = tuple(sorted(raw.get("mail_log", {}).items()))
+    for key, column in mail_log:
+        if key not in MAIL_LOG_KEYS or column not in {c.id for c in columns}:
+            raise ValueError(f"field {raw.get('id')!r}: mail_log {key} = {column!r}")
     return Field(**{**raw, "choices": tuple(raw.get("choices", ())), "columns": columns,
-                    "derived": derived})
+                    "derived": derived, "mail_log": mail_log})
 
 
 def split_strip(text: str) -> tuple[str, list[str]]:
@@ -313,6 +321,44 @@ Values = dict[str, Any]
 
 
 _TIME_FORMATS = {"date": "%Y-%m-%d", "time": "%H:%M", "datetime": "%Y-%m-%d %H:%M"}
+
+
+# -- a log from the mail -------------------------------------------------------
+
+MAIL_LOG_KEYS = ("from", "subject", "time", "to")
+MAIL_LOG_TIME = "%Y-%m-%d %H:%M"
+
+
+@dataclass(frozen=True)
+class MailEntry:
+    """One message kissterm passed, as a log line needs it."""
+
+    when: datetime
+    sender: str
+    to: str
+    subject: str
+
+
+def parse_since(text: str) -> datetime | None:
+    """`2026-09-26 14:00` or `2026-09-26`, local time; None if neither."""
+    for pattern in (MAIL_LOG_TIME, "%Y-%m-%d"):
+        try:
+            return datetime.strptime(text.strip(), pattern).astimezone()
+        except ValueError:
+            continue
+    return None
+
+
+def mail_log_rows(f: Field, entries: list[MailEntry], since: datetime) -> list[dict[str, str]]:
+    """The log lines for every entry at or after `since`, oldest first, in
+    local time as the form's other times are."""
+    columns = dict(f.mail_log)
+    rows = []
+    for entry in sorted((e for e in entries if e.when >= since), key=lambda e: e.when):
+        values = {"time": entry.when.astimezone().strftime(MAIL_LOG_TIME), "from": entry.sender,
+                  "to": entry.to, "subject": entry.subject}
+        rows.append({columns[key]: values[key] for key in columns})
+    return rows
 
 
 def defaults(form: FormDef, *, mycall: str = "", grid: str = "",

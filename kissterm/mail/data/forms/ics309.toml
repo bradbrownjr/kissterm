@@ -110,3 +110,5 @@ columns = [
   { id = "To", label = "To", max_length = 13 },
   { id = "Sub", label = "Subject", max_length = 90 },
 ]
+# Fill from mail: the Inbox and Sent messages since a chosen time.
+mail_log = { time = "Time", from = "From", to = "To", subject = "Sub" }

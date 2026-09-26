@@ -146,6 +146,7 @@ from ..config import (
     state_path,
 )
 from ..mail import MessageStore
+from ..mail.store import INBOX, MAIL, SENT
 from .. import desktop_notify
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
@@ -3955,6 +3956,7 @@ class KissTermApp(App):
             draft = await self.push_screen_wait(FormScreen(
                 form, mycall=str(self.config.mycall or ""), grid=grid,
                 remembered=forms.load_remembered(remembered_at, form.id),
+                mail=self._mail_log_entries,
             ))
             if draft is not None:
                 forms.save_remembered(remembered_at, form.id,
@@ -3994,6 +3996,22 @@ class KissTermApp(App):
         self.mail_store.add(BBS_OUTBOX, message)
         self._reload_mail_tabs()
         self.notify(f"Saved to the Outbox: {message.subject}", timeout=4)
+
+    def _mail_log_entries(self) -> list:
+        """Every dated message in a Mail Inbox or Sent folder (BBS,
+        Winlink, and their subfolders): what an ICS-309 logs."""
+        from ..mail import forms
+
+        entries = []
+        for folder in self.mail_store.folders():
+            parts = folder.split("/")
+            if parts[0] != MAIL or not {INBOX, SENT} & set(parts):
+                continue
+            for summary in self.mail_store.list(folder):
+                if summary.date is not None:
+                    entries.append(forms.MailEntry(summary.date, summary.sender, summary.to,
+                                                   summary.subject))
+        return entries
 
     @work(exclusive=False)
     async def action_get_mail(self) -> None:

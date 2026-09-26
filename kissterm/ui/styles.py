@@ -386,6 +386,8 @@ FormScreen { align: center middle; }
 .form-row Input.form-beside { width: 1fr; margin-left: 1; }
 .form-multiline { height: 5; }
 .form-add { margin-left: 17; }
+.form-row .form-since { width: 24; }
+.form-mail { margin-left: 1; }
 #form-help { height: auto; max-height: 2; color: $text-muted; }
 #form-foot { height: auto; }
 #form-error { width: 1fr; height: auto; color: $error; }

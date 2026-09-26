@@ -260,9 +260,6 @@ the radiogram form rather than as a form file) shipped 2026-09-26.
 ROSTER is not shipped: it is bpq-apps' README example, not a form any
 net publishes; paste it.
 
-- [ ] **ICS-309 from the mail kissterm passed.** Offer to fill the log's
-  lines from the Outbox, Sent and Inbox for a chosen period, so the
-  operator does not retype what kissterm already recorded. Small.
 - [ ] **Received forms render as forms.** A message kissterm or bpq-apps
   produced is recognised and shown in the form layout, with the raw text one
   key away. ICS-213 keeps a message and its reply in one record: the

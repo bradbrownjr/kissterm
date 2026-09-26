@@ -245,3 +245,31 @@ async def test_a_reply_answers_the_strip_in_the_original(tmp_path):
         await wait_for(lambda: store.list(BBS_OUTBOX), "the Outbox message")
         message = store.read(store.list(BBS_OUTBOX)[0].ref)
         assert message.extra["Reply-Number"] == "2790"
+
+
+@pytest.mark.asyncio
+async def test_a_309_fills_from_inbox_and_sent_once(tmp_path):
+    from datetime import datetime, timezone
+
+    from kissterm.mail import Message
+
+    app, store = _app(tmp_path)
+    when = datetime(2026, 9, 26, 18, 30, tzinfo=timezone.utc)
+    store.add("Mail/BBS/Inbox", Message(sender="W1AW", to="KC1JMH", subject="Cots needed",
+                                        date=when, body="x\n"))
+    store.add("Mail/BBS/Sent", Message(sender="KC1JMH", to="EOC", subject="Shelter open",
+                                       date=when.replace(hour=18, minute=5), body="x\n"))
+    store.add("Mail/BBS/Deleted", Message(sender="N0NE", to="KC1JMH", subject="Deleted",
+                                          date=when, body="x\n"))
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open(app, pilot, "ics309")
+        screen.query_one("#form-log-since", Input).value = "2026-01-01"
+        screen.query_one("#form-log-mail", Button).press()
+        await wait_for(lambda: screen._row_counts["log"] == 2, "two log lines")
+        await pilot.pause()
+        values = screen.values()["log"]
+        assert [(r["From"], r["Sub"]) for r in values] == [("KC1JMH", "Shelter open"), ("W1AW", "Cots needed")]
+        screen.query_one("#form-log-mail", Button).press()
+        await pilot.pause()
+        assert screen._row_counts["log"] == 2
+        assert "No mail since then" in str(screen.query_one("#form-error", Label).render())
