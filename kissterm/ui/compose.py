@@ -10,6 +10,11 @@ A reply to a message read from a BBS goes out as `SR <number>`: the BBS
 addresses and titles it, so To and Title are shown but not editable. It
 says so on the screen rather than letting an edit be silently ignored.
 
+A Winlink message (the "Winlink message" Type, a reply to one received
+from Winlink, or anything written with a Winlink folder selected) has no
+@ field: To takes callsigns or email addresses, and it is filed in
+Mail/Winlink/Outbox for Send/Receive on a Winlink folder.
+
 Esc on a message with text in it asks first: a long message typed on a
 phone keyboard in a shelter is not lost to one stray key.
 """
@@ -28,11 +33,15 @@ from ..mail.compose import (
     BULLETIN_CATEGORIES,
     BULLETIN_DISTRIBUTIONS,
     Draft,
+    MAX_WINLINK_TITLE,
     SEND_BULLETIN,
     SEND_PRIVATE,
     SEND_TRAFFIC,
+    SEND_WINLINK,
     can_reply_by_number,
     check,
+    check_winlink,
+    is_winlink,
     outbox_message,
     quote,
     reply_title,
@@ -47,6 +56,7 @@ RADIOGRAM_ICS213 = "radiogram-ics213"
 _TYPES = [
     ("Private message (SP)", SEND_PRIVATE),
     ("Bulletin (SB)", SEND_BULLETIN),
+    ("Winlink message", SEND_WINLINK),
     ("NTS radiogram (ST)", SEND_TRAFFIC),
     ("Radiogram-ICS213 (ST)", RADIOGRAM_ICS213),
 ]
@@ -95,8 +105,13 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
 
     def __init__(self, sender: str, reply_to: Message | None = None, quoted: bool = False,
                  draft: Draft | None = None,
-                 bulletins: tuple[list[str], list[str]] | None = None) -> None:
+                 bulletins: tuple[list[str], list[str]] | None = None,
+                 winlink: bool = False) -> None:
         super().__init__()
+        #: A reply to a Winlink message stays Winlink; a new message starts
+        #: as one when written from a Winlink folder.
+        self._winlink_reply = reply_to is not None and is_winlink(reply_to)
+        self._start_type = SEND_WINLINK if winlink else SEND_PRIVATE
         #: (categories, distributions) offered for SB (`compose.bulletin_choices`).
         self._bulletins = bulletins or (list(BULLETIN_CATEGORIES),
                                         [d for d, _ in BULLETIN_DISTRIBUTIONS])
@@ -104,7 +119,8 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
         self._sender = sender
         self._reply_to = reply_to
         self._quoted = quoted
-        self._by_number = reply_to is not None and can_reply_by_number(reply_to)
+        self._by_number = (reply_to is not None and not self._winlink_reply
+                           and can_reply_by_number(reply_to))
         self._confirm_discard = False
         self._start_body = ""
 
@@ -116,16 +132,20 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
                     yield Label("New message", id="compose-heading")
                     if self._draft is not None:
                         # A filled form: its type is set, its text is below.
-                        types = [t for t in _TYPES if t[1] in (SEND_PRIVATE, SEND_BULLETIN)]
+                        types = [t for t in _TYPES
+                                 if t[1] in (SEND_PRIVATE, SEND_BULLETIN, SEND_WINLINK)]
                         value = self._draft.send_type
+                        if value == SEND_PRIVATE:
+                            value = self._start_type
                     else:
-                        types, value = _types(), SEND_PRIVATE
+                        types, value = _types(), self._start_type
                     yield Select(types, value=value, allow_blank=False,
                                  compact=True, id="compose-type")
                 else:
                     number = original.extra.get("Bbs-Number", "")
                     title = f"Reply to #{number}" if number else "Reply"
-                    yield Label(f"{title} from {original.sender}", id="compose-heading")
+                    via = " by Winlink" if self._winlink_reply else ""
+                    yield Label(f"{title} from {original.sender}{via}", id="compose-heading")
                     if self._by_number:
                         bbs = original.source.removeprefix("BBS ")
                         yield Static(
@@ -173,14 +193,17 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
             self.query_one("#compose-title", Input).value = draft.title
             self.query_one("#compose-body", TextArea).text = draft.body
         if original is None:
-            bulletin = (draft.send_type if draft else SEND_PRIVATE) == SEND_BULLETIN
-            self.query_one("#compose-bulletin-row").display = bulletin
+            self._show_type(self._send_type())
             self.query_one("#compose-to", Input).focus()
             return
         to = self.query_one("#compose-to", Input)
         title = self.query_one("#compose-title", Input)
         to.value = original.sender
-        title.value = reply_title(original.subject)
+        if self._winlink_reply:
+            self._show_type(SEND_WINLINK)
+            title.value = reply_title(original.subject, MAX_WINLINK_TITLE)
+        else:
+            title.value = reply_title(original.subject)
         if self._by_number:
             to.disabled = True
             title.disabled = True
@@ -204,10 +227,28 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
         if isinstance(event.value, str) and event.value.startswith(FORM_PREFIX):
             self.dismiss(event.value)
             return
-        bulletin = event.value == SEND_BULLETIN
-        self.query_one("#compose-bulletin-row").display = bulletin
+        self._show_type(event.value if isinstance(event.value, str) else SEND_PRIVATE)
+
+    def _send_type(self) -> str:
+        """The Type chosen; a reply's is its original's kind."""
+        if self._reply_to is not None:
+            return SEND_WINLINK if self._winlink_reply else SEND_PRIVATE
+        value = self.query_one("#compose-type", Select).value
+        return value if isinstance(value, str) else SEND_PRIVATE
+
+    def _show_type(self, send_type: str) -> None:
+        """The fields a Type needs: a bulletin's pick-lists, Winlink's
+        several recipients and no @."""
+        bulletin = send_type == SEND_BULLETIN
+        winlink = send_type == SEND_WINLINK
+        for row in self.query("#compose-bulletin-row"):
+            row.display = bulletin
+        self.query_one("#compose-at", Input).display = not winlink
+        self.query_one(".compose-at-label", Label).display = not winlink
         self.query_one("#compose-to", Input).placeholder = (
-            "Category, e.g. WX" if bulletin else "Callsign, e.g. W1BKW"
+            "Category, e.g. WX" if bulletin
+            else "Callsigns or email addresses, e.g. W1AW, n0call@example.com" if winlink
+            else "Callsign, e.g. W1BKW"
         )
         self.query_one("#compose-at", Input).placeholder = (
             "Distribution, e.g. ALLUS" if bulletin else "optional: the BBS adds it"
@@ -258,14 +299,14 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
         at = self.query_one("#compose-at", Input).value
         title = self.query_one("#compose-title", Input).value
         body = self.query_one("#compose-body", TextArea).text
-        problems = check(to, at, title, body, reply_by_number=self._by_number)
+        send_type = self._send_type()
+        if send_type == SEND_WINLINK:
+            problems = check_winlink(to, title, body)
+        else:
+            problems = check(to, at, title, body, reply_by_number=self._by_number)
         if problems:
             self.query_one("#compose-error", Label).update("\n".join(problems))
             return
-        send_type = SEND_PRIVATE
-        if self._reply_to is None:
-            value = self.query_one("#compose-type", Select).value
-            send_type = value if isinstance(value, str) else SEND_PRIVATE
         self.dismiss(
             outbox_message(
                 sender=self._sender,

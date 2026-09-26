@@ -92,8 +92,10 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   packet**: on a Winlink folder G sends and receives with a Winlink RMS
   gateway instead (Settings > Mail > Winlink: the Address Book entry that
   reaches it, and a saved login holding your password, which never goes on
-  the air -- only the answer to the gateway's challenge does). Not yet
-  proven against a live gateway; writing a Winlink message is next
+  the air -- only the answer to the gateway's challenge does). Insert on a
+  Winlink folder writes a Winlink message (Type "Winlink message": several
+  callsigns or email addresses, no @), and R on one received from Winlink
+  answers by Winlink. Not yet proven against a live gateway
   (`docs/ROADMAP.md`, P2). Settings > Open on keeps
   Terminal as the first tab if you prefer.
 

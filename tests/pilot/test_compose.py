@@ -192,3 +192,87 @@ async def test_a_bulletin_offers_categories_and_distributions_that_fill_to_and_a
         await pilot.pause()
         assert screen.query_one("#compose-at", Input).value == ""
         assert len(store.list(BBS_OUTBOX)) == 1  # picking saves nothing
+
+
+@pytest.mark.asyncio
+async def test_a_winlink_message_has_no_at_and_goes_to_the_winlink_outbox(tmp_path):
+    from kissterm.mail.winlink_collect import WINLINK_OUTBOX
+
+    app, store = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _focus_list(app, pilot)
+        await pilot.press("insert")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen")
+        await pilot.pause()
+        screen = app.screen
+        screen.query_one("#compose-type", Select).value = "W"
+        await pilot.pause()
+        assert not screen.query_one("#compose-at", Input).display
+        # With @ gone, To takes the row, as wide as Title (addresses are long).
+        to, title = screen.query_one("#compose-to", Input), screen.query_one("#compose-title", Input)
+        assert to.region.right == title.region.right
+        screen.query_one("#compose-to", Input).value = "w1aw, N0Call@Example.com"
+        screen.query_one("#compose-title", Input).value = "A" * 100  # over BPQMail's 60
+        screen.query_one("#compose-body", TextArea).text = "Hello"
+        await pilot.click("#compose-save")
+        await wait_for(lambda: store.list(WINLINK_OUTBOX), "the Winlink Outbox message")
+        assert not store.list(BBS_OUTBOX)
+        message = store.read(store.list(WINLINK_OUTBOX)[0].ref)
+        assert message.to == "W1AW, N0Call@Example.com" and len(message.subject) == 100
+        assert message.extra["Send-Type"] == "W" and "Send-At" not in message.extra
+
+
+@pytest.mark.asyncio
+async def test_winlink_limits_are_shown(tmp_path):
+    app, store = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _focus_list(app, pilot)
+        await pilot.press("insert")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen")
+        await pilot.pause()
+        screen = app.screen
+        screen.query_one("#compose-type", Select).value = "W"
+        screen.query_one("#compose-to", Input).value = "not an address!"
+        screen.query_one("#compose-title", Input).value = "x" * 129
+        screen.query_one("#compose-body", TextArea).text = "Hello"
+        await pilot.click("#compose-save")
+        await pilot.pause()
+        error = str(screen.query_one("#compose-error", Label).render())
+        assert "not a callsign or email address" in error and "128" in error
+        assert isinstance(app.screen, ComposeScreen)
+
+
+@pytest.mark.asyncio
+async def test_on_a_winlink_folder_new_and_reply_are_winlink(tmp_path):
+    from kissterm.mail.winlink_collect import WINLINK_INBOX, WINLINK_OUTBOX
+
+    app, store = _app(tmp_path)
+    store.add(WINLINK_INBOX, Message(
+        sender="SMTP:friend@example.com", to="KC1JMH", subject="Checking in", date=WHEN,
+        source="Winlink", message_id="ABCDEFGHIJKL", body="All well?\n"))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder(WINLINK_INBOX)
+        table = browser.query_one(MessageList)
+        table.focus()
+        await pilot.pause()
+        await pilot.press("insert")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen")
+        await pilot.pause()
+        assert app.screen.query_one("#compose-type", Select).value == "W"
+        await pilot.press("escape")
+        await wait_for(lambda: not isinstance(app.screen, ComposeScreen), "compose to close")
+        await pilot.press("r")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the reply")
+        await pilot.pause()
+        screen = app.screen
+        assert "by Winlink" in str(screen.query_one("#compose-heading", Label).render())
+        assert not screen.query_one("#compose-at", Input).display
+        to = screen.query_one("#compose-to", Input)
+        assert to.value == "SMTP:friend@example.com" and not to.disabled
+        screen.query_one("#compose-body", TextArea).text = "Yes"
+        await pilot.click("#compose-save")
+        await wait_for(lambda: store.list(WINLINK_OUTBOX), "the reply in the Winlink Outbox")
+        reply = store.read(store.list(WINLINK_OUTBOX)[0].ref)
+        assert reply.subject == "Re:Checking in" and reply.extra["Send-Type"] == "W"

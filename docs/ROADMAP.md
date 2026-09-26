@@ -147,11 +147,6 @@ implementation; wl2k-go is MIT, and its secure login and LZHUF are ported
 behaviour rather than from documentation `# UNVERIFIED:` until a live
 exchange confirms it.
 
-- [ ] **Write a Winlink message**: a "Winlink" choice in the compose
-  screen that files in Mail/Winlink/Outbox, with Winlink's limits (To and
-  Cc as callsigns or `SMTP:` addresses, a 128-character subject) checked
-  before saving. Send/Receive over packet (G on a Winlink folder) shipped
-  2026-09-26 and sends whatever is in that Outbox. Small.
 - [ ] **CMS over Telnet first.** It is the test path that needs no radio.
   Pat's documented form is `cms.winlink.org:8772`. Confirm the host, port
   and Telnet-layer login from Winlink's own documentation. Operator-initiated

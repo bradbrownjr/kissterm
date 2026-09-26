@@ -5,7 +5,9 @@ ROADMAP P2 "Compose and Outbox". A composed message is an ordinary
 `Message.extra` say how it goes out when Send/Receive sends the Outbox:
 
 - `Send-Type`: `P` private, `B` bulletin, `T` NTS traffic (a radiogram,
-  `radiogram_message`; its `To` is the ZIP and `Send-At` is `NTS<state>`).
+  `radiogram_message`; its `To` is the ZIP and `Send-At` is `NTS<state>`),
+  `W` Winlink (filed in Mail/Winlink/Outbox instead; To is callsigns or
+  email addresses, the title up to 128 characters, `check_winlink`).
 - `Send-At`: the `@` part, or "" to let BPQMail add it from the
   recipient's Home BBS ("Address @... added from HomeBBS").
 - `Reply-Number`, `Reply-Source`: set on a reply to a message read from a
@@ -59,13 +61,24 @@ BBS_OUTBOX = f"{MAIL}/BBS/{_OUTBOX}"
 SEND_PRIVATE = "P"
 SEND_BULLETIN = "B"
 SEND_TRAFFIC = "T"
+#: A Winlink message: filed in Mail/Winlink/Outbox, sent by the B2F
+#: exchange (`winlink_collect.py`), not by a BBS command.
+SEND_WINLINK = "W"
 
 #: BPQMail's limits (`BBSUtilities.c`, `DoSendCommand` / `CreateMessage`).
 MAX_TO = 6
 MAX_AT = 40
 MAX_TITLE = 60
+#: Winlink's own limit (wl2k-go `Validate`: "Subject too long").
+MAX_WINLINK_TITLE = 128
 
 _TO_RE = re.compile(r"^[A-Z0-9]+$")
+#: A Winlink recipient: a callsign or tactical address (`W1AW`, `MAINE-EOC`),
+#: an Internet address, or `PROTO:address` as Winlink writes one.
+_WINLINK_TO_RE = re.compile(
+    r"^(?:[A-Z0-9][A-Z0-9-]{2,}|[^@\s:,;]+@[^@\s:,;]+\.[^@\s:,;]+|[A-Z]+:[^\s,;]+)$",
+    re.IGNORECASE,
+)
 _AT_RE = re.compile(r"^[A-Z0-9.#-]+$")
 #: C0 controls other than tab and newline; a pasted body can carry them.
 _CONTROLS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
@@ -174,12 +187,38 @@ def check(to: str, at: str, title: str, body: str, *, reply_by_number: bool = Fa
     return problems
 
 
-def reply_title(subject: str) -> str:
-    """BPQMail's own `SR` title: `Re:` and the original, cut to 60."""
+def check_winlink(to: str, title: str, body: str) -> list[str]:
+    """What stops a Winlink message from being saved. To takes several
+    recipients, separated by commas or spaces."""
+    problems: list[str] = []
+    recipients = [a for a in re.split(r"[,;\s]+", to.strip()) if a]
+    if not recipients:
+        problems.append("To is empty.")
+    for address in recipients:
+        if not _WINLINK_TO_RE.match(address):
+            problems.append(f"{address!r} is not a callsign or email address.")
+            break
+    if not title.strip():
+        problems.append("Title is empty.")
+    elif len(title.strip()) > MAX_WINLINK_TITLE:
+        problems.append(f"Title is at most {MAX_WINLINK_TITLE} characters on Winlink.")
+    if not body.strip():
+        problems.append("The message has no text.")
+    return problems
+
+
+def is_winlink(message: Message) -> bool:
+    """A message that came from Winlink, or waits to go by it."""
+    return message.source == "Winlink" or message.extra.get("Send-Type") == SEND_WINLINK
+
+
+def reply_title(subject: str, limit: int = MAX_TITLE) -> str:
+    """BPQMail's own `SR` title: `Re:` and the original, cut to 60 (to
+    Winlink's 128 for a Winlink reply)."""
     subject = subject.strip()
     if not subject.lower().startswith("re:"):
         subject = f"Re:{subject}"
-    return subject[:MAX_TITLE]
+    return subject[:limit]
 
 
 def quote(original: Message) -> str:
@@ -205,17 +244,21 @@ def outbox_message(
 ) -> Message:
     """The message as filed in the Outbox, send headers included."""
     extra = {"Send-Type": send_type}
+    winlink = send_type == SEND_WINLINK
     if form_id:
         extra["Form"] = form_id
-    if at.strip():
+    if at.strip() and not winlink:
         extra["Send-At"] = at.strip().upper()
-    if reply_to is not None and reply_to.extra.get("Bbs-Number"):
+    if reply_to is not None and reply_to.extra.get("Bbs-Number") and not winlink:
         extra["Reply-Number"] = reply_to.extra["Bbs-Number"]
         extra["Reply-Source"] = reply_to.source
+    # An Internet address keeps its case; a callsign is upper-cased.
+    to = ", ".join(a if "@" in a or ":" in a else a.upper()
+                   for a in re.split(r"[,;\s]+", to.strip()) if a) if winlink else to.strip().upper()
     return Message(
         sender=sender.upper(),
-        to=to.strip().upper(),
-        subject=clean_text(title).strip()[:MAX_TITLE],
+        to=to,
+        subject=clean_text(title).strip()[:MAX_WINLINK_TITLE if winlink else MAX_TITLE],
         date=now or datetime.now(timezone.utc),
         body=clean_text(body).rstrip("\n") + "\n",
         extra=extra,

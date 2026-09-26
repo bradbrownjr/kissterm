@@ -142,8 +142,9 @@ RMS), Password login = `winlink`.
 - [ ] **A wrong password** (temporarily change the saved login): G should
   stop with a toast quoting the gateway ("Secure login failed ...") and
   pointing at Settings > Mail > Winlink. Put the password back.
-- [ ] **Sending** (after the compose Type ships, or with a message placed
-  in Mail/Winlink/Outbox by hand): G should propose it (`FC EM ...`),
+- [ ] **Sending**: on a Winlink folder, Insert (Type is already "Winlink
+  message"), To your own callsign or an email address, then G: it should
+  propose it (`FC EM ...`),
   send it after `FS +`, and move it to Winlink > Sent. Check it arrives
   at the recipient.
 - [ ] **Through a node**: an Address Book entry for the node with a login

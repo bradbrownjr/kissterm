@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Writing Winlink messages
+
+### New Features
+
+- **Type "Winlink message"** in the compose screen: no @ field, To takes
+  several callsigns or email addresses, the title up to Winlink's 128
+  characters, and Save files it in Mail/Winlink/Outbox for G on a Winlink
+  folder. Insert on a Winlink folder starts as one (a form sent from
+  there too), and R on a message received from Winlink answers by
+  Winlink.
+
+**Files:** `kissterm/mail/compose.py`, `kissterm/ui/compose.py`,
+`kissterm/ui/app.py`, `tests/pilot/test_compose.py`, `README.md`,
+`docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Winlink Send/Receive over packet
 
 ### New Features

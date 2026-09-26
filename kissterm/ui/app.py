@@ -3930,7 +3930,8 @@ class KissTermApp(App):
 
     @work(exclusive=False)
     async def action_compose_mail(self, reply: str = "", quoted: bool | None = False) -> None:
-        """Write a message into Mail/BBS/Outbox (Mail tab: Insert, R, Q).
+        """Write a message into Mail/BBS/Outbox, or Mail/Winlink/Outbox
+        for a Winlink one (Mail tab: Insert, R, Q).
 
         `reply` is the store ref of the message answered; `quoted` None
         means "as Settings > Mail says" (R), True always quotes (Q).
@@ -3939,7 +3940,8 @@ class KissTermApp(App):
         from ..config import state_path
         from ..locator import to_grid
         from ..mail import forms
-        from ..mail.compose import BBS_OUTBOX, bulletin_choices, radiogram_defaults
+        from ..mail.compose import BBS_OUTBOX, SEND_WINLINK, bulletin_choices, radiogram_defaults
+        from ..mail.winlink_collect import WINLINK_OUTBOX
         from .compose import (
             ANSWER_STRIP, FORM_PREFIX, RADIOGRAM, RADIOGRAM_ICS213, REPLY_FORM, ComposeScreen,
             reply_form_for,
@@ -3956,9 +3958,11 @@ class KissTermApp(App):
                 return
         if quoted is None:
             quoted = self.config.reply_quote
+        folder = self._mail_folder()
+        on_winlink = folder == WINLINK_FOLDER or folder.startswith(f"{WINLINK_FOLDER}/")
         message = await self.push_screen_wait(
             ComposeScreen(str(self.config.mycall or ""), reply_to=original, quoted=bool(quoted),
-                          bulletins=bulletin_choices(self.mail_store))
+                          bulletins=bulletin_choices(self.mail_store), winlink=on_winlink)
         )
         remembered_at = state_path() / "forms.json"
         aprs = self.config.aprs
@@ -4006,7 +4010,7 @@ class KissTermApp(App):
             if draft is None:
                 return
             message = await self.push_screen_wait(
-                ComposeScreen(str(self.config.mycall or ""), draft=draft)
+                ComposeScreen(str(self.config.mycall or ""), draft=draft, winlink=on_winlink)
             )
         if message in (RADIOGRAM, RADIOGRAM_ICS213):
             # A radiogram has its own form; the compose screen hands over.
@@ -4017,9 +4021,11 @@ class KissTermApp(App):
             ))
         if message is None:
             return
-        self.mail_store.add(BBS_OUTBOX, message)
+        winlink = message.extra.get("Send-Type") == SEND_WINLINK
+        self.mail_store.add(WINLINK_OUTBOX if winlink else BBS_OUTBOX, message)
         self._reload_mail_tabs()
-        self.notify(f"Saved to the Outbox: {message.subject}", timeout=4)
+        where = "Winlink Outbox" if winlink else "Outbox"
+        self.notify(f"Saved to the {where}: {message.subject}", timeout=4)
 
     def _mail_log_entries(self) -> list:
         """Every dated message in a Mail Inbox or Sent folder (BBS,
