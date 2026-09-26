@@ -3927,8 +3927,11 @@ class KissTermApp(App):
         means "as Settings > Mail says" (R), True always quotes (Q).
         Nothing transmits: the message waits in the Outbox.
         """
+        from ..config import state_path
+        from ..mail import forms
         from ..mail.compose import BBS_OUTBOX, radiogram_defaults
-        from .compose import RADIOGRAM, ComposeScreen
+        from .compose import FORM_PREFIX, RADIOGRAM, ComposeScreen
+        from .form_screen import FormScreen
         from .radiogram import RadiogramScreen
 
         original = None
@@ -3943,6 +3946,20 @@ class KissTermApp(App):
         message = await self.push_screen_wait(
             ComposeScreen(str(self.config.mycall or ""), reply_to=original, quoted=bool(quoted))
         )
+        if isinstance(message, str) and message.startswith(FORM_PREFIX):
+            # A form: fill it in, then address it in the compose screen.
+            form = forms.get_form(message.removeprefix(FORM_PREFIX))
+            remembered_at = state_path() / "forms.json"
+            draft = await self.push_screen_wait(FormScreen(
+                form, mycall=str(self.config.mycall or ""),
+                remembered=forms.load_remembered(remembered_at, form.id),
+            ))
+            if draft is None:
+                return
+            forms.save_remembered(remembered_at, form.id, forms.to_remember(form, draft.form_values))
+            message = await self.push_screen_wait(
+                ComposeScreen(str(self.config.mycall or ""), draft=draft)
+            )
         if message == RADIOGRAM:
             # A radiogram has its own form; the compose screen hands over.
             number, place = radiogram_defaults(self.mail_store)

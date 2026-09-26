@@ -31,7 +31,9 @@ airtime). The quote is ordinary body text, editable like the rest.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Any
 
 from .message import Message
 from .store import MAIL
@@ -53,6 +55,22 @@ _TO_RE = re.compile(r"^[A-Z0-9]+$")
 _AT_RE = re.compile(r"^[A-Z0-9.#-]+$")
 #: C0 controls other than tab and newline; a pasted body can carry them.
 _CONTROLS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+
+
+@dataclass
+class Draft:
+    """A message written elsewhere (a form) for the compose screen to
+    address and save. `form_id` is kept as the `Form:` header so the
+    message can be found as that form later (and, with Winlink, carry
+    its XML)."""
+
+    to: str = ""
+    at: str = ""
+    title: str = ""
+    body: str = ""
+    send_type: str = SEND_PRIVATE
+    form_id: str = ""
+    form_values: dict[str, Any] = field(default_factory=dict)
 
 
 def clean_text(text: str) -> str:
@@ -132,9 +150,12 @@ def outbox_message(
     send_type: str = SEND_PRIVATE,
     reply_to: Message | None = None,
     now: datetime | None = None,
+    form_id: str = "",
 ) -> Message:
     """The message as filed in the Outbox, send headers included."""
     extra = {"Send-Type": send_type}
+    if form_id:
+        extra["Form"] = form_id
     if at.strip():
         extra["Send-At"] = at.strip().upper()
     if reply_to is not None and reply_to.extra.get("Bbs-Number"):

@@ -231,65 +231,37 @@ anything taken from its behaviour rather than from documentation
 
 #### Forms
 
-Decided 2026-09-22: kissterm ships every form in the sibling `bpq-apps`
-repo, parity with vden's PKTNET forms (https://vden.org/pktnet/), and
-Winlink's standard message forms. A filled form becomes an ordinary message
-in an account's Outbox, addressed the way that form requires, and it goes
-out on the next send/receive. Nothing transmits when a form is saved.
+Decided 2026-09-26 (operator approved the plan), replacing the 2026-09-22
+decision to port bpq-apps' `.frm` files with byte-identical output: **each
+form copies the published layout its readers expect** -- the Winlink
+standard template's text body, with the owning agency's numbering (FEMA
+for ICS) -- because several bpq-apps forms are home-made field sets (its
+ICS-213 lacks blocks 5, 6 and 8a; its ICS-309 holds one entry) that a
+receiving station would not recognise. bpq-apps' strip engine, GYX
+WEATHER, MCF720 and PKTNET check-in do match their published formats and
+are ported as they are.
 
-**The design is already built and in use: port it, don't re-derive it.**
-`bpq-apps/apps/forms.py` and `apps/forms/*.frm` are a working forms system
-on a BPQ32 BBS. A `.frm` file is one JSON document: `id`, `title`,
-`version`, `description`, an optional output `format`, and `fields`. Each
-field has `name`, `label`, `type`, `required` and `description`, and may
-have `max_length`, `default`, `default_now` (a `strftime` pattern),
-`auto_fill: "callsign"` and a `validate` rule (`callsign`, `us_zip`,
-`phone`, `email`, `hhmm`, `city_state`, `hx_code`, `nts_number`). Field
-types are `text`, `textarea`, `yesno`, `choice` and `strip`. Forms ship as
-package data, and an operator can drop in their own `.frm` locally. **Do
-not port forms.py's auto-download from GitHub on launch.** It suits a
-script on someone else's BBS shell, not this project's rule that shipped
-data is never fetched automatically.
+A form is a TOML file in `kissterm/mail/data/forms/` rendered by
+`kissterm/mail/forms.py` (template syntax is Winlink's `<var name>`, so a
+template's `Msg:` text can be pasted in) and shown by one generic
+`FormScreen`. It is chosen as the Type in the compose screen; Continue
+returns the text to the compose screen to address and save. Nothing
+transmits on save. Forms ship as package data; **never fetch forms
+automatically** (the Winlink bundle is read by a developer, cited, and
+transcribed).
 
-| Form | Source | Output / addressing |
-|---|---|---|
-| ICS-213 General Message | `ics213.frm`; vden `ics213.html` | Plain text, with a linked reply half (below) |
-| ICS-309 Communications Log | `ics309.frm` | Plain text |
-| Net check-in | `netcheck.frm` (matches vden PACKET CHECK-IN) | `pktnet_checkin`; bulletin `SB PKTNET@USA`, subject "Name, Call, Town, State" |
-| ARRL Radiogram | `radiogram.frm` + `arl_messages.json` | `nts_radiogram`; `ST <ZIP> @ NTS<STATE>` routing built from the form |
-| Information strip response | `strip.frm` | Strip (`TITLE/answer1/answer2//`) |
-| GYX Weather (SKYWARN) | `gyx-weather.frm` | Strip |
-| Field Situation Report | `fsr.frm`; vden `fsr.html` | Plain text |
-| Severe Weather Report | `severe_wx.frm`; vden `severe_wx.html` | Plain text |
-| Bulletin Message | `bulletin.frm`; vden `bulletin.html` | Plain text, bulletin addressing |
-| Equipment Status Report | `eqstat.frm` | Plain text |
-| USGS DYFI report | `dyfi.frm` | Plain text |
-| MCF720 price survey | `mcf720-price-survey.frm` | Plain text |
-| Winlink standard forms | Winlink Express templates | `# RESEARCH:` below |
+Phases, each shipped and tested on its own. Phase A (the engine,
+ICS-213 and ICS-213RR) shipped 2026-09-26.
 
-- [ ] **Form engine** (`kissterm/forms/`): load and validate `.frm`, the
-  validators above, and the output formatters (plain, `pktnet_checkin`,
-  `nts_radiogram`, strip). That includes forms.py's NTS rules: prosign
-  substitution (`normalize_nts_text`), the ARRL word-count check
-  (`count_nts_check`, where a pure-digit group over 5 characters counts as
-  `ceil(len/5)` words), and the address-block sanitizer. **Golden-output
-  tests:** the same answers through bpq-apps' forms.py and through kissterm
-  must produce byte-identical messages, so two stations on one net never
-  disagree about what a form looks like. Medium.
-- [ ] **Form screen**: one screen generated from the schema, the same way
-  the Settings pane is generated from `settings_schema.py`. It has no
-  per-form code. `textarea` is a real multi-line editor here (bpq-apps'
-  `/EX` terminator is a BBS-shell constraint kissterm does not have). A
-  `strip` field shows the template and accepts a pasted strip. Reached from
-  "New from form" in the F10 menu, and as a plain-letter key on the Mail
-  list per DESIGN.md section 5 rule 4.
-  Medium.
-- [ ] **Ship every bpq-apps form** in the table above. Small once the
-  engine exists: they are data.
-- [ ] **vden parity check.** Compare each vden form (the local copy in the
-  sibling `pktnet` directory, v1.1 from 2023-11, and the live site) field by
-  field against its bpq-apps equivalent. Anything vden has that bpq-apps
-  lacks is fixed in the `.frm` in both repos, not only in kissterm. Small.
+- [ ] **B. Check-ins**: Winlink Check In (Winlink Wednesday) and the
+  PKTNET check-in (vden `check_in.html`; `SB PKTNET@USA`). Both are nets
+  the operator checks into.
+- [ ] **C. Situation reports**: Field Situation Report, Damage
+  Assessment, Incident Status Report, Severe WX Report (and SKYWARN).
+- [ ] **D. Strips**: a generic strip responder, GYX WEATHER, MCF720 and
+  ROSTER shipped, and answering a request strip from a received message.
+- [ ] **E. Logs**: ICS-309, ICS-214, ICS-205 (the `rows` field kind).
+- [ ] **F. Radiogram-ICS213** (RRI/NTS 2.0, Feb 2026 guidelines).
 - [ ] **Received forms render as forms.** A message kissterm or bpq-apps
   produced is recognised and shown in the form layout, with the raw text one
   key away. ICS-213 keeps a message and its reply in one record: the
@@ -300,7 +272,9 @@ data is never fetched automatically.
   that send a readable text body plus an XML attachment
   (`RMS_Express_Form_*.xml`) that another Winlink client renders as the
   form. `# RESEARCH:` source the XML structure from Winlink's published
-  Standard Templates, not from guesses. Order: first display the ones that
+  Standard Templates, not from guesses. The form files' field ids are
+  already Winlink's variable names, so the XML is built from the same
+  values. Order: first display the ones that
   arrive (the text body always works; parse the XML), then compose
   Winlink Check-In, ICS-213 and Radiogram as Winlink forms. Depends on the
   B2F client. Large.

@@ -1,0 +1,102 @@
+# ICS 213 General Message.
+# Body, subject, field names and limits: Winlink Standard Forms 1.1.20.0,
+# "ICS USA Forms/ICS213 General Message.txt" and ICS213_Initial.html
+# (template "ICS 213 v.43.8"). Blocks: FEMA ICS 213 (v3). Blocks 9-10
+# (Reply, Replied by) are filled by the recipient, so they are not here.
+# vden's PKTNET ics213.html (v1.1, 2023-11) lays the same blocks out with
+# the paper form's labels ("1. Incident Name (Optional):"), a blank line
+# between blocks and block 8 on one line; Winlink's layout is used here as
+# the one most receiving stations run.
+id = "ics213"
+title = "ICS-213 General Message"
+source = "Winlink Standard Forms 1.1.20.0 (ICS 213 v.43.8); FEMA ICS 213 v3"
+subject = "ICS-213: <var Subjectline> - <var Mdate> <var Mtime>"
+body = '''
+GENERAL MESSAGE (ICS 213)
+<var IsExercise>
+1. Incident Name: <var inc_name>
+2. To (Name and Position): <var To_Name>
+3. From (Name and Position): <var fm_name>
+4. Subject: <var Subjectline>
+5. Date: <var Mdate>
+6. Time: <var Mtime>
+7. Message:
+
+<var Message>
+
+8. Approved by: <var Approved_Name>
+8a. Position/Title: <var Approved_PosTitle>
+'''
+
+[[fields]]
+id = "IsExercise"
+label = "Exercise"
+kind = "check"
+on_value = "** THIS IS AN EXERCISE **"
+help = "Tick for a drill: the message opens with ** THIS IS AN EXERCISE **."
+
+[[fields]]
+id = "inc_name"
+label = "1. Incident name"
+placeholder = "optional"
+help = "The name assigned to the incident or event. Optional (FEMA block 1)."
+
+[[fields]]
+id = "To_Name"
+label = "2. To"
+required = true
+max_length = 60
+placeholder = "name and position, e.g. J SMITH, EOC MANAGER"
+help = "Who the message is for: at least first initial and last name, and ICS position."
+
+[[fields]]
+id = "fm_name"
+label = "3. From"
+max_length = 60
+remember = true
+placeholder = "name and position"
+help = "Who is sending it: at least first initial and last name, and ICS position. Remembered."
+
+[[fields]]
+id = "Subjectline"
+label = "4. Subject"
+required = true
+max_length = 50
+
+[[fields]]
+id = "Mdate"
+label = "5. Date"
+kind = "date"
+required = true
+max_length = 10
+help = "Year-month-day, local time, as Winlink fills it."
+
+[[fields]]
+id = "Mtime"
+label = "6. Time"
+kind = "time"
+required = true
+max_length = 9
+help = "24-hour clock, local time. Add Z if you give UTC."
+
+[[fields]]
+id = "Message"
+label = "7. Message"
+kind = "multiline"
+required = true
+help = "Keep it as short as the message allows."
+
+[[fields]]
+id = "Approved_Name"
+label = "8. Approved by"
+required = true
+max_length = 30
+remember = true
+help = "The person approving the message; often the sender. Remembered."
+
+[[fields]]
+id = "Approved_PosTitle"
+label = "8a. Position"
+max_length = 30
+remember = true
+help = "Their ICS position or title. Remembered."

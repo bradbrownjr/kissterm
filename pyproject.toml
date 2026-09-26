@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.274"
+version = "0.1.275"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -74,7 +74,7 @@ kissterm = "kissterm.__main__:main"
 # wheel while working perfectly in a source checkout.
 "kissterm.aprs_services" = ["data/*.toml"]
 # And for the ARRL numbered radiogram texts the radiogram form offers.
-"kissterm.mail" = ["data/*.json"]
+"kissterm.mail" = ["data/*.json", "data/forms/*.toml"]
 
 [tool.setuptools.packages.find]
 include = ["kissterm*"]

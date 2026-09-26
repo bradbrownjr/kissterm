@@ -1,0 +1,115 @@
+# ICS 213 RR Resource Request Message, requestor section (blocks 1-9).
+# Body, subject, field names and limits: Winlink Standard Forms 1.1.20.0,
+# "ICS USA Forms/ICS213RR Resource Request Message.txt" and
+# ICS213RR_Initial.html (template "ICS 213RR v. 14.6"). Blocks: FEMA ICS
+# 213 RR (v3). The Logistics (10-16) and Finance (17-19) sections are
+# filled by the recipient's staff, so they are not sent from here.
+id = "ics213rr"
+title = "ICS-213RR Resource Request"
+source = "Winlink Standard Forms 1.1.20.0 (ICS 213RR v. 14.6); FEMA ICS 213 RR v3"
+subject = "ICS 213RR- <var IncName>- Request #:<var ReqNum>"
+body = '''
+ICS 213RR
+
+PRIORITY: [<var Priority>]
+
+1. Incident or Event Name: <var IncName>
+2. Date/Time: <var ActivityDateTime1>
+3. Resource Request #: <var ReqNum>
+
+REQUESTOR
+
+4. ORDER:
+-----------------------------------------------
+<each order>
+QTY: <var Qty> Kind: <var Kind> Type: <var Type>
+Item Description: <var Item>
+Cost: <var Cost>
+
+Needed by Date/Time:
+Requested: <var ReqDateTime>
+Estimated: <var EstDateTime>
+-----------------------------------------------
+</each>
+
+5. Delivery/Reporting Location:
+<var Delivery>
+
+6. Substitutes and/or Suggested Sources:
+<var Subs1>
+
+7. Requested by Name/Position: <var ReqName>
+8. PRIORITY: [<var Priority>]
+9. Section Chief Name: <var SecApp>
+'''
+
+[[fields]]
+id = "Priority"
+label = "8. Priority"
+kind = "choice"
+choices = ["Low", "Routine", "URGENT"]
+default = "Low"
+help = "Winlink's three: Low (its default), Routine or URGENT."
+
+[[fields]]
+id = "IncName"
+label = "1. Incident"
+required = true
+max_length = 50
+help = "The incident or event name; an agency incident number may follow."
+
+[[fields]]
+id = "ActivityDateTime1"
+label = "2. Date/time"
+kind = "datetime"
+required = true
+max_length = 23
+
+[[fields]]
+id = "ReqNum"
+label = "3. Request #"
+required = true
+max_length = 40
+help = "Your resource request number."
+
+[[fields]]
+id = "order"
+label = "4. Order"
+kind = "rows"
+required = true
+max_rows = 8
+help = "One line per resource; Winlink's form holds eight."
+columns = [
+  { id = "Qty", label = "Qty", max_length = 6 },
+  { id = "Kind", label = "Kind", max_length = 8 },
+  { id = "Type", label = "Type", max_length = 8 },
+  { id = "Item", label = "Item description", max_length = 60 },
+  { id = "Cost", label = "Cost", max_length = 10 },
+  { id = "ReqDateTime", label = "Requested by", max_length = 20 },
+  { id = "EstDateTime", label = "Estimated", max_length = 20 },
+]
+
+[[fields]]
+id = "Delivery"
+label = "5. Deliver to"
+max_length = 140
+help = "Where the resource should be delivered or report."
+
+[[fields]]
+id = "Subs1"
+label = "6. Substitutes"
+kind = "multiline"
+help = "Suitable substitutes and/or suggested sources."
+
+[[fields]]
+id = "ReqName"
+label = "7. Requested by"
+max_length = 50
+remember = true
+help = "Name and position of the requestor. Remembered."
+
+[[fields]]
+id = "SecApp"
+label = "9. Section chief"
+max_length = 50
+help = "The section chief approving the request."

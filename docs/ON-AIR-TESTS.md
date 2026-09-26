@@ -46,6 +46,11 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   titles other stations use: kissterm's `CITY CALLSIGN` / `CITY NXX NXX`
   / `CITY - -` came from KY2D, and the published guides disagree, so a
   real listing settles it (`nts.py`'s docstring marks it UNVERIFIED).
+- [ ] **First ICS-213 (form).** Insert, Type: ICS-213 General Message
+  (form), fill it in, Continue, address it to yourself, Save, then G.
+  Read it back: the numbered blocks should arrive as sent. If a Winlink
+  Express user can receive one, ask whether it reads as an ICS-213 to
+  them (it has no XML attachment, so it shows as text, not the form).
 - [x] **Reply by number (SR)** went out and was accepted as #2820
   (2026-09-25), and moved to Mail > BBS > Sent with its number and BID.
 

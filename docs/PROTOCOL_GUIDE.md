@@ -1,4 +1,4 @@
-# Protocol guide: AX.25, KISS, APRS and NTS radiograms
+# Protocol guide: AX.25, KISS, APRS, NTS radiograms and message forms
 
 This is the development baseline for frames that kissterm receives or puts on
 the air. It exists because familiar-looking packet-radio terms hide different
@@ -212,6 +212,22 @@ digits). RRI 2026 contradicts them.
 kissterm uses KY2D's, marked `# UNVERIFIED` in `nts.py` until an `LT`
 listing on a BBS carrying NTS traffic shows what stations actually use
 (`docs/ON-AIR-TESTS.md`).
+
+## Message forms: sources
+
+`kissterm/mail/forms.py` renders each form in `kissterm/mail/data/forms/`
+to the text its readers expect. Each file's `source` names the template
+and version it was transcribed from; the reasons for the few deliberate
+differences are in `forms.py`'s docstring.
+
+| Scope | Source to use | Status in this project |
+|---|---|---|
+| Winlink standard form layouts (body text, subject, field names and limits) | Winlink Standard Forms 1.1.20.0, as mirrored for the Pat client: [version](https://api.getpat.io/v1/forms/standard-templates/latest), [archive](https://api.getpat.io/v1/forms/standard-templates/Standard_Forms_1.1.20.0.zip) (winlink.org's own download sits behind a browser check) | First authority for layout. Each form's `.txt` template gives the body and subject; its `_Initial.html` gives field names, limits and required fields. Read by a developer and transcribed; never fetched by kissterm. |
+| Winlink template catalogue | [Winlink Templates in Standard Library](https://winlink.org/sites/default/files/download/winlink_templates_in_standard_library_version_1.0.119.pdf) | Which forms exist and are common. |
+| ICS 213 General Message | [FEMA ICS 213 v3](https://training.fema.gov/emiweb/is/icsresource/assets/ics%20forms/ics%20form%20213,%20general%20message%20(v3).pdf) | Block numbering and meaning. Blocks 9-10 are the recipient's. |
+| ICS 213 RR Resource Request | [FEMA ICS 213 RR v3](https://training.fema.gov/emiweb/is/icsresource/assets/ics%20forms/ics%20form%20213rr,%20resource%20request%20message%20(v3).pdf) | Block numbering. Blocks 10-19 are Logistics' and Finance's. |
+| PKTNET forms | vden.org PKTNET forms, local copy in the sibling `pktnet` directory (v1.1, 2023-11); [live](https://vden.org/pktnet/) | The check-in format (phase B). Its ICS-213 uses the paper form's labels; Winlink's layout is used instead. |
+| A working ICS-213 over BPQ | [BPQ-Alt-Webmail v1.8.0](https://github.com/jayflanzbaum-svg/BPQ-Alt-Webmail/releases/tag/v1.8.0) | Supporting: another BPQ client sends Winlink's ICS-213 text without the XML, for the same reason (G8BPQ: binary attachments are not readable on the BBS). |
 
 ## Current boundaries and known gaps
 

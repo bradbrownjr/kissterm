@@ -5,6 +5,31 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Message forms: ICS-213 and ICS-213RR
+
+### New Features
+
+- **Forms in the compose screen.** Type now lists the ICS-213 General
+  Message and ICS-213RR Resource Request. Fill in the form, Continue,
+  and its text comes back to the compose screen to address and save.
+  Your name and position are remembered between forms. The 213RR takes up
+  to eight order lines.
+- **Laid out as Winlink's standard forms** (Standard Forms 1.1.20.0,
+  FEMA numbering), so a BBS reader, a Pat user or a Winlink Express user
+  recognises them. The Winlink XML attachment comes with the Winlink
+  client.
+- A form is a data file: one engine and one screen serve every form,
+  which is how check-ins, situation reports, strips and logs follow
+  (ROADMAP P2 Forms, phases B-F).
+
+**Files:** `kissterm/mail/forms.py`, `kissterm/mail/data/forms/`,
+`kissterm/mail/compose.py`, `kissterm/mail/AGENTS.md`,
+`kissterm/ui/form_screen.py`, `kissterm/ui/compose.py`,
+`kissterm/ui/app.py`, `kissterm/ui/styles.py`, `pyproject.toml`,
+`tests/unit/test_mail_forms.py`, `tests/pilot/test_forms.py`, `README.md`,
+`docs/PROTOCOL_GUIDE.md`, `docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-26] — Radiogram sources recorded
 
 ### Improvements

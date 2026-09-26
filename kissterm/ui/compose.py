@@ -25,6 +25,7 @@ from textual.widgets import Button, Footer, Input, Label, Select, Static, TextAr
 
 from ..mail import Message
 from ..mail.compose import (
+    Draft,
     SEND_BULLETIN,
     SEND_PRIVATE,
     SEND_TRAFFIC,
@@ -34,6 +35,7 @@ from ..mail.compose import (
     quote,
     reply_title,
 )
+from ..mail.forms import load_forms
 
 _TYPES = [
     ("Private message (SP)", SEND_PRIVATE),
@@ -46,14 +48,24 @@ _TYPES = [
 #: opens in its place.
 RADIOGRAM = "radiogram"
 
+#: A form chosen as the Type comes back as `FORM_PREFIX + form id`; the app
+#: opens `form_screen.FormScreen`, which returns a `Draft` to this screen.
+FORM_PREFIX = "form:"
+
+
+def _types() -> list[tuple[str, str]]:
+    return _TYPES + [(f"{f.title} (form)", FORM_PREFIX + f.id) for f in load_forms()]
+
 
 class ComposeScreen(ModalScreen["Message | str | None"]):
     """Write one message. Returns the Outbox message, or None."""
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def __init__(self, sender: str, reply_to: Message | None = None, quoted: bool = False) -> None:
+    def __init__(self, sender: str, reply_to: Message | None = None, quoted: bool = False,
+                 draft: Draft | None = None) -> None:
         super().__init__()
+        self._draft = draft
         self._sender = sender
         self._reply_to = reply_to
         self._quoted = quoted
@@ -67,7 +79,13 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
             with Horizontal(classes="compose-row"):
                 if original is None:
                     yield Label("New message", id="compose-heading")
-                    yield Select(_TYPES, value=SEND_PRIVATE, allow_blank=False,
+                    if self._draft is not None:
+                        # A filled form: its type is set, its text is below.
+                        types = [t for t in _TYPES if t[1] in (SEND_PRIVATE, SEND_BULLETIN)]
+                        value = self._draft.send_type
+                    else:
+                        types, value = _types(), SEND_PRIVATE
+                    yield Select(types, value=value, allow_blank=False,
                                  compact=True, id="compose-type")
                 else:
                     number = original.extra.get("Bbs-Number", "")
@@ -96,6 +114,12 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
 
     def on_mount(self) -> None:
         original = self._reply_to
+        draft = self._draft
+        if draft is not None:
+            self.query_one("#compose-to", Input).value = draft.to
+            self.query_one("#compose-at", Input).value = draft.at
+            self.query_one("#compose-title", Input).value = draft.title
+            self.query_one("#compose-body", TextArea).text = draft.body
         if original is None:
             self.query_one("#compose-to", Input).focus()
             return
@@ -119,6 +143,9 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
     def _type_changed(self, event: Select.Changed) -> None:
         if event.value == SEND_TRAFFIC:
             self.dismiss(RADIOGRAM)
+            return
+        if isinstance(event.value, str) and event.value.startswith(FORM_PREFIX):
+            self.dismiss(event.value)
             return
         bulletin = event.value == SEND_BULLETIN
         self.query_one("#compose-to", Input).placeholder = (
@@ -172,5 +199,6 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
                 body=body,
                 send_type=send_type,
                 reply_to=self._reply_to,
+                form_id=self._draft.form_id if self._draft else "",
             )
         )

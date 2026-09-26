@@ -364,6 +364,32 @@ RadiogramScreen { align: center middle; }
 #rg-error { width: 1fr; height: auto; color: $error; }
 #rg-foot Button { margin-left: 1; }
 
+/* FormScreen: any form file, laid out like Settings -- one row per field,
+   the focused field's help on one line under the form. Sized to its
+   content; the form scrolls rather than push Continue off 80x24. */
+FormScreen { align: center middle; }
+#form-box {
+    width: 90; max-width: 95%; height: auto; max-height: 95%; padding: 0 1;
+    border: thick $primary; background: $surface;
+}
+#form-heading { width: 1fr; text-style: bold; color: $text; }
+#form-body { height: auto; max-height: 60vh; }
+.form-row { height: 1; }
+.form-label { width: 17; color: $text-muted; }
+.form-label-alone { width: 1fr; }
+.form-rows-label { width: 1fr; color: $accent; text-style: bold; }
+.form-rows { height: auto; }
+.form-row Input { width: 1fr; }
+.form-row Input.form-cell { margin-right: 1; }
+.form-row Input.form-cell-wide { width: 1fr; }
+.form-row Select { width: 24; }
+.form-multiline { height: 5; }
+.form-add { margin-left: 17; }
+#form-help { height: auto; max-height: 2; color: $text-muted; }
+#form-foot { height: auto; }
+#form-error { width: 1fr; height: auto; color: $error; }
+#form-foot Button { margin-left: 1; }
+
 /* First-run onboarding intentionally asks for one required fact before
    handing off to the established Settings transport editor.  It is a short
    guide, not a second settings page. */

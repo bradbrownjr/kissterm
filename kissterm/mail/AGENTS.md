@@ -36,5 +36,11 @@ of the two is marked `# UNVERIFIED:`.
   the ARRL MPG**, not the Winlink punctuation in bpq-apps' `forms.py`
   (`nts.py`'s docstring cites each source and each difference; the links
   are in `docs/PROTOCOL_GUIDE.md`, "NTS radiograms").
+- **A form copies its published layout**: the Winlink standard template's
+  text and field names, the agency's numbering, transcribed into a TOML
+  file in `data/forms/` with its `source`; never a layout of our own.
+  A new form is a data file plus a golden test in
+  `tests/unit/test_mail_forms.py`; `forms.py` refuses a template naming
+  an unknown field.
   The check counts groups as originated; ARL texts ship as
   `data/arl_numbered.json` (v3.0), tested by `tests/unit/test_mail_nts.py`.
