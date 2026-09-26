@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Send/Receive asks first; All Inboxes does both
+
+### Improvements
+
+- **G asks for what is missing before dialing**: the Winlink password,
+  and the Home BBS login when Settings > Mail names a login prompt, in
+  a masked field saved as a login (the system keyring where there is
+  one). A missing password no longer costs a connect.
+- **G on All Inboxes sends and receives with the Home BBS, then
+  Winlink**, each one that has a dial entry; everything is asked before
+  the first dial. The Footer says "Send/Receive all".
+- **A BPQ Telnet login prompt nobody answers stops the run in 20 s** by
+  name -- no login set up, or ours refused -- instead of after the
+  five-minute idle timeout (prompts from LinBPQ's `TelnetV6.c`).
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/mail_pane.py`, `kissterm/ui/commands.py`,
+`kissterm/mail/collect.py`, `tests/unit/test_mail_collect.py`,
+`tests/pilot/test_get_mail.py`, `tests/pilot/test_winlink_send_receive.py`,
+`DESIGN.md`, `README.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Writing Winlink messages
 
 ### New Features

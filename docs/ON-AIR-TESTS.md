@@ -121,10 +121,10 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Winlink
 
-Set up first: Settings > Logins, a new login named `winlink` holding your
-Winlink password; Settings (F9) > Mail > Winlink: Dial = the Address Book
-entry for the RMS (WS1EC-10, or a node entry whose login script sends
-RMS), Password login = `winlink`.
+Set up: nothing beforehand. On a Winlink folder, G asks for the Address
+Book entry for the RMS (WS1EC-10, or a node entry whose login script
+sends RMS) and then your Winlink password, before dialing; both are
+saved (Settings > Mail > Winlink, Settings > Logins).
 
 - [ ] **First Winlink session, nothing to send**: on the Mail tab, select
   Winlink > Inbox; the Footer should say "Send/Receive Winlink". Press G.
@@ -147,6 +147,9 @@ RMS), Password login = `winlink`.
   propose it (`FC EM ...`),
   send it after `FS +`, and move it to Winlink > Sent. Check it arrives
   at the recipient.
+- [ ] **All Inboxes**: with both the Home BBS and Winlink set up, G on
+  All Inboxes (Footer: "Send/Receive all") should run the BBS, disconnect,
+  then dial the RMS and run Winlink, with no question in between.
 - [ ] **Through a node**: an Address Book entry for the node with a login
   script line `RMS` (or a hop chain to an upstream gateway). The
   exchange should start only when the `[WL2K-` line arrives; the node's
