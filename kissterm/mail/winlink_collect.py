@@ -20,6 +20,14 @@ for a BBS. `kissterm/winlink/b2f.py` is the protocol; this is the glue:
 compressed bytes summarised rather than dumped; progress goes to `note`
 and `progress` as for a BBS (DESIGN.md section 6).
 
+**Over the Internet** (`telnet_login`): the Winlink CMS's Telnet port
+asks `Callsign :` and `Password :` before the B2F exchange; the answers
+are the account and the fixed Telnet password every client sends,
+`CMSTelnet` (wl2k-go `transport/telnet/dial.go`, which also gives the
+host, port and the `wl2k` target). The account's own password is never
+that: it answers the `;PQ:` challenge afterwards, as over radio.
+# UNVERIFIED: wl2k-go's constants, not yet a session of our own.
+
 **It stops rather than guesses**, with the reason in the operator's
 words: the gateway's own error line (a wrong password), a damaged
 message, silence past `idle_timeout`, a dropped link, or the transmit
@@ -50,6 +58,13 @@ DEFAULT_IDLE_TIMEOUT = 300.0
 
 _ADDRESS_SPLIT = re.compile(r"[,;\s]+")
 
+#: The Winlink CMS's Telnet service (wl2k-go `CMSAddress`, `CMSTargetCall`).
+CMS_HOST = "server.winlink.org"
+CMS_PORT = 8772
+CMS_TARGET = "WL2K"
+#: The Telnet-layer password every client sends (wl2k-go `CMSPassword`).
+CMS_TELNET_PASSWORD = "CMSTelnet"
+
 
 @dataclass
 class WinlinkOptions:
@@ -62,6 +77,8 @@ class WinlinkOptions:
     #: Maidenhead locator for the handshake; may be "".
     locator: str = ""
     idle_timeout: float = DEFAULT_IDLE_TIMEOUT
+    #: Answer the CMS Telnet port's `Callsign :` / `Password :` first.
+    telnet_login: bool = False
 
 
 @dataclass
@@ -108,8 +125,15 @@ class WinlinkCollector:
         received: Callable[[str], None],
         gate_open: Callable[[], bool] = lambda: True,
         progress: Callable[[str], None] = lambda _phase: None,
+        early_lines_shown: bool = True,
     ) -> None:
         self.link = link
+        #: Whether lines heard before `run()` were already shown (a radio
+        #: session's Terminal tab shows them); if not, they are logged too.
+        self._early_lines_shown = early_lines_shown
+        self._login_buffer = ""
+        self._login_out: list[str] = []
+        self._logged_in = not options.telnet_login
         self.store = store
         self.options = options
         self._note = note
@@ -156,10 +180,32 @@ class WinlinkCollector:
         return messages
 
     def _on_data(self, data: bytes) -> None:
+        if not self._logged_in:
+            self._telnet_login(data)
         self.client.feed(data)
         self._arrived.set()
 
+    def _telnet_login(self, data: bytes) -> None:
+        """Queue the answers to the CMS Telnet prompts, as wl2k-go does:
+        each complete line, lower-cased, starting `callsign` or `password`."""
+        self._login_buffer += data.decode("latin-1")
+        *lines, self._login_buffer = re.split(r"[\r\n]", self._login_buffer)
+        for line in lines:
+            line = line.strip().lower()
+            if line.startswith("callsign"):
+                self._login_out.append(self.options.account)
+            elif line.startswith("password"):
+                self._login_out.append(CMS_TELNET_PASSWORD)
+                self._logged_in = True
+                break
+
     async def _flush(self) -> None:
+        while self._login_out:
+            line = self._login_out.pop(0)
+            if not self._gate_open():
+                raise _Stop("transmit is off")
+            await self.link.send(line.encode("latin-1") + b"\r")
+            self._sent(line)
         out = self.client.take_output()
         if not out:
             return
@@ -199,7 +245,7 @@ class WinlinkCollector:
         # chain) were shown as ordinary session text; only the rest are
         # passed on, so none is logged twice.
         for event in self.client.take_events():
-            if not isinstance(event, b2f.Line):
+            if not (self._early_lines_shown and isinstance(event, b2f.Line)):
                 self._handle(event, result)
         for reason in self._skipped:
             self._note(f"Not sent: {reason}")

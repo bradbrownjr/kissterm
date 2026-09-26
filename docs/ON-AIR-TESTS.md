@@ -126,7 +126,17 @@ Book entry for the RMS (WS1EC-10, or a node entry whose login script
 sends RMS) and then your Winlink password, before dialing; both are
 saved (Settings > Mail > Winlink, Settings > Logins).
 
-- [ ] **First Winlink session, nothing to send**: on the Mail tab, select
+- [ ] **First: Winlink over the Internet** (no radio). F10 > Session >
+  Winlink over the Internet, from the Mail tab. It asks for your Winlink
+  password if none is saved, connects to server.winlink.org:8772, and
+  runs the exchange: toast "No new Winlink mail" or new messages in
+  Winlink > Inbox. Anything in Winlink > Outbox is sent, so leave it
+  empty the first time, or put one message to yourself there. Then send
+  the transcript (Session > Transcripts, the newest `..._WL2K.log`) to be
+  made a test fixture. If it stops right after the handshake, say what
+  the toast said: the likely cause is the CMS not accepting "kissterm"
+  as a client name.
+- [ ] **First Winlink session over the radio, nothing to send**: on the Mail tab, select
   Winlink > Inbox; the Footer should say "Send/Receive Winlink". Press G.
   Expect the frequency reminder, then in the Terminal tab (F5): the
   gateway's `[WL2K-...]` line, our `;FW: KC1JMH`, our

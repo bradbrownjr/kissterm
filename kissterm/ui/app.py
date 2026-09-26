@@ -4285,16 +4285,38 @@ class KissTermApp(App):
     async def _winlink_prepare(self):
         """Everything the Winlink run needs before dialing, asking for what
         is missing: (entry, options), or None if cancelled."""
-        from ..config import winlink_account
         from ..mail.winlink_collect import WinlinkOptions
 
         winlink = self.config.winlink
+        entry = await self._mail_route(winlink.route, winlink=True) if self._winlink_account() else None
+        if entry is None:
+            return None
+        login = await self._winlink_login()
+        if login is None:
+            return None
+        account, password = login
+        return entry, WinlinkOptions(
+            account,
+            password=password,
+            target=str(parse_path(entry.target).destination),
+            locator=winlink.locator or self.config.aprs.grid_square,
+        )
+
+    def _winlink_account(self) -> str:
+        """The Winlink account, or "" having said to set the callsign."""
+        from ..config import winlink_account
+
         account = winlink_account(self.config)
         if not account:
             self.notify("Set your callsign first (Session > My callsign).", severity="warning")
-            return None
-        entry = await self._mail_route(winlink.route, winlink=True)
-        if entry is None:
+        return account
+
+    async def _winlink_login(self) -> tuple[str, str] | None:
+        """(account, password), asking for the password if no saved login
+        holds it; None if cancelled."""
+        winlink = self.config.winlink
+        account = self._winlink_account()
+        if not account:
             return None
         # Have the password before dialing, so a missing one never costs a
         # connect. UNVERIFIED: that every gateway challenges (Winlink
@@ -4310,12 +4332,7 @@ class KissTermApp(App):
             winlink.credential = login[0]
             self._save_config()
             self.query_one(SettingsPane).render_settings(self.config)
-        return entry, WinlinkOptions(
-            account,
-            password=login[1],
-            target=str(parse_path(entry.target).destination),
-            locator=winlink.locator or self.config.aprs.grid_square,
-        )
+        return account, login[1]
 
     async def _winlink_run(self, entry, options) -> None:
         """Winlink over the route Settings > Mail names:
@@ -4350,6 +4367,11 @@ class KissTermApp(App):
             result = await collector.run()
         finally:
             self._transfer_active.discard(key)
+        self._winlink_report(result)
+        await self._disconnect_session(key)
+
+    def _winlink_report(self, result) -> None:
+        """The outcome toast of a Winlink run, over radio or the Internet."""
         sent = f"{len(result.sent)} sent, " if result.sent else ""
         if result.stopped:
             hint = (" Set the password login in Settings > Mail > Winlink."
@@ -4365,7 +4387,76 @@ class KissTermApp(App):
         else:
             self.notify("No new Winlink mail.", timeout=4)
         self._reload_mail_tabs()
-        await self._disconnect_session(key)
+
+    @work(exclusive=False)
+    async def action_winlink_internet(self) -> None:
+        """Winlink through the CMS over the Internet (Session menu), the
+        path that needs no radio: Telnet to `CMS_HOST`, its login, then the
+        same B2F exchange and the same folders as over packet.
+
+        The transmit gate is not involved: nothing here can key a radio,
+        and arming it for this would open RF for everything else too. The
+        exchange is written to a transcript (Session > Transcripts) as
+        protocol lines, so a first session can become a test fixture.
+        Started only by the operator, from the menu."""
+        from ..mail.winlink_collect import (
+            CMS_HOST, CMS_PORT, CMS_TARGET, WinlinkCollector, WinlinkOptions,
+        )
+        from ..transport.telnet import TelnetTransport
+
+        if self._collecting:
+            self.notify("Already sending and receiving.", severity="warning")
+            return
+        self._collecting = True
+        link = transport = transcript = None
+        try:
+            login = await self._winlink_login()
+            if login is None:
+                return
+            account, password = login
+            self.notify("Connecting to the Winlink CMS over the Internet...", timeout=4)
+            self._mail_status("Connecting to the Winlink CMS")
+            transport = TelnetTransport(CMS_HOST, CMS_PORT)
+            await transport.open()
+            try:
+                session = await transport.connect()
+            except TransportError as exc:
+                self.notify(f"Winlink over the Internet: {exc}", severity="error")
+                return
+            link = _SessionLinkAdapter(session)
+            transcript = SessionLog(self._transcript_directory(), account, CMS_TARGET)
+            if not transcript.open():
+                transcript = None
+            log = transcript
+
+            def note(text: str) -> None:
+                if log is not None:
+                    log.note(f"*** Mail: {text}")
+
+            collector = WinlinkCollector(
+                link,
+                self.mail_store,
+                WinlinkOptions(account, password=password, target=CMS_TARGET,
+                               locator=self.config.winlink.locator or self.config.aprs.grid_square,
+                               telnet_login=True),
+                note=note,
+                sent=lambda text: log.sent(text) if log is not None else None,
+                received=lambda text: log.received(text) if log is not None else None,
+                progress=self._mail_status,
+                early_lines_shown=False,
+            )
+            self._winlink_report(await collector.run())
+        finally:
+            if link is not None:
+                with contextlib.suppress(Exception):
+                    await link.disconnect()
+            if transport is not None:
+                with contextlib.suppress(Exception):
+                    await transport.close()
+            if transcript is not None:
+                transcript.close()
+            self._collecting = False
+            self._mail_status("")
 
     def _winlink_received(self, key: str, text: str) -> None:
         """A line from the Winlink gateway, shown and kept in the

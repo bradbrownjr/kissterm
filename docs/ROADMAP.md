@@ -147,10 +147,11 @@ implementation; wl2k-go is MIT, and its secure login and LZHUF are ported
 behaviour rather than from documentation `# UNVERIFIED:` until a live
 exchange confirms it.
 
-- [ ] **CMS over Telnet first.** It is the test path that needs no radio.
-  Pat's documented form is `cms.winlink.org:8772`. Confirm the host, port
-  and Telnet-layer login from Winlink's own documentation. Operator-initiated
-  only. Medium.
+- [ ] **CMS over Telnet: the first real session.** Built 2026-09-26
+  (Session > Winlink over the Internet; host, port and `CMSTelnet` from
+  wl2k-go). Waiting on the operator's first run (docs/ON-AIR-TESTS.md);
+  its transcript becomes `tests/unit/data/winlink/` fixture and settles
+  the `# UNVERIFIED:` notes in `winlink/b2f.py` and `winlink_collect.py`.
 - [ ] **VARA to an RMS Gateway**, once P3's VARA hardware verification is
   done. Small on top of the two above.
 - [ ] **RMS Gateway list** for choosing where to connect, fetched from the

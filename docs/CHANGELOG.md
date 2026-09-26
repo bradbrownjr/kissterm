@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Winlink over the Internet
+
+### New Features
+
+- **Session > Winlink over the Internet** (Mail tab): the same Winlink
+  send and receive through the Winlink CMS by Telnet
+  (server.winlink.org:8772), no radio involved and the transmit gate
+  untouched. It answers the CMS's own login (`CMSTelnet`, as wl2k-go
+  does), asks for your Winlink password first if none is saved, and
+  writes the exchange to a transcript. Not yet run against the real CMS.
+
+**Files:** `kissterm/mail/winlink_collect.py`, `kissterm/ui/app.py`,
+`kissterm/ui/commands.py`, `tests/unit/test_mail_winlink_collect.py`,
+`tests/pilot/test_winlink_send_receive.py`, `README.md`,
+`docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Send/Receive asks first; All Inboxes does both
 
 ### Improvements

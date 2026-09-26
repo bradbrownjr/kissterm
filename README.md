@@ -92,7 +92,9 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   packet**: on a Winlink folder G sends and receives with a Winlink RMS
   gateway instead (Settings > Mail > Winlink: the Address Book entry that
   reaches it, and a saved login holding your password, which never goes on
-  the air -- only the answer to the gateway's challenge does). On All
+  the air -- only the answer to the gateway's challenge does). Without a
+  radio, Session > Winlink over the Internet does the same through the
+  Winlink CMS (Telnet). On All
   Inboxes G does both, the Home BBS first. Anything missing -- the entry
   to dial, the Winlink password, a BBS login -- is asked for before
   anything is dialed. Insert on a

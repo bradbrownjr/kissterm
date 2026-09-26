@@ -258,3 +258,44 @@ async def test_g_on_all_inboxes_runs_the_bbs_then_winlink(tmp_path):
     bbs.close()
     rms.close()
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_winlink_over_the_internet_uses_the_cms_telnet_login(tmp_path, monkeypatch):
+    from kissterm.mail import winlink_collect
+    from kissterm.transcripts import list_transcripts
+
+    gateway = Gateway([REAL.read_bytes()], challenge=True, telnet=True)
+
+    async def handle(reader, writer):
+        gateway.deliver = writer.write
+        serving = asyncio.ensure_future(gateway.serve())
+        while not reader.at_eof():
+            data = await reader.read(4096)
+            if not data:
+                break
+            gateway._rx += data
+            gateway._got.set()
+        serving.cancel()
+
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    monkeypatch.setattr(winlink_collect, "CMS_HOST", "127.0.0.1")
+    monkeypatch.setattr(winlink_collect, "CMS_PORT", server.sockets[0].getsockname()[1])
+    app, station, _tb = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        toasts: list[str] = []
+        real_notify = app.notify
+        app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
+        app.action_winlink_internet()
+        await wait_for(lambda: any("Winlink message" in t for t in toasts), "the outcome toast", timeout=20)
+        assert gateway.telnet_login == ["KC1JMH", "CMSTelnet"]
+        assert ";PR: 95074758" in gateway.handshake and gateway.handshake[-1].startswith("; WL2K DE KC1JMH")
+        assert len(app.mail_store.list(WINLINK_INBOX)) == 1
+        assert not station.transport.sent  # nothing on the radio side
+        [transcript] = list_transcripts(app._transcript_directory())
+        text = transcript.path.read_text()
+        assert "Callsign :" in text and "[WL2K-5.0-B2FWIHJM$]" in text and "FQ" in text
+    server.close()
+    station.close()
