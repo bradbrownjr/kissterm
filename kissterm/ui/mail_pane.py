@@ -40,10 +40,11 @@ from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Tree
 
-from ..mail import MessageStore
+from ..mail import MessageStore, form_parse
 from ..mail.store import ALL_INBOXES, DELETED, FILES, check_folder, is_deleted_folder
 from ..monitor import sanitize
 from . import slideouts
+from .form_view import form_text
 from .wraplog import WrapLog
 
 #: Inbox, Outbox, Sent first and Deleted last, as every mail client orders
@@ -93,6 +94,7 @@ class MessageList(DataTable):
         Binding("delete", "delete_message", "Delete"),
         Binding("u", "restore_message", "Restore"),
         Binding("g", "get_mail", "Send/Receive"),
+        Binding("v", "toggle_form", "Form/text"),
     ]
 
     def _browser(self) -> "MessageBrowser":
@@ -110,7 +112,12 @@ class MessageList(DataTable):
             return browser.id == "mail-browser"
         if action in ("reply", "reply_quoted"):
             return self.row_count > 0 and not browser.files
+        if action == "toggle_form":
+            return browser.showing_form_message()
         return True
+
+    def action_toggle_form(self) -> None:
+        self._browser().toggle_form_view()
 
     def action_new_message(self) -> None:
         self.app.action_compose_mail()  # type: ignore[attr-defined]
@@ -188,6 +195,11 @@ class MessageBrowser(Horizontal):
         self.folder: str = ""
         #: Row key -> message ref (or file path relative to the store root).
         self._rows: list[str] = []
+        #: The message in the reader, whether it reads as a form, and
+        #: whether V has switched it to its text (`form_view.py`).
+        self._open_ref = ""
+        self._open_form = None
+        self._as_text = False
 
     def compose(self) -> ComposeResult:
         tree = FolderTree("folders", classes="mail-tree")
@@ -196,7 +208,8 @@ class MessageBrowser(Horizontal):
         yield tree
         with Vertical(classes="mail-right"):
             yield MessageList(cursor_type="row", zebra_stripes=True, classes="mail-list")
-            yield WrapLog(classes="mail-reader", wrap=True, markup=False, highlight=False)
+            yield WrapLog(classes="mail-reader", wrap=True, markup=False, highlight=False,
+                          follow=False)
         yield Vertical(classes="mail-addressbook-column")
 
     def on_mount(self) -> None:
@@ -403,6 +416,7 @@ class MessageBrowser(Horizontal):
             return
         reader = self.query_one(WrapLog)
         reader.clear()
+        reader.scroll_home(animate=False)
         if self.files:
             path = self.store.root / ref
             with open(path, "rb") as handle:
@@ -415,6 +429,11 @@ class MessageBrowser(Horizontal):
                 reader.write(Text("[preview ends here]", style="dim"))
             return
         message = self.store.read(ref)
+        if ref != self._open_ref:
+            self._open_ref, self._as_text = ref, False
+            self._open_form = form_parse.recognize(
+                message.subject, message.body, form_id=message.extra.get("Form", ""))
+            self.query_one(MessageList).refresh_bindings()  # V, in the Footer
         head = Text()
         for label, value in (
             ("From", message.sender),
@@ -427,10 +446,23 @@ class MessageBrowser(Horizontal):
                 head.append(f"{label}: ", style="bold")
                 head.append(sanitize(value.encode("utf-8"), keep_newlines=False) + "\n")
         reader.write(head)
-        reader.write(Text(sanitize(message.body.encode("utf-8"))))
+        if self._open_form is not None and not self._as_text:
+            reader.write(form_text(self._open_form))
+        else:
+            reader.write(Text(sanitize(message.body.encode("utf-8"))))
         if not message.is_read:
             self.store.set_read(ref)
             self._mark_row_read()
+
+    def showing_form_message(self) -> bool:
+        """The reader holds a message that reads as a form (V applies)."""
+        return self._open_form is not None and self._open_ref == self._selected()
+
+    def toggle_form_view(self) -> None:
+        if self.showing_form_message():
+            self._as_text = not self._as_text
+            self.open_selected()
+            self.query_one(MessageList).refresh_bindings()
 
     def delete_selected(self) -> None:
         ref = self._selected()

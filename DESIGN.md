@@ -202,7 +202,8 @@ is the enforcement.
    Edit is not F2, because F2 is a tab.
    Mail, Bulletins and Files: Enter opens, Delete moves to Deleted, U
    restores from Deleted; on Mail, G gets mail from the Home BBS and
-   Insert writes a new message; on Mail and Bulletins, R replies and Q
+   Insert writes a new message; on Mail and Bulletins, V switches a message
+   received as a form between the form and its text, R replies and Q
    replies with the original quoted. None of them transmits.
 5. **The Footer shows only what works right now.** An action that does not
    apply on this tab, or in this state, is absent — not shown and then

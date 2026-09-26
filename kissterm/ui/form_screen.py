@@ -179,10 +179,10 @@ class FormScreen(ModalScreen["Draft | None"]):
         for index, line in enumerate(_column_lines(f.columns)):
             label = Label(f"Line {number}" if index == 0 else "", classes="form-label")
             inputs: list[Widget] = [
-                Select([(o, o) for o in c.choices], prompt=c.label, compact=True,
+                Select([(o, o) for o in c.choices], prompt=c.placeholder or c.label, compact=True,
                        id=f"form-{f.id}-{number}-{c.id}", classes="form-cell")
                 if c.choices else
-                Input(id=f"form-{f.id}-{number}-{c.id}", placeholder=c.label, compact=True,
+                Input(id=f"form-{f.id}-{number}-{c.id}", placeholder=c.placeholder or c.label, compact=True,
                       max_length=c.max_length or 0,
                       classes="form-cell form-cell-wide" if c.max_length >= 40 else "form-cell")
                 for c in line

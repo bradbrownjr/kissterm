@@ -42,6 +42,10 @@ of the two is marked `# UNVERIFIED:`.
   A new form is a data file plus a golden test in
   `tests/unit/test_mail_forms.py`; `forms.py` refuses a template naming
   an unknown field.
+- **A received form is read against its own template**
+  (`form_parse.py`); recognition stays conservative (a wrong form shown
+  is worse than text), and `tests/unit/test_form_parse.py` round-trips
+  every shipped form -- a new form file must pass it.
 - **An information strip is split on `/` outside parentheses only**, and
   an answer containing `/` is refused (`forms.split_strip`,
   `test_mail_forms.py`).

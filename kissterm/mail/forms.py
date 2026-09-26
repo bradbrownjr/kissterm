@@ -97,6 +97,8 @@ class Column:
     sum_of: tuple[str, ...] = ()
     #: "money": rendered `$ 1,234` as Winlink's formatNumber() writes it.
     format: str = ""
+    #: The empty cell's hint, where it is not the label (`YYYY-MM-DD HH:MM`).
+    placeholder: str = ""
 
 
 @dataclass(frozen=True)

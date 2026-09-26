@@ -110,7 +110,7 @@ required = true
 max_rows = 24
 help = "Notable activities with the date and time of each. Winlink's form holds twenty-four."
 columns = [
-  { id = "ActTime", label = "YYYY-MM-DD HH:MM", max_length = 20 },
+  { id = "ActTime", label = "Date & time", placeholder = "YYYY-MM-DD HH:MM", max_length = 20 },
   { id = "Activity", label = "Activity", max_length = 100 },
 ]
 

@@ -145,3 +145,39 @@ async def test_files_tab_lists_and_previews_text(tmp_path):
         await pilot.press("enter")
         await pilot.pause()
         assert "plain text file" in _reader_text(files)
+
+
+@pytest.mark.asyncio
+async def test_a_received_ics213_reads_as_a_form_and_v_shows_its_text(tmp_path):
+    app, store = _app(tmp_path)
+    body = ("GENERAL MESSAGE (ICS 213)\n1. Incident Name: ICE STORM\n"
+            "2. To (Name and Position): J SMITH, EOC\n3. From (Name and Position): B BROWN\n"
+            "4. Subject: Shelter status\n5. Date: 2026-09-26\n6. Time: 14:05\n7. Message:\n\n"
+            "Shelter open.\n\x1b[31mCots\x1b[0m needed.\n\n8. Approved by: B BROWN\n")
+    store.add("Mail/BBS/Inbox", Message(sender="W1AW", to="KC1JMH", date=WHEN + timedelta(hours=1),
+                                        subject="ICS-213: Shelter status - 2026-09-26 14:05",
+                                        source="BBS WS1EC", body=body))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        mail = _browser(app, "mail")
+        table = mail.query_one(MessageList)
+        table.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        shown = _reader_text(mail)
+        assert "ICS-213 General Message" in shown and "V shows the text as received" in shown
+        assert "1. Incident" in shown and "ICE STORM" in shown and "  Cots needed." in shown
+        assert "\x1b" not in shown and "GENERAL MESSAGE (ICS 213)" not in shown
+        assert "v" in app.screen.active_bindings  # in the Footer while it applies
+        await pilot.press("v")
+        await pilot.pause()
+        assert "GENERAL MESSAGE (ICS 213)" in _reader_text(mail)
+        await pilot.press("v")
+        await pilot.pause()
+        assert "GENERAL MESSAGE (ICS 213)" not in _reader_text(mail)
+        # A plain message has no form view, and V does nothing there.
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+        assert "Hello" in _reader_text(mail)
+        assert table.check_action("toggle_form", ()) is False

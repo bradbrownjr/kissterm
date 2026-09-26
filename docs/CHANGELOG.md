@@ -5,6 +5,32 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Received forms read as forms
+
+### New Features
+
+- **A received form is shown as the form**: the ICS-213, check-ins,
+  situation reports, logs and information strips kissterm ships are
+  recognised in Mail and Bulletins (by our own `Form:` header, or by the
+  subject pattern and most of the form's labelled lines) and laid out
+  label by label, a log's lines one under another. **V** on the list
+  shows the text as received, and back. A message that is not clearly a
+  form stays plain text.
+- Each form file is its own parser: the round trip (fill, send, read
+  back) is tested for every shipped form.
+
+### Improvements
+
+- The reader opens a message at its top rather than its end.
+- A log's time column is named Time, its format shown as the hint.
+
+**Files:** `kissterm/mail/form_parse.py` (new), `kissterm/ui/form_view.py`
+(new), `kissterm/ui/mail_pane.py`, `kissterm/ui/wraplog.py`,
+`kissterm/mail/forms.py`, `kissterm/ui/form_screen.py`,
+`kissterm/mail/data/forms/`, `tests/unit/test_form_parse.py`,
+`tests/pilot/test_mail_pane.py`, `README.md`, `DESIGN.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — ICS-309 from mail
 
 ### New Features

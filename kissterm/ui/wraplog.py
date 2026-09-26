@@ -88,7 +88,17 @@ from textual.widgets import RichLog
 
 class WrapLog(RichLog):
     """`RichLog` that keeps `min_width` -- and the bottom -- in step with its
-    own laid-out size."""
+    own laid-out size.
+
+    `follow=False` is for a document rather than a log (the Mail reader): it
+    opens at the top and stays where the reader scrolls it, instead of
+    following the last line written."""
+
+    def __init__(self, *args, follow: bool = True, **kwargs) -> None:
+        if not follow:
+            kwargs["auto_scroll"] = False
+        super().__init__(*args, **kwargs)
+        self._follow = follow
 
     def on_mount(self) -> None:
         # Textual dispatches `on_mount` to every class in the MRO that
@@ -96,7 +106,8 @@ class WrapLog(RichLog):
         # scrollbar refresh. Anchoring from here rather than at construction
         # because `anchor()` scrolls, and a widget has no geometry to scroll
         # within until it is mounted.
-        self.anchor()
+        if self._follow:
+            self.anchor()
 
     def on_resize(self) -> None:
         width = self.scrollable_content_region.width
