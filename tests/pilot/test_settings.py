@@ -93,6 +93,7 @@ NOT_IN_SCHEMA = {
     # than this top-level check, not an exemption from it.
     "beacon",
     "home_bbs",
+    "winlink",
     "custom_theme",
     "watched_callsigns",
 }
@@ -149,6 +150,14 @@ def test_every_nested_home_bbs_field_is_editable():
     paths = {f.path for s in SETTINGS_SCHEMA for f in s.fields}
     for f in dataclasses.fields(HomeBbsConfig):
         assert f"home_bbs.{f.name}" in paths, f"home_bbs.{f.name} has no Settings UI"
+
+
+def test_every_nested_winlink_field_is_editable():
+    from kissterm.config import WinlinkConfig
+
+    paths = {f.path for s in SETTINGS_SCHEMA for f in s.fields}
+    for f in dataclasses.fields(WinlinkConfig):
+        assert f"winlink.{f.name}" in paths, f"winlink.{f.name} has no Settings UI"
 
 
 def test_every_nested_watched_callsign_field_is_editable():

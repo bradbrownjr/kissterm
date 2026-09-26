@@ -313,6 +313,21 @@ ready_text = ""
 login_prompt = ""
 credential = ""
 
+[winlink]
+# The Winlink account Send/Receive uses (G on a Mail/Winlink folder). route
+# is the Address Book entry that reaches an RMS gateway: its -10 SSID, a
+# NET/ROM alias, a node whose login script sends RMS, or a hop chain to a
+# gateway whose Internet is up.
+route = ""
+# The account callsign; empty is your callsign without its SSID.
+account = ""
+# The saved login (Settings > Logins) holding the Winlink password. The
+# password never goes on the air: the gateway sends a challenge and only
+# the answer to it is sent.
+credential = ""
+# Maidenhead locator for the handshake; empty uses the APRS grid square.
+locator = ""
+
 [beacon]
 enabled = false
 

@@ -149,6 +149,7 @@ from ..config import (
 )
 from ..mail import MessageStore
 from ..mail.store import INBOX, MAIL, SENT
+from ..mail.winlink_collect import WINLINK_FOLDER
 from .. import desktop_notify
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
@@ -4038,41 +4039,72 @@ class KissTermApp(App):
 
     @work(exclusive=False)
     async def action_get_mail(self) -> None:
-        """Collect mail from the Home BBS (Mail tab, G). ROADMAP P2.
+        """Send/Receive (Mail tab, G). ROADMAP P2.
 
-        The connect is `action_connect` with the Home BBS route as a dial:
-        the reminder, the transmit gate, the hop chain and the route's own
-        login all apply, and nothing here arms anything. The collector
-        (`kissterm/mail/collect.py`) subscribes the moment the link is up,
-        so the BBS's greeting is not missed, and starts once the chain has
-        reached the target. The operator stays where they are: a toast says
-        it started, the status bar shows its phase in green while it runs
-        ("Sending 1 of 2", "Receiving 2 of 4"),
-        and a toast gives the outcome (DESIGN.md section 6). Every line it
-        sends is echoed in the session's Terminal tab and the transcript.
-        When it finishes, the link is disconnected; Ctrl+D stops it.
+        G follows the folder in front (operator, 2026-09-26): on a
+        Mail/Winlink folder it runs a Winlink exchange
+        (`_winlink_send_receive`), anywhere else the Home BBS
+        (`_bbs_send_receive`). Both dial through `_dial_for_mail`, so the
+        reminder, the transmit gate, the hop chain and the route's own
+        login all apply, and nothing here arms anything. The operator stays
+        where they are: a toast says it started, the status bar shows its
+        phase in green while it runs ("Sending 1 of 2", "Receiving 2 of
+        4"), and a toast gives the outcome (DESIGN.md section 6). Every
+        line sent is echoed in the session's Terminal tab and the
+        transcript. When it finishes, the link is disconnected; Ctrl+D
+        stops it.
         """
-        from ..mail.collect import BbsCollector, CollectOptions
-
-        home = self.config.home_bbs
         if self._collecting:
-            self.notify("Already getting mail.", severity="warning")
+            self.notify("Already sending and receiving.", severity="warning")
             return
-        entry = self.addressbook.find(home.route.strip()) if home.route.strip() else None
-        if entry is None:
-            # First use, or the entry was forgotten: ask for the one thing
-            # Send/Receive cannot run without, then carry on.
-            chosen = await self.push_screen_wait(
-                HomeBbsSetupScreen(
-                    [e.target for e in self.addressbook.entries], missing=home.route.strip()
-                )
+        self._collecting = True
+        try:
+            folder = self._mail_folder()
+            if folder == WINLINK_FOLDER or folder.startswith(f"{WINLINK_FOLDER}/"):
+                await self._winlink_send_receive()
+            else:
+                await self._bbs_send_receive()
+        finally:
+            self._collecting = False
+            self._mail_status("")
+
+    def _mail_folder(self) -> str:
+        from .mail_pane import MessageBrowser
+
+        browser = self.query("#mail-browser")
+        return browser.first(MessageBrowser).folder if browser else ""
+
+    async def _mail_route(self, route: str, *, winlink: bool = False):
+        """The Address Book entry `route` names, asking for one (and saving
+        the answer) on first use or when the entry is gone; None if the
+        operator cancelled."""
+        entry = self.addressbook.find(route.strip()) if route.strip() else None
+        if entry is not None:
+            return entry
+        # First use, or the entry was forgotten: ask for the one thing
+        # Send/Receive cannot run without, then carry on.
+        chosen = await self.push_screen_wait(
+            HomeBbsSetupScreen(
+                [e.target for e in self.addressbook.entries], missing=route.strip(), winlink=winlink
             )
-            entry = self.addressbook.find(chosen) if chosen else None
-            if entry is None:
-                return
-            home.route = entry.target
-            self._save_config()
-            self.query_one(SettingsPane).render_settings(self.config)
+        )
+        entry = self.addressbook.find(chosen) if chosen else None
+        if entry is None:
+            return None
+        if winlink:
+            self.config.winlink.route = entry.target
+        else:
+            self.config.home_bbs.route = entry.target
+        self._save_config()
+        self.query_one(SettingsPane).render_settings(self.config)
+        return entry
+
+    async def _dial_for_mail(self, entry, build, what: str):
+        """Dial `entry` for Send/Receive. `build(link, key)` makes the
+        runner the moment the link is up, before anything awaits, so the
+        far end's first bytes are not missed; it starts once the chain has
+        reached the target. Returns (runner, key), or None having said why.
+        """
         first = [h.strip() for h in entry.hops.split(",") if h.strip()] or [entry.target]
         peer = parse_path(first[0]).destination
         if any(
@@ -4084,6 +4116,49 @@ class KissTermApp(App):
                 f"Already connected to {peer}. Disconnect first, then press G.",
                 severity="warning",
             )
+            return None
+        state: dict = {"runner": None, "key": "", "reached": False}
+
+        def on_link(link, key: str) -> None:
+            state["key"] = key
+            state["runner"] = build(link, key)
+
+        def on_reached(reached: bool) -> None:
+            state["reached"] = reached
+
+        # The operator stays on the Mail tab: a toast says a connect is under
+        # way, and the status bar follows it. The whole session is in the
+        # Terminal tab (F5) for anyone who wants to watch.
+        self.notify(f"Connecting to {entry.target} to send and receive {what}...", timeout=4)
+        self._mail_status(f"Connecting to {entry.target}")
+        worker = self.action_connect(
+            prefill=entry, on_link=on_link, on_reached=on_reached, focus_session=False
+        )
+        await worker.wait()
+        runner = state["runner"]
+        if runner is None:
+            self.notify(
+                f"Send/Receive: could not connect to {entry.target}. "
+                "The Terminal tab (F5) says why.",
+                severity="error",
+            )
+            return None
+        if not state["reached"]:
+            runner.close()
+            self.notify(
+                f"Send/Receive: did not reach {entry.target}. The Terminal tab (F5) says why.",
+                severity="error",
+            )
+            return None
+        return runner, state["key"]
+
+    async def _bbs_send_receive(self) -> None:
+        """The Home BBS: `kissterm/mail/collect.py` drives it."""
+        from ..mail.collect import BbsCollector, CollectOptions
+
+        home = self.config.home_bbs
+        entry = await self._mail_route(home.route)
+        if entry is None:
             return
         options = CollectOptions(
             bbs_call=home.call,
@@ -4092,11 +4167,9 @@ class KissTermApp(App):
             login_prompt=home.login_prompt,
             login_text=find_credential(self.config, home.credential) if home.credential else "",
         )
-        state: dict = {"collector": None, "key": "", "reached": False}
 
-        def on_link(link, key: str) -> None:
-            state["key"] = key
-            state["collector"] = BbsCollector(
+        def build(link, key: str):
+            return BbsCollector(
                 link,
                 self.mail_store,
                 options,
@@ -4106,55 +4179,101 @@ class KissTermApp(App):
                 progress=self._mail_status,
             )
 
-        def on_reached(reached: bool) -> None:
-            state["reached"] = reached
-
-        self._collecting = True
-        # The operator stays on the Mail tab: a toast says a connect is under
-        # way, and the status bar follows it. The whole session is in the
-        # Terminal tab (F5) for anyone who wants to watch.
-        self.notify(f"Connecting to {entry.target} to send and receive mail...", timeout=4)
-        self._mail_status(f"Connecting to {entry.target}")
-        try:
-            worker = self.action_connect(
-                prefill=entry, on_link=on_link, on_reached=on_reached, focus_session=False
+        dialed = await self._dial_for_mail(entry, build, "mail")
+        if dialed is None:
+            return
+        collector, key = dialed
+        result = await collector.run()
+        sent = f"{len(result.sent)} sent, " if result.sent else ""
+        if result.stopped:
+            self.notify(
+                f"Send/Receive stopped: {result.stopped}. "
+                f"{sent}{len(result.filed)} received.",
+                severity="warning",
             )
-            await worker.wait()
-            collector = state["collector"]
-            if collector is None:
-                self.notify(
-                    f"Send/Receive: could not connect to {entry.target}. "
-                    "The Terminal tab (F5) says why.",
-                    severity="error",
-                )
-                return
-            if not state["reached"]:
-                collector.close()
-                self.notify(
-                    f"Send/Receive: did not reach {entry.target}. The Terminal tab (F5) says why.",
-                    severity="error",
-                )
-                return
+        elif result.filed:
+            self.notify(f"{sent}{len(result.filed)} new message(s) from the Home BBS.")
+        elif result.sent:
+            self.notify(f"{len(result.sent)} sent. No new mail on the Home BBS.")
+        else:
+            self.notify("No new mail on the Home BBS.", timeout=4)
+        self._reload_mail_tabs()
+        await self._disconnect_session(key)
+
+    async def _winlink_send_receive(self) -> None:
+        """Winlink over the route Settings > Mail names:
+        `kissterm/mail/winlink_collect.py` drives the B2F exchange.
+
+        While it runs, the session's Terminal tab shows the protocol lines
+        as text, not the link's raw bytes: a message travels compressed,
+        and its binary would only fill the pane with noise (the same
+        suppression a file transfer uses, `_transfer_active`). What arrived
+        before the exchange started (the node's banner, the hop chain) was
+        shown as usual."""
+        from ..config import winlink_account
+        from ..mail.winlink_collect import WinlinkCollector, WinlinkOptions
+
+        winlink = self.config.winlink
+        account = winlink_account(self.config)
+        if not account:
+            self.notify("Set your callsign first (Session > My callsign).", severity="warning")
+            return
+        entry = await self._mail_route(winlink.route, winlink=True)
+        if entry is None:
+            return
+        options = WinlinkOptions(
+            account,
+            password=(find_credential(self.config, winlink.credential) or "") if winlink.credential else "",
+            target=str(parse_path(entry.target).destination),
+            locator=winlink.locator or self.config.aprs.grid_square,
+        )
+
+        def build(link, key: str):
+            return WinlinkCollector(
+                link,
+                self.mail_store,
+                options,
+                note=lambda text: self._mail_note(key, text),
+                sent=lambda text: self._mail_sent(key, text),
+                received=lambda text: self._winlink_received(key, text),
+                gate_open=lambda: self.gate.enabled,
+                progress=self._mail_status,
+            )
+
+        dialed = await self._dial_for_mail(entry, build, "Winlink mail")
+        if dialed is None:
+            return
+        collector, key = dialed
+        self._transfer_active.add(key)
+        try:
             result = await collector.run()
-            key = state["key"]
-            sent = f"{len(result.sent)} sent, " if result.sent else ""
-            if result.stopped:
-                self.notify(
-                    f"Send/Receive stopped: {result.stopped}. "
-                    f"{sent}{len(result.filed)} received.",
-                    severity="warning",
-                )
-            elif result.filed:
-                self.notify(f"{sent}{len(result.filed)} new message(s) from the Home BBS.")
-            elif result.sent:
-                self.notify(f"{len(result.sent)} sent. No new mail on the Home BBS.")
-            else:
-                self.notify("No new mail on the Home BBS.", timeout=4)
-            self._reload_mail_tabs()
-            await self._disconnect_session(key)
         finally:
-            self._collecting = False
-            self._mail_status("")
+            self._transfer_active.discard(key)
+        sent = f"{len(result.sent)} sent, " if result.sent else ""
+        if result.stopped:
+            hint = (" Set the password login in Settings > Mail > Winlink."
+                    if "password" in result.stopped.lower() else "")
+            self.notify(
+                f"Winlink stopped: {result.stopped}. {sent}{len(result.filed)} received.{hint}",
+                severity="warning",
+            )
+        elif result.filed:
+            self.notify(f"{sent}{len(result.filed)} new Winlink message(s).")
+        elif result.sent:
+            self.notify(f"{len(result.sent)} sent. No new Winlink mail.")
+        else:
+            self.notify("No new Winlink mail.", timeout=4)
+        self._reload_mail_tabs()
+        await self._disconnect_session(key)
+
+    def _winlink_received(self, key: str, text: str) -> None:
+        """A line from the Winlink gateway, shown and kept in the
+        transcript as received text (the raw bytes are suppressed)."""
+        data = (text + "\r").encode("latin-1", errors="replace")
+        self._to_terminal(key, "write_incoming", data)
+        session = self._sessions.get(key)
+        if session is not None and session.transcript is not None:
+            session.transcript.received_stream(data, sanitize)
 
     def _mail_note(self, key: str, text: str) -> None:
         """A Send/Receive progress sentence, for the session log."""

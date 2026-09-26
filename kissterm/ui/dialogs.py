@@ -1384,37 +1384,50 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
-    def __init__(self, targets: list[str], missing: str = "") -> None:
+    def __init__(self, targets: list[str], missing: str = "", *, winlink: bool = False) -> None:
         super().__init__()
         self._targets = targets
         self._missing = missing
+        #: The same question for Winlink's route (G on a Winlink folder).
+        self._winlink = winlink
 
     def compose(self) -> ComposeResult:
+        what = "Winlink gateway" if self._winlink else "home BBS"
         with Vertical(id="connect-box"):
-            yield Label("Set up Send/Receive", id="connect-title")
+            yield Label("Set up Winlink" if self._winlink else "Set up Send/Receive",
+                        id="connect-title")
             if self._missing:
                 intro = (
-                    f"The Home BBS entry {self._missing} is no longer in the "
-                    "Address Book. "
+                    f"The {'Winlink' if self._winlink else 'Home BBS'} entry {self._missing} "
+                    "is no longer in the Address Book. "
                 )
             else:
                 intro = ""
             if not self._targets:
                 yield Static(
-                    intro + "Send/Receive dials your home BBS from the Address "
-                    "Book, which is empty. Connect to the BBS once with "
+                    intro + f"Send/Receive dials your {what} from the Address "
+                    f"Book, which is empty. Connect to the {what} once with "
                     "Ctrl+N (the station is saved there), then press G again.",
                     id="reminder-detail",
                 )
                 with Horizontal(id="connect-buttons"):
                     yield Button("Close", id="connect-cancel")
                 return
-            yield Static(
-                intro + "Send/Receive dials your home BBS, sends your Outbox, lists your mail with LM "
-                "and reads only what is new. Which Address Book entry reaches "
-                "it?",
-                id="reminder-detail",
-            )
+            if self._winlink:
+                detail = (
+                    "Send/Receive dials a Winlink RMS gateway, sends your Winlink "
+                    "Outbox and receives your Winlink mail. Which Address Book "
+                    "entry reaches one? Its -10 SSID, a NET/ROM alias, a node "
+                    "whose login script sends RMS, or hops to a gateway whose "
+                    "Internet is up."
+                )
+            else:
+                detail = (
+                    "Send/Receive dials your home BBS, sends your Outbox, lists your "
+                    "mail with LM and reads only what is new. Which Address Book "
+                    "entry reaches it?"
+                )
+            yield Static(intro + detail, id="reminder-detail")
             yield Select(
                 [(target, target) for target in self._targets],
                 value=self._targets[0],
@@ -1422,7 +1435,8 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
                 id="home-bbs-route",
             )
             yield Label(
-                "The rest is optional, in Settings (F9) > Home BBS.",
+                "The account and password are in Settings (F9) > Mail > Winlink."
+                if self._winlink else "The rest is optional, in Settings (F9) > Home BBS.",
                 id="connect-hint",
             )
             with Horizontal(id="connect-buttons"):

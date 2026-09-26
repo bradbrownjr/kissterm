@@ -265,6 +265,27 @@ class HomeBbsConfig:
 
 
 @dataclass
+class WinlinkConfig:
+    """The Winlink account Send/Receive (G on a Winlink folder) works with.
+
+    `route` names an Address Book entry, as for the Home BBS: whatever gets
+    to an RMS gateway -- its `-10` SSID direct, a NET/ROM alias, a node
+    whose login script sends `RMS`, or a hop chain to a gateway whose
+    Internet is up (operator, 2026-09-26). The exchange starts when the
+    gateway's `[WL2K-...]` line arrives. See `kissterm/mail/winlink_collect.py`.
+    """
+
+    #: The Address Book entry to dial, exactly as listed ("WS1EC-10").
+    route: str = ""
+    #: The Winlink account; "" is the station callsign without its SSID.
+    account: str = ""
+    #: Name of the saved credential (Settings > Logins) holding the password.
+    credential: str = ""
+    #: Maidenhead locator sent in the handshake; "" uses the APRS grid square.
+    locator: str = ""
+
+
+@dataclass
 class WatchedCallsignConfig:
     """Passive local alerts for address claims heard in received frames."""
 
@@ -553,6 +574,7 @@ class Config:
     aprs: AprsConfig = field(default_factory=AprsConfig)
     beacon: BeaconConfig = field(default_factory=BeaconConfig)
     home_bbs: HomeBbsConfig = field(default_factory=HomeBbsConfig)
+    winlink: WinlinkConfig = field(default_factory=WinlinkConfig)
     watched_callsigns: WatchedCallsignConfig = field(default_factory=WatchedCallsignConfig)
     #: Saved connect targets: dicts with at least a "target" callsign and
     #: optionally a "path" (digipeater route) and a "transport" name.
@@ -847,6 +869,7 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
     cfg.aprs = _load_aprs(raw.get("aprs", {}), warnings)
     cfg.beacon = _load_beacon(raw.get("beacon", {}), warnings)
     cfg.home_bbs = _load_home_bbs(raw.get("home_bbs", {}), warnings)
+    cfg.winlink = _load_winlink(raw.get("winlink", {}), warnings)
     cfg.watched_callsigns = _load_watched_callsigns(raw.get("watched_callsigns", {}), warnings)
     cfg.autoconnect = _load_dict_list(raw.get("autoconnect", []), "autoconnect", warnings)
 
@@ -1189,6 +1212,25 @@ def _load_home_bbs(value: Any, warnings: list[str]) -> HomeBbsConfig:
         software = "auto"
     home.software = software
     return home
+
+
+def _load_winlink(value: Any, warnings: list[str]) -> WinlinkConfig:
+    default = WinlinkConfig()
+    if not isinstance(value, dict):
+        if value not in ({}, None):
+            warnings.append(f"'winlink' should be a table, got {value!r}; using defaults")
+        return default
+    winlink = WinlinkConfig()
+    for name in ("route", "account", "credential", "locator"):
+        setattr(winlink, name, _load_str(value, name, getattr(default, name), warnings))
+    winlink.account = winlink.account.strip().upper()
+    winlink.locator = winlink.locator.strip()
+    return winlink
+
+
+def winlink_account(config: Config) -> str:
+    """The Winlink account: as set, else the station callsign without SSID."""
+    return config.winlink.account or str(config.mycall or "").split("-")[0].upper()
 
 
 def _load_watched_callsigns(value: Any, warnings: list[str]) -> WatchedCallsignConfig:

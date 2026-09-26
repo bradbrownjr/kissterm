@@ -147,26 +147,15 @@ implementation; wl2k-go is MIT, and its secure login and LZHUF are ported
 behaviour rather than from documentation `# UNVERIFIED:` until a live
 exchange confirms it.
 
-- [ ] **Winlink account in Settings**: callsign, the password as a named
-  credential (in the OS keyring since 2026-09-26), and the Address Book
-  route that reaches a gateway -- a direct `-10` RMS SSID, a NET/ROM
-  alias, the node plus an `RMS` script line, or a hop chain to an
-  upstream gateway when the local node's Internet is down (operator,
-  2026-09-26). The B2F exchange starts when the gateway's `[WL2K-...]`
-  line arrives, however the route got there. Small.
-- [ ] **B2F client wiring**: the exchange itself is done (`kissterm/winlink/`,
-  2026-09-26: secure login, LZHUF, B2 messages, handshake, proposals,
-  send and receive, tested against wl2k-go's recorded CMS sessions).
-  Left: run it over a connected link, file Received in Mail/Winlink/Inbox
-  with the raw `.b2f`, move Sent from the Outbox, log every line, and
-  disconnect cleanly. Medium.
+- [ ] **Write a Winlink message**: a "Winlink" choice in the compose
+  screen that files in Mail/Winlink/Outbox, with Winlink's limits (To and
+  Cc as callsigns or `SMTP:` addresses, a 128-character subject) checked
+  before saving. Send/Receive over packet (G on a Winlink folder) shipped
+  2026-09-26 and sends whatever is in that Outbox. Small.
 - [ ] **CMS over Telnet first.** It is the test path that needs no radio.
   Pat's documented form is `cms.winlink.org:8772`. Confirm the host, port
   and Telnet-layer login from Winlink's own documentation. Operator-initiated
   only. Medium.
-- [ ] **Packet to an RMS Gateway** using the existing Connect flow (radio
-  reminder, gate arming, hop chains). Needs: a reachable RMS Gateway and a
-  live session to verify. Medium.
 - [ ] **VARA to an RMS Gateway**, once P3's VARA hardware verification is
   done. Small on top of the two above.
 - [ ] **RMS Gateway list** for choosing where to connect, fetched from the

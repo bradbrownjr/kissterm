@@ -288,6 +288,46 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 advanced=True,
                 placeholder="a saved login's name",
             ),
+            Field(
+                "winlink.route",
+                "Dial",
+                "text",
+                "The Address Book entry that reaches a Winlink RMS gateway: "
+                "its -10 SSID, a NET/ROM alias, a node whose login script "
+                "sends RMS, or hops to a gateway whose Internet is up.",
+                apply="live",
+                placeholder="WS1EC-10",
+                rule_before="Winlink: where Send/Receive (G on a Winlink folder) sends and collects",
+            ),
+            Field(
+                "winlink.account",
+                "Account",
+                "text",
+                "Your Winlink account callsign. Leave empty to use your "
+                "callsign without its SSID.",
+                apply="live",
+                placeholder="your callsign",
+            ),
+            Field(
+                "winlink.credential",
+                "Password login",
+                "text",
+                "The name of the saved login (Settings > Logins) holding "
+                "your Winlink password. It is never sent: only the answer "
+                "to the gateway's challenge is.",
+                apply="live",
+                placeholder="a saved login's name",
+            ),
+            Field(
+                "winlink.locator",
+                "Locator",
+                "text",
+                "Your grid square, sent to the gateway. Leave empty to use "
+                "the APRS grid square.",
+                apply="live",
+                advanced=True,
+                placeholder="the APRS grid square",
+            ),
         ),
     ),
     Section(

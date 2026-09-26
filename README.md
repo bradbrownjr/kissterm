@@ -88,7 +88,12 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   (the PKTNET check-in comes back addressed `SB PKTNET@USA`); you fill in the form, then
   address it like any message. **Information strips** (`TITLE/question/.../question//`):
   GYX Weather Report and MCF720 ship, "Information strip (paste)" answers any other, and a
-  reply to a message carrying a strip offers Answer strip. More forms and Winlink are next
+  reply to a message carrying a strip offers Answer strip. **Winlink over
+  packet**: on a Winlink folder G sends and receives with a Winlink RMS
+  gateway instead (Settings > Mail > Winlink: the Address Book entry that
+  reaches it, and a saved login holding your password, which never goes on
+  the air -- only the answer to the gateway's challenge does). Not yet
+  proven against a live gateway; writing a Winlink message is next
   (`docs/ROADMAP.md`, P2). Settings > Open on keeps
   Terminal as the first tab if you prefer.
 

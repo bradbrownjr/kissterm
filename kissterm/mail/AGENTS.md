@@ -51,3 +51,8 @@ of the two is marked `# UNVERIFIED:`.
   `test_mail_forms.py`).
   The check counts groups as originated; ARL texts ship as
   `data/arl_numbered.json` (v3.0), tested by `tests/unit/test_mail_nts.py`.
+- **`winlink_collect.py` is `collect.py` for Winlink**: the B2F exchange
+  (`kissterm/winlink/`) over a connected link. Outbox messages get their
+  MID saved before they are offered, move to Sent only when the gateway
+  took them, and a received message is filed with its `.b2f` bytes.
+  Tests: `tests/unit/test_mail_winlink_collect.py` (a scripted gateway).

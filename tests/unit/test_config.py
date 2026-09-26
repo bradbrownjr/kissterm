@@ -864,6 +864,17 @@ def test_default_timers_pass_the_settings_cross_check():
     assert not any("T1" in p for p in cross_check(kconfig.Config()))
 
 
+def test_winlink_loads_and_the_account_defaults_to_the_callsign(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('mycall = "KC1JMH-7"\n[winlink]\nroute = "WS1EC-10"\ncredential = "wl"\n')
+    cfg = kconfig.load_config(path)
+    assert (cfg.winlink.route, cfg.winlink.credential) == ("WS1EC-10", "wl")
+    assert kconfig.winlink_account(cfg) == "KC1JMH"
+    cfg.winlink.account = "KC1JMH"
+    kconfig.save_config(cfg, path)
+    assert kconfig.load_config(path).winlink.account == "KC1JMH"
+
+
 def test_home_bbs_loads_and_normalises(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text('[home_bbs]\nroute = "WS1EC-2"\ncall = " ws1ec "\nsoftware = "JNOS"\n')

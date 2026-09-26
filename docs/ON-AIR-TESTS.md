@@ -119,6 +119,38 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   keyring" for each, config.toml should hold only their names, and a
   connect that uses one should still log in.
 
+## Winlink
+
+Set up first: Settings > Logins, a new login named `winlink` holding your
+Winlink password; Settings (F9) > Mail > Winlink: Dial = the Address Book
+entry for the RMS (WS1EC-10, or a node entry whose login script sends
+RMS), Password login = `winlink`.
+
+- [ ] **First Winlink session, nothing to send**: on the Mail tab, select
+  Winlink > Inbox; the Footer should say "Send/Receive Winlink". Press G.
+  Expect the frequency reminder, then in the Terminal tab (F5): the
+  gateway's `[WL2K-...]` line, our `;FW: KC1JMH`, our
+  `[kissterm-...-B2FHM$]`, `;PR: <8 digits>` (never your password), then
+  `FF` and the gateway's `FQ`, and a disconnect. Toast: "No new Winlink
+  mail", or new messages in Winlink > Inbox. **Keep the session
+  transcript** (Session > Transcripts) and send it to be made a test
+  fixture: it is the first real exchange this code has seen.
+- [ ] **A message from Winlink arrives**: send yourself a message from
+  winlink.org webmail or another station first, then G. It should land in
+  Winlink > Inbox with the right sender, subject and text; the Terminal
+  tab should show `[message <MID>, N bytes]` rather than binary.
+- [ ] **A wrong password** (temporarily change the saved login): G should
+  stop with a toast quoting the gateway ("Secure login failed ...") and
+  pointing at Settings > Mail > Winlink. Put the password back.
+- [ ] **Sending** (after the compose Type ships, or with a message placed
+  in Mail/Winlink/Outbox by hand): G should propose it (`FC EM ...`),
+  send it after `FS +`, and move it to Winlink > Sent. Check it arrives
+  at the recipient.
+- [ ] **Through a node**: an Address Book entry for the node with a login
+  script line `RMS` (or a hop chain to an upstream gateway). The
+  exchange should start only when the `[WL2K-` line arrives; the node's
+  own lines before it should show as normal session text.
+
 ## Standing verifications (from AGENTS.md section 8)
 
 - [ ] **Mic-E** decoding against a real off-air packet.

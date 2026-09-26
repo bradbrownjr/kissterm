@@ -17,8 +17,9 @@ the store (`kissterm/mail/`) it shows:
 The folder tree replaces a sub-tab strip. Keys follow DESIGN.md section 5
 rule 4, bound on the list itself so they work only while it has focus and
 never while typing: Enter opens, Delete moves to Deleted, U restores from
-Deleted, and on the Mail tab G gets mail from the Home BBS
-(`KissTermApp.action_get_mail`). Each key is shown only where it works
+Deleted, and on the Mail tab G sends and receives: with the Home BBS, or
+on a Winlink folder with Winlink (`KissTermApp.action_get_mail`; the
+Footer says which). Each key is shown only where it works
 (`MessageList.check_action`). Compose (Insert) and reply are added when
 they exist, not before.
 
@@ -69,14 +70,21 @@ class FolderTree(Tree):
     BINDINGS = [
         Binding("insert", "new_message", "New"),
         Binding("g", "get_mail", "Send/Receive"),
+        Binding("g", "get_winlink", "Send/Receive Winlink"),
     ]
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
-        if action in ("get_mail", "new_message"):
-            return self.query_ancestor(MessageBrowser).id == "mail-browser"
+        browser = self.query_ancestor(MessageBrowser)
+        if action in ("get_mail", "get_winlink"):
+            return browser.id == "mail-browser" and (action == "get_winlink") == browser.on_winlink()
+        if action == "new_message":
+            return browser.id == "mail-browser"
         return True
 
     def action_get_mail(self) -> None:
+        self.app.action_get_mail()  # type: ignore[attr-defined]
+
+    def action_get_winlink(self) -> None:
         self.app.action_get_mail()  # type: ignore[attr-defined]
 
     def action_new_message(self) -> None:
@@ -94,6 +102,7 @@ class MessageList(DataTable):
         Binding("delete", "delete_message", "Delete"),
         Binding("u", "restore_message", "Restore"),
         Binding("g", "get_mail", "Send/Receive"),
+        Binding("g", "get_winlink", "Send/Receive Winlink"),
         Binding("v", "toggle_form", "Form/text"),
     ]
 
@@ -108,7 +117,9 @@ class MessageList(DataTable):
             return self.row_count > 0 and browser.can_delete()
         if action == "restore_message":
             return self.row_count > 0 and browser.can_restore()
-        if action in ("get_mail", "new_message"):
+        if action in ("get_mail", "get_winlink"):
+            return browser.id == "mail-browser" and (action == "get_winlink") == browser.on_winlink()
+        if action == "new_message":
             return browser.id == "mail-browser"
         if action in ("reply", "reply_quoted"):
             return self.row_count > 0 and not browser.files
@@ -156,6 +167,9 @@ class MessageList(DataTable):
         self._browser().restore_selected()
 
     def action_get_mail(self) -> None:
+        self.app.action_get_mail()  # type: ignore[attr-defined]
+
+    def action_get_winlink(self) -> None:
         self.app.action_get_mail()  # type: ignore[attr-defined]
 
 
@@ -397,6 +411,12 @@ class MessageBrowser(Horizontal):
         if not self._rows or table.cursor_row < 0 or table.cursor_row >= len(self._rows):
             return ""
         return self._rows[table.cursor_row]
+
+    def on_winlink(self) -> bool:
+        """G sends and receives with Winlink here, not the Home BBS."""
+        from ..mail.winlink_collect import WINLINK_FOLDER
+
+        return self.folder == WINLINK_FOLDER or self.folder.startswith(f"{WINLINK_FOLDER}/")
 
     def can_delete(self) -> bool:
         return not self.files and self.folder != "" and (

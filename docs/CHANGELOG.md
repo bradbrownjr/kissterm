@@ -5,6 +5,32 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Winlink Send/Receive over packet
+
+### New Features
+
+- **G on a Winlink folder sends and receives with Winlink**: it dials
+  the Address Book entry Settings > Mail > Winlink names (an RMS `-10`
+  SSID, a NET/ROM alias, a node whose login script sends `RMS`, or hops
+  to a gateway whose Internet is up), answers the password challenge
+  from the saved login, sends Mail/Winlink/Outbox and files new mail in
+  Mail/Winlink/Inbox with its `.b2f` bytes. Anywhere else G is the Home
+  BBS as before; the Footer says which. The Terminal tab shows the
+  protocol lines, with messages summarised instead of binary. Not yet
+  run against a real gateway (docs/ON-AIR-TESTS.md).
+- **Settings > Mail > Winlink**: route, account (defaults to your
+  callsign without SSID), password login, locator (defaults to the APRS
+  grid square).
+
+**Files:** `kissterm/mail/winlink_collect.py` (new), `kissterm/config.py`,
+`config.toml.example`, `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/mail_pane.py`, `kissterm/ui/settings_schema.py`,
+`kissterm/ui/commands.py`, `kissterm/mail/AGENTS.md`, `DESIGN.md`, `README.md`,
+`tests/unit/test_mail_winlink_collect.py`,
+`tests/pilot/test_winlink_send_receive.py`, `tests/pilot/test_settings.py`,
+`tests/unit/test_config.py`, `docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-26] — Winlink B2F exchange
 
 ### New Features
