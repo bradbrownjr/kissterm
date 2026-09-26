@@ -14,7 +14,7 @@ import __version__` fails with a confusing "unknown location" ImportError --
 this has already happened once.
 """
 
-__version__ = "0.1.276"
+__version__ = "0.1.277"
 
 __all__ = ["__version__"]
 

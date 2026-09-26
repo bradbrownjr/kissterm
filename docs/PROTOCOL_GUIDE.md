@@ -203,6 +203,7 @@ example used in the code comment and test, as for the protocols above.
 | Review by a traffic handler | [Jim Kutsch KY2D's review of the bpq-apps form (commit `ef6612c`, forms v1.28, 25 May 2026)](https://github.com/bradbrownjr/bpq-apps/commit/ef6612c) | Two BTs and no AR, no `TO:`, call after the name, `#` as NR, and the BBS title `CITY CALLSIGN` / `CITY NXX NXX` / `CITY - -`. |
 | Packet NTS how-to (2006) | [Outpost, *Introduction to the National Traffic System for Packet*, rev 1.4](https://outpostpm.org/docs/NTS-14.pdf) | Supporting: BT separators and five words a line. Its `QTC 1 R CITY ST (NXX-NXX)` title is one of several conventions. |
 | Section packet procedures | [Eastern Massachusetts ARRL, *Packet Procedures*](https://ema.arrl.org/packet-procedures/) | Supporting: `ST <zip> @ NTS<st>`; titles like `CHICAGO 312-267`. |
+| TPRFN radiogram generator | [TPRFN / RRI Radiogram Generator](https://www.tprfn.net/radiogram-form) (named in the [PKTNET May 2026 instructions](http://vden.org/docs/PacketBulletinNet-May2026.pdf), coordinated with KY2D) | Supporting the KY2D title: it titles traffic `CITY CALL`. Its preamble has no `NR`, like RRI 2026's sample; kissterm keeps `NR` (MPG 6.2.1) pending the operator's call. |
 
 **Not a source:** the Winlink `fixpunct()` rules that bpq-apps' `forms.py`
 copied (INT for a question mark, comma to X, a check counted per five
@@ -226,7 +227,8 @@ differences are in `forms.py`'s docstring.
 | Winlink template catalogue | [Winlink Templates in Standard Library](https://winlink.org/sites/default/files/download/winlink_templates_in_standard_library_version_1.0.119.pdf) | Which forms exist and are common. |
 | ICS 213 General Message | [FEMA ICS 213 v3](https://training.fema.gov/emiweb/is/icsresource/assets/ics%20forms/ics%20form%20213,%20general%20message%20(v3).pdf) | Block numbering and meaning. Blocks 9-10 are the recipient's. |
 | ICS 213 RR Resource Request | [FEMA ICS 213 RR v3](https://training.fema.gov/emiweb/is/icsresource/assets/ics%20forms/ics%20form%20213rr,%20resource%20request%20message%20(v3).pdf) | Block numbering. Blocks 10-19 are Logistics' and Finance's. |
-| PKTNET forms | vden.org PKTNET forms, local copy in the sibling `pktnet` directory (v1.1, 2023-11); [live](https://vden.org/pktnet/) | The check-in format (phase B). Its ICS-213 uses the paper form's labels; Winlink's layout is used instead. |
+| PKTNET forms | vden.org PKTNET forms, local copy in the sibling `pktnet` directory (v1.1, 2023-11); [live](https://vden.org/pktnet/) | The PKTNET check-in body (`check_in.html`). Its ICS-213 uses the paper form's labels; Winlink's layout is used instead. |
+| PKTNET addressing | [Packet Bulletin Net announcement, May 2026](http://vden.org/docs/PacketBulletinNet-May2026.pdf) | `SB PKTNET@USA`, subject "Your Name, Your Call, Your Town, Your State". |
 | A working ICS-213 over BPQ | [BPQ-Alt-Webmail v1.8.0](https://github.com/jayflanzbaum-svg/BPQ-Alt-Webmail/releases/tag/v1.8.0) | Supporting: another BPQ client sends Winlink's ICS-213 text without the XML, for the same reason (G8BPQ: binary attachments are not readable on the BBS). |
 
 ## Current boundaries and known gaps

@@ -250,12 +250,10 @@ transmits on save. Forms ship as package data; **never fetch forms
 automatically** (the Winlink bundle is read by a developer, cited, and
 transcribed).
 
-Phases, each shipped and tested on its own. Phase A (the engine,
-ICS-213 and ICS-213RR) shipped 2026-09-26.
+Phases, each shipped and tested on its own. Phases A (the engine,
+ICS-213 and ICS-213RR) and B (Winlink and PKTNET check-ins) shipped
+2026-09-26.
 
-- [ ] **B. Check-ins**: Winlink Check In (Winlink Wednesday) and the
-  PKTNET check-in (vden `check_in.html`; `SB PKTNET@USA`). Both are nets
-  the operator checks into.
 - [ ] **C. Situation reports**: Field Situation Report, Damage
   Assessment, Incident Status Report, Severe WX Report (and SKYWARN).
 - [ ] **D. Strips**: a generic strip responder, GYX WEATHER, MCF720 and

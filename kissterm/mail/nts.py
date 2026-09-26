@@ -32,7 +32,11 @@ radiograms"):
   for the title disagree -- MPG 6.2.1 has `QTC TOWN / NXX NXX`, the
   Outpost "NTS for Packet" guide (rev 1.4, 2006) `QTC 1 R CITY ST
   (NXX-NXX)` -- and none is from RRI, so the one a working traffic
-  handler checked is used.
+  handler checked is used. TPRFN's radiogram generator, which the PKTNET
+  net's May 2026 instructions name and which was set up with KY2D
+  (tprfn.net/radiogram-form, read 2026-09-26), titles traffic `CITY
+  CALL` too. It and RRI's 2026 sample also leave `NR` off the preamble,
+  which MPG 6.2.1 has; kissterm keeps `NR` until the operator decides.
   # UNVERIFIED: the title against a live NTS listing (`LT` on a BBS
   # carrying NTS traffic); nothing in the captures shows one yet.
 - ARL Numbered Radiogram Texts, final-approved version 3.0, 2025-10-07

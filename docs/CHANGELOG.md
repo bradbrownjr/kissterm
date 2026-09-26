@@ -5,6 +5,25 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Forms: Winlink and PKTNET check-ins
+
+### New Features
+
+- **Winlink Check-in** (Winlink Wednesday and ARES Winlink nets), from
+  Winlink's template 5.1.3: your call, grid square (from Settings >
+  APRS) and the date fill themselves; the To you enter addresses the
+  message. Band and session default to VHF packet.
+- **PKTNET Check-in**, vden's PACKET CHECK-IN layout, which comes back to
+  the compose screen already addressed `SB PKTNET@USA` and titled "Name,
+  Call, Town, State" as the net asks.
+- Your name, location, net address and band are remembered per form.
+
+**Files:** `kissterm/mail/forms.py`, `kissterm/mail/data/forms/`,
+`kissterm/mail/nts.py`, `kissterm/ui/form_screen.py`, `kissterm/ui/app.py`,
+`tests/unit/test_mail_forms.py`, `tests/pilot/test_forms.py`, `README.md`,
+`docs/PROTOCOL_GUIDE.md`, `docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-26] — Message forms: ICS-213 and ICS-213RR
 
 ### New Features

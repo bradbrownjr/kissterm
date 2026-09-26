@@ -51,6 +51,11 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   Read it back: the numbered blocks should arrive as sent. If a Winlink
   Express user can receive one, ask whether it reads as an ICS-213 to
   them (it has no XML attachment, so it shows as text, not the form).
+- [ ] **PKTNET check-in during the next net week** (none early: the net
+  refuses check-ins before its window opens). Insert, Type: PKTNET
+  Check-in (form), Continue: it should come back as a bulletin to
+  `PKTNET @ USA` titled "Name, Call, Town, State". Save, G, and look for
+  your call in that month's results on vden.org.
 - [x] **Reply by number (SR)** went out and was accepted as #2820
   (2026-09-25), and moved to Mail > BBS > Sent with its number and BID.
 
