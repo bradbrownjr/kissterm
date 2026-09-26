@@ -13,7 +13,9 @@ text can be read in full before it is saved. Nothing here transmits.
 A `rows` field (the 213RR order lines) starts with one line; "Add line"
 adds another, up to the form's limit. Its columns are laid out on as many
 rows as they need to fit 80 columns, each input labelled by its
-placeholder.
+placeholder (a column with choices is a select). Computed columns and
+values (`sum_of`, `derived`, `totals`) are not shown: the preview in the
+compose screen has them.
 """
 
 from __future__ import annotations
@@ -37,6 +39,8 @@ _WIDE = 20
 
 
 def _column_width(column: Column) -> int:
+    if column.choices:
+        return max(len(c) for c in column.choices) + 4
     if column.max_length >= 40:
         return _WIDE
     return max(6, min(column.max_length + 2, 18), len(column.label) + 2)
@@ -47,6 +51,8 @@ def _column_lines(columns: tuple[Column, ...]) -> list[list[Column]]:
     lines: list[list[Column]] = [[]]
     used = 0
     for column in columns:
+        if column.sum_of:
+            continue  # computed, not typed
         width = _column_width(column) + 1
         if lines[-1] and used + width > _ROW_BUDGET:
             lines.append([])
@@ -76,8 +82,10 @@ class FormScreen(ModalScreen["Draft | None"]):
         with Vertical(id="form-box"):
             yield Label(self.form.title, id="form-heading")
             with VerticalScroll(id="form-body"):
+                beside = {f.beside for f in self.form.fields if f.beside}
                 for f in self.form.fields:
-                    yield from self._field_widgets(f)
+                    if f.id not in beside:
+                        yield from self._field_widgets(f)
             yield Static("", id="form-help")
             with Horizontal(id="form-foot"):
                 yield Label("", id="form-error")
@@ -99,7 +107,11 @@ class FormScreen(ModalScreen["Draft | None"]):
             return
         with Horizontal(classes="form-row"):
             yield Label(f.label, classes="form-label")
-            if f.kind == "choice":
+            if f.kind == "choice" and not f.default:
+                # No default: blank until chosen, as the template's "Choose".
+                yield Select([(c, c) for c in f.choices], value=value or Select.NULL,
+                             prompt="Choose", compact=True, id=wid)
+            elif f.kind == "choice":
                 yield Select([(c, c) for c in f.choices], value=value or f.choices[0],
                              allow_blank=False, compact=True, id=wid)
             elif f.kind == "check":
@@ -109,6 +121,11 @@ class FormScreen(ModalScreen["Draft | None"]):
             else:
                 yield Input(value, id=wid, placeholder=f.placeholder, compact=True,
                             max_length=f.max_length or 0)
+            if f.beside:
+                other = self.form.field(f.beside)
+                yield Input(self._values.get(other.id, ""), id=f"form-{other.id}",
+                            placeholder=other.placeholder or other.label, compact=True,
+                            max_length=other.max_length or 0, classes="form-beside")
 
     async def on_mount(self) -> None:
         for field_id in self._row_counts:
@@ -126,14 +143,17 @@ class FormScreen(ModalScreen["Draft | None"]):
         widgets: list[Widget] = []
         for index, line in enumerate(_column_lines(f.columns)):
             label = Label(f"Line {number}" if index == 0 else "", classes="form-label")
-            inputs = [
+            inputs: list[Widget] = [
+                Select([(o, o) for o in c.choices], prompt=c.label, compact=True,
+                       id=f"form-{f.id}-{number}-{c.id}", classes="form-cell")
+                if c.choices else
                 Input(id=f"form-{f.id}-{number}-{c.id}", placeholder=c.label, compact=True,
                       max_length=c.max_length or 0,
                       classes="form-cell form-cell-wide" if c.max_length >= 40 else "form-cell")
                 for c in line
             ]
             for cell, column in zip(inputs, line):
-                if column.max_length < 40:
+                if column.choices or column.max_length < 40:
                     cell.styles.width = _column_width(column)
             widgets.append(Horizontal(label, *inputs, classes="form-row"))
         self._row_counts[f.id] = number
@@ -147,7 +167,7 @@ class FormScreen(ModalScreen["Draft | None"]):
         await self._add_row(self.form.field(field_id))
         number = self._row_counts[field_id]
         first = self.form.field(field_id).columns[0].id
-        self.query_one(f"#form-{field_id}-{number}-{first}", Input).focus()
+        self.query_one(f"#form-{field_id}-{number}-{first}").focus()
 
     # -- values ----------------------------------------------------------------
 
@@ -157,7 +177,7 @@ class FormScreen(ModalScreen["Draft | None"]):
             wid = f"#form-{f.id}"
             if f.kind == "rows":
                 values[f.id] = [
-                    {c.id: self.query_one(f"#form-{f.id}-{n}-{c.id}", Input).value for c in f.columns}
+                    {c.id: self._cell(f"#form-{f.id}-{n}-{c.id}") for c in f.columns if not c.sum_of}
                     for n in range(1, self._row_counts[f.id] + 1)
                 ]
             elif f.kind == "multiline":
@@ -170,6 +190,12 @@ class FormScreen(ModalScreen["Draft | None"]):
             else:
                 values[f.id] = self.query_one(wid, Input).value
         return values
+
+    def _cell(self, selector: str) -> str:
+        widget = self.query_one(selector)
+        if isinstance(widget, Select):
+            return widget.value if isinstance(widget.value, str) else ""
+        return widget.value
 
     def _typed(self) -> bool:
         values = self.values()
@@ -218,9 +244,12 @@ class FormScreen(ModalScreen["Draft | None"]):
             self.query_one("#form-error", Label).update("\n".join(found[:2]) + more)
             return
         subject, body = render(self.form, values)
-        # BPQMail cuts a title at 60; cut it here so the operator sees it.
+        # BPQMail cuts a title at 60; cut it here, at a word, so the
+        # operator sees it and no half-number is left at the end.
+        if len(subject) > MAX_TITLE:
+            subject = subject[:MAX_TITLE + 1].rsplit(" ", 1)[0]
         to = values.get(self.form.to_field, "") if self.form.to_field else self.form.to
-        self.dismiss(Draft(to=to, at=self.form.at, title=subject[:MAX_TITLE], body=body,
+        self.dismiss(Draft(to=to, at=self.form.at, title=subject, body=body,
                            send_type=self.form.send_type, form_id=self.form.id,
                            form_values=values))
 

@@ -1,0 +1,371 @@
+# Field Situation Report. Body, subject, field names and choices: Winlink
+# Standard Forms 1.1.20.0, "General Forms/Field Situation Report.txt" and
+# "Field Situation Report Initial.html". Each status is YES, NO or
+# "Unknown - N/A" (the template's default) with a comment beside it.
+# The date/time group is UTC, "2026-09-26  14:05:09Z", as the template's
+# autozulu button fills it. Left out, as Winlink Express's own: the
+# location-source item, "[No changes...]" and the Express lines.
+id = "fsr"
+title = "Field Situation Report"
+source = "Winlink Standard Forms 1.1.20.0 (Field Situation Report)"
+subject = "//WL2K <var Precedence>/ Field Situation Report <var UDTGfld>"
+to_field = "MsgTo"
+body = '''
+PRECEDENCE: <var Precedence>
+DATE/TIME Group: <var UDTGfld>
+TASK# <var MsgNR>
+AGENCY: <var Title>
+FROM: <var MsgSender>
+TO: <var MsgTo>
+INFO (CC): <var MsgCc>
+BT
+UNCLASS
+
+SUBJ: Field Situation Report <var UDTGfld>
+
+1.EMERGENT/LIFE SAFETY Need <var Safetyneed>
+Needs: <var Comm0>
+
+2. City:<var City>  County:<var County> State: <var State> Territory:<var Territory>
+3. Latitude:<var gpsLat>  Longitude:<var gpsLon>   MGRS:<var MGRS>
+4a. POTS landlines functioning: [ <var k4> ]  <var Comm1>
+4b. VOIP landlines functioning: [ <var k4A> ]  <var Comm1A>
+5a. Cell phone voice calls functioning: [<var k5> ]  <var Comm2>
+5b. Cell phone phone texts functioning: [<var k5A> ]   <var Comm2A>
+6. AM/FM Broadcast Stations functioning: [ <var AMFM> ]  <var Comm3>
+7a. OTA TV functioning: [ <var TVStatus> ]  <var Comm4>
+7b. Satellite TV functioning: [ <var TVStatusb> ]  <var Comm4b>
+7c. Cable TV  functioning:[ <var TVStatusc> ]  <var Comm4c>
+8. Public Water Works functioning: [ <var WaterWorks> ]  <var Comm5>
+9a. Commercial Power functioning: [ <var k9> ]  <var Comm6>
+9b. Commercial Power Stable: [ <var k9A> ] <var Comm6A>
+9c. Natural Gas Supply functioning: [ <var kgc9> ] <var Comm9c>
+10. Internet functioning: [ <var Inter> ] <var Comm7>
+11a. NOAA Weather Radio functioning: [ <var NOAA> ]  <var NOAAcom>
+11b. NOAA Weather Radio Audio degraded: [ <var NOAAb> ]  <var NOAAcomb>
+12. Additional Comments:  <var Message>
+13. POC <var POC>
+
+BT
+NNNN
+'''
+
+[[fields]]
+id = "Precedence"
+label = "Precedence"
+kind = "choice"
+choices = ["Z/ Flash", "O/ Immediate", "P/ Priority", "R/ Routine"]
+default = "R/ Routine"
+
+[[fields]]
+id = "UDTGfld"
+label = "Date/time group"
+kind = "datetime"
+utc = true
+format = "%Y-%m-%d  %H:%M:%SZ"
+required = true
+max_length = 40
+
+[[fields]]
+id = "MsgNR"
+label = "Task #"
+placeholder = "optional"
+
+[[fields]]
+id = "Title"
+label = "Agency"
+remember = true
+help = "Your agency or group, as the template's Setup button sets it. Remembered."
+
+[[fields]]
+id = "MsgSender"
+label = "From"
+auto = "mycall"
+required = true
+max_length = 16
+
+[[fields]]
+id = "MsgTo"
+label = "To"
+required = true
+remember = true
+help = "Where the report goes; also written into the report. Remembered."
+
+[[fields]]
+id = "MsgCc"
+label = "Info (CC)"
+placeholder = "optional, written into the report only"
+
+[[fields]]
+id = "Safetyneed"
+label = "1. Life safety need"
+kind = "choice"
+choices = ["YES", "NO"]
+beside = "Comm0"
+help = "Is there an emergent or life-safety need? Describe it beside."
+
+[[fields]]
+id = "Comm0"
+label = "Needs"
+placeholder = "needs"
+
+[[fields]]
+id = "City"
+label = "2. City"
+max_length = 25
+remember = true
+
+[[fields]]
+id = "County"
+label = "County"
+remember = true
+
+[[fields]]
+id = "State"
+label = "State"
+required = true
+max_length = 2
+remember = true
+
+[[fields]]
+id = "Territory"
+label = "Territory"
+placeholder = "optional"
+
+[[fields]]
+id = "gpsLat"
+label = "3. Latitude"
+placeholder = "optional"
+
+[[fields]]
+id = "gpsLon"
+label = "Longitude"
+placeholder = "optional"
+
+[[fields]]
+id = "MGRS"
+label = "MGRS"
+max_length = 25
+placeholder = "optional"
+
+[[fields]]
+id = "k4"
+label = "4a. POTS landlines"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm1"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm1"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "k4A"
+label = "4b. VOIP landlines"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm1A"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm1A"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "k5"
+label = "5a. Cell voice"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm2"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm2"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "k5A"
+label = "5b. Cell texts"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm2A"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm2A"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "AMFM"
+label = "6. AM/FM broadcast"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm3"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm3"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "TVStatus"
+label = "7a. OTA TV"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm4"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm4"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "TVStatusb"
+label = "7b. Satellite TV"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm4b"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm4b"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "TVStatusc"
+label = "7c. Cable TV"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm4c"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm4c"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "WaterWorks"
+label = "8. Public water"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm5"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm5"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "k9"
+label = "9a. Power working"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm6"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm6"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "k9A"
+label = "9b. Power stable"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm6A"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm6A"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "kgc9"
+label = "9c. Natural gas"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm9c"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm9c"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "Inter"
+label = "10. Internet"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "Comm7"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "Comm7"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "NOAA"
+label = "11a. NOAA radio"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "NOAAcom"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "NOAAcom"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "NOAAb"
+label = "11b. NOAA degraded"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+beside = "NOAAcomb"
+help = "Is it functioning? YES, NO, or Unknown - N/A; a comment beside."
+
+[[fields]]
+id = "NOAAcomb"
+label = "Comment"
+placeholder = "comment"
+
+[[fields]]
+id = "Message"
+label = "12. Comments"
+kind = "multiline"
+
+[[fields]]
+id = "POC"
+label = "13. POC"
+max_length = 78
+remember = true
+help = "Point of contact. Remembered."

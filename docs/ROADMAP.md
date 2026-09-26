@@ -251,11 +251,10 @@ automatically** (the Winlink bundle is read by a developer, cited, and
 transcribed).
 
 Phases, each shipped and tested on its own. Phases A (the engine,
-ICS-213 and ICS-213RR) and B (Winlink and PKTNET check-ins) shipped
+ICS-213 and ICS-213RR), B (Winlink and PKTNET check-ins) and C (Field
+Situation Report, Severe WX, Damage Assessment, Incident Status) shipped
 2026-09-26.
 
-- [ ] **C. Situation reports**: Field Situation Report, Damage
-  Assessment, Incident Status Report, Severe WX Report (and SKYWARN).
 - [ ] **D. Strips**: a generic strip responder, GYX WEATHER, MCF720 and
   ROSTER shipped, and answering a request strip from a received message.
 - [ ] **E. Logs**: ICS-309, ICS-214, ICS-205 (the `rows` field kind).

@@ -78,8 +78,9 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   SIX, with its meaning shown), the Check field counts the groups, the
   `ST <zip> @ NTS<state>` routing shows as you type, and it suggests
   your next message number. **Forms**: the ICS-213 General Message,
-  ICS-213RR Resource Request, Winlink Check-in and PKTNET Check-in are
-  Types too, laid out as their published forms so any station reads them
+  ICS-213RR Resource Request, Winlink Check-in, PKTNET Check-in, Field
+  Situation Report, Severe WX Report, Damage Assessment and Incident
+  Status Report are Types too, laid out as their published forms so any station reads them
   (the PKTNET check-in comes back addressed `SB PKTNET@USA`); you fill in the form, then
   address it like any message. More forms and Winlink are next
   (`docs/ROADMAP.md`, P2). Settings > Open on keeps

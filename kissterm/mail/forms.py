@@ -31,6 +31,13 @@ and listed in `docs/PROTOCOL_GUIDE.md`.
   not as eight empty blocks. `<each order>` ... `</each>` in the template
   marks the block.
 
+Computed values, as the Winlink forms compute them in the browser: a
+field's `derived` values (the Severe WX report's metric figures from the
+imperial ones, to two decimals as its `toFixed(2)`), a `rows` column's
+`sum_of` (the Damage Assessment's per-category total) and a form's
+`totals` (the sum of a column over all lines). They are rendered only;
+the operator never types them.
+
 `<if name>` ... `</if>` keeps a block only when that field is filled
 (the PKTNET check-in's agency line and the blank line after it). A form's
 `to_field` is the field that becomes the compose screen's To, and its
@@ -50,7 +57,7 @@ import json
 import re
 import tomllib
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import lru_cache
 from importlib import resources
 from pathlib import Path
@@ -71,6 +78,30 @@ class Column:
     id: str
     label: str
     max_length: int = 0
+    choices: tuple[str, ...] = ()
+    #: Rendered as the sum of these columns of the same line.
+    sum_of: tuple[str, ...] = ()
+    #: "money": rendered `$ 1,234` as Winlink's formatNumber() writes it.
+    format: str = ""
+
+
+@dataclass(frozen=True)
+class Derived:
+    """A value computed from a number field: `value * factor`."""
+
+    id: str
+    factor: float
+    decimals: int = 2
+
+
+@dataclass(frozen=True)
+class Total:
+    """A value computed as the sum of one column over all lines."""
+
+    id: str
+    rows: str
+    column: str
+    format: str = ""
 
 
 @dataclass(frozen=True)
@@ -90,6 +121,11 @@ class Field:
     #: A `date`, `time` or `datetime` field's strftime pattern, when the
     #: template's own "now" button differs from the default.
     format: str = ""
+    #: A date/time default in UTC rather than local time.
+    utc: bool = False
+    derived: tuple[Derived, ...] = ()
+    #: Another field shown on this field's row (a status and its comment).
+    beside: str = ""
     #: A `check` field's value when ticked (Winlink's exercise banner).
     on_value: str = ""
     #: Kept between forms: the station half (who you are, your position),
@@ -114,6 +150,7 @@ class FormDef:
     at: str = ""
     to_field: str = ""
     subject_var: str = ""
+    totals: tuple[Total, ...] = ()
 
     def field(self, field_id: str) -> Field:
         return next(f for f in self.fields if f.id == field_id)
@@ -126,16 +163,24 @@ def _field(raw: dict[str, Any]) -> Field:
     kind = raw.get("kind", "text")
     if kind not in KINDS:
         raise ValueError(f"field {raw.get('id')!r}: unknown kind {kind!r}")
-    columns = tuple(Column(**c) for c in raw.get("columns", ()))
-    return Field(**{**raw, "choices": tuple(raw.get("choices", ())), "columns": columns})
+    columns = tuple(
+        Column(**{**c, "choices": tuple(c.get("choices", ())), "sum_of": tuple(c.get("sum_of", ()))})
+        for c in raw.get("columns", ())
+    )
+    derived = tuple(Derived(**d) for d in raw.get("derived", ()))
+    return Field(**{**raw, "choices": tuple(raw.get("choices", ())), "columns": columns,
+                    "derived": derived})
 
 
 def parse_form(text: str) -> FormDef:
     raw = tomllib.loads(text)
     fields = tuple(_field(f) for f in raw.pop("fields"))
-    form = FormDef(**raw, fields=fields)
+    totals = tuple(Total(**t) for t in raw.pop("totals", ()))
+    form = FormDef(**raw, fields=fields, totals=totals)
     names = {f.id.lower() for f in fields} | {
         c.id.lower() for f in fields for c in f.columns
+    } | {d.id.lower() for f in fields for d in f.derived} | {
+        t.id.lower() for t in totals
     } | ({form.subject_var.lower()} if form.subject_var else set())
     conditions = [m.group(1) for m in _IF_RE.finditer(form.body)]
     for name in _VAR_RE.findall(form.body + form.subject) + conditions:
@@ -171,7 +216,8 @@ def defaults(form: FormDef, *, mycall: str = "", grid: str = "",
              remembered: Values | None = None, now: datetime | None = None) -> Values:
     """The values a new form opens with. Dates and times are local, as the
     Winlink templates' "now" buttons fill them (`2026-09-26`, `14:05`)."""
-    now = now or datetime.now()
+    local = now or datetime.now()
+    utc = now or datetime.now(timezone.utc)
     remembered = remembered or {}
     values: Values = {}
     for f in form.fields:
@@ -186,7 +232,7 @@ def defaults(form: FormDef, *, mycall: str = "", grid: str = "",
         elif f.auto == "grid":
             values[f.id] = grid
         elif f.kind in _TIME_FORMATS:
-            values[f.id] = now.strftime(f.format or _TIME_FORMATS[f.kind])
+            values[f.id] = (utc if f.utc else local).strftime(f.format or _TIME_FORMATS[f.kind])
         else:
             values[f.id] = f.default
     return values
@@ -249,10 +295,47 @@ def problems(form: FormDef, values: Values) -> list[str]:
             found.append(f"{f.label} is at most {f.max_length} characters.")
         elif f.kind == "choice" and text and text not in f.choices:
             found.append(f"{f.label}: choose one of {', '.join(f.choices)}.")
+        elif f.derived and text and _number(text) is None:
+            found.append(f"{f.label} is a number.")
     return found
 
 
 # -- rendering ---------------------------------------------------------------
+
+
+def _number(text: str) -> float | None:
+    try:
+        return float(text.replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _format_number(value: float, decimals: int) -> str:
+    return f"{value:.{decimals}f}"
+
+
+def _whole_or_cents(value: float) -> str:
+    return _format_number(value, 0 if value == int(value) else 2)
+
+
+def _money(text: str) -> str:
+    number = _number(text.replace("$", "").strip())
+    if number is None:
+        return text
+    whole = f"{number:,.0f}" if number == int(number) else f"{number:,.2f}"
+    return f"$ {whole}"
+
+
+def _row_values(field_def: Field, row: dict[str, str]) -> dict[str, str]:
+    values = {c.id: str(row.get(c.id, "")).strip() for c in field_def.columns}
+    for c in field_def.columns:
+        if c.sum_of:
+            numbers = [_number(values.get(i, "")) for i in c.sum_of]
+            if any(n is not None for n in numbers):
+                values[c.id] = _whole_or_cents(sum(n for n in numbers if n is not None))
+        if c.format == "money" and values.get(c.id):
+            values[c.id] = _money(values[c.id])
+    return values
 
 
 def _fill(template: str, values: dict[str, str]) -> str:
@@ -275,14 +358,22 @@ def render(form: FormDef, values: Values) -> tuple[str, str]:
             flat[f.id] = f.on_value if values.get(f.id) else ""
         elif f.kind == "multiline":
             flat[f.id] = str(values.get(f.id, "")).rstrip()
+        number = _number(flat.get(f.id, "")) if f.derived else None
+        for d in f.derived:
+            flat[d.id] = "" if number is None else _format_number(number * d.factor, d.decimals)
+    for t in form.totals:
+        rows_field = form.field(t.rows)
+        column = [_number(str(r.get(t.column, "")).replace("$", "").strip())
+                  for r in filled_rows(rows_field, values.get(t.rows) or [])]
+        present = [n for n in column if n is not None]
+        total = _whole_or_cents(sum(present)) if present else ""
+        flat[t.id] = _money(total) if total and t.format == "money" else total
 
     def each(match: re.Match) -> str:
         rows_field = form.field(match.group(1))
         rows = filled_rows(rows_field, values.get(rows_field.id) or [])
-        return "".join(
-            _fill(match.group(2), {c.id: str(r.get(c.id, "")).strip() for c in rows_field.columns})
-            + "\n" for r in rows
-        )
+        chunks = (_fill(match.group(2), _row_values(rows_field, r)) for r in rows)
+        return "".join(c if c.endswith("\n") else c + "\n" for c in chunks)
 
     subject = " ".join(_fill(form.subject, flat).split())
     if form.subject_var:

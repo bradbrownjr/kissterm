@@ -1,0 +1,255 @@
+# Incident Status Report. Body, subject, field names and choices: Winlink
+# Standard Forms 1.1.20.0, "General Forms/Incident Status Report.txt" and
+# Incident_Status_Initial.html (template "Incident Status 2.3").
+# Differences, each where the template's text drops what its form asks
+# for: item 8 shows the EOC status (the template prints it under 9 and
+# never prints the declaration), item 9 the declaration and its date, and
+# item 13 the evacuation description after the answer. The EOC's hours
+# (the form's hoursofop/hoursmonitor) are not in the template's text and
+# are not asked for here either.
+id = "incident_status"
+title = "Incident Status Report"
+source = "Winlink Standard Forms 1.1.20.0 (Incident Status 2.3)"
+subject = "<var Title> INCIDENT STATUS - <var incidentname>, <var DateTimeReport>"
+body = '''
+<var Title> INCIDENT STATUS
+
+REPORT INFORMATION:
+
+1. Incident Name: <var incidentname>
+2. WebEOC Incident (as applicable): <var WEBEOC>
+3. Incident Date/Time: <var IncDateTime>
+4. Report Version: <var Rversion>
+
+5. Type of Incident (Check all that apply):
+
+Severe Storm/Flood <var f1>
+Pre-Planned Event <var f4>
+HAZMAT <var f7>
+Severe Winter Weather <var f2>
+Dam/Levee <var f5>
+Utility Disruption <var f8>
+Public Health <var f3>
+Active threats/ Civil Disturbance  <var f6>
+Fire  <var f10>
+Aircraft Disaster <var f11>
+Earthquake <var f12>
+Other (Specify): <var f9>  <var Typeother>
+
+6. Situation Summary as of Time of Report:
+   <var SitSummary>
+
+7. Future Outlook/Goals/Needs/Issues:
+    <var Issues>
+
+8. County Emergency Operations Center (EOC) Status (Check one):
+  <var EOCStatus>
+
+9. Local Disaster Declaration Status
+  <var Declaration> <var DecDateTime>
+
+10. Number of Confirmed Incident Injuries: <var numInjuries>
+
+11. Number of Confirmed Incident Fatalities: <var numiFatalities>
+
+12. Number and Location(s) of Shelters Established:
+  <var Shelters>
+
+13. Have Evacuations Been Implemented?
+    <var Evac>
+    <var Evacyes>
+
+14. Date/Time of Report:
+<var DateTimeReport>
+
+15. Report Submitted By:
+<var Submittedby>
+
+16. Contact Info:
+<var Contctinfo>
+'''
+
+[[fields]]
+id = "Title"
+label = "Agency/group"
+remember = true
+help = "Your agency or group; it heads the report and the title. Remembered."
+
+[[fields]]
+id = "incidentname"
+label = "1. Incident"
+required = true
+max_length = 24
+
+[[fields]]
+id = "WEBEOC"
+label = "2. WebEOC #"
+max_length = 24
+placeholder = "as applicable"
+
+[[fields]]
+id = "IncDateTime"
+label = "3. Incident time"
+kind = "datetime"
+format = "%Y-%m-%d %H:%M:%S"
+max_length = 19
+
+[[fields]]
+id = "Rversion"
+label = "4. Report version"
+kind = "choice"
+choices = ["INITIAL", "UPDATE", "FINAL"]
+default = "INITIAL"
+
+[[fields]]
+id = "f1"
+label = "Storm/flood"
+kind = "check"
+on_value = "YES"
+help = "5. Type of incident: tick all that apply."
+
+[[fields]]
+id = "f4"
+label = "Pre-planned event"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "f7"
+label = "HAZMAT"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "f2"
+label = "Winter weather"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "f5"
+label = "Dam/levee"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "f8"
+label = "Utility disruption"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "f3"
+label = "Public health"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "f6"
+label = "Civil disturbance"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "f10"
+label = "Fire"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "f11"
+label = "Aircraft disaster"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "f12"
+label = "Earthquake"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "f9"
+label = "Other"
+kind = "check"
+on_value = "YES"
+
+[[fields]]
+id = "Typeother"
+label = "Other, specify"
+placeholder = "if Other"
+
+[[fields]]
+id = "SitSummary"
+label = "6. Situation summary"
+kind = "multiline"
+required = true
+
+[[fields]]
+id = "Issues"
+label = "7. Outlook, needs, issues"
+kind = "multiline"
+
+[[fields]]
+id = "EOCStatus"
+label = "8. EOC status"
+kind = "choice"
+choices = ["CLOSED", "MONITORING", "ACTIVATED"]
+default = "CLOSED"
+
+[[fields]]
+id = "Declaration"
+label = "9. Declaration"
+kind = "choice"
+choices = ["No declaration/Declaration not anticipated", "Declaration anticipated", "Local disaster declaration"]
+default = "No declaration/Declaration not anticipated"
+
+[[fields]]
+id = "DecDateTime"
+label = "Declared at"
+placeholder = "date/time, if declared"
+
+[[fields]]
+id = "numInjuries"
+label = "10. Injuries"
+
+[[fields]]
+id = "numiFatalities"
+label = "11. Fatalities"
+
+[[fields]]
+id = "Shelters"
+label = "12. Shelters (number, locations)"
+kind = "multiline"
+
+[[fields]]
+id = "Evac"
+label = "13. Evacuations"
+kind = "choice"
+choices = ["No / None anticipated", "YES - Description:", "EVACUATIONS ANTICIPATED - Description:"]
+default = "No / None anticipated"
+
+[[fields]]
+id = "Evacyes"
+label = "Description"
+placeholder = "of the evacuation"
+
+[[fields]]
+id = "DateTimeReport"
+label = "14. Report time"
+kind = "datetime"
+format = "%Y-%m-%d %H:%M:%S"
+required = true
+max_length = 19
+
+[[fields]]
+id = "Submittedby"
+label = "15. Submitted by"
+required = true
+max_length = 35
+remember = true
+
+[[fields]]
+id = "Contctinfo"
+label = "16. Contact info"
+remember = true

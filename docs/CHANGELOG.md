@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Forms: situation reports
+
+### New Features
+
+- **Field Situation Report**, **Severe WX Report**, **Damage Assessment**
+  and **Incident Status Report**, from Winlink's standard templates. The
+  FSR's statuses start at "Unknown - N/A" with a comment beside each; the
+  Severe WX report computes the metric figures from the imperial ones;
+  the Damage Assessment totals each category and the cost; the Incident
+  Status report prints the EOC status, declaration and evacuation
+  details that Winlink's own text leaves out.
+- A long title is cut at a word to BPQMail's 60 characters.
+
+**Files:** `kissterm/mail/forms.py`, `kissterm/mail/data/forms/`,
+`kissterm/ui/form_screen.py`, `kissterm/ui/styles.py`,
+`tests/unit/test_mail_forms.py`, `tests/pilot/test_forms.py`, `README.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Forms: Winlink and PKTNET check-ins
 
 ### New Features

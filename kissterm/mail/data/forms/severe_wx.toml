@@ -1,0 +1,194 @@
+# Severe WX Report. Body, subject, field names and choices: Winlink
+# Standard Forms 1.1.20.0, "Weather Forms/Severe WX Report.txt" and
+# "Severe WX Report.html" (template "Severe WX. 4.2"). Figures are typed
+# in imperial units, the template's default, and the metric ones computed
+# with its factors to two decimals (mph x 1.609344, inches of rain x 25.4
+# mm, inches of snow x 2.54 cm). Differences: the hail sizes' millimetres
+# are computed correctly (the template gives 2.50" as 69.85 mm, 2.75" as
+# 76.2 mm and 4.50" as "1143 mm") and "None" is sent as None, not 0; the
+# location-source and Express lines are left out.
+id = "severe_wx"
+title = "Severe WX Report"
+source = "Winlink Standard Forms 1.1.20.0 (Severe WX. 4.2)"
+subject = "Severe WX Report <var Region> <var County> [<var Type>]"
+body = '''
+Severe WX Report <var Region> <var County>
+Report Date/Time: <var DateTime>
+Report Status: [<var Type>]
+Message Sender: <var Call>
+Reporting Party: <var RepName>
+Phone Number: <var Phone>
+Email: <var Email>
+
+EVENT AREA
+State or Region: <var Region>
+County: <var County>
+City: <var City>
+Other: <var Other>
+Coordinates: LAT: <var mapLat>  LON: <var mapLon>
+MGRS: <var MGRS>
+
+
+OBSERVED EVENT CONDITIONS
+
+Flood: <var Flood>
+Hail: <var HailSize>
+High Wind Speed:  <var WindspeedI> Mph | <var WindspeedM> KM/h
+Tornado / Funnel Cloud: <var Tornado>
+Wind Damage: <var WindDamage>
+Winter Precipitation: <var Precipitation>
+Snow:: <var SnowI> in. | <var SnowM> cm.
+Freezing Rain: <var FreezingRainI> in. | <var FreezingRainM> mm.
+Heavy Rain: <var RainI> in. | <var RainM> mm.
+Rain period: <var RainPeriod>  hour
+
+Additional Information or Comments:
+
+<var Comments>
+'''
+
+[[fields]]
+id = "Type"
+label = "Report status"
+kind = "choice"
+choices = ["First Report", "Update Report", "Final Report"]
+default = "First Report"
+
+[[fields]]
+id = "DateTime"
+label = "Date/time"
+kind = "datetime"
+format = "%Y-%m-%d %H:%M:%S"
+required = true
+max_length = 23
+
+[[fields]]
+id = "Call"
+label = "Sender"
+auto = "mycall"
+max_length = 16
+
+[[fields]]
+id = "RepName"
+label = "Reporting party"
+required = true
+max_length = 55
+remember = true
+
+[[fields]]
+id = "Phone"
+label = "Phone"
+max_length = 55
+remember = true
+placeholder = "optional"
+
+[[fields]]
+id = "Email"
+label = "Email"
+max_length = 55
+remember = true
+placeholder = "optional"
+
+[[fields]]
+id = "Region"
+label = "State or region"
+max_length = 35
+remember = true
+
+[[fields]]
+id = "County"
+label = "County"
+max_length = 35
+remember = true
+
+[[fields]]
+id = "City"
+label = "City"
+max_length = 35
+
+[[fields]]
+id = "Other"
+label = "Other location"
+max_length = 55
+placeholder = "optional, e.g. road or landmark"
+
+[[fields]]
+id = "mapLat"
+label = "Latitude"
+placeholder = "optional"
+
+[[fields]]
+id = "mapLon"
+label = "Longitude"
+placeholder = "optional"
+
+[[fields]]
+id = "MGRS"
+label = "MGRS"
+max_length = 25
+placeholder = "optional"
+
+[[fields]]
+id = "Flood"
+label = "Flood"
+kind = "choice"
+choices = ["Unknown", "None", "Minor Street Flooding", "Low Water Crossing Flooded", "Wide Spread Flooding", "Home/Business Flooded", "Creek/Stream out of banks", "River out of Banks", "Other"]
+
+[[fields]]
+id = "HailSize"
+label = "Hail"
+kind = "choice"
+choices = ["None", '0.25" | 6.35 mm', '0.50" | 12.7 mm', '0.75" | 19.05 mm', '0.88" | 22.35 mm', '1.00" | 25.4 mm', '1.25" | 31.75 mm', '1.50" | 38.1 mm', '1.75" | 44.45 mm', '2.00" | 50.8 mm', '2.50" | 63.5 mm', '2.75" | 69.85 mm', '3.00" | 76.2 mm', '4.00" | 101.6 mm', '4.50" | 114.3 mm']
+help = "Penny 0.75, nickel 0.88, quarter 1.00, golf ball 1.75, hen egg 2.00, tennis ball 2.50, baseball 2.75."
+
+[[fields]]
+id = "WindspeedI"
+label = "Wind speed, mph"
+max_length = 10
+derived = [{ id = "WindspeedM", factor = 1.609344 }]
+
+[[fields]]
+id = "Tornado"
+label = "Tornado/funnel"
+kind = "choice"
+choices = ["Unknown", "None", "Funnel Cloud", "Tornado", "Wall Cloud"]
+
+[[fields]]
+id = "WindDamage"
+label = "Wind damage"
+kind = "choice"
+choices = ["Unknown", "None", "Small Tree Limbs Down", "Large Tree Limbs/Branches Down", "Trees Snapped or Uprooted", "Power Lines Down", "Roof or Structural Damage", "Other (please elaborate below)"]
+
+[[fields]]
+id = "Precipitation"
+label = "Winter precip."
+kind = "choice"
+choices = ["Unknown", "None", "Snow", "Sleet", "Freezing Rain", "Mixture"]
+
+[[fields]]
+id = "SnowI"
+label = "Snow, inches"
+max_length = 10
+derived = [{ id = "SnowM", factor = 2.54 }]
+
+[[fields]]
+id = "FreezingRainI"
+label = "Frz rain, inches"
+max_length = 10
+derived = [{ id = "FreezingRainM", factor = 25.4 }]
+
+[[fields]]
+id = "RainI"
+label = "Heavy rain, in."
+max_length = 10
+derived = [{ id = "RainM", factor = 25.4 }]
+
+[[fields]]
+id = "RainPeriod"
+label = "Rain period, hr"
+max_length = 10
+
+[[fields]]
+id = "Comments"
+label = "Comments"
+kind = "multiline"

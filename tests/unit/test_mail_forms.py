@@ -25,7 +25,8 @@ def _ics213(**values):
 
 def test_every_shipped_form_loads_and_names_its_source():
     shipped = {f.id: f for f in forms.load_forms()}
-    assert {"ics213", "ics213rr", "winlink_checkin", "pktnet_checkin"} <= set(shipped)
+    assert {"ics213", "ics213rr", "winlink_checkin", "pktnet_checkin", "fsr", "severe_wx",
+            "damage_assessment", "incident_status"} <= set(shipped)
     for form in shipped.values():
         assert form.source.strip(), form.id
 
@@ -121,3 +122,55 @@ def test_pktnet_checkin_matches_vden_and_bpq_apps():
     )
     values["agency"] = "WSSM ECT"
     assert forms.render(form, values)[1].startswith("PACKET CHECK-IN\n\nWSSM ECT\n\n1. STATION\n")
+
+
+def test_fsr_statuses_default_to_unknown_and_the_dtg_is_utc():
+    from datetime import timezone
+    form = forms.get_form("fsr")
+    values = forms.defaults(form, mycall="KC1JMH", now=datetime(2026, 9, 26, 14, 5, 9, tzinfo=timezone.utc))
+    values.update(MsgTo="KX1EMA", State="ME", k9="NO", Comm6="out since 0600")
+    subject, body = forms.render(form, values)
+    assert subject == "//WL2K R/ Routine/ Field Situation Report 2026-09-26 14:05:09Z"
+    assert "DATE/TIME Group: 2026-09-26  14:05:09Z\n" in body
+    assert "9a. Commercial Power functioning: [ NO ]  out since 0600\n" in body
+    assert "4a. POTS landlines functioning: [ Unknown - N/A ]\n" in body
+    assert body.endswith("BT\nNNNN\n")
+
+
+def test_severe_wx_computes_metric_as_the_template_does():
+    form = forms.get_form("severe_wx")
+    values = forms.defaults(form, mycall="KC1JMH", now=NOW)
+    values.update(RepName="Brad", Region="ME", County="York", WindspeedI="45", RainI="1.5", SnowI="10")
+    subject, body = forms.render(form, values)
+    assert subject == "Severe WX Report ME York [First Report]"
+    assert "High Wind Speed:  45 Mph | 72.42 KM/h\n" in body
+    assert "Heavy Rain: 1.5 in. | 38.10 mm.\n" in body and "Snow:: 10 in. | 25.40 cm.\n" in body
+    values["WindspeedI"] = "fast"
+    assert "Wind speed, mph is a number." in forms.problems(form, values)
+
+
+def test_damage_assessment_totals_and_money():
+    form = forms.get_form("damage_assessment")
+    values = forms.defaults(form, now=NOW)
+    values.update(SurArea="Route 5", Jur="Waterboro", damage=[
+        {"Category": "HOUSES", "Aff": "3", "Maj": "1", "Dollar": "25000"},
+        {"Category": "ROADS", "Min": "2", "Dollar": "1500.50"}])
+    subject, body = forms.render(form, values)
+    assert subject == "Damage Assessment-Exercise-Waterboro-Route 5"
+    assert "HOUSES - Counts\n\nAffected: 3\nMinor:\nMajor: 1\nTotaled:\nTotal number: 4\nCosts: $ 25,000\n\nROADS" in body
+    assert "TOTAL DOLLAR Cost: $ 26,500.50\n" in body
+
+
+def test_incident_status_prints_what_the_template_drops():
+    form = forms.get_form("incident_status")
+    values = forms.defaults(form, now=NOW)
+    values.update(Title="YORK CTY EMA", incidentname="Ice storm", SitSummary="Power out.",
+                  Submittedby="B BROWN", f2="1", EOCStatus="ACTIVATED",
+                  Declaration="Local disaster declaration", DecDateTime="2026-09-26 12:00",
+                  Evac="YES - Description:", Evacyes="Route 5 north")
+    subject, body = forms.render(form, values)
+    assert subject == "YORK CTY EMA INCIDENT STATUS - Ice storm, 2026-09-26 14:05:00"
+    assert "Severe Winter Weather YES\n" in body and "Dam/Levee\n" in body
+    assert "(Check one):\n  ACTIVATED\n" in body
+    assert "Status\n  Local disaster declaration 2026-09-26 12:00\n" in body
+    assert "    YES - Description:\n    Route 5 north\n" in body

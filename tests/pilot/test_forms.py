@@ -14,6 +14,7 @@ from textual.widgets import Button, Input, Label, Select, TextArea  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.mail import MessageStore  # noqa: E402
 from kissterm.mail.compose import BBS_OUTBOX  # noqa: E402
+from kissterm.mail.forms import load_forms  # noqa: E402
 from kissterm.ui.app import KissTermApp  # noqa: E402
 from kissterm.ui.compose import ComposeScreen  # noqa: E402
 from kissterm.ui.form_screen import FormScreen  # noqa: E402
@@ -124,7 +125,7 @@ async def test_213rr_adds_order_lines(tmp_path):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("form_id", ["ics213", "ics213rr", "winlink_checkin", "pktnet_checkin"])
+@pytest.mark.parametrize("form_id", [f.id for f in load_forms()])
 async def test_fits_80x24(tmp_path, form_id):
     app, _ = _app(tmp_path)
     async with app.run_test(size=(80, 24)) as pilot:
@@ -172,3 +173,19 @@ async def test_a_winlink_checkin_is_addressed_from_its_to_field(tmp_path):
         await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen again")
         await pilot.pause()
         assert app.screen.query_one("#compose-to", Input).value == "KW6GB"
+
+
+@pytest.mark.asyncio
+async def test_a_status_and_its_comment_share_a_row_and_computed_columns_are_not_typed(tmp_path):
+    app, _ = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open(app, pilot, "fsr")
+        status, comment = screen.query_one("#form-k9"), screen.query_one("#form-Comm6")
+        assert status.parent is comment.parent
+        _fill(screen, k9="NO", Comm6="out since 0600")
+        values = screen.values()
+        assert (values["k9"], values["Comm6"]) == ("NO", "out since 0600")
+    app, _ = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open(app, pilot, "damage_assessment")
+        assert screen.query("#form-damage-1-Aff") and not screen.query("#form-damage-1-total")

@@ -382,7 +382,8 @@ FormScreen { align: center middle; }
 .form-row Input { width: 1fr; }
 .form-row Input.form-cell { margin-right: 1; }
 .form-row Input.form-cell-wide { width: 1fr; }
-.form-row Select { width: 24; }
+.form-row Select { width: 1fr; max-width: 40; }
+.form-row Input.form-beside { width: 1fr; margin-left: 1; }
 .form-multiline { height: 5; }
 .form-add { margin-left: 17; }
 #form-help { height: auto; max-height: 2; color: $text-muted; }

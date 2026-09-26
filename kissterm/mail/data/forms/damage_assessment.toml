@@ -1,0 +1,136 @@
+# Damage Assessment. Body, subject, field names and choices: Winlink
+# Standard Forms 1.1.20.0, "General Forms/Damage Assessment.txt" and
+# Damage_Assessment_Initial.html. Each category's total is the sum of its
+# four counts and the total cost the sum of the costs, as the template's
+# Totalcells1() and Totaldollars() compute them; costs are written
+# "$ 1,234" as its formatNumber() does. Difference: only the categories
+# with counts are written, one block each, rather than all fifteen (the
+# template's twelve named categories plus three of the operator's own);
+# the category is typed, so the operator's own need no special slots.
+id = "damage_assessment"
+title = "Damage Assessment"
+source = "Winlink Standard Forms 1.1.20.0 (Damage Assessment)"
+subject = "Damage Assessment-<var Status>-<var Jur>-<var SurArea>"
+body = '''
+<var Title>
+
+Event Date: <var DateTime1>
+
+Survey Date: <var Date>
+Survey Area: <var SurArea>
+
+Jurisdication: <var Jur>
+Misson/Incident #: <var MisNum>
+Event Type: <var Event>
+OTHER: <var Other>
+
+Survey Team: <var SurTeam>
+-------------------
+
+SURVEY REPORT - CATEGORIES
+
+<each damage>
+<var Category> - Counts
+
+Affected: <var Aff>
+Minor: <var Min>
+Major: <var Maj>
+Totaled: <var Des>
+Total number: <var total>
+Costs: <var Dollar>
+
+</each>
+TOTAL DOLLAR Cost: <var Dollar16>
+-------------------------
+
+Comments:(if any)
+
+<var Comments>
+'''
+totals = [{ id = "Dollar16", rows = "damage", column = "Dollar", format = "money" }]
+
+[[fields]]
+id = "Title"
+label = "Agency/group"
+remember = true
+help = "Your agency or group; the report's first line. Remembered."
+
+[[fields]]
+id = "Status"
+label = "Status"
+kind = "choice"
+choices = ["Exercise", "REAL EVENT"]
+default = "Exercise"
+
+[[fields]]
+id = "Event"
+label = "Event type"
+kind = "choice"
+choices = ["Hurricane", "Tropical Storm", "Tornado/Winds", "Flood", "Earthquake", "Fire", "Haz Mat", "OTHER"]
+
+[[fields]]
+id = "Other"
+label = "Other event"
+max_length = 35
+placeholder = "if OTHER, describe"
+
+[[fields]]
+id = "DateTime1"
+label = "Event date"
+max_length = 14
+help = "The date the event started."
+
+[[fields]]
+id = "Date"
+label = "Survey date"
+kind = "date"
+required = true
+max_length = 10
+
+[[fields]]
+id = "SurArea"
+label = "Survey area"
+required = true
+max_length = 40
+
+[[fields]]
+id = "Jur"
+label = "Jurisdiction"
+required = true
+max_length = 45
+help = "The entity the survey is done for."
+
+[[fields]]
+id = "MisNum"
+label = "Mission/incident"
+max_length = 25
+placeholder = "if known"
+
+[[fields]]
+id = "SurTeam"
+label = "Survey team"
+max_length = 45
+remember = true
+help = "Team name or members. Remembered."
+
+[[fields]]
+id = "damage"
+label = "Damage by category"
+kind = "rows"
+required = true
+max_rows = 15
+help = "One line per category with damage: HOUSES, APARTMENT COMPLEX, MOBILE HOMES, RESIDENTIAL HIGH RISE, COMMERCIAL HIGH RISE, PUBLIC BUILDINGS, SMALL BUISNESS, FACTORIES/INDUSTRIAL, ROADS, BRIDGES, ELECTRICAL DISTRIBUTION, SCHOOLS, or your own."
+columns = [
+  { id = "Category", label = "Category", max_length = 45 },
+  { id = "Aff", label = "Affected", max_length = 6 },
+  { id = "Min", label = "Minor", max_length = 6 },
+  { id = "Maj", label = "Major", max_length = 6 },
+  { id = "Des", label = "Totaled", max_length = 6 },
+  { id = "total", label = "Total", sum_of = ["Aff", "Min", "Maj", "Des"] },
+  { id = "Dollar", label = "Cost $", max_length = 9, format = "money" },
+]
+
+[[fields]]
+id = "Comments"
+label = "Comments"
+kind = "multiline"
