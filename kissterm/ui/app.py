@@ -3931,7 +3931,7 @@ class KissTermApp(App):
         from ..config import state_path
         from ..locator import to_grid
         from ..mail import forms
-        from ..mail.compose import BBS_OUTBOX, radiogram_defaults
+        from ..mail.compose import BBS_OUTBOX, bulletin_choices, radiogram_defaults
         from .compose import (
             ANSWER_STRIP, FORM_PREFIX, RADIOGRAM, RADIOGRAM_ICS213, REPLY_FORM, ComposeScreen,
             reply_form_for,
@@ -3949,7 +3949,8 @@ class KissTermApp(App):
         if quoted is None:
             quoted = self.config.reply_quote
         message = await self.push_screen_wait(
-            ComposeScreen(str(self.config.mycall or ""), reply_to=original, quoted=bool(quoted))
+            ComposeScreen(str(self.config.mycall or ""), reply_to=original, quoted=bool(quoted),
+                          bulletins=bulletin_choices(self.mail_store))
         )
         remembered_at = state_path() / "forms.json"
         aprs = self.config.aprs

@@ -11,11 +11,11 @@ isolate()
 from datetime import datetime, timezone  # noqa: E402
 
 import pytest  # noqa: E402
-from textual.widgets import Input, Label, TextArea  # noqa: E402
+from textual.widgets import Input, Label, Select, TextArea  # noqa: E402
 
 from kissterm.config import Config  # noqa: E402
 from kissterm.mail import Message, MessageStore  # noqa: E402
-from kissterm.mail.compose import BBS_OUTBOX  # noqa: E402
+from kissterm.mail.compose import BBS_OUTBOX, outbox_message  # noqa: E402
 from kissterm.ui.app import KissTermApp  # noqa: E402
 from kissterm.ui.compose import ComposeScreen  # noqa: E402
 from kissterm.ui.mail_pane import MessageBrowser, MessageList  # noqa: E402
@@ -160,3 +160,35 @@ async def test_the_text_gets_the_height(tmp_path, size, rows):
         assert body.region.height >= rows, body.region
         for wid in ("#compose-to", "#compose-title"):
             assert app.screen.query_one(wid).region.height == 1
+
+
+@pytest.mark.asyncio
+async def test_a_bulletin_offers_categories_and_distributions_that_fill_to_and_at(tmp_path):
+    app, store = _app(tmp_path)
+    # One bulletin sent before, to a local flood area: offered first next time.
+    store.add(BBS_OUTBOX, outbox_message(sender="KC1JMH", to="ARES", at="ECBBS", title="Drill",
+                                         body="x", send_type="B"))
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _focus_list(app, pilot)
+        await pilot.press("insert")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen")
+        await pilot.pause()
+        screen = app.screen
+        row = screen.query_one("#compose-bulletin-row")
+        assert not row.display  # a private message has no category
+        screen.query_one("#compose-type", Select).value = "B"
+        await pilot.pause()
+        assert row.display and row.region.height == 1
+        category = screen.query_one("#compose-category", Select)
+        distribution = screen.query_one("#compose-distribution", Select)
+        assert [v for _l, v in category._options if isinstance(v, str)][:2] == ["ARES", "WX"]
+        assert [v for _l, v in distribution._options if isinstance(v, str)] == ["-", "ECBBS", "USA", "WW"]
+        category.value = "WX"
+        distribution.value = "USA"
+        await pilot.pause()
+        assert screen.query_one("#compose-to", Input).value == "WX"
+        assert screen.query_one("#compose-at", Input).value == "USA"
+        distribution.value = "-"
+        await pilot.pause()
+        assert screen.query_one("#compose-at", Input).value == ""
+        assert len(store.list(BBS_OUTBOX)) == 1  # picking saves nothing

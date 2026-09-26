@@ -23,6 +23,20 @@ a message is never refused halfway through a send on a slow link:
 - **No body line that ends the text early**: `/ex` in any case, or a line
   starting with Ctrl-Z. BPQMail would take the rest as commands.
 
+**A bulletin** is `SB <category> @ <distribution>`. The distribution is an
+area, and BPQMail distributes a bulletin only within the area it names
+("Bulls will only be distributed within their target area", BPQMail
+change log 1.0.3.11); with no `@` it stays on the BBS it was sent to.
+Designators differ from area to area -- "check your local BBS"
+(Choisser, *Introduction to Packet Radio* part 6: `SB INFO` is local,
+`SB SALE @ CA` all of California) -- so `bulletin_choices` offers only
+what has a source or a use: the distributions and categories this
+station has used, the categories already in the Bulletins store, USA and
+WW (both on WS1EC's listing, 2026-09-24: `SPACWX @USA`, `AMSAT @WW`), and
+Choisser's example categories. Never asked of the BBS (airtime). ALLUS,
+common in older guides, is not offered: no BPQ source uses it, and WS1EC
+uses USA.
+
 Quoting is the operator's choice, never forced: Q always quotes, R quotes
 only when Settings > Mail says so (off by default -- every quoted line is
 airtime). The quote is ordinary body text, editable like the rest.
@@ -71,6 +85,43 @@ class Draft:
     send_type: str = SEND_PRIVATE
     form_id: str = ""
     form_values: dict[str, Any] = field(default_factory=dict)
+
+
+#: Categories with a source: Choisser part 6's examples, and WX, the most
+#: common category on WS1EC's listing.
+BULLETIN_CATEGORIES = ("WX", "INFO", "ARES", "SALE", "WANTED")
+#: (designator, meaning) with a source: see the module docstring.
+BULLETIN_DISTRIBUTIONS = (("USA", "all of the US"), ("WW", "worldwide"))
+
+
+def bulletin_choices(store) -> tuple[list[str], list[str]]:
+    """(categories, distributions) to offer for a bulletin, most useful
+    first: what this station sent before (BBS Outbox and Sent), then the
+    categories already collected, then the sourced ones. Distributions do
+    not include "" (this BBS only), which the screen always offers."""
+    from .store import BULLETINS, DELETED, SENT
+
+    used_categories: list[str] = []
+    used_at: list[str] = []
+    for folder in (BBS_OUTBOX, f"{MAIL}/BBS/{SENT}"):
+        for summary in sorted(store.list(folder), key=lambda s: s.date or datetime.min.replace(
+                tzinfo=timezone.utc), reverse=True):
+            try:
+                message = store.read(summary.ref)
+            except (OSError, ValueError):
+                continue
+            if message.extra.get("Send-Type") != SEND_BULLETIN:
+                continue
+            used_categories.append(message.to)
+            if message.extra.get("Send-At"):
+                used_at.append(message.extra["Send-At"])
+    seen = [folder.split("/")[1] for folder in store.folders()
+            if folder.startswith(f"{BULLETINS}/") and folder.count("/") == 1
+            and folder.split("/")[1] != DELETED]
+    categories = list(dict.fromkeys(c.upper() for c in [*used_categories, *seen, *BULLETIN_CATEGORIES]
+                                    if c and _TO_RE.match(c.upper()) and len(c) <= MAX_TO))
+    distributions = list(dict.fromkeys([*used_at, *(d for d, _ in BULLETIN_DISTRIBUTIONS)]))
+    return categories, distributions
 
 
 def clean_text(text: str) -> str:

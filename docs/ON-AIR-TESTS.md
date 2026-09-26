@@ -30,8 +30,8 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   toast should say what was sent "had not reached the BBS" with the frame
   size and the paclen hint, not "nothing from the BBS".
 - [ ] **First bulletin (SB).** Insert, Type: Bulletin, To a category the
-  BBS carries (for example `TEST` or one from `LC`), @ a local
-  distribution. Then G. SB is built from the LinBPQ source only; the
+  BBS carries (for example `TEST` or one from `LC`), and for a first
+  try pick "This BBS only (no @)" in the Distribution list. Then G. SB is built from the LinBPQ source only; the
   transcript of this first send becomes the test fixture.
 - [ ] **First radiogram (ST).** Insert, Type: NTS radiogram. Address it
   to someone you can check with, TEST ticked if it is an exercise. The

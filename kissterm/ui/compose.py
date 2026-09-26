@@ -25,6 +25,8 @@ from textual.widgets import Button, Footer, Input, Label, Select, Static, TextAr
 
 from ..mail import Message
 from ..mail.compose import (
+    BULLETIN_CATEGORIES,
+    BULLETIN_DISTRIBUTIONS,
     Draft,
     SEND_BULLETIN,
     SEND_PRIVATE,
@@ -92,8 +94,12 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
     def __init__(self, sender: str, reply_to: Message | None = None, quoted: bool = False,
-                 draft: Draft | None = None) -> None:
+                 draft: Draft | None = None,
+                 bulletins: tuple[list[str], list[str]] | None = None) -> None:
         super().__init__()
+        #: (categories, distributions) offered for SB (`compose.bulletin_choices`).
+        self._bulletins = bulletins or (list(BULLETIN_CATEGORIES),
+                                        [d for d, _ in BULLETIN_DISTRIBUTIONS])
         self._draft = draft
         self._sender = sender
         self._reply_to = reply_to
@@ -131,6 +137,19 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
                 yield Input(id="compose-to", placeholder="Callsign, e.g. W1BKW", compact=True)
                 yield Label("@", classes="compose-label compose-at-label")
                 yield Input(id="compose-at", placeholder="optional: the BBS adds it", compact=True)
+            if original is None:
+                # Shown for a bulletin only: pick-lists that fill To and @
+                # (never send), typing anything else still works.
+                categories, distributions = self._bulletins
+                meaning = dict(BULLETIN_DISTRIBUTIONS)
+                with Horizontal(classes="compose-row", id="compose-bulletin-row"):
+                    yield Label("", classes="compose-label")
+                    yield Select([(c, c) for c in categories], prompt="Category...",
+                                 compact=True, id="compose-category")
+                    yield Select([("This BBS only (no @)", "-")] + [
+                        (f"{d} ({meaning[d]})" if d in meaning else f"{d} (used before)", d)
+                        for d in distributions], prompt="Distribution...",
+                        compact=True, id="compose-distribution")
             with Horizontal(classes="compose-row"):
                 yield Label("Title", classes="compose-label")
                 yield Input(id="compose-title", compact=True)
@@ -154,6 +173,8 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
             self.query_one("#compose-title", Input).value = draft.title
             self.query_one("#compose-body", TextArea).text = draft.body
         if original is None:
+            bulletin = (draft.send_type if draft else SEND_PRIVATE) == SEND_BULLETIN
+            self.query_one("#compose-bulletin-row").display = bulletin
             self.query_one("#compose-to", Input).focus()
             return
         to = self.query_one("#compose-to", Input)
@@ -184,12 +205,23 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
             self.dismiss(event.value)
             return
         bulletin = event.value == SEND_BULLETIN
+        self.query_one("#compose-bulletin-row").display = bulletin
         self.query_one("#compose-to", Input).placeholder = (
             "Category, e.g. WX" if bulletin else "Callsign, e.g. W1BKW"
         )
         self.query_one("#compose-at", Input).placeholder = (
             "Distribution, e.g. ALLUS" if bulletin else "optional: the BBS adds it"
         )
+
+    @on(Select.Changed, "#compose-category")
+    def _category_picked(self, event: Select.Changed) -> None:
+        if isinstance(event.value, str):
+            self.query_one("#compose-to", Input).value = event.value
+
+    @on(Select.Changed, "#compose-distribution")
+    def _distribution_picked(self, event: Select.Changed) -> None:
+        if isinstance(event.value, str):
+            self.query_one("#compose-at", Input).value = "" if event.value == "-" else event.value
 
     @on(TextArea.Changed, "#compose-body")
     @on(Input.Changed)

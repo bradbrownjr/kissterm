@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Bulletin categories and distributions
+
+### Improvements
+
+- **A bulletin offers its category and distribution**: with Type
+  Bulletin, two pick-lists fill To and @ -- the ones you used before,
+  the categories already in Bulletins, USA and WW, and "This BBS only"
+  (no @). Typing anything else still works; picking sends nothing.
+  Sources are in `mail/compose.py`'s docstring; ALLUS is not offered.
+- Compose (steps 1-5) and BBS send are complete; the roadmap items are
+  closed, the first SB and ST captures stay in ON-AIR-TESTS.
+
+**Files:** `kissterm/mail/compose.py`, `kissterm/ui/compose.py`,
+`kissterm/ui/app.py`, `kissterm/ui/styles.py`, `tests/pilot/test_compose.py`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — ICS-213 reply on the form
 
 ### New Features

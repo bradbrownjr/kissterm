@@ -324,6 +324,7 @@ ComposeScreen { align: center middle; }
 .compose-row { height: 1; }
 #compose-heading { width: 1fr; text-style: bold; color: $text; }
 #compose-type { width: 26; }
+#compose-bulletin-row Select { width: 1fr; max-width: 34; margin-right: 1; }
 .compose-label { width: 7; color: $text-muted; }
 .compose-at-label { width: 4; padding: 0 1; }
 .compose-row Input { width: 1fr; }
