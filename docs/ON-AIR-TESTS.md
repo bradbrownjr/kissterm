@@ -63,6 +63,12 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 - [ ] **ICS-309 to a Winlink station**: after an exercise, send the
   log as a P message to someone on Winlink Express and ask whether it
   reads as a 309 (tabs arrive as spaces; the 214 and 205 likewise).
+- [ ] **A form from another station reads as a form**: ask a Winlink
+  Express user (or bpq-apps' forms) to send you an ICS-213 or a check-in
+  through the BBS. After G, open it: it should show as the form, and V
+  should show the text. Note anything that lands under the wrong label.
+- [ ] **ICS-213 reply**: R on that ICS-213, Reply on form, fill block 9,
+  Save, G. Ask the sender whether Winlink Express shows it as a reply.
 - [ ] **GYX Weather strip** during a SKYWARN activation or net: Insert,
   Type: GYX Weather Report (strip), fill it, address it as the net asks.
   The body should be one line, `GYX WEATHER/.../...//`; ask net control

@@ -23,6 +23,10 @@ line per message in the Mail Inbox and Sent folders since the time given
 never a message already on the log. The app supplies the messages
 (`mail=`); the operator still reads and edits every line.
 
+A reply form (`reply_form`, the ICS-213's) opens with the received
+message's blocks filled in (`values=`) and read-only; only the reply's own
+blocks take typing.
+
 An information strip (`forms.strip_form`) is an ordinary form here: one
 text field per question, labelled with the question cut to fit, the whole
 question on the help line.
@@ -95,11 +99,14 @@ class FormScreen(ModalScreen["Draft | None"]):
 
     def __init__(self, form: FormDef, *, mycall: str = "", grid: str = "",
                  remembered: Values | None = None,
-                 mail: Callable[[], list[MailEntry]] | None = None) -> None:
+                 mail: Callable[[], list[MailEntry]] | None = None,
+                 values: Values | None = None) -> None:
         super().__init__()
         self.form = form
         self._mail = mail
         self._values = defaults(form, mycall=mycall, grid=grid, remembered=remembered)
+        # A reply's received half (`compose.reply_form_for`), shown read-only.
+        self._values.update(values or {})
         self._start = dict(self._values)
         self._confirm_discard = False
         self._row_counts = {f.id: 0 for f in form.fields if f.kind == "rows"}
@@ -138,7 +145,8 @@ class FormScreen(ModalScreen["Draft | None"]):
             return
         if f.kind in ("multiline", "strip"):
             yield Label(f.label, classes="form-label form-label-alone")
-            yield TextArea(value, id=wid, tab_behavior="focus", soft_wrap=True, classes="form-multiline")
+            yield TextArea(value, id=wid, tab_behavior="focus", soft_wrap=True, classes="form-multiline",
+                           read_only=f.readonly)
             return
         with Horizontal(classes="form-row"):
             yield Label(f.label, classes="form-label")
@@ -155,7 +163,7 @@ class FormScreen(ModalScreen["Draft | None"]):
                 yield Checkbox("on" if value else "off", bool(value), compact=True, id=wid)
             else:
                 yield Input(value, id=wid, placeholder=f.placeholder, compact=True,
-                            max_length=f.max_length or 0)
+                            max_length=f.max_length or 0, disabled=f.readonly)
             if f.beside:
                 other = self.form.field(f.beside)
                 yield Input(self._values.get(other.id, ""), id=f"form-{other.id}",
@@ -165,7 +173,8 @@ class FormScreen(ModalScreen["Draft | None"]):
     async def on_mount(self) -> None:
         for field_id in self._row_counts:
             await self._add_row(self.form.field(field_id))
-        first = next((w for w in self.query("#form-body Input, #form-body TextArea")), None)
+        first = next((w for w in self.query("#form-body Input, #form-body TextArea")
+                      if not w.disabled and not getattr(w, "read_only", False)), None)
         if first is not None:
             first.focus()
 

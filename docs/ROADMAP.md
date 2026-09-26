@@ -260,12 +260,6 @@ the radiogram form rather than as a form file) shipped 2026-09-26.
 ROSTER is not shipped: it is bpq-apps' README example, not a form any
 net publishes; paste it.
 
-- [ ] **Received forms render as forms.** Shipped 2026-09-26: a received
-  form (any shipped form file, read against its own template) shows as
-  the form, V toggles the text. Left: the ICS-213 reply, which keeps a
-  message and its reply in one record -- the received half read-only,
-  the reply half editable once the operator starts a reply (Outpost's
-  `Ics213mm.exe` behaves this way). Small.
 - [ ] **Winlink forms.** Winlink Express's standard templates are HTML forms
   that send a readable text body plus an XML attachment
   (`RMS_Express_Form_*.xml`) that another Winlink client renders as the

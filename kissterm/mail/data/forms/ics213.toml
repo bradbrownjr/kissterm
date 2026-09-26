@@ -2,7 +2,7 @@
 # Body, subject, field names and limits: Winlink Standard Forms 1.1.20.0,
 # "ICS USA Forms/ICS213 General Message.txt" and ICS213_Initial.html
 # (template "ICS 213 v.43.8"). Blocks: FEMA ICS 213 (v3). Blocks 9-10
-# (Reply, Replied by) are filled by the recipient, so they are not here.
+# (Reply, Replied by) are filled by the recipient: ics213_reply.toml.
 # vden's PKTNET ics213.html (v1.1, 2023-11) lays the same blocks out with
 # the paper form's labels ("1. Incident Name (Optional):"), a blank line
 # between blocks and block 8 on one line; Winlink's layout is used here as
@@ -11,6 +11,8 @@ id = "ics213"
 title = "ICS-213 General Message"
 source = "Winlink Standard Forms 1.1.20.0 (ICS 213 v.43.8); FEMA ICS 213 v3"
 subject = "ICS-213: <var Subjectline> - <var Mdate> <var Mtime>"
+# R on a received ICS-213 offers this reply, Winlink's ICS213_SendReply.
+reply_form = "ics213_reply"
 body = '''
 GENERAL MESSAGE (ICS 213)
 <var IsExercise>

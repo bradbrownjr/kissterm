@@ -79,7 +79,8 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   `ST <zip> @ NTS<state>` routing shows as you type, and it suggests
   your next message number. **Radiogram-ICS213** is the same form with
   HXI and a subject line, as RRI's 2026 guidelines give it. A form you receive is shown as the
-  form, each value under its label, and V shows the text as sent. **Forms**: the ICS-213 General Message,
+  form, each value under its label, and V shows the text as sent; R on an ICS-213 offers
+  Reply on form, its blocks 1-8 read-only and 9-10 yours to fill. **Forms**: the ICS-213 General Message,
   ICS-213RR Resource Request, Winlink Check-in, PKTNET Check-in, Field
   Situation Report, Severe WX Report, Damage Assessment, Incident
   Status Report, ICS-309 Communications Log, ICS-214 Activity Log and

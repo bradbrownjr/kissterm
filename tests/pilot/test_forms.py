@@ -125,7 +125,7 @@ async def test_213rr_adds_order_lines(tmp_path):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("form_id", [f.id for f in load_forms()] + ["strip"])
+@pytest.mark.parametrize("form_id", [f.id for f in load_forms() if not f.hidden] + ["strip"])
 async def test_fits_80x24(tmp_path, form_id):
     app, _ = _app(tmp_path)
     async with app.run_test(size=(80, 24)) as pilot:
@@ -273,3 +273,72 @@ async def test_a_309_fills_from_inbox_and_sent_once(tmp_path):
         await pilot.pause()
         assert screen._row_counts["log"] == 2
         assert "No mail since then" in str(screen.query_one("#form-error", Label).render())
+
+
+ICS213_RECEIVED = (
+    "GENERAL MESSAGE (ICS 213)\n1. Incident Name: ICE STORM\n2. To (Name and Position): B BROWN, RADIO\n"
+    "3. From (Name and Position): J SMITH, EOC\n4. Subject: Shelter status\n5. Date: 2026-09-26\n"
+    "6. Time: 14:05\n7. Message:\n\nIs the shelter open?\n\n8. Approved by: J SMITH\n"
+    "8a. Position/Title: EOC MANAGER\n"
+)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size", [(120, 40), (80, 24)])
+async def test_an_ics213_is_answered_on_its_reply_form(tmp_path, size):
+    from datetime import datetime, timezone
+
+    from kissterm.mail import Message
+
+    app, store = _app(tmp_path)
+    store.add("Mail/BBS/Inbox", Message(
+        sender="W1AW", to="KC1JMH", subject="ICS-213: Shelter status - 2026-09-26 14:05",
+        date=datetime(2026, 9, 26, 18, tzinfo=timezone.utc), source="BBS WS1EC",
+        body=ICS213_RECEIVED, extra={"Bbs-Number": "2801", "Bbs-Type": "PN"}))
+    async with app.run_test(size=size) as pilot:
+        await pilot.pause()
+        app.query_one("#mail-browser", MessageBrowser).query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("r")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the reply")
+        await pilot.pause()
+        app.screen.query_one("#compose-reply-form", Button).press()
+        await wait_for(lambda: isinstance(app.screen, FormScreen), "the reply form")
+        await pilot.pause()
+        screen = app.screen
+        assert screen.query_one("#form-Subjectline", Input).value == "Shelter status"
+        assert screen.query_one("#form-Subjectline", Input).disabled
+        message = screen.query_one("#form-Message", TextArea)
+        assert message.text == "Is the shelter open?" and message.read_only
+        assert app.focused is screen.query_one("#form-Reply", TextArea)
+        if size == (80, 24):
+            box = screen.query_one("#form-box").region
+            for wid in ("#form-continue", "#form-cancel"):
+                region = screen.query_one(wid).region
+                assert region.height >= 1 and region.bottom <= box.bottom - 1, wid
+            return
+        _fill(screen, Reply="Yes, open since 1300.", rply_by="B BROWN", rply_Position="RADIO OP")
+        await pilot.pause()
+        screen.query_one("#form-continue", Button).press()
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the reply again")
+        await pilot.pause()
+        body = app.screen.query_one("#compose-body", TextArea).text
+        assert "7. Message:\n\nIs the shelter open?\n\n8. Approved by: J SMITH\n" in body
+        assert "9. Reply:\nYes, open since 1300.\n\n10. Replied by:  B BROWN\n" in body
+        app.screen.query_one("#compose-save", Button).press()
+        await wait_for(lambda: store.list(BBS_OUTBOX), "the Outbox message")
+        sent = store.read(store.list(BBS_OUTBOX)[0].ref)
+        assert sent.extra["Reply-Number"] == "2801" and sent.extra["Form"] == "ics213_reply"
+
+
+@pytest.mark.asyncio
+async def test_the_reply_form_is_not_a_type(tmp_path):
+    app, _ = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.query_one("#mail-browser", MessageBrowser).query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("insert")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen")
+        values = [v for _label, v in app.screen.query_one("#compose-type", Select)._options]
+        assert "form:ics213" in values and "form:ics213_reply" not in values

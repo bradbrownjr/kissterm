@@ -153,6 +153,9 @@ class Field:
     #: (the ICS-309): which column takes each message's time, from, to and
     #: subject, as (key, column id) pairs. See `mail_log_rows`.
     mail_log: tuple[tuple[str, str], ...] = ()
+    #: Shown but not editable: a received message's own blocks in a reply
+    #: form (the ICS-213's 1-8 under its reply).
+    readonly: bool = False
 
 
 @dataclass(frozen=True)
@@ -173,6 +176,10 @@ class FormDef:
     totals: tuple[Total, ...] = ()
     #: An information strip's template; the fields are its prompts.
     strip: str = ""
+    #: Not offered as a Type: opened from a reply only (`reply_form`).
+    hidden: bool = False
+    #: The form a reply to this one is written on (Winlink's ReplyTemplate).
+    reply_form: str = ""
 
     def field(self, field_id: str) -> Field:
         return next(f for f in self.fields if f.id == field_id)

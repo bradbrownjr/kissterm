@@ -35,7 +35,8 @@ from ..mail.compose import (
     quote,
     reply_title,
 )
-from ..mail.forms import PASTE_STRIP, find_strip, load_forms
+from ..mail import form_parse
+from ..mail.forms import PASTE_STRIP, FormDef, Values, find_strip, get_form, load_forms
 
 #: The same for "Radiogram-ICS213": the radiogram form with HXI and a
 #: subject line (`nts.py`, RRI 2026).
@@ -62,9 +63,26 @@ FORM_PREFIX = "form:"
 #: answer as the reply's text.
 ANSWER_STRIP = "answer-strip"
 
+#: What a reply returns for "Reply on form": the original reads as a form
+#: with a `reply_form` (an ICS-213), and the app opens that form with the
+#: original's blocks filled in and read-only.
+REPLY_FORM = "reply-form"
+
+
+def reply_form_for(original: Message) -> tuple[FormDef, Values] | None:
+    """The reply form for a received form message, and the original's values
+    for it (its read-only half), or None if it is no such form."""
+    parsed = form_parse.recognize(original.subject, original.body,
+                                  form_id=original.extra.get("Form", ""))
+    if parsed is None or not parsed.form.reply_form:
+        return None
+    form = get_form(parsed.form.reply_form)
+    ids = {f.id for f in form.fields}
+    return form, {k: v for k, v in parsed.values.items() if k in ids}
+
 
 def _types() -> list[tuple[str, str]]:
-    shipped = [(f"{f.title} (form)", FORM_PREFIX + f.id) for f in load_forms()]
+    shipped = [(f"{f.title} (form)", FORM_PREFIX + f.id) for f in load_forms() if not f.hidden]
     return _TYPES + [(f"{PASTE_STRIP.title} (form)", FORM_PREFIX + PASTE_STRIP.id)] + shipped
 
 
@@ -121,6 +139,8 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
                 yield Label("", id="compose-error")
                 if original is not None and self._draft is None and find_strip(original.body):
                     yield Button("Answer strip", compact=True, id="compose-strip")
+                if original is not None and self._draft is None and reply_form_for(original):
+                    yield Button("Reply on form", compact=True, id="compose-reply-form")
                 yield Button("Save to Outbox", variant="primary", compact=True, id="compose-save")
                 yield Button("Cancel", compact=True, id="compose-cancel")
         yield Footer()
@@ -187,6 +207,10 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
             )
             return
         self.dismiss(None)
+
+    @on(Button.Pressed, "#compose-reply-form")
+    def _reply_on_form(self) -> None:
+        self.dismiss(REPLY_FORM)
 
     @on(Button.Pressed, "#compose-strip")
     def _answer_strip(self) -> None:

@@ -1,0 +1,116 @@
+# ICS 213 General Message, the reply: the received message's blocks 1-8,
+# unchanged and read-only, then the recipient's blocks 9-10. Body and
+# field names: Winlink Standard Forms 1.1.20.0, "ICS USA Forms/
+# ICS213_SendReply.0" and ICS213_SendReply.html; blocks: FEMA ICS 213 (v3).
+# Winlink keeps the message and its reply as one record, as Outpost's
+# Ics213mm does. Deliberate differences: the Express footer and Winlink's
+# copy of the original with its email headers ("BELOW IS ORIGINAL ICS 213
+# AS IT WAS SENT") are left out -- blocks 1-8 above already are the
+# original, and a BBS reply is airtime. Opened only from a reply (R on a
+# received ICS-213, "Reply on form"), never from the Type list.
+id = "ics213_reply"
+title = "ICS-213 General Message reply"
+source = "Winlink Standard Forms 1.1.20.0 (ICS213_SendReply); FEMA ICS 213 v3"
+hidden = true
+# A reply's title is the compose screen's "Re:" of the original, and a
+# Winlink client titles its own; so the subject is not checked when a
+# received reply is recognised.
+subject = "<var Subjectline>"
+body = '''
+GENERAL MESSAGE (ICS 213)
+
+1. Incident Name: <var inc_name>
+2. To (Name and Position): <var To_Name>
+3. From (Name and Position): <var fm_name>
+4. Subject: <var Subjectline>
+5. Date: <var Mdate>
+6. Time: <var Mtime>
+7. Message:
+
+<var Message>
+
+8. Approved by: <var Approved_Name>
+   Position/Title: <var Approved_PosTitle>
+
+9. Reply:
+<var Reply>
+
+10. Replied by:  <var rply_by>
+    Position / Title: <var rply_Position>
+    Date / Time: <var rply_dtm>
+'''
+
+[[fields]]
+id = "inc_name"
+label = "1. Incident name"
+readonly = true
+
+[[fields]]
+id = "To_Name"
+label = "2. To"
+readonly = true
+
+[[fields]]
+id = "fm_name"
+label = "3. From"
+readonly = true
+
+[[fields]]
+id = "Subjectline"
+label = "4. Subject"
+readonly = true
+
+[[fields]]
+id = "Mdate"
+label = "5. Date"
+readonly = true
+
+[[fields]]
+id = "Mtime"
+label = "6. Time"
+readonly = true
+
+[[fields]]
+id = "Message"
+label = "7. Message"
+kind = "multiline"
+readonly = true
+
+[[fields]]
+id = "Approved_Name"
+label = "8. Approved by"
+readonly = true
+
+[[fields]]
+id = "Approved_PosTitle"
+label = "8a. Position"
+readonly = true
+
+[[fields]]
+id = "Reply"
+label = "9. Reply"
+kind = "multiline"
+required = true
+help = "Your reply to the message above."
+
+[[fields]]
+id = "rply_by"
+label = "10. Replied by"
+required = true
+max_length = 50
+remember = true
+help = "Your name. Remembered."
+
+[[fields]]
+id = "rply_Position"
+label = "Position"
+max_length = 50
+remember = true
+help = "Your position or title. Remembered."
+
+[[fields]]
+id = "rply_dtm"
+label = "Date/time"
+kind = "datetime"
+max_length = 20
+help = "When you replied."

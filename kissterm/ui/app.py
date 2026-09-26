@@ -3932,7 +3932,10 @@ class KissTermApp(App):
         from ..locator import to_grid
         from ..mail import forms
         from ..mail.compose import BBS_OUTBOX, radiogram_defaults
-        from .compose import ANSWER_STRIP, FORM_PREFIX, RADIOGRAM, RADIOGRAM_ICS213, ComposeScreen
+        from .compose import (
+            ANSWER_STRIP, FORM_PREFIX, RADIOGRAM, RADIOGRAM_ICS213, REPLY_FORM, ComposeScreen,
+            reply_form_for,
+        )
         from .form_screen import FormScreen
         from .radiogram import RadiogramScreen
 
@@ -3952,17 +3955,29 @@ class KissTermApp(App):
         aprs = self.config.aprs
         grid = to_grid(aprs.latitude, aprs.longitude) if aprs.latitude or aprs.longitude else ""
 
-        async def fill(form: forms.FormDef):
+        async def fill(form: forms.FormDef, values: forms.Values | None = None):
             draft = await self.push_screen_wait(FormScreen(
                 form, mycall=str(self.config.mycall or ""), grid=grid,
                 remembered=forms.load_remembered(remembered_at, form.id),
-                mail=self._mail_log_entries,
+                mail=self._mail_log_entries, values=values,
             ))
             if draft is not None:
                 forms.save_remembered(remembered_at, form.id,
                                       forms.to_remember(form, draft.form_values))
             return draft
 
+        if message == REPLY_FORM and original is not None:
+            # The original's own blocks, read-only, and the reply's to fill;
+            # it goes out as any reply (SR, or SP to the sender).
+            found = reply_form_for(original)
+            if found is None:
+                return
+            draft = await fill(*found)
+            if draft is None:
+                return
+            message = await self.push_screen_wait(ComposeScreen(
+                str(self.config.mycall or ""), reply_to=original, draft=draft,
+            ))
         if message == ANSWER_STRIP and original is not None:
             # The original's request strip as a form; the answer is the
             # reply's text, addressed and titled as any reply.

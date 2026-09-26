@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — ICS-213 reply on the form
+
+### New Features
+
+- **Reply on form**: R on a received ICS-213 offers the reply form,
+  Winlink's ICS213_SendReply: the message's blocks 1-8 filled in and
+  read-only, blocks 9-10 (Reply, Replied by, Position, Date/time) to
+  fill. It goes out as any reply (SR on the BBS it came from), one
+  record holding both halves. A received reply reads as the reply form.
+
+**Files:** `kissterm/mail/data/forms/ics213_reply.toml` (new),
+`kissterm/mail/data/forms/ics213.toml`, `kissterm/mail/forms.py`,
+`kissterm/ui/form_screen.py`, `kissterm/ui/compose.py`, `kissterm/ui/app.py`,
+`tests/pilot/test_forms.py`, `README.md`, `docs/ON-AIR-TESTS.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Received forms read as forms
 
 ### New Features
