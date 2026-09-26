@@ -1384,14 +1384,21 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
-    def __init__(self, targets: list[str], missing: str = "", *, winlink: bool = False) -> None:
+    def __init__(self, targets: list[str], missing: str = "", *, winlink: bool = False,
+                 internet: bool = False) -> None:
         super().__init__()
         self._targets = targets
         self._missing = missing
         #: The same question for Winlink's route (G on a Winlink folder).
         self._winlink = winlink
+        #: The same question for the Home BBS's Internet connection (I):
+        #: `targets` are then the configured Telnet and SSH connections.
+        self._internet = internet
 
     def compose(self) -> ComposeResult:
+        if self._internet:
+            yield from self._compose_internet()
+            return
         what = "Winlink gateway" if self._winlink else "home BBS"
         with Vertical(id="connect-box"):
             yield Label("Set up Winlink" if self._winlink else "Set up Send/Receive",
@@ -1439,6 +1446,38 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
                 if self._winlink else "The rest is optional, in Settings (F9) > Home BBS.",
                 id="connect-hint",
             )
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save and send/receive", variant="primary", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def _compose_internet(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("Set up the Home BBS by Internet", id="connect-title")
+            intro = (f"The connection {self._missing} is no longer configured. "
+                     if self._missing else "")
+            if not self._targets:
+                yield Static(
+                    intro + "I reaches your home BBS through a Telnet or SSH "
+                    "connection, and none is configured. Add one in Settings (F9) "
+                    "> Connections -- for WS1EC, SSH to ws1ec.mainepacketradio.org "
+                    "port 4122 as packet, with its host key in a known_hosts file "
+                    "-- then press I again.",
+                    id="reminder-detail",
+                )
+                with Horizontal(id="connect-buttons"):
+                    yield Button("Close", id="connect-cancel")
+                return
+            yield Static(
+                intro + "I sends and receives with your home BBS over the Internet: "
+                "it logs in to the node (user: and password:), sends the After "
+                "login command (BBS), then works as G does. Which connection "
+                "reaches it?",
+                id="reminder-detail",
+            )
+            yield Select([(t, t) for t in self._targets], value=self._targets[0],
+                         allow_blank=False, id="home-bbs-route")
+            yield Label("The user and After login are in Settings (F9) > Mail.",
+                        id="connect-hint")
             with Horizontal(id="connect-buttons"):
                 yield Button("Save and send/receive", variant="primary", id="connect-go")
                 yield Button("Cancel", id="connect-cancel")

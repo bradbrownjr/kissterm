@@ -319,3 +319,29 @@ async def test_a_login_prompt_the_route_answered_is_not_a_stop(tmp_path, monkeyp
     bbs = ScriptedBbs({"LM": ["de WS1EC#>"]}, greeting=["user:", *GREETING])
     result, _notes, _ = await _run(bbs, _store(tmp_path))
     assert not result.stopped and bbs.sent == ["LM"]
+
+
+@pytest.mark.asyncio
+async def test_bpq_telnet_login_then_bbs_then_mail(tmp_path):
+    # user: and password: arrive without line endings, as TelnetV6.c sends them.
+    bbs = ScriptedBbs({"LM": _capture("list_lm_empty.txt")}, greeting=[])
+    raw = lambda data: [cb(data) for cb in list(bbs.on_data)]  # noqa: E731
+    replies = {"KC1JMH": b"password:", "secret": b"Welcome to WS1EC Telnet Server\rWS1EC:WS1EC} ",
+               "BBS": ("\r".join(GREETING) + "\r").encode("latin-1")}
+    real_send = bbs.send
+
+    async def send(data: bytes) -> None:
+        command = data.decode("latin-1").rstrip("\r")
+        if command in replies:
+            bbs.sent.append(command)
+            asyncio.get_event_loop().call_later(0.01, raw, replies[command])
+            return
+        await real_send(data)
+
+    bbs.send = send
+    bbs.start = lambda: asyncio.get_event_loop().call_later(0.01, raw, b"\xff\xfb\x01user:")
+    result, _notes, shown = await _run(bbs, _store(tmp_path), telnet_user="KC1JMH",
+                                       telnet_password="secret", after_login="BBS")
+    assert not result.stopped, result.stopped
+    assert bbs.sent == ["KC1JMH", "secret", "BBS", "LM"]
+    assert "secret" not in shown and "(password sent)" in shown

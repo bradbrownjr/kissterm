@@ -204,7 +204,9 @@ is the enforcement.
    restores from Deleted; on Mail, G sends and receives -- with Winlink on
    a Winlink folder, the Home BBS on a BBS folder, and on All Inboxes
    each one that is set up, the Home BBS first, the Footer saying which
-   (operator, 2026-09-26) -- and Insert writes a new message; on Mail and Bulletins, V switches a message
+   (operator, 2026-09-26); I does the same over the Internet (the Home
+   BBS by its Telnet or SSH connection, Winlink by the CMS) -- and Insert
+   writes a new message; on Mail and Bulletins, V switches a message
    received as a form between the form and its text, R replies and Q
    replies with the original quoted. None of them transmits.
 5. **The Footer shows only what works right now.** An action that does not

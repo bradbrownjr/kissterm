@@ -77,10 +77,13 @@ class FolderTree(Tree):
         Binding("g", "get_mail", "Send/Receive"),
         Binding("g", "get_winlink", "Send/Receive Winlink"),
         Binding("g", "get_all", "Send/Receive all"),
+        Binding("i", "get_internet", "By Internet"),
     ]
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         browser = self.query_ancestor(MessageBrowser)
+        if action == "get_internet":
+            return browser.id == "mail-browser"
         if action in _G_KIND:
             return browser.id == "mail-browser" and browser.g_kind() == _G_KIND[action]
         if action == "new_message":
@@ -95,6 +98,9 @@ class FolderTree(Tree):
 
     def action_get_all(self) -> None:
         self.app.action_get_mail()  # type: ignore[attr-defined]
+
+    def action_get_internet(self) -> None:
+        self.app.action_get_mail_internet()  # type: ignore[attr-defined]
 
     def action_new_message(self) -> None:
         self.app.action_compose_mail()  # type: ignore[attr-defined]
@@ -113,6 +119,7 @@ class MessageList(DataTable):
         Binding("g", "get_mail", "Send/Receive"),
         Binding("g", "get_winlink", "Send/Receive Winlink"),
         Binding("g", "get_all", "Send/Receive all"),
+        Binding("i", "get_internet", "By Internet"),
         Binding("v", "toggle_form", "Form/text"),
     ]
 
@@ -129,7 +136,7 @@ class MessageList(DataTable):
             return self.row_count > 0 and browser.can_restore()
         if action in _G_KIND:
             return browser.id == "mail-browser" and browser.g_kind() == _G_KIND[action]
-        if action == "new_message":
+        if action in ("new_message", "get_internet"):
             return browser.id == "mail-browser"
         if action in ("reply", "reply_quoted"):
             return self.row_count > 0 and not browser.files
@@ -184,6 +191,9 @@ class MessageList(DataTable):
 
     def action_get_all(self) -> None:
         self.app.action_get_mail()  # type: ignore[attr-defined]
+
+    def action_get_internet(self) -> None:
+        self.app.action_get_mail_internet()  # type: ignore[attr-defined]
 
 
 class MessageBrowser(Horizontal):

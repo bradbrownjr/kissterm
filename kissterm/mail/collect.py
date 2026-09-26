@@ -11,6 +11,9 @@ would at the keyboard:
    A BPQ Telnet login prompt (`LOGIN_PROMPTS`) left unanswered for
    `LOGIN_WAIT` seconds stops the run by name -- no login set up, or ours
    refused -- instead of waiting out the idle timeout.
+   Over the Internet (`telnet_user`), BPQ's Telnet login is answered
+   first: the user at `user:`, the password at `password:`, then
+   `after_login` (`BBS`) to leave the node for the BBS.
 2. Check what answered. BPQMail is the only application whose replies are
    captured (`bpqmail.py`), so anything else stops here, by name.
 3. Send Mail/BBS/Outbox, oldest first (`compose.send_command`: `SR n` for
@@ -98,6 +101,12 @@ class CollectOptions:
     login_prompt: str = ""
     login_text: str = ""
     idle_timeout: float = DEFAULT_IDLE_TIMEOUT
+    #: Over the Internet (Telnet, or SSH into a Telnet session): answer
+    #: BPQ's `user:` and `password:` with these, then send `after_login`
+    #: (`BBS`: a BPQ Telnet login lands at the node, not the BBS).
+    telnet_user: str = ""
+    telnet_password: str = ""
+    after_login: str = ""
 
 
 @dataclass
@@ -335,12 +344,36 @@ class BbsCollector:
     async def _until_ready(self) -> str:
         """Wait for the BBS to be ready; returns the prompt's call, or ""."""
         ready = self.options.ready_text
-        configured = bool(self.options.login_prompt and self.options.login_text)
-        login_sent = not configured
+        telnet = bool(self.options.telnet_user)
+        configured = telnet or bool(self.options.login_prompt and self.options.login_text)
+        login_sent = not bool(self.options.login_prompt and self.options.login_text)
+        # BPQ's Telnet login, in order; "" once done (or not over Telnet).
+        stage = "user" if telnet else ""
         while True:
             self._arrived.clear()
             lines = self._take_lines()
             text = "\n".join([*lines, self._partial])
+            heard = [c.strip().lower() for c in [*lines, self._partial] if c.strip()]
+            # `endswith`: BPQ sends its Telnet option negotiation (IAC bytes)
+            # straight before `user:`, on the same line (TelnetV6.c).
+            if stage == "user" and any(h.endswith(("user:", "callsign :")) for h in heard):
+                self._pending.clear()
+                await self._send(self.options.telnet_user)
+                stage, self._last = "password", ""
+                continue
+            if stage == "password" and any(h.endswith(("password:", "password :")) for h in heard):
+                self._pending.clear()
+                await self._send(self.options.telnet_password, shown="(password sent)")
+                stage, self._last = ("command" if self.options.after_login else ""), ""
+                continue
+            if stage == "command" and heard:
+                # The node's welcome: logged in. Now into the BBS.
+                # UNVERIFIED: sent on the first thing heard after the
+                # password, not yet tried against WS1EC's Telnet login.
+                self._pending.clear()
+                await self._send(self.options.after_login)
+                stage, self._last = "", ""
+                continue
             if not login_sent and self.options.login_prompt in text:
                 login_sent = True
                 self._pending.clear()
@@ -359,11 +392,12 @@ class BbsCollector:
             if lines or self._partial:
                 self._last = self._partial or lines[-1]
             unanswered = ""
-            if login_sent and self._last.strip().lower() in LOGIN_PROMPTS:
+            if login_sent and not stage and self._last.strip().lower().endswith(LOGIN_PROMPTS):
                 # A login prompt is the last thing heard and nothing is left
                 # to answer it: stop soon, by name, rather than after the
                 # idle timeout.
-                unanswered = self._last.strip()
+                last = self._last.strip().lower()
+                unanswered = next(p for p in LOGIN_PROMPTS if last.endswith(p))
             await self._wait_for_data(login_prompt=unanswered, login_was_sent=configured)
 
     def _check_software(self) -> None:

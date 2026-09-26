@@ -126,9 +126,9 @@ Book entry for the RMS (WS1EC-10, or a node entry whose login script
 sends RMS) and then your Winlink password, before dialing; both are
 saved (Settings > Mail > Winlink, Settings > Logins).
 
-- [ ] **First: Winlink over the Internet** (no radio). F10 > Session >
-  Winlink over the Internet, from the Mail tab. It asks for your Winlink
-  password if none is saved, connects to server.winlink.org:8772, and
+- [ ] **First: Winlink over the Internet** (no radio). On the Mail tab,
+  select Winlink > Inbox and press I (Footer: "By Internet"). It asks for
+  your Winlink password if none is saved, connects to server.winlink.org:8772, and
   runs the exchange: toast "No new Winlink mail" or new messages in
   Winlink > Inbox. Anything in Winlink > Outbox is sent, so leave it
   empty the first time, or put one message to yourself there. Then send
@@ -136,6 +136,15 @@ saved (Settings > Mail > Winlink, Settings > Logins).
   made a test fixture. If it stops right after the handshake, say what
   the toast said: the likely cause is the CMS not accepting "kissterm"
   as a client name.
+- [ ] **Home BBS by Internet (SSH to WS1EC)** (no radio): add the
+  connection first -- Settings (F9) > Connections, SSH, host
+  ws1ec.mainepacketradio.org, port 4122, user packet, and a known_hosts
+  file holding its host key. Then on BBS > Inbox press I: pick that
+  connection, give your node password. Expect in the transcript (Session
+  > Transcripts): the node's `user:` answered with your call, `(password
+  sent)`, `BBS`, the BBS greeting and `LM`. If it stalls after the
+  password, tell me what the node sent: the After login step
+  (Settings > Mail) fires on the first thing heard after the password.
 - [ ] **First Winlink session over the radio, nothing to send**: on the Mail tab, select
   Winlink > Inbox; the Footer should say "Send/Receive Winlink". Press G.
   Expect the frequency reminder, then in the Terminal tab (F5): the

@@ -148,8 +148,8 @@ behaviour rather than from documentation `# UNVERIFIED:` until a live
 exchange confirms it.
 
 - [ ] **CMS over Telnet: the first real session.** Built 2026-09-26
-  (Session > Winlink over the Internet; host, port and `CMSTelnet` from
-  wl2k-go). Waiting on the operator's first run (docs/ON-AIR-TESTS.md);
+  (I on the Mail tab, Send/Receive by Internet; host, port and
+  `CMSTelnet` from wl2k-go). The Home BBS by Telnet or SSH came with it. Waiting on the operator's first run (docs/ON-AIR-TESTS.md);
   its transcript becomes `tests/unit/data/winlink/` fixture and settles
   the `# UNVERIFIED:` notes in `winlink/b2f.py` and `winlink_collect.py`.
 - [ ] **VARA to an RMS Gateway**, once P3's VARA hardware verification is

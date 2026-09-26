@@ -189,10 +189,10 @@ COMMANDS: tuple[Command, ...] = (
             "Dial the Home BBS, the Winlink gateway on a Winlink folder, or "
             "both from All Inboxes; send the Outbox, read new mail, disconnect",
             tabs=("mail",), list_key="g"),
-    Command("winlink_internet", "Winlink over the Internet", "Session", "I",
-            "Send and receive Winlink mail through the Winlink CMS over the "
-            "Internet (Telnet); nothing goes on the air",
-            tabs=("mail",)),
+    Command("get_mail_internet", "Send/Receive by Internet", "Session", "I",
+            "As Send/Receive, over the Internet: the Home BBS by its Telnet or "
+            "SSH connection, Winlink by the CMS; nothing goes on the air",
+            tabs=("mail",), list_key="i"),
     Command("compose_mail", "New message", "Session", "N",
             "Write a BBS message; it waits in the Outbox until sent",
             tabs=("mail",), list_key="insert"),

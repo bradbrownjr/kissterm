@@ -262,6 +262,16 @@ class HomeBbsConfig:
     login_prompt: str = ""
     #: Name of a saved credential (Settings > Logins).
     credential: str = ""
+    #: Over the Internet (I on the Mail tab): the name of a configured
+    #: Telnet or SSH connection (`transports`) that reaches the BBS's node,
+    #: such as WS1EC's SSH login that runs a telnet into its BPQ node.
+    internet: str = ""
+    #: The user for BPQ's Telnet `user:` prompt; "" is your callsign.
+    internet_user: str = ""
+    #: Name of the saved login holding the Telnet password.
+    internet_credential: str = ""
+    #: Sent once logged in, to leave the node for the BBS.
+    internet_command: str = "BBS"
 
 
 @dataclass
@@ -1203,7 +1213,8 @@ def _load_home_bbs(value: Any, warnings: list[str]) -> HomeBbsConfig:
             warnings.append(f"'home_bbs' should be a table, got {value!r}; using defaults")
         return default
     home = HomeBbsConfig()
-    for name in ("route", "call", "ready_text", "login_prompt", "credential"):
+    for name in ("route", "call", "ready_text", "login_prompt", "credential", "internet",
+                 "internet_user", "internet_credential", "internet_command"):
         setattr(home, name, _load_str(value, name, getattr(default, name), warnings))
     home.call = home.call.strip().upper()
     software = _load_str(value, "software", default.software, warnings).strip().lower()

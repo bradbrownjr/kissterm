@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — I: Send/Receive by Internet
+
+### New Features
+
+- **I on the Mail tab sends and receives over the Internet**, parallel
+  to G and chosen by folder the same way: the Home BBS through a Telnet
+  or SSH connection (Settings > Mail > Home BBS over the Internet; WS1EC's
+  SSH login telnets into its node), Winlink through the CMS. The node's
+  BPQ Telnet login is answered (`user:`, `password:`, the option bytes
+  BPQ sends before them allowed for), then After login (`BBS`). The
+  connection and password are asked for on first use; the transmit gate
+  is untouched; each run is kept as a transcript. It replaces the
+  Session menu's "Winlink over the Internet".
+
+**Files:** `kissterm/mail/collect.py`, `kissterm/config.py`,
+`config.toml.example`, `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/mail_pane.py`, `kissterm/ui/commands.py`,
+`kissterm/ui/settings_schema.py`, `tests/unit/test_mail_collect.py`,
+`tests/pilot/test_winlink_send_receive.py`, `DESIGN.md`, `README.md`,
+`docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Winlink over the Internet
 
 ### New Features

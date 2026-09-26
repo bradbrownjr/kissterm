@@ -261,7 +261,7 @@ async def test_g_on_all_inboxes_runs_the_bbs_then_winlink(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_winlink_over_the_internet_uses_the_cms_telnet_login(tmp_path, monkeypatch):
+async def test_i_on_a_winlink_folder_uses_the_cms_by_telnet(tmp_path, monkeypatch):
     from kissterm.mail import winlink_collect
     from kissterm.transcripts import list_transcripts
 
@@ -285,10 +285,15 @@ async def test_winlink_over_the_internet_uses_the_cms_telnet_login(tmp_path, mon
     async with app.run_test(size=(120, 40)) as pilot:
         app.action_show_tab("mail")
         await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder(WINLINK_INBOX)
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        assert "get_internet" in _footer_actions(app)
         toasts: list[str] = []
         real_notify = app.notify
         app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
-        app.action_winlink_internet()
+        await pilot.press("i")
         await wait_for(lambda: any("Winlink message" in t for t in toasts), "the outcome toast", timeout=20)
         assert gateway.telnet_login == ["KC1JMH", "CMSTelnet"]
         assert ";PR: 95074758" in gateway.handshake and gateway.handshake[-1].startswith("; WL2K DE KC1JMH")
@@ -297,5 +302,64 @@ async def test_winlink_over_the_internet_uses_the_cms_telnet_login(tmp_path, mon
         [transcript] = list_transcripts(app._transcript_directory())
         text = transcript.path.read_text()
         assert "Callsign :" in text and "[WL2K-5.0-B2FWIHJM$]" in text and "FQ" in text
+    server.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_i_on_a_bbs_folder_logs_in_to_the_node_and_gets_mail(tmp_path):
+    """The Home BBS over a Telnet connection: BPQ's login, BBS, then LM."""
+    from kissterm.config import find_credential
+    from kissterm.transcripts import list_transcripts
+    from kissterm.ui.dialogs import HomeBbsSetupScreen, LoginAskScreen
+    from tests.pilot.test_get_mail import GREETING, REPLIES
+
+    heard: list[str] = []
+
+    async def handle(reader, writer):
+        writer.write(b"\xff\xfb\x01\xff\xfb\x03user:")  # as TelnetV6.c sends it
+        answers = {"KC1JMH": b"password:", "secret": b"Welcome\rWS1EC:WS1EC} ", "BBS": GREETING}
+        buffer = b""
+        while True:
+            data = await reader.read(4096)
+            if not data:
+                break
+            buffer += data
+            while b"\r" in buffer:
+                line, buffer = buffer.split(b"\r", 1)
+                command = line.decode("latin-1").strip()
+                heard.append(command)
+                reply = answers.get(command) or REPLIES.get(command)
+                if reply:
+                    writer.write(reply)
+
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    app, station, _tb = await _app(tmp_path)
+    app.config.transports.append({"name": "ws1ec-telnet", "kind": "telnet",
+                                  "host": "127.0.0.1", "port": port})
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder("Mail/BBS/Inbox")
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("i")
+        await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the connection question")
+        await pilot.pause()
+        await pilot.click("#connect-go")
+        await wait_for(lambda: isinstance(app.screen, LoginAskScreen), "the password question")
+        app.screen.query_one("#login-ask-text").value = "secret"
+        await pilot.press("enter")
+        await wait_for(lambda: app.mail_store.list(BBS_INBOX), "the message to be filed", timeout=20)
+        await wait_for(lambda: not app._collecting, "the run to finish")
+        assert heard[:4] == ["KC1JMH", "secret", "BBS", "LM"]
+        assert app.config.home_bbs.internet == "ws1ec-telnet"
+        assert find_credential(app.config, app.config.home_bbs.internet_credential) == "secret"
+        assert not station.transport.sent  # nothing on the radio side
+        text = next(t for t in list_transcripts(app._transcript_directory())
+                    if "ws1ec" in t.path.name.lower()).path.read_text()
+        assert "(password sent)" in text and "secret" not in text
     server.close()
     station.close()

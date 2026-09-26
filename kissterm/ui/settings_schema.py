@@ -289,6 +289,41 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 placeholder="a saved login's name",
             ),
             Field(
+                "home_bbs.internet",
+                "Internet connection",
+                "text",
+                "For I (send/receive by Internet): the name of a Telnet or "
+                "SSH connection that reaches the BBS's node, such as an SSH "
+                "login that runs a telnet into it.",
+                apply="live",
+                placeholder="a connection's name",
+                rule_before="Home BBS over the Internet (I on the Mail tab)",
+            ),
+            Field(
+                "home_bbs.internet_user",
+                "Telnet user",
+                "text",
+                "Answers the node's user: prompt. Leave empty for your callsign.",
+                apply="live",
+                placeholder="your callsign",
+            ),
+            Field(
+                "home_bbs.internet_credential",
+                "Telnet password login",
+                "text",
+                "The saved login (Settings > Logins) that answers password:.",
+                apply="live",
+                placeholder="a saved login's name",
+            ),
+            Field(
+                "home_bbs.internet_command",
+                "After login",
+                "text",
+                "Sent once logged in to the node, to reach the BBS.",
+                apply="live",
+                placeholder="BBS",
+            ),
+            Field(
                 "winlink.route",
                 "Dial",
                 "text",

@@ -4088,7 +4088,7 @@ class KissTermApp(App):
             self._collecting = False
             self._mail_status("")
 
-    def send_receive_kind(self, folder: str) -> str:
+    def send_receive_kind(self, folder: str, internet: bool = False) -> str:
         """What G does from `folder` (operator, 2026-09-26): "winlink" on a
         Winlink folder; on All Inboxes "all" (the Home BBS, then Winlink)
         when both have a dial entry, else whichever has one; "bbs"
@@ -4097,8 +4097,13 @@ class KissTermApp(App):
         if folder == WINLINK_FOLDER or folder.startswith(f"{WINLINK_FOLDER}/"):
             return "winlink"
         if folder == ALL_INBOXES:
-            bbs = bool(self.config.home_bbs.route.strip())
-            winlink = bool(self.config.winlink.route.strip())
+            # Set up = has a way to reach it: a dial entry for G; for I
+            # (`internet`), the BBS's Internet connection, and for Winlink
+            # a dial entry or a saved password (the CMS needs nothing else).
+            home, winlink_config = self.config.home_bbs, self.config.winlink
+            bbs = bool((home.internet if internet else home.route).strip())
+            winlink = bool(winlink_config.route.strip()
+                           or (internet and winlink_config.credential.strip()))
             if bbs and winlink:
                 return "all"
             if winlink:
@@ -4266,6 +4271,11 @@ class KissTermApp(App):
             return
         collector, key = dialed
         result = await collector.run()
+        self._bbs_report(result)
+        await self._disconnect_session(key)
+
+    def _bbs_report(self, result) -> None:
+        """The outcome toast of a Home BBS run, over radio or the Internet."""
         sent = f"{len(result.sent)} sent, " if result.sent else ""
         if result.stopped:
             self.notify(
@@ -4280,7 +4290,6 @@ class KissTermApp(App):
         else:
             self.notify("No new mail on the Home BBS.", timeout=4)
         self._reload_mail_tabs()
-        await self._disconnect_session(key)
 
     async def _winlink_prepare(self):
         """Everything the Winlink run needs before dialing, asking for what
@@ -4389,42 +4398,58 @@ class KissTermApp(App):
         self._reload_mail_tabs()
 
     @work(exclusive=False)
-    async def action_winlink_internet(self) -> None:
-        """Winlink through the CMS over the Internet (Session menu), the
-        path that needs no radio: Telnet to `CMS_HOST`, its login, then the
-        same B2F exchange and the same folders as over packet.
+    async def action_get_mail_internet(self) -> None:
+        """Send/Receive by Internet (Mail tab, I), parallel to G
+        (operator, 2026-09-26): the same folders decide what runs, the Home
+        BBS through its Telnet or SSH connection
+        (`home_bbs.internet`, e.g. WS1EC's SSH login into its node) and
+        Winlink through the CMS by Telnet. Anything missing is asked for
+        before the first connection.
 
         The transmit gate is not involved: nothing here can key a radio,
-        and arming it for this would open RF for everything else too. The
-        exchange is written to a transcript (Session > Transcripts) as
-        protocol lines, so a first session can become a test fixture.
-        Started only by the operator, from the menu."""
-        from ..mail.winlink_collect import (
-            CMS_HOST, CMS_PORT, CMS_TARGET, WinlinkCollector, WinlinkOptions,
-        )
-        from ..transport.telnet import TelnetTransport
-
+        and arming it would open RF for everything else too. Each run is
+        written to a transcript (Session > Transcripts) as protocol lines,
+        so a first session can become a test fixture."""
         if self._collecting:
             self.notify("Already sending and receiving.", severity="warning")
             return
         self._collecting = True
-        link = transport = transcript = None
         try:
-            login = await self._winlink_login()
-            if login is None:
-                return
-            account, password = login
-            self.notify("Connecting to the Winlink CMS over the Internet...", timeout=4)
-            self._mail_status("Connecting to the Winlink CMS")
-            transport = TelnetTransport(CMS_HOST, CMS_PORT)
+            kind = self.send_receive_kind(self._mail_folder(), internet=True)
+            runs = []
+            if kind in ("bbs", "all"):
+                prepared = await self._bbs_internet_prepare()
+                if prepared is None:
+                    return
+                runs.append((self._bbs_internet_run, prepared))
+            if kind in ("winlink", "all"):
+                login = await self._winlink_login()
+                if login is None:
+                    return
+                runs.append((self._winlink_cms_run, login))
+            for run, args in runs:
+                await run(*args)
+        finally:
+            self._collecting = False
+            self._mail_status("")
+
+    async def _internet_run(self, transport, peer: str, what: str, build):
+        """Connect a session `transport` and run the collector
+        `build(link, note, sent, received)` makes over it, with a
+        transcript. Returns its result, or None having said why."""
+        self.notify(f"Connecting to {what} over the Internet...", timeout=4)
+        self._mail_status(f"Connecting to {what}")
+        link = transcript = None
+        try:
             await transport.open()
             try:
                 session = await transport.connect()
             except TransportError as exc:
-                self.notify(f"Winlink over the Internet: {exc}", severity="error")
-                return
+                self.notify(f"Send/Receive by Internet: {exc}", severity="error")
+                return None
             link = _SessionLinkAdapter(session)
-            transcript = SessionLog(self._transcript_directory(), account, CMS_TARGET)
+            mycall = str(self.config.mycall or "").upper()
+            transcript = SessionLog(self._transcript_directory(), mycall, peer)
             if not transcript.open():
                 transcript = None
             log = transcript
@@ -4433,30 +4458,108 @@ class KissTermApp(App):
                 if log is not None:
                     log.note(f"*** Mail: {text}")
 
-            collector = WinlinkCollector(
-                link,
-                self.mail_store,
-                WinlinkOptions(account, password=password, target=CMS_TARGET,
-                               locator=self.config.winlink.locator or self.config.aprs.grid_square,
-                               telnet_login=True),
-                note=note,
-                sent=lambda text: log.sent(text) if log is not None else None,
-                received=lambda text: log.received(text) if log is not None else None,
-                progress=self._mail_status,
-                early_lines_shown=False,
+            collector = build(
+                link, note,
+                lambda text: log.sent(text) if log is not None else None,
+                lambda text: log.received(text) if log is not None else None,
             )
-            self._winlink_report(await collector.run())
+            return await collector.run()
         finally:
             if link is not None:
                 with contextlib.suppress(Exception):
                     await link.disconnect()
-            if transport is not None:
-                with contextlib.suppress(Exception):
-                    await transport.close()
+            with contextlib.suppress(Exception):
+                await transport.close()
             if transcript is not None:
                 transcript.close()
-            self._collecting = False
             self._mail_status("")
+
+    async def _winlink_cms_run(self, account: str, password: str) -> None:
+        """Winlink through the CMS by Telnet (`winlink_collect.CMS_*`,
+        from wl2k-go): its login, then the same exchange as over radio."""
+        from ..mail.winlink_collect import (
+            CMS_HOST, CMS_PORT, CMS_TARGET, WinlinkCollector, WinlinkOptions,
+        )
+        from ..transport import build_transport
+
+        options = WinlinkOptions(
+            account, password=password, target=CMS_TARGET,
+            locator=self.config.winlink.locator or self.config.aprs.grid_square,
+            telnet_login=True,
+        )
+
+        def build(link, note, sent, received):
+            return WinlinkCollector(link, self.mail_store, options, note=note, sent=sent,
+                                    received=received, progress=self._mail_status,
+                                    early_lines_shown=False)
+
+        transport = build_transport({"kind": "telnet", "host": CMS_HOST, "port": CMS_PORT})
+        result = await self._internet_run(transport, CMS_TARGET, "the Winlink CMS", build)
+        if result is not None:
+            self._winlink_report(result)
+
+    def _internet_connections(self) -> list[dict]:
+        """The configured Telnet and SSH connections, by name."""
+        return [t for t in self.config.transports
+                if t.get("kind") in ("telnet", "ssh") and t.get("name")]
+
+    async def _bbs_internet_prepare(self):
+        """Everything the Home BBS needs over the Internet, asking for what
+        is missing: (connection, options), or None if cancelled."""
+        from ..mail.collect import CollectOptions
+
+        home = self.config.home_bbs
+        connections = self._internet_connections()
+        entry = next((t for t in connections if t["name"] == home.internet.strip()), None)
+        if entry is None:
+            chosen = await self.push_screen_wait(HomeBbsSetupScreen(
+                [t["name"] for t in connections], missing=home.internet.strip(), internet=True))
+            entry = next((t for t in connections if t["name"] == chosen), None)
+            if entry is None:
+                return None
+            home.internet = entry["name"]
+            self._save_config()
+            self.query_one(SettingsPane).render_settings(self.config)
+        user = home.internet_user or str(self.config.mycall or "").split("-")[0].upper()
+        login = await self._ask_login(
+            home.internet_credential, "Home BBS Telnet", "Home BBS Telnet password",
+            f"The password {entry['name']}'s node asks for after user: {user}. "
+            "It goes over the connection, never on the air.",
+        )
+        if login is None:
+            return None
+        if home.internet_credential != login[0]:
+            home.internet_credential = login[0]
+            self._save_config()
+            self.query_one(SettingsPane).render_settings(self.config)
+        return entry, CollectOptions(
+            bbs_call=home.call,
+            software=home.software,
+            ready_text=home.ready_text,
+            telnet_user=user,
+            telnet_password=login[1],
+            after_login=home.internet_command.strip(),
+        )
+
+    async def _bbs_internet_run(self, entry: dict, options) -> None:
+        """The Home BBS over its Telnet or SSH connection, built the one
+        way every connection is (`build_transport`)."""
+        from ..mail.collect import BbsCollector
+        from ..transport import build_transport
+
+        try:
+            transport = build_transport(entry)
+        except (TransportError, TypeError, ValueError) as exc:
+            self.notify(f"Send/Receive by Internet: {entry['name']}: {exc}", severity="error")
+            return
+
+        def build(link, note, sent, received):
+            return BbsCollector(link, self.mail_store, options, note=note, sent=sent,
+                                progress=self._mail_status)
+
+        result = await self._internet_run(transport, entry["name"], entry["name"], build)
+        if result is not None:
+            self._bbs_report(result)
 
     def _winlink_received(self, key: str, text: str) -> None:
         """A line from the Winlink gateway, shown and kept in the
