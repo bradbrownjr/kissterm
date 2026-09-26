@@ -77,7 +77,8 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   radiogram form as you finish it (a period becomes X, `ARL 46` ARL FORTY
   SIX, with its meaning shown), the Check field counts the groups, the
   `ST <zip> @ NTS<state>` routing shows as you type, and it suggests
-  your next message number. **Forms**: the ICS-213 General Message,
+  your next message number. **Radiogram-ICS213** is the same form with
+  HXI and a subject line, as RRI's 2026 guidelines give it. **Forms**: the ICS-213 General Message,
   ICS-213RR Resource Request, Winlink Check-in, PKTNET Check-in, Field
   Situation Report, Severe WX Report, Damage Assessment, Incident
   Status Report, ICS-309 Communications Log, ICS-214 Activity Log and

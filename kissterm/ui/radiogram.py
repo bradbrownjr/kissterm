@@ -19,6 +19,10 @@ from a relay station's service message. Only a word typed at the end of
 the text converts live; an edit in the middle converts when the operator
 leaves the text, so the cursor never jumps under them.
 
+**Radiogram-ICS213** (the compose screen's "Radiogram-ICS213 (ST)") is
+this form with HXI filled in and a Subject row under the signature;
+`nts.py`'s docstring has the RRI 2026 rules.
+
 Laid out like the compose screen and Settings: one row per field, compact
 controls, no field taller than it needs (DESIGN.md section 3).
 """
@@ -53,8 +57,10 @@ class RadiogramScreen(ModalScreen[Message | None]):
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def __init__(self, sender: str, *, number: str = "1", place: str = "") -> None:
+    def __init__(self, sender: str, *, number: str = "1", place: str = "",
+                 ics213: bool = False) -> None:
         super().__init__()
+        self._ics213 = ics213
         self._sender = sender
         self._number = number
         self._place = place
@@ -62,7 +68,7 @@ class RadiogramScreen(ModalScreen[Message | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="rg-box"):
-            yield Label("NTS radiogram", id="rg-heading")
+            yield Label("Radiogram-ICS213" if self._ics213 else "NTS radiogram", id="rg-heading")
             with VerticalScroll(id="rg-form"):
                 with Horizontal(classes="rg-row"):
                     yield Label("Number", classes="rg-label")
@@ -71,7 +77,8 @@ class RadiogramScreen(ModalScreen[Message | None]):
                     yield Select([(f"{v} {label}" if v != "EMERGENCY" else label, v) for v, label in PRECEDENCES],
                                  value="R", allow_blank=False, compact=True, id="rg-precedence")
                     yield Label("HX", classes="rg-label2")
-                    yield Input(id="rg-hx", placeholder="e.g. HXG", compact=True)
+                    yield Input("HXI" if self._ics213 else "", id="rg-hx", placeholder="e.g. HXG",
+                                compact=True)
                     yield Checkbox("test", id="rg-test", compact=True)
                 with Horizontal(classes="rg-row"):
                     yield Label("From stn", classes="rg-label")
@@ -120,7 +127,14 @@ class RadiogramScreen(ModalScreen[Message | None]):
                 yield Static("", id="rg-preview")
                 with Horizontal(classes="rg-row"):
                     yield Label("Signature", classes="rg-label")
-                    yield Input(id="rg-signature", placeholder="who it is from", compact=True)
+                    yield Input(id="rg-signature", compact=True, placeholder=(
+                        "name and position, e.g. JANE DOE SHELTER MANAGER" if self._ics213
+                        else "who it is from"))
+                if self._ics213:
+                    with Horizontal(classes="rg-row"):
+                        yield Label("Subject", classes="rg-label")
+                        yield Input(id="rg-subject", compact=True,
+                                    placeholder="the ICS-213 subject, e.g. SHELTER STATUS 1400")
                 with Horizontal(classes="rg-row"):
                     yield Label("Op note", classes="rg-label")
                     yield Input(id="rg-sigopnote", placeholder="optional, e.g. REPLY VIA KC1JMH AT WS1EC",
@@ -146,6 +160,8 @@ class RadiogramScreen(ModalScreen[Message | None]):
             precedence=precedence if isinstance(precedence, str) else "R",
             test=self.query_one("#rg-test", Checkbox).value,
             text=self.query_one("#rg-text", TextArea).text,
+            ics213=self._ics213,
+            ics_subject=self.query_one("#rg-subject", Input).value if self._ics213 else "",
         )
 
     @on(Input.Changed)

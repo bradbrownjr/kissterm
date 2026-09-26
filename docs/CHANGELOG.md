@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-26] — Radiogram-ICS213
+
+### New Features
+
+- **Radiogram-ICS213 (ST)** as a Type: the radiogram form with HXI
+  filled in and a Subject row under the signature, sent as RRI's 2026
+  guidelines give it for a traffic net: preamble with HXI, address, BT,
+  text, BT, signer's name and position, the subject line. It is saved
+  and routed like any radiogram, and must carry HXI.
+- HXI is accepted as a handling code on any radiogram.
+
+**Files:** `kissterm/mail/nts.py`, `kissterm/mail/compose.py`,
+`kissterm/ui/radiogram.py`, `kissterm/ui/compose.py`, `kissterm/ui/app.py`,
+`tests/unit/test_mail_nts.py`, `tests/pilot/test_radiogram.py`,
+`README.md`, `docs/PROTOCOL_GUIDE.md`, `docs/ON-AIR-TESTS.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Forms: ICS-309, ICS-214 and ICS-205
 
 ### New Features

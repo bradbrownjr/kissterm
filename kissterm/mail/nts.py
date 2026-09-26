@@ -39,6 +39,15 @@ radiograms"):
   which MPG 6.2.1 has; kissterm keeps `NR` until the operator decides.
   # UNVERIFIED: the title against a live NTS listing (`LT` on a BBS
   # carrying NTS traffic); nothing in the captures shows one yet.
+- **Radiogram-ICS213** (the same RRI 2026 guidelines): an ICS-213
+  general message is an ordinary radiogram with `HXI` ("deliver as
+  radiogram-ICS213 message") in the preamble and the ICS-213's subject
+  on the line after the signature, whose name carries the signer's
+  position ("STEVE HANSEN KB1TCE RRI LIAISON" / "NEW TEMPLATE PUSH
+  0916"). For a traffic net the guidelines put the signature and subject
+  after the text, as here; Winlink's "RRI ICS213 Radiogram" template
+  (v4.7) puts them before it, the delivery order. `ST` goes to NTS, so
+  the traffic-net order is used. The subject is not counted in the check.
 - ARL Numbered Radiogram Texts, final-approved version 3.0, 2025-10-07
   (ARRL/RRI, nts2.arrl.org/numbered-texts), shipped as
   `data/arl_numbered.json`. Its instruction 1: the check counts the groups
@@ -133,7 +142,8 @@ _ONES = ("", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT", "NI
 _TENS = ("", "", "TWENTY", "THIRTY", "FORTY", "FIFTY", "SIXTY", "SEVENTY", "EIGHTY", "NINETY")
 
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
-_HX_RE = re.compile(r"^HX[A-G]+\d*$")
+#: HXA-HXG (MPG 1.1.4) and HXI, radiogram-ICS213 (RRI 2026).
+_HX_RE = re.compile(r"^HX[A-GI]+\d*$")
 _CALL_RE = re.compile(r"^[A-Z0-9]{1,3}[0-9][A-Z0-9]{0,4}[A-Z]$")
 
 
@@ -266,6 +276,10 @@ class Radiogram:
     text: str = ""
     signature: str = ""
     sig_op_note: str = ""
+    #: A radiogram-ICS213: HXI is required and `ics_subject` follows the
+    #: signature (RRI 2026; see the module docstring).
+    ics213: bool = False
+    ics_subject: str = ""
 
     # -- the parts --------------------------------------------------------
 
@@ -314,6 +328,8 @@ class Radiogram:
         text_lines = [" ".join(groups[i:i + 5]) for i in range(0, len(groups), 5)]
         lines = [self.preamble(), *self.address(), "BT", *text_lines, "BT",
                  encode_address(self.signature)]
+        if self.ics_subject.strip():
+            lines.append(encode_address(self.ics_subject))
         if self.sig_op_note.strip():
             lines.append(f"OP NOTE {encode_address(self.sig_op_note)}")
         return "\n".join(lines) + "\n"
@@ -353,7 +369,7 @@ class Radiogram:
             found.append("Precedence: R, W, P or EMERGENCY.")
         for code in self.handling.upper().split():
             if not _HX_RE.match(code):
-                found.append(f"HX: {code!r} is not a handling code (HXA-HXG, e.g. HXG or HXA50).")
+                found.append(f"HX: {code!r} is not a handling code (HXA-HXG or HXI, e.g. HXG or HXA50).")
         if not _CALL_RE.match(self.origin.strip().upper()):
             found.append("Station of origin: a call sign, e.g. KC1JMH.")
         if len(encode_address(self.place).split()) < 2:
@@ -376,6 +392,8 @@ class Radiogram:
             found.append("Text: the message is empty.")
         if not self.signature.strip():
             found.append("Signature: who the message is from.")
+        if self.ics213 and "HXI" not in self.handling.upper().split():
+            found.append("HX: a radiogram-ICS213 carries HXI (RRI 2026).")
         return found
 
     def warnings(self) -> list[str]:

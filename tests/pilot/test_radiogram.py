@@ -37,14 +37,14 @@ def _app(tmp_path):
     return app, store
 
 
-async def _open(app, pilot) -> RadiogramScreen:
+async def _open(app, pilot, kind: str = "T") -> RadiogramScreen:
     await pilot.pause()
     app.query_one("#mail-browser", MessageBrowser).query_one(MessageList).focus()
     await pilot.pause()
     await pilot.press("insert")
     await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen")
     await pilot.pause()
-    app.screen.query_one("#compose-type", Select).value = "T"
+    app.screen.query_one("#compose-type", Select).value = kind
     await wait_for(lambda: isinstance(app.screen, RadiogramScreen), "the radiogram screen")
     await pilot.pause()
     return app.screen
@@ -106,10 +106,11 @@ async def test_problems_are_named_and_nothing_is_saved(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_fits_80x24(tmp_path):
+@pytest.mark.parametrize("kind", ["T", "radiogram-ics213"])
+async def test_fits_80x24(tmp_path, kind):
     app, _ = _app(tmp_path)
     async with app.run_test(size=(80, 24)) as pilot:
-        screen = await _open(app, pilot)
+        screen = await _open(app, pilot, kind)
         box = screen.query_one("#rg-box").region
         for wid in ("#rg-number", "#rg-precedence", "#rg-hx", "#rg-test", "#rg-city",
                     "#rg-state", "#rg-zip", "#rg-save", "#rg-cancel"):
@@ -139,3 +140,21 @@ async def test_words_convert_as_typed_and_the_final_x_goes_on_leaving(tmp_path):
         await pilot.press("tab")
         await pilot.pause()
         assert area.text == "ARL FORTY SIX X HI QUERY OK"
+
+
+@pytest.mark.asyncio
+async def test_a_radiogram_ics213_carries_hxi_and_its_subject(tmp_path):
+    app, store = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open(app, pilot, "radiogram-ics213")
+        assert str(screen.query_one("#rg-heading", Label).render()) == "Radiogram-ICS213"
+        assert screen.query_one("#rg-hx", Input).value == "HXI"
+        await _fill(screen, pilot, "Shelter open")
+        screen.query_one("#rg-subject", Input).value = "Shelter status 1400"
+        await pilot.pause()
+        await pilot.click("#rg-save")
+        await wait_for(lambda: store.list(BBS_OUTBOX), "the Outbox message")
+        message = store.read(store.list(BBS_OUTBOX)[0].ref)
+        assert message.body.startswith("NR 1 R HXI KC1JMH 2 WATERBORO ME ")
+        assert message.body.endswith("BT\nBRAD\nSHELTER STATUS 1400\n")
+        assert message.extra["Form"] == "radiogram_ics213"

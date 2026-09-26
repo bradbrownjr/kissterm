@@ -41,6 +41,10 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   as type T. ST is built from the ARRL MPG, the 2026 RRI guidelines,
   KY2D's review and LinBPQ; the transcript of this first send becomes
   the test fixture.
+- [ ] **First Radiogram-ICS213**, to a traffic handler who can say
+  whether it reads right (KY2D, if willing): Type: Radiogram-ICS213,
+  HXI is filled in, add a Subject. The body should end BT, the
+  signature with position, then the subject line.
 - [ ] **What NTS titles look like on WS1EC.** While connected, `LT`
   lists the NTS traffic the BBS holds (one listing, no reads). Note the
   titles other stations use: kissterm's `CITY CALLSIGN` / `CITY NXX NXX`

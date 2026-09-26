@@ -3931,7 +3931,7 @@ class KissTermApp(App):
         from ..locator import to_grid
         from ..mail import forms
         from ..mail.compose import BBS_OUTBOX, radiogram_defaults
-        from .compose import ANSWER_STRIP, FORM_PREFIX, RADIOGRAM, ComposeScreen
+        from .compose import ANSWER_STRIP, FORM_PREFIX, RADIOGRAM, RADIOGRAM_ICS213, ComposeScreen
         from .form_screen import FormScreen
         from .radiogram import RadiogramScreen
 
@@ -3982,12 +3982,13 @@ class KissTermApp(App):
             message = await self.push_screen_wait(
                 ComposeScreen(str(self.config.mycall or ""), draft=draft)
             )
-        if message == RADIOGRAM:
+        if message in (RADIOGRAM, RADIOGRAM_ICS213):
             # A radiogram has its own form; the compose screen hands over.
             number, place = radiogram_defaults(self.mail_store)
-            message = await self.push_screen_wait(
-                RadiogramScreen(str(self.config.mycall or ""), number=number, place=place)
-            )
+            message = await self.push_screen_wait(RadiogramScreen(
+                str(self.config.mycall or ""), number=number, place=place,
+                ics213=message == RADIOGRAM_ICS213,
+            ))
         if message is None:
             return
         self.mail_store.add(BBS_OUTBOX, message)

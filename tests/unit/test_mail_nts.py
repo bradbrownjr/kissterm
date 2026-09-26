@@ -122,3 +122,26 @@ def test_live_conversion_word_by_word_matches_the_whole_text():
     assert nts.encode_text(live) == nts.encode_text(raw)
     assert "QUOTE CALL 207 555 1212 PAREN AFTER 6 UNPAREN UNQUOTE X" in live
     assert nts.encode_text(live) == nts.encode_text(nts.encode_text(live))
+
+
+def test_radiogram_ics213_follows_rri_2026():
+    """The traffic-net order of RRI's own example (Guidelines, 27 Feb 2026,
+    page 4), with KY2D's no-AR ending."""
+    gram = Radiogram(
+        number="46", precedence="R", handling="HXI", origin="KB1TCE", place="Owls Head ME",
+        filed=datetime(2026, 9, 5, tzinfo=timezone.utc), time_filed="1214Z",
+        to_name="James Wades", to_call="WB8SIW", to_street="810 Skyline Dr", to_city="Marion",
+        to_state="IL", to_zip="62959", to_phone="833 377 0722",
+        text="The new RRI 213 has now been pushed to all Winlink Express users. 73",
+        signature="Steve Hansen KB1TCE RRI Liaison", ics213=True,
+        ics_subject="New template push 0916",
+    )
+    assert gram.body() == (
+        "NR 46 R HXI KB1TCE 15 OWLS HEAD ME 1214Z SEP 5\n"
+        "JAMES WADES WB8SIW\n810 SKYLINE DR\nMARION IL 62959\n833 377 0722\n"
+        "BT\nTHE NEW RRI 213 HAS\nNOW BEEN PUSHED TO ALL\nWINLINK EXPRESS USERS X 73\n"
+        "BT\nSTEVE HANSEN KB1TCE RRI LIAISON\nNEW TEMPLATE PUSH 0916\n"
+    )
+    assert gram.problems() == []
+    gram.handling = "HXG"
+    assert any("HXI" in p for p in gram.problems())

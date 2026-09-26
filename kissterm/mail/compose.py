@@ -211,6 +211,7 @@ def radiogram_message(gram, sender: str) -> Message:
             "Send-At": at,
             "Nts-Number": gram.number.strip(),
             "Nts-Place": gram.place.strip().upper(),
+            **({"Form": "radiogram_ics213"} if gram.ics213 else {}),
         },
     )
 

@@ -37,10 +37,15 @@ from ..mail.compose import (
 )
 from ..mail.forms import PASTE_STRIP, find_strip, load_forms
 
+#: The same for "Radiogram-ICS213": the radiogram form with HXI and a
+#: subject line (`nts.py`, RRI 2026).
+RADIOGRAM_ICS213 = "radiogram-ics213"
+
 _TYPES = [
     ("Private message (SP)", SEND_PRIVATE),
     ("Bulletin (SB)", SEND_BULLETIN),
     ("NTS radiogram (ST)", SEND_TRAFFIC),
+    ("Radiogram-ICS213 (ST)", RADIOGRAM_ICS213),
 ]
 
 #: What the screen returns when the operator picks "NTS radiogram": a
@@ -151,6 +156,9 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
     def _type_changed(self, event: Select.Changed) -> None:
         if event.value == SEND_TRAFFIC:
             self.dismiss(RADIOGRAM)
+            return
+        if event.value == RADIOGRAM_ICS213:
+            self.dismiss(RADIOGRAM_ICS213)
             return
         if isinstance(event.value, str) and event.value.startswith(FORM_PREFIX):
             self.dismiss(event.value)
