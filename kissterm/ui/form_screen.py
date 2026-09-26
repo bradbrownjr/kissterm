@@ -61,10 +61,11 @@ class FormScreen(ModalScreen["Draft | None"]):
 
     BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def __init__(self, form: FormDef, *, mycall: str = "", remembered: Values | None = None) -> None:
+    def __init__(self, form: FormDef, *, mycall: str = "", grid: str = "",
+                 remembered: Values | None = None) -> None:
         super().__init__()
         self.form = form
-        self._values = defaults(form, mycall=mycall, remembered=remembered)
+        self._values = defaults(form, mycall=mycall, grid=grid, remembered=remembered)
         self._start = dict(self._values)
         self._confirm_discard = False
         self._row_counts = {f.id: 0 for f in form.fields if f.kind == "rows"}
@@ -218,7 +219,8 @@ class FormScreen(ModalScreen["Draft | None"]):
             return
         subject, body = render(self.form, values)
         # BPQMail cuts a title at 60; cut it here so the operator sees it.
-        self.dismiss(Draft(to=self.form.to, at=self.form.at, title=subject[:MAX_TITLE], body=body,
+        to = values.get(self.form.to_field, "") if self.form.to_field else self.form.to
+        self.dismiss(Draft(to=to, at=self.form.at, title=subject[:MAX_TITLE], body=body,
                            send_type=self.form.send_type, form_id=self.form.id,
                            form_values=values))
 

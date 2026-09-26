@@ -1,0 +1,147 @@
+# PACKET CHECK-IN for the PKTNET@USA packet bulletin net.
+# Body: vden.org PKTNET "Net Check-in" form, check_in.html (v1.1,
+# 2023-11-18; local copy in the sibling pktnet directory), whose
+# "&nbsp;" spacer lines are written as empty lines, as bpq-apps'
+# netcheck.frm does. Address and subject: the net's own instructions
+# (Packet Bulletin Net announcement, May 2026, vden.org/docs):
+# "SB PKTNET@USA", subject "Your Name, Your Call, Your Town, Your State".
+# Town and state feed the subject only; the body's Location is where the
+# station is.
+id = "pktnet_checkin"
+title = "PKTNET Check-in"
+source = "vden.org PKTNET check_in.html v1.1; PKTNET@USA instructions (May 2026)"
+subject = "<var contact>, <var from>, <var town>, <var state>"
+send_type = "B"
+to = "PKTNET"
+at = "USA"
+body = '''
+PACKET CHECK-IN
+
+<if agency>
+<var agency>
+
+</if>
+1. STATION
+
+a. Date/Time: <var datetime>
+
+b. To: <var to>
+
+c. From: <var from>    d. Station Contact Name: <var contact>    e. Initial Operator(s): <var operator>
+
+
+2. SESSION
+
+a. Type: <var session_type>    b. Service: <var service_type>    c. Band: <var band>
+
+d. Session: <var mode>
+
+
+3. LOCATION
+
+a. Location: <var location>
+
+b. GRID SQUARE: <var gridsquare>
+
+
+4. COMMENTS: <var comments>
+'''
+
+[[fields]]
+id = "agency"
+label = "Agency/group"
+remember = true
+placeholder = "optional"
+
+[[fields]]
+id = "datetime"
+label = "1a. Date/time"
+kind = "datetime"
+required = true
+
+[[fields]]
+id = "to"
+label = "1b. To"
+default = "PKTNET@USA"
+required = true
+
+[[fields]]
+id = "from"
+label = "1c. From"
+auto = "mycall"
+required = true
+
+[[fields]]
+id = "contact"
+label = "1d. Contact name"
+required = true
+remember = true
+help = "Your name; also the first part of the bulletin title. Remembered."
+
+[[fields]]
+id = "operator"
+label = "1e. Operators"
+placeholder = "optional, if not you"
+
+[[fields]]
+id = "session_type"
+label = "2a. Type"
+kind = "choice"
+choices = ["EXERCISE", "REAL EVENT"]
+default = "EXERCISE"
+
+[[fields]]
+id = "service_type"
+label = "2b. Service"
+kind = "choice"
+choices = ["AMATEUR"]
+default = "AMATEUR"
+
+[[fields]]
+id = "band"
+label = "2c. Band"
+kind = "choice"
+choices = ["AXIP", "HF", "VHF", "UHF", "SHF"]
+default = "VHF"
+remember = true
+
+[[fields]]
+id = "mode"
+label = "2d. Session"
+kind = "choice"
+choices = ["AXIP", "AX25 Packet", "Pactor", "Robust Packet", "Ardop", "VARA HF", "VARA FM", "Mesh"]
+default = "AX25 Packet"
+remember = true
+
+[[fields]]
+id = "location"
+label = "3a. Location"
+required = true
+remember = true
+placeholder = "e.g. Hope Hospital, parking lot C near ER entrance"
+
+[[fields]]
+id = "gridsquare"
+label = "3b. Grid square"
+auto = "grid"
+
+[[fields]]
+id = "town"
+label = "Town"
+required = true
+remember = true
+help = "For the bulletin title: Name, Call, Town, State. Remembered."
+
+[[fields]]
+id = "state"
+label = "State"
+required = true
+max_length = 2
+remember = true
+help = "Two letters, for the bulletin title. Remembered."
+
+[[fields]]
+id = "comments"
+label = "4. Comments"
+kind = "multiline"
+help = "e.g. On batteries. Need relief in 6 hours. A brief sitrep."

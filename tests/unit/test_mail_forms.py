@@ -25,9 +25,9 @@ def _ics213(**values):
 
 def test_every_shipped_form_loads_and_names_its_source():
     shipped = {f.id: f for f in forms.load_forms()}
-    assert {"ics213", "ics213rr"} <= set(shipped)
+    assert {"ics213", "ics213rr", "winlink_checkin", "pktnet_checkin"} <= set(shipped)
     for form in shipped.values():
-        assert "Winlink Standard Forms" in form.source, form.id
+        assert form.source.strip(), form.id
 
 
 def test_ics213_follows_the_winlink_template():
@@ -90,3 +90,34 @@ def test_a_template_naming_an_unknown_field_is_refused():
     bad = 'id="x"\ntitle="X"\nsource="s"\nsubject="<var nope>"\nbody=""\n[[fields]]\nid="a"\nlabel="A"\n'
     with pytest.raises(ValueError, match="nope"):
         forms.parse_form(bad)
+
+
+def test_winlink_checkin_follows_the_template_and_quotes_its_subject():
+    form = forms.get_form("winlink_checkin")
+    values = forms.defaults(form, mycall="KC1JMH-1", grid="FN43ln", now=datetime(2026, 9, 26, 14, 5, 9))
+    values.update(MsgTo="KW6GB", ContactName="Brad", Location="Waterboro ME")
+    subject, body = forms.render(form, values)
+    assert subject == "Winlink Check-in EXERCISE - KC1JMH - Waterboro ME"
+    assert "  0b: Subject: Winlink Check-in EXERCISE - KC1JMH - Waterboro ME\n" in body
+    assert "  1a. Date/Time: 2026-09-26 14:05:09\n  1b. To: KW6GB\n  1c. From: KC1JMH\n" in body
+    assert "  2c. Band: VHF\n  2d. Session: Packet\n" in body
+    assert "  3e. Grid Square: FN43ln\n" in body and body.endswith("Winlink Check-in 5.1.3\n")
+
+
+def test_pktnet_checkin_matches_vden_and_bpq_apps():
+    form = forms.get_form("pktnet_checkin")
+    assert (form.send_type, form.to, form.at) == ("B", "PKTNET", "USA")
+    values = forms.defaults(form, mycall="KC1JMH", grid="FN43ln", now=NOW)
+    values.update(contact="Brad Brown", town="Waterboro", state="ME", location="Home", comments="73")
+    subject, body = forms.render(form, values)
+    assert subject == "Brad Brown, KC1JMH, Waterboro, ME"
+    # vden check_in.html v1.1, "&nbsp;" spacers as empty lines (bpq-apps netcheck).
+    assert body == (
+        "PACKET CHECK-IN\n\n1. STATION\n\na. Date/Time: 2026-09-26 14:05\n\nb. To: PKTNET@USA\n\n"
+        "c. From: KC1JMH    d. Station Contact Name: Brad Brown    e. Initial Operator(s):\n\n\n"
+        "2. SESSION\n\na. Type: EXERCISE    b. Service: AMATEUR    c. Band: VHF\n\n"
+        "d. Session: AX25 Packet\n\n\n3. LOCATION\n\na. Location: Home\n\nb. GRID SQUARE: FN43ln\n\n\n"
+        "4. COMMENTS: 73\n"
+    )
+    values["agency"] = "WSSM ECT"
+    assert forms.render(form, values)[1].startswith("PACKET CHECK-IN\n\nWSSM ECT\n\n1. STATION\n")

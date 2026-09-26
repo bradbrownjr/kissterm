@@ -124,7 +124,7 @@ async def test_213rr_adds_order_lines(tmp_path):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("form_id", ["ics213", "ics213rr"])
+@pytest.mark.parametrize("form_id", ["ics213", "ics213rr", "winlink_checkin", "pktnet_checkin"])
 async def test_fits_80x24(tmp_path, form_id):
     app, _ = _app(tmp_path)
     async with app.run_test(size=(80, 24)) as pilot:
@@ -137,3 +137,38 @@ async def test_fits_80x24(tmp_path, form_id):
         for widget in screen.query("#form-body Input"):
             if widget.region.height:
                 assert widget.region.right <= box.right, widget.id
+
+
+@pytest.mark.asyncio
+async def test_a_pktnet_checkin_comes_back_addressed_as_a_bulletin(tmp_path):
+    app, store = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open(app, pilot, "pktnet_checkin")
+        assert screen.query_one("#form-from", Input).value == "KC1JMH"
+        _fill(screen, contact="Brad Brown", location="Home", town="Waterboro", state="ME")
+        await pilot.pause()
+        screen.query_one("#form-continue", Button).press()
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen again")
+        await pilot.pause()
+        compose = app.screen
+        assert compose.query_one("#compose-type", Select).value == "B"
+        assert compose.query_one("#compose-to", Input).value == "PKTNET"
+        assert compose.query_one("#compose-at", Input).value == "USA"
+        assert compose.query_one("#compose-title", Input).value == "Brad Brown, KC1JMH, Waterboro, ME"
+        compose.query_one("#compose-save", Button).press()
+        await wait_for(lambda: store.list(BBS_OUTBOX), "the Outbox message")
+        message = store.read(store.list(BBS_OUTBOX)[0].ref)
+        assert (message.to, message.extra["Send-Type"], message.extra["Send-At"]) == ("PKTNET", "B", "USA")
+
+
+@pytest.mark.asyncio
+async def test_a_winlink_checkin_is_addressed_from_its_to_field(tmp_path):
+    app, _ = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open(app, pilot, "winlink_checkin")
+        _fill(screen, MsgTo="KW6GB", Location="Waterboro ME")
+        await pilot.pause()
+        screen.query_one("#form-continue", Button).press()
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen again")
+        await pilot.pause()
+        assert app.screen.query_one("#compose-to", Input).value == "KW6GB"

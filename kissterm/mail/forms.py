@@ -31,6 +31,12 @@ and listed in `docs/PROTOCOL_GUIDE.md`.
   not as eight empty blocks. `<each order>` ... `</each>` in the template
   marks the block.
 
+`<if name>` ... `</if>` keeps a block only when that field is filled
+(the PKTNET check-in's agency line and the blank line after it). A form's
+`to_field` is the field that becomes the compose screen's To, and its
+`subject_var`, if set, lets the body quote the rendered subject (the
+Winlink check-in's "0b: Subject:").
+
 **Template syntax** is Winlink's: `<var name>` is replaced by the field's
 value (names compared without case, as Winlink's are), so a template's
 `Msg:` section can be pasted in. The XML attachment is ROADMAP P2's
@@ -55,6 +61,7 @@ KINDS = ("text", "multiline", "choice", "date", "time", "datetime", "check", "ro
 
 _VAR_RE = re.compile(r"<var\s+(\w+)\s*>", re.IGNORECASE)
 _EACH_RE = re.compile(r"<each\s+(\w+)\s*>\n?(.*?)</each>\n?", re.IGNORECASE | re.DOTALL)
+_IF_RE = re.compile(r"<if\s+(\w+)\s*>\n?(.*?)</if>\n?", re.IGNORECASE | re.DOTALL)
 
 
 @dataclass(frozen=True)
@@ -77,8 +84,12 @@ class Field:
     placeholder: str = ""
     choices: tuple[str, ...] = ()
     default: str = ""
-    #: "mycall": the operator's call sign without SSID.
+    #: "mycall": the operator's call sign without SSID; "grid": the
+    #: station's grid square from Settings > APRS, when it has a position.
     auto: str = ""
+    #: A `date`, `time` or `datetime` field's strftime pattern, when the
+    #: template's own "now" button differs from the default.
+    format: str = ""
     #: A `check` field's value when ticked (Winlink's exercise banner).
     on_value: str = ""
     #: Kept between forms: the station half (who you are, your position),
@@ -101,6 +112,8 @@ class FormDef:
     send_type: str = "P"
     to: str = ""
     at: str = ""
+    to_field: str = ""
+    subject_var: str = ""
 
     def field(self, field_id: str) -> Field:
         return next(f for f in self.fields if f.id == field_id)
@@ -123,8 +136,9 @@ def parse_form(text: str) -> FormDef:
     form = FormDef(**raw, fields=fields)
     names = {f.id.lower() for f in fields} | {
         c.id.lower() for f in fields for c in f.columns
-    }
-    for name in _VAR_RE.findall(form.body + form.subject):
+    } | ({form.subject_var.lower()} if form.subject_var else set())
+    conditions = [m.group(1) for m in _IF_RE.finditer(form.body)]
+    for name in _VAR_RE.findall(form.body + form.subject) + conditions:
         if name.lower() not in names:
             raise ValueError(f"form {form.id!r}: template uses unknown <var {name}>")
     return form
@@ -150,8 +164,11 @@ def get_form(form_id: str) -> FormDef:
 Values = dict[str, Any]
 
 
-def defaults(form: FormDef, *, mycall: str = "", remembered: Values | None = None,
-             now: datetime | None = None) -> Values:
+_TIME_FORMATS = {"date": "%Y-%m-%d", "time": "%H:%M", "datetime": "%Y-%m-%d %H:%M"}
+
+
+def defaults(form: FormDef, *, mycall: str = "", grid: str = "",
+             remembered: Values | None = None, now: datetime | None = None) -> Values:
     """The values a new form opens with. Dates and times are local, as the
     Winlink templates' "now" buttons fill them (`2026-09-26`, `14:05`)."""
     now = now or datetime.now()
@@ -166,12 +183,10 @@ def defaults(form: FormDef, *, mycall: str = "", remembered: Values | None = Non
             values[f.id] = remembered[f.id]
         elif f.auto == "mycall":
             values[f.id] = mycall.split("-")[0].upper()
-        elif f.kind == "date":
-            values[f.id] = now.strftime("%Y-%m-%d")
-        elif f.kind == "time":
-            values[f.id] = now.strftime("%H:%M")
-        elif f.kind == "datetime":
-            values[f.id] = now.strftime("%Y-%m-%d %H:%M")
+        elif f.auto == "grid":
+            values[f.id] = grid
+        elif f.kind in _TIME_FORMATS:
+            values[f.id] = now.strftime(f.format or _TIME_FORMATS[f.kind])
         else:
             values[f.id] = f.default
     return values
@@ -269,7 +284,10 @@ def render(form: FormDef, values: Values) -> tuple[str, str]:
             + "\n" for r in rows
         )
 
-    body = _fill(_EACH_RE.sub(each, form.body), flat)
-    body = re.sub(r"\n{3,}", "\n\n", body).strip("\n") + "\n"
     subject = " ".join(_fill(form.subject, flat).split())
+    if form.subject_var:
+        flat[form.subject_var] = subject
+    lowered = {k.lower(): v for k, v in flat.items()}
+    template = _IF_RE.sub(lambda m: m.group(2) if lowered.get(m.group(1).lower()) else "", form.body)
+    body = _fill(_EACH_RE.sub(each, template), flat).strip("\n") + "\n"
     return subject, body

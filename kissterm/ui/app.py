@@ -3928,6 +3928,7 @@ class KissTermApp(App):
         Nothing transmits: the message waits in the Outbox.
         """
         from ..config import state_path
+        from ..locator import to_grid
         from ..mail import forms
         from ..mail.compose import BBS_OUTBOX, radiogram_defaults
         from .compose import FORM_PREFIX, RADIOGRAM, ComposeScreen
@@ -3950,8 +3951,10 @@ class KissTermApp(App):
             # A form: fill it in, then address it in the compose screen.
             form = forms.get_form(message.removeprefix(FORM_PREFIX))
             remembered_at = state_path() / "forms.json"
+            aprs = self.config.aprs
+            grid = to_grid(aprs.latitude, aprs.longitude) if aprs.latitude or aprs.longitude else ""
             draft = await self.push_screen_wait(FormScreen(
-                form, mycall=str(self.config.mycall or ""),
+                form, mycall=str(self.config.mycall or ""), grid=grid,
                 remembered=forms.load_remembered(remembered_at, form.id),
             ))
             if draft is None:
