@@ -186,8 +186,6 @@ exchange confirms it.
   Internet on request and cached, never queried over the air.
   `# RESEARCH:` whether Winlink's gateway API needs a key and on what terms.
   Medium.
-- [ ] **Attachments** land in Files > Attachments, under P9's filename rules
-  (sanitized, never executed, never auto-opened). Small.
 - **Later:** Winlink HTML/XML forms (they meet P11's form system here),
   peer-to-peer Winlink, and scheduled send/receive. The scheduled version
   follows every unattended-transmission rule in AGENTS.md: opt-in, a status

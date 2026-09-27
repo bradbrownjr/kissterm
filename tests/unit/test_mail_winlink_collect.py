@@ -270,3 +270,24 @@ def test_the_cms_telnet_login_comes_first(tmp_path):
     assert ";PR: 95074758" in gateway.handshake  # the real password, only as the answer
     assert "FooBar" not in " ".join(gateway.telnet_login + gateway.handshake)
     assert len(result.filed) == 1
+
+
+def test_attachments_are_saved_to_files_and_named_in_the_message(tmp_path):
+    from kissterm.winlink import message as b2
+
+    store = _store(tmp_path)
+    inbound = b2.serialize(b2.build(
+        sender="LA5NTA", to=["KC1JMH"], subject="Plans", body="Attached.",
+        files=[("../../plan.txt", b"north gate"), ("plan.txt", b"second copy"),
+               ("photo\u202egpj.exe", b"\x00MZ")]))
+    result, log = asyncio.run(_run(Gateway([inbound]), store))
+    assert not result.stopped and len(result.filed) == 1
+    folder = store.root / "Files" / "Attachments"
+    names = sorted(p.name for p in folder.iterdir())
+    # The path is dropped, the repeat numbered, the bidi override removed.
+    assert names == ["photogpj.exe", "plan-1.txt", "plan.txt"]
+    assert (folder / "plan.txt").read_bytes() == b"north gate"
+    line = store.read(result.filed[0]).extra["Attachments"]
+    assert "Files/Attachments/plan.txt (10 bytes)" in line
+    assert "Files/Attachments/photogpj.exe (3 bytes)" in line
+    assert any("Saved the attachment plan-1.txt" in entry for entry in log)

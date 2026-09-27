@@ -92,7 +92,9 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   packet**: on a Winlink folder G sends and receives with a Winlink RMS
   gateway instead (Settings > Mail > Winlink: the Address Book entry that
   reaches it, and a saved login holding your password, which never goes on
-  the air -- only the answer to the gateway's challenge does). **I is Send/Receive by Internet**, the same
+  the air -- only the answer to the gateway's challenge does). A received
+  message's attachments are saved to Files > Attachments under cleaned
+  names, never opened or run. **I is Send/Receive by Internet**, the same
   by folder without the radio: the Home BBS through a Telnet or SSH
   contact in the Address Book (WS1EC's SSH login into its node; I answers the node's
   `user:`/`password:` and sends `BBS`), Winlink through the CMS by Telnet. On All

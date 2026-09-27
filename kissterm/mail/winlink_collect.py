@@ -13,7 +13,9 @@ for a BBS. `kissterm/winlink/b2f.py` is the protocol; this is the glue:
   taken it (`b2f.Sent`), or said it already had it.
 - **Inbox**: each message that arrives whole goes to Mail/Winlink/Inbox,
   with its B2 bytes beside it as `.b2f` (attachments included), and one
-  already in the store is answered "have it" so it is not sent again.
+  already in the store is answered "have it" so it is not sent again. Its
+  attachments are saved into Files/Attachments (`mail/attachments.py`),
+  and its Attachments line says where.
 
 **Visible.** Every protocol line, both ways, goes to the session log
 (`sent` for ours, `received` for the gateway's), with a message's
@@ -45,7 +47,8 @@ from dataclasses import dataclass, field
 from ..winlink import b2f
 from ..winlink.message import SOURCE, B2Error, B2Message, build, generate_mid, to_mail
 from .message import Message
-from .store import INBOX, MAIL, OUTBOX, SENT, MessageStore
+from .attachments import safe_filename, save_attachment
+from .store import FILES, INBOX, MAIL, OUTBOX, SENT, MessageStore
 
 #: G on a folder under this runs Winlink, not the Home BBS.
 WINLINK_FOLDER = f"{MAIL}/Winlink"
@@ -53,6 +56,8 @@ WINLINK_INBOX = f"{WINLINK_FOLDER}/{INBOX}"
 WINLINK_OUTBOX = f"{WINLINK_FOLDER}/{OUTBOX}"
 WINLINK_SENT = f"{WINLINK_FOLDER}/{SENT}"
 RAW_SUFFIX = ".b2f"
+#: Where a received message's attachments are saved.
+ATTACHMENTS = f"{FILES}/Attachments"
 #: As for a BBS: a slow packet path has long gaps (`collect.py`).
 DEFAULT_IDLE_TIMEOUT = 300.0
 
@@ -221,6 +226,9 @@ class WinlinkCollector:
             (self._sent if event.direction == ">" else self._received)(event.text)
         elif isinstance(event, b2f.Received):
             message = to_mail(event.message)
+            saved = self._save_attachments(event.message)
+            if saved:
+                message.extra["Attachments"] = ", ".join(saved)
             result.filed.append(self.store.add(WINLINK_INBOX, message, raw=event.raw,
                                                raw_suffix=RAW_SUFFIX))
             self._progress(f"Received {len(result.filed)}")
@@ -238,6 +246,25 @@ class WinlinkCollector:
         elif isinstance(event, b2f.Pending):
             self._note(f"Waiting for you on Winlink: {event.mid} from {event.sender}, "
                        f"{event.size} bytes: {event.subject}")
+
+    def _save_attachments(self, message: B2Message) -> list[str]:
+        """Each attachment into Files/Attachments (`mail/attachments.py`),
+        as "where it went (size)" for the message's Attachments line. A
+        file that cannot be written is said and skipped: the exchange goes
+        on (the raw `.b2f` beside the message still holds it)."""
+        saved = []
+        directory = self.store.root / ATTACHMENTS
+        for name, data in message.files:
+            try:
+                path = save_attachment(directory, name, data)
+            except OSError as exc:
+                self._note(f"Could not save the attachment {safe_filename(name)!r}: {exc}")
+                saved.append(f"{safe_filename(name)} ({len(data)} bytes, not saved)")
+                continue
+            where = path.relative_to(self.store.root).as_posix()
+            self._note(f"Saved the attachment {path.name} ({len(data)} bytes) in {where}.")
+            saved.append(f"{where} ({len(data)} bytes)")
+        return saved
 
     async def run(self) -> WinlinkResult:
         result = WinlinkResult(skipped=list(self._skipped))

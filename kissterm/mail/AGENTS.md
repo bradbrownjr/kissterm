@@ -54,5 +54,8 @@ of the two is marked `# UNVERIFIED:`.
 - **`winlink_collect.py` is `collect.py` for Winlink**: the B2F exchange
   (`kissterm/winlink/`) over a connected link. Outbox messages get their
   MID saved before they are offered, move to Sent only when the gateway
-  took them, and a received message is filed with its `.b2f` bytes.
-  Tests: `tests/unit/test_mail_winlink_collect.py` (a scripted gateway).
+  took them, and a received message is filed with its `.b2f` bytes. Its
+  attachments go to Files/Attachments through `attachments.py`, which
+  cleans every name (never trust a name from the air) and never
+  overwrites. Tests: `tests/unit/test_mail_winlink_collect.py` (a scripted
+  gateway), `tests/unit/test_mail_attachments.py`.

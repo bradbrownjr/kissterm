@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Winlink attachments saved to Files > Attachments
+
+### New Features
+
+- **A received Winlink message's attachments are saved to Files >
+  Attachments**, and its Attachments line says where each went. Names
+  from the air are cleaned first: the path dropped, control and
+  right-to-left override characters removed, reserved device names
+  prefixed, the length capped keeping the real extension; nothing is
+  overwritten (a repeat becomes `name-1.ext`), opened or run. A file that
+  cannot be written is noted and the exchange goes on.
+
+**Files:** `kissterm/mail/attachments.py`, `kissterm/mail/winlink_collect.py`,
+`kissterm/mail/AGENTS.md`, `README.md`, `tests/unit/test_mail_attachments.py`,
+`tests/unit/test_mail_winlink_collect.py`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-27] — Unverified transports are labelled experimental
 
 ### Improvements
