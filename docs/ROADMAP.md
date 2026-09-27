@@ -170,8 +170,9 @@ session tab beside the radio. Steps:
    keyring.
 2. Done 2026-09-27: the Address Book editor's "By" choice (Radio, Telnet,
    SSH) and their fields.
-3. Dialing an Internet contact into its own session tab (Ctrl+N, Enter,
-   Ctrl+R), with pilot tests against local Telnet and SSH servers.
+3. Done 2026-09-27: an Internet contact dials into its own session tab
+   (Address Book Enter, Ctrl+N, Ctrl+R, Ctrl+D), the transmit gate
+   untouched; pilot tests against local Telnet and SSH servers.
 4. The Home BBS's Internet route names a contact (I on the Mail tab).
 5. Telnet and SSH leave Settings > Radio, discovery and `--setup`; the
    adopted transports are removed from config.toml.

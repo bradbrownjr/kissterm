@@ -299,9 +299,10 @@ async def test_i_on_a_winlink_folder_uses_the_cms_by_telnet(tmp_path, monkeypatc
         assert ";PR: 95074758" in gateway.handshake and gateway.handshake[-1].startswith("; WL2K DE KC1JMH")
         assert len(app.mail_store.list(WINLINK_INBOX)) == 1
         assert not station.transport.sent  # nothing on the radio side
-        [transcript] = list_transcripts(app._transcript_directory())
-        text = transcript.path.read_text()
-        assert "Callsign :" in text and "[WL2K-5.0-B2FWIHJM$]" in text and "FQ" in text
+        # The log folder is shared by every test in this worker: find ours.
+        texts = [t.path.read_text() for t in list_transcripts(app._transcript_directory())]
+        [text] = [t for t in texts if "[WL2K-5.0-B2FWIHJM$]" in t and "Callsign :" in t]
+        assert "FQ" in text
     server.close()
     station.close()
 

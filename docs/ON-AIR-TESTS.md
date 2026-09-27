@@ -101,6 +101,14 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   field on its own row with a label, Paclen and Window visible, Save and
   Cancel on screen at your terminal size. (Not a radio test, but yours to
   confirm.)
+- [ ] **WS1EC by SSH from the Address Book** (no radio): at the next
+  launch a notice should say your Telnet/SSH connections are now in the
+  Address Book. Open it (Ctrl+G), pick the WS1EC one, E: By should say
+  SSH, with host, port 4122, user packet and your known-hosts file, and
+  Password "saved". Enter on it: a new Terminal tab named after it opens
+  beside any radio session, says "Connecting ... over the Internet", then
+  the node's greeting. Type a command: it goes, and the status bar still
+  says TX OFF. Ctrl+D hangs up (still TX OFF); Ctrl+R dials it again.
 - [ ] **Immediate SABM when polled** (Settings > Link > Retry at once when
   polled, on). On a marginal connect, the Monitor should show a SABM right
   after a poll from the node instead of waiting out T1.

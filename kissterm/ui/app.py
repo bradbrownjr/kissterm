@@ -477,8 +477,12 @@ class _SessionLinkAdapter:
     transports do not have a "why" beyond a plain disconnect yet.
     """
 
-    def __init__(self, session) -> None:
+    def __init__(self, session, transport=None) -> None:
         self._session = session
+        #: An Internet contact's own connection (`_dial_internet`), closed
+        #: with the session. None for the app's configured transport.
+        self._transport = transport
+        self._transport_closed = False
         self.peer = session.peer
         self.on_data: list = []
         self.on_state: list = []
@@ -493,6 +497,12 @@ class _SessionLinkAdapter:
         return self._session.connected
 
     @property
+    def internet(self) -> bool:
+        """An Internet contact's session: it cannot reach the air, so the
+        transmit gate is neither checked nor armed for it."""
+        return self._transport is not None
+
+    @property
     def state(self):
         return self._session.state
 
@@ -504,13 +514,25 @@ class _SessionLinkAdapter:
         is no DISC to send, only the connection itself to close."""
         self._pump_task.cancel()
         await self._session.close()
+        await self._close_transport()
 
     def close(self) -> None:
         self._pump_task.cancel()
 
+    async def _close_transport(self) -> None:
+        # Once: both a hang-up and Ctrl+D can get here.
+        if self._transport is None or self._transport_closed:
+            return
+        self._transport_closed = True
+        with contextlib.suppress(Exception):
+            await self._transport.close()
+
     def _emit_state(self, state) -> None:
         for cb in list(self.on_state):
             cb(state)
+        if state == SessionState.DISCONNECTED and self._transport is not None:
+            # The far end hung up: its connection goes with it.
+            asyncio.get_event_loop().create_task(self._close_transport())
 
     async def _pump(self) -> None:
         try:
@@ -701,6 +723,9 @@ class KissTermApp(App):
         # to a station reached through two nodes goes back the same way.
         self._last_connect: dict[str, ConnectRequest] = {}
         self._last_connect_key = ""
+        #: Internet contacts still connecting, by session key, so Ctrl+D
+        #: can cancel one (`_dial_internet`).
+        self._internet_connecting: dict[str, asyncio.Task] = {}
         #: The one in-flight SessionTransport.connect() call, if any. Session
         #: transports have no AX.25 link for Ctrl+D to close during setup, so
         #: the task itself is the cancellation handle. It is set only while
@@ -1271,6 +1296,13 @@ class KissTermApp(App):
         self._close_all_transcripts()
         self._cancel_all_reply_timers()
         self._cancel_all_hop_watches()
+        # An Internet contact's connection is the app's own to close: the
+        # radio's transport is closed by whoever built it, these by nobody.
+        for session in self._sessions.values():
+            link = session.link
+            if getattr(link, "internet", False):
+                link.close()
+                asyncio.get_event_loop().create_task(link._close_transport())
 
     # ------------------------------------------------------------------
     # Hardware hotplug (serial only -- never the network)
@@ -1866,6 +1898,7 @@ class KissTermApp(App):
         return bool(
             (link is not None and getattr(link, "connected", False))
             or key in self._connecting
+            or key in self._internet_connecting
             or (
                 key == ""
                 and self._session_connect_task is not None
@@ -3414,6 +3447,14 @@ class KissTermApp(App):
         `focus_session=False` leaves focus alone: Send/Receive runs from the Mail
         tab, and focus in the hidden send line would switch to Terminal.
         """
+        # An Internet contact dials its own connection, radio or no radio
+        # (`_dial_internet`); a redial of one finds it by name.
+        contact = prefill if prefill is not None else (
+            self.addressbook.find(redial.target) if redial is not None else None)
+        if contact is not None and contact.is_internet:
+            await self._dial_internet(contact, on_link=on_link, on_reached=on_reached,
+                                      focus_session=focus_session)
+            return
         if self.station is None:
             if self.session_transport is not None:
                 candidates = self._session_tier_transports()
@@ -3469,6 +3510,11 @@ class KissTermApp(App):
                 )
             )
             if not request:
+                return
+            contact = self.addressbook.find(request.target)
+            if contact is not None and contact.is_internet:
+                await self._dial_internet(contact, on_link=on_link, on_reached=on_reached,
+                                          focus_session=focus_session)
                 return
             if request.new_credential_text and request.credential:
                 # ConnectScreen's "+ Add new credential..." flow, named --
@@ -3705,6 +3751,90 @@ class KissTermApp(App):
             self._run_connect_script(link, key, login_text)
         if on_reached is not None:
             on_reached(True)
+
+    async def _dial_internet(self, entry, *, on_link=None, on_reached=None,
+                             focus_session: bool = True) -> None:
+        """Dial an Internet contact (`Entry.connect_by` "telnet" or "ssh")
+        into its own Terminal tab, beside any radio session (operator,
+        2026-09-26: every contact in the Address Book, whatever the
+        connection). Its own transport, built the one way every transport
+        is (`build_transport`), opened now and closed with the session.
+
+        The transmit gate is neither checked nor armed: nothing here can
+        key a radio, and arming would open RF for everything else too. The
+        rest is the Address Book dial as for radio: an attempt recorded,
+        the tab opened with "Connecting...", Ctrl+D cancels, the login
+        script runs once it is up, Ctrl+R dials it again.
+        """
+        from ..transport import build_transport
+
+        key = entry.target
+
+        def reached(ok: bool) -> None:
+            if on_reached is not None:
+                on_reached(ok)
+
+        if self.session_is_live(key):
+            self.notify(f"Already connected to {key}.", severity="information")
+            reached(False)
+            return
+        try:
+            transport = build_transport(entry.transport_config(
+                lambda name: find_credential(self.config, name)))
+        except (TransportError, TypeError, ValueError) as exc:
+            self.notify(f"{key}: {exc}", severity="error")
+            reached(False)
+            return
+        self.addressbook.record_attempt(entry.target, entry.script, "", entry.credential,
+                                        entry.script_name)
+        self._last_connect[key] = ConnectRequest(entry.target)
+        self._last_connect_key = key
+        pane = self.query_one(TerminalPane)
+        if focus_session:
+            pane.close_addressbook_for_connection()
+            for browser in self.query(MessageBrowser):
+                if browser.close_addressbook(refocus=False):
+                    self.action_show_tab("terminal")
+        pane.open_tab(key, activate=focus_session)
+        where = entry.host + (f":{entry.port}" if entry.port else "")
+        self._to_terminal(key, "write_note",
+                          f"\n*** Connecting to {key} by {entry.connect_by.upper()} "
+                          f"({where}), over the Internet...\n")
+        task = asyncio.current_task()
+        assert task is not None
+        self._internet_connecting[key] = task
+        self._refresh_context_footer()
+        try:
+            await transport.open()
+            session = await transport.connect()
+        except asyncio.CancelledError:
+            self._to_terminal(key, "write_note", "*** Connect cancelled by operator.\n")
+            with contextlib.suppress(Exception):
+                await transport.close()
+            reached(False)
+            return
+        except (TransportError, OSError) as exc:
+            self._to_terminal(key, "write_note", f"*** Could not connect: {exc}\n")
+            self.notify(f"{key}: {exc}", severity="error")
+            with contextlib.suppress(Exception):
+                await transport.close()
+            reached(False)
+            return
+        finally:
+            self._internet_connecting.pop(key, None)
+            self._refresh_context_footer()
+        link = _SessionLinkAdapter(session, transport)
+        if on_link is not None:
+            on_link(link, key)
+        self._bind_link(link, key, activate=focus_session)
+        self._note(key, f"\n*** Connected to {key}\n")
+        self.addressbook.record_connect(entry.target)
+        if focus_session:
+            pane.focus_input()
+        login_text = self._resolve_login(entry.credential, entry.script_name, entry.script)
+        if login_text.strip():
+            self._run_connect_script(link, key, login_text)
+        reached(True)
 
     async def _connect_session_transport(self) -> None:
         """Connect through a session-tier transport (Telnet, SSH, VARA,
@@ -3954,7 +4084,7 @@ class KissTermApp(App):
             if not link.connected:
                 self._to_terminal(session_key, "write_note", "*** Auto-login stopped: no longer connected.\n")
                 return
-            if not self.gate.enabled:
+            if not self.gate.enabled and not getattr(link, "internet", False):
                 self._to_terminal(session_key, "write_note", "*** Auto-login stopped: transmit is off.\n")
                 return
             await link.send(line.encode("latin-1", "replace") + b"\r")
@@ -4892,7 +5022,8 @@ class KissTermApp(App):
             # holding a session open until ITS timers give up, which is a
             # worse outcome for the channel than the transmission we would
             # be avoiding.
-            self._arm_for(f"disconnect from {session.link.peer}")
+            if not getattr(session.link, "internet", False):
+                self._arm_for(f"disconnect from {session.link.peer}")
             self._to_terminal(session_key, "write_note", "\n*** Disconnecting...\n")
             await session.link.disconnect()
             return
@@ -4913,6 +5044,11 @@ class KissTermApp(App):
                 )
                 connecting.close(reason=CANCELLED_REASON)
                 return
+        internet = self._internet_connecting.get(session_key)
+        if internet is not None and not internet.done():
+            self._to_terminal(session_key, "write_note", "\n*** Cancelling connect...\n")
+            internet.cancel()
+            return
         session_connect_task = self._session_connect_task
         if (
             session_key == ""
@@ -4932,7 +5068,8 @@ class KissTermApp(App):
         """Connected or still connecting: closing it would disconnect first."""
         session = self._sessions.get(session_key)
         connected = session is not None and session.link is not None and session.link.connected
-        return connected or session_key in self._connecting
+        return (connected or session_key in self._connecting
+                or session_key in self._internet_connecting)
 
     def _reconnect_request(self) -> ConnectRequest | None:
         """What Ctrl+R would dial: the Terminal tab on screen's own last
@@ -4960,16 +5097,18 @@ class KissTermApp(App):
         call has no request of its own, so its peer is dialed directly. A
         live tab is left alone: reconnecting it would mean disconnecting it.
         """
-        if self.station is None:
+        key = self._active_key()
+        request = self._reconnect_request()
+        contact = self.addressbook.find(request.target) if request is not None else None
+        internet = contact is not None and contact.is_internet
+        if self.station is None and not internet:
             # Session tier: there is one far end, and connecting to it again
             # is what Ctrl+N already does there.
             self.action_connect()
             return
-        key = self._active_key()
         if key and self.session_is_live(key):
             self.notify(f"Already connected to {key}.", severity="information")
             return
-        request = self._reconnect_request()
         if request is None:
             self.notify(
                 "Nothing to reconnect to yet. Ctrl+N connects to a station.",

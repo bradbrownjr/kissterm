@@ -1317,7 +1317,8 @@ class TerminalPane(Container):
             self.app.notify("Not connected.", severity="warning")
             return
         gate = getattr(self.app, "gate", None)
-        if gate is not None and not gate.enabled:
+        # An Internet contact's session cannot key a radio: no gate to arm.
+        if gate is not None and not gate.enabled and not getattr(link, "internet", False):
             # A line the operator just typed and committed with Enter or
             # Send, to a station they are already connected to, is exactly
             # the "confirmed, targeted" shape `KissTermApp._arm_for` exists

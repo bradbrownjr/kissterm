@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Dialing a Telnet or SSH contact (step 3 of 6)
+
+### New Features
+
+- **A Telnet or SSH contact dials into its own Terminal tab, beside the
+  radio**: Enter in the Address Book, Ctrl+N, Ctrl+R and Ctrl+D work as
+  for a station, and its login script runs once it is up. It opens its
+  own connection rather than replacing the radio's, and never checks or
+  arms the transmit gate: typing to it, its login and hanging up all
+  leave TX OFF. Its connection closes with the session and when kissterm
+  exits.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/terminal_pane.py`,
+`tests/pilot/test_internet_contacts.py`,
+`tests/pilot/test_winlink_send_receive.py`, `docs/ON-AIR-TESTS.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — The Address Book editor makes Telnet and SSH contacts (step 2 of 6)
 
 ### New Features
