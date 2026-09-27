@@ -79,6 +79,12 @@ under rule 2 above, with the date and their words:
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
+- **Dialogs in the top-left corner** (2026-09-27, `awaiting confirmation`):
+  "Let's center the dialog boxes" -- the Winlink setup question on All
+  Inboxes, and about twenty other dialogs with no centring rule. Fix: one
+  `ModalScreen` rule (`styles.py`); the question now also says G on All
+  Inboxes is including Winlink, offers Skip Winlink, and has a button to
+  the setting it names. Tests in `tests/pilot/test_winlink_send_receive.py`.
 - **Address Book buttons cut off** (2026-09-26, `awaiting confirmation`):
   "Buttons are getting cut off on the address book." Mail tab, Ctrl+G
   slide-out at 100 columns: the pane has 27 columns for four buttons that

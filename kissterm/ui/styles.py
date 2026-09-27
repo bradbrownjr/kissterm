@@ -80,6 +80,14 @@ Input.-textual-compact, Select.-textual-compact > SelectCurrent {
 Input.-textual-compact:focus, Select.-textual-compact:focus > SelectCurrent {
     border: none; background: $accent 25%;
 }
+/* Every dialog is centred: a screen with no rule of its own sat in the
+   top-left corner (operator, 2026-09-27, the Winlink setup question). A
+   type rule matches every subclass, so a new dialog cannot forget it. The
+   F10 menu drops from the menu bar and the Ctrl+P palette sits at the top,
+   so they keep their own places. */
+ModalScreen { align: center middle; }
+MenuScreen { align: left top; }
+CommandPalette { align: center top; }
 Button.-textual-compact {
     border: none; height: 1; min-width: 0; padding: 0 1; background: $primary 15%;
 }
@@ -454,6 +462,12 @@ AddressBookEntryScreen #connect-buttons { height: auto; margin-top: 0; }
 /* RadioReminderScreen -- a checkpoint, not a form; sized to its short
    fixed content rather than the wider #connect-box default. */
 #reminder-detail { color: $text; padding: 0 0 1 0; }
+/* Send/Receive's setup questions: why this is asked on All Inboxes, and a
+   hint line with a button that goes where it says. */
+#setup-all-note { color: $warning; padding: 0 0 1 0; }
+#setup-hint-row { height: auto; margin-top: 1; }
+#setup-hint-row #connect-hint { width: 1fr; height: auto; padding-top: 1; }
+#setup-hint-row Button { margin-left: 1; }
 /* TransportEntryScreen. Reuses #connect-title/#connect-buttons; the box
    itself gets its own id and a capped height with an internal scroll --
    SSH's four fields plus name/kind/error/auto-login is taller than a

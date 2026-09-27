@@ -186,6 +186,8 @@ from .dialogs import (
     AprsObjectRequest,
     AprsIsWatchScreen,
     RadioReminderScreen,
+    SETUP_GO,
+    SETUP_SKIP,
     HomeBbsSetupScreen,
     LoginAskScreen,
     TranscriptsScreen,
@@ -686,6 +688,10 @@ class KissTermApp(App):
         self._connecting: dict[str, tuple[AX25Address, int]] = {}
         #: True while Send/Receive runs (`action_get_mail`); one at a time.
         self._collecting = False
+        #: While G or I on All Inboxes prepares its runs: (key, service
+        #: being asked about), so each question says why it is asked and
+        #: offers to skip that service (`_all_inboxes_ask`).
+        self._all_inboxes: tuple[str, str] | None = None
         #: A background job's status-bar field ("Receiving 1 of 3"), shown green.
         self._activity = ""
         # What each Terminal tab last dialed, for Ctrl+R Reconnect: the whole
@@ -4071,22 +4077,88 @@ class KissTermApp(App):
             kind = self.send_receive_kind(self._mail_folder())
             # Everything that has to be asked is asked before the first
             # dial, so a run of both never stops in between for a question.
-            runs = []
-            if kind in ("bbs", "all"):
-                prepared = await self._bbs_prepare()
-                if prepared is None:
-                    return
-                runs.append((self._bbs_run, prepared))
-            if kind in ("winlink", "all"):
-                prepared = await self._winlink_prepare()
-                if prepared is None:
-                    return
-                runs.append((self._winlink_run, prepared))
-            for run, (entry, options) in runs:
+            runs = await self._prepare_runs(kind, "G", (
+                ("Home BBS", self._bbs_prepare, self._bbs_run),
+                ("Winlink", self._winlink_prepare, self._winlink_run),
+            ))
+            for run, (entry, options) in runs or ():
                 await run(entry, options)
         finally:
             self._collecting = False
             self._mail_status("")
+
+    async def _prepare_runs(self, kind: str, key: str, services) -> list | None:
+        """Ask everything each service in `kind` needs, in order; the runs
+        to make, or None if the operator cancelled. On All Inboxes each
+        question says why it is asked and can skip its service (operator,
+        2026-09-27: make it "clear why they're being prompted")."""
+        wanted = [s for s in services
+                  if kind == "all" or s[0] == ("Winlink" if kind == "winlink" else "Home BBS")]
+        runs = []
+        try:
+            for name, prepare, run in wanted:
+                self._all_inboxes = (key, name) if kind == "all" else None
+                try:
+                    prepared = await prepare()
+                except _SkipService:
+                    self.notify(f"Skipping {name} this time.", timeout=4)
+                    continue
+                if prepared is None:
+                    return None
+                runs.append((run, prepared))
+        finally:
+            self._all_inboxes = None
+        if not runs:
+            self.notify("Nothing to send or receive: every service was skipped.", timeout=4)
+        return runs
+
+    def _all_inboxes_ask(self) -> tuple[str, str]:
+        """(note, skip label) for a question asked on All Inboxes, else ("", "")."""
+        if self._all_inboxes is None:
+            return "", ""
+        key, name = self._all_inboxes
+        other = "Winlink" if name == "Home BBS" else "the Home BBS"
+        how = " over the Internet" if key == "I" else ""
+        return (
+            f"{key} on All Inboxes sends and receives with the Home BBS, then "
+            f"Winlink{how}, and {name} needs this first. Skip {name} to run "
+            f"{other} alone.",
+            f"Skip {name}",
+        )
+
+    def _setup_answer(self, answer, place: str):
+        """A setup question's answer: SETUP_SKIP raises `_SkipService`,
+        SETUP_GO opens `place` and returns None (the run is cancelled),
+        anything else is returned."""
+        if answer == SETUP_SKIP:
+            raise _SkipService
+        if answer == SETUP_GO:
+            self._go_to_setup(place)
+            return None
+        return answer
+
+    def _go_to_setup(self, place: str) -> None:
+        """Where a setup question's go button leads."""
+        if place == "connect":
+            self.action_connect()
+            return
+        section, field = {
+            "winlink": ("Mail", "#set-winlink-account"),
+            "bbs": ("Mail", "#set-home_bbs-route"),
+            "internet": ("Mail", "#set-home_bbs-internet"),
+            "radio": ("Radio", "#transport-new"),
+        }[place]
+        self.query_one("#main-tabs", TabbedContent).active = "settings"
+        pane = self.query_one(SettingsPane)
+        pane.show_section(section)
+
+        def focus() -> None:
+            with contextlib.suppress(Exception):
+                widget = pane.query_one(field)
+                widget.focus()
+                widget.scroll_visible()
+
+        self.call_after_refresh(focus)
 
     def send_receive_kind(self, folder: str, internet: bool = False) -> str:
         """What G does from `folder` (operator, 2026-09-26): "winlink" on a
@@ -4125,11 +4197,12 @@ class KissTermApp(App):
             return entry
         # First use, or the entry was forgotten: ask for the one thing
         # Send/Receive cannot run without, then carry on.
-        chosen = await self.push_screen_wait(
-            HomeBbsSetupScreen(
-                [e.target for e in self.addressbook.entries], missing=route.strip(), winlink=winlink
-            )
-        )
+        note, skip = self._all_inboxes_ask()
+        targets = [e.target for e in self.addressbook.entries]
+        chosen = self._setup_answer(await self.push_screen_wait(
+            HomeBbsSetupScreen(targets, missing=route.strip(), winlink=winlink,
+                               all_note=note, skip=skip)
+        ), "connect" if not targets else "winlink" if winlink else "bbs")
         entry = self.addressbook.find(chosen) if chosen else None
         if entry is None:
             return None
@@ -4152,7 +4225,9 @@ class KissTermApp(App):
         if text:
             return current, text
         name = current or default_name
-        text = await self.push_screen_wait(LoginAskScreen(title, detail, name, secret=secret))
+        note, skip = self._all_inboxes_ask()
+        text = self._setup_answer(await self.push_screen_wait(
+            LoginAskScreen(title, detail, name, secret=secret, all_note=note, skip=skip)), "")
         if not text:
             return None
         where = set_credential(self.config, name, text)
@@ -4416,18 +4491,11 @@ class KissTermApp(App):
         self._collecting = True
         try:
             kind = self.send_receive_kind(self._mail_folder(), internet=True)
-            runs = []
-            if kind in ("bbs", "all"):
-                prepared = await self._bbs_internet_prepare()
-                if prepared is None:
-                    return
-                runs.append((self._bbs_internet_run, prepared))
-            if kind in ("winlink", "all"):
-                login = await self._winlink_login()
-                if login is None:
-                    return
-                runs.append((self._winlink_cms_run, login))
-            for run, args in runs:
+            runs = await self._prepare_runs(kind, "I", (
+                ("Home BBS", self._bbs_internet_prepare, self._bbs_internet_run),
+                ("Winlink", self._winlink_login, self._winlink_cms_run),
+            ))
+            for run, args in runs or ():
                 await run(*args)
         finally:
             self._collecting = False
@@ -4512,8 +4580,10 @@ class KissTermApp(App):
         connections = self._internet_connections()
         entry = next((t for t in connections if t["name"] == home.internet.strip()), None)
         if entry is None:
-            chosen = await self.push_screen_wait(HomeBbsSetupScreen(
-                [t["name"] for t in connections], missing=home.internet.strip(), internet=True))
+            note, skip = self._all_inboxes_ask()
+            chosen = self._setup_answer(await self.push_screen_wait(HomeBbsSetupScreen(
+                [t["name"] for t in connections], missing=home.internet.strip(), internet=True,
+                all_note=note, skip=skip)), "internet" if connections else "radio")
             entry = next((t for t in connections if t["name"] == chosen), None)
             if entry is None:
                 return None
@@ -5082,3 +5152,7 @@ class KissTermApp(App):
         # layout pass too, otherwise Footer can retain Terminal's context
         # until an APRS child receives focus.
         self.call_after_refresh(self._refresh_context_footer)
+
+
+class _SkipService(Exception):
+    """The operator pressed Skip on an All Inboxes setup question."""

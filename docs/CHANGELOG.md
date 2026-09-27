@@ -5,6 +5,29 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Centred dialogs; Send/Receive questions say why and go there
+
+### Bug Fixes
+
+- **Every dialog is centred** (P0.1, awaiting confirmation). Most had no
+  centring rule and sat in the top-left corner; one `ModalScreen` rule now
+  covers them all, with the F10 menu and Ctrl+P palette kept in place.
+
+### Improvements
+
+- **G or I on All Inboxes says why it is asking**: a setup or password
+  question names the service it is for ("G on All Inboxes sends and
+  receives with the Home BBS, then Winlink, and Winlink needs this
+  first") and offers Skip, which runs the other service alone. Cancel
+  still stops the whole run.
+- **A setup question that names a place has a button to go there**:
+  Winlink settings, Home BBS settings, Mail settings, Add a connection
+  (Settings > Radio), or Connect when the Address Book is empty.
+
+**Files:** `kissterm/ui/styles.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/app.py`, `tests/pilot/test_winlink_send_receive.py`,
+`DESIGN.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-26] — Address Book buttons fit a narrow slide-out
 
 ### Bug Fixes

@@ -266,6 +266,10 @@ is the enforcement.
 - **A focused list's own keys appear there too**, right after Help, and only
   while that widget has focus — never as a hint line under its buttons. A
   modal screen has to `yield Footer()` itself to get this.
+- **Dialogs are centred** by one `ModalScreen` rule in `styles.py`; only
+  the F10 menu and the Ctrl+P palette sit elsewhere. **A dialog that sends
+  the operator somewhere has a button that goes there** ("Winlink
+  settings", "Add a connection"), not just the path in words.
 - **`Ctrl+P` is a searchable reference for every command**, including those
   with no key at all, grouped by the same headings as the menu.
 

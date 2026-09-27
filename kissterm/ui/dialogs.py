@@ -1371,6 +1371,15 @@ class RadioReminderScreen(ModalScreen[bool]):
         self.dismiss(True)
 
 
+#: Send/Receive's setup questions answer with one of these besides a value
+#: or None (cancel everything): leave this service out of an All Inboxes
+#: run, or take the operator to the place the dialog names (operator,
+#: 2026-09-27: "if it wants the user to go someplace, include a button to go
+#: directly there"). The caller knows where that is; the dialog only asks.
+SETUP_SKIP = "\x00skip"
+SETUP_GO = "\x00go"
+
+
 class HomeBbsSetupScreen(ModalScreen[str | None]):
     """Send/Receive's first-run step: which Address Book entry reaches the BBS.
 
@@ -1385,8 +1394,12 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
     def __init__(self, targets: list[str], missing: str = "", *, winlink: bool = False,
-                 internet: bool = False) -> None:
+                 internet: bool = False, all_note: str = "", skip: str = "") -> None:
         super().__init__()
+        #: Why this is asked when G or I was pressed on All Inboxes, and the
+        #: label of the button that leaves this service out of the run.
+        self._all_note = all_note
+        self._skip = skip
         self._targets = targets
         self._missing = missing
         #: The same question for Winlink's route (G on a Winlink folder).
@@ -1394,6 +1407,26 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
         #: The same question for the Home BBS's Internet connection (I):
         #: `targets` are then the configured Telnet and SSH connections.
         self._internet = internet
+
+    def _note(self) -> ComposeResult:
+        if self._all_note:
+            yield Static(self._all_note, id="setup-all-note")
+
+    def _hint(self, text: str, go: str) -> ComposeResult:
+        """The line saying where the rest is set, and a button to go there."""
+        with Horizontal(id="setup-hint-row"):
+            yield Label(text, id="connect-hint")
+            yield Button(go, id="setup-go")
+
+    def _buttons(self, go: str = "") -> ComposeResult:
+        with Horizontal(id="connect-buttons"):
+            if go:
+                yield Button(go, variant="primary", id="setup-go")
+            else:
+                yield Button("Save and send/receive", variant="primary", id="connect-go")
+            if self._skip:
+                yield Button(self._skip, id="setup-skip")
+            yield Button("Cancel" if self._skip or not go else "Close", id="connect-cancel")
 
     def compose(self) -> ComposeResult:
         if self._internet:
@@ -1403,6 +1436,7 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
         with Vertical(id="connect-box"):
             yield Label("Set up Winlink" if self._winlink else "Set up Send/Receive",
                         id="connect-title")
+            yield from self._note()
             if self._missing:
                 intro = (
                     f"The {'Winlink' if self._winlink else 'Home BBS'} entry {self._missing} "
@@ -1413,12 +1447,11 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
             if not self._targets:
                 yield Static(
                     intro + f"Send/Receive dials your {what} from the Address "
-                    f"Book, which is empty. Connect to the {what} once with "
-                    "Ctrl+N (the station is saved there), then press G again.",
+                    f"Book, which is empty. Connect to the {what} once (the "
+                    "station is saved there), then press G again.",
                     id="reminder-detail",
                 )
-                with Horizontal(id="connect-buttons"):
-                    yield Button("Close", id="connect-cancel")
+                yield from self._buttons(go="Connect...")
                 return
             if self._winlink:
                 detail = (
@@ -1441,18 +1474,18 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
                 allow_blank=False,
                 id="home-bbs-route",
             )
-            yield Label(
-                "The account and password are in Settings (F9) > Mail > Winlink."
-                if self._winlink else "The rest is optional, in Settings (F9) > Home BBS.",
-                id="connect-hint",
-            )
-            with Horizontal(id="connect-buttons"):
-                yield Button("Save and send/receive", variant="primary", id="connect-go")
-                yield Button("Cancel", id="connect-cancel")
+            if self._winlink:
+                yield from self._hint("The account and password are in Settings "
+                                      "(F9) > Mail > Winlink.", "Winlink settings")
+            else:
+                yield from self._hint("The rest is optional, in Settings (F9) > "
+                                      "Mail > Home BBS.", "Home BBS settings")
+            yield from self._buttons()
 
     def _compose_internet(self) -> ComposeResult:
         with Vertical(id="connect-box"):
             yield Label("Set up the Home BBS by Internet", id="connect-title")
+            yield from self._note()
             intro = (f"The connection {self._missing} is no longer configured. "
                      if self._missing else "")
             if not self._targets:
@@ -1464,8 +1497,7 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
                     "its host key in a known-hosts file -- then press I again.",
                     id="reminder-detail",
                 )
-                with Horizontal(id="connect-buttons"):
-                    yield Button("Close", id="connect-cancel")
+                yield from self._buttons(go="Add a connection")
                 return
             yield Static(
                 intro + "I sends and receives with your home BBS over the Internet: "
@@ -1476,19 +1508,25 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
             )
             yield Select([(t, t) for t in self._targets], value=self._targets[0],
                          allow_blank=False, id="home-bbs-route")
-            yield Label("The user and After login are in Settings (F9) > Mail.",
-                        id="connect-hint")
-            with Horizontal(id="connect-buttons"):
-                yield Button("Save and send/receive", variant="primary", id="connect-go")
-                yield Button("Cancel", id="connect-cancel")
+            yield from self._hint("The user and After login are in Settings (F9) "
+                                  "> Mail.", "Mail settings")
+            yield from self._buttons()
 
     def on_mount(self) -> None:
         with contextlib.suppress(Exception):
-            self.query_one("#connect-go", Button).focus()
+            self.query_one("#connect-buttons Button.-primary", Button).focus()
 
     @on(Button.Pressed, "#connect-cancel")
     def _cancel(self) -> None:
         self.dismiss(None)
+
+    @on(Button.Pressed, "#setup-skip")
+    def _skip_it(self) -> None:
+        self.dismiss(SETUP_SKIP)
+
+    @on(Button.Pressed, "#setup-go")
+    def _go_there(self) -> None:
+        self.dismiss(SETUP_GO)
 
     @on(Button.Pressed, "#connect-go")
     def _go(self) -> None:
@@ -1509,8 +1547,12 @@ class LoginAskScreen(ModalScreen[str | None]):
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
-    def __init__(self, title: str, detail: str, name: str, *, secret: bool = True) -> None:
+    def __init__(self, title: str, detail: str, name: str, *, secret: bool = True,
+                 all_note: str = "", skip: str = "") -> None:
         super().__init__()
+        #: As for `HomeBbsSetupScreen`: why, on All Inboxes, and Skip's label.
+        self._all_note = all_note
+        self._skip = skip
         self._title = title
         self._detail = detail
         self._name = name
@@ -1519,6 +1561,8 @@ class LoginAskScreen(ModalScreen[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
             yield Label(self._title, id="connect-title")
+            if self._all_note:
+                yield Static(self._all_note, id="setup-all-note")
             yield Static(self._detail, id="reminder-detail")
             yield Input(password=self._secret, id="login-ask-text")
             yield Label("", id="login-ask-error")
@@ -1526,6 +1570,8 @@ class LoginAskScreen(ModalScreen[str | None]):
                         id="connect-hint")
             with Horizontal(id="connect-buttons"):
                 yield Button("Save and send/receive", variant="primary", id="connect-go")
+                if self._skip:
+                    yield Button(self._skip, id="setup-skip")
                 yield Button("Cancel", id="connect-cancel")
 
     def on_mount(self) -> None:
@@ -1534,6 +1580,10 @@ class LoginAskScreen(ModalScreen[str | None]):
     @on(Button.Pressed, "#connect-cancel")
     def _cancel(self) -> None:
         self.dismiss(None)
+
+    @on(Button.Pressed, "#setup-skip")
+    def _skip_it(self) -> None:
+        self.dismiss(SETUP_SKIP)
 
     @on(Button.Pressed, "#connect-go")
     @on(Input.Submitted, "#login-ask-text")
