@@ -5,6 +5,29 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Settings: every section boxed, headings ruled, plain labels
+
+### Improvements
+
+- **Radio and Logins are boxed like every other section**, with their
+  description above the box. **Each heading has a line under it again**
+  (a blank row in ASCII-safe mode), and an Advanced setting sits under
+  "Advanced: <its group>", so Winlink's grid square is no longer under the
+  BBS heading.
+- **Contact settings are chosen from the Address Book**: BBS contact and
+  Gateway contact list radio contacts, Telnet/SSH contact the Telnet and
+  SSH ones; a contact since removed is kept and marked "not in the Address
+  Book". **Labels are plain words**: Node username and password, Command
+  after login, Command prompt, BBS password, Account callsign and
+  password, Grid square, Addressed to, Transmit on at startup, Callsign
+  alerts, Callsigns to watch, Quiet after typing, Open side panels, Radio
+  in use. Operator report, 2026-09-27 (ROADMAP P0.1).
+
+**Files:** `kissterm/ui/settings_pane.py`, `kissterm/ui/settings_schema.py`,
+`kissterm/ui/styles.py`, `kissterm/ui/dialogs.py`,
+`tests/pilot/test_settings.py`, `README.md`, `SETUP.md`, `DESIGN.md`,
+`assets/`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — RMS gateways: Winlink gateways nearest you
 
 ### New Features

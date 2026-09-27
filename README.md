@@ -90,8 +90,8 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   GYX Weather Report and MCF720 ship, "Information strip (paste)" answers any other, and a
   reply to a message carrying a strip offers Answer strip. **Winlink over
   packet**: on a Winlink folder G sends and receives with a Winlink RMS
-  gateway instead (Settings > Mail > Winlink: the Address Book entry that
-  reaches it, and a saved login holding your password, which never goes on
+  gateway instead (Settings > Mail > Winlink: the Address Book contact that
+  reaches it, and your account password, which never goes on
   the air -- only the answer to the gateway's challenge does). A received
   message's attachments are saved to Files > Attachments under cleaned
   names, never opened or run. F10 > Session > RMS gateways lists

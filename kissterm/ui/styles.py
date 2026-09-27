@@ -586,7 +586,11 @@ SettingsPane { layout: vertical; }
 #settings-main { width: 1fr; height: 1fr; }
 #settings-switcher { width: 1fr; height: 1fr; }
 .settings-fields { height: 1fr; }
-.settings-section { padding: 0 1; }
+/* Radio and Logins are hand-built, not a field list, but boxed the same:
+   the border every section's list has (the type rules above), accent while
+   anything inside has focus. */
+.settings-section { padding: 0 1; border: round $primary; }
+.settings-section:focus-within { border: round $accent; }
 .settings-note { padding: 0 1; color: $text-muted; max-width: 92; }
 #settings-note { height: auto; }
 .settings-row { height: auto; min-height: 1; }
@@ -650,6 +654,7 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #ref-box,
 .-ascii-safe #transcripts-box,
 .-ascii-safe #gateways-box,
+.-ascii-safe .settings-section,
 .-ascii-safe #settings-sections {
     border: ascii $primary;
 }
@@ -670,6 +675,7 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #connect-script:disabled,
 .-ascii-safe #transport-script:disabled { border: ascii $panel; }
 .-ascii-safe #settings-bar { border-top: ascii $panel; }
+.-ascii-safe .settings-section:focus-within { border: ascii $accent; }
 .-ascii-safe Underline { display: none; }
 .-ascii-safe WrapLog,
 .-ascii-safe .settings-section,

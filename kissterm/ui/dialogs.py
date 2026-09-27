@@ -1619,15 +1619,15 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
                 return
             yield Static(
                 intro + "I sends and receives with your home BBS over the Internet: "
-                "it logs in to the node (user: and password:), sends the After "
-                "login command (BBS), then works as G does. Which Address Book "
+                "it logs in to the node (user: and password:), sends the command "
+                "after login (BBS), then works as G does. Which Address Book "
                 "contact reaches it?",
                 id="reminder-detail",
             )
             yield Select([(t, t) for t in self._targets], value=self._targets[0],
                          allow_blank=False, id="home-bbs-route")
-            yield from self._hint("The user and After login are in Settings (F9) "
-                                  "> Mail.", "Mail settings")
+            yield from self._hint("The node username and command after login are in "
+                                  "Settings (F9) > Mail.", "Mail settings")
             yield from self._buttons()
 
     def on_mount(self) -> None:

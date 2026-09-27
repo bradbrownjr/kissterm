@@ -1425,7 +1425,12 @@ async def test_headings_set_off_groups_and_the_help_line_says_when_it_applies():
         pane = app.query_one(SettingsPane)
         headings = _headings(app.query_one("#settings-tab-mail"))
         assert headings[0].startswith("Home BBS")
-        assert "Only if the BBS software is not identified automatically" in headings
+        assert "Advanced: Only if the BBS software is not recognised" in headings
+        # Under Advanced, Winlink's grid square is under Winlink, not the BBS.
+        options = app.query_one("#settings-tab-mail").options
+        locator = [o.id for o in options].index("winlink.locator")
+        above = [str(o.prompt) for o in options[:locator] if o.disabled and str(o.prompt)]
+        assert above[-1] == "Advanced: Winlink (G on a Winlink folder)"
         help_line = app.query_one("#settings-help-line")
         pane.open_field("paclen")
         await pilot.pause()
@@ -1515,4 +1520,76 @@ async def test_a_password_field_is_masked_and_saves_under_a_fixed_name():
         pane._save()
         await pilot.pause()
         assert find_credential(app.config, "Winlink") == "SECRET123"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_contact_setting_is_chosen_from_the_address_book(tmp_path):
+    """"Internet contact" read like a host name (operator, 2026-09-27: "Is
+    that the hostname?"). It is a contact: chosen from the Address Book,
+    Telnet/SSH ones for the Internet, radio ones for the routes."""
+    from kissterm.addressbook import AddressBook
+
+    cfg = Config(mycall=str(MYCALL))
+    cfg.home_bbs.internet = "Old node"  # no longer in the book
+    app, station = await _app(cfg)
+    app.addressbook = AddressBook(tmp_path / "addressbook.json")
+    app.addressbook.upsert("WS1EC-2")
+    app.addressbook.upsert("WS1EC SSH", connect_by="ssh", host="ws1ec.example", port="22")
+    async with app.run_test(size=(120, 40)) as pilot:
+        pane = await _edit(app, pilot, "home_bbs.internet")
+        pane.render_settings(app.config)
+        pane.open_field("home_bbs.internet")
+        await pilot.pause()
+        select = app.query_one("#settings-edit-select", Select)
+        assert [v for _l, v in select._options] == ["", "WS1EC SSH", "Old node"]
+        assert select.value == "Old node", "a contact gone from the book is kept"
+        assert "Old node (not in the Address Book)" in pane.row_text("home_bbs.internet")
+        select.value = "WS1EC SSH"
+        await pilot.pause()
+        pane.open_field("home_bbs.route")
+        await pilot.pause()
+        assert [v for _l, v in select._options] == ["", "WS1EC-2"]
+        pane._save()
+        await pilot.pause()
+        assert app.config.home_bbs.internet == "WS1EC SSH"
+        assert app.config.home_bbs.route == ""
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_headings_have_a_rule_under_them_except_in_ascii_safe_mode():
+    """The line across the page under each heading (operator, 2026-09-27:
+    without it, Mail is "hard to understand really what's going on")."""
+    for ascii_safe in (False, True):
+        cfg = Config(mycall=str(MYCALL))
+        cfg.ascii_safe = ascii_safe
+        app, station = await _app(cfg)
+        async with app.run_test(size=(120, 40)) as pilot:
+            await _settings_tab(app, pilot)
+            app.query_one(SettingsPane).show_section("Mail")
+            await pilot.pause()
+            mail = app.query_one("#settings-tab-mail")
+            prompts = [str(o.prompt) for o in mail.options]
+            heading = prompts.index("Home BBS by radio (G on the Mail tab)")
+            shot = app.export_screenshot()
+            if ascii_safe:
+                assert "─" * 20 not in shot
+            else:
+                assert "─" * 20 in shot, "no rule under the headings"
+            assert heading > 0
+        station.close()
+
+
+@pytest.mark.asyncio
+async def test_radio_is_boxed_like_every_other_section():
+    app, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _settings_tab(app, pilot)
+        pane = app.query_one(SettingsPane)
+        pane.show_section("Radio")
+        await pilot.pause()
+        radio = app.query_one("#settings-tab-radio")
+        link = app.query_one("#settings-tab-link")
+        assert radio.styles.border_top[0] == link.styles.border_top[0] == "round"
     station.close()

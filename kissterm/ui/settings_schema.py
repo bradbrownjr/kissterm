@@ -46,7 +46,10 @@ class Field:
     path: str
     label: str
     # "text" | "int" | "float" | "bool" | "choice" | "callsign" | "calllist" |
-    # "color" | "custom_choice" | "filtered_choice" | "secret"
+    # "color" | "custom_choice" | "filtered_choice" | "secret" | "contact"
+    # "contact": an Address Book contact, chosen from a list of them
+    # (`contacts` says which: "radio" or "internet"); the value is its
+    # target, and one no longer in the book is kept, never cleared.
     # "secret": a masked field that never shows the saved value. The config
     # value is the name of a saved login (`config.SECRET_LOGINS` fixes it);
     # what is typed is saved there, the keyring when there is one, and an
@@ -70,6 +73,9 @@ class Field:
     #: value -- the custom theme colours, while Theme is Custom. Still saved
     #: while hidden, so nothing is lost by switching back and forth.
     only_when: tuple[str, Any] = ()
+    #: For kind "contact": "radio" lists contacts reached by radio,
+    #: "internet" those reached by Telnet or SSH.
+    contacts: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -224,14 +230,14 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.route",
-                "Dial",
-                "text",
-                "The Address Book entry that reaches the BBS, exactly as "
-                "listed: WS1EC-2 direct, or a node entry whose login script "
-                "sends BBS. Its frequency reminder, hops and login apply.",
+                "BBS contact",
+                "contact",
+                "The Address Book contact that reaches your BBS by radio: "
+                "WS1EC-2 direct, or a node whose login script sends BBS. Its "
+                "frequency reminder, hops and login apply.",
                 apply="live",
-                placeholder="WS1EC-2",
-                rule_before="Home BBS: where Send/Receive (G on the Mail tab) sends and collects your mail",
+                contacts="radio",
+                rule_before="Home BBS by radio (G on the Mail tab)",
             ),
             Field(
                 "home_bbs.call",
@@ -244,7 +250,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.software",
-                "Software",
+                "BBS software",
                 "choice",
                 "Automatic recognises BPQMail from what it sends. Only "
                 "BPQMail can be collected from so far.",
@@ -253,11 +259,11 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.ready_text",
-                "Ready text",
+                "Command prompt",
                 "text",
                 "The text that means the BBS is ready for a command.",
                 apply="live",
-                rule_before="Only if the BBS software is not identified automatically",
+                rule_before="Only if the BBS software is not recognised",
                 advanced=True,
                 placeholder='e.g. de WS1EC>',
             ),
@@ -273,7 +279,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.credential",
-                "Login",
+                "BBS password",
                 "secret",
                 "What answers the BBS's login prompt. Saved in the system "
                 "keyring (Settings > Logins, \"Home BBS\"); leave empty to keep it.",
@@ -282,18 +288,18 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.internet",
-                "Internet contact",
-                "text",
-                "For I (send/receive by Internet): the Address Book contact, "
-                "By Telnet or SSH, that reaches the BBS's node, such as an SSH "
-                "login that runs a telnet into it.",
+                "Telnet/SSH contact",
+                "contact",
+                "The Address Book contact, connected by Telnet or SSH, that "
+                "reaches your BBS's node. Its host name and login are in the "
+                "contact itself (Ctrl+G, Edit); this chooses which contact.",
                 apply="live",
-                placeholder="an Address Book contact",
-                rule_before="Home BBS over the Internet (I on the Mail tab)",
+                contacts="internet",
+                rule_before="Home BBS by Internet (I on the Mail tab)",
             ),
             Field(
                 "home_bbs.internet_user",
-                "Telnet user",
+                "Node username",
                 "text",
                 "Answers the node's user: prompt. Leave empty for your callsign.",
                 apply="live",
@@ -301,7 +307,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.internet_credential",
-                "Telnet password",
+                "Node password",
                 "secret",
                 "Answers the node's password: prompt. Saved in the system "
                 "keyring (Settings > Logins, \"Home BBS Telnet\"); leave empty to keep it.",
@@ -309,7 +315,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.internet_command",
-                "After login",
+                "Command after login",
                 "text",
                 "Sent once logged in to the node, to reach the BBS.",
                 apply="live",
@@ -317,18 +323,19 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "winlink.route",
-                "Dial",
-                "text",
-                "The Address Book entry that reaches a Winlink RMS gateway: "
-                "its -10 SSID, a NET/ROM alias, a node whose login script "
-                "sends RMS, or hops to a gateway whose Internet is up.",
+                "Gateway contact",
+                "contact",
+                "The Address Book contact that reaches a Winlink RMS gateway "
+                "by radio: its -10 SSID, a NET/ROM alias, a node whose login "
+                "script sends RMS, or hops to a gateway. F10 > Session > RMS "
+                "gateways adds one near you.",
                 apply="live",
-                placeholder="WS1EC-10",
-                rule_before="Winlink: where Send/Receive (G on a Winlink folder) sends and collects",
+                contacts="radio",
+                rule_before="Winlink (G on a Winlink folder)",
             ),
             Field(
                 "winlink.account",
-                "Account",
+                "Account callsign",
                 "text",
                 "Your Winlink account callsign. Leave empty to use your "
                 "callsign without its SSID.",
@@ -337,7 +344,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "winlink.credential",
-                "Password",
+                "Account password",
                 "secret",
                 "Your Winlink password. Saved in the system keyring "
                 "(Settings > Logins, \"Winlink\"); leave empty to keep it. "
@@ -346,7 +353,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "winlink.locator",
-                "Locator",
+                "Grid square",
                 "text",
                 "Your grid square, sent to the gateway. Leave empty to use "
                 "the APRS grid square.",
@@ -658,7 +665,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "beacon.destination",
-                "Unproto destination",
+                "Addressed to",
                 "text",
                 "Who the beacon is addressed to. BEACON is the long-standing "
                 "convention; ID and CQ are the other two you will see. "
@@ -698,7 +705,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         (
             Field(
                 "tx_armed_at_start",
-                "Enable transmit at startup",
+                "Transmit on at startup",
                 "bool",
                 "Off by default: kissterm starts unable to key the radio, "
                 "and Ctrl+T arms it -- the same way WSJT-X's Enable Tx "
@@ -746,9 +753,9 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         'A local alert when a watched callsign is heard. A callsign in a '
         'frame is a claim, not proof of who sent it. Alerts never transmit.',
         (
-            Field("watched_callsigns.enabled", "Watch for callsigns", "bool",
+            Field("watched_callsigns.enabled", "Callsign alerts", "bool",
                   "Off by default. Uses the existing receive path only.", apply="live"),
-            Field("watched_callsigns.callsigns", "Watch callsigns", "calllist",
+            Field("watched_callsigns.callsigns", "Callsigns to watch", "calllist",
                   "Comma-separated callsign claims to watch in a frame source or digipeater path.",
                   apply="live", placeholder="N1ABC, W1AW-2"),
             Field("watched_callsigns.cooldown_minutes", "Repeat cooldown (min)", "int",
@@ -763,7 +770,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             Field("watched_callsigns.quiet_end_hour", "Quiet hours end", "int",
                   "Local hour 0-23; quiet hours can cross midnight. Use -1 to disable.", minimum=-1, maximum=23,
                   apply="live", advanced=True),
-            Field("watched_callsigns.active_suppression_seconds", "Suppress while active (s)", "int",
+            Field("watched_callsigns.active_suppression_seconds", "Quiet after typing (s)", "int",
                   "After local keyboard use, skip alerts because the monitor is already visible; 0 disables.",
                   minimum=0, maximum=3600, apply="live", advanced=True),
         ),
@@ -944,7 +951,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "slideouts_auto_open",
-                "Open contact lists",
+                "Open side panels",
                 "bool",
                 "Let the Address Book and the APRS contact list open "
                 "themselves when the terminal is at least 80 columns wide -- "

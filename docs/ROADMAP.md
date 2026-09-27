@@ -91,6 +91,20 @@ under rule 2 above, with the date and their words:
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
+- **Settings: Radio unboxed, headings without their rule, unclear
+  labels** (2026-09-27, `awaiting confirmation`): "Settings > Radio seems
+  to break from the theme of using a box around settings ... When there
+  are Advanced sections, it looses the <hr> like line across the page,
+  which on Mail, makes it hard to understand really what's going on. I
+  don't understand what 'Internet contact' means. Is that the hostname?"
+  Fix: Radio and Logins have the same box and note line as every other
+  section; each heading has its rule again (a blank row instead in
+  ASCII-safe mode), and an Advanced field sits under "Advanced: <its
+  group>" (Winlink's grid square had been under the BBS heading). The
+  contact fields are chosen from the Address Book (Telnet/SSH contact,
+  BBS contact, Gateway contact), and labels are plain words (Node
+  username, Command after login, Account password, Grid square, Radio
+  in use...). Tests in `tests/pilot/test_settings.py`.
 - **APRS contacts and Terminal Address Book off the screen at 80x24**
   (2026-09-27, `awaiting confirmation`): found by a layout sweep, "Good
   catches, let's hit those." The APRS contacts' Forget ran off the right

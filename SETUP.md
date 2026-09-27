@@ -368,8 +368,8 @@ that shell then runs its own local `telnet` into the real BPQ node, which
 prompts again for a packet callsign and password. A script's last line can
 be a `C <node>` command too, so one script both logs in and reaches the
 actual service from the node prompt, same as typing that hop by hand. For
-Send/Receive by Internet (I on the Mail tab), Settings > Mail > Home BBS >
-Internet contact names the contact, and I answers the node's own login.
+Send/Receive by Internet (I on the Mail tab), choose the contact in
+Settings > Mail > Telnet/SSH contact, and I answers the node's own login.
 
 ## 7. First run
 

@@ -109,8 +109,7 @@ _VALUE_WIDTH = 60
 
 
 def _GAP() -> Option:
-    """A blank row before a heading. Not OptionList's separator: that is a
-    box-drawing line, which ASCII-safe mode must not show."""
+    """A blank row before a heading."""
     return Option("", disabled=True)
 
 
@@ -166,6 +165,29 @@ _SPECS: dict[str, Field] = {f.path: f for s in SETTINGS_SCHEMA for f in s.fields
 _SECTION_OF: dict[str, str] = {f.path: s.title for s in SETTINGS_SCHEMA for f in s.fields}
 #: A field list's id -> its section.
 _SECTION_BY_TAB: dict[str, Section] = {_tab_id(s.title): s for s in SETTINGS_SCHEMA}
+#: Field path -> the heading (`Field.rule_before`) of the group it is in:
+#: its own, or the last one before it in its section.
+_GROUP_OF: dict[str, str] = {}
+for _section in SETTINGS_SCHEMA:
+    _group = ""
+    for _field in _section.fields:
+        _group = _field.rule_before or _group
+        _GROUP_OF[_field.path] = _group
+#: The notes above Radio and Logins, which have no schema section.
+_HAND_BUILT_NOTES = {
+    _tab_id(RADIO): (
+        "The TNC or modem kissterm talks through. USB and serial TNCs are "
+        "noticed when you plug them in. 'Scan for hardware' looks on the "
+        "network and paired Bluetooth; add a VARA or Mercury modem with "
+        "'New'. A node reached by Telnet or SSH is an Address Book contact "
+        "(Ctrl+G, New). Nothing here transmits."
+    ),
+    _tab_id(LOGINS): (
+        "Logins and command scripts an Address Book contact can use by name, "
+        "so a change here reaches every contact that uses it. Nothing is "
+        "sent until a connect uses one."
+    ),
+}
 #: Fields another field's `only_when` depends on.
 _CONTROLS = {f.only_when[0] for f in _SPECS.values() if f.only_when}
 
@@ -302,14 +324,13 @@ class SettingsPane(Vertical):
     def _section_opened(self, tab: str) -> None:
         section = _SECTION_BY_TAB.get(tab)
         note = self.query_one("#settings-note", Static)
-        note.display = section is not None
+        note.update(section.note if section is not None else _HAND_BUILT_NOTES.get(tab, ""))
         editor = self.query_one("#settings-editor")
         editor.display = section is not None
         if section is None:
             self._editing = ""
             self._show_help("")
             return
-        note.update(section.note)
         fields = self.query_one(f"#{tab}", _FieldList)
         option = fields.highlighted_option
         self._load_editor(_SPECS[option.id] if option is not None and option.id else None)
@@ -327,21 +348,35 @@ class SettingsPane(Vertical):
         fields = self.query_one(f"#{_tab_id(section.title)}", _FieldList)
         current = fields.highlighted_option
         keep = current.id if current is not None else None
-        options: list[Option] = []
+        options: list[Option | None] = []
         visible = [f for f in section.fields if self._visible(f)]
         basic = [f for f in visible if not f.advanced]
         advanced = [f for f in visible if f.advanced]
-        for group, heading in ((basic, ""), (advanced, "Advanced")):
-            if heading and group:
-                if options:
-                    options.append(_GAP())
-                options.append(Option(Content.styled(heading, "bold $accent"), disabled=True))
-            for spec in group:
-                if spec.rule_before:
-                    if options:
-                        options.append(_GAP())
-                    options.append(Option(Content.styled(spec.rule_before, "bold $accent"), disabled=True))
-                options.append(Option(self._row_prompt(spec), id=spec.path))
+        ascii_safe = self.app.config.ascii_safe  # type: ignore[attr-defined]
+
+        def heading(title: str) -> None:
+            # A rule under each heading (DESIGN.md section 4) is OptionList's
+            # separator, a box-drawing line; ASCII-safe mode has the blank
+            # row above and the heading alone.
+            if options:
+                options.append(_GAP())
+            options.append(Option(Content.styled(title, "bold $accent"), disabled=True))
+            if not ascii_safe:
+                options.append(None)
+
+        for spec in basic:
+            if spec.rule_before:
+                heading(spec.rule_before)
+            options.append(Option(self._row_prompt(spec), id=spec.path))
+        # Under Advanced, each field keeps the heading of the group it
+        # belongs to ("Advanced: Winlink ..."), so Winlink's grid square is
+        # not read as a BBS setting.
+        shown = None
+        for spec in advanced:
+            if _GROUP_OF[spec.path] != shown:
+                shown = _GROUP_OF[spec.path]
+                heading(f"Advanced: {shown}" if shown else "Advanced")
+            options.append(Option(self._row_prompt(spec), id=spec.path))
         fields.set_options(options)
         ids = [o.id for o in fields.options if o.id]
         if keep in ids:
@@ -375,6 +410,8 @@ class SettingsPane(Vertical):
             return found.display_label(ascii_safe=self.app.config.ascii_safe) if found else text  # type: ignore[attr-defined]
         if spec.kind == "secret":
             return "typed, saved on Save" if raw else self._secret_where.get(spec.path, "not set")
+        if spec.kind == "contact" and raw and self._find_contact(str(raw)) is None:
+            return f"{raw} (not in the Address Book)"
         # Content never reads markup; a control character from a
         # hand-edited config.toml would still move the cursor.
         return "".join(ch if ch.isprintable() else " " for ch in str(raw or ""))
@@ -401,7 +438,7 @@ class SettingsPane(Vertical):
         self._load_editor(spec)
         if spec.kind == "bool":
             self.set_field(spec.path, not self._draft.get(spec.path))
-        elif spec.kind in ("choice", "custom_choice"):
+        elif spec.kind in ("choice", "custom_choice", "contact"):
             select = self.query_one("#settings-edit-select", Select)
             select.focus()
             select.expanded = True
@@ -457,6 +494,7 @@ class SettingsPane(Vertical):
             "bool": {"check"},
             "choice": {"select"},
             "custom_choice": {"select"},
+            "contact": {"select"},
             "filtered_choice": {"symbol"},
             "color": {"input", "swatch"},
         }.get(kind, {"input"})
@@ -472,6 +510,11 @@ class SettingsPane(Vertical):
             if kind == "bool":
                 widgets["check"].value = bool(raw)
                 widgets["check"].label = "on" if raw else "off"
+            elif kind == "contact":
+                select = widgets["select"]
+                options = self._contact_options(spec, str(raw or ""))
+                select.set_options(options)
+                select.value = str(raw or "")
             elif kind in ("choice", "custom_choice"):
                 options = [(str(label), value) for label, value in spec.choices]
                 if kind == "custom_choice":
@@ -501,6 +544,23 @@ class SettingsPane(Vertical):
                 if kind == "color":
                     self._update_swatch(editor.value)
 
+    def _find_contact(self, target: str):
+        book = getattr(self.app, "addressbook", None)
+        return book.find(target) if book is not None and target else None
+
+    def _contact_options(self, spec: Field, current: str) -> list[tuple[str, str]]:
+        """"(none)", then the Address Book contacts of the kind `spec`
+        wants, and the current value even when it is gone from the book
+        (a list without it would clear it on Save)."""
+        book = getattr(self.app, "addressbook", None)
+        internet = spec.contacts == "internet"
+        targets = [e.target for e in (book.entries if book is not None else ())
+                   if e.is_internet == internet]
+        options = [("(none)", "")] + [(t, t) for t in targets]
+        if current and current not in targets:
+            options.append((f"{current} (not in the Address Book)", current))
+        return options
+
     def _editing_spec(self) -> Field | None:
         return _SPECS.get(self._editing)
 
@@ -523,7 +583,8 @@ class SettingsPane(Vertical):
     @on(Select.Changed, "#settings-edit-select")
     def _select_changed(self, event: Select.Changed) -> None:
         spec = self._editing_spec()
-        if spec is None or spec.kind not in ("choice", "custom_choice") or event.value != event.select.value:
+        if (spec is None or spec.kind not in ("choice", "custom_choice", "contact")
+                or event.value != event.select.value):
             return
         if spec.kind == "custom_choice":
             custom = self.query_one("#settings-edit-custom", Input)
@@ -702,21 +763,13 @@ class SettingsPane(Vertical):
         """The one hand-built tab -- see the module docstring for why
         transports cannot be schema fields (a list of dicts with
         kind-specific keys, not scalars)."""
-        yield Static(
-            "The TNC or modem kissterm talks through. USB and serial TNCs are "
-            "noticed when you plug them in. 'Scan for hardware' looks on the "
-            "network and paired Bluetooth; add a VARA or Mercury modem with "
-            "'New'. A node reached by Telnet or SSH is an Address Book "
-            "contact (Ctrl+G, New). Nothing here transmits.",
-            classes="settings-note",
-        )
         row = self._register_row(
-            "set-active-transport-row", "Active",
+            "set-active-transport-row", "Radio in use",
             "Which one kissterm uses. Changing it reopens the connection, so "
             "disconnect first.", "live", "set-active-transport",
         )
         with Horizontal(classes="settings-row", id=row):
-            yield Label("Active", classes="settings-label")
+            yield Label("Radio in use", classes="settings-label")
             yield Select([], id="set-active-transport", allow_blank=True, compact=True)
         with Horizontal(classes="settings-row settings-buttons"):
             yield Button("Scan for hardware", compact=True, id="settings-scan")
@@ -734,12 +787,6 @@ class SettingsPane(Vertical):
         no fixed shape a scalar form field could bind to, and Add/Edit here
         open `CredentialScreen` rather than being generated.
         """
-        yield Static(
-            "Logins and command scripts an Address Book entry can use by name, "
-            "so a change here reaches every entry that uses it. Nothing is "
-            "sent until a connect uses one.",
-            classes="settings-note",
-        )
         row = self._register_row(
             "set-credential-row", "Login", "A saved login: the lines sent after "
             "connecting, often a callsign and a password.", "live", "set-credential",
@@ -1008,6 +1055,9 @@ class SettingsPane(Vertical):
             if path == self._editing:
                 self._load_editor(_SPECS[path])
         self._apply_live(config)
+        # ASCII-safe mode decides how headings are ruled.
+        for section in SETTINGS_SCHEMA:
+            self._build_list(section)
 
 
         # The toast and the footer say different amounts on purpose. The

@@ -137,9 +137,14 @@ start on the way back. Applies to section notes, help text and banners.
   bottom. **One editor under the list changes the highlighted field**
   (2026-09-27, for startup time: a control per field was two thirds of the
   app's widgets). Tuning the defaults already get right is listed last,
-  under an **Advanced** heading (`Field.advanced`); a field that only
+  under an **Advanced** heading that names its group ("Advanced: Winlink
+  ...", `Field.advanced`), every heading with a rule under it and every
+  section in the same box; a field that only
   matters for another's value is shown only then (`Field.only_when`). A
-  new setting chooses one of the two before it ships.
+  new setting chooses one of the two before it ships. **A label is plain
+  words for what the value is** ("Node username", not "Telnet user"), and
+  a setting that names an Address Book contact is chosen from the book
+  (`kind="contact"`), never typed.
 
 ### Information order
 
