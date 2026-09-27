@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Telnet and SSH leave Settings > Radio (step 5 of 6)
+
+### Improvements
+
+- **Settings > Radio is hardware only**: its New no longer offers Telnet
+  or SSH, and its note says those are Address Book contacts. At launch,
+  before any transport opens, a Telnet or SSH entry in config.toml is
+  moved to the Address Book (password to the keyring) and removed; if it
+  was the active transport, the first one left becomes active, so the
+  radio opens rather than an SSH login. The terminal says what moved.
+
+**Files:** `kissterm/addressbook.py`, `kissterm/__main__.py`,
+`kissterm/ui/dialogs.py`, `kissterm/ui/settings_pane.py`,
+`config.toml.example`, `tests/unit/test_addressbook.py`,
+`tests/unit/test_config.py`, `tests/pilot/test_settings.py`,
+`tests/pilot/test_addressbook_pane.py`, `tests/pilot/test_app_mounts.py`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — I reaches the Home BBS through a contact (step 4 of 6)
 
 ### Improvements

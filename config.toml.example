@@ -507,57 +507,12 @@ kind = "mercury"
 host = "127.0.0.1"
 port = 8300
 
-# telnet: an Internet-reachable node's own telnet server (most commonly
-# BPQ32/LinBPQ's telnet listener). No AX.25 framing on this wire at all --
-# the remote node runs its own link layer on its own RF ports and just
-# presents the same node prompt over plain TCP. Not discoverable by
-# "Scan for hardware" (that only sweeps your own LAN); always hand-entered.
-[[transports]]
-name = "some-node-telnet"
-kind = "telnet"
-host = "bpq.example.org"
-port = 8010
-# Optional auto-login, sent one line at a time right after connecting --
-# same idea as an address-book entry's script, just for a transport that has
-# no per-attempt dialog to carry one. Three sources, checked in order:
-# `credential` (a name from [[credentials]] below), `script_name` (a name
-# from [[scripts]] below), then `script` (typed here, literally).
-# credential = "Personal BBS login"
-# script_name = "Check WS1EC mail"
-# script = "CLYDE\nMYPASS"
-
-# ssh: the secure-delivery case -- a shell account whose login immediately
-# hands you a telnet session to the real node, entirely on the remote end
-# (Maine Packet Radio's WS1EC is exactly this: `ssh packet@host -p 4122`).
-# SSH is purely the transport here, not a second protocol kissterm needs to
-# understand; see kissterm/transport/ssh.py. Set `password` for password
-# authentication, or `client_key` to offer exactly that private key. kissterm
-# never silently searches ~/.ssh for identities. `key_passphrase` is needed
-# only when that key is encrypted. `known_hosts` is required: point it to an
-# operator-maintained OpenSSH known-hosts file containing this host's verified
-# public key. It is not secret and is deliberately not inferred from ~/.ssh,
-# so verify and add the key out of band before connecting. These values sit
-# here in plain text like every other config.toml secret in this file --
-# protect this file with normal filesystem permissions the same way you would
-# an SSH key.
-#
-# `script` here is a second, later login: the SSH password above only gets
-# you the shell account; WS1EC's shell then runs its own local telnet into
-# the actual BPQ node, which prompts again for a packet callsign and
-# password of its own. The last line can be a "C <node>" command too, so one
-# script both logs into the node and connects on to the service you
-# actually want, exactly like a hand-typed hop chain.
-[[transports]]
-name = "ws1ec"
-kind = "ssh"
-host = "ws1ec.mainepacketradio.org"
-port = 4122
-username = "packet"
-password = ""
-# client_key = "/home/you/.ssh/id_ed25519"
-# key_passphrase = ""
-known_hosts = "/home/you/.ssh/kissterm_known_hosts"
-script = "MYCALL\nMYPASS\nC BBS"
+# Telnet and SSH nodes are not transports: they are Address Book contacts
+# (Ctrl+G, New, By Telnet or SSH), dialed in their own Terminal tab beside
+# the radio. A telnet or ssh entry found here is moved there at launch,
+# its password into the system keyring. WS1EC, for example: By SSH, host
+# ws1ec.mainepacketradio.org, port 4122, user packet, and a known-hosts
+# file holding its host key (verified out of band; never read from ~/.ssh).
 
 # --- Saved connect targets -------------------------------------------------
 # Optional shortcuts for stations you connect to often -- a local BBS, a

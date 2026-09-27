@@ -421,7 +421,7 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
 
         app.push_screen(
             TransportEntryScreen(
-                {"kind": "telnet"}, credentials=[{"name": "Saved login", "text": "password"}]
+                {"kind": "vara"}, credentials=[{"name": "Saved login", "text": "password"}]
             )
         )
         await pilot.pause()

@@ -285,3 +285,23 @@ def test_telnet_and_ssh_transports_are_adopted_as_contacts(tmp_path):
                                                                  "host": "bbs.example.net"}
     assert book.find("tnc") is None
     assert adopt_internet_transports(book, config) == []  # once only
+
+
+def test_at_launch_the_adopted_connections_leave_the_transports(tmp_path):
+    from kissterm.config import Config
+
+    config = Config(mycall="KC1JMH", active_transport="ws1ec")
+    config.transports = [
+        {"name": "ws1ec", "kind": "ssh", "host": "h", "username": "packet", "known_hosts": "/k"},
+        {"name": "tnc", "kind": "tcp", "host": "127.0.0.1", "port": 8001},
+    ]
+    book = AddressBook(tmp_path / "ab.json")
+    assert adopt_internet_transports(book, config, remove=True) == ["ws1ec"]
+    assert [t["name"] for t in config.transports] == ["tnc"]
+    assert config.active_transport == "tnc"  # the radio opens, not SSH
+    assert book.find("ws1ec").is_internet
+    # Adopted earlier (the copy of step 1): removed now, not duplicated.
+    config.transports.append({"name": "ws1ec", "kind": "ssh", "host": "h"})
+    assert adopt_internet_transports(book, config, remove=True) == ["ws1ec"]
+    assert [t["name"] for t in config.transports] == ["tnc"]
+    assert len([e for e in book.entries if e.target == "ws1ec"]) == 1

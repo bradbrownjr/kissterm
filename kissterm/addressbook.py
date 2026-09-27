@@ -183,17 +183,29 @@ INTERNET_FIELDS = frozenset({"connect_by", "host", "port", "username", "password
                               "client_key", "key_login", "known_hosts"})
 
 
-def adopt_internet_transports(book: "AddressBook", config) -> list[str]:
+def adopt_internet_transports(book: "AddressBook", config, *, remove: bool = False) -> list[str]:
     """Each Telnet or SSH connection in `config.transports` as an Address
     Book contact of the same name, unless one is there already; the names
     added. A password or key passphrase becomes a saved login as text
     (`"<name> SSH password"`), which the launch then moves into the keyring
     (`move_credentials_to_keyring`) off the UI thread. The transports stay
-    until the app no longer reads them. The caller saves the config."""
+    with `remove` false; with it (at launch, before any transport is
+    built: `__main__`), each one now a contact leaves `config.transports`,
+    and an active one hands over to the first transport left. The caller
+    saves the config."""
     added = []
+    kept = []
     for transport in config.transports:
         kind, name = transport.get("kind"), str(transport.get("name", "")).strip()
-        if kind not in INTERNET_KINDS or not name or book.find(name) is not None:
+        if kind not in INTERNET_KINDS or not name:
+            kept.append(transport)
+            continue
+        existing = book.find(name)
+        if existing is not None:
+            if not existing.is_internet:
+                kept.append(transport)  # a radio contact by that name: leave both
+            elif remove:
+                added.append(name)
             continue
         logins = {}
         for key, suffix in (("password", "SSH password"), ("key_passphrase", "SSH key passphrase")):
@@ -219,6 +231,11 @@ def adopt_internet_transports(book: "AddressBook", config) -> list[str]:
             known_hosts=str(transport.get("known_hosts", "") or ""),
         )
         added.append(name)
+    if remove and added:
+        config.transports = kept
+        if config.active_transport in added:
+            config.active_transport = next(
+                (str(t.get("name", "")) for t in kept if t.get("name")), "")
     return added
 
 

@@ -434,9 +434,8 @@ async def test_new_transport_is_saved_and_becomes_active():
 
         assert isinstance(app.screen, TransportEntryScreen), type(app.screen).__name__
         await app.screen.dismiss(
-            {"name": "ws1ec", "kind": "ssh", "host": "ws1ec.example.net",
-             "username": "packet", "password": "hunter2", "port": 22,
-             "script": "", "credential": ""}
+            {"name": "ws1ec", "kind": "vara", "host": "127.0.0.1", "mycall": "N1ABC-1",
+             "cmd_port": 8300, "data_port": 8301, "script": "", "credential": ""}
         )
         await pilot.pause()
 
@@ -549,37 +548,20 @@ async def test_transport_dialog_hides_autologin_for_a_frame_transport():
         assert isinstance(app.screen, TransportEntryScreen)
 
         assert app.screen.query_one("#transport-script-title").display is False
-        app.screen.query_one("#transport-kind", Select).value = "ssh"
+        app.screen.query_one("#transport-kind", Select).value = "vara"
         await pilot.pause()
         await asyncio.sleep(0.05)
         assert app.screen.query_one("#transport-script-title").display is True
     station.close()
 
 
-@pytest.mark.asyncio
-async def test_ssh_transport_dialog_offers_explicit_key_and_host_verification_fields():
-    """SSH identities and the trusted server key must be named explicitly."""
-    from kissterm.ui.dialogs import TransportEntryScreen
+def test_telnet_and_ssh_are_not_radio_kinds():
+    """Telnet and SSH are Address Book contacts now (ROADMAP P2); their
+    fields, key and known-hosts included, are in the Address Book editor
+    (`tests/pilot/test_addressbook_pane.py`)."""
+    from kissterm.ui.dialogs import _TRANSPORT_KINDS
 
-    app, station = await _app(Config(mycall=str(MYCALL)))
-    async with app.run_test(size=(120, 50)) as pilot:
-        app.query_one(SettingsPane)._new_transport()
-        await pilot.pause()
-        await asyncio.sleep(0.05)
-        assert isinstance(app.screen, TransportEntryScreen)
-
-        app.screen.query_one("#transport-kind", Select).value = "ssh"
-        await pilot.pause()
-        await asyncio.sleep(0.05)
-
-        assert app.screen.query_one("#transport-field-client_key", Input).value == ""
-        passphrase = app.screen.query_one("#transport-field-key_passphrase", Input)
-        assert passphrase.value == ""
-        assert passphrase.password is True
-        known_hosts = app.screen.query_one("#transport-field-known_hosts", Input)
-        assert known_hosts.value == ""
-        assert known_hosts.password is False
-    station.close()
+    assert "telnet" not in _TRANSPORT_KINDS and "ssh" not in _TRANSPORT_KINDS
 
 
 @pytest.mark.asyncio

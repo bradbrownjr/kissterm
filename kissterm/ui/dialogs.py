@@ -2154,19 +2154,9 @@ _TRANSPORT_KINDS: dict[str, tuple[bool, tuple[_TransportField, ...]]] = {
         _TransportField("port", "Port", default="8300", numeric=True),
         _TransportField("mycall", "Callsign", "e.g. N1ABC-1"),
     )),
-    "telnet": (True, (
-        _TransportField("host", "Host", "e.g. bbs.example.net"),
-        _TransportField("port", "Port", default="23", numeric=True),
-    )),
-    "ssh": (True, (
-        _TransportField("host", "Host", "e.g. ws1ec.mainepacketradio.org"),
-        _TransportField("username", "Username", "e.g. packet"),
-        _TransportField("password", "Password", password=True),
-        _TransportField("client_key", "Private key file", "e.g. ~/.ssh/id_ed25519", optional=True),
-        _TransportField("key_passphrase", "Key passphrase", password=True, optional=True),
-        _TransportField("known_hosts", "Known-hosts file", "e.g. /home/you/.ssh/kissterm_known_hosts"),
-        _TransportField("port", "Port", default="22", numeric=True),
-    )),
+    # No Telnet or SSH: those are Address Book contacts, By Telnet or SSH
+    # (ROADMAP P2, every contact in the Address Book), dialed beside the
+    # radio rather than in its place.
 }
 
 

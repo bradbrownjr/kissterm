@@ -319,6 +319,29 @@ _OPEN_HINTS = {
     "mercury": "Is the Mercury modem program running?",
 }
 
+def _move_internet_transports(config) -> None:
+    """Telnet and SSH connections are Address Book contacts now (ROADMAP P2,
+    every contact in the Address Book): move any still under
+    [[transports]] there before a transport is built from them, so the
+    radio, not an SSH login, is what opens. Said on the terminal, as the
+    launch's other steps are."""
+    from .addressbook import AddressBook, adopt_internet_transports
+    from .config import save_config
+
+    book = AddressBook()
+    book.load()
+    moved = adopt_internet_transports(book, config, remove=True)
+    if not moved:
+        return
+    try:
+        save_config(config)
+    except OSError as exc:
+        print(f"Could not save config.toml: {exc}", file=sys.stderr)
+    print("Telnet/SSH connections are Address Book contacts now: "
+          + ", ".join(moved) + ". Dial them from the Address Book (Ctrl+G).",
+          file=sys.stderr)
+
+
 # Telnet and SSH reach a node over the internet; there is no modem to start.
 _NETWORK_KINDS = frozenset({"telnet", "ssh"})
 
@@ -509,6 +532,7 @@ async def _amain(args) -> int:
             return 1
         config = load_config(profile=profile)
 
+    _move_internet_transports(config)
     entry = _select_transport_entry(config, args.transport)
     from .app import KissTermApp
     station = None

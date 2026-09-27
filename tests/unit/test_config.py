@@ -897,3 +897,29 @@ def test_a_password_typed_where_a_login_name_goes_is_rescued():
     assert config.home_bbs.credential == "bbs"
     assert not any(c.get("name") == "SECRET123" for c in config.credentials)
     assert kconfig.rescue_typed_secrets(config) == []  # once only
+
+
+def test_launch_moves_telnet_and_ssh_to_the_address_book(tmp_path, capsys):
+    """Before a transport is built: an SSH active transport would otherwise
+    open instead of the radio."""
+    from kissterm.addressbook import AddressBook
+
+    path = tmp_path / "config.toml"
+    config = kconfig.Config(mycall="KC1JMH", active_transport="ws1ec")
+    config.transports = [
+        {"name": "ws1ec", "kind": "ssh", "host": "h", "username": "packet", "known_hosts": "/k"},
+        {"name": "tnc", "kind": "tcp", "host": "127.0.0.1", "port": 8001},
+    ]
+    kconfig.save_config(config, path)
+    config = kconfig.load_config(path=path)
+    real_save = kconfig.save_config
+    kconfig.save_config = lambda cfg, p=None: real_save(cfg, path)
+    try:
+        main._move_internet_transports(config)
+    finally:
+        kconfig.save_config = real_save
+    assert kconfig.load_config(path=path).active_transport == "tnc"
+    assert "Address Book contacts now: ws1ec" in capsys.readouterr().err
+    book = AddressBook()
+    book.load()
+    assert book.find("ws1ec").is_internet

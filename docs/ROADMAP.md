@@ -175,8 +175,10 @@ session tab beside the radio. Steps:
    untouched; pilot tests against local Telnet and SSH servers.
 4. Done 2026-09-27: the Home BBS's Internet route names a contact (I on
    the Mail tab); with none, "New contact" opens the editor By SSH.
-5. Telnet and SSH leave Settings > Radio, discovery and `--setup`; the
-   adopted transports are removed from config.toml.
+5. Done 2026-09-27: Telnet and SSH left Settings > Radio (and so
+   `--setup`, which uses the same editor); at launch they move to the
+   Address Book and out of config.toml, an active one handing over to the
+   radio.
 6. README, SETUP, ON-AIR-TESTS (WS1EC is dialed from the Address Book).
 
 #### Winlink

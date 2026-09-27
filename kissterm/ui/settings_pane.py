@@ -306,8 +306,9 @@ class SettingsPane(Vertical):
         yield Static(
             "The TNC or modem kissterm talks through. USB and serial TNCs are "
             "noticed when you plug them in. 'Scan for hardware' looks on the "
-            "network and paired Bluetooth; add a VARA or Mercury modem, a "
-            "Telnet or SSH node with 'New'. Nothing here transmits.",
+            "network and paired Bluetooth; add a VARA or Mercury modem with "
+            "'New'. A node reached by Telnet or SSH is an Address Book "
+            "contact (Ctrl+G, New). Nothing here transmits.",
             classes="settings-note",
         )
         row = self._register_row(

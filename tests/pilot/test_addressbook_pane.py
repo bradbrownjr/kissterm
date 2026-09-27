@@ -546,6 +546,8 @@ async def test_an_ssh_contact_is_made_in_the_editor(tmp_path):
         await pilot.pause()
         assert app.screen is screen
         assert "password or a key" in str(screen.query_one("#connect-error").render())
+        assert screen.query_one("#addressbook-key-passphrase", Input).password
+        assert screen.query_one("#addressbook-client-key", Input).display
         screen.query_one("#addressbook-ssh-password", Input).value = "s3cret"
         save = screen.query_one("#connect-go", Button).region
         assert save.bottom <= 24
