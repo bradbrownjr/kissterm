@@ -195,22 +195,23 @@ _CONTROLS = {f.only_when[0] for f in _SPECS.values() if f.only_when}
 class _FieldList(OptionList):
     """One section's settings, a row each: the label and the current value.
 
-    Enter changes the highlighted one (an on/off setting flips at once);
-    the editor under the list follows the highlight."""
+    Enter changes the highlighted one in place (an on/off setting flips
+    at once)."""
 
     BINDINGS = [Binding("enter", "select", "Change")]
 
 
 class _Editor(Vertical):
-    """The one set of controls every field is edited with."""
+    """The one set of controls every field is edited with, laid over the
+    row being edited."""
 
-    BINDINGS = [Binding("escape", "done", "Back to the list")]
+    BINDINGS = [Binding("escape", "cancel", "Cancel")]
 
-    def action_done(self) -> None:
-        self.post_message(_Editor.Done())
+    def action_cancel(self) -> None:
+        self.post_message(_Editor.Cancel())
 
-    class Done(Message):
-        """Esc in the editor: back to the list."""
+    class Cancel(Message):
+        """Esc in the editor: put the value back, back to the list."""
 
 
 class SettingsPane(Vertical):
@@ -224,9 +225,17 @@ class SettingsPane(Vertical):
     them when a section opens was turned down on 2026-09-25 (a wait while
     moving around is worse than a slow launch), so there are fewer widgets
     instead. A section is one `OptionList`, a row per field with its
-    current value, and one editor under it (an input, a list, an on/off
-    box) changes the highlighted row. About 60 widgets; the first screen
-    comes 2 s sooner, the same as with no Settings at all.
+    current value, and one editor (an input, a list, an on/off box)
+    changes the highlighted row. About 60 widgets; the first screen comes
+    2 s sooner, the same as with no Settings at all.
+
+    **The editor opens on the row itself** (operator, 2026-09-27: "The
+    prompts aren't inline, they're below the window"): Enter lays it over
+    the row's value, Enter again keeps the change, Esc puts the old value
+    back. **What is not saved yet shows**: the row says "(unsaved)", its
+    section is starred, and the count sits beside Save and Discard
+    changes, at the left under the list ("on a widescreen, I barely
+    noticed the Save and Cancel buttons").
 
     What the 2026-09-25 rebuild settled still holds: sections down the
     left, one row per field, the help for the field you are on in one line
@@ -252,6 +261,10 @@ class SettingsPane(Vertical):
         self._secret_where: dict[str, str] = {}
         #: The field the editor is showing, "" for none.
         self._editing = ""
+        #: What each field held when last loaded or saved.
+        self._saved: dict[str, object] = {}
+        #: The field being edited on its row and its value before, or None.
+        self._open_edit: tuple[str, object] | None = None
 
     def compose(self) -> ComposeResult:
         ascii_safe = self.app.config.ascii_safe  # type: ignore[attr-defined]
@@ -293,11 +306,11 @@ class SettingsPane(Vertical):
 
         with Vertical(id="settings-bar"):
             yield Static("", id="settings-banner", classes="settings-banner")
-            yield Static(_HELP_IDLE, id="settings-help-line")
             with Horizontal(classes="settings-actions"):
-                yield Static("", id="settings-footer")
                 yield Button("Save", variant="primary", compact=True, id="settings-save")
-                yield Button("Reload", compact=True, id="settings-reload")
+                yield Button("Discard changes", compact=True, id="settings-reload", disabled=True)
+                yield Static("", id="settings-footer")
+            yield Static(_HELP_IDLE, id="settings-help-line")
 
     # -- sections -------------------------------------------------------------
 
@@ -325,8 +338,7 @@ class SettingsPane(Vertical):
         section = _SECTION_BY_TAB.get(tab)
         note = self.query_one("#settings-note", Static)
         note.update(section.note if section is not None else _HAND_BUILT_NOTES.get(tab, ""))
-        editor = self.query_one("#settings-editor")
-        editor.display = section is not None
+        self._end_edit()
         if section is None:
             self._editing = ""
             self._show_help("")
@@ -389,10 +401,13 @@ class SettingsPane(Vertical):
         label_style = "bold $error" if spec.path in self._errors else ""
         if len(value) > _VALUE_WIDTH:
             value = value[: _VALUE_WIDTH - 3] + "..."
-        return Content.assemble(
+        parts = [
             (f"{spec.label:<{_LABEL_WIDTH}} ", label_style),
             (value, "") if value else ("(not set)", "dim"),
-        )
+        ]
+        if spec.path in self._dirty():
+            parts.append(("  (unsaved)", "bold"))
+        return Content.assemble(*parts)
 
     def _display(self, spec: Field) -> str:
         """A field's draft value as its row shows it."""
@@ -431,35 +446,68 @@ class SettingsPane(Vertical):
 
     @on(OptionList.OptionSelected, ".settings-fields")
     def _row_chosen(self, event: OptionList.OptionSelected) -> None:
-        """Enter on a row: flip an on/off setting, else go to the editor."""
+        """Enter on a row: flip an on/off setting, else edit it in place."""
         if not event.option.id:
             return
         spec = _SPECS[event.option.id]
         self._load_editor(spec)
         if spec.kind == "bool":
             self.set_field(spec.path, not self._draft.get(spec.path))
-        elif spec.kind in ("choice", "custom_choice", "contact"):
+            return
+        self._open_edit = (spec.path, self._draft.get(spec.path))
+        editor = self.query_one("#settings-editor", _Editor)
+        editor.display = True
+        self._place_editor()
+        if spec.kind in ("choice", "custom_choice", "contact"):
             select = self.query_one("#settings-edit-select", Select)
             select.focus()
             select.expanded = True
         elif spec.kind == "filtered_choice":
             self.query_one("#settings-edit-symbol-select-filter", Input).focus()
         else:
-            editor = self.query_one("#settings-edit-input", Input)
-            editor.focus()
-            editor.cursor_position = len(editor.value)
+            field = self.query_one("#settings-edit-input", Input)
+            field.focus()
+            field.cursor_position = len(field.value)
 
-    def _back_to_list(self) -> None:
-        if self.current_section in _SECTION_BY_TAB:
+    def _place_editor(self) -> None:
+        """Lay the editor over the highlighted row, its label on the row's
+        label and its control on the value.
+
+        `_index_to_line` is OptionList's own map from an option to its
+        first line (Textual 8.2.8; private, so a test checks the editor
+        lands on the row: `test_the_editor_opens_on_the_row_itself`)."""
+        fields = self.query_one(f"#{self.current_section}", _FieldList)
+        index = fields.highlighted
+        if index is None:
+            return
+        fields.scroll_to_highlight()
+        line = fields._index_to_line.get(index, 0)
+        area = fields.content_region
+        main = self.query_one("#settings-main").content_region
+        editor = self.query_one("#settings-editor", _Editor)
+        editor.styles.offset = (area.x - main.x, area.y + line - round(fields.scroll_offset.y) - main.y)
+        editor.styles.width = max(20, area.width - fields.scrollbar_size_vertical)
+
+    def _end_edit(self, *, cancel: bool = False, to_list: bool = True) -> None:
+        """Close the editor on its row; with `cancel`, put the value back.
+        `to_list` is False when focus has already gone somewhere else."""
+        if self._open_edit is None:
+            return
+        path, before = self._open_edit
+        self._open_edit = None
+        if cancel:
+            self.set_field(path, before)
+        self.query_one("#settings-editor", _Editor).display = False
+        if to_list and self.current_section in _SECTION_BY_TAB:
             self.query_one(f"#{self.current_section}", _FieldList).focus()
 
-    @on(_Editor.Done)
-    def _editor_done(self) -> None:
-        self._back_to_list()
+    @on(_Editor.Cancel)
+    def _editor_cancelled(self) -> None:
+        self._end_edit(cancel=True)
 
-    @on(Input.Submitted, "#settings-edit-input, #settings-edit-custom")
+    @on(Input.Submitted, "#settings-edit-input, #settings-edit-custom, #settings-edit-symbol-select-filter")
     def _editor_submitted(self) -> None:
-        self._back_to_list()
+        self._end_edit()
 
     # -- the editor -------------------------------------------------------------
 
@@ -593,8 +641,11 @@ class SettingsPane(Vertical):
             if is_custom:
                 custom.placeholder = spec.placeholder
                 self.set_field(spec.path, custom.value, from_editor=True)
+                if self._open_edit is not None:
+                    custom.focus()
                 return
         self.set_field(spec.path, event.value, from_editor=True)
+        self._end_edit()
 
     @on(Checkbox.Changed, "#settings-edit-check")
     def _check_changed(self, event: Checkbox.Changed) -> None:
@@ -611,6 +662,7 @@ class SettingsPane(Vertical):
                 or event.value != event.select.value):
             return
         self.set_field(spec.path, event.value, from_editor=True)
+        self._end_edit()
 
     def _update_swatch(self, text: str) -> None:
         """Fill the swatch beside a colour field with the colour it names.
@@ -647,6 +699,26 @@ class SettingsPane(Vertical):
 
     # -- the draft ----------------------------------------------------------------
 
+    def _dirty(self) -> set[str]:
+        """Fields changed since they were loaded or saved."""
+        return {path for path, value in self._draft.items()
+                if (value if _SPECS[path].kind == "secret" else value != self._saved.get(path))}
+
+    def _show_unsaved(self) -> None:
+        """The count beside Save, Discard changes on or off, and a star
+        on each section with a change in it."""
+        dirty = self._dirty()
+        self.query_one("#settings-reload", Button).disabled = not dirty
+        if dirty:
+            count = len(dirty)
+            self.query_one("#settings-footer", Static).update(
+                f"{count} unsaved change{'s' if count != 1 else ''}.")
+        sections = self.query_one("#settings-sections", OptionList)
+        starred = {_SECTION_OF[path] for path in dirty}
+        for section in SETTINGS_SCHEMA:
+            title = section.title + ("  *" if section.title in starred else "")
+            sections.replace_option_prompt(_tab_id(section.title), title)
+
     def field_value(self, path: str) -> object:
         """What Settings holds for `path`, saved or not."""
         return self._draft.get(path)
@@ -660,9 +732,12 @@ class SettingsPane(Vertical):
         spec = _SPECS[path]
         if self._draft.get(path) == raw and path not in self._errors:
             return
+        was_dirty = path in self._dirty()
         self._draft[path] = raw
         self._errors.pop(path, None)
         self._refresh_row(path)
+        if was_dirty and path not in self._dirty():
+            self.query_one("#settings-footer", Static).update("")
         for other in self._sync_position(path):
             self._refresh_row(other)
             if other == self._editing:
@@ -675,6 +750,7 @@ class SettingsPane(Vertical):
             if not from_editor:
                 self._load_editor(spec)
             self._show_help(path)
+        self._show_unsaved()
 
     def _sync_position(self, path: str) -> list[str]:
         """A grid square typed in gives the latitude and longitude of its
@@ -720,7 +796,10 @@ class SettingsPane(Vertical):
 
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
         """Radio and Logins' rows say what they are when focused; a field
-        list's help follows its highlighted row instead."""
+        list's help follows its highlighted row instead. Focus leaving an
+        open editor (a click on Save, Tab) keeps what was typed."""
+        if self._open_edit is not None and not self.query_one("#settings-editor") in event.control.ancestors_with_self:
+            self._end_edit(to_list=False)
         if self.current_section in _SECTION_BY_TAB:
             return
         node = event.control
@@ -840,8 +919,10 @@ class SettingsPane(Vertical):
                     log.warning("settings schema references unknown %s", spec.path)
                     continue
                 self._draft[spec.path] = self._initial(spec, value, config)
+        self._saved = dict(self._draft)
         for section in SETTINGS_SCHEMA:
             self._build_list(section)
+        self._show_unsaved()
 
         self._render_transports(config)
         self._render_credentials(config)
@@ -1055,9 +1136,11 @@ class SettingsPane(Vertical):
             if path == self._editing:
                 self._load_editor(_SPECS[path])
         self._apply_live(config)
+        self._saved = dict(self._draft)
         # ASCII-safe mode decides how headings are ruled.
         for section in SETTINGS_SCHEMA:
             self._build_list(section)
+        self._show_unsaved()
 
 
         # The toast and the footer say different amounts on purpose. The
@@ -1154,7 +1237,7 @@ class SettingsPane(Vertical):
         if hasattr(self.app, "apply_theme"):
             self.app.apply_theme()  # type: ignore[attr-defined]
         self.render_settings(fresh)
-        self.query_one("#settings-footer", Static).update("Reloaded selected configuration.")
+        self.query_one("#settings-footer", Static).update("Changes discarded: showing what is saved.")
 
     @on(Select.Changed, "#set-active-transport")
     def _transport_changed(self) -> None:

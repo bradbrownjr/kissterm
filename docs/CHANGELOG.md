@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Settings: edit on the row, unsaved changes shown
+
+### Improvements
+
+- **Enter edits a setting on its own row**, not in a line under the list:
+  Enter keeps the change, Esc puts the old value back, and choosing from a
+  list finishes the edit. **What is not saved shows**: the row says
+  "(unsaved)", its section is starred, and the count sits beside Save and
+  Discard changes (was Reload), now at the left under the list. Operator
+  report, 2026-09-27 (ROADMAP P0.1).
+
+**Files:** `kissterm/ui/settings_pane.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_settings.py`, `README.md`, `DESIGN.md`, `assets/`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — Settings: every section boxed, headings ruled, plain labels
 
 ### Improvements

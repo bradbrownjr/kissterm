@@ -259,11 +259,12 @@ the rest.
 **Nothing you answer at setup is locked in.** The Settings tab (`F9`)
 lists its sections down the left -- Station, Radio, Link, Mail, APRS and the
 rest. Each section is a list of its settings with their values: Up and Down
-choose one, Enter changes it in the line below the list (an on/off setting
-just flips), and Esc goes back to the list. The help for the one you are on
+choose one, Enter changes it right there on its row (an on/off setting just
+flips), Enter again keeps the change and Esc puts the old value back. The help for the one you are on
 is in a line at the bottom. Tuning a new operator never needs (T1/T2/T3,
 retries, SmartBeaconing's curve) is listed last, under each section's
-Advanced. Nothing changes until you press Save; the help line says when a
+Advanced. A change says "(unsaved)" and its section is starred until you
+press Save, under the list, or Discard changes; the help line says when a
 setting waits for the next connection or a restart. "Scan for hardware" re-runs discovery from inside the app, so moving
 your Direwolf host to a new IP does not mean editing a TOML file.
 

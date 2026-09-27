@@ -112,7 +112,7 @@ uses the same first column:
 ```
 |<--- 26 --->| |<------ value ------>|
  Callsign       N1ABC-1                  a row in the section's list
- Callsign      [ N1ABC-1          ]      the editor, for the highlighted row
+ Callsign      [ N1ABC-1          ]      the same row while Enter edits it
 ```
 
 - The editor's controls are up to 46 wide, narrower on a small screen.
@@ -134,9 +134,12 @@ start on the way back. Applies to section notes, help text and banners.
   approachable, not overwhelming ... KISS"): its sections listed down the
   left, each section one list of label and value, and the highlighted
   field's help, when it takes effect and any error in one line at the
-  bottom. **One editor under the list changes the highlighted field**
+  bottom. **One editor, laid over the row, changes the highlighted field**
   (2026-09-27, for startup time: a control per field was two thirds of the
-  app's widgets). Tuning the defaults already get right is listed last,
+  app's widgets; on the row itself because below the list it went
+  unnoticed). What is not saved says "(unsaved)" on its row, stars its
+  section, and is counted beside Save, which sits at the left under the
+  list. Tuning the defaults already get right is listed last,
   under an **Advanced** heading that names its group ("Advanced: Winlink
   ...", `Field.advanced`), every heading with a rule under it and every
   section in the same box; a field that only

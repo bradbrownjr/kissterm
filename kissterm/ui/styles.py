@@ -605,7 +605,13 @@ SettingsPane { layout: vertical; }
 .settings-row Checkbox { width: auto; }
 /* The editor: one row of controls under the list, the label in the
    settings grid's first column so it lines up with the rows above. */
-#settings-editor { height: auto; padding: 0 2; }
+/* The editor is laid over the row being edited (`_place_editor` sets its
+   offset and width), on a layer above the list, and hidden otherwise. */
+#settings-main { layers: base editor; }
+#settings-editor {
+    layer: editor; position: absolute; display: none;
+    height: auto; padding: 0; background: $surface;
+}
 #settings-edit-extra { display: none; }
 #settings-bar { height: auto; padding: 0 1; border-top: solid $panel; }
 .settings-banner {
@@ -615,9 +621,12 @@ SettingsPane { layout: vertical; }
 }
 #settings-help-line { height: auto; min-height: 2; max-height: 5; color: $text-muted; }
 #settings-help-line.-error { color: $error; }
+/* Save first, at the left under the list, where the eye already is; the
+   unsaved count beside it (operator, 2026-09-27: at the right of a wide
+   screen they were barely noticed). */
 .settings-actions { height: auto; }
-#settings-footer { width: 1fr; height: auto; }
-.settings-actions Button { margin-left: 1; }
+#settings-footer { width: 1fr; height: auto; padding: 0 0 0 1; }
+.settings-actions Button { margin: 0 1 0 0; }
 /* The swatch's fill is the one legitimate exception to "never hardcode a
    hex value" (DESIGN.md#2): it renders an arbitrary color the operator
    typed, not a piece of kissterm's own chrome, so it is set at runtime from

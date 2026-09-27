@@ -91,6 +91,16 @@ under rule 2 above, with the date and their words:
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
+- **Settings: edits below the list, Save easy to miss** (2026-09-27,
+  `awaiting confirmation`): "I hit G and clicked go to winlink settings. The prompts aren't
+  inline, they're below the window, and on a widescreen, I barely noticed
+  the Save and Cancel buttons." The 2026-09-27 list-and-editor redesign
+  put the one editor under the list and Save/Reload at the far right of
+  the bar. Fix: Enter opens the editor on the row itself (Enter keeps,
+  Esc puts the old value back); an unsaved change says "(unsaved)" on its
+  row and stars its section; Save and Discard changes sit at the left
+  under the list with the count beside them. Tests in
+  `tests/pilot/test_settings.py`.
 - **Settings: Radio unboxed, headings without their rule, unclear
   labels** (2026-09-27, `awaiting confirmation`): "Settings > Radio seems
   to break from the theme of using a box around settings ... When there

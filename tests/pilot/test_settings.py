@@ -323,7 +323,7 @@ async def test_typing_in_the_editor_changes_the_row_and_saves():
         assert app.focused is app.query_one("#settings-edit-input", Input)
         await pilot.press("ctrl+u", "6", "4", "enter")
         await pilot.pause()
-        assert pane.row_text("paclen").endswith(" 64")
+        assert pane.row_text("paclen").endswith(" 64  (unsaved)")
         assert app.focused is app.query_one("#settings-tab-link")
         assert app.config.paclen != 64, "nothing is saved before Save"
         pane._save()
@@ -344,7 +344,7 @@ async def test_enter_flips_an_on_off_setting():
         assert pane.row_text("aprs.winlink_check").endswith(" off")
         await pilot.press("enter")
         await pilot.pause()
-        assert pane.row_text("aprs.winlink_check").endswith(" on")
+        assert pane.row_text("aprs.winlink_check").endswith(" on  (unsaved)")
         assert app.query_one("#settings-edit-check").value is True
         pane._save()
         await pilot.pause()
@@ -1299,7 +1299,7 @@ async def test_typing_a_new_grid_square_recomputes_the_decimal_position():
         lon = float(pane.field_value("aprs.longitude"))
         assert round(lat, 2) == 41.73
         assert round(lon, 2) == -72.71
-        assert pane.row_text("aprs.latitude").split()[-1].startswith("41.72")
+        assert pane.row_text("aprs.latitude").split()[-2].startswith("41.72")
     station.close()
 
 
@@ -1592,4 +1592,82 @@ async def test_radio_is_boxed_like_every_other_section():
         radio = app.query_one("#settings-tab-radio")
         link = app.query_one("#settings-tab-link")
         assert radio.styles.border_top[0] == link.styles.border_top[0] == "round"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_editor_opens_on_the_row_itself():
+    """Operator, 2026-09-27: "The prompts aren't inline, they're below the
+    window". Enter lays the editor over the row, control on the value."""
+    app, station = await _app()
+    async with app.run_test(size=(160, 40)) as pilot:
+        pane = await _edit(app, pilot, "home_bbs.ready_text")
+        editor = app.query_one("#settings-editor")
+        assert not editor.display, "no editor until Enter"
+        app.query_one("#settings-tab-mail").focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        fields = app.query_one("#settings-tab-mail")
+        line = fields._index_to_line[fields.highlighted]
+        row_y = fields.content_region.y + line - round(fields.scroll_offset.y)
+        field = app.query_one("#settings-edit-input")
+        assert editor.display and field.region.y == row_y, (field.region, row_y)
+        assert field.region.x == fields.content_region.x + 27
+        assert app.focused is field
+        await pilot.press("x", "y", "enter")
+        await pilot.pause()
+        assert not editor.display and app.focused is fields
+        assert pane.field_value("home_bbs.ready_text") == "xy"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_escape_puts_the_old_value_back():
+    cfg = Config(mycall=str(MYCALL), paclen=128)
+    app, station = await _app(cfg)
+    async with app.run_test(size=(100, 33)) as pilot:
+        pane = await _edit(app, pilot, "paclen")
+        await pilot.press("enter", "ctrl+u", "3", "2")
+        await pilot.pause()
+        assert pane.field_value("paclen") == "32"
+        await pilot.press("escape")
+        await pilot.pause()
+        assert pane.field_value("paclen") == "128"
+        assert not app.query_one("#settings-editor").display
+        assert "unsaved" not in pane.row_text("paclen")
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_unsaved_changes_show_and_discard_puts_them_back():
+    """Operator, 2026-09-27: "on a widescreen, I barely noticed the Save
+    and Cancel buttons". What is not saved says so beside them, in the row
+    and in the section list; Save is at the left, under the list."""
+    from textual.widgets import OptionList
+
+    cfg = Config(mycall=str(MYCALL), paclen=128)
+    app, station = await _app(cfg)
+    async with app.run_test(size=(200, 40)) as pilot:
+        app._save_config()  # Discard changes reads back what is saved
+        pane = await _edit(app, pilot, "paclen")
+        discard = app.query_one("#settings-reload", Button)
+        assert discard.disabled
+        pane.set_field("paclen", "64")
+        await pilot.pause()
+        assert pane.row_text("paclen").endswith("64  (unsaved)")
+        sections = app.query_one("#settings-sections", OptionList)
+        assert str(sections.get_option(pane.current_section).prompt) == "Link  *"
+        assert "1 unsaved change." in str(app.query_one("#settings-footer").render())
+        assert not discard.disabled
+        save = app.query_one("#settings-save", Button)
+        assert save.region.x < 40, "Save sits at the left, not across a wide screen"
+        await pilot.click("#settings-reload")
+        await pilot.pause()
+        assert pane.field_value("paclen") == "128" and discard.disabled
+        assert str(sections.get_option(pane.current_section).prompt) == "Link"
+        pane.set_field("paclen", "64")
+        pane._save()
+        await pilot.pause()
+        assert app.config.paclen == 64 and "unsaved" not in pane.row_text("paclen")
+        assert "Settings saved." in str(app.query_one("#settings-footer").render())
     station.close()
