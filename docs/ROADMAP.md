@@ -8,6 +8,14 @@ nothing here is ever checked off and left in place.
 Waiting on the radio: `docs/ON-AIR-TESTS.md` lists what the operator
 still has to try on the air.
 
+**Blockers outside the code:**
+
+- **Winlink API access key** (2026-09-27). The RMS Gateway list (P2) needs
+  a key issued to kissterm by a Winlink administrator. The operator will
+  request it once kissterm is polished enough to share its repository or
+  site with the request. Until then the list is built and tested against
+  sample data, with the key left empty and the fetch saying so.
+
 ## How to work this file -- read before picking anything up
 
 These rules exist because of a failure mode found in the 2026-09-22 review
@@ -189,12 +197,12 @@ exchange confirms it.
   no cost and applicable to a specific application and software author"
   (api.winlink.org). Pat's key in its source is "issued December 2017 by
   the WDT for use with Pat", so kissterm may not borrow it; the operator
-  requests one for kissterm. Terms: sanity-check every parameter, request
+  requests one for kissterm (see Blockers at the top). Terms: sanity-check every parameter, request
   only on need (Pat caches the list and fetches on request), and callsigns
   sent must have Winlink accounts. The call is `POST /gateway/status.json`
   (`Mode`, `HistoryHours` up to 48, `ServiceCodes` default `PUBLIC`,
-  `key`), following Pat's `internal/cmsapi/api.go` (MIT). Medium once the
-  key exists.
+  `key`), following Pat's `internal/cmsapi/api.go` (MIT). Everything but
+  the live fetch is built before the key arrives.
 - **Later:** Winlink HTML/XML forms (they meet P11's form system here),
   peer-to-peer Winlink, and scheduled send/receive. The scheduled version
   follows every unattended-transmission rule in AGENTS.md: opt-in, a status
