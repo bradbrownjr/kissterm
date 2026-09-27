@@ -1548,8 +1548,10 @@ class LoginAskScreen(ModalScreen[str | None]):
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
     def __init__(self, title: str, detail: str, name: str, *, secret: bool = True,
-                 all_note: str = "", skip: str = "") -> None:
+                 all_note: str = "", skip: str = "",
+                 go_label: str = "Save and send/receive") -> None:
         super().__init__()
+        self._go_label = go_label
         #: As for `HomeBbsSetupScreen`: why, on All Inboxes, and Skip's label.
         self._all_note = all_note
         self._skip = skip
@@ -1569,7 +1571,7 @@ class LoginAskScreen(ModalScreen[str | None]):
             yield Label(f"Saved as the login \"{self._name}\" (Settings > Logins).",
                         id="connect-hint")
             with Horizontal(id="connect-buttons"):
-                yield Button("Save and send/receive", variant="primary", id="connect-go")
+                yield Button(self._go_label, variant="primary", id="connect-go")
                 if self._skip:
                     yield Button(self._skip, id="setup-skip")
                 yield Button("Cancel", id="connect-cancel")

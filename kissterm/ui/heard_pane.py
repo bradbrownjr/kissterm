@@ -93,7 +93,7 @@ def render_radar(
 
     if my_position is None:
         return (
-            "Radar needs this station's position (Settings).\n"
+            "Radar needs this station's position (Settings (F9) > APRS).\n"
             f"Received position claims: {len(positioned)}; no known position: {unknown}."
         )
     my_lat, my_lon = my_position

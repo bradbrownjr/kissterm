@@ -466,3 +466,39 @@ async def test_a_password_in_the_login_name_setting_is_never_shown(tmp_path):
         text = "\n".join(str(w.render()) for w in app.screen.query("Static, Label"))
         assert "SECRET123" not in text
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_refused_password_is_asked_again_and_saved(tmp_path):
+    """Rather than "set the password in Settings > Mail > Winlink", the
+    refusal asks for it there and then; nothing more is dialed."""
+    from textual.widgets import Input
+
+    from kissterm.config import find_credential
+    from kissterm.ui.dialogs import LoginAskScreen
+
+    app, station, tb = await _app(tmp_path)
+    rms = AX25Station(RMS, tb, FAST)
+    gateway = Gateway([], challenge=True, fail_login=True)
+    _gateway(rms, gateway)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder(WINLINK_INBOX)
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("g")
+        await wait_for(lambda: isinstance(app.screen, LoginAskScreen), "the password asked again",
+                       timeout=20)
+        await pilot.pause()
+        assert "refused" in str(app.screen.query_one("#connect-title").render())
+        assert str(app.screen.query_one("#connect-go").label) == "Save"
+        app.screen.query_one("#login-ask-text", Input).value = "Right0ne"
+        await pilot.click("#connect-go")
+        await wait_for(lambda: find_credential(app.config, "Winlink") == "Right0ne", "the new password")
+        assert app.config.winlink.credential == "Winlink"
+        await wait_for(lambda: not app._collecting, "the run to end")
+        assert not station.link_to(RMS).connected
+    rms.close()
+    station.close()

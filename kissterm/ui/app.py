@@ -4384,7 +4384,7 @@ class KissTermApp(App):
         from ..mail.winlink_collect import WinlinkOptions
 
         winlink = self.config.winlink
-        entry = await self._mail_route(winlink.route, winlink=True) if self._winlink_account() else None
+        entry = await self._mail_route(winlink.route, winlink=True) if await self._winlink_account() else None
         if entry is None:
             return None
         login = await self._winlink_login()
@@ -4398,20 +4398,20 @@ class KissTermApp(App):
             locator=winlink.locator or self.config.aprs.grid_square,
         )
 
-    def _winlink_account(self) -> str:
-        """The Winlink account, or "" having said to set the callsign."""
+    async def _winlink_account(self) -> str:
+        """The Winlink account, asking for the callsign it defaults to when
+        neither is set; "" if the operator cancelled."""
         from ..config import winlink_account
 
-        account = winlink_account(self.config)
-        if not account:
-            self.notify("Set your callsign first (Session > My callsign).", severity="warning")
-        return account
+        if not winlink_account(self.config):
+            await self.action_set_callsign().wait()
+        return winlink_account(self.config)
 
     async def _winlink_login(self) -> tuple[str, str] | None:
         """(account, password), asking for the password if no saved login
         holds it; None if cancelled."""
         winlink = self.config.winlink
-        account = self._winlink_account()
+        account = await self._winlink_account()
         if not account:
             return None
         # Have the password before dialing, so a missing one never costs a
@@ -4465,15 +4465,38 @@ class KissTermApp(App):
             self._transfer_active.discard(key)
         self._winlink_report(result)
         await self._disconnect_session(key)
+        await self._winlink_password_refused(result)
+
+    async def _winlink_password_refused(self, result) -> None:
+        """The gateway refused the password: ask for it again here, rather
+        than say where to set it (operator, 2026-09-27: go there, don't
+        point). Saved for the next run; nothing is dialed now, so a retry
+        costs airtime only when the operator presses G again."""
+        from ..config import set_credential, winlink_account
+
+        if "password" not in (result.stopped or "").lower():
+            return
+        text = await self.push_screen_wait(LoginAskScreen(
+            "Winlink password refused",
+            f"The gateway refused the password for {winlink_account(self.config)}: "
+            f"\"{result.stopped}\". Type it again; it is saved for the next "
+            "Send/Receive, and nothing is dialed now.",
+            "Winlink", go_label="Save"))
+        if not text or text == SETUP_SKIP:
+            return
+        where = set_credential(self.config, "Winlink", text)
+        self.config.winlink.credential = "Winlink"
+        self._save_config()
+        self.query_one(SettingsPane).render_settings(self.config)
+        self.notify("Saved in " + ("the system keyring" if where == "keyring" else "config.toml")
+                    + ". Send/Receive again to use it.", timeout=6)
 
     def _winlink_report(self, result) -> None:
         """The outcome toast of a Winlink run, over radio or the Internet."""
         sent = f"{len(result.sent)} sent, " if result.sent else ""
         if result.stopped:
-            hint = (" Set the password in Settings > Mail > Winlink."
-                    if "password" in result.stopped.lower() else "")
             self.notify(
-                f"Winlink stopped: {result.stopped}. {sent}{len(result.filed)} received.{hint}",
+                f"Winlink stopped: {result.stopped}. {sent}{len(result.filed)} received.",
                 severity="warning",
             )
         elif result.filed:
@@ -4577,6 +4600,7 @@ class KissTermApp(App):
         result = await self._internet_run(transport, CMS_TARGET, "the Winlink CMS", build)
         if result is not None:
             self._winlink_report(result)
+            await self._winlink_password_refused(result)
 
     def _internet_connections(self) -> list[dict]:
         """The configured Telnet and SSH connections, by name."""

@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Notices that do what they point at
+
+### Improvements
+
+- **A refused Winlink password is asked for again on the spot** and saved
+  for the next Send/Receive, instead of a notice pointing at Settings.
+  Nothing more is dialed.
+- **Winlink with no callsign opens the callsign dialog** rather than
+  saying where it is.
+- The Heard radar's "(Settings)" names the section: Settings (F9) > APRS.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/heard_pane.py`, `tests/pilot/test_winlink_send_receive.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-27] — Nothing off the screen at 80x24; Settings paths checked
 
 ### Bug Fixes
