@@ -12,6 +12,8 @@ you need the history of a specific change.
 - **Every dialog is centred** (P0.1, awaiting confirmation). Most had no
   centring rule and sat in the top-left corner; one `ModalScreen` rule now
   covers them all, with the F10 menu and Ctrl+P palette kept in place.
+  A dialog is never taller than the screen; past that it scrolls, so the
+  Winlink question's buttons stay on an 80x24 terminal.
 
 ### Improvements
 

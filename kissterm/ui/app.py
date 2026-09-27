@@ -4120,9 +4120,8 @@ class KissTermApp(App):
         other = "Winlink" if name == "Home BBS" else "the Home BBS"
         how = " over the Internet" if key == "I" else ""
         return (
-            f"{key} on All Inboxes sends and receives with the Home BBS, then "
-            f"Winlink{how}, and {name} needs this first. Skip {name} to run "
-            f"{other} alone.",
+            f"{key} on All Inboxes runs the Home BBS, then Winlink{how}; "
+            f"{name} needs this first, or Skip it to run {other} alone.",
             f"Skip {name}",
         )
 

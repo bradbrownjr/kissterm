@@ -297,7 +297,9 @@ AprsIsWatchScreen { align: center middle; }
 /* Connect dialog */
 ConnectScreen { align: center middle; }
 #connect-box {
-    width: 72; height: auto; padding: 1 2;
+    /* Never taller than the screen: a centred box that is would lose its
+       buttons off the bottom (the Winlink question at 80x24). It scrolls. */
+    width: 72; height: auto; max-height: 100%; overflow-y: auto; padding: 1 2;
     border: thick $primary; background: $surface;
 }
 #connect-transport { width: 100%; margin-top: 1; }

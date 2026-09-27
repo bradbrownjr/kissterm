@@ -399,6 +399,7 @@ async def test_all_inboxes_says_why_winlink_is_asked_and_skip_runs_the_bbs(tmp_p
         await _all_inboxes_with_winlink_gone(app, pilot)
         note = str(app.screen.query_one("#setup-all-note", Static).render())
         assert "G on All Inboxes" in note and "Winlink needs this first" in note
+        # Fits an 80x24 terminal too: see test_setup_questions_fit_80x24.
         # Centred, not in the top-left corner.
         box, screen = app.screen.query_one("#connect-box").region, app.screen.region
         assert abs((box.x - screen.x) - (screen.right - box.right)) <= 1
@@ -427,4 +428,22 @@ async def test_the_setup_question_goes_to_the_setting_it_names(tmp_path):
         assert app.query_one("#main-tabs").active == "settings"
         assert app.focused is not None and app.focused.id == "set-winlink-account"
         assert not station.transport.sent
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_setup_questions_fit_80x24(tmp_path):
+    """Centred, the All Inboxes Winlink question was 26 rows on a 24-row
+    terminal and its buttons fell off the bottom."""
+    app, station, _tb = await _app(tmp_path)
+    app.config.home_bbs.route = "WS1EC-2"
+    app.addressbook.forget("WS1EC-10")
+    app.addressbook.record_attempt("WS1EC-2")
+    async with app.run_test(size=(80, 24)) as pilot:
+        await _all_inboxes_with_winlink_gone(app, pilot)
+        for button in app.screen.query("#connect-buttons Button"):
+            r = button.region
+            assert r.height == 3 and r.bottom <= 24 and r.right <= 80, f"{button.id} at {r}"
+        await pilot.click("#connect-cancel")
+        await wait_for(lambda: not app._collecting, "the run to be cancelled")
     station.close()
