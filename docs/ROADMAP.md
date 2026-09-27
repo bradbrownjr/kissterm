@@ -168,7 +168,8 @@ session tab beside the radio. Steps:
 1. Done 2026-09-27: `Entry.connect_by` and the connection fields; Telnet
    and SSH transports adopted as contacts at launch, passwords to the
    keyring.
-2. The Address Book editor's "Connect by" fields.
+2. Done 2026-09-27: the Address Book editor's "By" choice (Radio, Telnet,
+   SSH) and their fields.
 3. Dialing an Internet contact into its own session tab (Ctrl+N, Enter,
    Ctrl+R), with pilot tests against local Telnet and SSH servers.
 4. The Home BBS's Internet route names a contact (I on the Mail tab).

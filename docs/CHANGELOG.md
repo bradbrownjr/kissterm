@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — The Address Book editor makes Telnet and SSH contacts (step 2 of 6)
+
+### New Features
+
+- **Address Book > New or Edit has a "By" choice**: Radio shows the
+  station, hops, frequency and link rows as before; Telnet and SSH show
+  host and port, and SSH its user, password, key file, passphrase and
+  known-hosts file. A password typed there is saved as a login (the
+  keyring), shown only as "saved"; SSH is refused without a password or
+  key, or without a known-hosts file.
+
+**Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/addressbook_pane.py`,
+`kissterm/addressbook.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_addressbook_pane.py`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-27] — Internet contacts in the Address Book (step 1 of 6)
 
 ### New Features

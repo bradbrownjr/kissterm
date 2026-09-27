@@ -179,7 +179,7 @@ class Entry:
 _TEXT_FIELDS = tuple(f.name for f in fields(Entry)
                      if f.name not in ("target", "last_used", "attempts", "connects"))
 #: The fields that say how an Internet contact is reached.
-_INTERNET_FIELDS = frozenset({"connect_by", "host", "port", "username", "password_login",
+INTERNET_FIELDS = frozenset({"connect_by", "host", "port", "username", "password_login",
                               "client_key", "key_login", "known_hosts"})
 
 
@@ -378,7 +378,7 @@ class AddressBook:
         # How it is reached (`connect_by`, `host`, ...): only what is given,
         # so an editor that does not offer them leaves them alone.
         for name, value in internet.items():
-            if name not in _INTERNET_FIELDS:
+            if name not in INTERNET_FIELDS:
                 raise TypeError(f"upsert() got an unexpected keyword argument {name!r}")
             setattr(entry, name, value)
         self.save()

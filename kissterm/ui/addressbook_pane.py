@@ -31,6 +31,8 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, Static
 
+from ..addressbook import INTERNET_FIELDS
+from ..config import set_credential
 from .button_row import ButtonRow
 
 
@@ -321,10 +323,21 @@ class AddressBookPane(Vertical):
                 credentials=config.credentials,
                 scripts=config.scripts,
                 transports=config.transports,
+                internet={name: getattr(entry, name) for name in INTERNET_FIELDS} if entry else None,
             )
         )
         if result is None:
             return
+        internet = dict(result.internet)
+        # A password typed in the editor becomes a saved login (the keyring
+        # when there is one); the entry keeps only its name.
+        for text, key, suffix in ((result.ssh_password, "password_login", "SSH password"),
+                                  (result.key_passphrase, "key_login", "SSH key passphrase")):
+            if text:
+                internet[key] = internet.get(key) or f"{result.target} {suffix}"
+                set_credential(config, internet[key], text)
+        if result.ssh_password or result.key_passphrase:
+            self.app._save_config()  # type: ignore[attr-defined]
         book.upsert(
             result.target,
             script=result.script,
@@ -337,5 +350,6 @@ class AddressBookPane(Vertical):
             window=result.window,
             note=result.note,
             original_target=target or "",
+            **internet,
         )
         self._refresh_every_copy(book)

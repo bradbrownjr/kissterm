@@ -455,6 +455,8 @@ AddressBookEntryScreen #connect-title { text-style: bold; }
 .ab-label { width: 8; color: $text-muted; }
 .ab-label-2 { padding-left: 1; }
 .ab-gap { width: 1; }
+.ab-row Input.ab-port { width: 10; }
+.ab-label.ab-label-wide { width: 11; }
 AddressBookEntryScreen #connect-script-title { width: auto; margin-top: 0; padding-right: 1; }
 AddressBookEntryScreen #connect-script-hint { width: 1fr; height: 1; }
 AddressBookEntryScreen #connect-credential { width: 1fr; }

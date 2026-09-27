@@ -12,7 +12,7 @@ modals here.
 from __future__ import annotations
 
 import contextlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from textual import on, work
@@ -1067,6 +1067,18 @@ class AddressBookEdit:
     paclen: str = ""
     window: str = ""
     note: str = ""
+    #: How the contact is reached (`addressbook.Entry.connect_by`, `host`,
+    #: ...), for `AddressBook.upsert(**internet)`. A password or key
+    #: passphrase typed here is not in it: `ssh_password`/`key_passphrase`
+    #: carry the text to the caller, which saves it as a login and names
+    #: that login in `password_login`/`key_login`.
+    internet: dict = field(default_factory=dict)
+    ssh_password: str = ""
+    key_passphrase: str = ""
+
+
+#: The Address Book editor's "By" choices: how a contact is reached.
+CONNECT_BY = (("Radio", ""), ("Telnet", "telnet"), ("SSH", "ssh"))
 
 
 class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
@@ -1121,8 +1133,11 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         credentials: list[dict] | None = None,
         scripts: list[dict] | None = None,
         transports: list[dict] | None = None,
+        internet: dict | None = None,
     ) -> None:
         super().__init__()
+        #: `Entry.connect_by` and the other connection fields, by name.
+        self._internet = dict(internet or {})
         self._target = target
         self._script = script
         self._hops = hops
@@ -1146,22 +1161,54 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         with Vertical(id="connect-box"):
             yield Label("Address book entry", id="connect-title")
             with VerticalScroll(id="addressbook-form"):
+                net = self._internet
                 with Horizontal(classes="ab-row"):
-                    yield Label("Station", classes="ab-label")
+                    yield Label("By", classes="ab-label")
+                    yield Select(CONNECT_BY, value=net.get("connect_by", ""), allow_blank=False,
+                                 compact=True, id="addressbook-connect-by")
+                with Horizontal(classes="ab-row"):
+                    yield Label("Station", classes="ab-label", id="addressbook-target-label")
                     yield Input(value=self._target, compact=True, id="connect-target",
                                 placeholder="WS1EC-7  or  WS1EC-7 via W1AW-1")
-                with Horizontal(classes="ab-row"):
+                # Telnet and SSH (`_sync_connect_by` shows these or the radio rows).
+                with Horizontal(classes="ab-row ab-internet"):
+                    yield Label("Host", classes="ab-label")
+                    yield Input(value=net.get("host", ""), compact=True, id="addressbook-host",
+                                placeholder="e.g. ws1ec.mainepacketradio.org")
+                    yield Label("Port", classes="ab-label ab-label-2")
+                    yield Input(value=net.get("port", ""), compact=True, id="addressbook-port",
+                                placeholder="default", classes="ab-port")
+                with Horizontal(classes="ab-row ab-ssh"):
+                    yield Label("User", classes="ab-label")
+                    yield Input(value=net.get("username", ""), compact=True,
+                                id="addressbook-username", placeholder="e.g. packet")
+                    yield Label("Password", classes="ab-label ab-label-2 ab-label-wide")
+                    yield Input(password=True, compact=True, id="addressbook-ssh-password",
+                                placeholder=self._saved_placeholder("password_login"))
+                with Horizontal(classes="ab-row ab-ssh"):
+                    yield Label("Key file", classes="ab-label")
+                    yield Input(value=net.get("client_key", ""), compact=True,
+                                id="addressbook-client-key", placeholder="optional")
+                    yield Label("Passphrase", classes="ab-label ab-label-2 ab-label-wide")
+                    yield Input(password=True, compact=True, id="addressbook-key-passphrase",
+                                placeholder=self._saved_placeholder("key_login"))
+                with Horizontal(classes="ab-row ab-ssh"):
+                    yield Label("Known", classes="ab-label")
+                    yield Input(value=net.get("known_hosts", ""), compact=True,
+                                id="addressbook-known-hosts",
+                                placeholder="known_hosts file holding the server's key")
+                with Horizontal(classes="ab-row ab-radio"):
                     yield Label("Hops", classes="ab-label")
                     yield Input(value=self._hops, compact=True, id="connect-hops",
                                 placeholder="optional, e.g. N1QFY, AB1KI-15")
-                with Horizontal(id="addressbook-radio-row", classes="ab-row"):
+                with Horizontal(id="addressbook-radio-row", classes="ab-row ab-radio"):
                     yield Label("Freq", classes="ab-label")
                     yield Input(value=self._frequency, compact=True,
                                 id="addressbook-frequency", placeholder="optional, e.g. 145.050")
                     yield Label("Port", classes="ab-label ab-label-2")
                     yield Select([], id="addressbook-connection-type", allow_blank=True,
                                  prompt="Connection type", compact=True)
-                with Horizontal(id="addressbook-link-row", classes="ab-row"):
+                with Horizontal(id="addressbook-link-row", classes="ab-row ab-radio"):
                     yield Label("Paclen", classes="ab-label")
                     yield Input(value=self._paclen, compact=True, id="addressbook-paclen",
                                 placeholder="default from Settings")
@@ -1216,9 +1263,34 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         )
         self._sync_login_controls()
         self._render_connection_types()
-        field = self.query_one("#connect-target", Input)
-        field.focus()
-        field.action_end()
+        self._sync_connect_by()
+        target = self.query_one("#connect-target", Input)
+        target.focus()
+        target.action_end()
+
+    def _saved_placeholder(self, key: str) -> str:
+        """A masked field's placeholder: whether a login is saved, never it."""
+        name = self._internet.get(key, "")
+        saved = name and any(c.get("name") == name for c in self.credentials)
+        return "saved; type to replace" if saved else "optional"
+
+    def _connect_by(self) -> str:
+        value = self.query_one("#addressbook-connect-by", Select).value
+        return value if isinstance(value, str) else ""
+
+    @on(Select.Changed, "#addressbook-connect-by")
+    def _sync_connect_by(self) -> None:
+        by = self._connect_by()
+        for row in self.query(".ab-radio"):
+            row.display = not by
+        for row in self.query(".ab-internet"):
+            row.display = bool(by)
+        for row in self.query(".ab-ssh"):
+            row.display = by == "ssh"
+        target = self.query_one("#connect-target", Input)
+        self.query_one("#addressbook-target-label", Label).update("Name" if by else "Station")
+        target.placeholder = ("e.g. WS1EC by SSH" if by
+                              else "WS1EC-7  or  WS1EC-7 via W1AW-1")
 
     def _render_connection_types(self) -> None:
         """List the operator's own configured transports by name, e.g.
@@ -1260,14 +1332,55 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
     def _cancel(self) -> None:
         self.dismiss(None)
 
+    def _internet_fields(self) -> tuple[dict, str, str, str]:
+        """(fields, ssh password, key passphrase, error) for Telnet/SSH."""
+        by = self._connect_by()
+
+        def value(wid: str) -> str:
+            return self.query_one(f"#{wid}", Input).value.strip()
+
+        fields = {"connect_by": by, "host": value("addressbook-host"),
+                  "port": value("addressbook-port")}
+        password = key_passphrase = ""
+        if by == "ssh":
+            fields.update(username=value("addressbook-username"),
+                          client_key=value("addressbook-client-key"),
+                          known_hosts=value("addressbook-known-hosts"),
+                          password_login=self._internet.get("password_login", ""),
+                          key_login=self._internet.get("key_login", ""))
+            password = self.query_one("#addressbook-ssh-password", Input).value
+            key_passphrase = self.query_one("#addressbook-key-passphrase", Input).value
+        if not fields["host"]:
+            return fields, "", "", "The host is needed."
+        if fields["port"] and not (fields["port"].isdigit() and 0 < int(fields["port"]) < 65536):
+            return fields, "", "", "The port is a number, 1 to 65535."
+        if by == "ssh":
+            if not fields["username"]:
+                return fields, "", "", "SSH needs a user."
+            if not fields["known_hosts"]:
+                return fields, "", "", "SSH needs a known_hosts file holding the server's key."
+            if not (password or fields["password_login"] or fields["client_key"]):
+                return fields, "", "", "SSH needs a password or a key file."
+        return fields, password, key_passphrase, ""
+
     @on(Button.Pressed, "#connect-go")
     @on(Input.Submitted, "#connect-target")
     def _save(self) -> None:
         text = self.query_one("#connect-target", Input).value.strip()
         if not text:
             return
-        hops = self.query_one("#connect-hops", Input).value.strip()
-        _path, error = _validate_target_and_hops(text, hops)
+        by = self._connect_by()
+        if by:
+            internet, ssh_password, key_passphrase, error = self._internet_fields()
+            hops = ""
+        else:
+            # Back to radio: what said how to reach it over the Internet goes.
+            internet = {"connect_by": "", "host": "", "port": "", "username": "",
+                        "password_login": "", "client_key": "", "key_login": "",
+                        "known_hosts": ""}
+            ssh_password = key_passphrase = ""
+            hops = self.query_one("#connect-hops", Input).value.strip()
+            _path, error = _validate_target_and_hops(text, hops)
         if error:
             self.query_one("#connect-error", Label).update(f"[red]{error}[/red]")
             return
@@ -1287,8 +1400,10 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
         connection_type = (
             str(type_value) if type_value and type_value is not Select.NULL else ""
         )
-        paclen = self.query_one("#addressbook-paclen", Input).value.strip()
-        window = self.query_one("#addressbook-window", Input).value.strip()
+        paclen = "" if by else self.query_one("#addressbook-paclen", Input).value.strip()
+        window = "" if by else self.query_one("#addressbook-window", Input).value.strip()
+        if by:
+            frequency = connection_type = ""
         link_error = _validate_link_params(paclen, window)
         if link_error:
             self.query_one("#connect-error", Label).update(f"[red]{link_error}[/red]")
@@ -1306,6 +1421,9 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
                 paclen,
                 window,
                 note,
+                internet=internet,
+                ssh_password=ssh_password,
+                key_passphrase=key_passphrase,
             )
         )
 
