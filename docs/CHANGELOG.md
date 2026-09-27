@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Every list of saved things ends with New
+
+### Improvements
+
+- **Make what a form asks for without leaving it**: Settings' contact
+  fields end with "New Telnet/SSH contact..." or "New radio contact...",
+  and the Address Book entry and transport editors' login and script
+  lists with "New login..." and "New script...". The editor opens on top;
+  saving selects the new one, cancelling keeps the old choice. Written
+  into DESIGN.md section 8 with the rule that a dialog's title names what
+  the operator started. Operator report, 2026-09-27 (ROADMAP P0.1).
+
+**Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/settings_pane.py`,
+`kissterm/ui/addressbook_pane.py`, `tests/pilot/test_settings.py`,
+`tests/pilot/test_addressbook_pane.py`, `DESIGN.md`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-27] — All Inboxes questions titled for the run
 
 ### Improvements

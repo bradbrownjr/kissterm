@@ -561,3 +561,50 @@ async def test_an_ssh_contact_is_made_in_the_editor(tmp_path):
         assert find_credential(app.config, "WS1EC SSH password") == "s3cret"
         assert "s3cret" not in (tmp_path / "addressbook.json").read_text()
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_login_list_ends_with_new_login(tmp_path):
+    """DESIGN.md section 8, "A list of saved things ends with New": a login
+    made from the entry editor is saved and chosen; cancelling puts the
+    old choice back."""
+    from textual.widgets import Input, Select, TextArea
+
+    from kissterm.config import find_credential
+    from kissterm.ui.dialogs import NEW_PICK, AddressBookEntryScreen, CredentialScreen
+
+    app, station, ta, tb = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        _fresh_book(app, tmp_path)
+        await _addressbook_tab(app, pilot)
+        app.query_one(AddressBookPane)._new_entry()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, AddressBookEntryScreen)
+        entry_screen = app.screen
+        select = entry_screen.query_one("#connect-credential", Select)
+        assert [str(select._options[-1][0]), select._options[-1][1]] == ["New login...", NEW_PICK]
+        select.value = NEW_PICK
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, CredentialScreen)
+        app.screen.query_one("#credential-name", Input).value = "WS1EC node"
+        app.screen.query_one("#credential-text", TextArea).text = "KC1JMH\nsecret"
+        await pilot.pause()
+        await pilot.click("#credential-save")
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert app.screen is entry_screen
+        assert select.value == "WS1EC node"
+        assert find_credential(app.config, "WS1EC node") == "KC1JMH\nsecret"
+        # Cancel: the choice made before stays.
+        select.value = NEW_PICK
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, CredentialScreen)
+        await pilot.click("#credential-cancel")
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert select.value == "WS1EC node"
+    station.close()
+

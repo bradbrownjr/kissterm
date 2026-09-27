@@ -304,54 +304,63 @@ class AddressBookPane(Vertical):
 
     @work
     async def _edit_entry(self, target: str | None, connect_by: str = "") -> None:
-        from .dialogs import AddressBookEntryScreen
+        if await edit_entry(self.app, target, connect_by) is not None:
+            self._refresh_every_copy(self.app.addressbook)  # type: ignore[attr-defined]
 
-        book = self.app.addressbook  # type: ignore[attr-defined]
-        entry = book.find(target) if target else None
-        config = self.app.config  # type: ignore[attr-defined]
-        result = await self.app.push_screen_wait(  # type: ignore[attr-defined]
-            AddressBookEntryScreen(
-                target=entry.target if entry else "",
-                script=entry.script if entry else "",
-                hops=entry.hops if entry else "",
-                credential=entry.credential if entry else "",
-                script_name=entry.script_name if entry else "",
-                frequency=entry.frequency if entry else "",
-                connection_type=entry.connection_type if entry else "",
-                paclen=entry.paclen if entry else "",
-                window=entry.window if entry else "",
-                note=entry.note if entry else "",
-                credentials=config.credentials,
-                scripts=config.scripts,
-                transports=config.transports,
-                internet=({name: getattr(entry, name) for name in INTERNET_FIELDS} if entry
-                          else {"connect_by": connect_by}),
-            )
+
+async def edit_entry(app, target: str | None, connect_by: str = "") -> str | None:
+    """Open the Address Book entry editor for `target` (None: a new entry,
+    reached by `connect_by`) and save what comes back; the saved target,
+    or None if cancelled. Call from a worker. Shared by this pane and
+    Settings' "New contact..." (DESIGN.md section 8)."""
+    from .dialogs import AddressBookEntryScreen
+
+    book = app.addressbook
+    entry = book.find(target) if target else None
+    config = app.config
+    result = await app.push_screen_wait(
+        AddressBookEntryScreen(
+            target=entry.target if entry else "",
+            script=entry.script if entry else "",
+            hops=entry.hops if entry else "",
+            credential=entry.credential if entry else "",
+            script_name=entry.script_name if entry else "",
+            frequency=entry.frequency if entry else "",
+            connection_type=entry.connection_type if entry else "",
+            paclen=entry.paclen if entry else "",
+            window=entry.window if entry else "",
+            note=entry.note if entry else "",
+            credentials=config.credentials,
+            scripts=config.scripts,
+            transports=config.transports,
+            internet=({name: getattr(entry, name) for name in INTERNET_FIELDS} if entry
+                      else {"connect_by": connect_by}),
         )
-        if result is None:
-            return
-        internet = dict(result.internet)
-        # A password typed in the editor becomes a saved login (the keyring
-        # when there is one); the entry keeps only its name.
-        for text, key, suffix in ((result.ssh_password, "password_login", "SSH password"),
-                                  (result.key_passphrase, "key_login", "SSH key passphrase")):
-            if text:
-                internet[key] = internet.get(key) or f"{result.target} {suffix}"
-                set_credential(config, internet[key], text)
-        if result.ssh_password or result.key_passphrase:
-            self.app._save_config()  # type: ignore[attr-defined]
-        book.upsert(
-            result.target,
-            script=result.script,
-            hops=result.hops,
-            credential=result.credential,
-            script_name=result.script_name,
-            frequency=result.frequency,
-            connection_type=result.connection_type,
-            paclen=result.paclen,
-            window=result.window,
-            note=result.note,
-            original_target=target or "",
-            **internet,
-        )
-        self._refresh_every_copy(book)
+    )
+    if result is None:
+        return None
+    internet = dict(result.internet)
+    # A password typed in the editor becomes a saved login (the keyring
+    # when there is one); the entry keeps only its name.
+    for text, key, suffix in ((result.ssh_password, "password_login", "SSH password"),
+                              (result.key_passphrase, "key_login", "SSH key passphrase")):
+        if text:
+            internet[key] = internet.get(key) or f"{result.target} {suffix}"
+            set_credential(config, internet[key], text)
+    if result.ssh_password or result.key_passphrase:
+        app._save_config()
+    book.upsert(
+        result.target,
+        script=result.script,
+        hops=result.hops,
+        credential=result.credential,
+        script_name=result.script_name,
+        frequency=result.frequency,
+        connection_type=result.connection_type,
+        paclen=result.paclen,
+        window=result.window,
+        note=result.note,
+        original_target=target or "",
+        **internet,
+    )
+    return result.target

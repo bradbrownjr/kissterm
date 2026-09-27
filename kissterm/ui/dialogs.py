@@ -605,7 +605,66 @@ def _validate_link_params(paclen: str, window: str) -> str:
 
 
 def _select_has_value(select: Select) -> bool:
-    return bool(select.value) and select.value is not Select.NULL
+    return bool(select.value) and select.value is not Select.NULL and select.value != NEW_PICK
+
+
+#: The last option of a list of saved things: make one (DESIGN.md section
+#: 8, "A list of saved things ends with New"; operator, 2026-09-27: "I
+#: can't go to the address book to set it up from here. Add new should be
+#: an option").
+NEW_PICK = "\x00new"
+NEW_LABELS = {"credential": "New login...", "script": "New script..."}
+
+
+def saved_options(items: list[dict], kind: str) -> list[tuple[str, str]]:
+    """The names in a saved-login or saved-script list, then "New ..."."""
+    return [(name, name) for item in items if (name := item.get("name"))] + [
+        (NEW_LABELS[kind], NEW_PICK)]
+
+
+class _NewFromList:
+    """Mixin for a screen with saved-login/script Selects: choosing "New
+    ..." opens `CredentialScreen` over this one; saving selects the new
+    one, cancelling puts the previous choice back. What is saved is saved
+    at once, like Settings > Logins' New button, whether or not this
+    screen is then saved."""
+
+    def _note_pick(self, select: Select) -> bool:
+        """Call from Select.Changed. True if "New ..." was chosen (handled
+        here; the caller should do nothing more)."""
+        picks = self.__dict__.setdefault("_picks", {})
+        if select.value != NEW_PICK:
+            picks[select.id] = select.value
+            return False
+        kind = "script" if "script" in (select.id or "") else "credential"
+        self._make_saved(select, kind, picks.get(select.id, Select.NULL))
+        return True
+
+    @work
+    async def _make_saved(self, select: Select, kind: str, previous) -> None:
+        from ..config import set_credential
+
+        config = getattr(self.app, "config", None)
+        result = await self.app.push_screen_wait(CredentialScreen(kind=kind))
+        if result is None or config is None:
+            select.value = previous
+            return
+        if kind == "script":
+            config.scripts = [s for s in config.scripts if s.get("name") != result.name]
+            config.scripts.append({"name": result.name, "text": result.text})
+            items = config.scripts
+        else:
+            set_credential(config, result.name, result.text)
+            items = config.credentials
+        save = getattr(self.app, "_save_config", None)
+        if save is not None:
+            save()
+        self._saved_list_changed(kind, items)
+        select.set_options(saved_options(items, kind))
+        select.value = result.name
+
+    def _saved_list_changed(self, kind: str, items: list[dict]) -> None:
+        """Keep the screen's own copy of the list in step."""
 
 
 def _sync_login_source_controls(
@@ -1081,7 +1140,7 @@ class AddressBookEdit:
 CONNECT_BY = (("Radio", ""), ("Telnet", "telnet"), ("SSH", "ssh"))
 
 
-class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
+class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
     """Add or hand-edit one address-book entry directly, without
     attempting a live connect.
 
@@ -1246,17 +1305,13 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
 
     def on_mount(self) -> None:
         credential_select = self.query_one("#connect-credential", Select)
-        credential_select.set_options(
-            (name, name) for c in self.credentials if (name := c.get("name"))
-        )
+        credential_select.set_options(saved_options(self.credentials, "credential"))
         valid_credentials = {c.get("name") for c in self.credentials}
         credential_select.value = (
             self._credential if self._credential in valid_credentials else Select.NULL
         )
         script_name_select = self.query_one("#connect-script-name", Select)
-        script_name_select.set_options(
-            (name, name) for s in self.scripts if (name := s.get("name"))
-        )
+        script_name_select.set_options(saved_options(self.scripts, "script"))
         valid_scripts = {s.get("name") for s in self.scripts}
         script_name_select.value = (
             self._script_name if self._script_name in valid_scripts else Select.NULL
@@ -1318,8 +1373,16 @@ class AddressBookEntryScreen(ModalScreen[AddressBookEdit | None]):
 
     @on(Select.Changed, "#connect-credential")
     @on(Select.Changed, "#connect-script-name")
-    def _login_source_changed(self) -> None:
+    def _login_source_changed(self, event: Select.Changed) -> None:
+        if self._note_pick(event.select):
+            return
         self._sync_login_controls()
+
+    def _saved_list_changed(self, kind: str, items: list[dict]) -> None:
+        if kind == "script":
+            self.scripts = items
+        else:
+            self.credentials = items
 
     def _sync_login_controls(self) -> None:
         _sync_login_source_controls(
@@ -2226,7 +2289,7 @@ _TRANSPORT_KINDS: dict[str, tuple[bool, tuple[_TransportField, ...]]] = {
 }
 
 
-class TransportEntryScreen(ModalScreen[dict | None]):
+class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
     """Add or hand-edit one `[[transports]]` entry (Settings > Radio).
 
     'Scan for hardware' only finds what a network probe or a serial listing
@@ -2393,9 +2456,7 @@ class TransportEntryScreen(ModalScreen[dict | None]):
     # -- credentials / scripts -----------------------------------------------
     def _render_credentials(self) -> None:
         select = self.query_one("#transport-credential", Select)
-        select.set_options(
-            (name, name) for c in self._credentials if (name := c.get("name"))
-        )
+        select.set_options(saved_options(self._credentials, "credential"))
         credential = str(self._entry.get("credential", ""))
         if credential:
             select.value = credential
@@ -2403,9 +2464,7 @@ class TransportEntryScreen(ModalScreen[dict | None]):
 
     def _render_scripts(self) -> None:
         select = self.query_one("#transport-script-name", Select)
-        select.set_options(
-            (name, name) for s in self._scripts if (name := s.get("name"))
-        )
+        select.set_options(saved_options(self._scripts, "script"))
         script_name = str(self._entry.get("script_name", ""))
         if script_name:
             select.value = script_name
@@ -2413,8 +2472,16 @@ class TransportEntryScreen(ModalScreen[dict | None]):
 
     @on(Select.Changed, "#transport-credential")
     @on(Select.Changed, "#transport-script-name")
-    def _login_source_changed(self) -> None:
+    def _login_source_changed(self, event: Select.Changed) -> None:
+        if self._note_pick(event.select):
+            return
         self._sync_login_controls()
+
+    def _saved_list_changed(self, kind: str, items: list[dict]) -> None:
+        if kind == "script":
+            self._scripts = items
+        else:
+            self._credentials = items
 
     def _sync_login_controls(self) -> None:
         _sync_login_source_controls(

@@ -555,6 +555,18 @@ docstrings do: explain *why*, at the moment it matters.
   (optional -- node hops, when no digipeater reaches it)". The fuller
   explanation belongs in this file, in AGENTS.md, or in a docstring — never
   squeezed into a widget the operator has to read under time pressure.
+- **A dialog's title names what the operator started**, not the part
+  being asked about. A question that interrupts G on All Inboxes is titled
+  "Send and Receive All Inboxes" and says in one sentence why it is asking;
+  "Winlink gateway" there left the operator guessing why Winlink came up
+  at all (2026-09-27).
+- **A list of saved things ends with New.** Every dropdown of Address Book
+  contacts, saved logins or saved scripts has "New radio contact...",
+  "New Telnet/SSH contact...", "New login..." or "New script..." as its
+  last choice. It opens that thing's own editor over the current screen;
+  saving selects what was made, cancelling puts the old choice back. The
+  operator never has to leave a form to create what it asks for
+  (2026-09-27: "I can't go to the address book to set it up from here").
 - **A placeholder must stand alone.** It is the only text some operators will
   ever see in that field, so "(type your own below)" next to an unlabeled
   blank box is not a placeholder, it's a puzzle. Every empty `Input` or

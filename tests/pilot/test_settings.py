@@ -1524,6 +1524,50 @@ async def test_a_password_field_is_masked_and_saves_under_a_fixed_name():
 
 
 @pytest.mark.asyncio
+async def test_a_contact_list_ends_with_new_contact(tmp_path):
+    """Operator, 2026-09-27: "I can't go to the address book to set it up
+    from here. Add new should be an option." The Address Book editor opens
+    over Settings, preset to Telnet; what it saves fills the field."""
+    import asyncio
+
+    from kissterm.addressbook import AddressBook
+    from kissterm.ui.dialogs import AddressBookEdit, AddressBookEntryScreen
+
+    cfg = Config(mycall=str(MYCALL))
+    app, station = await _app(cfg)
+    app.addressbook = AddressBook(tmp_path / "addressbook.json")
+    async with app.run_test(size=(120, 40)) as pilot:
+        pane = await _edit(app, pilot, "home_bbs.internet")
+        select = app.query_one("#settings-edit-select", Select)
+        label, value = select._options[-1]
+        assert str(label) == "New Telnet/SSH contact..."
+        select.value = value
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, AddressBookEntryScreen)
+        assert app.screen._connect_by() == "telnet"
+        await app.screen.dismiss(AddressBookEdit(
+            "WS1EC by Telnet", internet={"connect_by": "telnet", "host": "ws1ec.example",
+                                         "port": "8010"}))
+        await pilot.pause()
+        assert app.addressbook.find("WS1EC by Telnet").is_internet
+        assert pane.field_value("home_bbs.internet") == "WS1EC by Telnet"
+        assert "(unsaved)" in pane.row_text("home_bbs.internet")
+        # Cancelled, the field keeps what it had.
+        pane.open_field("home_bbs.route")
+        await pilot.pause()
+        select.value = select._options[-1][1]
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, AddressBookEntryScreen)
+        assert app.screen._connect_by() == ""
+        await app.screen.dismiss(None)
+        await pilot.pause()
+        assert pane.field_value("home_bbs.route") == ""
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_a_contact_setting_is_chosen_from_the_address_book(tmp_path):
     """"Internet contact" read like a host name (operator, 2026-09-27: "Is
     that the hostname?"). It is a contact: chosen from the Address Book,
@@ -1542,14 +1586,14 @@ async def test_a_contact_setting_is_chosen_from_the_address_book(tmp_path):
         pane.open_field("home_bbs.internet")
         await pilot.pause()
         select = app.query_one("#settings-edit-select", Select)
-        assert [v for _l, v in select._options] == ["", "WS1EC SSH", "Old node"]
+        assert [v for _l, v in select._options][:-1] == ["", "WS1EC SSH", "Old node"]
         assert select.value == "Old node", "a contact gone from the book is kept"
         assert "Old node (not in the Address Book)" in pane.row_text("home_bbs.internet")
         select.value = "WS1EC SSH"
         await pilot.pause()
         pane.open_field("home_bbs.route")
         await pilot.pause()
-        assert [v for _l, v in select._options] == ["", "WS1EC-2"]
+        assert [v for _l, v in select._options][:-1] == ["", "WS1EC-2"]
         pane._save()
         await pilot.pause()
         assert app.config.home_bbs.internet == "WS1EC SSH"

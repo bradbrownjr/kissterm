@@ -91,6 +91,14 @@ under rule 2 above, with the date and their words:
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
+- **No way to make a contact or login from the list that asks for one**
+  (2026-09-27, `awaiting confirmation`): "I'm looking to add telnet over
+  SSH to my node configuration. It's a dropdown, and I can't go to the
+  address book to set it up from here. Add new should be an option.
+  Likewise with the saved credentials." Fix: every list of contacts,
+  logins or scripts ends with "New ...", which opens that editor over the
+  form (DESIGN.md section 8).
+
 - **Winlink setup dialog wordy; a missing gateway leaves no way on**
   (2026-09-27, `awaiting confirmation`): "the Set Up Winlink dialog is way
   too wordy, very AI slop... if the saved station isn't in the address

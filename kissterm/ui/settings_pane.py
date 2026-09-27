@@ -79,6 +79,9 @@ log = logging.getLogger(__name__)
 #: `"custom_choice"` field exists today (`aprs.path`), so this is not
 #: namespaced per-field; generalize it if a second one is ever added.
 _CUSTOM_SENTINEL = "__custom__"
+#: The last choice in a contact list: make one in the Address Book
+#: editor (DESIGN.md section 8, "A list of saved things ends with New").
+_NEW_CONTACT = "\x00new-contact"
 _CUSTOM_LABEL = "Custom..."
 
 #: The two hand-built sections: transports, and saved logins and scripts.
@@ -607,6 +610,8 @@ class SettingsPane(Vertical):
         options = [("(none)", "")] + [(t, t) for t in targets]
         if current and current not in targets:
             options.append((f"{current} (not in the Address Book)", current))
+        options.append(("New Telnet/SSH contact..." if internet else "New radio contact...",
+                        _NEW_CONTACT))
         return options
 
     def _editing_spec(self) -> Field | None:
@@ -644,8 +649,25 @@ class SettingsPane(Vertical):
                 if self._open_edit is not None:
                     custom.focus()
                 return
+        if spec.kind == "contact" and event.value == _NEW_CONTACT:
+            self._end_edit(cancel=True)
+            self._new_contact(spec)
+            return
         self.set_field(spec.path, event.value, from_editor=True)
         self._end_edit()
+
+    @work
+    async def _new_contact(self, spec: Field) -> None:
+        """"New ... contact": the Address Book editor, then the new
+        contact in this field (unsaved, like any edit here)."""
+        from .addressbook_pane import AddressBookPane, edit_entry
+
+        target = await edit_entry(self.app, None, "telnet" if spec.contacts == "internet" else "")
+        if target is None:
+            return
+        for pane in self.app.query(AddressBookPane):
+            pane.refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
+        self.set_field(spec.path, target)
 
     @on(Checkbox.Changed, "#settings-edit-check")
     def _check_changed(self, event: Checkbox.Changed) -> None:
