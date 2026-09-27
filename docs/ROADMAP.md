@@ -184,8 +184,17 @@ exchange confirms it.
   done. Small on top of the two above.
 - [ ] **RMS Gateway list** for choosing where to connect, fetched from the
   Internet on request and cached, never queried over the air.
-  `# RESEARCH:` whether Winlink's gateway API needs a key and on what terms.
-  Medium.
+  **Blocked on an access key** (researched 2026-09-27): every
+  api.winlink.org call needs one, "obtained from a Winlink administrator at
+  no cost and applicable to a specific application and software author"
+  (api.winlink.org). Pat's key in its source is "issued December 2017 by
+  the WDT for use with Pat", so kissterm may not borrow it; the operator
+  requests one for kissterm. Terms: sanity-check every parameter, request
+  only on need (Pat caches the list and fetches on request), and callsigns
+  sent must have Winlink accounts. The call is `POST /gateway/status.json`
+  (`Mode`, `HistoryHours` up to 48, `ServiceCodes` default `PUBLIC`,
+  `key`), following Pat's `internal/cmsapi/api.go` (MIT). Medium once the
+  key exists.
 - **Later:** Winlink HTML/XML forms (they meet P11's form system here),
   peer-to-peer Winlink, and scheduled send/receive. The scheduled version
   follows every unattended-transmission rule in AGENTS.md: opt-in, a status
