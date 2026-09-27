@@ -20,7 +20,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Footer, Input, Label, Select, Static, Tab, Tabs, TextArea
+from textual.widgets import Button, Checkbox, DataTable, Footer, Input, Label, Select, Static, Tab, Tabs, TextArea
 
 from ..addressbook import AddressBook
 from ..bbs import Macro, profile, profiles
@@ -1499,19 +1499,18 @@ SETUP_GO = "\x00go"
 
 
 class HomeBbsSetupScreen(ModalScreen[str | None]):
-    """Send/Receive's first-run step: which Address Book entry reaches the BBS.
+    """Send/Receive's first-run step: which Address Book contact is the
+    home BBS (G), or reaches it over the Internet (I, `internet`).
 
-    Shown when G is pressed with no Home BBS set, or one whose entry is no
-    longer in the Address Book. Only the one choice Send/Receive cannot run
-    without; everything else in Settings > Mail has a working default
-    (the BBS callsign comes from its prompt, BPQMail is recognised). Returns
-    the chosen entry's target, or None. Saving it transmits nothing: the
-    connect that follows is the normal one, reminder and all.
+    Shown when none is set, or the one set is gone from the Address Book.
+    Returns the chosen contact's target, `SETUP_GO`/`SETUP_SKIP`, or None.
+    Saving it transmits nothing. Kept to one question and one line
+    (operator, 2026-09-27: the old wording was "way too wordy").
     """
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
-    def __init__(self, targets: list[str], missing: str = "", *, winlink: bool = False,
+    def __init__(self, targets: list[str], missing: str = "", *,
                  internet: bool = False, all_note: str = "", skip: str = "") -> None:
         super().__init__()
         #: Why this is asked when G or I was pressed on All Inboxes, and the
@@ -1520,115 +1519,47 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
         self._skip = skip
         self._targets = targets
         self._missing = missing
-        #: The same question for Winlink's route (G on a Winlink folder).
-        self._winlink = winlink
-        #: The same question for the Home BBS's Internet contact (I):
-        #: `targets` are then the Address Book's Telnet and SSH contacts.
+        #: I: `targets` are then the Address Book's Telnet and SSH contacts.
         self._internet = internet
-
-    def _note(self) -> ComposeResult:
-        if self._all_note:
-            yield Static(self._all_note, id="setup-all-note")
-
-    def _hint(self, text: str, go: str) -> ComposeResult:
-        """The line saying where the rest is set, and a button to go there."""
-        with Horizontal(id="setup-hint-row"):
-            yield Label(text, id="connect-hint")
-            yield Button(go, id="setup-go")
 
     def _buttons(self, go: str = "") -> ComposeResult:
         with Horizontal(id="connect-buttons"):
             if go:
                 yield Button(go, variant="primary", id="setup-go")
             else:
-                yield Button("Save and send/receive", variant="primary", id="connect-go")
+                yield Button("Send/Receive", variant="primary", id="connect-go")
             if self._skip:
                 yield Button(self._skip, id="setup-skip")
-            yield Button("Cancel" if self._skip or not go else "Close", id="connect-cancel")
+            yield Button("Cancel", id="connect-cancel")
 
     def compose(self) -> ComposeResult:
-        if self._internet:
-            yield from self._compose_internet()
-            return
-        what = "Winlink gateway" if self._winlink else "home BBS"
         with Vertical(id="connect-box"):
-            yield Label("Set up Winlink" if self._winlink else "Set up Send/Receive",
+            yield Label("Home BBS by Internet" if self._internet else "Home BBS",
                         id="connect-title")
-            yield from self._note()
+            if self._all_note:
+                yield Static(self._all_note, id="setup-all-note")
             if self._missing:
-                intro = (
-                    f"The {'Winlink' if self._winlink else 'Home BBS'} entry {self._missing} "
-                    "is no longer in the Address Book. "
-                )
-            else:
-                intro = ""
+                yield Static(f"{self._missing} isn't in your Address Book.", id="reminder-detail")
             if not self._targets:
-                yield Static(
-                    intro + f"Send/Receive dials your {what} from the Address "
-                    f"Book, which is empty. Connect to the {what} once (the "
-                    "station is saved there), then press G again.",
-                    id="reminder-detail",
-                )
-                yield from self._buttons(go="Connect...")
+                if self._internet:
+                    yield Static("You have no Telnet or SSH contacts yet.", id="connect-hint")
+                    yield from self._buttons(go="New contact")
+                else:
+                    yield Static("Your Address Book is empty. Connect to your BBS once "
+                                 "and it will be listed here.", id="connect-hint")
+                    yield from self._buttons(go="Connect...")
                 return
-            if self._winlink:
-                detail = (
-                    "Send/Receive dials a Winlink RMS gateway, sends your Winlink "
-                    "Outbox and receives your Winlink mail. Which Address Book "
-                    "entry reaches one? Its -10 SSID, a NET/ROM alias, a node "
-                    "whose login script sends RMS, or hops to a gateway whose "
-                    "Internet is up."
-                )
-            else:
-                detail = (
-                    "Send/Receive dials your home BBS, sends your Outbox, lists your "
-                    "mail with LM and reads only what is new. Which Address Book "
-                    "entry reaches it?"
-                )
-            yield Static(intro + detail, id="reminder-detail")
-            yield Select(
-                [(target, target) for target in self._targets],
-                value=self._targets[0],
-                allow_blank=False,
-                id="home-bbs-route",
-            )
-            if self._winlink:
-                yield from self._hint("The account and password are in Settings "
-                                      "(F9) > Mail > Winlink.", "Winlink settings")
-            else:
-                yield from self._hint("The rest is optional, in Settings (F9) > "
-                                      "Mail > Home BBS.", "Home BBS settings")
-            yield from self._buttons()
-
-    def _compose_internet(self) -> ComposeResult:
-        with Vertical(id="connect-box"):
-            yield Label("Set up the Home BBS by Internet", id="connect-title")
-            yield from self._note()
-            intro = (f"The contact {self._missing} is no longer in the Address Book. "
-                     if self._missing else "")
-            if not self._targets:
-                yield Static(
-                    intro + "I reaches your home BBS through a Telnet or SSH "
-                    "contact in the Address Book, and there is none. Make one "
-                    "(New, By SSH) -- for WS1EC, host ws1ec.mainepacketradio.org, "
-                    "port 4122, user packet, with its host key in a known-hosts "
-                    "file -- then press I again.",
-                    id="reminder-detail",
-                )
-                yield from self._buttons(go="New contact")
-                return
-            yield Static(
-                intro + "I sends and receives with your home BBS over the Internet: "
-                "it logs in to the node (user: and password:), sends the command "
-                "after login (BBS), then works as G does. Which Address Book "
-                "contact reaches it?",
-                id="reminder-detail",
-            )
-            yield Select([(t, t) for t in self._targets], value=self._targets[0],
-                         allow_blank=False, id="home-bbs-route")
-            yield from self._hint("The node username and command after login are in "
-                                  "Settings (F9) > Mail.", "Mail settings")
-            yield from self._buttons()
+            with Horizontal(id="setup-hint-row"):
+                yield Label("Telnet/SSH contact" if self._internet else "BBS contact",
+                            id="setup-route-label")
+                yield Select([(t, t) for t in self._targets], value=self._targets[0],
+                             allow_blank=False, compact=True, id="home-bbs-route")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Mail settings", id="setup-go")
+                yield Button("Send/Receive", variant="primary", id="connect-go")
+                if self._skip:
+                    yield Button(self._skip, id="setup-skip")
+                yield Button("Cancel", id="connect-cancel")
 
     def on_mount(self) -> None:
         with contextlib.suppress(Exception):
@@ -1652,6 +1583,135 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
         self.dismiss(value if isinstance(value, str) else None)
 
 
+@dataclass
+class GatewayChoice:
+    """`WinlinkGatewayScreen`'s answer: where to connect this time."""
+
+    target: str
+    #: Make it the favourite gateway (Settings > Mail > Gateway contact).
+    remember: bool
+    #: When it came from the RMS gateway list: its frequency and modes,
+    #: for the Address Book contact it becomes.
+    channel: object | None = None
+
+
+#: "Another callsign..." in the gateway list: type one.
+_OTHER_GATEWAY = "\x00other"
+
+
+class WinlinkGatewayScreen(ModalScreen["GatewayChoice | str | None"]):
+    """Which Winlink gateway to connect to, when there is no favourite or
+    the favourite is gone from the Address Book.
+
+    As Pat and Winlink Express do it (operator, 2026-09-27): you choose a
+    gateway to connect to -- a contact, a callsign typed in, or one from
+    the RMS gateway list -- and may remember it as your favourite, handy
+    for someone using the same nearby node for BBS mail and Winlink. A
+    favourite missing from the Address Book is offered first: choosing it
+    adds it back. Returns a `GatewayChoice`, `SETUP_SKIP`, or None.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, contacts: list[str], favourite: str = "", *, gateway_list: bool = False,
+                 all_note: str = "", skip: str = "") -> None:
+        super().__init__()
+        self._contacts = contacts
+        self._favourite = favourite
+        self._gateway_list = gateway_list
+        self._all_note = all_note
+        self._skip = skip
+        self._channel = None
+
+    def compose(self) -> ComposeResult:
+        options = [(t, t) for t in self._contacts]
+        if self._favourite and self._favourite not in self._contacts:
+            options.insert(0, (f"{self._favourite} (add to Address Book)", self._favourite))
+        options.append(("Another callsign...", _OTHER_GATEWAY))
+        with Vertical(id="connect-box"):
+            yield Label("Winlink gateway", id="connect-title")
+            if self._all_note:
+                yield Static(self._all_note, id="setup-all-note")
+            if self._favourite and self._favourite not in self._contacts:
+                yield Static(f"{self._favourite} isn't in your Address Book.",
+                             id="reminder-detail")
+            with Horizontal(id="setup-hint-row"):
+                yield Label("Connect to", id="setup-route-label")
+                yield Select(options, value=options[0][1], allow_blank=False, compact=True,
+                             id="gateway-choice")
+            yield Input(placeholder="Gateway callsign, e.g. W1AW-10", compact=True, id="gateway-call")
+            yield Label("", id="gateway-error")
+            yield Checkbox("Remember as my gateway", value=bool(self._favourite),
+                           compact=True, id="gateway-remember")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Gateway list...", id="gateway-list", disabled=not self._gateway_list)
+                yield Button("Connect", variant="primary", id="connect-go")
+                if self._skip:
+                    yield Button(self._skip, id="setup-skip")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        self._sync()
+        if self.query_one("#gateway-choice", Select).value == _OTHER_GATEWAY:
+            self.query_one("#gateway-call", Input).focus()
+        else:
+            self.query_one("#connect-go", Button).focus()
+
+    def _sync(self) -> None:
+        other = self.query_one("#gateway-choice", Select).value == _OTHER_GATEWAY
+        self.query_one("#gateway-call", Input).display = other
+
+    @on(Select.Changed, "#gateway-choice")
+    def _choice_changed(self) -> None:
+        self._channel = None
+        self._sync()
+        if self.query_one("#gateway-choice", Select).value == _OTHER_GATEWAY:
+            self.query_one("#gateway-call", Input).focus()
+
+    @on(Button.Pressed, "#gateway-list")
+    @work
+    async def _pick_from_list(self) -> None:
+        from .gateways_screen import RmsGatewaysScreen
+
+        app = self.app
+        channel = await app.push_screen_wait(RmsGatewaysScreen(
+            app._gateway_cache(), app._own_position()))  # type: ignore[attr-defined]
+        if channel is None:
+            return
+        self.query_one("#gateway-choice", Select).value = _OTHER_GATEWAY
+        self.query_one("#gateway-call", Input).value = channel.callsign
+        self._sync()
+        self._channel = channel
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#setup-skip")
+    def _skip_it(self) -> None:
+        self.dismiss(SETUP_SKIP)
+
+    @on(Button.Pressed, "#connect-go")
+    @on(Input.Submitted, "#gateway-call")
+    def _go(self) -> None:
+        from ..ax25.address import AX25Address, AX25AddressError
+
+        choice = self.query_one("#gateway-choice", Select).value
+        target = str(choice)
+        if choice == _OTHER_GATEWAY:
+            target = self.query_one("#gateway-call", Input).value.strip().upper()
+            try:
+                AX25Address.parse(target.split()[0] if target else "")
+            except (AX25AddressError, IndexError):
+                error = self.query_one("#gateway-error", Label)
+                error.update("Type a callsign, such as W1AW-10.")
+                error.display = True
+                return
+        self.dismiss(GatewayChoice(
+            target, self.query_one("#gateway-remember", Checkbox).value,
+            self._channel if choice == _OTHER_GATEWAY else None))
+
+
 class LoginAskScreen(ModalScreen[str | None]):
     """Send/Receive's ask-before-dialing step for a login it needs and does
     not have: the Winlink password, or a Home BBS login when Settings names
@@ -1667,7 +1727,7 @@ class LoginAskScreen(ModalScreen[str | None]):
 
     def __init__(self, title: str, detail: str, name: str, *, secret: bool = True,
                  all_note: str = "", skip: str = "",
-                 go_label: str = "Save and send/receive") -> None:
+                 go_label: str = "Send/Receive") -> None:
         super().__init__()
         self._go_label = go_label
         #: As for `HomeBbsSetupScreen`: why, on All Inboxes, and Skip's label.
@@ -1683,11 +1743,10 @@ class LoginAskScreen(ModalScreen[str | None]):
             yield Label(self._title, id="connect-title")
             if self._all_note:
                 yield Static(self._all_note, id="setup-all-note")
-            yield Static(self._detail, id="reminder-detail")
+            if self._detail:
+                yield Static(self._detail, id="reminder-detail")
             yield Input(password=self._secret, id="login-ask-text")
             yield Label("", id="login-ask-error")
-            yield Label(f"Saved as the login \"{self._name}\" (Settings > Logins).",
-                        id="connect-hint")
             with Horizontal(id="connect-buttons"):
                 yield Button(self._go_label, variant="primary", id="connect-go")
                 if self._skip:

@@ -190,7 +190,9 @@ from .dialogs import (
     RadioReminderScreen,
     SETUP_GO,
     SETUP_SKIP,
+    GatewayChoice,
     HomeBbsSetupScreen,
+    WinlinkGatewayScreen,
     LoginAskScreen,
     TranscriptsScreen,
     FileTransferScreen,
@@ -4282,8 +4284,8 @@ class KissTermApp(App):
         other = "Winlink" if name == "Home BBS" else "the Home BBS"
         how = " over the Internet" if key == "I" else ""
         return (
-            f"{key} on All Inboxes runs the Home BBS, then Winlink{how}; "
-            f"{name} needs this first, or Skip it to run {other} alone.",
+            f"All Inboxes: the Home BBS, then Winlink{how}. Skip {name} to run "
+            f"{other} alone.",
             f"Skip {name}",
         )
 
@@ -4346,7 +4348,43 @@ class KissTermApp(App):
         browser = self.query("#mail-browser")
         return browser.first(MessageBrowser).folder if browser else ""
 
-    async def _mail_route(self, route: str, *, winlink: bool = False):
+    async def _winlink_gateway(self):
+        """The Address Book contact to reach Winlink through: the favourite
+        gateway (Settings > Mail > Gateway contact) when it is in the book,
+        else the one chosen now (`WinlinkGatewayScreen`), added to the book
+        and remembered as the favourite if asked. None if cancelled."""
+        from ..winlink import gateways
+
+        favourite = self.config.winlink.route.strip()
+        entry = self.addressbook.find(favourite) if favourite else None
+        if entry is not None:
+            return entry
+        note, skip = self._all_inboxes_ask()
+        has_list = bool(gateways.ACCESS_KEY) or gateways.load_cached(self._gateway_cache()) is not None
+        answer = self._setup_answer(await self.push_screen_wait(WinlinkGatewayScreen(
+            [e.target for e in self.addressbook.entries if not e.is_internet], favourite,
+            gateway_list=has_list, all_note=note, skip=skip)), "winlink")
+        if not isinstance(answer, GatewayChoice):
+            return None
+        entry = self.addressbook.find(answer.target)
+        if entry is None:
+            channel = answer.channel
+            details = {} if channel is None else {
+                "frequency": channel.frequency,
+                "note": f"Winlink RMS, {channel.modes}" + (f", {channel.grid}" if channel.grid else ""),
+            }
+            entry = self.addressbook.upsert(answer.target, **details)
+            from .addressbook_pane import AddressBookPane
+
+            for pane in self.query(AddressBookPane):
+                pane.refresh_from(self.addressbook)
+        if answer.remember and self.config.winlink.route != entry.target:
+            self.config.winlink.route = entry.target
+            self._save_config()
+            self.query_one(SettingsPane).render_settings(self.config)
+        return entry
+
+    async def _mail_route(self, route: str):
         """The Address Book entry `route` names, asking for one (and saving
         the answer) on first use or when the entry is gone; None if the
         operator cancelled."""
@@ -4358,16 +4396,12 @@ class KissTermApp(App):
         note, skip = self._all_inboxes_ask()
         targets = [e.target for e in self.addressbook.entries]
         chosen = self._setup_answer(await self.push_screen_wait(
-            HomeBbsSetupScreen(targets, missing=route.strip(), winlink=winlink,
-                               all_note=note, skip=skip)
-        ), "connect" if not targets else "winlink" if winlink else "bbs")
+            HomeBbsSetupScreen(targets, missing=route.strip(), all_note=note, skip=skip)
+        ), "connect" if not targets else "bbs")
         entry = self.addressbook.find(chosen) if chosen else None
         if entry is None:
             return None
-        if winlink:
-            self.config.winlink.route = entry.target
-        else:
-            self.config.home_bbs.route = entry.target
+        self.config.home_bbs.route = entry.target
         self._save_config()
         self.query_one(SettingsPane).render_settings(self.config)
         return entry
@@ -4465,11 +4499,7 @@ class KissTermApp(App):
         if home.login_prompt:
             # Settings says the BBS asks for a login: have it before dialing.
             login = await self._ask_login(
-                home.credential, "Home BBS", "Home BBS login",
-                f"The Home BBS asks for a login after \"{home.login_prompt}\" "
-                "(Settings > Mail), and no saved login answers it. What should be "
-                "sent? For more than one line, edit it later in Settings > Logins.",
-            )
+                home.credential, "Home BBS", "Home BBS password", "")
             if login is None:
                 return None
             if home.credential != login[0]:
@@ -4532,7 +4562,7 @@ class KissTermApp(App):
         from ..mail.winlink_collect import WinlinkOptions
 
         winlink = self.config.winlink
-        entry = await self._mail_route(winlink.route, winlink=True) if await self._winlink_account() else None
+        entry = await self._winlink_gateway() if await self._winlink_account() else None
         if entry is None:
             return None
         login = await self._winlink_login()
@@ -4566,10 +4596,7 @@ class KissTermApp(App):
         # connect. UNVERIFIED: that every gateway challenges (Winlink
         # accounts have passwords; wl2k-go answers ;PQ whenever it comes).
         login = await self._ask_login(
-            winlink.credential, "Winlink", "Winlink password",
-            f"The Winlink password for {account}. It never goes on the air: "
-            "the gateway sends a challenge, and only the answer to it is sent.",
-        )
+            winlink.credential, "Winlink", f"Winlink password for {account}", "")
         if login is None:
             return None
         if winlink.credential != login[0]:
@@ -4626,9 +4653,8 @@ class KissTermApp(App):
             return
         text = await self.push_screen_wait(LoginAskScreen(
             "Winlink password refused",
-            f"The gateway refused the password for {winlink_account(self.config)}: "
-            f"\"{result.stopped}\". Type it again; it is saved for the next "
-            "Send/Receive, and nothing is dialed now.",
+            f"The gateway said: {result.stopped}. Type the password for "
+            f"{winlink_account(self.config)} again.",
             "Winlink", go_label="Save"))
         if not text or text == SETUP_SKIP:
             return
@@ -4777,10 +4803,7 @@ class KissTermApp(App):
             self.query_one(SettingsPane).render_settings(self.config)
         user = home.internet_user or str(self.config.mycall or "").split("-")[0].upper()
         login = await self._ask_login(
-            home.internet_credential, "Home BBS Telnet", "Home BBS Telnet password",
-            f"The password {entry.target}'s node asks for after user: {user}. "
-            "It goes over the connection, never on the air.",
-        )
+            home.internet_credential, "Home BBS Telnet", f"Node password for {user}", "")
         if login is None:
             return None
         if home.internet_credential != login[0]:

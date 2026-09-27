@@ -70,8 +70,9 @@ async def test_every_tab_keeps_its_controls_on_screen(tmp_path, size):
 
 
 def _setup_dialogs():
-    yield dialogs.HomeBbsSetupScreen(["WS1EC-2", "WS1EC-10"], missing="WS1EC-10",
-                                     winlink=True, all_note=NOTE, skip="Skip Winlink")
+    yield dialogs.WinlinkGatewayScreen(["WS1EC-2", "WS1EC-15"], "WS1EC-10", gateway_list=True,
+                                       all_note=NOTE, skip="Skip Winlink")
+    yield dialogs.WinlinkGatewayScreen([], "")
     yield dialogs.HomeBbsSetupScreen(["WS1EC-2"], all_note=NOTE, skip="Skip Home BBS")
     yield dialogs.HomeBbsSetupScreen([], internet=True)
     yield dialogs.HomeBbsSetupScreen(["ws1ec"], internet=True, all_note=NOTE, skip="Skip Home BBS")

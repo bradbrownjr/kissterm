@@ -91,6 +91,18 @@ under rule 2 above, with the date and their words:
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
+- **Winlink setup dialog wordy; a missing gateway leaves no way on**
+  (2026-09-27, `awaiting confirmation`): "the Set Up Winlink dialog is way
+  too wordy, very AI slop... if the saved station isn't in the address
+  book, the options should be to either change the default Winlink
+  gateway, add it to the address book, or select from a list of available
+  gateways. This should be more fluid like Pat Winlink and Winlink RMS
+  Express." Fix: G on a Winlink folder dials the favourite gateway when it
+  is in the Address Book; otherwise a short "Winlink gateway" dialog offers
+  the favourite (added back on Connect), any contact, another callsign, or
+  the gateway list, with "Remember as my gateway". The Home BBS and
+  password prompts were cut down too.
+
 - **Settings: edits below the list, Save easy to miss** (2026-09-27,
   `awaiting confirmation`): "I hit G and clicked go to winlink settings. The prompts aren't
   inline, they're below the window, and on a widescreen, I barely noticed

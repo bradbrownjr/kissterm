@@ -129,10 +129,11 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Winlink
 
-Set up: nothing beforehand. On a Winlink folder, G asks for the Address
-Book entry for the RMS (WS1EC-10, or a node entry whose login script
-sends RMS) and then your Winlink password, before dialing; both are
-saved (Settings > Mail > Winlink, Settings > Logins).
+Set up: nothing beforehand. On a Winlink folder, G asks which gateway
+(WS1EC-10, a node entry whose login script sends RMS, or another
+callsign; tick "Remember as my gateway" to skip the question next time)
+and then your Winlink password, before dialing. The password is saved
+(Settings > Logins); the gateway only if remembered.
 
 - [ ] **First: Winlink over the Internet** (no radio). On the Mail tab,
   select Winlink > Inbox and press I (Footer: "By Internet"). It asks for

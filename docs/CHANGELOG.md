@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Winlink gateway chosen at G, like Pat and RMS Express
+
+### Improvements
+
+- **G on a Winlink folder asks which gateway only when it must**: the
+  favourite gateway dials at once if it is in the Address Book; otherwise
+  a short "Winlink gateway" dialog offers it (added back on Connect), any
+  radio contact, another callsign, or the gateway list, and "Remember as
+  my gateway". Nothing has to be set up first. The Home BBS and password
+  prompts lost their explanations. Operator report, 2026-09-27 (ROADMAP P0.1).
+
+**Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/app.py`,
+`kissterm/ui/styles.py`, `tests/pilot/test_winlink_send_receive.py`,
+`tests/pilot/test_get_mail.py`, `tests/pilot/test_layout_fits.py`,
+`docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — Settings: edit on the row, unsaved changes shown
 
 ### Improvements

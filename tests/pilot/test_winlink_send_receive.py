@@ -120,10 +120,10 @@ async def test_g_on_a_winlink_folder_sends_and_receives_with_winlink(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_g_on_winlink_without_a_route_asks_with_winlink_words(tmp_path):
+async def test_g_on_winlink_without_a_route_asks_which_gateway(tmp_path):
     from textual.widgets import Label
 
-    from kissterm.ui.dialogs import HomeBbsSetupScreen
+    from kissterm.ui.dialogs import WinlinkGatewayScreen as HomeBbsSetupScreen
 
     app, station, _tb = await _app(tmp_path, route="")
     async with app.run_test(size=(120, 40)) as pilot:
@@ -135,7 +135,7 @@ async def test_g_on_winlink_without_a_route_asks_with_winlink_words(tmp_path):
         await pilot.pause()
         await pilot.press("g")
         await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the setup dialog")
-        assert str(app.screen.query_one("#connect-title", Label).render()) == "Set up Winlink"
+        assert str(app.screen.query_one("#connect-title", Label).render()) == "Winlink gateway"
         assert not station.transport.sent
         await pilot.pause()
         await pilot.click("#connect-cancel")
@@ -369,7 +369,7 @@ async def _all_inboxes_with_winlink_gone(app, pilot):
     """G on All Inboxes with the Winlink entry forgotten (operator's
     screenshot, 2026-09-27): the Winlink question comes up."""
     from kissterm.mail.store import ALL_INBOXES
-    from kissterm.ui.dialogs import HomeBbsSetupScreen
+    from kissterm.ui.dialogs import WinlinkGatewayScreen
 
     app.action_show_tab("mail")
     await pilot.pause()
@@ -378,7 +378,7 @@ async def _all_inboxes_with_winlink_gone(app, pilot):
     browser.query_one(MessageList).focus()
     await pilot.pause()
     await pilot.press("g")
-    await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the Winlink question")
+    await wait_for(lambda: isinstance(app.screen, WinlinkGatewayScreen), "the Winlink question")
     await pilot.pause()
 
 
@@ -398,7 +398,7 @@ async def test_all_inboxes_says_why_winlink_is_asked_and_skip_runs_the_bbs(tmp_p
     async with app.run_test(size=(120, 40)) as pilot:
         await _all_inboxes_with_winlink_gone(app, pilot)
         note = str(app.screen.query_one("#setup-all-note", Static).render())
-        assert "G on All Inboxes" in note and "Winlink needs this first" in note
+        assert note.startswith("All Inboxes:") and "Skip Winlink" in note
         # Fits an 80x24 terminal too: see test_setup_questions_fit_80x24.
         # Centred, not in the top-left corner.
         box, screen = app.screen.query_one("#connect-box").region, app.screen.region
@@ -415,21 +415,122 @@ async def test_all_inboxes_says_why_winlink_is_asked_and_skip_runs_the_bbs(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_the_setup_question_goes_to_the_setting_it_names(tmp_path):
+async def test_the_bbs_question_goes_to_the_setting_it_names(tmp_path):
+    from kissterm.ui.dialogs import HomeBbsSetupScreen
+
     app, station, _tb = await _app(tmp_path)
-    app.config.home_bbs.route = "WS1EC-2"
-    app.addressbook.forget("WS1EC-10")
-    app.addressbook.record_attempt("WS1EC-2")
+    app.config.home_bbs.route = "WS1EC-7"
     async with app.run_test(size=(120, 40)) as pilot:
-        await _all_inboxes_with_winlink_gone(app, pilot)
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder("Mail/BBS/Inbox")
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("g")
+        await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the question")
+        await pilot.pause()
         await pilot.click("#setup-go")
         await wait_for(lambda: not app._collecting, "the run to be cancelled")
         await pilot.pause()
-        assert app.query_one("#main-tabs").active == "settings"
         await pilot.pause()
+        assert app.query_one("#main-tabs").active == "settings"
         fields = app.query_one("#settings-tab-mail")
-        assert app.focused is fields and fields.highlighted_option.id == "winlink.account"
+        assert app.focused is fields and fields.highlighted_option.id == "home_bbs.route"
         assert not station.transport.sent
+    station.close()
+
+
+async def _winlink_question(app, pilot):
+    from kissterm.ui.dialogs import WinlinkGatewayScreen
+
+    app.action_show_tab("mail")
+    await pilot.pause()
+    browser = app.query_one("#mail-browser", MessageBrowser)
+    browser.show_folder(WINLINK_INBOX)
+    browser.query_one(MessageList).focus()
+    await pilot.pause()
+    await pilot.press("g")
+    await wait_for(lambda: isinstance(app.screen, WinlinkGatewayScreen), "the gateway question")
+    await pilot.pause()
+
+
+@pytest.mark.asyncio
+async def test_a_favourite_gone_from_the_book_is_added_back_and_dialed(tmp_path):
+    """Operator, 2026-09-27: when the saved gateway isn't in the Address
+    Book, offer to add it, to change it, or to pick from the gateway list."""
+    from textual.widgets import Select
+
+    app, station, tb = await _app(tmp_path)
+    app.addressbook.forget("WS1EC-10")
+    rms = AX25Station(RMS, tb, FAST)
+    _gateway(rms, Gateway([REAL.read_bytes()], challenge=True))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _winlink_question(app, pilot)
+        choice = app.screen.query_one("#gateway-choice", Select)
+        assert choice.value == "WS1EC-10"
+        assert "isn't in your Address Book" in str(app.screen.query_one("#reminder-detail").render())
+        assert app.screen.query_one("#gateway-remember").value is True
+        assert app.screen.query_one("#gateway-list").disabled  # no list, no key yet
+        await pilot.click("#connect-go")
+        await wait_for(lambda: app.mail_store.list(WINLINK_INBOX), "the message", timeout=20)
+        assert app.addressbook.find("WS1EC-10") is not None
+        assert app.config.winlink.route == "WS1EC-10"
+        await wait_for(lambda: not app._collecting, "the run to finish", timeout=20)
+    rms.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_another_gateway_is_used_once_unless_remembered(tmp_path):
+    """No favourite is needed: a callsign typed in is dialed (and listed in
+    the Address Book) without becoming the favourite unless asked."""
+    from textual.widgets import Select
+
+    app, station, tb = await _app(tmp_path, route="")
+    app.addressbook.forget("WS1EC-10")
+    rms = AX25Station(RMS, tb, FAST)
+    _gateway(rms, Gateway([REAL.read_bytes()], challenge=True))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _winlink_question(app, pilot)
+        assert app.screen.query_one("#gateway-remember").value is False
+        app.screen.query_one("#gateway-choice", Select).value = "\x00other"
+        await pilot.pause()
+        await pilot.click("#connect-go")
+        await pilot.pause()
+        assert "Type a callsign" in str(app.screen.query_one("#gateway-error").render())
+        call = app.screen.query_one("#gateway-call")
+        call.value = "ws1ec-10"
+        call.focus()
+        await pilot.press("enter")
+        await wait_for(lambda: app.mail_store.list(WINLINK_INBOX), "the message", timeout=20)
+        await wait_for(lambda: not app._collecting, "the run to finish", timeout=20)
+        assert app.addressbook.find("WS1EC-10") is not None
+        assert app.config.winlink.route == "", "not remembered unless asked"
+    rms.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_remember_changes_the_favourite(tmp_path):
+    from textual.widgets import Select
+
+    from kissterm.ui.dialogs import GatewayChoice, WinlinkGatewayScreen
+
+    app, station, _tb = await _app(tmp_path, route="W9GONE-10")
+    app.addressbook.record_attempt("WS1EC-15")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        answers = []
+        app.push_screen(WinlinkGatewayScreen(["WS1EC-10", "WS1EC-15"], "W9GONE-10"), answers.append)
+        await pilot.pause()
+        select = app.screen.query_one("#gateway-choice", Select)
+        assert [v for _l, v in select._options][:3] == ["W9GONE-10", "WS1EC-10", "WS1EC-15"]
+        select.value = "WS1EC-15"
+        await pilot.pause()
+        await pilot.click("#connect-go")
+        await pilot.pause()
+        assert answers == [GatewayChoice("WS1EC-15", True, None)]
     station.close()
 
 

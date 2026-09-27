@@ -472,9 +472,18 @@ AddressBookEntryScreen #connect-buttons { height: auto; margin-top: 0; }
 /* Send/Receive's setup questions: why this is asked on All Inboxes, and a
    hint line with a button that goes where it says. */
 #setup-all-note { color: $warning; padding: 0 0 1 0; }
-#setup-hint-row { height: auto; margin-top: 1; }
-#setup-hint-row #connect-hint { width: 1fr; height: auto; padding-top: 1; }
-#setup-hint-row Button { margin-left: 1; }
+/* The setup questions: one labelled choice in a row, like a Settings row. */
+#setup-hint-row { height: auto; }
+HomeBbsSetupScreen #connect-title, WinlinkGatewayScreen #connect-title {
+    text-style: bold; color: $accent; padding: 0 0 1 0;
+}
+#setup-route-label { width: 20; }
+WinlinkGatewayScreen #setup-route-label { width: 12; }
+#setup-hint-row Select { width: 1fr; }
+#gateway-call { margin: 1 0 0 12; width: 1fr; }
+#gateway-error { display: none; color: $error; margin-left: 12; }
+#gateway-remember { margin: 1 0 0 12; }
+#connect-buttons #gateway-list { margin-left: 0; margin-right: 1; }
 /* TransportEntryScreen. Reuses #connect-title/#connect-buttons; the box
    itself gets its own id and a capped height with an internal scroll --
    SSH's four fields plus name/kind/error/auto-login is taller than a
