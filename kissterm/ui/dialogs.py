@@ -1534,7 +1534,8 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
-            yield Label("Home BBS by Internet" if self._internet else "Home BBS",
+            yield Label(ALL_INBOXES_TITLE if self._all_note else
+                        "Home BBS by Internet" if self._internet else "Home BBS",
                         id="connect-title")
             if self._all_note:
                 yield Static(self._all_note, id="setup-all-note")
@@ -1595,6 +1596,9 @@ class GatewayChoice:
     channel: object | None = None
 
 
+#: A setup question asked during a G/I on All Inboxes is titled for the
+#: whole run, not the one service (operator, 2026-09-27).
+ALL_INBOXES_TITLE = "Send and Receive All Inboxes"
 #: "Another callsign..." in the gateway list: type one.
 _OTHER_GATEWAY = "\x00other"
 
@@ -1629,7 +1633,8 @@ class WinlinkGatewayScreen(ModalScreen["GatewayChoice | str | None"]):
             options.insert(0, (f"{self._favourite} (add to Address Book)", self._favourite))
         options.append(("Another callsign...", _OTHER_GATEWAY))
         with Vertical(id="connect-box"):
-            yield Label("Winlink gateway", id="connect-title")
+            yield Label(ALL_INBOXES_TITLE if self._all_note else "Winlink gateway",
+                        id="connect-title")
             if self._all_note:
                 yield Static(self._all_note, id="setup-all-note")
             if self._favourite and self._favourite not in self._contacts:
@@ -1740,9 +1745,11 @@ class LoginAskScreen(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
-            yield Label(self._title, id="connect-title")
+            yield Label(ALL_INBOXES_TITLE if self._all_note else self._title, id="connect-title")
             if self._all_note:
                 yield Static(self._all_note, id="setup-all-note")
+                # The title went to All Inboxes; say which password this is.
+                yield Static(self._title, id="login-ask-what")
             if self._detail:
                 yield Static(self._detail, id="reminder-detail")
             yield Input(password=self._secret, id="login-ask-text")

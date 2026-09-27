@@ -398,7 +398,10 @@ async def test_all_inboxes_says_why_winlink_is_asked_and_skip_runs_the_bbs(tmp_p
     async with app.run_test(size=(120, 40)) as pilot:
         await _all_inboxes_with_winlink_gone(app, pilot)
         note = str(app.screen.query_one("#setup-all-note", Static).render())
-        assert note.startswith("All Inboxes:") and "Skip Winlink" in note
+        assert note.startswith("You have All Inboxes selected")
+        title = str(app.screen.query_one("#connect-title").render())
+        assert title == "Send and Receive All Inboxes"
+        assert "Skip Winlink" in str(app.screen.query_one("#setup-skip").label)
         # Fits an 80x24 terminal too: see test_setup_questions_fit_80x24.
         # Centred, not in the top-left corner.
         box, screen = app.screen.query_one("#connect-box").region, app.screen.region

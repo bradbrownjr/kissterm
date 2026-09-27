@@ -4281,11 +4281,11 @@ class KissTermApp(App):
         if self._all_inboxes is None:
             return "", ""
         key, name = self._all_inboxes
-        other = "Winlink" if name == "Home BBS" else "the Home BBS"
         how = " over the Internet" if key == "I" else ""
+        # The operator's wording, 2026-09-27.
         return (
-            f"All Inboxes: the Home BBS, then Winlink{how}. Skip {name} to run "
-            f"{other} alone.",
+            f"You have All Inboxes selected, therefore kissterm will check mail "
+            f"for both BBS and Winlink{how}.",
             f"Skip {name}",
         )
 

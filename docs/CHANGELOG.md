@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — All Inboxes questions titled for the run
+
+### Improvements
+
+- **A question asked during G or I on All Inboxes is titled "Send and
+  Receive All Inboxes"** and says "You have All Inboxes selected, therefore
+  kissterm will check mail for both BBS and Winlink." A password question
+  names which password under it. Operator request, 2026-09-27.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/styles.py`, `tests/pilot/test_winlink_send_receive.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-27] — Winlink gateway chosen at G, like Pat and RMS Express
 
 ### Improvements
