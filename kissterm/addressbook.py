@@ -30,12 +30,16 @@ import json
 import logging
 import os
 import time
-from dataclasses import asdict, dataclass, field
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 from .config import state_path
 
 log = logging.getLogger(__name__)
+
+#: `Entry.connect_by` values for a contact reached over the Internet.
+INTERNET_KINDS = ("telnet", "ssh")
 
 #: Entries kept. A station list is a convenience, not an archive: past a
 #: screenful the older rows are noise, and an unbounded file that every
@@ -120,6 +124,46 @@ class Entry:
     #: Address Book editor, same as `frequency` -- see `AddressBook.upsert`.
     paclen: str = ""
     window: str = ""
+    #: How this contact is reached (operator, 2026-09-26: every contact in
+    #: the Address Book "regardless of transport", as Winlink on Android
+    #: does). "" is by radio: the active TNC or modem, `target` a callsign
+    #: with its path and `hops`. "telnet" or "ssh" is over the Internet: it
+    #: opens its own connection to `host`, beside the radio rather than in
+    #: place of it, and `target` is then the contact's name. `credential`,
+    #: `script_name` and `script` stay what is sent once it is up, e.g.
+    #: WS1EC's shell telnetting into its node.
+    connect_by: str = ""
+    host: str = ""
+    #: Kept as text like `paclen`; "" is the protocol's own (23, 22).
+    port: str = ""
+    #: SSH only. The password and key passphrase are saved logins, by name
+    #: (`Config.credentials`, the keyring), never text in this file.
+    username: str = ""
+    password_login: str = ""
+    client_key: str = ""
+    key_login: str = ""
+    known_hosts: str = ""
+
+    @property
+    def is_internet(self) -> bool:
+        return self.connect_by in INTERNET_KINDS
+
+    def transport_config(self, find_login: Callable[[str], str]) -> dict:
+        """The `build_transport()` entry an Internet contact connects with;
+        `find_login` turns a saved login's name into its text."""
+        config: dict = {"kind": self.connect_by, "host": self.host}
+        if self.port.strip():
+            config["port"] = int(self.port)
+        if self.connect_by == "ssh":
+            config["username"] = self.username
+            config["known_hosts"] = self.known_hosts
+            if self.client_key:
+                config["client_key"] = self.client_key
+            if self.password_login:
+                config["password"] = find_login(self.password_login)
+            if self.key_login:
+                config["key_passphrase"] = find_login(self.key_login)
+        return config
 
     @property
     def summary(self) -> str:
@@ -129,6 +173,53 @@ class Entry:
         if self.attempts:
             return f"{self.attempts} attempt(s), never connected"
         return ""
+
+
+#: The fields `load` reads as text: everything but the target and counters.
+_TEXT_FIELDS = tuple(f.name for f in fields(Entry)
+                     if f.name not in ("target", "last_used", "attempts", "connects"))
+#: The fields that say how an Internet contact is reached.
+_INTERNET_FIELDS = frozenset({"connect_by", "host", "port", "username", "password_login",
+                              "client_key", "key_login", "known_hosts"})
+
+
+def adopt_internet_transports(book: "AddressBook", config) -> list[str]:
+    """Each Telnet or SSH connection in `config.transports` as an Address
+    Book contact of the same name, unless one is there already; the names
+    added. A password or key passphrase becomes a saved login as text
+    (`"<name> SSH password"`), which the launch then moves into the keyring
+    (`move_credentials_to_keyring`) off the UI thread. The transports stay
+    until the app no longer reads them. The caller saves the config."""
+    added = []
+    for transport in config.transports:
+        kind, name = transport.get("kind"), str(transport.get("name", "")).strip()
+        if kind not in INTERNET_KINDS or not name or book.find(name) is not None:
+            continue
+        logins = {}
+        for key, suffix in (("password", "SSH password"), ("key_passphrase", "SSH key passphrase")):
+            text = str(transport.get(key, "") or "")
+            if text:
+                login = f"{name} {suffix}"
+                config.credentials = [c for c in config.credentials if c.get("name") != login]
+                config.credentials.append({"name": login, "text": text})
+                logins[key] = login
+        port = transport.get("port")
+        book.upsert(
+            name,
+            script=str(transport.get("script", "") or ""),
+            credential=str(transport.get("credential", "") or ""),
+            script_name=str(transport.get("script_name", "") or ""),
+            connect_by=kind,
+            host=str(transport.get("host", "") or ""),
+            port="" if port in (None, "") else str(port),
+            username=str(transport.get("username", "") or ""),
+            password_login=logins.get("password", ""),
+            client_key=str(transport.get("client_key", "") or ""),
+            key_login=logins.get("key_passphrase", ""),
+            known_hosts=str(transport.get("known_hosts", "") or ""),
+        )
+        added.append(name)
+    return added
 
 
 def path() -> Path:
@@ -175,15 +266,9 @@ class AddressBook:
                     last_used=float(item.get("last_used", 0.0) or 0.0),
                     attempts=int(item.get("attempts", 0) or 0),
                     connects=int(item.get("connects", 0) or 0),
-                    note=str(item.get("note", "")),
-                    script=str(item.get("script", "")),
-                    hops=str(item.get("hops", "")),
-                    credential=str(item.get("credential", "")),
-                    script_name=str(item.get("script_name", "")),
-                    frequency=str(item.get("frequency", "")),
-                    connection_type=str(item.get("connection_type", "")),
-                    paclen=str(item.get("paclen", "")),
-                    window=str(item.get("window", "")),
+                    # Every other field is text; one this version does not
+                    # know is dropped, one it lacks stays at its default.
+                    **{name: str(item.get(name, "") or "") for name in _TEXT_FIELDS},
                 )
             )
         self.entries = entries[:MAX_ENTRIES]
@@ -254,6 +339,7 @@ class AddressBook:
         window: str = "",
         note: str = "",
         original_target: str = "",
+        **internet: str,
     ) -> Entry:
         """Create or hand-edit an entry directly -- the Address Book pane,
         not a connect attempt.
@@ -289,6 +375,12 @@ class AddressBook:
         entry.paclen = paclen
         entry.window = window
         entry.note = note
+        # How it is reached (`connect_by`, `host`, ...): only what is given,
+        # so an editor that does not offer them leaves them alone.
+        for name, value in internet.items():
+            if name not in _INTERNET_FIELDS:
+                raise TypeError(f"upsert() got an unexpected keyword argument {name!r}")
+            setattr(entry, name, value)
         self.save()
         return entry
 

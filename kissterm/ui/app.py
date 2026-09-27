@@ -127,7 +127,7 @@ from textual.widgets import Footer, Static, TabbedContent, TabPane, Tabs
 from textual.widgets._footer import FooterKey
 
 from .. import __version__
-from ..addressbook import AddressBook
+from ..addressbook import AddressBook, adopt_internet_transports
 from ..netrom import KnownNodes
 from .. import aprs
 from ..aprs_is import AprsIsWatch
@@ -844,6 +844,21 @@ class KissTermApp(App):
             log.warning(warning)
         self.theme = resolved
 
+    def _adopt_internet_transports(self) -> None:
+        """Telnet and SSH connections become Address Book contacts
+        (`addressbook.adopt_internet_transports`); before the keyring move,
+        which then takes their passwords out of config.toml."""
+        from .addressbook_pane import AddressBookPane
+
+        added = adopt_internet_transports(self.addressbook, self.config)
+        if not added:
+            return
+        self._save_config()
+        for pane in self.query(AddressBookPane):
+            pane.refresh_from(self.addressbook)
+        self.notify("In the Address Book now: " + ", ".join(added)
+                    + " (Telnet and SSH connections are contacts).", timeout=8)
+
     @work(thread=True, exclusive=True, group="keyring")
     def _move_credentials_to_keyring(self) -> None:
         """Logins saved as text in config.toml move to the OS keyring when
@@ -878,6 +893,7 @@ class KissTermApp(App):
         # moment the operator is looking for confirmation that it has.
         self._refresh_status()
         self._start_port_watcher()
+        self._adopt_internet_transports()
         self._move_credentials_to_keyring()
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(2.0, self._refresh_heard)

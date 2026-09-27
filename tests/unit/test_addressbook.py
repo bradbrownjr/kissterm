@@ -10,7 +10,7 @@ import json  # noqa: E402
 
 import pytest  # noqa: E402
 
-from kissterm.addressbook import MAX_ENTRIES, AddressBook  # noqa: E402
+from kissterm.addressbook import MAX_ENTRIES, AddressBook, adopt_internet_transports  # noqa: E402
 
 
 @pytest.fixture
@@ -235,3 +235,53 @@ def test_an_unwritable_location_does_not_raise(tmp_path):
     book = AddressBook(path / "addressbook.json")
     book.record_attempt("WS1EC-7")  # must not raise
     assert book.entries[0].target == "WS1EC-7"
+
+
+# -- Internet contacts (operator, 2026-09-26: every contact in the book) -----
+
+
+def test_an_internet_contact_round_trips_and_builds_its_connection(tmp_path):
+    book = AddressBook(tmp_path / "ab.json")
+    book.upsert("WS1EC", connect_by="ssh", host="ws1ec.mainepacketradio.org", port="4122",
+                username="packet", password_login="WS1EC SSH password",
+                known_hosts="/k/known_hosts", script="C 2")
+    again = AddressBook(tmp_path / "ab.json")
+    again.load()
+    entry = again.find("WS1EC")
+    assert entry.is_internet and entry.script == "C 2"
+    assert entry.transport_config({"WS1EC SSH password": "pw"}.get) == {
+        "kind": "ssh", "host": "ws1ec.mainepacketradio.org", "port": 4122,
+        "username": "packet", "known_hosts": "/k/known_hosts", "password": "pw"}
+    radio = again.upsert("WS1EC-2")
+    assert not radio.is_internet
+
+
+def test_editing_a_contact_without_internet_fields_keeps_them(tmp_path):
+    book = AddressBook(tmp_path / "ab.json")
+    book.upsert("BBS", connect_by="telnet", host="bbs.example.net")
+    book.upsert("BBS", note="home")  # an editor that does not offer them
+    entry = book.find("BBS")
+    assert (entry.connect_by, entry.host, entry.note) == ("telnet", "bbs.example.net", "home")
+
+
+def test_telnet_and_ssh_transports_are_adopted_as_contacts(tmp_path):
+    from kissterm.config import Config
+
+    config = Config(mycall="KC1JMH")
+    config.transports = [
+        {"name": "tnc", "kind": "tcp", "host": "127.0.0.1", "port": 8001},
+        {"name": "ws1ec", "kind": "ssh", "host": "ws1ec.mainepacketradio.org", "port": 4122,
+         "username": "packet", "password": "secret", "known_hosts": "/k", "script": "BBS"},
+        {"name": "home", "kind": "telnet", "host": "bbs.example.net"},
+    ]
+    book = AddressBook(tmp_path / "ab.json")
+    assert adopt_internet_transports(book, config) == ["ws1ec", "home"]
+    ssh = book.find("ws1ec")
+    assert (ssh.connect_by, ssh.port, ssh.username, ssh.script) == ("ssh", "4122", "packet", "BBS")
+    assert ssh.password_login == "ws1ec SSH password"
+    assert {"name": "ws1ec SSH password", "text": "secret"} in config.credentials
+    assert "secret" not in (tmp_path / "ab.json").read_text()
+    assert book.find("home").transport_config(lambda _n: "") == {"kind": "telnet",
+                                                                 "host": "bbs.example.net"}
+    assert book.find("tnc") is None
+    assert adopt_internet_transports(book, config) == []  # once only

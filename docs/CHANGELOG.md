@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Internet contacts in the Address Book (step 1 of 6)
+
+### New Features
+
+- **An Address Book entry can say how it is reached**: by radio (as
+  before), Telnet or SSH, with its host, port, user, key and known-hosts
+  file; passwords are saved logins, never text in addressbook.json. At
+  launch each Telnet and SSH connection in Settings > Radio is added as a
+  contact of the same name, its password moved to the keyring. Dialing
+  them comes in step 3 (ROADMAP P2).
+
+**Files:** `kissterm/addressbook.py`, `kissterm/ui/app.py`,
+`tests/unit/test_addressbook.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — Notices that do what they point at
 
 ### Improvements
