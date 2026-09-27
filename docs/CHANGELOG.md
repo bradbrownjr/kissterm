@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Unverified transports are labelled experimental
+
+### Improvements
+
+- **Kernel AX.25, VARA HF/FM, Mercury and Bluetooth LE say
+  "(experimental)"** wherever a transport kind is named (Settings > Radio,
+  its New, the Address Book's connection type), in `--doctor`'s result for
+  one, and in SETUP.md's section for each: none has been verified against
+  real hardware (ROADMAP P3). A 1.0 finish-line item.
+
+**Files:** `kissterm/transport/__init__.py`, `kissterm/doctor.py`,
+`SETUP.md`, `tests/unit/test_transport_factory.py`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-27] — Every TCP connect gives up after 10 seconds
 
 ### Improvements

@@ -244,8 +244,9 @@ From there you have two options:
   simpler and more predictable one if you have no reason to prefer the
   other.
 
-A Mobilinkd TNC4 running in **BLE** mode instead of classic Bluetooth is a
-different case entirely — it does not show up as a serial device at all. Pair
+A Mobilinkd TNC4 running in **BLE** mode (**experimental**: not yet verified
+against a real BLE TNC) instead of classic Bluetooth is a different case
+entirely — it does not show up as a serial device at all. Pair
 it with the operating system first, install `pip install "kissterm[ble]"`,
 then add a `kind = "ble"` entry with its address (the worked example in
 `config.toml.example` uses Mobilinkd's default GATT UUIDs). If your device
@@ -254,7 +255,7 @@ uses another BLE-UART service, set its documented `notify_uuid` and
 
 ## 5. VARA HF/FM on Linux under Wine
 
-**This path is not yet verified against real hardware.** VARA (both HF and
+**Experimental: not yet verified against real hardware.** VARA (both HF and
 FM) is Windows-only software; running it on Linux means running it under
 Wine. The notes below describe the intended setup, not a confirmed-working
 one — treat them as a starting point, not a guarantee.
@@ -288,7 +289,8 @@ kissterm bug.
 
 ## 6. Mercury HF
 
-Mercury v2 exposes a documented, VARA-compatible TCP TNC interface. Start its
+**Experimental: not yet verified against real hardware** (a local socket
+test passes; no ARQ contact has been made). Mercury v2 exposes a documented, VARA-compatible TCP TNC interface. Start its
 ARQ service, then configure its control port in kissterm; the data port is one
 higher by default:
 
@@ -311,7 +313,7 @@ If you already have a working `kissattach`/`ax25d` setup — an `axports`
 file, a kernel AX.25 stack in use by other software (some node/BBS packages
 still assume it) — kissterm can sit on top of the kernel's own connected-mode
 implementation instead of running its own, through a kernel `AF_AX25`
-`SessionTransport` (`kind = "kernel"` in `config.toml`). Implemented, but not
+`SessionTransport` (`kind = "kernel"` in `config.toml`). **Experimental**: implemented, but not
 yet exercised against a real `kissattach` setup — see ROADMAP P3 for exactly
 what is still unverified before you rely on it.
 

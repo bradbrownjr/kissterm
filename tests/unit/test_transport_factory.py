@@ -239,3 +239,25 @@ def test_discovery_maps_well_known_ports_to_the_right_kind():
     # A modem's data port is not a second device to connect to.
     assert _WELL_KNOWN_PORTS[8301][1] is None
     assert _WELL_KNOWN_PORTS[8401][1] is None
+
+
+def test_unverified_transports_are_labelled_experimental():
+    """1.0 finish line: never verified against hardware means labelled so,
+    wherever a kind is shown by name."""
+    from kissterm.transport import EXPERIMENTAL_KINDS, KIND_LABELS
+
+    assert EXPERIMENTAL_KINDS == {"ble", "kernel", "vara", "varafm", "mercury"}
+    for kind, label in KIND_LABELS.items():
+        assert label.endswith("(experimental)") == (kind in EXPERIMENTAL_KINDS), kind
+
+
+def test_doctor_says_an_unverified_transport_is_experimental():
+    import asyncio
+
+    check = asyncio.run(doctor._check_one_transport(
+        {"name": "hf", "kind": "vara", "host": "127.0.0.1", "mycall": "N1ABC-1",
+         "cmd_port": 1, "data_port": 2}))
+    assert "experimental" in check.detail, check
+    tcp = asyncio.run(doctor._check_one_transport(
+        {"name": "tnc", "kind": "tcp", "host": "127.0.0.1", "port": 1}))
+    assert "experimental" not in tcp.detail

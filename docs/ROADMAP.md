@@ -55,7 +55,8 @@ that does not work in their terminal. Concretely:
 - P7's PyPI, pipx/uv and Raspberry Pi items are done.
 - Transports never verified against hardware (kernel AX.25, VARA, Mercury,
   BLE) are labelled **experimental** in Settings, `--doctor` and SETUP.md
-  rather than blocking the release.
+  rather than blocking the release. Met 2026-09-27
+  (`transport.EXPERIMENTAL_KINDS`).
 
 **Milestone 2 -- the messaging client (P2).** kissterm's long-term shape is
 OutpostPM or Winlink on Android (WoAD): the stored messages are the product,

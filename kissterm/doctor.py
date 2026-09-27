@@ -38,7 +38,7 @@ from typing import Any
 
 from .ax25.address import AX25Address, AX25AddressError
 from .config import Config, config_path, log_path
-from .transport import build_transport
+from .transport import EXPERIMENTAL_KINDS, build_transport
 
 logger = logging.getLogger(__name__)
 
@@ -263,13 +263,15 @@ async def _check_one_transport(entry: dict[str, Any]) -> Check:
             f"check the [[transports]] entry named {name!r} in config.toml",
         )
 
+    experimental = (" -- experimental: not yet verified against real hardware"
+                    if kind in EXPERIMENTAL_KINDS else "")
     if kind in _NO_CONNECTIVITY_CHECK:
         with contextlib.suppress(Exception):
             await asyncio.wait_for(transport.close(), timeout=5.0)
         return Check(
             f"transport: {name}",
             "skip",
-            f"kind {kind!r} builds from config, but has no connectivity check yet",
+            f"kind {kind!r} builds from config, but has no connectivity check yet{experimental}",
             "",
         )
 
@@ -279,14 +281,14 @@ async def _check_one_transport(entry: dict[str, Any]) -> Check:
         return Check(
             f"transport: {name}",
             "fail",
-            f"could not open {kind} transport: {exc}",
+            f"could not open {kind} transport: {exc}{experimental}",
             "verify the device/host is correct, powered on, and reachable",
         )
     else:
         return Check(
             f"transport: {name}",
             "ok",
-            f"{kind} ({transport.info.detail}) opened and closed cleanly",
+            f"{kind} ({transport.info.detail}) opened and closed cleanly{experimental}",
             "",
         )
     finally:

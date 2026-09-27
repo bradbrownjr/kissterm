@@ -55,6 +55,13 @@ __all__ = [
 #: Book's "Connection type" picker and the Settings transport list show
 #: instead of the raw config keyword. One place, so the two do not drift
 #: apart the way a name typed twice always eventually does.
+#: Transports never verified against real hardware (ROADMAP P3). The 1.0
+#: finish line labels them experimental rather than holding the release:
+#: in their `KIND_LABELS` (so Settings > Radio, its New and the Address
+#: Book say so), in `--doctor`, and in SETUP.md. A kind leaves this set the
+#: day an operator confirms it on the air.
+EXPERIMENTAL_KINDS = frozenset({"ble", "kernel", "vara", "varafm", "mercury"})
+
 KIND_LABELS: dict[str, str] = {
     "serial": "Serial KISS",
     "tcp": "TCP KISS",
@@ -68,6 +75,9 @@ KIND_LABELS: dict[str, str] = {
     "telnet": "Telnet",
     "ssh": "SSH",
 }
+for _kind in EXPERIMENTAL_KINDS:
+    KIND_LABELS[_kind] += " (experimental)"
+del _kind
 
 #: Which `kind` values are `FrameTransport`s (kissterm runs its own AX.25
 #: state machine on top) versus `SessionTransport`s (already-connected byte
