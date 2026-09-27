@@ -19,6 +19,7 @@ from enum import Enum
 from typing import Callable
 
 from .monitor import sanitize
+from .transport.base import open_connection
 
 log = logging.getLogger(__name__)
 
@@ -131,7 +132,7 @@ class AprsIsWatch:
     ) -> None:
         writer: asyncio.StreamWriter | None = None
         try:
-            reader, writer = await asyncio.open_connection(host, port)
+            reader, writer = await open_connection(host, port)
             writer.write(login_line(callsign, access, filter_text=filter_text))
             await writer.drain()
             self.status = f"Watching {host}:{port} ({access.mode.value})"

@@ -55,7 +55,7 @@ import struct
 
 from ..ax25.address import AX25AddressError
 from ..ax25.frame import AX25Frame, AX25FrameError
-from .base import FrameTransport, TransportError, TransportInfo, TransportState
+from .base import FrameTransport, TransportError, TransportInfo, TransportState, open_connection
 
 #: Port(1) + reserved(3) + DataKind(1) + reserved(1) + PID(1) + reserved(1)
 #: + CallFrom(10) + CallTo(10) + DataLen(u32) + reserved "User"(4) = 36 bytes.
@@ -207,7 +207,7 @@ class AgwpeTransport(FrameTransport):
         first = True
         while not self._closing:
             try:
-                self._reader, self._writer = await asyncio.open_connection(self.host, self.port)
+                self._reader, self._writer = await open_connection(self.host, self.port)
                 # These are software-control requests only.  No request here
                 # can key the transmitter; raw-frame mode merely delivers
                 # frames to this client.

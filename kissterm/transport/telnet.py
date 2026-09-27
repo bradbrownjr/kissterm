@@ -31,7 +31,15 @@ import contextlib
 import logging
 
 from ..ax25.address import AX25Path
-from .base import Session, SessionState, SessionTransport, TransportError, TransportInfo, TransportState
+from .base import (
+    Session,
+    SessionState,
+    SessionTransport,
+    TransportError,
+    TransportInfo,
+    TransportState,
+    open_connection,
+)
 
 log = logging.getLogger(__name__)
 
@@ -77,7 +85,7 @@ class TelnetTransport(SessionTransport):
         if self._session is not None and self._session.connected:
             return self._session
         try:
-            reader, writer = await asyncio.open_connection(self.host, self.port)
+            reader, writer = await open_connection(self.host, self.port)
         except OSError as exc:
             raise TransportError(
                 f"could not connect to {self.host}:{self.port}: {exc}"

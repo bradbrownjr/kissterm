@@ -123,3 +123,43 @@ def test_start_anyway_never_prompts_a_script():
     out = _Tty(tty=False)
     assert _offer_start_anyway(_Stdin("y\n", tty=False), out) is False
     assert out.text == ""
+
+
+# ROADMAP P3: every TCP transport, not just KISS, gives up and says why.
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["agwpe", "telnet", "vara"])
+async def test_every_tcp_transport_fails_fast_on_a_silent_host(monkeypatch, kind):
+    from kissterm.transport import base, build_transport
+
+    async def never_answers(host, port):
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(base, "CONNECT_TIMEOUT", 0.05)
+    monkeypatch.setattr(base.asyncio, "open_connection", never_answers)
+    entry = {"kind": kind, "host": "192.0.2.1", "port": 8000}
+    if kind == "vara":
+        entry = {"kind": "vara", "host": "192.0.2.1", "mycall": "N1ABC-1"}
+    transport = build_transport(entry)
+    with pytest.raises(TransportError, match="no answer within"):
+        await asyncio.wait_for(transport.open(), timeout=2)
+        await asyncio.wait_for(transport.connect(), timeout=2)  # telnet connects here
+    await transport.close()
+
+
+@pytest.mark.asyncio
+async def test_the_aprs_is_watch_says_a_silent_server_timed_out(monkeypatch):
+    from kissterm.aprs_is import AprsIsWatch
+    from kissterm.transport import base
+
+    async def never_answers(host, port):
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(base, "CONNECT_TIMEOUT", 0.05)
+    monkeypatch.setattr(base.asyncio, "open_connection", never_answers)
+    watch = AprsIsWatch()
+    from kissterm.aprs_is import AprsIsAccess
+
+    await asyncio.wait_for(watch._run("N1ABC", "192.0.2.1", 14580, AprsIsAccess(), ""), 2)
+    assert "no answer within" in watch.status

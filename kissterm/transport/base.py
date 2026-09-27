@@ -55,6 +55,26 @@ if TYPE_CHECKING:
 #: instead of having to remember it.
 log = logging.getLogger(__name__)
 
+#: How long one TCP connect may take. Without a bound, a host that is down
+#: (no RST, just silence) leaves `asyncio.open_connection` waiting out the
+#: kernel's SYN retries -- about two minutes on Linux -- behind a blank
+#: screen or a "Connecting..." line. A TNC on the LAN answers in
+#: milliseconds; ten seconds is generous for a node across the Internet.
+CONNECT_TIMEOUT = 10.0
+
+
+async def open_connection(host: str, port: int, timeout: float | None = None):
+    """`asyncio.open_connection`, bounded by `timeout`. Every TCP transport
+    connects through this (ROADMAP P3). A timeout is raised as a
+    `TimeoutError` that says so: the bare one has an empty message, which
+    reads as "failed: " and nothing."""
+    timeout = CONNECT_TIMEOUT if timeout is None else timeout
+    try:
+        return await asyncio.wait_for(asyncio.open_connection(host, port), timeout)
+    except TimeoutError:
+        raise TimeoutError(
+            f"no answer within {timeout:g}s (host down or unreachable?)") from None
+
 
 class TransportState(enum.Enum):
     CLOSED = "closed"

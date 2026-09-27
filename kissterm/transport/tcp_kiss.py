@@ -29,7 +29,7 @@ import logging
 
 from ..ax25.address import AX25AddressError
 from ..ax25.frame import AX25Frame, AX25FrameError
-from .base import FrameTransport, TransportError, TransportInfo, TransportState
+from .base import CONNECT_TIMEOUT, FrameTransport, TransportError, TransportInfo, TransportState, open_connection
 from .kiss import KissCommand, KissDecoder, encode
 
 #: The socket to the TNC dying mid-session is the single most misleading
@@ -44,12 +44,8 @@ log = logging.getLogger(__name__)
 #: nuisance in a log file if the far end is gone for good.
 _INITIAL_BACKOFF = 0.5
 _MAX_BACKOFF = 30.0
-# How long one connect attempt may take. Without a bound, a host that is down
-# (no RST, just silence) leaves `asyncio.open_connection` waiting out the
-# kernel's SYN retries -- about two minutes on Linux -- and `kissterm` sits on
-# a blank terminal the whole time before saying anything. A TNC on the LAN
-# answers in milliseconds; ten seconds is generous for one across a VPN.
-_CONNECT_TIMEOUT = 10.0
+# How long one connect attempt may take: see `base.CONNECT_TIMEOUT`.
+_CONNECT_TIMEOUT = CONNECT_TIMEOUT
 
 
 class TcpKissTransport(FrameTransport):
@@ -113,18 +109,10 @@ class TcpKissTransport(FrameTransport):
         first = True
         while not self._closing:
             try:
-                self._reader, self._writer = await asyncio.wait_for(
-                    asyncio.open_connection(self.host, self.port),
-                    timeout=_CONNECT_TIMEOUT,
-                )
+                self._reader, self._writer = await open_connection(
+                    self.host, self.port, _CONNECT_TIMEOUT)
             except OSError as exc:
-                # `TimeoutError` is an `OSError` with an empty message, so name
-                # it, or the operator reads "failed: " followed by nothing.
-                reason = (
-                    f"no answer within {_CONNECT_TIMEOUT:g}s (host down or unreachable?)"
-                    if isinstance(exc, TimeoutError) else str(exc)
-                )
-                self._error = f"connect to {self.host}:{self.port} failed: {reason}"
+                self._error = f"connect to {self.host}:{self.port} failed: {exc}"
                 log.warning("%s", self._error)
                 if first:
                     self.state = TransportState.ERROR

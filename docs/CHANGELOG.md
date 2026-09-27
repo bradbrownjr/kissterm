@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Every TCP connect gives up after 10 seconds
+
+### Improvements
+
+- **A host that is down fails in 10 seconds, and says so**, for Telnet
+  contacts, AGWPE, VARA and the APRS-IS watch as already for TCP KISS:
+  "no answer within 10s (host down or unreachable?)" instead of about two
+  minutes of "Connecting..." and an empty reason. One helper,
+  `transport.base.open_connection`, bounds them all.
+
+**Files:** `kissterm/transport/base.py`, `kissterm/transport/tcp_kiss.py`,
+`kissterm/transport/agwpe.py`, `kissterm/transport/telnet.py`,
+`kissterm/transport/vara.py`, `kissterm/aprs_is.py`,
+`tests/unit/test_tcp_kiss_connect_timeout.py`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-27] — Every contact in the Address Book (step 6 of 6, done)
 
 ### Improvements

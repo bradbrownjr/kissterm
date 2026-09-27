@@ -42,7 +42,15 @@ import contextlib
 import enum
 
 from ..ax25.address import AX25Path
-from .base import Session, SessionState, SessionTransport, TransportError, TransportInfo, TransportState
+from .base import (
+    Session,
+    SessionState,
+    SessionTransport,
+    TransportError,
+    TransportInfo,
+    TransportState,
+    open_connection,
+)
 
 # -- ports -----------------------------------------------------------------
 
@@ -182,10 +190,10 @@ class VaraTransport(SessionTransport):
         self.state = TransportState.OPENING
         self._error = ""
         try:
-            self._cmd_reader, self._cmd_writer = await asyncio.open_connection(
+            self._cmd_reader, self._cmd_writer = await open_connection(
                 self.host, self.cmd_port
             )
-            self._data_reader, self._data_writer = await asyncio.open_connection(
+            self._data_reader, self._data_writer = await open_connection(
                 self.host, self.data_port
             )
         except OSError as exc:
