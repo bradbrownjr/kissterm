@@ -46,7 +46,11 @@ class Field:
     path: str
     label: str
     # "text" | "int" | "float" | "bool" | "choice" | "callsign" | "calllist" |
-    # "color" | "custom_choice" | "filtered_choice"
+    # "color" | "custom_choice" | "filtered_choice" | "secret"
+    # "secret": a masked field that never shows the saved value. The config
+    # value is the name of a saved login (`config.SECRET_LOGINS` fixes it);
+    # what is typed is saved there, the keyring when there is one, and an
+    # empty field keeps what is saved.
     kind: str
     help: str = ""
     apply: str = "connect"
@@ -281,12 +285,12 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.credential",
-                "Credential",
-                "text",
-                "The name of a saved credential (Settings > Logins).",
+                "Login",
+                "secret",
+                "What answers the BBS's login prompt. Saved in the system "
+                "keyring (Settings > Logins, \"Home BBS\"); leave empty to keep it.",
                 apply="live",
                 advanced=True,
-                placeholder="a saved login's name",
             ),
             Field(
                 "home_bbs.internet",
@@ -309,11 +313,11 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.internet_credential",
-                "Telnet password login",
-                "text",
-                "The saved login (Settings > Logins) that answers password:.",
+                "Telnet password",
+                "secret",
+                "Answers the node's password: prompt. Saved in the system "
+                "keyring (Settings > Logins, \"Home BBS Telnet\"); leave empty to keep it.",
                 apply="live",
-                placeholder="a saved login's name",
             ),
             Field(
                 "home_bbs.internet_command",
@@ -345,13 +349,12 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "winlink.credential",
-                "Password login",
-                "text",
-                "The name of the saved login (Settings > Logins) holding "
-                "your Winlink password. It is never sent: only the answer "
-                "to the gateway's challenge is.",
+                "Password",
+                "secret",
+                "Your Winlink password. Saved in the system keyring "
+                "(Settings > Logins, \"Winlink\"); leave empty to keep it. "
+                "It is never sent: only the answer to the gateway's challenge is.",
                 apply="live",
-                placeholder="a saved login's name",
             ),
             Field(
                 "winlink.locator",

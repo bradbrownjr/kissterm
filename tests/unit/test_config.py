@@ -882,3 +882,18 @@ def test_home_bbs_loads_and_normalises(tmp_path):
     assert (cfg.home_bbs.route, cfg.home_bbs.call, cfg.home_bbs.software) == (
         "WS1EC-2", "WS1EC", "auto")
     assert any("home_bbs.software" in w for w in cfg.warnings)
+
+
+def test_a_password_typed_where_a_login_name_goes_is_rescued():
+    """Operator, 2026-09-27: the Winlink password, typed into the old
+    "Password login" field, sat in config.toml and was shown as a name."""
+    config = kconfig.Config(mycall="KC1JMH")
+    config.credentials = [{"name": "bbs", "text": "hunter2"}]
+    config.winlink.credential = "SECRET123"   # typed in place of a name
+    config.home_bbs.credential = "bbs"        # a real saved login
+    assert kconfig.rescue_typed_secrets(config) == ["Winlink"]
+    assert config.winlink.credential == "Winlink"
+    assert kconfig.find_credential(config, "Winlink") == "SECRET123"
+    assert config.home_bbs.credential == "bbs"
+    assert not any(c.get("name") == "SECRET123" for c in config.credentials)
+    assert kconfig.rescue_typed_secrets(config) == []  # once only

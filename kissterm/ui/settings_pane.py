@@ -44,7 +44,13 @@ from textual.widgets import (
 )
 from textual.widgets.option_list import Option
 
-from ..config import credential_store, find_credential, forget_credential, set_credential
+from ..config import (
+    SECRET_LOGINS,
+    credential_store,
+    find_credential,
+    forget_credential,
+    set_credential,
+)
 from ..aprs import symbols
 from ..gps import discover_serial_gps
 from ..locator import LocatorError, from_grid, to_grid
@@ -426,6 +432,8 @@ class SettingsPane(Vertical):
                     classes="settings-color-input", compact=True,
                 )
                 yield Static("", id=f"{wid}-swatch", classes="settings-swatch")
+            elif spec.kind == "secret":
+                yield Input(id=wid, password=True, compact=True)
             else:
                 yield Input(id=wid, placeholder=spec.placeholder, compact=True)
 
@@ -541,6 +549,15 @@ class SettingsPane(Vertical):
                     self._set_custom_choice_value(wid, spec, value)
                 elif spec.kind == "filtered_choice":
                     self._set_symbol_value(wid, value)
+                elif spec.kind == "secret":
+                    # Never the value: only whether one is saved, and where.
+                    widget = self.query_one(f"#{wid}", Input)
+                    widget.value = ""
+                    where = credential_store(config, str(value or ""))
+                    widget.placeholder = {
+                        "keyring": "saved in the system keyring",
+                        "config": "saved in config.toml",
+                    }.get(where, "not set")
                 else:
                     text = format_value(spec, value)
                     input_widget = self.query_one(f"#{wid}", Input)
@@ -967,6 +984,8 @@ class SettingsPane(Vertical):
         previous_active = config.active_transport
         pending: dict[str, object] = {}
         failed = False
+        #: Passwords typed into "secret" fields: (field path, text).
+        secrets: list[tuple[str, str]] = []
         #: (section title, field), in schema order: the first is opened.
         failures: list[tuple[str, Field]] = []
 
@@ -986,6 +1005,11 @@ class SettingsPane(Vertical):
                 elif spec.kind == "filtered_choice":
                     select_value = self.query_one(f"#{wid}", Select).value
                     raw = "" if select_value == Select.NULL else select_value
+                elif spec.kind == "secret":
+                    text = self.query_one(f"#{wid}", Input).value
+                    if text:
+                        secrets.append((spec.path, text))
+                    continue
                 else:
                     raw = self.query_one(f"#{wid}", Input).value
                 try:
@@ -1031,6 +1055,10 @@ class SettingsPane(Vertical):
 
         for path, value in pending.items():
             set_value(config, path, value)
+        names = dict(SECRET_LOGINS)
+        for path, text in secrets:
+            set_credential(config, names[path], text)
+            set_value(config, path, names[path])
 
         selected = self.query_one("#set-active-transport", Select).value
         if selected and selected != Select.NULL:
@@ -1038,6 +1066,12 @@ class SettingsPane(Vertical):
 
         notes = cross_check(config)
         saved = self.app._save_config()  # type: ignore[attr-defined]
+        for path, _text in secrets:
+            # Out of the field once saved; the placeholder says where it went.
+            widget = self.query_one(f"#{_widget_id(path)}", Input)
+            widget.value = ""
+            widget.placeholder = {"keyring": "saved in the system keyring"}.get(
+                credential_store(config, dict(SECRET_LOGINS)[path]), "saved in config.toml")
         self._apply_live(config)
 
         # The toast and the footer say different amounts on purpose. The

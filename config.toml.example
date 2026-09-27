@@ -308,8 +308,12 @@ software = "auto"
 # For a BBS whose prompt kissterm does not know: the text that means it is
 # ready for a command. Empty waits for the BPQMail prompt.
 ready_text = ""
-# Send the named saved credential after this text (Telnet BBSes ask for a
-# login; RF ones usually do not). Empty sends none.
+# Send the saved login `credential` after this text (Telnet BBSes ask for a
+# login; RF ones usually do not). Empty sends none. `credential` and the
+# other *credential keys hold a saved login's NAME, never a password: set
+# the password in Settings, which keeps it in the system keyring ("Home
+# BBS", "Home BBS Telnet", "Winlink"). A password found here is moved
+# there at launch.
 login_prompt = ""
 credential = ""
 # Over the Internet (I on the Mail tab): the name of a Telnet or SSH entry
@@ -331,7 +335,7 @@ internet_command = "BBS"
 route = ""
 # The account callsign; empty is your callsign without its SSID.
 account = ""
-# The saved login (Settings > Logins) holding the Winlink password. The
+# The saved login's name (Settings > Mail > Winlink sets it: "Winlink"). The
 # password never goes on the air: the gateway sends a challenge and only
 # the answer to it is sent.
 credential = ""

@@ -140,8 +140,10 @@ from ..beacon import Beaconer
 from ..config import (
     AprsConfig,
     BeaconConfig,
+    credential_store,
     find_credential,
     move_credentials_to_keyring,
+    rescue_typed_secrets,
     set_credential,
     find_script,
     mail_path,
@@ -848,10 +850,19 @@ class KissTermApp(App):
         there is one (`kissterm/keystore.py`); off the UI thread, since a
         keyring may be slow to answer or ask to be unlocked."""
         try:
+            rescued = rescue_typed_secrets(self.config)
             moved = move_credentials_to_keyring(self.config)
         except Exception as exc:  # noqa: BLE001 - never disturb the launch
             log.warning("keyring: moving saved logins failed: %s", exc)
             return
+        if rescued:
+            self.call_from_thread(self._save_config)
+            self.call_from_thread(
+                self.notify,
+                "A password was typed into a login-name setting and was in "
+                "config.toml; it is now the saved login "
+                + ", ".join(f'"{n}"' for n in rescued) + ", and gone from the file.",
+                timeout=10)
         if moved:
             self.call_from_thread(self._save_config)
             self.call_from_thread(
@@ -4223,7 +4234,9 @@ class KissTermApp(App):
         text = find_credential(self.config, current) if current else ""
         if text:
             return current, text
-        name = current or default_name
+        # A name that is no saved login may be a password typed in its place:
+        # never show it, save under the fixed name instead.
+        name = current if current and credential_store(self.config, current) else default_name
         note, skip = self._all_inboxes_ask()
         text = self._setup_answer(await self.push_screen_wait(
             LoginAskScreen(title, detail, name, secret=secret, all_note=note, skip=skip)), "")
@@ -4457,7 +4470,7 @@ class KissTermApp(App):
         """The outcome toast of a Winlink run, over radio or the Internet."""
         sent = f"{len(result.sent)} sent, " if result.sent else ""
         if result.stopped:
-            hint = (" Set the password login in Settings > Mail > Winlink."
+            hint = (" Set the password in Settings > Mail > Winlink."
                     if "password" in result.stopped.lower() else "")
             self.notify(
                 f"Winlink stopped: {result.stopped}. {sent}{len(result.filed)} received.{hint}",

@@ -447,3 +447,22 @@ async def test_setup_questions_fit_80x24(tmp_path):
         await pilot.click("#connect-cancel")
         await wait_for(lambda: not app._collecting, "the run to be cancelled")
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_password_in_the_login_name_setting_is_never_shown(tmp_path):
+    """The operator's screenshot, 2026-09-27: "Saved as the login
+    "<their password>"". At launch it becomes the saved login "Winlink";
+    no screen shows it."""
+    from kissterm.config import find_credential
+
+    app, station, _tb = await _app(tmp_path)
+    app.config.credentials = []
+    app.config.winlink.credential = "SECRET123"
+    async with app.run_test(size=(120, 40)) as pilot:
+        await wait_for(lambda: app.config.winlink.credential == "Winlink", "the rescue")
+        assert find_credential(app.config, "Winlink") == "SECRET123"
+        await pilot.pause()
+        text = "\n".join(str(w.render()) for w in app.screen.query("Static, Label"))
+        assert "SECRET123" not in text
+    station.close()

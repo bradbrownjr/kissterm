@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Passwords in Settings are masked and kept in the keyring
+
+### Bug Fixes
+
+- **A password typed into Settings is never shown or kept in config.toml**
+  (P0.1, awaiting confirmation). Winlink's "Password login", the Home
+  BBS's "Credential" and "Telnet password login" wanted a saved login's
+  name and showed what was typed; a password typed there sat in
+  config.toml and the password dialog showed it as a login name. They are
+  now Password, Login and Telnet password: masked, saved in the system
+  keyring as "Winlink", "Home BBS" and "Home BBS Telnet", empty keeps what
+  is saved. A password already in one of those keys is moved at launch,
+  with a notice; a name that is no saved login is never displayed.
+
+**Files:** `kissterm/config.py`, `config.toml.example`,
+`kissterm/ui/settings_schema.py`, `kissterm/ui/settings_pane.py`,
+`kissterm/ui/app.py`, `tests/unit/test_config.py`,
+`tests/pilot/test_settings.py`, `tests/pilot/test_winlink_send_receive.py`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — Centred dialogs; Send/Receive questions say why and go there
 
 ### Bug Fixes

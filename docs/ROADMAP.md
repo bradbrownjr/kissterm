@@ -79,6 +79,14 @@ under rule 2 above, with the date and their words:
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
+- **Winlink password shown on screen** (2026-09-27, `awaiting
+  confirmation`): "why is this showing my winlink password on the
+  screen?" The Winlink password was typed into Settings' "Password login",
+  a plain text field that wanted a saved login's name; it sat in
+  config.toml and the password dialog showed it as that name. Fix: the
+  three login fields are masked password fields saved in the keyring under
+  fixed names, a password found in one is moved there at launch, and a
+  name that is no saved login is never shown.
 - **Dialogs in the top-left corner** (2026-09-27, `awaiting confirmation`):
   "Let's center the dialog boxes" -- the Winlink setup question on All
   Inboxes, and about twenty other dialogs with no centring rule. Fix: one

@@ -1452,3 +1452,31 @@ async def test_custom_colours_show_only_for_the_custom_theme():
         await pilot.pause()
         assert group.display
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_password_field_is_masked_and_saves_under_a_fixed_name():
+    from textual.widgets import Input
+
+    from kissterm.config import find_credential
+
+    app, station = await _app()
+    async with app.run_test(size=(120, 60)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        field = app.query_one(f"#{_widget_id('winlink.credential')}", Input)
+        assert field.password and field.value == "" and field.placeholder == "not set"
+        field.value = "SECRET123"
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert app.config.winlink.credential == "Winlink"
+        assert find_credential(app.config, "Winlink") == "SECRET123"
+        assert field.value == "" and "SECRET123" not in field.placeholder
+        app.query_one(SettingsPane).render_settings(app.config)
+        await pilot.pause()
+        assert field.value == "" and field.placeholder.startswith("saved in")
+        # Empty keeps what is saved.
+        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert find_credential(app.config, "Winlink") == "SECRET123"
+    station.close()

@@ -734,6 +734,44 @@ def credential_store(config: Config, name: str) -> str:
     return "keyring" if entry.get("store") == "keyring" else "config"
 
 
+#: The settings that hold a password, as (path, the saved login it goes
+#: in). Settings shows each as a masked field and saves what is typed under
+#: the fixed name, so no one types a login's name where a password looks
+#: expected (operator, 2026-09-27: the Winlink password, typed into the old
+#: "Password login" field, sat in config.toml and was shown as a name).
+SECRET_LOGINS: tuple[tuple[str, str], ...] = (
+    ("winlink.credential", "Winlink"),
+    ("home_bbs.credential", "Home BBS"),
+    ("home_bbs.internet_credential", "Home BBS Telnet"),
+)
+
+
+def _get_path(config: Config, path: str):
+    owner, _, name = path.rpartition(".")
+    return getattr(getattr(config, owner) if owner else config, name)
+
+
+def _set_path(config: Config, path: str, value) -> None:
+    owner, _, name = path.rpartition(".")
+    setattr(getattr(config, owner) if owner else config, name, value)
+
+
+def rescue_typed_secrets(config: Config) -> list[str]:
+    """A `SECRET_LOGINS` setting whose value names no saved login holds the
+    password itself, typed where a name was asked for: save it as the
+    fixed login and point the setting there. Returns the logins it made;
+    the caller saves the config, which drops the text from config.toml."""
+    rescued = []
+    for path, name in SECRET_LOGINS:
+        value = str(_get_path(config, path) or "")
+        if not value or credential_store(config, value):
+            continue
+        set_credential(config, name, value)
+        _set_path(config, path, name)
+        rescued.append(name)
+    return rescued
+
+
 def move_credentials_to_keyring(config: Config) -> int:
     """Move every credential still held as text in config.toml into the OS
     keyring, when there is one; returns how many moved. The caller saves
