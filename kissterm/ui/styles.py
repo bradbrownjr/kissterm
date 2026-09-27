@@ -215,14 +215,17 @@ HeardPane { layout: vertical; }
    slide-out dropped its own matching caption the same way -- see that
    module's `compose`. */
 AddressBookPane { layout: vertical; padding: 0 2; }
-#addressbook-table { height: 1fr; }
+/* The two tables share the height: a fixed 10-row known-nodes table put
+   "Use node" below the bottom of an 80x24 terminal. Up to 8 rows inside
+   its border when there is room, never under 2. */
+#addressbook-table { height: 2fr; min-height: 5; }
 #known-nodes-note { height: auto; margin-top: 1; color: $warning; }
-#known-nodes-table { height: 10; }  /* 8 rows inside the focus border */
+#known-nodes-table { height: 1fr; min-height: 4; max-height: 10; }
 .addressbook-actions { height: auto; margin-top: 1; }
 .addressbook-actions Button { margin-right: 1; }
-/* Too narrow for the row (`AddressBookPane.on_resize`): two by two. */
-.addressbook-actions.-narrow { layout: grid; grid-size: 2; grid-gutter: 0 1; grid-rows: 3; }
-.addressbook-actions.-narrow Button { width: 100%; margin-right: 0; }
+/* Too narrow for the row (`ui/button_row.py`): two by two. */
+ButtonRow.-narrow { layout: grid; grid-size: 2; grid-gutter: 0 1; grid-rows: 3; height: auto; }
+ButtonRow.-narrow Button { width: 100%; margin: 0; }
 
 /* APRS pane */
 AprsPane { height: 1fr; }

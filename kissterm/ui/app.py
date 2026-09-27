@@ -891,7 +891,7 @@ class KissTermApp(App):
         elif self.station is None and self.session_transport is None:
             banner = (
                 f"kissterm {__version__} -- no transport configured. "
-                "Open F9 Settings, then Transports to add one.\n"
+                "Open F9 Settings, then Radio to add one.\n"
             )
         else:
             banner = (
@@ -1282,7 +1282,7 @@ class KissTermApp(App):
             )
             self.notify(
                 f"{event.device} looks like a TNC ({event.detail}). "
-                f"Settings -> Transports to use it.",
+                f"Settings (F9) > Radio to use it.",
                 title="New device",
                 timeout=10,
             )
@@ -3560,8 +3560,8 @@ class KissTermApp(App):
                 "write_note",
                 f"\n*** Not connecting: the link to the TNC at {where} is "
                 f"{state.value}, so nothing would reach the air. This is not "
-                f"an RF problem -- check the TNC, then Settings (F9) > Test "
-                f"selected.\n",
+                f"an RF problem -- check the TNC, then Settings (F9) > Radio > "
+                f"Test.\n",
             )
             self.notify(
                 f"TNC link is {state.value} -- nothing would be transmitted.",

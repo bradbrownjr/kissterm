@@ -51,7 +51,7 @@ talks to the TNC, and the TNC talks to the radio.
    and leave it running. If you use a hardware TNC, plug it in and power it
    on. kissterm cannot start either for you.
 2. **Tell kissterm where the TNC is.** Open {key:show_tab('settings')}
-   Settings, then Transports. *Scan for hardware* looks for TNCs on serial
+   Settings, then Radio. *Scan for hardware* looks for TNCs on serial
    ports and your local network; *New* lets you type one in. A soundmodem is
    usually KISS over TCP on port 8001, or AGWPE on port 8000.
 3. **Set your callsign** in Settings if you have not already, and press

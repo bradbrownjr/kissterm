@@ -102,7 +102,7 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   Winlink folder writes a Winlink message (Type "Winlink message": several
   callsigns or email addresses, no @), and R on one received from Winlink
   answers by Winlink. Not yet proven against a live gateway
-  (`docs/ROADMAP.md`, P2). Settings > Open on keeps
+  (`docs/ROADMAP.md`, P2). Settings > Appearance > Open on keeps
   Terminal as the first tab if you prefer.
 
   ![The Mail tab](assets/screenshot-mail.png)

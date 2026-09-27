@@ -5,6 +5,32 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Nothing off the screen at 80x24; Settings paths checked
+
+### Bug Fixes
+
+- **APRS contacts' buttons and the Terminal tab's "Use node" stay on an
+  80x24 screen** (P0.1, awaiting confirmation). Button rows in the
+  slide-outs go two by two when narrow (`ButtonRow`, shared with the
+  Address Book), and the known-nodes section gives way when the Address
+  Book is too short for it.
+- **Every "Settings > ..." names a real section.** "Transports" (first-run
+  greeting, setup guide, new-device notice, SETUP.md) is Radio, "Settings
+  > Test" is Radio > Test, and README's "Open on" is under Appearance.
+
+### Improvements
+
+- **Two layout tests**: every tab and the Mail Address Book at 80x24,
+  100x33 and 160x40, and the Send/Receive dialogs at 80x24, keep every
+  control on screen; every Settings path in the code and docs names a
+  section that exists.
+
+**Files:** `kissterm/ui/button_row.py`, `kissterm/ui/addressbook_pane.py`,
+`kissterm/ui/aprs_pane.py`, `kissterm/ui/styles.py`, `kissterm/ui/app.py`,
+`kissterm/ui/dialogs.py`, `kissterm/guides.py`, `README.md`, `SETUP.md`,
+`tests/pilot/test_layout_fits.py`, `tests/unit/test_settings_paths.py`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — Passwords in Settings are masked and kept in the keyring
 
 ### Bug Fixes

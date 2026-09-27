@@ -31,6 +31,8 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, Static
 
+from .button_row import ButtonRow
+
 
 class _AddressBookTable(DataTable):
     """The table itself, with `syncterm`-style dialing-directory keys:
@@ -93,6 +95,9 @@ class AddressBookPane(Vertical):
     """Every station in `KissTermApp.addressbook`: dial, add, edit, forget."""
 
     _known_nodes_visible = True
+    #: Too short for the known-nodes section below the Address Book
+    #: (`on_resize`); it comes back when there is room.
+    _too_short = False
 
     def compose(self) -> ComposeResult:
         # No note line above the table and no key-hint line below the
@@ -106,24 +111,15 @@ class AddressBookPane(Vertical):
         # input-and-Send row, requested directly for visual symmetry
         # between the two side-by-side panes.
         yield _AddressBookTable(id="addressbook-table", cursor_type="row", zebra_stripes=True)
-        with Horizontal(classes="addressbook-actions", id="addressbook-buttons"):
+        with ButtonRow(classes="addressbook-actions", id="addressbook-buttons"):
             yield Button("Connect", variant="primary", id="addressbook-connect")
             yield Button("New", id="addressbook-new")
             yield Button("Edit", id="addressbook-edit")
             yield Button("Forget", id="addressbook-forget")
         yield Static("Known NET/ROM nodes — unverified received claims", id="known-nodes-note")
         yield _KnownNodesTable(id="known-nodes-table", cursor_type="row", zebra_stripes=True)
-        with Horizontal(classes="addressbook-actions"):
+        with Horizontal(classes="addressbook-actions", id="known-nodes-actions"):
             yield Button("Use node", id="known-nodes-use")
-
-    def on_resize(self, event: events.Resize) -> None:
-        """Four buttons in a row need 44 columns; the Mail tab's slide-out
-        has about 27 at 100 columns, and Edit and Forget ran off the screen
-        (reported 2026-09-26). Below that the row becomes a 2x2 grid rather
-        than shrinking the buttons under DESIGN.md's `min-width: 10`."""
-        row = self.query_one("#addressbook-buttons", Horizontal)
-        need = sum(max(10, len(str(b.label)) + 4) + 1 for b in row.query(Button))
-        row.set_class(self.content_size.width < need, "-narrow")
 
     def on_mount(self) -> None:
         self.refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
@@ -147,17 +143,33 @@ class AddressBookPane(Vertical):
         Returns the resulting visibility so the caller can report it.
         """
         self._known_nodes_visible = visible
-        for widget_id in (
-            "#known-nodes-note",
-            "#known-nodes-table",
-            "#known-nodes-use",
-        ):
-            self.query_one(widget_id).display = self._known_nodes_visible
+        self._sync_known_nodes()
         if not self._known_nodes_visible:
             # Do not leave focus in a hidden table; keyboard navigation should
             # return to the permanent directory immediately.
             self.query_one("#addressbook-table", DataTable).focus()
         return self._known_nodes_visible
+
+    def on_resize(self, event: events.Resize) -> None:
+        """At 80x24 the Terminal tab's Address Book is 19 rows by 39 columns:
+        its buttons go two by two, and the known-nodes section under them
+        put "Use node" below the bottom of the screen. Below the height all
+        of it needs, the known nodes give way to the Address Book."""
+        row = self.query_one("#addressbook-buttons", ButtonRow)
+        row.refit()  # the row's own resize may come after this one
+        narrow = row.has_class("-narrow")
+        # Table, buttons, note, known-nodes table, Use node, with margins.
+        need = 5 + (7 if narrow else 4) + 3 + 4 + 4
+        short = self.content_size.height < need
+        if short != self._too_short:
+            self._too_short = short
+            self._sync_known_nodes()
+
+    def _sync_known_nodes(self) -> None:
+        shown = self._known_nodes_visible and not self._too_short
+        for widget_id in ("#known-nodes-note", "#known-nodes-table", "#known-nodes-actions",
+                          "#known-nodes-use"):
+            self.query_one(widget_id).display = shown
 
     def toggle_known_nodes(self) -> bool:
         """Invert the NET/ROM-claim section's current visibility."""

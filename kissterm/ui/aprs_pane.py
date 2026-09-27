@@ -71,6 +71,7 @@ from ..aprs import AprsPacket, Telemetry, WeatherReport, is_bulletin_addressee
 from ..aprs_contacts import Contact, build_message_body, canned_messages_for
 from ..aprs_conversations import PendingAcks
 from . import slideouts
+from .button_row import ButtonRow
 from .inputs import WordInput
 from .tabclose import CloseTabX
 from .wraplog import WrapLog
@@ -375,7 +376,7 @@ class AprsPane(Horizontal):
             yield _AprsContactTable(id="aprs-contact-table", cursor_type="row", zebra_stripes=True)
             # No hint line under these. The keys live in the Footer, which
             # already tracks focus -- see `_AprsContactTable`'s docstring.
-            with Horizontal(classes="addressbook-actions"):
+            with ButtonRow(classes="addressbook-actions"):
                 yield Button("Message", variant="primary", id="aprs-contact-message")
                 yield Button("New", id="aprs-contact-new")
                 yield Button("Edit", id="aprs-contact-edit")

@@ -339,7 +339,7 @@ neither one is hardware to begin with. Add the entry from Settings (`F9`) >
 Radio > New, which asks for exactly these fields, or by hand in
 `config.toml` (see the worked examples in `config.toml.example`) if you
 prefer to edit text directly — either way it shows up the same in Settings
-(`F9`) > Transports:
+(`F9`) > Radio:
 
 ```toml
 [[transports]]

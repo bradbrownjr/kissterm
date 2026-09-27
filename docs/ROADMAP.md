@@ -79,6 +79,14 @@ under rule 2 above, with the date and their words:
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
+- **APRS contacts and Terminal Address Book off the screen at 80x24**
+  (2026-09-27, `awaiting confirmation`): found by a layout sweep, "Good
+  catches, let's hit those." The APRS contacts' Forget ran off the right
+  edge; the Terminal tab's "Use node" sat below the bottom. Fix: both
+  button rows are a `ButtonRow` (`ui/button_row.py`), two by two when
+  narrow; the known-nodes section gives way when the Address Book is too
+  short for it. `tests/pilot/test_layout_fits.py` checks every tab at
+  80x24, 100x33 and 160x40.
 - **Winlink password shown on screen** (2026-09-27, `awaiting
   confirmation`): "why is this showing my winlink password on the
   screen?" The Winlink password was typed into Settings' "Password login",
@@ -97,8 +105,8 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   "Buttons are getting cut off on the address book." Mail tab, Ctrl+G
   slide-out at 100 columns: the pane has 27 columns for four buttons that
   need 43, so Edit and Forget ran off the screen. Fix: the row becomes a
-  2x2 grid when it does not fit (`AddressBookPane.on_resize`); geometry
-  test in `tests/pilot/test_app_mounts.py`.
+  2x2 grid when it does not fit (`ui/button_row.py`); geometry test in
+  `tests/pilot/test_app_mounts.py`.
 
 ---
 
