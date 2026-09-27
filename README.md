@@ -134,11 +134,12 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   AGWPE (Direwolf, UZ7HO SoundModem); the Linux kernel AX.25 stack if you
   already have one. VARA HF/FM and Mercury are implemented but not yet verified
   against hardware — see [docs/ROADMAP.md](docs/ROADMAP.md).
-- **Telnet and SSH, for a node reachable over the Internet.** No AX.25
-  framing on either wire — the remote node's own telnet or SSH server
-  already ran the link layer, and the byte stream is the session the moment
-  it connects, same as SyncTERM or a plain `telnet`/`ssh` client. SSH is
-  password-auth only for now (see [SETUP.md](SETUP.md) §6a).
+- **Telnet and SSH, for a node reachable over the Internet.** An Address
+  Book contact, By Telnet or SSH, dialed into its own Terminal tab beside the
+  radio, never touching the transmit gate. No AX.25 framing on either wire —
+  the remote node's own telnet or SSH server already ran the link layer, same
+  as SyncTERM or a plain `telnet`/`ssh` client. SSH takes a password or a key
+  and an explicit known-hosts file (see [SETUP.md](SETUP.md) §6a).
 - **The network scan covers the whole subnet, and says so if it cannot.** A
   /24 across the well-known packet ports is over a thousand connection
   attempts; the first version fit about a sixth of them into its time budget,
@@ -260,11 +261,12 @@ your Direwolf host to a new IP does not mean editing a TOML file.
 
 **"New" adds a transport a scan cannot find.** Discovery can only identify a
 KISS TNC or an AGWPE engine by probing it -- it has no way to invent a VARA
-modem's callsign, a Telnet host, or an SSH login nobody has typed yet. "New"
-in Settings > Radio opens a form for exactly those (and a second entry
-for hardware a scan already found); the fields shown change with the kind you
-pick, and a Telnet/SSH/VARA/Mercury entry gets the same auto-login section
-the Connect dialog has, sent right after that transport connects.
+modem's callsign. "New" in Settings > Radio opens a form for exactly those
+(and a second entry for hardware a scan already found); the fields shown
+change with the kind you pick, and a VARA/Mercury entry gets the same
+auto-login section the Connect dialog has, sent right after that transport
+connects. A node reached by Telnet or SSH is an Address Book contact
+instead.
 
 **"Test" asks a configured host what it actually is.** Port 8000 and
 8001 are as popular with self-hosted web apps as with packet software, so a
@@ -372,12 +374,11 @@ file you hand-edit.
 
 **If you have more than one transport of the same kind configured, the
 Connect dialog can switch between them before dialing** -- two KISS TNCs, or
-two Telnet/SSH hosts. With only one configured (the usual case) there is no
+two VARA hosts. With only one configured (the usual case) there is no
 dropdown to get in the way; with two or more, it defaults to whichever is
 active and switches live if you pick a different one. Switching TIERS this
-way -- a frame-tier KISS TNC to a session-tier Telnet/SSH/VARA host, or back
--- is not supported live; Settings (`F9`) > Radio still needs a restart
-for that.
+way -- a frame-tier KISS TNC to a session-tier VARA host, or back -- is not
+supported live; Settings (`F9`) > Radio still needs a restart for that.
 
 **The Address Book slide-out (`Ctrl+G`, from Terminal or a mail tab) is the same
 list, with room to manage it.** A table of every saved station -- add one in
@@ -406,8 +407,8 @@ An entry can carry:
   cannot tune a radio or start a modem for you, but it will ask you to
   confirm both are set before a connect that has them on file goes out.
   Connection type picks from whatever you've already set up in
-  Settings (`F9`) > Radio (a TCP KISS TNC, VARA HF, a Telnet or SSH
-  node, ...), so it's a reminder that matches what you actually have
+  Settings (`F9`) > Radio (a TCP KISS TNC, VARA HF, ...), so it's a
+  reminder that matches what you actually have
   configured rather than a note you have to retype consistently by hand.
 
 **BBS mail helpers** are in F10 > Help > **Node commands** > **BBS mail helpers**. They provide

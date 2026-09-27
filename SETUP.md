@@ -334,80 +334,40 @@ no hop chain: the byte stream *is* the session from the moment it connects,
 exactly the way SyncTERM or a plain `telnet`/`ssh` client already reaches
 this kind of node.
 
-Neither is found by "Scan for hardware" — that only sweeps your own LAN, and
-neither one is hardware to begin with. Add the entry from Settings (`F9`) >
-Radio > New, which asks for exactly these fields, or by hand in
-`config.toml` (see the worked examples in `config.toml.example`) if you
-prefer to edit text directly — either way it shows up the same in Settings
-(`F9`) > Radio:
+**A Telnet or SSH node is an Address Book contact, not a transport.** Open
+the Address Book (`Ctrl+G`), press New, and set **By** to Telnet or SSH:
 
-```toml
-[[transports]]
-name = "some-node-telnet"
-kind = "telnet"
-host = "bpq.example.org"
-port = 8010
+- **Name**: what the contact and its Terminal tab are called, e.g.
+  `WS1EC by SSH`.
+- **Host** and **Port** (empty is 23 for Telnet, 22 for SSH).
+- SSH only: **User**, **Password** or **Key file** (plus **Passphrase** for
+  an encrypted key), and **Known** — an OpenSSH known-hosts file holding the
+  server key you verified out of band.
 
-[[transports]]
-name = "ws1ec"
-kind = "ssh"
-host = "ws1ec.mainepacketradio.org"
-port = 4122
-username = "packet"
-password = ""
-known_hosts = "/home/you/.ssh/kissterm_known_hosts"
-```
+Enter on the contact dials it into its own Terminal tab, beside any radio
+session; the radio stays open. Ctrl+D hangs up and Ctrl+R dials it again. An
+Internet contact cannot key a radio, so it never checks or arms the transmit
+gate: typing to it leaves TX OFF.
+
+Passwords typed in the editor are saved logins, in the system keyring when
+there is one; the Address Book file only names them. A Telnet or SSH entry
+left under `[[transports]]` in `config.toml` (the way earlier versions set
+them up) is moved to the Address Book at launch, its password to the keyring.
 
 SSH needs the optional `asyncssh` package: `pip install kissterm[ssh]` (or
-`kissterm[all]`). Set `password` for password authentication, or set
-`client_key` to an explicit private-key path. Add `key_passphrase` only for
-an encrypted private key; kissterm does not silently search `~/.ssh` for
-identities. `known_hosts` is required and names an explicit OpenSSH
-known-hosts file containing the server key you verified out of band. kissterm
-never consults ambient SSH configuration or accepts a first-seen key; a
-missing, malformed, unknown, or changed key stops before the login shell.
+`kissterm[all]`). kissterm does not silently search `~/.ssh` for identities,
+never consults ambient SSH configuration, and never accepts a first-seen key;
+a missing, malformed, unknown or changed key stops before the login shell.
 
-```toml
-[[transports]]
-name = "key-only-node"
-kind = "ssh"
-host = "node.example.org"
-username = "packet"
-client_key = "/home/you/.ssh/id_ed25519"
-key_passphrase = ""
-known_hosts = "/home/you/.ssh/kissterm_known_hosts"
-```
-
-Once one of these is the active transport, `Ctrl+N` connects directly —
-there is exactly one destination this kind of transport can reach (the
-host and port it was configured with), so there is no target to type and no
-address-book entry involved. If the node needs a further hop once you're in
-(a `C` command to a node beyond the one you landed on), type it by hand the
-same as you would on any other terminal — that has always worked and needs
-nothing special from this transport.
-
-**Auto-login.** Add `script` (inline text) or `credential` (a name from
-`[[credentials]]`) to the transport entry and it's sent, one line at a time,
-right after connecting — the same auto-login an address-book entry gives a
-regular AX.25 connect, just attached to the transport instead of a
-per-attempt dialog, since this kind of connect has no dialog. `credential`
-wins if both are set. This is the WS1EC shape from the top of this
-section: the SSH login above only gets you the shell account, and that
-shell then runs its own local `telnet` into the real BPQ node, which
+**Auto-login.** The contact's Login section (a saved login, a saved script,
+or lines typed there) is sent one line at a time once the connection is up.
+This is the WS1EC shape: the SSH login only gets you the shell account, and
+that shell then runs its own local `telnet` into the real BPQ node, which
 prompts again for a packet callsign and password. A script's last line can
 be a `C <node>` command too, so one script both logs in and reaches the
-actual service from the node prompt, same as typing that hop by hand:
-
-```toml
-[[transports]]
-name = "ws1ec"
-kind = "ssh"
-host = "ws1ec.mainepacketradio.org"
-port = 4122
-username = "packet"
-password = ""
-script = "MYCALL\nMYPASS\nC BBS"
-```
+actual service from the node prompt, same as typing that hop by hand. For
+Send/Receive by Internet (I on the Mail tab), Settings > Mail > Home BBS >
+Internet contact names the contact, and I answers the node's own login.
 
 ## 7. First run
 

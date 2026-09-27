@@ -156,31 +156,6 @@ Files
 The message store (`kissterm/mail/`), the shared folder-tree/list/reader
 widget and the Mail, Bulletins and Files tabs shipped 2026-09-23.
 
-#### Every contact in the Address Book, whatever the connection
-
-Operator, 2026-09-26: "it's going to make more sense to users if they
-create all of their contacts in the address book regardless of transport.
-That's how WoAD (Winlink on Android) works." Settings > Radio keeps only
-hardware (TNCs, AGWPE, VARA, Mercury, kernel AX.25); a contact says how it
-is reached (radio, Telnet, SSH), and an Internet contact opens its own
-session tab beside the radio. Steps:
-
-1. Done 2026-09-27: `Entry.connect_by` and the connection fields; Telnet
-   and SSH transports adopted as contacts at launch, passwords to the
-   keyring.
-2. Done 2026-09-27: the Address Book editor's "By" choice (Radio, Telnet,
-   SSH) and their fields.
-3. Done 2026-09-27: an Internet contact dials into its own session tab
-   (Address Book Enter, Ctrl+N, Ctrl+R, Ctrl+D), the transmit gate
-   untouched; pilot tests against local Telnet and SSH servers.
-4. Done 2026-09-27: the Home BBS's Internet route names a contact (I on
-   the Mail tab); with none, "New contact" opens the editor By SSH.
-5. Done 2026-09-27: Telnet and SSH left Settings > Radio (and so
-   `--setup`, which uses the same editor); at launch they move to the
-   Address Book and out of config.toml, an active one handing over to the
-   radio.
-6. README, SETUP, ON-AIR-TESTS (WS1EC is dialed from the Address Book).
-
 #### Winlink
 
 Winlink messages travel as B2F (the FBB B2 forwarding protocol: proposals,

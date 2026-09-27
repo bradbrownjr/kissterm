@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Every contact in the Address Book (step 6 of 6, done)
+
+### Improvements
+
+- **The docs describe Telnet and SSH nodes as Address Book contacts**:
+  SETUP section 6a rewritten (By Telnet or SSH, dialed beside the radio,
+  the gate untouched, WS1EC's login shape), README's transport notes and
+  the Settings > Radio passages updated. The ROADMAP item is closed:
+  operator, 2026-09-26, "create all of their contacts in the address book
+  regardless of transport."
+
+**Files:** `SETUP.md`, `README.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — Telnet and SSH leave Settings > Radio (step 5 of 6)
 
 ### Improvements
