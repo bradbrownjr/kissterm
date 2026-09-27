@@ -563,21 +563,23 @@ HelpPane { layout: vertical; height: 1fr; }
 #help-guide-list { width: 30; height: 1fr; }
 #help-node-table, #help-glossary-body { height: 1fr; padding: 0 1; }
 #help-about-scroll { padding: 1 2; }
-/* Settings (F9): a section list, one section's fields, and a bar that never
-   scrolls. Generated from settings_schema, so these rules style whole
-   classes of row rather than any particular field -- adding a setting must
-   never mean adding CSS. See `SettingsPane`'s docstring for why a field is
-   one row and its help is one line at the bottom (DESIGN.md section 3,
-   "Dense where the content is the point"). */
+/* Settings (F9): a section list, one section's settings as a list with
+   their values, one editor under it, and a bar that never scrolls.
+   Generated from settings_schema, so these rules style whole classes of
+   row rather than any particular field -- adding a setting must never mean
+   adding CSS. See `SettingsPane`'s docstring for why a section is one list
+   and one editor rather than a control per field (startup time). */
 SettingsPane { layout: vertical; }
 #settings-body { height: 1fr; }
 #settings-sections { width: 18; height: 1fr; border: round $primary; }
+#settings-main { width: 1fr; height: 1fr; }
 #settings-switcher { width: 1fr; height: 1fr; }
+.settings-fields { height: 1fr; }
 .settings-section { padding: 0 1; }
-.settings-note { padding: 0 0 1 0; color: $text-muted; max-width: 92; }
+.settings-note { padding: 0 1; color: $text-muted; max-width: 92; }
+#settings-note { height: auto; }
 .settings-row { height: auto; min-height: 1; }
 .settings-label { width: 27; padding: 0 1 0 0; }
-.settings-row.-invalid .settings-label { color: $error; text-style: bold; }
 /* Up to 46 wide, narrower on a small screen rather than cut off. */
 .settings-row Input, .settings-row Select { width: 1fr; max-width: 46; }
 .settings-row Button { margin-left: 1; }
@@ -586,14 +588,10 @@ SettingsPane { layout: vertical; }
 .settings-detail { padding: 0 0 1 0; color: $text-muted; max-width: 92; }
 /* A switch as one row: the track only, no box around it. */
 .settings-row Checkbox { width: auto; }
-/* A heading inside a section (Mail's Home BBS, the custom colours). */
-.settings-rule-label {
-    margin: 1 0 0 0; color: $text-muted; text-style: bold;
-    border-bottom: solid $panel; max-width: 92;
-}
-.settings-conditional { height: auto; }
-.settings-advanced { margin: 1 0 0 0; padding: 0; border: none; background: transparent; }
-.settings-advanced > Contents { padding: 0; }
+/* The editor: one row of controls under the list, the label in the
+   settings grid's first column so it lines up with the rows above. */
+#settings-editor { height: auto; padding: 0 2; }
+#settings-edit-extra { display: none; }
 #settings-bar { height: auto; padding: 0 1; border-top: solid $panel; }
 .settings-banner {
     padding: 0 1; margin: 0 0 1 0;
@@ -605,21 +603,14 @@ SettingsPane { layout: vertical; }
 .settings-actions { height: auto; }
 #settings-footer { width: 1fr; height: auto; }
 .settings-actions Button { margin-left: 1; }
-/* A hex value is short; the full 46-wide Input would be mostly empty. */
-.settings-row Input.settings-color-input { width: 12; max-width: 12; }
 /* The swatch's fill is the one legitimate exception to "never hardcode a
    hex value" (DESIGN.md#2): it renders an arbitrary color the operator
    typed, not a piece of kissterm's own chrome, so it is set at runtime from
    the field's value. An invalid value shows as an error-coloured block. */
 .settings-swatch { width: 4; height: 1; margin: 0 0 0 1; }
 .settings-swatch.-invalid { background: $error 40%; }
-/* custom_choice / filtered_choice: a Select stacked over its companion
-   Input inside one field's control column, so the pair reads as one
-   control rather than two unrelated fields. */
-.settings-custom-choice, .settings-filtered-choice { height: auto; width: 1fr; max-width: 46; }
-/* Position entry: latitude and longitude side by side in one column. */
-.settings-decimal-pair { height: auto; width: 1fr; max-width: 46; }
-.settings-decimal-pair Input { width: 1fr; margin-right: 1; }
+/* The symbol picker: its filter stacked over its list, as one control. */
+.settings-filtered-choice { height: auto; width: 1fr; max-width: 46; }
 
 /* ASCII-safe mode is deliberately a stylesheet concern: unlike mutating
    Textual's global border table it cannot leak into another mounted app or a
@@ -667,7 +658,6 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #connect-script:disabled,
 .-ascii-safe #transport-script:disabled { border: ascii $panel; }
 .-ascii-safe #settings-bar { border-top: ascii $panel; }
-.-ascii-safe .settings-rule-label { border-bottom: ascii $panel; }
 .-ascii-safe Underline { display: none; }
 .-ascii-safe WrapLog,
 .-ascii-safe .settings-section,

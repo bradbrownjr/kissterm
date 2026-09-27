@@ -58,18 +58,6 @@ class Field:
     minimum: float | None = None
     maximum: float | None = None
     placeholder: str = ""
-    #: True means `SettingsPane._compose_field` builds NO widget of its own
-    #: for this field -- some other, hand-written composer already built one
-    #: with the matching id (`_widget_id(path)`). For a `Config` value that
-    #: has more than one valid on-screen representation at once (a position
-    #: as decimal degrees or a grid square, both editing the same
-    #: `Config.aprs.latitude`/`longitude`), the schema's one-Field-one-widget
-    #: model has no way to express that -- this is the escape hatch, the
-    #: same role the hand-built Transports tab plays for dict-shaped config.
-    #: `coerce`/`format_value`/`render_settings`/`_save` are untouched by
-    #: this flag: they still read and write the field by its ordinary id,
-    #: because the hand-written composer used that same id on purpose.
-    custom_render: bool = False
     #: A heading drawn above this field, to set off the fields after it
     #: from those before (Mail's "Home BBS").
     rule_before: str = ""
@@ -400,7 +388,6 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 minimum=-90.0,
                 maximum=90.0,
                 apply="live",
-                custom_render=True,
             ),
             Field(
                 "aprs.longitude",
@@ -410,17 +397,15 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 minimum=-180.0,
                 maximum=180.0,
                 apply="live",
-                custom_render=True,
             ),
             Field(
                 "aprs.grid_square",
                 "Grid square",
                 "text",
-                "Maidenhead locator, e.g. FN31pr. Redisplay only -- what is "
-                "actually transmitted is always latitude/longitude, kept in "
-                "sync with this automatically.",
+                "Maidenhead locator, e.g. FN31pr. Typing one sets the latitude "
+                "and longitude to its centre; what is transmitted is always "
+                "the latitude and longitude, and this follows them.",
                 apply="live",
-                custom_render=True,
             ),
             Field(
                 "aprs.symbol",
@@ -513,7 +498,6 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "the fixed position above is left unchanged.",
                 apply="live",
                 placeholder="/dev/ttyUSB1",
-                custom_render=True,
                 advanced=True,
             ),
             Field(

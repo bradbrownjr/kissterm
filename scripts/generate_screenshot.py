@@ -294,10 +294,7 @@ async def main() -> int:
         app.config.watched_callsigns.quiet_end_hour = 7
         app.config.watched_callsigns.active_suppression_seconds = 90
         settings.render_settings(app.config)
-        settings.show_section("Alerts")
-        from textual.widgets import Collapsible
-
-        settings.query_one("#settings-tab-alerts-advanced", Collapsible).collapsed = False
+        settings.open_field("watched_callsigns.callsigns")
         await pilot.pause()
         watch_configured = ASSETS / "screenshot-watched-callsigns-configured.svg"
         app.save_screenshot(str(watch_configured))

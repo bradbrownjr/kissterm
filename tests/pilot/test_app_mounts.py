@@ -438,12 +438,10 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
         # than merely the widget tree.
         app.action_show_tab("settings")
         settings = app.query_one(SettingsPane)
-        settings.show_section("Appearance")
-        app.query_one("#set-theme", Select).value = "custom"  # shows the colours
+        settings.set_field("theme", "custom")  # shows the colours
+        settings.open_field("custom_theme.primary")
         await pilot.pause()
-        swatch = app.query_one(".settings-swatch")
-        swatch.scroll_visible(immediate=True)
-        await pilot.pause()
+        assert app.query_one(".settings-swatch").display
         assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
         assert sanitize(b"remote\x1b[2Jtext") == "remotetext"
     station.close()

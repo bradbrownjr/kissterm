@@ -105,21 +105,19 @@ was restyled, and it was spotted immediately in a screenshot.
 
 ### The settings column grid
 
-Every settings row is the same three columns, so the page aligns vertically
-instead of each row finding its own edges:
+Every settings row is the same two columns, so the page aligns vertically
+instead of each row finding its own edges, and the editor under the list
+uses the same first column:
 
 ```
-|<--- 26 --->|<-------- 46 -------->|<--- 20 --->|
- Callsign      [ N1ABC-1          ]   next connection
- ^label        ^control               ^apply note
-                ^help text hangs here (indent 27)
+|<--- 26 --->| |<------ value ------>|
+ Callsign       N1ABC-1                  a row in the section's list
+ Callsign      [ N1ABC-1          ]      the editor, for the highlighted row
 ```
 
-- Controls are a **fixed** width, not `1fr`. A control that stretches with the
-  window makes the third column drift and the page lose its alignment.
-- **Help text hangs under the control (indent 27 = label 26 + 1), not under the
-  label.** Two numbers that must agree; Textual CSS has no arithmetic to tie
-  them, so changing one means changing the other.
+- The editor's controls are up to 46 wide, narrower on a small screen.
+- A value longer than 60 characters is cut short in its row; the editor
+  shows it whole.
 
 ### Measure
 
@@ -133,13 +131,15 @@ start on the way back. Applies to section notes, help text and banners.
 - **Section headings carry a rule** (`border-bottom: solid $panel`). With bold
   accent text alone, sections blur together while scrolling.
 - **Settings is one row per field** (operator, 2026-09-25: "new user
-  approachable, not overwhelming ... KISS"): a label and a compact control,
-  its sections listed down the left, and the focused field's help, when it
-  takes effect and any error in one line at the bottom. Tuning the defaults
-  already get right goes under the section's shut **Advanced**
-  (`Field.advanced`); a field that only matters for another's value is
-  shown only then (`Field.only_when`). A new setting chooses one of the two
-  before it ships.
+  approachable, not overwhelming ... KISS"): its sections listed down the
+  left, each section one list of label and value, and the highlighted
+  field's help, when it takes effect and any error in one line at the
+  bottom. **One editor under the list changes the highlighted field**
+  (2026-09-27, for startup time: a control per field was two thirds of the
+  app's widgets). Tuning the defaults already get right is listed last,
+  under an **Advanced** heading (`Field.advanced`); a field that only
+  matters for another's value is shown only then (`Field.only_when`). A
+  new setting chooses one of the two before it ships.
 
 ### Information order
 

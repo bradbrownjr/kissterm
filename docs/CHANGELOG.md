@@ -5,6 +5,29 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — Settings as one list per section: the first screen 2 s sooner
+
+### Improvements
+
+- **The first screen comes in about 2.4 s instead of 4.5 s** (measured from
+  local disk). Settings had a label and a control for every field, 434 of
+  the app's 633 widgets, all built before anything was drawn. Each section
+  is now one list of its settings with their values, and one editor under
+  it changes the highlighted one: Enter edits (an on/off setting flips),
+  Enter or Esc goes back to the list. Save still validates everything
+  before writing anything. Advanced settings are listed last under a
+  heading rather than folded; a latitude, longitude or grid square typed in
+  updates the others, replacing the Decimal/Grid switch. Nothing is built
+  on first use (the 2026-09-25 decision).
+- Found on the way: from this checkout on the Unraid share, import alone
+  takes about 4 s against 0.85 s from a local disk.
+
+**Files:** `kissterm/ui/settings_pane.py`, `kissterm/ui/settings_schema.py`,
+`kissterm/ui/styles.py`, `kissterm/ui/app.py`, `scripts/generate_screenshot.py`,
+`tests/pilot/test_settings.py`, `tests/pilot/test_theming.py`,
+`tests/pilot/test_app_mounts.py`, `tests/pilot/test_winlink_send_receive.py`,
+`README.md`, `DESIGN.md`, `assets/`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — Winlink attachments saved to Files > Attachments
 
 ### New Features

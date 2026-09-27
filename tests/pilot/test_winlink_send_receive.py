@@ -426,7 +426,9 @@ async def test_the_setup_question_goes_to_the_setting_it_names(tmp_path):
         await wait_for(lambda: not app._collecting, "the run to be cancelled")
         await pilot.pause()
         assert app.query_one("#main-tabs").active == "settings"
-        assert app.focused is not None and app.focused.id == "set-winlink-account"
+        await pilot.pause()
+        fields = app.query_one("#settings-tab-mail")
+        assert app.focused is fields and fields.highlighted_option.id == "winlink.account"
         assert not station.transport.sent
     station.close()
 

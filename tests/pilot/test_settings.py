@@ -21,7 +21,7 @@ from textual.widgets import Button, Input, Select, Static  # noqa: E402
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
-from kissterm.ui.settings_pane import SettingsPane, _widget_id  # noqa: E402
+from kissterm.ui.settings_pane import SettingsPane  # noqa: E402
 from kissterm.ui.settings_schema import (  # noqa: E402
     SETTINGS_SCHEMA,
     Field,
@@ -272,9 +272,12 @@ async def test_pane_shows_current_values():
     async with app.run_test(size=(120, 60)) as pilot:
         app.action_show_tab("settings")
         await pilot.pause()
-        assert app.query_one(f"#{_widget_id('paclen')}").value == "64"
-        assert app.query_one(f"#{_widget_id('t1')}").value == "12.5"
-        assert app.query_one(f"#{_widget_id('aprs.latitude')}").value == "42.36"
+        pane = app.query_one(SettingsPane)
+        assert pane.field_value("paclen") == "64"
+        assert pane.field_value("t1") == "12.5"
+        assert pane.field_value("aprs.latitude") == "42.36"
+        # And on screen: a row per field, its label then its value.
+        assert pane.row_text("paclen").split() == ["Frame", "size", "(paclen)", "64"]
     station.close()
 
 
@@ -284,10 +287,11 @@ async def test_saving_writes_config_and_applies_to_the_station():
     async with app.run_test(size=(120, 60)) as pilot:
         app.action_show_tab("settings")
         await pilot.pause()
-        app.query_one(f"#{_widget_id('paclen')}").value = "64"
-        app.query_one(f"#{_widget_id('t1')}").value = "12"
-        app.query_one(f"#{_widget_id('mycall')}").value = "W1AW-9"
-        app.query_one(SettingsPane)._save()
+        pane = app.query_one(SettingsPane)
+        pane.set_field("paclen", "64")
+        pane.set_field("t1", "12")
+        pane.set_field("mycall", "W1AW-9")
+        pane._save()
         await pilot.pause()
         await asyncio.sleep(0.1)
 
@@ -305,6 +309,72 @@ async def test_saving_writes_config_and_applies_to_the_station():
 
 
 @pytest.mark.asyncio
+async def test_typing_in_the_editor_changes_the_row_and_saves():
+    """The whole path by keys: highlight a row, Enter, type, Enter, Save."""
+    app, station = await _app()
+    async with app.run_test(size=(100, 33)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        pane = app.query_one(SettingsPane)
+        pane.open_field("paclen")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert app.focused is app.query_one("#settings-edit-input", Input)
+        await pilot.press("ctrl+u", "6", "4", "enter")
+        await pilot.pause()
+        assert pane.row_text("paclen").endswith(" 64")
+        assert app.focused is app.query_one("#settings-tab-link")
+        assert app.config.paclen != 64, "nothing is saved before Save"
+        pane._save()
+        await pilot.pause()
+        assert app.config.paclen == 64
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_enter_flips_an_on_off_setting():
+    app, station = await _app()
+    async with app.run_test(size=(100, 33)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        pane = app.query_one(SettingsPane)
+        pane.open_field("aprs.winlink_check")
+        await pilot.pause()
+        assert pane.row_text("aprs.winlink_check").endswith(" off")
+        await pilot.press("enter")
+        await pilot.pause()
+        assert pane.row_text("aprs.winlink_check").endswith(" on")
+        assert app.query_one("#settings-edit-check").value is True
+        pane._save()
+        await pilot.pause()
+        assert app.config.aprs.winlink_check is True
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_moving_between_rows_never_carries_one_value_into_another():
+    """One editor serves every field: loading the next field's value must
+    not be read back as an edit of either."""
+    cfg = Config(mycall="N1ABC-1", paclen=64, window=3)
+    app, station = await _app(cfg)
+    async with app.run_test(size=(100, 33)) as pilot:
+        app.action_show_tab("settings")
+        await pilot.pause()
+        pane = app.query_one(SettingsPane)
+        pane.open_field("paclen")
+        await pilot.pause()
+        for key in ("down", "up", "down", "down", "up", "up"):
+            await pilot.press(key)
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        await pilot.pause()
+        assert pane.field_value("paclen") == "64"
+        assert pane.field_value("window") == "3"
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_an_invalid_field_saves_nothing_at_all():
     """A partial save leaves the operator unable to tell which values took."""
     app, station = await _app()
@@ -312,23 +382,26 @@ async def test_an_invalid_field_saves_nothing_at_all():
         app.action_show_tab("settings")
         await pilot.pause()
         before = app.config.paclen
-        app.query_one(f"#{_widget_id('paclen')}").value = "64"      # valid
-        app.query_one(f"#{_widget_id('retries')}").value = "banana"  # invalid
-        app.query_one(SettingsPane)._save()
+        pane = app.query_one(SettingsPane)
+        pane.set_field("paclen", "64")      # valid
+        pane.set_field("retries", "banana")  # invalid
+        pane._save()
         await pilot.pause()
 
         assert app.config.paclen == before, "a valid field was saved beside a bad one"
-        pane = app.query_one(SettingsPane)
-        wid = _widget_id("retries")
-        assert pane.error_for(wid)
-        # Folded under Link's Advanced: Save opened it and put the cursor on
-        # the field, so its error is in the help line.
+        assert pane.error_for("retries")
+        # Under Link's Advanced: Save opened the section and put the cursor
+        # on the field, so its error is in the help line.
         await pilot.pause()
         assert pane.current_section == "settings-tab-link"
-        assert "-invalid" in app.query_one(f"#{wid}-row").classes
-        assert app.focused is app.query_one(f"#{wid}")
+        fields = app.query_one("#settings-tab-link")
+        assert fields.highlighted_option.id == "retries"
+        assert app.focused is fields
         help_line = app.query_one("#settings-help-line")
         assert "-error" in help_line.classes and "Retries" in str(help_line.render())
+        # Correcting it clears the error.
+        pane.set_field("retries", "10")
+        assert not pane.error_for("retries")
     station.close()
 
 
@@ -342,21 +415,27 @@ async def test_a_bad_custom_theme_color_marks_the_swatch_and_saves_nothing():
     async with app.run_test(size=(120, 60)) as pilot:
         app.action_show_tab("settings")
         await pilot.pause()
-        wid = _widget_id("custom_theme.primary")
+        pane = app.query_one(SettingsPane)
+        pane.set_field("theme", "custom")
+        pane.open_field("custom_theme.primary")
+        await pilot.pause()
         before = app.config.custom_theme.primary
+        editor = app.query_one("#settings-edit-input", Input)
+        swatch = app.query_one("#settings-edit-swatch")
+        assert swatch.display
 
-        app.query_one(f"#{wid}", Input).value = "#ff00ff"
+        editor.value = "#ff00ff"
         await pilot.pause()
-        assert "-invalid" not in app.query_one(f"#{wid}-swatch").classes
+        assert "-invalid" not in swatch.classes
 
-        app.query_one(f"#{wid}", Input).value = "not-a-color"
+        editor.value = "not-a-color"
         await pilot.pause()
-        assert "-invalid" in app.query_one(f"#{wid}-swatch").classes
+        assert "-invalid" in swatch.classes
 
-        app.query_one(SettingsPane)._save()
+        pane._save()
         await pilot.pause()
         assert app.config.custom_theme.primary == before, "invalid color must not be saved"
-        assert app.query_one(SettingsPane).error_for(wid)
+        assert pane.error_for("custom_theme.primary")
     station.close()
 
 
@@ -380,8 +459,9 @@ async def test_link_params_do_not_change_under_an_established_link():
         assert link is not None and link.connected
         app.action_show_tab("settings")
         await pilot.pause()
-        app.query_one(f"#{_widget_id('paclen')}").value = "32"
-        app.query_one(SettingsPane)._save()
+        pane = app.query_one(SettingsPane)
+        pane.set_field("paclen", "32")
+        pane._save()
         await pilot.pause()
 
         assert link.params.paclen == 128, "established link had its paclen changed"
@@ -1020,17 +1100,24 @@ def _detail_text_of(app, selector: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+async def _edit(app, pilot, path):
+    """Settings open on `path`, its editor loaded."""
+    await _settings_tab(app, pilot)
+    pane = app.query_one(SettingsPane)
+    pane.open_field(path)
+    await pilot.pause()
+    return pane
+
+
 @pytest.mark.asyncio
 async def test_wide_path_preset_is_selected_and_the_custom_field_stays_hidden():
     cfg = Config(mycall=str(MYCALL))
     cfg.aprs.path = "WIDE2-2"
     app, station = await _app(cfg)
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        select = app.query_one("#set-aprs-path", Select)
-        custom = app.query_one("#set-aprs-path-custom", Input)
-        assert select.value == "WIDE2-2"
-        assert custom.display is False
+        await _edit(app, pilot, "aprs.path")
+        assert app.query_one("#settings-edit-select", Select).value == "WIDE2-2"
+        assert app.query_one("#settings-edit-extra").display is False
     station.close()
 
 
@@ -1042,12 +1129,14 @@ async def test_a_path_matching_no_preset_shows_custom_with_the_literal_text():
     cfg.aprs.path = "W1AW-1,WIDE1-1"
     app, station = await _app(cfg)
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        select = app.query_one("#set-aprs-path", Select)
-        custom = app.query_one("#set-aprs-path-custom", Input)
-        assert select.value == "__custom__"
-        assert custom.display is True
-        assert custom.value == "W1AW-1,WIDE1-1"
+        pane = await _edit(app, pilot, "aprs.path")
+        assert app.query_one("#settings-edit-select", Select).value == "__custom__"
+        assert app.query_one("#settings-edit-extra").display is True
+        assert app.query_one("#settings-edit-custom", Input).value == "W1AW-1,WIDE1-1"
+        assert "W1AW-1,WIDE1-1 (custom)" in pane.row_text("aprs.path")
+        pane._save()
+        await pilot.pause()
+        assert app.config.aprs.path == "W1AW-1,WIDE1-1"
     station.close()
 
 
@@ -1055,14 +1144,13 @@ async def test_a_path_matching_no_preset_shows_custom_with_the_literal_text():
 async def test_picking_custom_reveals_the_field_and_saving_it_persists():
     app, station = await _app()
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        select = app.query_one("#set-aprs-path", Select)
-        custom = app.query_one("#set-aprs-path-custom", Input)
-        select.value = "__custom__"
+        pane = await _edit(app, pilot, "aprs.path")
+        app.query_one("#settings-edit-select", Select).value = "__custom__"
         await pilot.pause()
-        assert custom.display is True
-        custom.value = "WIDE1-1,N1ABC-2"
-        app.query_one(SettingsPane)._save()
+        assert app.query_one("#settings-edit-extra").display is True
+        app.query_one("#settings-edit-custom", Input).value = "WIDE1-1,N1ABC-2"
+        await pilot.pause()
+        pane._save()
         await pilot.pause()
         assert app.config.aprs.path == "WIDE1-1,N1ABC-2"
     station.close()
@@ -1072,15 +1160,16 @@ async def test_picking_custom_reveals_the_field_and_saving_it_persists():
 async def test_picking_a_preset_after_custom_saves_the_preset_not_the_old_text():
     app, station = await _app()
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        select = app.query_one("#set-aprs-path", Select)
+        pane = await _edit(app, pilot, "aprs.path")
+        select = app.query_one("#settings-edit-select", Select)
         select.value = "__custom__"
         await pilot.pause()
-        app.query_one("#set-aprs-path-custom", Input).value = "some custom text"
+        app.query_one("#settings-edit-custom", Input).value = "some custom text"
+        await pilot.pause()
         select.value = "WIDE1-1"
         await pilot.pause()
-        assert app.query_one("#set-aprs-path-custom", Input).display is False
-        app.query_one(SettingsPane)._save()
+        assert app.query_one("#settings-edit-extra").display is False
+        pane._save()
         await pilot.pause()
         assert app.config.aprs.path == "WIDE1-1"
     station.close()
@@ -1094,16 +1183,15 @@ async def test_ariss_is_a_selectable_preset_not_a_custom_entry():
     cfg.aprs.path = "ARISS"
     app, station = await _app(cfg)
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        select = app.query_one("#set-aprs-path", Select)
-        custom = app.query_one("#set-aprs-path-custom", Input)
+        pane = await _edit(app, pilot, "aprs.path")
+        select = app.query_one("#settings-edit-select", Select)
         assert select.value == "ARISS"
-        assert custom.display is False
+        assert app.query_one("#settings-edit-extra").display is False
         select.value = "WIDE1-1"
         await pilot.pause()
         select.value = "ARISS"
         await pilot.pause()
-        app.query_one(SettingsPane)._save()
+        pane._save()
         await pilot.pause()
         assert app.config.aprs.path == "ARISS"
     station.close()
@@ -1113,6 +1201,9 @@ async def test_ariss_is_a_selectable_preset_not_a_custom_entry():
 # APRS symbol picker (filtered_choice)
 # ---------------------------------------------------------------------------
 
+SYMBOL = "#settings-edit-symbol-select"
+SYMBOL_FILTER = "#settings-edit-symbol-select-filter"
+
 
 @pytest.mark.asyncio
 async def test_the_stored_symbol_is_preselected():
@@ -1120,8 +1211,8 @@ async def test_the_stored_symbol_is_preselected():
     cfg.aprs.symbol = "\\!"
     app, station = await _app(cfg)
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        assert app.query_one("#set-aprs-symbol", Select).value == "\\!"
+        await _edit(app, pilot, "aprs.symbol")
+        assert app.query_one(SYMBOL, Select).value == "\\!"
     station.close()
 
 
@@ -1129,11 +1220,10 @@ async def test_the_stored_symbol_is_preselected():
 async def test_typing_in_the_symbol_filter_narrows_the_options():
     app, station = await _app()
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        filter_input = app.query_one("#set-aprs-symbol-filter", Input)
-        select = app.query_one("#set-aprs-symbol", Select)
+        await _edit(app, pilot, "aprs.symbol")
+        select = app.query_one(SYMBOL, Select)
         full_count = len(select._options)
-        filter_input.value = "ambulance"
+        app.query_one(SYMBOL_FILTER, Input).value = "ambulance"
         await pilot.pause()
         assert len(select._options) < full_count
         assert any(v == "/a" for _label, v in select._options)
@@ -1144,92 +1234,57 @@ async def test_typing_in_the_symbol_filter_narrows_the_options():
 async def test_picking_a_filtered_symbol_and_saving_persists_it():
     app, station = await _app()
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        app.query_one("#set-aprs-symbol-filter", Input).value = "car"
+        pane = await _edit(app, pilot, "aprs.symbol")
+        app.query_one(SYMBOL_FILTER, Input).value = "ambulance"
         await pilot.pause()
-        app.query_one("#set-aprs-symbol", Select).value = "/>"
-        app.query_one(SettingsPane)._save()
+        app.query_one(SYMBOL, Select).value = "/a"
         await pilot.pause()
-        assert app.config.aprs.symbol == "/>"
+        pane._save()
+        await pilot.pause()
+        assert app.config.aprs.symbol == "/a"
     station.close()
 
 
 # ---------------------------------------------------------------------------
-# APRS position: decimal / grid square
+# APRS position: decimal and grid square, three rows kept in step
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_loading_a_saved_grid_square_does_not_corrupt_the_decimal_position_it_was_computed_from():
-    """Regression: bulk-populating the position widgets from `render_settings`
-    used to fire each Input's own Changed handler, and one of those could be
-    processed (asynchronously) after the mode Select had already flipped to
-    "grid" -- silently overwriting an exact stored decimal with the CENTER
-    of its own grid square the moment Settings was merely opened."""
+    """Opening Settings copies what config.toml has. Recomputing then would
+    replace an exact stored position with the centre of its grid square."""
     cfg = Config(mycall=str(MYCALL))
     cfg.aprs.latitude = 41.7148
     cfg.aprs.longitude = -72.7273
     cfg.aprs.grid_square = "FN31pr"
     app, station = await _app(cfg)
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        assert app.query_one("#aprs-position-mode", Select).value == "grid"
-        assert app.query_one("#set-aprs-latitude", Input).value == "41.7148"
-        assert app.query_one("#set-aprs-longitude", Input).value == "-72.7273"
-        assert app.query_one("#set-aprs-grid_square", Input).value == "FN31pr"
+        pane = await _edit(app, pilot, "aprs.grid_square")
+        await asyncio.sleep(0.05)
+        await pilot.pause()
+        assert pane.field_value("aprs.latitude") == "41.7148"
+        assert pane.field_value("aprs.longitude") == "-72.7273"
+        assert pane.field_value("aprs.grid_square") == "FN31pr"
+        pane._save()
+        await pilot.pause()
+        assert (app.config.aprs.latitude, app.config.aprs.longitude) == (41.7148, -72.7273)
     station.close()
 
 
 @pytest.mark.asyncio
-async def test_decimal_only_config_defaults_to_decimal_mode_with_a_blank_grid_field():
+async def test_typing_a_latitude_updates_the_grid_square():
     cfg = Config(mycall=str(MYCALL))
     cfg.aprs.latitude = 40.0
     cfg.aprs.longitude = -75.0
     app, station = await _app(cfg)
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        assert app.query_one("#aprs-position-mode", Select).value == "decimal"
-        assert app.query_one("#aprs-decimal-row").display is True
-        assert app.query_one("#aprs-grid-row").display is False
-        assert app.query_one("#set-aprs-grid_square", Input).value == ""
-    station.close()
-
-
-@pytest.mark.asyncio
-async def test_switching_to_grid_from_blank_autofills_it_from_the_decimal_position():
-    cfg = Config(mycall=str(MYCALL))
-    cfg.aprs.latitude = 40.0
-    cfg.aprs.longitude = -75.0
-    app, station = await _app(cfg)
-    async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        app.query_one("#aprs-position-mode", Select).value = "grid"
+        pane = await _edit(app, pilot, "aprs.latitude")
+        assert pane.field_value("aprs.grid_square") == ""
+        app.query_one("#settings-edit-input", Input).value = "40.0"
+        pane.set_field("aprs.longitude", "-75.0")
         await pilot.pause()
-        assert app.query_one("#set-aprs-grid_square", Input).value == "FN20ma"
-    station.close()
-
-
-@pytest.mark.asyncio
-async def test_switching_modes_never_overwrites_an_already_populated_field():
-    """A bare mode switch with nothing newly typed must be a pure view
-    toggle -- looking at the grid tab and back must not quietly discard the
-    decimal precision that was already loaded."""
-    cfg = Config(mycall=str(MYCALL))
-    cfg.aprs.latitude = 41.7148
-    cfg.aprs.longitude = -72.7273
-    cfg.aprs.grid_square = "FN31pr"
-    app, station = await _app(cfg)
-    async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        mode = app.query_one("#aprs-position-mode", Select)
-        assert mode.value == "grid"
-        mode.value = "decimal"
-        await pilot.pause()
-        assert app.query_one("#set-aprs-latitude", Input).value == "41.7148"
-        assert app.query_one("#set-aprs-longitude", Input).value == "-72.7273"
-        mode.value = "grid"
-        await pilot.pause()
-        assert app.query_one("#set-aprs-grid_square", Input).value == "FN31pr"
+        assert pane.field_value("aprs.grid_square") == "FN20ma"
     station.close()
 
 
@@ -1237,15 +1292,14 @@ async def test_switching_modes_never_overwrites_an_already_populated_field():
 async def test_typing_a_new_grid_square_recomputes_the_decimal_position():
     app, station = await _app()
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        app.query_one("#aprs-position-mode", Select).value = "grid"
+        pane = await _edit(app, pilot, "aprs.grid_square")
+        app.query_one("#settings-edit-input", Input).value = "FN31pr"
         await pilot.pause()
-        app.query_one("#set-aprs-grid_square", Input).value = "FN31pr"
-        await pilot.pause()
-        lat = float(app.query_one("#set-aprs-latitude", Input).value)
-        lon = float(app.query_one("#set-aprs-longitude", Input).value)
+        lat = float(pane.field_value("aprs.latitude"))
+        lon = float(pane.field_value("aprs.longitude"))
         assert round(lat, 2) == 41.73
         assert round(lon, 2) == -72.71
+        assert pane.row_text("aprs.latitude").split()[-1].startswith("41.72")
     station.close()
 
 
@@ -1253,11 +1307,11 @@ async def test_typing_a_new_grid_square_recomputes_the_decimal_position():
 async def test_position_round_trips_through_save_and_reload():
     app, station = await _app()
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        app.query_one("#set-aprs-latitude", Input).value = "34.0522"
-        app.query_one("#set-aprs-longitude", Input).value = "-118.2437"
+        pane = await _edit(app, pilot, "aprs.latitude")
+        pane.set_field("aprs.latitude", "34.0522")
+        pane.set_field("aprs.longitude", "-118.2437")
         await pilot.pause()
-        app.query_one(SettingsPane)._save()
+        pane._save()
         await pilot.pause()
         assert app.config.aprs.latitude == 34.0522
         assert app.config.aprs.longitude == -118.2437
@@ -1280,15 +1334,15 @@ async def test_position_round_trips_through_save_and_reload():
 async def test_winlink_check_toggles_and_saves():
     app, station = await _app()
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        assert app.query_one("#set-aprs-winlink_check").value is False
-        app.query_one("#set-aprs-winlink_check").value = True
-        app.query_one(SettingsPane)._save()
+        pane = await _edit(app, pilot, "aprs.winlink_check")
+        check = app.query_one("#settings-edit-check")
+        assert check.value is False
+        check.value = True
+        await pilot.pause()
+        pane._save()
         await pilot.pause()
         assert app.config.aprs.winlink_check is True
     station.close()
-
-
 
 
 @pytest.mark.asyncio
@@ -1301,14 +1355,15 @@ async def test_a_symbol_filter_matching_nothing_does_not_crash():
     """
     app, station = await _app()
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        select = app.query_one("#set-aprs-symbol", Select)
+        pane = await _edit(app, pilot, "aprs.symbol")
+        select = app.query_one(SYMBOL, Select)
         before = select.value
         for needle in ("car", "zzzznotasymbol", "house", ""):
-            app.query_one("#set-aprs-symbol-filter", Input).value = needle
+            app.query_one(SYMBOL_FILTER, Input).value = needle
             await pilot.pause()
             await asyncio.sleep(0.05)
             assert select.value == before, f"filter {needle!r} lost the selection"
+        assert pane.field_value("aprs.symbol") == before
     station.close()
 
 
@@ -1321,18 +1376,19 @@ async def test_filtering_past_your_own_symbol_keeps_it_selected():
     ever expect."""
     app, station = await _app()
     async with app.run_test(size=(120, 60)) as pilot:
-        await _settings_tab(app, pilot)
-        select = app.query_one("#set-aprs-symbol", Select)
+        pane = await _edit(app, pilot, "aprs.symbol")
+        select = app.query_one(SYMBOL, Select)
         select.value = "/>"
         await pilot.pause()
 
         # "boat" cannot match the car symbol, so the pinned current value is
         # the only thing keeping it selected.
-        app.query_one("#set-aprs-symbol-filter", Input).value = "boat"
+        app.query_one(SYMBOL_FILTER, Input).value = "boat"
         await pilot.pause()
         await asyncio.sleep(0.05)
         assert select.value == "/>"
         assert "/>" in {value for _, value in select._options}
+        assert pane.field_value("aprs.symbol") == "/>"
     station.close()
 
 
@@ -1355,30 +1411,26 @@ async def test_a_successful_save_says_so_in_the_footer_not_a_toast():
     station.close()
 
 
+def _headings(fields) -> list[str]:
+    return [str(o.prompt) for o in fields.options if o.disabled and str(o.prompt)]
+
+
 @pytest.mark.asyncio
 async def test_headings_set_off_groups_and_the_help_line_says_when_it_applies():
     """Mail's Home BBS and its optional fields are set off by headings, and
     a field's help line says "next connection" only where that matters."""
-    from textual.widgets import Static
-
     app, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
-        await pilot.pause()
-        app.action_show_tab("settings")
-        await pilot.pause()
+        await _settings_tab(app, pilot)
         pane = app.query_one(SettingsPane)
-        headings = [str(w.render()) for w in pane.query(".settings-rule-label").results(Static)]
+        headings = _headings(app.query_one("#settings-tab-mail"))
         assert headings[0].startswith("Home BBS")
         assert "Only if the BBS software is not identified automatically" in headings
         help_line = app.query_one("#settings-help-line")
-        pane.show_section("Link")
-        await pilot.pause()
-        app.query_one(f"#{_widget_id('paclen')}").focus()
+        pane.open_field("paclen")
         await pilot.pause()
         assert "next connection" in str(help_line.render())
-        pane.show_section("Station")
-        await pilot.pause()
-        app.query_one(f"#{_widget_id('mycall_aliases')}").focus()
+        pane.open_field("mycall_aliases")
         await pilot.pause()
         text = str(help_line.render())
         assert text.startswith("Also answer to") and "takes effect now" not in text
@@ -1387,10 +1439,10 @@ async def test_headings_set_off_groups_and_the_help_line_says_when_it_applies():
 
 @pytest.mark.asyncio
 async def test_every_section_is_listed_and_fits_80x24_one_row_per_field():
-    """The 2026-09-25 rebuild (`SettingsPane`'s docstring): all sections in
-    a list that fits, one row per field, tuning folded shut, and no control
-    running off the right edge of an 80-column screen."""
-    from textual.widgets import Collapsible, OptionList
+    """All sections in a list that fits, one row per field with tuning
+    under "Advanced" after the rest, and no control running off the right
+    edge of an 80-column screen."""
+    from textual.widgets import OptionList
 
     from kissterm.ui.settings_pane import section_titles
 
@@ -1401,22 +1453,19 @@ async def test_every_section_is_listed_and_fits_80x24_one_row_per_field():
         sections = app.query_one("#settings-sections", OptionList)
         assert [sections.get_option_at_index(i).prompt for i in range(sections.option_count)] == section_titles()
         assert sections.region.height >= len(section_titles()) + 2  # all visible, no scrolling
-        assert all(c.collapsed for c in pane.query(Collapsible))
         for title in section_titles():
             pane.show_section(title)
             await pilot.pause()
-            for row in pane.query(".settings-row"):
-                if row.region.height == 0:
-                    continue  # folded, or in another section
-                assert row.region.right <= 80, (title, row.id, row.region)
-                for child in row.children:
-                    if child.region.width:
-                        assert child.region.right <= 80, (title, row.id, child)
-        pane.show_section("Link")
-        await pilot.pause()
-        for wid in ("paclen", "window"):
-            assert app.query_one(f"#{_widget_id(wid)}-row").region.height == 1
-        assert app.query_one(f"#{_widget_id('t1')}-row").region.height == 0  # folded
+            shown = pane.query_one(f"#{pane.current_section}")
+            assert shown.region.height >= 5, (title, shown.region)
+            for widget in pane.query("#settings-editor *"):
+                if widget.region.width:
+                    assert widget.region.right <= 80, (title, widget)
+        link = app.query_one("#settings-tab-link", OptionList)
+        ids = [o.id for o in link.options]
+        # The basics first, then the Advanced heading, then tuning.
+        advanced = next(i for i, o in enumerate(link.options) if o.disabled and str(o.prompt) == "Advanced")
+        assert ids.index("paclen") < advanced < ids.index("t1")
     station.close()
 
 
@@ -1424,41 +1473,46 @@ async def test_every_section_is_listed_and_fits_80x24_one_row_per_field():
 async def test_custom_colours_show_only_for_the_custom_theme():
     app, station = await _app()
     async with app.run_test(size=(120, 40)) as pilot:
-        await _settings_tab(app, pilot)
-        pane = app.query_one(SettingsPane)
-        pane.show_section("Appearance")
+        pane = await _edit(app, pilot, "theme")
+        fields = app.query_one("#settings-tab-appearance")
+        assert "custom_theme.primary" not in [o.id for o in fields.options]
+        app.query_one("#settings-edit-select", Select).value = "custom"
         await pilot.pause()
-        group = app.query_one(f"#{_widget_id('custom_theme.primary')}-group")
-        assert not group.display
-        app.query_one(f"#{_widget_id('theme')}", Select).value = "custom"
-        await pilot.pause()
-        assert group.display
+        assert "custom_theme.primary" in [o.id for o in fields.options]
+        assert fields.highlighted_option.id == "theme", "the cursor stays where it was"
+        assert pane.field_value("theme") == "custom"
     station.close()
 
 
 @pytest.mark.asyncio
 async def test_a_password_field_is_masked_and_saves_under_a_fixed_name():
-    from textual.widgets import Input
-
     from kissterm.config import find_credential
 
     app, station = await _app()
     async with app.run_test(size=(120, 60)) as pilot:
-        app.action_show_tab("settings")
-        await pilot.pause()
-        field = app.query_one(f"#{_widget_id('winlink.credential')}", Input)
+        pane = await _edit(app, pilot, "winlink.credential")
+        field = app.query_one("#settings-edit-input", Input)
         assert field.password and field.value == "" and field.placeholder == "not set"
+        assert pane.row_text("winlink.credential").endswith("not set")
         field.value = "SECRET123"
-        app.query_one(SettingsPane)._save()
+        await pilot.pause()
+        assert "SECRET123" not in pane.row_text("winlink.credential")
+        pane._save()
         await pilot.pause()
         assert app.config.winlink.credential == "Winlink"
         assert find_credential(app.config, "Winlink") == "SECRET123"
         assert field.value == "" and "SECRET123" not in field.placeholder
-        app.query_one(SettingsPane).render_settings(app.config)
+        pane.render_settings(app.config)
         await pilot.pause()
         assert field.value == "" and field.placeholder.startswith("saved in")
+        assert "saved in" in pane.row_text("winlink.credential")
+        # Moving off and back does not show it either.
+        pane.open_field("winlink.account")
+        pane.open_field("winlink.credential")
+        await pilot.pause()
+        assert field.password and field.value == ""
         # Empty keeps what is saved.
-        app.query_one(SettingsPane)._save()
+        pane._save()
         await pilot.pause()
         assert find_credential(app.config, "Winlink") == "SECRET123"
     station.close()

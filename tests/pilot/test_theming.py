@@ -18,7 +18,7 @@ import pytest  # noqa: E402
 from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
-from kissterm.ui.settings_pane import SettingsPane, _widget_id  # noqa: E402
+from kissterm.ui.settings_pane import SettingsPane  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
 MYCALL = AX25Address.parse("N1ABC-1")
@@ -82,7 +82,7 @@ async def test_changing_theme_in_settings_repaints_live():
     async with app.run_test(size=(120, 60)) as pilot:
         app.action_show_tab("settings")
         await pilot.pause()
-        app.query_one(f"#{_widget_id('theme')}").value = "nord"
+        app.query_one(SettingsPane).set_field("theme", "nord")
         app.query_one(SettingsPane)._save()
         await pilot.pause()
         assert app.theme == "nord"
@@ -100,7 +100,7 @@ async def test_editing_a_custom_theme_color_in_settings_repaints_live():
     async with app.run_test(size=(120, 60)) as pilot:
         app.action_show_tab("settings")
         await pilot.pause()
-        app.query_one(f"#{_widget_id('custom_theme.primary')}").value = "#ff00ff"
+        app.query_one(SettingsPane).set_field("custom_theme.primary", "#ff00ff")
         app.query_one(SettingsPane)._save()
         await pilot.pause()
         assert app.config.custom_theme.primary == "#ff00ff"
@@ -134,7 +134,9 @@ async def test_settings_pane_offers_every_catalog_choice():
     async with app.run_test(size=(120, 60)) as pilot:
         app.action_show_tab("settings")
         await pilot.pause()
-        select = app.query_one(f"#{_widget_id('theme')}")
+        app.query_one(SettingsPane).open_field("theme")
+        await pilot.pause()
+        select = app.query_one("#settings-edit-select")
         offered = {value for _prompt, value, *_ in select._options}
         assert offered == set(themes_mod.all_theme_ids())
     station.close()
@@ -178,7 +180,7 @@ async def test_changing_clock_settings_applies_without_restart():
     async with app.run_test(size=(120, 60)) as pilot:
         app.action_show_tab("settings")
         await pilot.pause()
-        app.query_one(f"#{_widget_id('show_utc_time')}").value = True
+        app.query_one(SettingsPane).set_field("show_utc_time", True)
         app.query_one(SettingsPane)._save()
         await pilot.pause()
         assert app.config.show_utc_time is True

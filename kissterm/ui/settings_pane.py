@@ -22,6 +22,9 @@ Transports get their own section rather than schema fields, because they are a
 list of dicts with kind-specific keys -- a serial port has a baud rate, a TCP
 host has an address -- and flattening that would hard-code every transport kind
 into the UI. See `settings_schema`'s docstring.
+
+Every other section is one list with a row per field and one shared editor,
+not a widget per field; `SettingsPane`'s docstring says why (startup time).
 """
 
 from __future__ import annotations
@@ -30,11 +33,13 @@ import logging
 
 from textual import events, on, work
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.content import Content
+from textual.message import Message
 from textual.widgets import (
     Button,
     Checkbox,
-    Collapsible,
     ContentSwitcher,
     Input,
     Label,
@@ -42,7 +47,7 @@ from textual.widgets import (
     Select,
     Static,
 )
-from textual.widgets.option_list import Option
+from textual.widgets.option_list import Option, OptionDoesNotExist
 
 from ..config import (
     SECRET_LOGINS,
@@ -57,6 +62,7 @@ from ..locator import LocatorError, from_grid, to_grid
 from .settings_schema import (
     SETTINGS_SCHEMA,
     Field,
+    Section,
     ValidationError,
     coerce,
     cross_check,
@@ -94,12 +100,18 @@ APPLY_NOTE = {
 }
 
 #: The help line before any field has focus.
-_HELP_IDLE = "Tab moves into the fields; help for the one you are on shows here."
+_HELP_IDLE = "Up and Down choose a setting, Enter changes it; its help shows here."
+
+#: A row: the label padded to the settings grid's first column (DESIGN.md
+#: section 4), then the value, cut short past this many characters.
+_LABEL_WIDTH = 26
+_VALUE_WIDTH = 60
 
 
-def _widget_id(path: str) -> str:
-    """A DOM-safe id from a dotted schema path (`aprs.latitude`)."""
-    return "set-" + path.replace(".", "-")
+def _GAP() -> Option:
+    """A blank row before a heading. Not OptionList's separator: that is a
+    box-drawing line, which ASCII-safe mode must not show."""
+    return Option("", disabled=True)
 
 
 def _tab_id(title: str) -> str:
@@ -147,69 +159,115 @@ def _test_result_line(host: str, port: int, identity) -> str:
     return f"{host}:{port}  {label}  --  {reason}"
 
 
+
+
+#: Field path -> its schema entry, and the title of its section.
+_SPECS: dict[str, Field] = {f.path: f for s in SETTINGS_SCHEMA for f in s.fields}
+_SECTION_OF: dict[str, str] = {f.path: s.title for s in SETTINGS_SCHEMA for f in s.fields}
+#: A field list's id -> its section.
+_SECTION_BY_TAB: dict[str, Section] = {_tab_id(s.title): s for s in SETTINGS_SCHEMA}
+#: Fields another field's `only_when` depends on.
+_CONTROLS = {f.only_when[0] for f in _SPECS.values() if f.only_when}
+
+
+class _FieldList(OptionList):
+    """One section's settings, a row each: the label and the current value.
+
+    Enter changes the highlighted one (an on/off setting flips at once);
+    the editor under the list follows the highlight."""
+
+    BINDINGS = [Binding("enter", "select", "Change")]
+
+
+class _Editor(Vertical):
+    """The one set of controls every field is edited with."""
+
+    BINDINGS = [Binding("escape", "done", "Back to the list")]
+
+    def action_done(self) -> None:
+        self.post_message(_Editor.Done())
+
+    class Done(Message):
+        """Esc in the editor: back to the list."""
+
+
 class SettingsPane(Vertical):
-    """A section list, one section's fields, and a bar that never scrolls.
+    """A section list, one section's settings, one editor, and a bar that
+    never scrolls.
 
-    Rebuilt 2026-09-25 for a new operator (operator: "new user approachable,
-    not overwhelming, but as self explanatory as we can, simply"). What it
-    replaced, and why each part changed:
+    **Rebuilt 2026-09-27 for startup time** (operator: "Go ahead with the
+    speed-up"). The 2026-09-25 form was a label and a control per field,
+    430 of the app's 630 widgets, and Textual built and styled every one
+    before the first screen: 2.3 of the 4.5 s to the first screen. Building
+    them when a section opens was turned down on 2026-09-25 (a wait while
+    moving around is worse than a slow launch), so there are fewer widgets
+    instead. A section is one `OptionList`, a row per field with its
+    current value, and one editor under it (an input, a list, an on/off
+    box) changes the highlighted row. About 60 widgets; the first screen
+    comes 2 s sooner, the same as with no Settings at all.
 
-    * **Sixteen tabs in one strip ran off the right edge**, hiding six
-      sections. The sections are now a list down the left, all visible, the
-      way the Mail tab's folders are.
-    * **Every field took four to five rows** (bordered box, apply note,
-      help paragraph, error line), so the Link section showed a field and a
-      half per screen. A field is now one row: its label and a compact
-      control. **The help is one line at the bottom** for whichever field has
-      focus, with when a change takes effect and any error in red. None of
-      the help text was dropped; it is shown one field at a time.
-    * **Everything had the same weight**: the callsign beside SmartBeaconing's
-      turn slope. Tuning the defaults already get right is folded under each
-      section's shut "Advanced" (`Field.advanced`), and the custom theme
-      colours appear only while Theme is Custom (`Field.only_when`).
+    What the 2026-09-25 rebuild settled still holds: sections down the
+    left, one row per field, the help for the field you are on in one line
+    at the bottom with when it takes effect and any error in red, the
+    custom theme colours only while Theme is Custom (`Field.only_when`).
+    Tuning the defaults already get right sits under each section's
+    "Advanced" heading, after everything else.
 
-    It also made startup faster: the form had been three quarters of the
-    app's widgets, built and styled before the first screen was drawn.
-
-    Every field's widget keeps its `set-...` id, and Save and render still
-    walk the whole schema, folded or not.
+    **Edits are a draft** (`_draft`, path -> what was typed or chosen) until
+    Save, and Save still validates everything before writing anything.
+    Save and Reload walk the whole schema, whatever is on screen.
     """
 
     def __init__(self) -> None:
         super().__init__()
-        #: Row id -> (label, help, apply) for the help line.
+        #: Row id -> (label, help, apply) for the help line (Radio, Logins).
         self._row_help: dict[str, tuple[str, str, str]] = {}
-        #: Field widget id -> the id of the row that shows it.
-        self._wid_row: dict[str, str] = {}
-        #: Field widget id -> its current validation error.
+        #: Field path -> what the editor holds for it, not yet saved.
+        self._draft: dict[str, object] = {}
+        #: Field path -> the validation error Save found in it.
         self._errors: dict[str, str] = {}
-        #: Group container id -> the `Field.only_when` that shows it.
-        self._conditional: dict[str, tuple[str, object]] = {}
+        #: Secret field path -> where its saved value is, as words.
+        self._secret_where: dict[str, str] = {}
+        #: The field the editor is showing, "" for none.
+        self._editing = ""
 
     def compose(self) -> ComposeResult:
+        ascii_safe = self.app.config.ascii_safe  # type: ignore[attr-defined]
         with Horizontal(id="settings-body"):
             yield OptionList(
                 *(Option(title, id=_tab_id(title)) for title in section_titles()),
                 id="settings-sections",
             )
-            with ContentSwitcher(id="settings-switcher", initial=_tab_id(SETTINGS_SCHEMA[0].title)):
-                for section in SETTINGS_SCHEMA:
-                    with VerticalScroll(id=_tab_id(section.title), classes="settings-section"):
-                        yield Static(section.note, classes="settings-note")
-                        yield from self._compose_fields([f for f in section.fields if not f.advanced])
-                        advanced = [f for f in section.fields if f.advanced]
-                        if advanced:
-                            with Collapsible(
-                                title="Advanced", collapsed=True, classes="settings-advanced",
-                                id=f"{_tab_id(section.title)}-advanced",
-                            ):
-                                yield from self._compose_fields(advanced)
-                    if section.title == TRANSPORTS_AFTER_SECTION:
-                        with VerticalScroll(id=_tab_id(RADIO), classes="settings-section"):
-                            yield from self._compose_transports()
-                with VerticalScroll(id=_tab_id(LOGINS), classes="settings-section"):
-                    yield from self._compose_credentials()
-                    yield from self._compose_scripts()
+            with Vertical(id="settings-main"):
+                yield Static(SETTINGS_SCHEMA[0].note, id="settings-note", classes="settings-note")
+                with ContentSwitcher(id="settings-switcher", initial=_tab_id(SETTINGS_SCHEMA[0].title)):
+                    for section in SETTINGS_SCHEMA:
+                        yield _FieldList(id=_tab_id(section.title), classes="settings-fields")
+                        if section.title == TRANSPORTS_AFTER_SECTION:
+                            with VerticalScroll(id=_tab_id(RADIO), classes="settings-section"):
+                                yield from self._compose_transports()
+                    with VerticalScroll(id=_tab_id(LOGINS), classes="settings-section"):
+                        yield from self._compose_credentials()
+                        yield from self._compose_scripts()
+                with _Editor(id="settings-editor"):
+                    with Horizontal(classes="settings-row"):
+                        yield Label("", id="settings-edit-label", classes="settings-label")
+                        yield Input(id="settings-edit-input", compact=True)
+                        yield Select([("-", "-")], id="settings-edit-select", allow_blank=False, compact=True)
+                        yield Checkbox("off", id="settings-edit-check", compact=True)
+                        yield SymbolPicker(
+                            picker_id="settings-edit-symbol", select_id="settings-edit-symbol-select",
+                            ascii_safe=ascii_safe, compact=True,
+                        )
+                        yield Static("", id="settings-edit-swatch", classes="settings-swatch")
+                        yield Button("Scan", compact=True, id="aprs-gps-scan")
+                    with Horizontal(classes="settings-row", id="settings-edit-extra"):
+                        yield Label("", classes="settings-label")
+                        yield Input(id="settings-edit-custom", compact=True)
+                        yield Select(
+                            [("Scan local serial ports first", Select.BLANK)],
+                            id="aprs-gps-device-picker", allow_blank=True, compact=True,
+                        )
 
         with Vertical(id="settings-bar"):
             yield Static("", id="settings-banner", classes="settings-banner")
@@ -219,7 +277,7 @@ class SettingsPane(Vertical):
                 yield Button("Save", variant="primary", compact=True, id="settings-save")
                 yield Button("Reload", compact=True, id="settings-reload")
 
-    # -- sections and the help line ------------------------------------------
+    # -- sections -------------------------------------------------------------
 
     def show_section(self, title: str) -> None:
         """Open a section by its title (`"Radio"`) or its id."""
@@ -229,21 +287,381 @@ class SettingsPane(Vertical):
         index = sections.get_option_index(tab)
         if sections.highlighted != index:
             sections.highlighted = index
+        self._section_opened(tab)
 
     @property
     def current_section(self) -> str:
         return self.query_one("#settings-switcher", ContentSwitcher).current or ""
 
-    @on(Checkbox.Changed)
-    def _say_on_or_off(self, event: Checkbox.Changed) -> None:
-        event.checkbox.label = "on" if event.value else "off"
-
     @on(OptionList.OptionHighlighted, "#settings-sections")
     def _section_highlighted(self, event: OptionList.OptionHighlighted) -> None:
         if event.option.id:
             self.query_one("#settings-switcher", ContentSwitcher).current = event.option.id
+            self._section_opened(event.option.id)
+
+    def _section_opened(self, tab: str) -> None:
+        section = _SECTION_BY_TAB.get(tab)
+        note = self.query_one("#settings-note", Static)
+        note.display = section is not None
+        editor = self.query_one("#settings-editor")
+        editor.display = section is not None
+        if section is None:
+            self._editing = ""
+            self._show_help("")
+            return
+        note.update(section.note)
+        fields = self.query_one(f"#{tab}", _FieldList)
+        option = fields.highlighted_option
+        self._load_editor(_SPECS[option.id] if option is not None and option.id else None)
+
+    # -- the field lists --------------------------------------------------------
+
+    def _visible(self, spec: Field) -> bool:
+        if not spec.only_when:
+            return True
+        path, value = spec.only_when
+        return self._draft.get(path) == value
+
+    def _build_list(self, section: Section) -> None:
+        """Fill a section's list from the draft, keeping the highlight."""
+        fields = self.query_one(f"#{_tab_id(section.title)}", _FieldList)
+        current = fields.highlighted_option
+        keep = current.id if current is not None else None
+        options: list[Option] = []
+        visible = [f for f in section.fields if self._visible(f)]
+        basic = [f for f in visible if not f.advanced]
+        advanced = [f for f in visible if f.advanced]
+        for group, heading in ((basic, ""), (advanced, "Advanced")):
+            if heading and group:
+                if options:
+                    options.append(_GAP())
+                options.append(Option(Content.styled(heading, "bold $accent"), disabled=True))
+            for spec in group:
+                if spec.rule_before:
+                    if options:
+                        options.append(_GAP())
+                    options.append(Option(Content.styled(spec.rule_before, "bold $accent"), disabled=True))
+                options.append(Option(self._row_prompt(spec), id=spec.path))
+        fields.set_options(options)
+        ids = [o.id for o in fields.options if o.id]
+        if keep in ids:
+            fields.highlighted = fields.get_option_index(keep)
+        elif ids:
+            fields.highlighted = fields.get_option_index(ids[0])
+
+    def _row_prompt(self, spec: Field) -> Content:
+        value = self._display(spec)
+        label_style = "bold $error" if spec.path in self._errors else ""
+        if len(value) > _VALUE_WIDTH:
+            value = value[: _VALUE_WIDTH - 3] + "..."
+        return Content.assemble(
+            (f"{spec.label:<{_LABEL_WIDTH}} ", label_style),
+            (value, "") if value else ("(not set)", "dim"),
+        )
+
+    def _display(self, spec: Field) -> str:
+        """A field's draft value as its row shows it."""
+        raw = self._draft.get(spec.path)
+        if spec.kind == "bool":
+            return "on" if raw else "off"
+        if spec.kind in ("choice", "custom_choice"):
+            label = next((label for label, value in spec.choices if value == raw), None)
+            if label is not None:
+                return str(label)
+            return f"{raw} (custom)" if spec.kind == "custom_choice" and raw else str(raw or "")
+        if spec.kind == "filtered_choice":
+            text = str(raw or "")
+            found = symbols.lookup(text[0], text[1:]) if len(text) >= 2 else None
+            return found.display_label(ascii_safe=self.app.config.ascii_safe) if found else text  # type: ignore[attr-defined]
+        if spec.kind == "secret":
+            return "typed, saved on Save" if raw else self._secret_where.get(spec.path, "not set")
+        # Content never reads markup; a control character from a
+        # hand-edited config.toml would still move the cursor.
+        return "".join(ch if ch.isprintable() else " " for ch in str(raw or ""))
+
+    def _refresh_row(self, path: str) -> None:
+        spec = _SPECS[path]
+        fields = self.query_one(f"#{_tab_id(_SECTION_OF[path])}", _FieldList)
+        try:
+            fields.replace_option_prompt(path, self._row_prompt(spec))
+        except OptionDoesNotExist:
+            pass  # hidden by `only_when`; rebuilt when shown
+
+    @on(OptionList.OptionHighlighted, ".settings-fields")
+    def _row_highlighted(self, event: OptionList.OptionHighlighted) -> None:
+        if event.option_list.id == self.current_section and event.option.id:
+            self._load_editor(_SPECS[event.option.id])
+
+    @on(OptionList.OptionSelected, ".settings-fields")
+    def _row_chosen(self, event: OptionList.OptionSelected) -> None:
+        """Enter on a row: flip an on/off setting, else go to the editor."""
+        if not event.option.id:
+            return
+        spec = _SPECS[event.option.id]
+        self._load_editor(spec)
+        if spec.kind == "bool":
+            self.set_field(spec.path, not self._draft.get(spec.path))
+        elif spec.kind in ("choice", "custom_choice"):
+            select = self.query_one("#settings-edit-select", Select)
+            select.focus()
+            select.expanded = True
+        elif spec.kind == "filtered_choice":
+            self.query_one("#settings-edit-symbol-select-filter", Input).focus()
+        else:
+            editor = self.query_one("#settings-edit-input", Input)
+            editor.focus()
+            editor.cursor_position = len(editor.value)
+
+    def _back_to_list(self) -> None:
+        if self.current_section in _SECTION_BY_TAB:
+            self.query_one(f"#{self.current_section}", _FieldList).focus()
+
+    @on(_Editor.Done)
+    def _editor_done(self) -> None:
+        self._back_to_list()
+
+    @on(Input.Submitted, "#settings-edit-input, #settings-edit-custom")
+    def _editor_submitted(self) -> None:
+        self._back_to_list()
+
+    # -- the editor -------------------------------------------------------------
+
+    def _load_editor(self, spec: Field | None) -> None:
+        """Show the controls `spec` is edited with, holding its draft value.
+
+        Setting a control's value posts its Changed message; `prevent`
+        stops those, and the handlers also ignore a message whose value is
+        no longer the control's (a queued one from the field before)."""
+        self._editing = spec.path if spec else ""
+        self._show_help(self._editing)
+        widgets = {
+            "input": self.query_one("#settings-edit-input", Input),
+            "select": self.query_one("#settings-edit-select", Select),
+            "check": self.query_one("#settings-edit-check", Checkbox),
+            "symbol": self.query_one("#settings-edit-symbol", SymbolPicker),
+            "swatch": self.query_one("#settings-edit-swatch", Static),
+            "scan": self.query_one("#aprs-gps-scan", Button),
+        }
+        extra = self.query_one("#settings-edit-extra")
+        custom = self.query_one("#settings-edit-custom", Input)
+        picker = self.query_one("#aprs-gps-device-picker", Select)
+        self.query_one("#settings-edit-label", Label).update(spec.label if spec else "")
+        if spec is None:
+            for widget in widgets.values():
+                widget.display = False
+            extra.display = False
+            return
+        kind = spec.kind
+        raw = self._draft.get(spec.path)
+        shown = {
+            "bool": {"check"},
+            "choice": {"select"},
+            "custom_choice": {"select"},
+            "filtered_choice": {"symbol"},
+            "color": {"input", "swatch"},
+        }.get(kind, {"input"})
+        if spec.path == "aprs.gps_device":
+            shown = {"input", "scan"}
+        for name, widget in widgets.items():
+            widget.display = name in shown
+        extra.display = spec.path == "aprs.gps_device" or (
+            kind == "custom_choice" and raw not in {v for _l, v in spec.choices})
+        custom.display = kind == "custom_choice"
+        picker.display = spec.path == "aprs.gps_device"
+        with self.prevent(Input.Changed, Select.Changed, Checkbox.Changed):
+            if kind == "bool":
+                widgets["check"].value = bool(raw)
+                widgets["check"].label = "on" if raw else "off"
+            elif kind in ("choice", "custom_choice"):
+                options = [(str(label), value) for label, value in spec.choices]
+                if kind == "custom_choice":
+                    options.append((_CUSTOM_LABEL, _CUSTOM_SENTINEL))
+                select = widgets["select"]
+                select.set_options(options)
+                values = {v for _l, v in spec.choices}
+                if raw in values:
+                    select.value = raw
+                elif kind == "custom_choice":
+                    select.value = _CUSTOM_SENTINEL
+                    custom.value = str(raw or "")
+                    custom.placeholder = spec.placeholder
+                else:
+                    select.value = options[0][1]
+            elif kind == "filtered_choice":
+                widgets["symbol"].set_value(str(raw or ""))
+            else:
+                editor = widgets["input"]
+                editor.password = kind == "secret"
+                editor.placeholder = (
+                    self._secret_where.get(spec.path, "not set") if kind == "secret"
+                    else spec.placeholder or ("#1A1B26" if kind == "color" else "")
+                )
+                editor.value = str(raw or "")
+                editor.cursor_position = len(editor.value)
+                if kind == "color":
+                    self._update_swatch(editor.value)
+
+    def _editing_spec(self) -> Field | None:
+        return _SPECS.get(self._editing)
+
+    @on(Input.Changed, "#settings-edit-input")
+    def _input_changed(self, event: Input.Changed) -> None:
+        spec = self._editing_spec()
+        if spec is None or event.value != event.input.value:
+            return
+        if spec.kind == "color":
+            self._update_swatch(event.value)
+        self.set_field(spec.path, event.value, from_editor=True)
+
+    @on(Input.Changed, "#settings-edit-custom")
+    def _custom_changed(self, event: Input.Changed) -> None:
+        spec = self._editing_spec()
+        if spec is None or spec.kind != "custom_choice" or event.value != event.input.value:
+            return
+        self.set_field(spec.path, event.value, from_editor=True)
+
+    @on(Select.Changed, "#settings-edit-select")
+    def _select_changed(self, event: Select.Changed) -> None:
+        spec = self._editing_spec()
+        if spec is None or spec.kind not in ("choice", "custom_choice") or event.value != event.select.value:
+            return
+        if spec.kind == "custom_choice":
+            custom = self.query_one("#settings-edit-custom", Input)
+            is_custom = event.value == _CUSTOM_SENTINEL
+            self.query_one("#settings-edit-extra").display = is_custom
+            if is_custom:
+                custom.placeholder = spec.placeholder
+                self.set_field(spec.path, custom.value, from_editor=True)
+                return
+        self.set_field(spec.path, event.value, from_editor=True)
+
+    @on(Checkbox.Changed, "#settings-edit-check")
+    def _check_changed(self, event: Checkbox.Changed) -> None:
+        event.checkbox.label = "on" if event.value else "off"
+        spec = self._editing_spec()
+        if spec is None or spec.kind != "bool" or event.value != event.checkbox.value:
+            return
+        self.set_field(spec.path, event.value, from_editor=True)
+
+    @on(Select.Changed, "#settings-edit-symbol-select")
+    def _symbol_changed(self, event: Select.Changed) -> None:
+        spec = self._editing_spec()
+        if (spec is None or spec.kind != "filtered_choice" or not isinstance(event.value, str)
+                or event.value != event.select.value):
+            return
+        self.set_field(spec.path, event.value, from_editor=True)
+
+    def _update_swatch(self, text: str) -> None:
+        """Fill the swatch beside a colour field with the colour it names.
+
+        A value still being typed ("#1A1B") is not an error, just not a
+        colour yet: the swatch gets the neutral `-invalid` border and no
+        fill. Save is what refuses a bad value."""
+        from ..config import HEX_COLOR_RE
+
+        swatch = self.query_one("#settings-edit-swatch", Static)
+        text = text.strip()
+        if HEX_COLOR_RE.match(text):
+            swatch.remove_class("-invalid")
+            swatch.styles.background = text
+        else:
+            swatch.add_class("-invalid")
+            swatch.styles.background = None
+
+    @on(Button.Pressed, "#aprs-gps-scan")
+    @work
+    async def _scan_gps_devices(self) -> None:
+        picker = self.query_one("#aprs-gps-device-picker", Select)
+        picker.set_options([("Scanning local serial ports...", Select.BLANK)])
+        devices = await discover_serial_gps()
+        options = [(f"{item.label} -- {item.detail}", item.label) for item in devices]
+        picker.set_options(options or [("No local serial ports found", Select.BLANK)])
+        if options:
+            picker.value = options[0][1]
+
+    @on(Select.Changed, "#aprs-gps-device-picker")
+    def _choose_gps_device(self, event: Select.Changed) -> None:
+        if event.value not in (Select.BLANK, Select.NULL) and self._editing == "aprs.gps_device":
+            self.query_one("#settings-edit-input", Input).value = str(event.value)
+
+    # -- the draft ----------------------------------------------------------------
+
+    def field_value(self, path: str) -> object:
+        """What Settings holds for `path`, saved or not."""
+        return self._draft.get(path)
+
+    def set_field(self, path: str, raw: object, *, from_editor: bool = False) -> None:
+        """Change a field's draft, as typing or choosing in the editor does.
+
+        Its row shows the new value, an error Save found in it is cleared,
+        a position entered one way is converted to the other, and the
+        fields that depend on it (`Field.only_when`) are shown or hidden."""
+        spec = _SPECS[path]
+        if self._draft.get(path) == raw and path not in self._errors:
+            return
+        self._draft[path] = raw
+        self._errors.pop(path, None)
+        self._refresh_row(path)
+        for other in self._sync_position(path):
+            self._refresh_row(other)
+            if other == self._editing:
+                self._load_editor(spec if other == path else _SPECS[other])
+        if path in _CONTROLS:
+            for section in SETTINGS_SCHEMA:
+                if any(f.only_when and f.only_when[0] == path for f in section.fields):
+                    self._build_list(section)
+        if path == self._editing:
+            if not from_editor:
+                self._load_editor(spec)
+            self._show_help(path)
+
+    def _sync_position(self, path: str) -> list[str]:
+        """A grid square typed in gives the latitude and longitude of its
+        centre; a latitude or longitude gives the six-character square.
+        Only on an edit: loading copies what config.toml has, which is
+        already consistent, and recomputing then would replace an exact
+        position with its square's centre. Returns what changed."""
+        if path == "aprs.grid_square":
+            try:
+                lat, lon = from_grid(str(self._draft.get(path, "")).strip())
+            except LocatorError:
+                return []
+            self._draft["aprs.latitude"] = f"{lat:.6f}"
+            self._draft["aprs.longitude"] = f"{lon:.6f}"
+            return ["aprs.latitude", "aprs.longitude"]
+        if path in ("aprs.latitude", "aprs.longitude"):
+            try:
+                grid = to_grid(float(str(self._draft.get("aprs.latitude"))),
+                               float(str(self._draft.get("aprs.longitude"))), 6)
+            except (ValueError, LocatorError):
+                return []
+            self._draft["aprs.grid_square"] = grid
+            return ["aprs.grid_square"]
+        return []
+
+    def open_field(self, path: str, *, focus: bool = True) -> None:
+        """Show a field: its section, its row highlighted, the list focused."""
+        self.show_section(_SECTION_OF[path])
+        fields = self.query_one(f"#{_tab_id(_SECTION_OF[path])}", _FieldList)
+        try:
+            fields.highlighted = fields.get_option_index(path)
+        except OptionDoesNotExist:
+            return
+        self._load_editor(_SPECS[path])
+        if focus:
+            fields.focus()
+
+    def row_text(self, path: str) -> str:
+        """A field's row as shown, for tests and the help line."""
+        return self._row_prompt(_SPECS[path]).plain
+
+    # -- the help line ----------------------------------------------------------
 
     def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        """Radio and Logins' rows say what they are when focused; a field
+        list's help follows its highlighted row instead."""
+        if self.current_section in _SECTION_BY_TAB:
+            return
         node = event.control
         while node is not None and node is not self:
             if node.id in self._row_help:
@@ -252,17 +670,18 @@ class SettingsPane(Vertical):
             node = node.parent
         self._show_help("")
 
-    def _show_help(self, row_id: str) -> None:
+    def _show_help(self, key: str) -> None:
         line = self.query_one("#settings-help-line", Static)
-        if row_id not in self._row_help:
+        if key in _SPECS:
+            spec = _SPECS[key]
+            label, text, apply = spec.label, spec.help, spec.apply
+        elif key in self._row_help:
+            label, text, apply = self._row_help[key]
+        else:
             line.update(_HELP_IDLE)
             line.remove_class("-error")
             return
-        label, text, apply = self._row_help[row_id]
-        error = next(
-            (self._errors[w] for w, row in self._wid_row.items() if row == row_id and w in self._errors),
-            "",
-        )
+        error = self._errors.get(key, "")
         if error:
             line.update(f"{label}: {error}")
         else:
@@ -271,33 +690,13 @@ class SettingsPane(Vertical):
 
     def _register_row(self, row_id: str, label: str, text: str, apply: str, *wids: str) -> str:
         self._row_help[row_id] = (label, text, apply)
-        for wid in wids:
-            self._wid_row[wid] = row_id
         return row_id
 
-    def error_for(self, wid: str) -> str:
+    def error_for(self, path: str) -> str:
         """The validation error Save found in this field, or ""."""
-        return self._errors.get(wid, "")
+        return self._errors.get(path, "")
 
-    # -- building the form ---------------------------------------------------
-
-    def _compose_fields(self, fields: list[Field]) -> ComposeResult:
-        """Fields in order, with each run of `only_when` fields in one group
-        that is shown and hidden as a whole."""
-        index = 0
-        while index < len(fields):
-            spec = fields[index]
-            if not spec.only_when:
-                yield from self._compose_field(spec)
-                index += 1
-                continue
-            group = [f for f in fields[index:] if f.only_when == spec.only_when]
-            group_id = f"{_widget_id(spec.path)}-group"
-            self._conditional[group_id] = spec.only_when
-            with Vertical(classes="settings-conditional", id=group_id):
-                for member in group:
-                    yield from self._compose_field(member)
-            index += len(group)
+    # -- Radio and Logins ---------------------------------------------------
 
     def _compose_transports(self) -> ComposeResult:
         """The one hand-built tab -- see the module docstring for why
@@ -377,164 +776,15 @@ class SettingsPane(Vertical):
             yield Button("Forget", compact=True, id="script-forget")
         yield Static("", id="settings-script-detail", classes="settings-detail")
 
-    def _compose_field(self, spec: Field) -> ComposeResult:
-        if spec.custom_render:
-            # Only `aprs.latitude` triggers the hand-built block; longitude
-            # and grid_square are covered by that same block (it yields
-            # widgets for all three ids) and yield nothing of their own here.
-            if spec.path == "aprs.latitude":
-                yield from self._compose_aprs_position()
-            elif spec.path == "aprs.gps_device":
-                yield from self._compose_gps_device(spec)
-            return
-        wid = _widget_id(spec.path)
-        if spec.rule_before:
-            yield Static(spec.rule_before, classes="settings-rule-label")
-        row = self._register_row(f"{wid}-row", spec.label, spec.help, spec.apply, wid)
-        with Horizontal(classes="settings-row", id=row):
-            yield Label(spec.label, classes="settings-label")
-            if spec.kind == "bool":
-                # Labelled "on"/"off": a compact box alone differs only by the
-                # brightness of its X, which a new operator cannot read.
-                yield Checkbox("off", id=wid, compact=True)
-            elif spec.kind == "choice":
-                yield Select(
-                    [(label, value) for label, value in spec.choices],
-                    id=wid,
-                    allow_blank=False,
-                    compact=True,
-                )
-            elif spec.kind == "custom_choice":
-                # Only `aprs.path` uses this today -- see `_CUSTOM_SENTINEL`.
-                with Vertical(classes="settings-custom-choice"):
-                    yield Select(
-                        [(label, value) for label, value in spec.choices]
-                        + [(_CUSTOM_LABEL, _CUSTOM_SENTINEL)],
-                        id=wid,
-                        allow_blank=False,
-                        compact=True,
-                    )
-                    yield Input(
-                        id=f"{wid}-custom", placeholder=spec.placeholder,
-                        classes="settings-custom-choice-input", compact=True,
-                    )
-            elif spec.kind == "filtered_choice":
-                # Only `aprs.symbol` uses this today. The full table is
-                # static (unlike Transports' dynamic list), so it is
-                # composed here directly rather than populated at render
-                # time; typing in the filter Input narrows it live.
-                yield SymbolPicker(
-                    picker_id=f"{wid}-picker", select_id=wid,
-                    ascii_safe=self.app.config.ascii_safe, compact=True,
-                )
-            elif spec.kind == "color":
-                yield Input(
-                    id=wid, placeholder=spec.placeholder or "#1A1B26",
-                    classes="settings-color-input", compact=True,
-                )
-                yield Static("", id=f"{wid}-swatch", classes="settings-swatch")
-            elif spec.kind == "secret":
-                yield Input(id=wid, password=True, compact=True)
-            else:
-                yield Input(id=wid, placeholder=spec.placeholder, compact=True)
-
-    def _compose_gps_device(self, spec: Field) -> ComposeResult:
-        """A local serial-port chooser, not a path the operator must know."""
-        wid = _widget_id(spec.path)
-        row = self._register_row(f"{wid}-row", spec.label, spec.help, spec.apply, wid)
-        with Horizontal(classes="settings-row", id=row):
-            yield Label(spec.label, classes="settings-label")
-            with Vertical(classes="settings-custom-choice"):
-                yield Input(id=wid, placeholder=spec.placeholder, compact=True)
-                yield Select(
-                    [("Scan local serial ports first", Select.BLANK)],
-                    id="aprs-gps-device-picker", allow_blank=True, compact=True,
-                )
-            yield Button("Scan", compact=True, id="aprs-gps-scan")
-
-    @on(Button.Pressed, "#aprs-gps-scan")
-    @work
-    async def _scan_gps_devices(self) -> None:
-        picker = self.query_one("#aprs-gps-device-picker", Select)
-        picker.set_options([("Scanning local serial ports…", Select.BLANK)])
-        devices = await discover_serial_gps()
-        options = [(f"{item.label} — {item.detail}", item.label) for item in devices]
-        picker.set_options(options or [("No local serial ports found", Select.BLANK)])
-        if options:
-            picker.value = options[0][1]
-
-    @on(Select.Changed, "#aprs-gps-device-picker")
-    def _choose_gps_device(self, event: Select.Changed) -> None:
-        if event.value not in (Select.BLANK, Select.NULL):
-            self.query_one("#aprs-gps-device", Input).value = str(event.value)
-
-    def _compose_aprs_position(self) -> ComposeResult:
-        """Latitude/longitude/grid-square as one hand-built block, outside
-        the generic per-`Field` loop -- the same escape hatch Transports
-        uses, because a position has two equally valid on-screen forms and
-        the schema's one-Field-one-widget model cannot express that. See
-        `kissterm/locator.py`. `_save`/`render_settings`/`coerce` treat
-        `aprs.latitude`/`aprs.longitude`/`aprs.grid_square` exactly like any
-        other field -- this only changes what builds their widgets, not how
-        their values are read, written, or validated.
-        """
-        both = (
-            "Decimal degrees or a Maidenhead grid square (4, 6 or 8 "
-            "characters). Both edit the same position; switching converts "
-            "what is already entered."
-        )
-        row = self._register_row("aprs-position-mode-row", "Position", both, "live")
-        with Horizontal(classes="settings-row", id=row):
-            yield Label("Position entry", classes="settings-label")
-            yield Select(
-                [("Decimal degrees", "decimal"), ("Maidenhead grid square", "grid")],
-                id="aprs-position-mode",
-                allow_blank=False,
-                value="decimal",
-                compact=True,
-            )
-        row = self._register_row(
-            "aprs-decimal-row", "Latitude / Longitude",
-            "Decimal degrees, north and east positive: 43.6 / -70.7.", "live",
-            "set-aprs-latitude", "set-aprs-longitude",
-        )
-        with Horizontal(classes="settings-row", id=row):
-            yield Label("Latitude / Longitude", classes="settings-label")
-            with Horizontal(classes="settings-decimal-pair"):
-                yield Input(id="set-aprs-latitude", placeholder="41.7", compact=True)
-                yield Input(id="set-aprs-longitude", placeholder="-72.7", compact=True)
-        row = self._register_row("aprs-grid-row", "Grid square", both, "live", "set-aprs-grid_square")
-        with Horizontal(classes="settings-row", id=row):
-            yield Label("Grid square", classes="settings-label")
-            yield Input(id="set-aprs-grid_square", placeholder="FN31pr", compact=True)
-
-
     # ------------------------------------------------------------------
     # Loading
     # ------------------------------------------------------------------
     def render_settings(self, config) -> None:
-        """Populate every widget from `config`. Safe to call repeatedly.
-
-        `_aprs_position_loading` is held for the whole pass (see
-        `_loading_aprs_position`'s docstring) and released only after
-        Textual's message queue has drained, via `call_after_refresh` --
-        not cleared synchronously here, which would be too early relative
-        to when the `Changed` messages this bulk population posts actually
-        get processed.
-        """
-        self._aprs_position_loading = True
-        try:
-            self._render_settings_fields(config)
-        finally:
-            self.call_after_refresh(self._stop_loading_aprs_position)
-
-    def _stop_loading_aprs_position(self) -> None:
-        self._aprs_position_loading = False
-
-    def _render_settings_fields(self, config) -> None:
+        """Fill the draft and every list from `config`. Safe to call
+        repeatedly; anything typed and not saved is replaced."""
+        self._errors.clear()
         for section in SETTINGS_SCHEMA:
             for spec in section.fields:
-                wid = _widget_id(spec.path)
                 try:
                     value = get_value(config, spec.path)
                 except AttributeError:
@@ -542,333 +792,38 @@ class SettingsPane(Vertical):
                     # a bug, but not one worth taking the pane down for.
                     log.warning("settings schema references unknown %s", spec.path)
                     continue
-                if spec.kind == "bool":
-                    self.query_one(f"#{wid}", Checkbox).value = bool(value)
-                elif spec.kind == "choice":
-                    self._set_select_value(wid, spec, value)
-                elif spec.kind == "custom_choice":
-                    self._set_custom_choice_value(wid, spec, value)
-                elif spec.kind == "filtered_choice":
-                    self._set_symbol_value(wid, value)
-                elif spec.kind == "secret":
-                    # Never the value: only whether one is saved, and where.
-                    widget = self.query_one(f"#{wid}", Input)
-                    widget.value = ""
-                    where = credential_store(config, str(value or ""))
-                    widget.placeholder = {
-                        "keyring": "saved in the system keyring",
-                        "config": "saved in config.toml",
-                    }.get(where, "not set")
-                else:
-                    text = format_value(spec, value)
-                    input_widget = self.query_one(f"#{wid}", Input)
-                    if spec.custom_render:
-                        # aprs.latitude/longitude/grid_square: silent set,
-                        # no Changed message. These three widgets' own
-                        # Changed handlers keep each other in sync on a
-                        # genuine keystroke, and firing that same machinery
-                        # here -- three separate messages processed later,
-                        # asynchronously, on three different widgets --
-                        # cannot be reliably suppressed by any one flag's
-                        # timing (a `call_after_refresh` measured against
-                        # ONE widget's queue does not bound when ANOTHER
-                        # widget's queued message actually runs). Loading
-                        # these three needs no recompute at all: `config`
-                        # already stores a consistent decimal and grid
-                        # square, so the loop is just copying, not deriving.
-                        input_widget.set_reactive(Input.value, text)
-                        input_widget.refresh()  # set_reactive skips the
-                        # widget's own repaint trigger along with its
-                        # watcher; without this the loaded value is
-                        # correct in .value but not yet visible on screen.
-                    else:
-                        input_widget.value = text
-                    if spec.kind == "color":
-                        self._update_swatch(wid, text)
-                self._set_error(wid, "")
+                self._draft[spec.path] = self._initial(spec, value, config)
+        for section in SETTINGS_SCHEMA:
+            self._build_list(section)
 
         self._render_transports(config)
         self._render_credentials(config)
         self._render_scripts(config)
         self._render_banner(config)
-        self._sync_aprs_position_mode(config)
-        self._sync_conditionals()
+        self._section_opened(self.current_section)
 
-    def _sync_conditionals(self) -> None:
-        """Show each `only_when` group while its controlling field says so."""
-        for group_id, (path, value) in self._conditional.items():
-            control = self.query_one(f"#{_widget_id(path)}", Select)
-            self.query_one(f"#{group_id}").display = control.value == value
-
-    @on(Select.Changed)
-    def _maybe_conditional_changed(self, event: Select.Changed) -> None:
-        controls = {_widget_id(path) for path, _value in self._conditional.values()}
-        if event.select.id in controls:
-            self._sync_conditionals()
-
-    def _set_custom_choice_value(self, wid: str, spec: Field, value) -> None:
-        """Select a matching preset, or fall back to Custom + the literal
-        text -- "disable, never clear": a value from a hand-edited
-        config.toml that matches no preset must still be visible and still
-        round-trip on Save, not silently discarded (same rule
-        `ConnectScreen._sync_login_controls` follows in `dialogs.py`)."""
-        preset_values = {v for _label, v in spec.choices}
-        select = self.query_one(f"#{wid}", Select)
-        custom_input = self.query_one(f"#{wid}-custom", Input)
-        if value in preset_values:
-            select.value = value
-            custom_input.value = str(value)
-            custom_input.display = False
-        else:
-            select.value = _CUSTOM_SENTINEL
-            custom_input.value = "" if value is None else str(value)
-            custom_input.display = True
-
-    def _set_symbol_value(self, wid: str, value) -> None:
-        """Same tolerate-an-unknown-value rule as `_set_select_value`,
-        against the symbol table instead of a schema's own `Field.choices`."""
-        self.query_one(f"#{wid}-picker", SymbolPicker).set_value(str(value))
-
-    def _set_select_value(self, wid: str, spec: Field, value) -> None:
-        """Set a Select's value, tolerating one that is not among its options.
-
-        This is what a stale or hand-edited `config.toml` produces: e.g.
-        `theme = "not-a-real-theme"` survives `load_config()` in the field
-        itself (an unknown theme name is not, by itself, a schema violation --
-        `themes.resolve_theme_id` is what actually falls back, at the point
-        the theme is *applied*, not at load time). Setting a Textual `Select`
-        to a value outside its options raises `InvalidSelectValueError`,
-        which would otherwise crash the whole app the instant the Settings
-        tab is opened -- turning a cosmetic config typo into total data loss
-        for the session. Falls back to the first offered choice instead.
-        """
-        select = self.query_one(f"#{wid}", Select)
-        valid = {v for _label, v in spec.choices}
-        select.value = value if value in valid else (spec.choices[0][1] if spec.choices else Select.NULL)
-
-    def _update_swatch(self, wid: str, text: str) -> None:
-        """Fill the color-picker swatch next to a `"color"` field's `Input`
-        with the color it names, live as the operator types.
-
-        A hex value the operator has not finished typing yet ("#1A1B" or an
-        empty field mid-edit) is simply not a valid `Theme` color -- that is
-        not a bug to report inline the way `_save` reports one, it is the
-        normal state of an input between keystrokes. The swatch goes back to
-        the neutral `-invalid` border and no fill rather than raising or
-        showing an error; `_save`'s own validation is what actually stops a
-        bad value from being written.
-        """
-        from textual.css.query import NoMatches
-
-        try:
-            swatch = self.query_one(f"#{wid}-swatch", Static)
-        except NoMatches:
-            return
-        from ..config import HEX_COLOR_RE
-
-        text = text.strip()
-        if HEX_COLOR_RE.match(text):
-            swatch.remove_class("-invalid")
-            swatch.styles.background = text
-        else:
-            swatch.add_class("-invalid")
-            swatch.styles.background = None
-
-    @on(Input.Changed, ".settings-color-input")
-    def _on_color_input_changed(self, event: Input.Changed) -> None:
-        if event.input.id:
-            self._update_swatch(event.input.id, event.value)
-
-    # ------------------------------------------------------------------
-    # APRS: WIDE-path preset/custom, symbol filter, position mode switch
-    # ------------------------------------------------------------------
-    @on(Select.Changed, "#set-aprs-path")
-    def _on_aprs_path_changed(self, event: Select.Changed) -> None:
-        self.query_one("#set-aprs-path-custom", Input).display = (
-            event.value == _CUSTOM_SENTINEL
-        )
-
-    @on(Input.Changed, "#set-aprs-symbol-filter")
-    def _on_aprs_symbol_filter_changed(self, event: Input.Changed) -> None:
-        """Narrow the symbol list as the operator types.
-
-        Two things go wrong here if the filter result is used naively, and
-        both did:
-
-        * **A filter matching nothing crashed the app.** `set_options([])` on
-          a `Select` built with `allow_blank=False` raises `EmptySelectError`
-          -- out of a message handler, which takes the whole app down. Typing
-          any word that is not in the symbol table (or simply overshooting a
-          word that is) was enough. This is the third distinct way this
-          project has been bitten by `Select`'s value/option invariants; see
-          AGENTS.md sec. 7's `Select.NULL` entry for the other two.
-        * **The selection was silently dropped.** `set_options` resets
-          `.value`, and the old code restored it only when it survived the
-          filter -- so narrowing past your own symbol blanked it, and saving
-          then wrote an empty symbol. Losing a setting because you typed in a
-          search box is not something an operator would ever expect, and
-          nothing on screen said it had happened.
-
-        Both are fixed by the same rule: **the currently-selected symbol is
-        always in the list.** It is pinned even when it does not match, so
-        the value can never be lost and the list can never be empty. A filter
-        matching nothing therefore shows exactly the current symbol, which
-        also reads correctly as "nothing else matched".
-        """
-        select = self.query_one("#set-aprs-symbol", Select)
-        current = select.value
-        matches = symbols.filter_symbols(event.value)
-        ascii_safe = self.app.config.ascii_safe
-        options = [(s.display_label(ascii_safe=ascii_safe), s.key) for s in matches]
-
-        current_key = current if isinstance(current, str) else ""
-        if current_key and current_key not in {s.key for s in matches}:
-            pinned = symbols.lookup(current_key[0], current_key[1:]) if len(current_key) >= 2 else None
-            if pinned is not None:
-                options.insert(0, (pinned.display_label(ascii_safe=ascii_safe), pinned.key))
-
-        if not options:
-            # Only reachable when the stored symbol is not in the table at
-            # all (a hand-edited config.toml) AND the filter matches nothing.
-            # Showing everything beats showing nothing, and beats crashing.
-            options = [
-                (s.display_label(ascii_safe=ascii_safe), s.key)
-                for s in symbols.SYMBOLS
-            ]
-
-        select.set_options(options)
-        if current_key in {key for _, key in options}:
-            select.value = current_key
-
-    def _sync_aprs_position_mode(self, config) -> None:
-        """Pick the initial Decimal/Grid mode from `config.aprs.grid_square`,
-        recomputing rather than trusting it blindly -- a hand-edited
-        config.toml can carry a grid square that no longer matches the
-        lat/lon next to it.
-
-        Deliberately does NOT go through the interactive recompute path:
-        `render_settings` has *just* populated the lat/lon/grid Inputs
-        straight from `config` a few lines up, and those are already
-        correct and authoritative. Letting `Select.Changed` fire its usual
-        recompute here would overwrite an exact stored latitude with the
-        CENTER of its own grid square -- a real bug caught by
-        `tests/pilot/test_settings.py`. `_apply_aprs_position_mode` (show/
-        hide only) always runs; `.value` is only touched when it would
-        actually change, so a `Changed` message is queued if and only if
-        `_suppress_aprs_position_recompute` will be there to catch it --
-        no window where a leaked, never-cleared flag could suppress a
-        later, real operator-driven mode switch.
-        """
-        aprs = config.aprs
-        mode = "decimal"
-        if aprs.grid_square:
-            try:
-                g_lat, g_lon = from_grid(aprs.grid_square)
-            except LocatorError:
-                g_lat = g_lon = None
-            if (
-                g_lat is not None
-                and abs(g_lat - aprs.latitude) < 1.0
-                and abs(g_lon - aprs.longitude) < 1.0
-            ):
-                mode = "grid"
-        self._apply_aprs_position_mode(mode)
-        select = self.query_one("#aprs-position-mode", Select)
-        select.value = mode
-
-    def _apply_aprs_position_mode(self, mode: str) -> None:
-        self.query_one("#aprs-decimal-row").display = mode == "decimal"
-        self.query_one("#aprs-grid-row").display = mode == "grid"
-
-    def _loading_aprs_position(self) -> bool:
-        """True while `render_settings` is (or was, very recently) bulk-
-        populating the position widgets.
-
-        `render_settings` sets `.value` on the grid Input, then the
-        latitude Input, then the longitude Input, then (via
-        `_sync_aprs_position_mode`) the mode Select -- each of those posts
-        its own `Changed` message, and Textual processes a widget's message
-        queue asynchronously, not inline with the assignment that posted
-        it. A message queued early (e.g. the grid Input's, while mode was
-        still "decimal") can end up PROCESSED late, after mode has already
-        flipped to "grid" -- so a same-instant mode check inside a handler
-        is not enough; a message that looked harmless when it was posted
-        can become corrupting by the time it actually runs. One flag held
-        for the whole render pass, and released only after Textual's
-        message queue has drained (`call_after_refresh`, not a synchronous
-        clear), is what actually closes that window. Caught by
-        `tests/pilot/test_settings.py::test_loading_a_saved_grid_square_
-        does_not_corrupt_the_decimal_position_it_was_computed_from`.
-        """
-        return getattr(self, "_aprs_position_loading", False)
-
-    @on(Select.Changed, "#aprs-position-mode")
-    def _on_aprs_position_mode_changed(self, event: Select.Changed) -> None:
-        """Switching modes is a view toggle, not an edit -- it must never
-        overwrite a representation that already has real content with a
-        recomputed approximation of the other one (that would silently
-        discard a loaded decimal's precision the instant the operator
-        merely looks at the grid tab and back). It only fills in a
-        representation that is genuinely still blank, e.g. the first time
-        an operator with a real decimal position switches to grid mode and
-        has never typed one -- matching the compose-time help text's
-        promise that switching modes "converts what's already there",
-        never what wasn't.
-        """
-        if self._loading_aprs_position():
-            return
-        self._apply_aprs_position_mode(event.value)
-        if event.value == "grid":
-            if not self.query_one("#set-aprs-grid_square", Input).value.strip():
-                self._recompute_grid_from_decimal()
-        else:
-            lat_blank = not self.query_one("#set-aprs-latitude", Input).value.strip()
-            lon_blank = not self.query_one("#set-aprs-longitude", Input).value.strip()
-            if lat_blank and lon_blank:
-                self._recompute_decimal_from_grid()
-
-    @on(Input.Changed, "#set-aprs-grid_square")
-    def _on_aprs_grid_changed(self, event: Input.Changed) -> None:
-        if self._loading_aprs_position():
-            return
-        if self.query_one("#aprs-position-mode", Select).value == "grid":
-            self._recompute_decimal_from_grid()
-
-    @on(Input.Changed, "#set-aprs-latitude")
-    @on(Input.Changed, "#set-aprs-longitude")
-    def _on_aprs_decimal_changed(self, event: Input.Changed) -> None:
-        if self._loading_aprs_position():
-            return
-        if self.query_one("#aprs-position-mode", Select).value == "decimal":
-            self._recompute_grid_from_decimal()
-
-    def _recompute_decimal_from_grid(self) -> None:
-        """Live grid -> decimal conversion, into the (possibly hidden)
-        lat/lon Inputs `_save` already reads generically. Silently does
-        nothing on an incomplete or invalid grid square -- that is the
-        normal state of this field mid-keystroke, not an error to report."""
-        text = self.query_one("#set-aprs-grid_square", Input).value.strip()
-        try:
-            lat, lon = from_grid(text)
-        except LocatorError:
-            return
-        self.query_one("#set-aprs-latitude", Input).value = f"{lat:.6f}"
-        self.query_one("#set-aprs-longitude", Input).value = f"{lon:.6f}"
-
-    def _recompute_grid_from_decimal(self) -> None:
-        """The mirror image of `_recompute_decimal_from_grid`, so
-        `aprs.grid_square` stays a faithful redisplay of whatever position
-        decimal-mode editing last settled on."""
-        try:
-            lat = float(self.query_one("#set-aprs-latitude", Input).value)
-            lon = float(self.query_one("#set-aprs-longitude", Input).value)
-        except ValueError:
-            return
-        try:
-            grid = to_grid(lat, lon, 6)
-        except LocatorError:
-            return
-        self.query_one("#set-aprs-grid_square", Input).value = grid
+    def _initial(self, spec: Field, value, config) -> object:
+        """A stored value as the draft holds it."""
+        if spec.kind == "bool":
+            return bool(value)
+        if spec.kind == "choice":
+            # A stale or hand-edited config.toml can hold a value that is
+            # not offered (`theme = "not-a-real-theme"`): show the first
+            # choice rather than one the list cannot select.
+            valid = {v for _label, v in spec.choices}
+            return value if value in valid else (spec.choices[0][1] if spec.choices else value)
+        if spec.kind in ("custom_choice", "filtered_choice"):
+            # "Disable, never clear": a value matching no preset is kept
+            # and shown as custom, so it survives a Save.
+            return "" if value is None else str(value)
+        if spec.kind == "secret":
+            # Never the value: only whether one is saved, and where.
+            self._secret_where[spec.path] = {
+                "keyring": "saved in the system keyring",
+                "config": "saved in config.toml",
+            }.get(credential_store(config, str(value or "")), "not set")
+            return ""
+        return format_value(spec, value)
 
     def _render_transports(self, config) -> None:
         select = self.query_one("#set-active-transport", Select)
@@ -964,17 +919,13 @@ class SettingsPane(Vertical):
         else:
             banner.display = False
 
-    def _set_error(self, wid: str, message: str) -> None:
+    def _set_error(self, path: str, message: str) -> None:
         """Record or clear a field's error; its row's label turns red."""
         if message:
-            self._errors[wid] = message
+            self._errors[path] = message
         else:
-            self._errors.pop(wid, None)
-        row_id = self._wid_row.get(wid)
-        if row_id is None:
-            return
-        failing = any(w in self._errors for w, row in self._wid_row.items() if row == row_id)
-        self.query_one(f"#{row_id}").set_class(failing, "-invalid")
+            self._errors.pop(path, None)
+        self._refresh_row(path)
 
     # ------------------------------------------------------------------
     # Saving
@@ -987,39 +938,25 @@ class SettingsPane(Vertical):
         failed = False
         #: Passwords typed into "secret" fields: (field path, text).
         secrets: list[tuple[str, str]] = []
-        #: (section title, field), in schema order: the first is opened.
-        failures: list[tuple[str, Field]] = []
+        #: Fields that failed, in schema order: the first is opened.
+        failures: list[Field] = []
 
         for section in SETTINGS_SCHEMA:
             for spec in section.fields:
-                wid = _widget_id(spec.path)
-                if spec.kind == "bool":
-                    raw = self.query_one(f"#{wid}", Checkbox).value
-                elif spec.kind == "choice":
-                    raw = self.query_one(f"#{wid}", Select).value
-                elif spec.kind == "custom_choice":
-                    select_value = self.query_one(f"#{wid}", Select).value
-                    if select_value == _CUSTOM_SENTINEL:
-                        raw = self.query_one(f"#{wid}-custom", Input).value
-                    else:
-                        raw = "" if select_value == Select.NULL else select_value
-                elif spec.kind == "filtered_choice":
-                    select_value = self.query_one(f"#{wid}", Select).value
-                    raw = "" if select_value == Select.NULL else select_value
-                elif spec.kind == "secret":
-                    text = self.query_one(f"#{wid}", Input).value
-                    if text:
-                        secrets.append((spec.path, text))
+                if spec.path not in self._draft:
                     continue
-                else:
-                    raw = self.query_one(f"#{wid}", Input).value
+                raw = self._draft[spec.path]
+                if spec.kind == "secret":
+                    if raw:
+                        secrets.append((spec.path, str(raw)))
+                    continue
                 try:
                     pending[spec.path] = coerce(spec, raw)
-                    self._set_error(wid, "")
+                    self._set_error(spec.path, "")
                 except ValidationError as exc:
-                    self._set_error(wid, str(exc))
+                    self._set_error(spec.path, str(exc))
                     failed = True
-                    failures.append((section.title, spec))
+                    failures.append(spec)
 
         # These two values have a relationship no one Field can express. Do
         # it before mutating Config so an invalid pair gets the same all-or-
@@ -1032,24 +969,19 @@ class SettingsPane(Vertical):
             and slow_speed >= fast_speed
         ):
             message = "Must be below Smart fast speed."
-            self._set_error("set-aprs-smart_slow_speed_knots", message)
-            self._set_error("set-aprs-smart_fast_speed_knots", message)
+            for path in ("aprs.smart_slow_speed_knots", "aprs.smart_fast_speed_knots"):
+                self._set_error(path, message)
+                failures.append(_SPECS[path])
             failed = True
-            failures.extend(
-                (section.title, spec)
-                for section in SETTINGS_SCHEMA
-                for spec in section.fields
-                if spec.path in ("aprs.smart_slow_speed_knots", "aprs.smart_fast_speed_knots")
-            )
 
         if failed:
             # Nothing is written. A partial save leaves the operator unable to
             # tell which values took -- worse than refusing outright. A bad
-            # field is not necessarily in the open section, or it may be
-            # folded under Advanced, so open the first one and put the
-            # cursor on it: its error is then in the help line.
-            self._open_field(*failures[0])
-            names = ", ".join(dict.fromkeys(f"{spec.label} ({title})" for title, spec in failures))
+            # field is not necessarily in the open section, so open the first
+            # one and put the cursor on it: its error is then in the help line.
+            self.open_field(failures[0].path)
+            self._show_help(failures[0].path)
+            names = ", ".join(dict.fromkeys(f"{spec.label} ({_SECTION_OF[spec.path]})" for spec in failures))
             self.query_one("#settings-footer", Static).update(f"Not saved -- fix: {names}")
             self.app.notify("Settings not saved: some values are invalid.", severity="error")
             return
@@ -1068,12 +1000,15 @@ class SettingsPane(Vertical):
         notes = cross_check(config)
         saved = self.app._save_config()  # type: ignore[attr-defined]
         for path, _text in secrets:
-            # Out of the field once saved; the placeholder says where it went.
-            widget = self.query_one(f"#{_widget_id(path)}", Input)
-            widget.value = ""
-            widget.placeholder = {"keyring": "saved in the system keyring"}.get(
-                credential_store(config, dict(SECRET_LOGINS)[path]), "saved in config.toml")
+            # Out of the draft once saved; the row says where it went.
+            self._secret_where[path] = {"keyring": "saved in the system keyring"}.get(
+                credential_store(config, names[path]), "saved in config.toml")
+            self._draft[path] = ""
+            self._refresh_row(path)
+            if path == self._editing:
+                self._load_editor(_SPECS[path])
         self._apply_live(config)
+
 
         # The toast and the footer say different amounts on purpose. The
         # toast disappears in a few seconds, so a long paragraph of
@@ -1105,15 +1040,6 @@ class SettingsPane(Vertical):
             # transport object, so the status bar kept showing the old TNC no
             # matter how many times this ran. See `_reopen_transport`.
             self._reopen_transport(config)
-
-    def _open_field(self, section_title: str, spec: Field) -> None:
-        """Show a field: its section, its Advanced fold, the cursor on it."""
-        self.show_section(section_title)
-        if spec.advanced:
-            self.query_one(f"#{_tab_id(section_title)}-advanced", Collapsible).collapsed = False
-        target = self.query(f"#{_widget_id(spec.path)}")
-        if target:
-            self.call_after_refresh(target.first().focus)
 
     def _apply_live(self, config) -> None:
         """Push the settings that can change under a running app.

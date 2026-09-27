@@ -4304,22 +4304,14 @@ class KissTermApp(App):
 
             self.query(AddressBookPane).first()._new_entry(connect_by="ssh")
             return
-        section, field = {
-            "winlink": ("Mail", "#set-winlink-account"),
-            "bbs": ("Mail", "#set-home_bbs-route"),
-            "internet": ("Mail", "#set-home_bbs-internet"),
+        path = {
+            "winlink": "winlink.account",
+            "bbs": "home_bbs.route",
+            "internet": "home_bbs.internet",
         }[place]
         self.query_one("#main-tabs", TabbedContent).active = "settings"
         pane = self.query_one(SettingsPane)
-        pane.show_section(section)
-
-        def focus() -> None:
-            with contextlib.suppress(Exception):
-                widget = pane.query_one(field)
-                widget.focus()
-                widget.scroll_visible()
-
-        self.call_after_refresh(focus)
+        self.call_after_refresh(pane.open_field, path)
 
     def send_receive_kind(self, folder: str, internet: bool = False) -> str:
         """What G does from `folder` (operator, 2026-09-26): "winlink" on a

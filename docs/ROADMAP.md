@@ -338,9 +338,10 @@ closed by a coding session.
   Built per platform on CI runners (Nuitka or PyInstaller cannot
   cross-compile), with serial, Bluetooth (`bleak`) and the optional
   transports checked on each. **Not a speed fix**: startup time is
-  Textual building and styling widgets (2026-09-25: 3.0 s import, about
-  5 s to the first screen, 677 of 876 widgets are the Settings form), and
-  compiling Python does not change that work. A one-file PyInstaller
+  Textual building and styling widgets (2026-09-27, local disk: 0.85 s
+  import, 2.4 s to the first screen with about 300 widgets, after the
+  Settings form went from 434 widgets to 97), and compiling Python does
+  not change that work. A one-file PyInstaller
   build starts slower, since it unpacks itself first. Startup is fixed in
   the code, not by packaging.
 - [ ] **Debian package** -- post-1.0.
