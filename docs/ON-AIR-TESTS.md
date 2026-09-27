@@ -153,6 +153,11 @@ saved (Settings > Mail > Winlink, Settings > Logins).
   sent)`, `BBS`, the BBS greeting and `LM`. If it stalls after the
   password, tell me what the node sent: the After login step
   (Settings > Mail) fires on the first thing heard after the password.
+- [ ] **A Winlink attachment** (no radio, with I): from ordinary email,
+  send KC1JMH@winlink.org a message with a small text file attached. I on
+  Winlink > Inbox: the message's Attachments line should say
+  `Files/Attachments/<name> (<size> bytes)`, and F4 Files > Attachments
+  should list it, its text shown in the preview.
 - [ ] **First Winlink session over the radio, nothing to send**: on the Mail tab, select
   Winlink > Inbox; the Footer should say "Send/Receive Winlink". Press G.
   Expect the frequency reminder, then in the Terminal tab (F5): the
