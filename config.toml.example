@@ -316,8 +316,8 @@ ready_text = ""
 # there at launch.
 login_prompt = ""
 credential = ""
-# Over the Internet (I on the Mail tab): the name of a Telnet or SSH entry
-# under [[transports]] that reaches the BBS's node (WS1EC: SSH to
+# Over the Internet (I on the Mail tab): the name of a Telnet or SSH
+# contact in the Address Book that reaches the BBS's node (WS1EC: SSH to
 # packet@ws1ec.mainepacketradio.org port 4122, which telnets into the node).
 # BPQ's Telnet login is answered with internet_user (empty: your callsign)
 # and the saved login internet_credential, then internet_command is sent

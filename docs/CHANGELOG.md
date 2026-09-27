@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — I reaches the Home BBS through a contact (step 4 of 6)
+
+### Improvements
+
+- **I on a BBS folder uses a Telnet or SSH contact from the Address
+  Book** (Settings > Mail > Home BBS, "Internet contact"), not a
+  connection from Settings > Radio. A connection adopted at launch keeps
+  its name, so the setting already made still works. With no contact,
+  the question's "New contact" opens the editor By SSH.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/addressbook_pane.py`, `kissterm/ui/settings_schema.py`,
+`kissterm/ui/commands.py`, `config.toml.example`, `README.md`,
+`tests/pilot/test_winlink_send_receive.py`, `docs/ON-AIR-TESTS.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-27] — Dialing a Telnet or SSH contact (step 3 of 6)
 
 ### New Features

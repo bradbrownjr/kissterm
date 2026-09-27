@@ -173,7 +173,8 @@ session tab beside the radio. Steps:
 3. Done 2026-09-27: an Internet contact dials into its own session tab
    (Address Book Enter, Ctrl+N, Ctrl+R, Ctrl+D), the transmit gate
    untouched; pilot tests against local Telnet and SSH servers.
-4. The Home BBS's Internet route names a contact (I on the Mail tab).
+4. Done 2026-09-27: the Home BBS's Internet route names a contact (I on
+   the Mail tab); with none, "New contact" opens the editor By SSH.
 5. Telnet and SSH leave Settings > Radio, discovery and `--setup`; the
    adopted transports are removed from config.toml.
 6. README, SETUP, ON-AIR-TESTS (WS1EC is dialed from the Address Book).

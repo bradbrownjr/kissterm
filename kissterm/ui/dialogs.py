@@ -1522,8 +1522,8 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
         self._missing = missing
         #: The same question for Winlink's route (G on a Winlink folder).
         self._winlink = winlink
-        #: The same question for the Home BBS's Internet connection (I):
-        #: `targets` are then the configured Telnet and SSH connections.
+        #: The same question for the Home BBS's Internet contact (I):
+        #: `targets` are then the Address Book's Telnet and SSH contacts.
         self._internet = internet
 
     def _note(self) -> ComposeResult:
@@ -1604,24 +1604,24 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
         with Vertical(id="connect-box"):
             yield Label("Set up the Home BBS by Internet", id="connect-title")
             yield from self._note()
-            intro = (f"The connection {self._missing} is no longer configured. "
+            intro = (f"The contact {self._missing} is no longer in the Address Book. "
                      if self._missing else "")
             if not self._targets:
                 yield Static(
                     intro + "I reaches your home BBS through a Telnet or SSH "
-                    "connection, and none is configured. Add one in Settings (F9) "
-                    "> Radio > New, kind SSH -- for WS1EC, host "
-                    "ws1ec.mainepacketradio.org, port 4122, username packet, with "
-                    "its host key in a known-hosts file -- then press I again.",
+                    "contact in the Address Book, and there is none. Make one "
+                    "(New, By SSH) -- for WS1EC, host ws1ec.mainepacketradio.org, "
+                    "port 4122, user packet, with its host key in a known-hosts "
+                    "file -- then press I again.",
                     id="reminder-detail",
                 )
-                yield from self._buttons(go="Add a connection")
+                yield from self._buttons(go="New contact")
                 return
             yield Static(
                 intro + "I sends and receives with your home BBS over the Internet: "
                 "it logs in to the node (user: and password:), sends the After "
-                "login command (BBS), then works as G does. Which connection "
-                "reaches it?",
+                "login command (BBS), then works as G does. Which Address Book "
+                "contact reaches it?",
                 id="reminder-detail",
             )
             yield Select([(t, t) for t in self._targets], value=self._targets[0],

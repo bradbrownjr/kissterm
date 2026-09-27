@@ -294,13 +294,13 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.internet",
-                "Internet connection",
+                "Internet contact",
                 "text",
-                "For I (send/receive by Internet): the name of a Telnet or "
-                "SSH connection that reaches the BBS's node, such as an SSH "
+                "For I (send/receive by Internet): the Address Book contact, "
+                "By Telnet or SSH, that reaches the BBS's node, such as an SSH "
                 "login that runs a telnet into it.",
                 apply="live",
-                placeholder="a connection's name",
+                placeholder="an Address Book contact",
                 rule_before="Home BBS over the Internet (I on the Mail tab)",
             ),
             Field(

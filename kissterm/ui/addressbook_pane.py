@@ -271,8 +271,9 @@ class AddressBookPane(Vertical):
             self.app.action_connect(prefill=entry)  # type: ignore[attr-defined]
 
     # -- new / edit / forget -------------------------------------------------
-    def _new_entry(self) -> None:
-        self._edit_entry(None)
+    def _new_entry(self, connect_by: str = "") -> None:
+        """A new entry; `connect_by` preselects Telnet or SSH."""
+        self._edit_entry(None, connect_by)
 
     @on(Button.Pressed, "#addressbook-new")
     def _new_pressed(self) -> None:
@@ -302,7 +303,7 @@ class AddressBookPane(Vertical):
         self._forget_selected()
 
     @work
-    async def _edit_entry(self, target: str | None) -> None:
+    async def _edit_entry(self, target: str | None, connect_by: str = "") -> None:
         from .dialogs import AddressBookEntryScreen
 
         book = self.app.addressbook  # type: ignore[attr-defined]
@@ -323,7 +324,8 @@ class AddressBookPane(Vertical):
                 credentials=config.credentials,
                 scripts=config.scripts,
                 transports=config.transports,
-                internet={name: getattr(entry, name) for name in INTERNET_FIELDS} if entry else None,
+                internet=({name: getattr(entry, name) for name in INTERNET_FIELDS} if entry
+                          else {"connect_by": connect_by}),
             )
         )
         if result is None:

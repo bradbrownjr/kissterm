@@ -337,8 +337,7 @@ async def test_i_on_a_bbs_folder_logs_in_to_the_node_and_gets_mail(tmp_path):
     server = await asyncio.start_server(handle, "127.0.0.1", 0)
     port = server.sockets[0].getsockname()[1]
     app, station, _tb = await _app(tmp_path)
-    app.config.transports.append({"name": "ws1ec-telnet", "kind": "telnet",
-                                  "host": "127.0.0.1", "port": port})
+    app.addressbook.upsert("ws1ec-telnet", connect_by="telnet", host="127.0.0.1", port=str(port))
     async with app.run_test(size=(120, 40)) as pilot:
         app.action_show_tab("mail")
         await pilot.pause()
@@ -502,4 +501,30 @@ async def test_a_refused_password_is_asked_again_and_saved(tmp_path):
         await wait_for(lambda: not app._collecting, "the run to end")
         assert not station.link_to(RMS).connected
     rms.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_i_with_no_internet_contact_offers_a_new_one(tmp_path):
+    from textual.widgets import Select
+
+    from kissterm.ui.dialogs import AddressBookEntryScreen, HomeBbsSetupScreen
+
+    app, station, _tb = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder("Mail/BBS/Inbox")
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("i")
+        await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the question")
+        await pilot.pause()
+        assert str(app.screen.query_one("#setup-go").label) == "New contact"
+        await pilot.click("#setup-go")
+        await wait_for(lambda: isinstance(app.screen, AddressBookEntryScreen), "the editor")
+        await pilot.pause()
+        assert app.screen.query_one("#addressbook-connect-by", Select).value == "ssh"
+        assert not station.transport.sent
     station.close()

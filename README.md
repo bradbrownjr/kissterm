@@ -94,7 +94,7 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   reaches it, and a saved login holding your password, which never goes on
   the air -- only the answer to the gateway's challenge does). **I is Send/Receive by Internet**, the same
   by folder without the radio: the Home BBS through a Telnet or SSH
-  connection (WS1EC's SSH login into its node; I answers the node's
+  contact in the Address Book (WS1EC's SSH login into its node; I answers the node's
   `user:`/`password:` and sends `BBS`), Winlink through the CMS by Telnet. On All
   Inboxes G does both, the Home BBS first. Anything missing -- the entry
   to dial, the Winlink password, a BBS login -- is asked for before

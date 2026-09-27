@@ -144,11 +144,11 @@ saved (Settings > Mail > Winlink, Settings > Logins).
   made a test fixture. If it stops right after the handshake, say what
   the toast said: the likely cause is the CMS not accepting "kissterm"
   as a client name.
-- [ ] **Home BBS by Internet (SSH to WS1EC)** (no radio): add the
-  connection first -- Settings (F9) > Radio > New, kind SSH, host
-  ws1ec.mainepacketradio.org, port 4122, user packet, and a known_hosts
-  file holding its host key. Then on BBS > Inbox press I: pick that
-  connection, give your node password. Expect in the transcript (Session
+- [ ] **Home BBS by Internet (SSH to WS1EC)** (no radio): the WS1EC
+  contact from the Address Book test under Connecting (or a new one:
+  Address Book, New, By SSH, host ws1ec.mainepacketradio.org, port 4122,
+  user packet, and a known_hosts file holding its host key). On BBS >
+  Inbox press I: pick that contact, give your node password. Expect in the transcript (Session
   > Transcripts): the node's `user:` answered with your call, `(password
   sent)`, `BBS`, the BBS greeting and `LM`. If it stalls after the
   password, tell me what the node sent: the After login step

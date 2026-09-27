@@ -4298,11 +4298,16 @@ class KissTermApp(App):
         if place == "connect":
             self.action_connect()
             return
+        if place == "contact":
+            # A new Address Book entry, By SSH to begin with (WS1EC's way in).
+            from .addressbook_pane import AddressBookPane
+
+            self.query(AddressBookPane).first()._new_entry(connect_by="ssh")
+            return
         section, field = {
             "winlink": ("Mail", "#set-winlink-account"),
             "bbs": ("Mail", "#set-home_bbs-route"),
             "internet": ("Mail", "#set-home_bbs-internet"),
-            "radio": ("Radio", "#transport-new"),
         }[place]
         self.query_one("#main-tabs", TabbedContent).active = "settings"
         pane = self.query_one(SettingsPane)
@@ -4748,10 +4753,10 @@ class KissTermApp(App):
             self._winlink_report(result)
             await self._winlink_password_refused(result)
 
-    def _internet_connections(self) -> list[dict]:
-        """The configured Telnet and SSH connections, by name."""
-        return [t for t in self.config.transports
-                if t.get("kind") in ("telnet", "ssh") and t.get("name")]
+    def _internet_contacts(self) -> list:
+        """The Address Book's Telnet and SSH contacts: what I reaches the
+        Home BBS through (ROADMAP P2, every contact in the Address Book)."""
+        return [e for e in self.addressbook.entries if e.is_internet]
 
     async def _bbs_internet_prepare(self):
         """Everything the Home BBS needs over the Internet, asking for what
@@ -4759,23 +4764,24 @@ class KissTermApp(App):
         from ..mail.collect import CollectOptions
 
         home = self.config.home_bbs
-        connections = self._internet_connections()
-        entry = next((t for t in connections if t["name"] == home.internet.strip()), None)
+        contacts = self._internet_contacts()
+        wanted = home.internet.strip().upper()
+        entry = next((e for e in contacts if e.target.upper() == wanted), None)
         if entry is None:
             note, skip = self._all_inboxes_ask()
             chosen = self._setup_answer(await self.push_screen_wait(HomeBbsSetupScreen(
-                [t["name"] for t in connections], missing=home.internet.strip(), internet=True,
-                all_note=note, skip=skip)), "internet" if connections else "radio")
-            entry = next((t for t in connections if t["name"] == chosen), None)
+                [e.target for e in contacts], missing=home.internet.strip(), internet=True,
+                all_note=note, skip=skip)), "internet" if contacts else "contact")
+            entry = next((e for e in contacts if e.target == chosen), None)
             if entry is None:
                 return None
-            home.internet = entry["name"]
+            home.internet = entry.target
             self._save_config()
             self.query_one(SettingsPane).render_settings(self.config)
         user = home.internet_user or str(self.config.mycall or "").split("-")[0].upper()
         login = await self._ask_login(
             home.internet_credential, "Home BBS Telnet", "Home BBS Telnet password",
-            f"The password {entry['name']}'s node asks for after user: {user}. "
+            f"The password {entry.target}'s node asks for after user: {user}. "
             "It goes over the connection, never on the air.",
         )
         if login is None:
@@ -4793,23 +4799,24 @@ class KissTermApp(App):
             after_login=home.internet_command.strip(),
         )
 
-    async def _bbs_internet_run(self, entry: dict, options) -> None:
-        """The Home BBS over its Telnet or SSH connection, built the one
-        way every connection is (`build_transport`)."""
+    async def _bbs_internet_run(self, entry, options) -> None:
+        """The Home BBS over its Telnet or SSH contact, built the one way
+        every connection is (`build_transport`)."""
         from ..mail.collect import BbsCollector
         from ..transport import build_transport
 
         try:
-            transport = build_transport(entry)
+            transport = build_transport(entry.transport_config(
+                lambda name: find_credential(self.config, name)))
         except (TransportError, TypeError, ValueError) as exc:
-            self.notify(f"Send/Receive by Internet: {entry['name']}: {exc}", severity="error")
+            self.notify(f"Send/Receive by Internet: {entry.target}: {exc}", severity="error")
             return
 
         def build(link, note, sent, received):
             return BbsCollector(link, self.mail_store, options, note=note, sent=sent,
                                 progress=self._mail_status)
 
-        result = await self._internet_run(transport, entry["name"], entry["name"], build)
+        result = await self._internet_run(transport, entry.target, entry.target, build)
         if result is not None:
             self._bbs_report(result)
 

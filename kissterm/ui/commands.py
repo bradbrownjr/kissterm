@@ -191,7 +191,7 @@ COMMANDS: tuple[Command, ...] = (
             tabs=("mail",), list_key="g"),
     Command("get_mail_internet", "Send/Receive by Internet", "Session", "I",
             "As Send/Receive, over the Internet: the Home BBS by its Telnet or "
-            "SSH connection, Winlink by the CMS; nothing goes on the air",
+            "SSH contact, Winlink by the CMS; nothing goes on the air",
             tabs=("mail",), list_key="i"),
     Command("compose_mail", "New message", "Session", "N",
             "Write a BBS message; it waits in the Outbox until sent",
