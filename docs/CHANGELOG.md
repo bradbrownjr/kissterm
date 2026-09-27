@@ -5,6 +5,28 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-27] — RMS gateways: Winlink gateways nearest you
+
+### New Features
+
+- **F10 > Session > RMS gateways** lists Winlink gateway channels by mode
+  (Packet, VARA FM, VARA HF, ARDOP, Pactor), nearest first from your APRS
+  position with distance and direction. Enter or "Use for Winlink" adds
+  the gateway to the Address Book (a contact already there is left as it
+  is) and makes it the Winlink Dial; nothing is dialed or sent. The list
+  comes from winlink.org only when Refresh is pressed and is kept in a
+  file. The fetch needs an access key issued to kissterm, which it does
+  not have yet: until then the menu entry says "needs an API key" and
+  Refresh is off. Request and filter follow Pat (MIT).
+
+**Files:** `kissterm/winlink/gateways.py`, `kissterm/winlink/__init__.py`,
+`kissterm/ui/gateways_screen.py`, `kissterm/ui/app.py`,
+`kissterm/ui/commands.py`, `kissterm/ui/styles.py`,
+`tests/unit/test_winlink_gateways.py`,
+`tests/unit/data/winlink/gateway_status.json`,
+`tests/pilot/test_rms_gateways.py`, `README.md`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-27] — Settings as one list per section: the first screen 2 s sooner
 
 ### Improvements

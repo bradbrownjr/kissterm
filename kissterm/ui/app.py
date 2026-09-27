@@ -3041,6 +3041,11 @@ class KissTermApp(App):
                     return "no conversation open"
             elif not self._active_key():
                 return "no session open"
+        if action == "rms_gateways":
+            from ..winlink import gateways
+
+            if not gateways.ACCESS_KEY and gateways.load_cached(self._gateway_cache()) is None:
+                return "needs an API key"
         if action == "reconnect" and self.station is not None:
             # Session tier: Reconnect is Ctrl+N's flow, always available.
             if self.can_disconnect_active_session():
@@ -4951,6 +4956,46 @@ class KissTermApp(App):
         if chosen:
             self.action_show_tab("terminal")
             self.query_one(TerminalPane).suggest(chosen)
+
+    def _own_position(self) -> tuple[float, float] | None:
+        """The operator's APRS position, or None while it is unset (0, 0)."""
+        aprs = self.config.aprs
+        if aprs.latitude or aprs.longitude:
+            return aprs.latitude, aprs.longitude
+        return None
+
+    def _gateway_cache(self):
+        from ..config import state_path
+        from ..winlink import gateways
+
+        return gateways.cache_path(state_path())
+
+    @work
+    async def action_rms_gateways(self) -> None:
+        """F10 > Session > RMS gateways: choose a Winlink gateway from the
+        list (`ui/gateways_screen.py`). The one chosen becomes an Address
+        Book contact and the Winlink Dial; nothing is dialed or sent."""
+        from .addressbook_pane import AddressBookPane
+        from .gateways_screen import RmsGatewaysScreen
+
+        channel = await self.push_screen_wait(
+            RmsGatewaysScreen(self._gateway_cache(), self._own_position()))
+        if channel is None:
+            return
+        # An entry already there keeps its hops, login and note: upsert
+        # would replace them all.
+        if self.addressbook.find(channel.callsign) is None:
+            note = f"Winlink RMS, {channel.modes}"
+            if channel.grid:
+                note += f", {channel.grid}"
+            self.addressbook.upsert(channel.callsign, frequency=channel.frequency, note=note)
+            for pane in self.query(AddressBookPane):
+                pane.refresh_from(self.addressbook)
+        self.config.winlink.route = channel.callsign
+        self._save_config()
+        self.query_one(SettingsPane).render_settings(self.config)
+        self.notify(f"{channel.callsign} ({channel.frequency}) is in the Address Book "
+                    "and is now the Winlink Dial.")
 
     @work
     async def action_show_transcripts(self) -> None:

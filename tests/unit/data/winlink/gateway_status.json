@@ -1,0 +1,41 @@
+{
+ "Gateways": [
+  {
+   "Callsign": "W1AW-10",
+   "BaseCallsign": "W1AW",
+   "Latitude": 41.71,
+   "Longitude": -72.72,
+   "LastStatus": "Sun, 27 Sep 2026 15:01:00 UTC",
+   "RequestedMode": "AnyAll",
+   "GatewayChannels": [
+    {"SupportedModes": "Packet 1200", "Mode": 0, "Gridsquare": "FN31pr", "Frequency": 145050000,
+     "OperatingHours": "00-23", "Baud": "1200", "RadioRange": "11", "Antenna": "Omni", "ServiceCode": "PUBLIC"},
+    {"SupportedModes": "VARA FM", "Mode": 51, "Gridsquare": "FN31pr", "Frequency": 145070000,
+     "OperatingHours": "00-23", "Baud": "1200", "RadioRange": "11", "Antenna": "Omni", "ServiceCode": "PUBLIC"}
+   ]
+  },
+  {
+   "Callsign": "N1ABC-10",
+   "BaseCallsign": "N1ABC",
+   "LastStatus": "Sun, 27 Sep 2026 14:00:00 UTC",
+   "GatewayChannels": [
+    {"SupportedModes": "Packet 1200", "Mode": 0, "Gridsquare": "FN43", "Frequency": 145010000,
+     "OperatingHours": "00-23", "Baud": "1200", "ServiceCode": "PUBLIC"},
+    {"SupportedModes": "VARA 2750", "Mode": 54, "Gridsquare": "FN43", "Frequency": 7101200,
+     "OperatingHours": "00-23", "Baud": "", "ServiceCode": "PUBLIC"}
+   ]
+  },
+  {
+   "Callsign": "K1XYZ-10",
+   "BaseCallsign": "K1XYZ",
+   "GatewayChannels": [
+    {"SupportedModes": "Packet 1200", "Gridsquare": "", "Frequency": 144990000, "ServiceCode": "PUBLIC"},
+    {"SupportedModes": "ARDOP 2000", "Gridsquare": "EM12", "Frequency": "not a number"}
+   ]
+  },
+  {"Callsign": "", "GatewayChannels": []},
+  "not a gateway",
+  {"Callsign": "W9BAD-10‮\u0007", "GatewayChannels": [{"SupportedModes": "Packet 1200", "Gridsquare": "ZZ99", "Frequency": 145090000}]}
+ ],
+ "ResponseStatus": {}
+}

@@ -94,7 +94,11 @@ Raspberry Pi in the garage — with nothing to configure at the OS level.
   reaches it, and a saved login holding your password, which never goes on
   the air -- only the answer to the gateway's challenge does). A received
   message's attachments are saved to Files > Attachments under cleaned
-  names, never opened or run. **I is Send/Receive by Internet**, the same
+  names, never opened or run. F10 > Session > RMS gateways lists
+  gateways nearest you by mode, and the one you choose becomes an Address
+  Book contact and the Winlink Dial; the list comes from winlink.org when
+  you ask, and needs an access key kissterm is still waiting for.
+  **I is Send/Receive by Internet**, the same
   by folder without the radio: the Home BBS through a Telnet or SSH
   contact in the Address Book (WS1EC's SSH login into its node; I answers the node's
   `user:`/`password:` and sends `BBS`), Winlink through the CMS by Telnet. On All
@@ -658,7 +662,9 @@ MIT. See [LICENSE](LICENSE).
 The Winlink secure login and LZHUF code (`kissterm/winlink/`) are ports of
 [wl2k-go](https://github.com/la5nta/wl2k-go), Copyright 2015-2016 Martin
 Hebnes Pedersen (LA5NTA), MIT licence, and its test data ships in
-`tests/unit/data/winlink/`. LZHUF itself comes from JNOS 2's `lzhuf.c`
+`tests/unit/data/winlink/`. The RMS gateway list request and mode filter
+follow [Pat](https://github.com/la5nta/pat) (same author, MIT licence).
+LZHUF itself comes from JNOS 2's `lzhuf.c`
 (Okumura, Yoshizaki, Rikitake), whose authors' terms are "Use, distribute,
 and modify this program freely".
 

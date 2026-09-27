@@ -529,6 +529,17 @@ TransportEntryScreen { align: center middle; }
    one command without scrolling on anything but the smallest terminals. */
 #ref-table, #ref-glossary { height: 1fr; min-height: 6; }
 
+/* RMS gateways (F10 > Session): a list to choose from, as tall as fits. */
+#gateways-box {
+    width: 90%; max-width: 110; height: 90%; padding: 0 2;
+    border: thick $primary; background: $surface;
+}
+#gateways-title { text-style: bold; color: $accent; }
+#gateways-note { color: $text-muted; height: auto; padding: 0 0 1 0; }
+#gateways-filter { height: auto; margin: 0 0 1 0; }
+#gateways-mode-label { width: 6; }
+#gateways-mode { width: 20; }
+#gateways-table { height: 1fr; }
 TranscriptsScreen { align: center middle; }
 #transcripts-box {
     width: 90%; height: 85%; padding: 1 2;
@@ -638,6 +649,7 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #transport-box,
 .-ascii-safe #ref-box,
 .-ascii-safe #transcripts-box,
+.-ascii-safe #gateways-box,
 .-ascii-safe #settings-sections {
     border: ascii $primary;
 }

@@ -13,8 +13,11 @@ still has to try on the air.
 - **Winlink API access key** (2026-09-27). The RMS Gateway list (P2) needs
   a key issued to kissterm by a Winlink administrator. The operator will
   request it once kissterm is polished enough to share its repository or
-  site with the request. Until then the list is built and tested against
-  sample data, with the key left empty and the fetch saying so.
+  site with the request. Everything else is built (2026-09-27, F10 >
+  Session > RMS gateways). When the key arrives: set
+  `ACCESS_KEY` in `kissterm/winlink/gateways.py`, press Refresh once to
+  check the request against the live API, and add that reply's shape to
+  the tests.
 
 ## How to work this file -- read before picking anything up
 
@@ -190,19 +193,10 @@ exchange confirms it.
   the `# UNVERIFIED:` notes in `winlink/b2f.py` and `winlink_collect.py`.
 - [ ] **VARA to an RMS Gateway**, once P3's VARA hardware verification is
   done. Small on top of the two above.
-- [ ] **RMS Gateway list** for choosing where to connect, fetched from the
-  Internet on request and cached, never queried over the air.
-  **Blocked on an access key** (researched 2026-09-27): every
-  api.winlink.org call needs one, "obtained from a Winlink administrator at
-  no cost and applicable to a specific application and software author"
-  (api.winlink.org). Pat's key in its source is "issued December 2017 by
-  the WDT for use with Pat", so kissterm may not borrow it; the operator
-  requests one for kissterm (see Blockers at the top). Terms: sanity-check every parameter, request
-  only on need (Pat caches the list and fetches on request), and callsigns
-  sent must have Winlink accounts. The call is `POST /gateway/status.json`
-  (`Mode`, `HistoryHours` up to 48, `ServiceCodes` default `PUBLIC`,
-  `key`), following Pat's `internal/cmsapi/api.go` (MIT). Everything but
-  the live fetch is built before the key arrives.
+- [ ] **RMS Gateway list: the live fetch.** Built 2026-09-27 except for a
+  request against the real API, which needs an access key issued to
+  kissterm (Blockers at the top; Pat's key is issued to Pat). Small once
+  the key exists.
 - **Later:** Winlink HTML/XML forms (they meet P11's form system here),
   peer-to-peer Winlink, and scheduled send/receive. The scheduled version
   follows every unattended-transmission rule in AGENTS.md: opt-in, a status
