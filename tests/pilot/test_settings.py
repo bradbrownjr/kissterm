@@ -188,7 +188,8 @@ def test_beacon_and_aprs_are_not_presented_as_the_same_feature():
     """
     sections = {s.title: s for s in SETTINGS_SCHEMA}
     assert "Beacon" in sections and "APRS" in sections
-    assert "NOT APRS" in sections["Beacon"].note.upper()
+    beacon_switch = next(f for f in sections["Beacon"].fields if f.path == "beacon.enabled")
+    assert "NOT APRS" in beacon_switch.help.upper()
     for section in (sections["Beacon"], sections["APRS"]):
         labels = [f.label for f in section.fields]
         assert len(labels) == len(set(labels)), "duplicate label within a section"
@@ -1715,3 +1716,25 @@ async def test_unsaved_changes_show_and_discard_puts_them_back():
         assert app.config.paclen == 64 and "unsaved" not in pane.row_text("paclen")
         assert "Settings saved." in str(app.query_one("#settings-footer").render())
     station.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("section", ["Mail", "Radio", "Logins"])
+async def test_nothing_above_the_box(section):
+    """DESIGN.md section 4, "Nothing above the box" (operator, 2026-09-28:
+    a note above the box "squishes the box down, losing symmetry and
+    alignment"): each section's box starts level with the section list."""
+    app, station = await _app(Config(mycall=str(MYCALL)))
+    try:
+        async with app.run_test(size=(120, 40)) as pilot:
+            await _settings_tab(app, pilot)
+            pane = app.query_one(SettingsPane)
+            pane.show_section(section)
+            await pilot.pause()
+            listing = app.query_one("#settings-sections").region
+            switcher = app.query_one("#settings-switcher")
+            box = switcher.query_one(f"#{switcher.current}").region
+            assert box.y == listing.y
+            assert not app.query("#settings-note")
+    finally:
+        station.close()

@@ -176,21 +176,6 @@ for _section in SETTINGS_SCHEMA:
     for _field in _section.fields:
         _group = _field.rule_before or _group
         _GROUP_OF[_field.path] = _group
-#: The notes above Radio and Logins, which have no schema section.
-_HAND_BUILT_NOTES = {
-    _tab_id(RADIO): (
-        "The TNC or modem kissterm talks through. USB and serial TNCs are "
-        "noticed when you plug them in. 'Scan for hardware' looks on the "
-        "network and paired Bluetooth; add a VARA or Mercury modem with "
-        "'New'. A node reached by Telnet or SSH is an Address Book contact "
-        "(Ctrl+G, New). Nothing here transmits."
-    ),
-    _tab_id(LOGINS): (
-        "Logins and command scripts an Address Book contact can use by name, "
-        "so a change here reaches every contact that uses it. Nothing is "
-        "sent until a connect uses one."
-    ),
-}
 #: Fields another field's `only_when` depends on.
 _CONTROLS = {f.only_when[0] for f in _SPECS.values() if f.only_when}
 
@@ -277,7 +262,6 @@ class SettingsPane(Vertical):
                 id="settings-sections",
             )
             with Vertical(id="settings-main"):
-                yield Static(SETTINGS_SCHEMA[0].note, id="settings-note", classes="settings-note")
                 with ContentSwitcher(id="settings-switcher", initial=_tab_id(SETTINGS_SCHEMA[0].title)):
                     for section in SETTINGS_SCHEMA:
                         yield _FieldList(id=_tab_id(section.title), classes="settings-fields")
@@ -339,8 +323,6 @@ class SettingsPane(Vertical):
 
     def _section_opened(self, tab: str) -> None:
         section = _SECTION_BY_TAB.get(tab)
-        note = self.query_one("#settings-note", Static)
-        note.update(section.note if section is not None else _HAND_BUILT_NOTES.get(tab, ""))
         self._end_edit()
         if section is None:
             self._editing = ""

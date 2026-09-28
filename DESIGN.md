@@ -119,11 +119,30 @@ uses the same first column:
 - A value longer than 60 characters is cut short in its row; the editor
   shows it whole.
 
+### Nothing above the box
+
+**A pane, section or dialog never has a caption above its box.** Its title
+names it: the tab label, the Settings sidebar entry, the heading. What a
+setting or control does is said once, for the highlighted one, in the
+help line at the bottom (section 6). This is how desktop settings windows
+work, with a page title and the control's own help and no introductory
+paragraph.
+
+A caption above a box does two kinds of harm:
+- it pushes the box down, out of line with the list beside it;
+- it says again what the title or the help line already says.
+
+A safety statement that matters ("nothing is sent until...", "a callsign
+is a claim") goes in the help of the field it is about. The operator
+decided this for the APRS pane and the Address Book on 2026-09-10 ("a
+caption stating the obvious"), and for Settings on 2026-09-28: "wordy
+slop ... duplicated below".
+
 ### Measure
 
 **Body text is capped at 92 columns.** A help line spanning an ultrawide
 terminal is technically readable and practically not — the eye loses the line
-start on the way back. Applies to section notes, help text and banners.
+start on the way back. Applies to help text and banners.
 
 ### Vertical rhythm
 

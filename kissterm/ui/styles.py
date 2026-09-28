@@ -601,8 +601,6 @@ SettingsPane { layout: vertical; }
    anything inside has focus. */
 .settings-section { padding: 0 1; border: round $primary; }
 .settings-section:focus-within { border: round $accent; }
-.settings-note { padding: 0 1; color: $text-muted; max-width: 92; }
-#settings-note { height: auto; }
 .settings-row { height: auto; min-height: 1; }
 .settings-label { width: 27; padding: 0 1 0 0; }
 /* Up to 46 wide, narrower on a small screen rather than cut off. */

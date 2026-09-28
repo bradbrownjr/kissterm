@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — Settings: nothing above the box
+
+### Improvements
+
+- **The description above each Settings section is gone**, so every
+  section's box lines up with the section list. The help line at the
+  bottom already explains the highlighted setting. Three statements
+  moved into their fields' help: Beacon is not APRS, Alerts never
+  transmit and a callsign is a claim, and you remain the control
+  operator when answering. DESIGN.md section 4 now has the rule,
+  "Nothing above the box", first decided for the APRS pane and
+  Address Book on 2026-09-10. Operator report, 2026-09-28 (ROADMAP P0.1).
+
+**Files:** `kissterm/ui/settings_pane.py`, `kissterm/ui/settings_schema.py`,
+`kissterm/ui/styles.py`, `tests/pilot/test_settings.py`, `DESIGN.md`,
+`assets/`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-28] — Winlink B2F research filed
 
 ### Improvements

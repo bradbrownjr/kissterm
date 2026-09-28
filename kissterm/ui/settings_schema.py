@@ -81,14 +81,12 @@ class Field:
 @dataclass(frozen=True, slots=True)
 class Section:
     title: str
-    note: str
     fields: tuple[Field, ...]
 
 
 SETTINGS_SCHEMA: tuple[Section, ...] = (
     Section(
         'Station',
-        'Who you are on the air.',
         (
             Field(
                 "mycall",
@@ -111,8 +109,6 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         'Link',
-        'How your station talks AX.25 to another. The defaults suit '
-        '1200-baud VHF; on HF or a poor path, try a smaller frame size.',
         (
             Field(
                 "paclen",
@@ -216,8 +212,6 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         'Mail',
-        'Writing mail, and the BBS that holds it. On the Mail tab: Insert '
-        'writes, R replies, Q replies quoting, G sends and receives.',
         (
             Field(
                 "reply_quote",
@@ -376,8 +370,6 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         'APRS',
-        'Your position and APRS messages. Nothing is sent until you turn '
-        'beaconing on or send a message.',
         (
             Field(
                 "aprs.enabled",
@@ -638,15 +630,14 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         'Beacon',
-        'Free text sent on a timer to say you are here. Not APRS: APRS '
-        'sends your position. Off until you turn it on.',
         (
             Field(
                 "beacon.enabled",
                 "Beacon on a timer",
                 "bool",
                 "Transmits the text below every interval, unattended, under "
-                "your callsign. Nothing is sent while the text is empty, "
+                "your callsign. Free text, not APRS: APRS sends your position "
+                "(Settings > APRS). Nothing is sent while the text is empty, "
                 "whatever this is set to -- an empty beacon is pure channel "
                 "occupancy. The first one goes out one full interval after "
                 "you enable it, never the moment you press Save.",
@@ -711,8 +702,6 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         'Answering',
-        'Transmitting with nobody at the keyboard. You remain the control '
-        'operator. Everything here is off until you turn it on.',
         (
             Field(
                 "tx_armed_at_start",
@@ -733,8 +722,8 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "it stops retrying instead of burning its whole retry budget. "
                 "When on, kissterm answers and sends the banner below -- "
                 "unattended, under your callsign, whether or not you are at "
-                "the keyboard. Check what your licence allows for automatic "
-                "control on the band you are using.",
+                "the keyboard; you remain the control operator. Check what your "
+                "licence allows for automatic control on the band you are using.",
                 apply="live",
             ),
             Field(
@@ -761,11 +750,10 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         'Alerts',
-        'A local alert when a watched callsign is heard. A callsign in a '
-        'frame is a claim, not proof of who sent it. Alerts never transmit.',
         (
             Field("watched_callsigns.enabled", "Callsign alerts", "bool",
-                  "Off by default. Uses the existing receive path only.", apply="live"),
+                  "Off by default. Uses the existing receive path only and never transmits. "
+                "A callsign in a frame is a claim, not proof of who sent it.", apply="live"),
             Field("watched_callsigns.callsigns", "Callsigns to watch", "calllist",
                   "Comma-separated callsign claims to watch in a frame source or digipeater path.",
                   apply="live", placeholder="N1ABC, W1AW-2"),
@@ -788,7 +776,6 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         'Appearance',
-        'How kissterm looks. Changes show at once.',
         (
             Field(
                 "start_tab",
@@ -976,8 +963,6 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     ),
     Section(
         'Logging',
-        'What kissterm keeps on disk. Local only: none of this reaches the '
-        'air.',
         (
             Field(
                 "log_sessions",

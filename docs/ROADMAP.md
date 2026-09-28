@@ -103,6 +103,16 @@ under rule 2 above, with the date and their words:
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
+- **Settings: a wordy note above every section's box** (2026-09-28,
+  `awaiting confirmation`): "I thought we had updated our design
+  documentation to avoid adding text above the box that squishes the box
+  down, losing symmetry and alignment. Further it's that wordy slop I
+  want to avoid, and is duplicated below." It had been decided for the
+  APRS pane and Address Book (2026-09-10) but never written down. Fix:
+  the notes are gone, the box lines up with the section list, and
+  DESIGN.md section 4 has the rule ("Nothing above the box"). Two safety
+  statements moved into their fields' help (Alerts, Answering).
+
 - **I on All Inboxes skipped the BBS without asking** (2026-09-28,
   `awaiting confirmation`): "App didn't ask for BBS over internet
   settings when I hit I from All Inboxes." Winlink had a saved password,
