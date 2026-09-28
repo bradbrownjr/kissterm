@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — Winlink B2F research filed
+
+### Improvements
+
+- **docs/PROTOCOL_GUIDE.md, "Winlink B2F"**: what Winlink's Open B2F
+  specification and its Data Flow and Data Packaging document say (from
+  the operator's copies), checked against wl2k-go and kissterm. Covers
+  where they disagree (who speaks first, MIME, block size, the resume
+  header), and that client registration is server policy, not
+  protocol. The resume header is marked `# RESEARCH:` in `b2f.py`.
+
+**Files:** `docs/PROTOCOL_GUIDE.md`, `kissterm/winlink/b2f.py`,
+`kissterm/winlink/AGENTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-28] — Winlink's test server as an option
 
 ### New Features

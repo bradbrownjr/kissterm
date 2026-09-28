@@ -35,10 +35,15 @@ prompt can end in `>` too, so here nothing counts until the SID line
 arrives -- which is also the operator's rule for when the exchange
 starts (ROADMAP, 2026-09-26).
 
+The production CMS refuses a client name it does not know: "Unknown
+client types are not allowed on production servers -- use
+cms-z.winlink.org" (operator's session, 2026-09-28). That is server
+policy, not in the published protocol (docs/PROTOCOL_GUIDE.md, "Winlink
+B2F"); the test CMS is a setting (`WinlinkConfig.server`).
+
 # UNVERIFIED: the exchange has been checked against wl2k-go's code and its
-# recorded CMS sessions only, not yet against an RMS over the air, and
-# whether a CMS accepts a client name it has not seen before in the SID is
-# unknown. The first on-air session's transcript becomes a fixture
+# recorded CMS sessions only, not yet against an RMS over the air or a
+# CMS that accepted us. The first such transcript becomes a fixture
 # (docs/ON-AIR-TESTS.md).
 """
 
@@ -432,6 +437,9 @@ class Client:
         return False
 
     def _write_message(self, proposal: Proposal) -> None:
+        # RESEARCH: resuming at an offset, Winlink's Data Flow document puts
+        # STX, 6 and the image's first six bytes after this header; wl2k-go
+        # sends none, as here (docs/PROTOCOL_GUIDE.md, "Winlink B2F").
         title = _title_bytes(proposal.title)
         offset = str(proposal.offset).encode("ascii")
         self._out += bytes((_SOH, len(title) + len(offset) + 2)) + title + b"\x00" + offset + b"\x00"

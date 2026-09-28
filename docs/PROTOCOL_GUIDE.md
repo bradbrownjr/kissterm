@@ -1,4 +1,4 @@
-# Protocol guide: AX.25, KISS, APRS, NTS radiograms and message forms
+# Protocol guide: AX.25, KISS, APRS, Winlink B2F, NTS radiograms and message forms
 
 This is the development baseline for frames that kissterm receives or puts on
 the air. It exists because familiar-looking packet-radio terms hide different
@@ -184,6 +184,134 @@ Before merging a protocol-related change:
 6. Record an interoperability observation separately from the normative rule:
    peer software/version, transport, mode/path, raw frame (with any sensitive
    content redacted), and whether it was RF or synthetic.
+
+## Winlink B2F: sources, findings and open questions
+
+`kissterm/winlink/` (the exchange, messages, LZHUF, secure login) and
+`kissterm/mail/winlink_collect.py` (the Send/Receive run). Filed
+2026-09-28 from the two Winlink documents the operator supplied (browser
+prints; winlink.org itself sits behind a Cloudflare check that blocks
+fetching), cross-checked against wl2k-go and our code.
+
+| Source | What it is | Use |
+|---|---|---|
+| [Open B2F -- Winlink Message Structure and B2 Forwarding Protocol](https://winlink.org/B2F), "last revised February, 2018", printed 2026-09-28 | Winlink's published specification: message structure, address header, FC proposals, `;` extensions | First authority for the message format and the B2 extension to FBB |
+| [Winlink Data Flow and Data Packaging](https://winlink.org/sites/default/files/downloads/winlink_data_flow_and_data_packaging.pdf), Winlink Development Team, 2017 (PDF made 2019-11-19) | Narrative of a Winlink Express session and the B2 block framing | Block layout and the resume header; looser than the spec in places (below) |
+| wl2k-go `fbb/` (github.com/la5nta/wl2k-go, MIT) | The Go implementation Pat uses | What kissterm's code is ported from; the tie-breaker where the two documents are vague |
+| [f6fbb.org protocol pages](http://www.f6fbb.org/protocole.html) | The original FBB forwarding protocol, B0/B1, and the SID structure | Named by the Open B2F page for SID details; not yet read here (`# RESEARCH:`) |
+| [ARSFI/Winlink-Compression](https://github.com/ARSFI/Winlink-Compression) | The LZHUF code Winlink programs use | Reference for `winlink/lzhuf.py` alongside wl2k-go's |
+
+**Message structure (Open B2F).** A message has three parts:
+- **An ASCII address header**, CRLF line endings. `Mid:` must be the
+  first line. `File:` lines come in the order of the attachments; any
+  other order is free. Field names are case-insensitive, but the case of
+  From, To, Cc and Subject values is kept. Unknown fields are ignored,
+  so extensions are safe.
+- **The body**, which may not be empty and is limited to ASCII. A blank
+  line separates it from the header. Its exact length is in `Body:`, and
+  it ends with a CRLF that the length does not count.
+- **Attachments**, any number, each 8-bit bytes ending with a CRLF that
+  `File: <length> <name>` does not count. Names were limited to 50
+  characters, amended to 255 on 2020-05-27.
+
+Header fields:
+
+| Field | Rule |
+|---|---|
+| `Mid:` | Up to 12 characters, unique system-wide |
+| `Date:` | UTC, `YYYY/MM/DD HH:MM` |
+| `Type:` | Bulletin, Private, Service, Inquiry, Position Report, Position Request, Option or System |
+| `From:` | Internet senders are prefixed `SMTP:` |
+| `To:` | At least one; any number |
+| `Cc:` | Any number |
+| `Subject:` | Up to 128 characters |
+| `Mbo:` | The originating RMS, `SMTP` or `CMBO` |
+
+Up to five messages are compressed as one unit before sending.
+kissterm matches: `winlink/message.py` has `MAX_SUBJECT` 128,
+`MAX_FILENAME` 255 and `DATE_LAYOUT`, and refuses an empty body.
+
+**Other Type values and addresses.** A Service message to `SYSOP` or
+`Service` goes to the sysop of the station that first receives it;
+`SYSOP.` or `Service.` sends it to another station's sysop, and the CMS
+sysop is `CMBO`. Inquiry, Position and Option messages are described in
+WL2BUL.DOC, WL2QTH.DOC and WL2OPT.DOC, which we have not found
+(`# RESEARCH:` if bulletins or position reports are ever built).
+
+**Proposals (Open B2F).** `FC <type> <id> <uncompressed size>
+<compressed size>`:
+- Type `EM` is an encapsulated message and `CM` a Winlink control
+  message. The id is at most 12 characters.
+- FA, FB and FC may be mixed in one block, and FA and FB follow B1 rules.
+- A B2 station must stay backward compatible with FBB ASCII, B0 and B1,
+  depending on the connected station's SID.
+- A line starting `;` is a comment, ignored unless it is a supported
+  extension. Winlink's are `;PQ` (challenge), `;PR` (response), `;FW`
+  (forward) and `;PM` (pending).
+
+**Extra accounts.** Picking up mail for another account means sending
+`;FW: LOGINCALL OTHERCALL|<code>`. The code is the secure-login answer
+computed from the same `;PQ` challenge and the other account's password.
+kissterm sends only its own callsign in `;FW:`.
+
+**Block framing (Data Flow document).**
+- **Header:** SOH, a length byte (subject + offset digits + 2), the
+  subject, NUL, the offset as ASCII, NUL.
+- **Data:** STX, a length byte (250 for a full block), then that many
+  data bytes.
+- **End:** EOT and a checksum (the two's complement of the byte sum).
+- **Compressed image:** carries a 2-byte CRC at its front.
+
+**Where the two documents disagree with each other, or with the wire:**
+- **Who speaks first.** The Data Flow document says the client sends its
+  callsign and SID, then the station sends `;PQ`. The operator's CMS
+  session (2026-09-28), like wl2k-go's recorded ones, shows the server
+  first: its SID, `;PQ:` and prompt. The client answers `;FW:`, its SID,
+  `;PR:` and the greeting. Trust the capture.
+- **MIME.** The Data Flow document says each message "is formatted in"
+  MIME (RFC 2045). The B2 message on the wire is the header/body/File
+  structure above, with MIME's `Content-Type` and
+  `Content-Transfer-Encoding` lines borrowed into it (wl2k-go writes
+  them, and so does `winlink/message.py`). Full MIME is how the CMS
+  gateways Internet mail. Trust the Open B2F structure.
+- **Block size.** The Data Flow document says 250 bytes for a full block.
+  wl2k-go sends 125 (`MaxMsgLength`), and kissterm follows it
+  (`b2f.MAX_CHUNK`). Both fit the length byte, and receivers take any
+  length.
+- **Resuming a message** (the gateway answers `!<offset>` or `A<offset>`).
+  The Data Flow document says the header is followed by STX, 6 and the
+  first six bytes of the compressed image, then the data from the
+  offset. wl2k-go sends no such field ("Offset not supported yet"), and
+  neither does kissterm (`b2f._write_message`).
+  `# RESEARCH:` settle this with a capture from Winlink Express or an
+  RMS before a gateway's resume request is relied on. Offsets above
+  999999 are sent as 0, as wl2k-go does.
+
+**Client identity.** Neither document requires a client program to be
+registered. Open B2F says the B2 extension "is open for use by other
+software" and sends SID details to f6fbb.org. The only evidence of a
+gate is the production CMS itself, in the operator's session of
+2026-09-28, which answered `[kissterm-0.1.325-B2FHM$]` with "Unknown
+client types are not allowed on production servers -- use
+cms-z.winlink.org". That is server policy, not protocol. How a client
+name becomes known is not published (ROADMAP, Blockers). The Open B2F
+page directs technical questions to the Winlink Development Team.
+
+**Also in the Data Flow document:**
+- Callsigns are validated by the Winlink system.
+- An account password is required so that no one can hijack an
+  account.
+- `X-P2P: True` is an optional header used only for peer-to-peer
+  messages (ROADMAP P2, peer-to-peer Winlink).
+- `Mbo:` is described there as "the callsign of the person sending"; the
+  spec says the originating RMS, `SMTP` or `CMBO`. kissterm sends its
+  own callsign, as wl2k-go does.
+
+**FCC note (Open B2F).** B2F compression sits above the transport, and
+Winlink programs run radio modems without their own compression or
+encryption. Pactor modems are set to `MODE 0`, strict ASCII. This is the
+answer to 97.309 questions; nothing in kissterm's transports compresses
+beneath B2F.
 
 ## NTS radiograms: sources and precedence
 
