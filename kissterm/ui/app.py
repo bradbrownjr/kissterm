@@ -4203,10 +4203,13 @@ class KissTermApp(App):
             # show a Winlink viewer something other than what was sent.
             form, draft = filled
             if message.body.rstrip() == draft.body.rstrip():
-                xml = form_xml.build(
-                    form, draft.form_values, callsign=str(self.config.mycall or ""), grid=grid,
-                    reply=original is not None,
-                    extra={"theMsgSender": original.sender} if original is not None else None)
+                try:
+                    xml = form_xml.build(
+                        form, draft.form_values, callsign=str(self.config.mycall or ""),
+                        grid=grid, reply=original is not None,
+                        extra={"theMsgSender": original.sender} if original is not None else None)
+                except form_xml.TooManyRows as exc:
+                    note = f" {exc}, so it goes as text only."
             else:
                 note = " The text was changed after the form, so it goes as text only."
         self.mail_store.add(WINLINK_OUTBOX if winlink else BBS_OUTBOX, message,

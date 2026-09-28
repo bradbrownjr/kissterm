@@ -166,8 +166,11 @@ and then your Winlink password, before dialing. The password is saved
   Express it should open in the ICS-213 viewer with every block filled
   and no `{var ...}` left on the page; the message should list
   `RMS_Express_Form_ICS213_Initial_Viewer.xml`. Then the same with a
-  Winlink Check-in, and R, Reply on form on a received ICS-213 (the
-  reply viewer should name the original sender).
+  Winlink Check-in, an ICS-213RR with two order lines (the table should
+  fill its first two rows), a Damage Assessment with HOUSES and one
+  category of your own (HOUSES in its row, yours under Other), and R,
+  Reply on form on a received ICS-213 (the reply viewer should name the
+  original sender).
 - [ ] **A Winlink Express form read from its XML** (no radio, with I):
   have a Winlink Express user send you an ICS-213 by Winlink. It should
   show as the form, with the message exactly as typed. A form kissterm

@@ -43,6 +43,17 @@ Estimated: <var EstDateTime>
 9. Section Chief Name: <var SecApp>
 '''
 
+# Winlink's own names ("Form:" in "ICS213RR Resource Request Message.txt"): the viewer, every
+# {var} it reads outside the table cells, and what
+# ICS213RR_Initial.html sets itself.
+[winlink]
+viewer = "ICS213RR_Viewer.html"
+viewer_vars = ["ActivityDateTime1", "ActivityDateTime2", "AuthSig", "Delivery",
+               "FinComm", "FinRepName", "FormTitle", "IncName", "LogNum", "MsgSender",
+               "Notes", "OrderBy", "POC", "Priority", "Reqname", "ReqNum", "SecApp",
+               "Subs1", "SupInfo", "SupName"]
+computed = { Templateversion = "ICS 213RR v. 14.6" }
+
 [[fields]]
 id = "Priority"
 label = "8. Priority"

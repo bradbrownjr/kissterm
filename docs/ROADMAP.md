@@ -241,8 +241,7 @@ exchange confirms it.
   request against the real API, which needs an access key issued to
   kissterm (Blockers at the top; Pat's key is issued to Pat). Small once
   the key exists.
-- **Later:** Winlink HTML/XML forms (they meet P11's form system here),
-  peer-to-peer Winlink, and scheduled send/receive. The scheduled version
+- **Later:** peer-to-peer Winlink, and scheduled send/receive. The scheduled version
   follows every unattended-transmission rule in AGENTS.md: opt-in, a status
   marker, an interval floor, and every line logged.
 
@@ -299,19 +298,6 @@ the radiogram form rather than as a form file) shipped 2026-09-26.
 ROSTER is not shipped: it is bpq-apps' README example, not a form any
 net publishes; paste it.
 
-- [ ] **Winlink forms.** Winlink Express's standard templates are HTML forms
-  that send a readable text body plus an XML attachment
-  (`RMS_Express_Form_*.xml`) that another Winlink client renders as the
-  form. `# RESEARCH:` source the XML structure from Winlink's published
-  Standard Templates, not from guesses. The form files' field ids are
-  already Winlink's variable names, so the XML is built from the same
-  values. Reading the XML, and sending it with ICS-213, its reply and
-  the Check-in, shipped 2026-09-28 (`mail/form_xml.py`). Left: the
-  `[winlink]` table for the other shipped forms with a viewer (213RR,
-  309, 214, 205, FSR, Severe WX, Damage Assessment, Incident Status),
-  each form's hidden fields read from its HTML. The
-  Radiogram template names no viewer, so Winlink Express sends it as
-  text only, as kissterm already does.
 - [ ] **PackItForms/Outpost wire compatibility**, so an Outpost or Winlink
   Express operator sees a recognised form rather than plain text. It is
   later and separate, and is sourced from PackItForms' published templates

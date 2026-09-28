@@ -49,6 +49,15 @@ Comments:(if any)
 '''
 totals = [{ id = "Dollar16", rows = "damage", column = "Dollar", format = "money" }]
 
+# Winlink's own names ("Form:" in "Damage Assessment.txt"): the viewer, every
+# {var} it reads outside the table cells, and what
+# Damage_Assessment_Initial.html sets itself.
+[winlink]
+viewer = "Damage_Assessment_Viewer.html"
+viewer_vars = ["Comments", "Date", "DateTime1", "Dollar16", "Event", "Jur", "MisNum",
+               "MsgSender", "Other", "Status", "SurArea", "SurTeam", "Title"]
+computed = { Templateversion = "DAmage Report v 11.5" }
+
 [[fields]]
 id = "Title"
 label = "Agency/group"
@@ -117,6 +126,13 @@ help = "Team name or members. Remembered."
 id = "damage"
 label = "Damage by category"
 kind = "rows"
+# Winlink's XML has a slot per named category, in the template's order,
+# then Other13-15 for the operator's own (form_xml.py).
+xml_slots = ["HOUSES", "APARTMENT COMPLEX", "MOBILE HOMES", "RESIDENTIAL HIGH RISE",
+             "COMMERCIAL HIGH RISE", "PUBLIC BUILDINGS", "SMALL BUISNESS", "FACTORIES/INDUSTRIAL",
+             "ROADS", "BRIDGES", "ELECTRICAL DISTRIBUTION", "SCHOOLS"]
+xml_slot_column = "Category"
+xml_other = "Other"
 required = true
 max_rows = 15
 help = "One line per category with damage: HOUSES, APARTMENT COMPLEX, MOBILE HOMES, RESIDENTIAL HIGH RISE, COMMERCIAL HIGH RISE, PUBLIC BUILDINGS, SMALL BUISNESS, FACTORIES/INDUSTRIAL, ROADS, BRIDGES, ELECTRICAL DISTRIBUTION, SCHOOLS, or your own."

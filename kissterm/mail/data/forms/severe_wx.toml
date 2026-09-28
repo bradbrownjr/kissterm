@@ -47,6 +47,19 @@ Additional Information or Comments:
 <var Comments>
 '''
 
+# Winlink's own names ("Form:" in "Severe WX Report.txt"): the viewer, every
+# {var} it reads outside the table cells, and what
+# Severe WX Report.html sets itself.
+[winlink]
+viewer = "Severe WX Report viewer.html"
+viewer_vars = ["Call", "City", "Comments", "County", "DateTime", "Email", "Flood",
+               "FreezingRainI", "FreezingRainM", "GPS2", "Grid", "HailSize",
+               "locationSource", "mapLat", "mapLon", "MGRS", "Other", "Phone",
+               "Precipitation", "RainI", "RainM", "RainPeriod", "Region", "RepName",
+               "SnowI", "SnowM", "Tornado", "Type", "WindDamage", "WindspeedI",
+               "WindspeedM"]
+computed = { Templateversion = "Severe WX. 4.2" }
+
 [[fields]]
 id = "Type"
 label = "Report status"

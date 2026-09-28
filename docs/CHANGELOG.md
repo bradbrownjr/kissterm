@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — Every shipped Winlink form carries its XML
+
+### New Features
+
+- **ICS-213RR, ICS-214, ICS-205, ICS-309, Field Situation Report,
+  Severe WX, Damage Assessment and Incident Status** now go by Winlink
+  with their XML too, and read from it when received. Each form's
+  viewer variables and template version are taken from its Standard
+  Forms 1.1.20.0 HTML. Table cells use Winlink's names (the 214's
+  `Name1`...), every cell is written, and Damage Assessment categories
+  take Winlink's twelve named slots, then Other13-15; a fourth category
+  of your own sends the form as text only, and says why.
+
+**Files:** `kissterm/mail/form_xml.py`, `kissterm/mail/forms.py`,
+`kissterm/ui/app.py`, `kissterm/mail/data/forms/ics213rr.toml`,
+`ics214.toml`, `ics205.toml`, `ics309.toml`, `fsr.toml`,
+`severe_wx.toml`, `damage_assessment.toml`, `incident_status.toml`,
+`tests/unit/test_form_xml.py`, `docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-28] — Winlink forms sent with their XML
 
 ### New Features

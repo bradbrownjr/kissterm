@@ -99,6 +99,9 @@ class Column:
     format: str = ""
     #: The empty cell's hint, where it is not the label (`YYYY-MM-DD HH:MM`).
     placeholder: str = ""
+    #: Winlink's name for the column's cells in the form XML, where it is
+    #: not the id (`Name1`...; `form_xml.py`).
+    xml: str = ""
 
 
 @dataclass(frozen=True)
@@ -156,6 +159,13 @@ class Field:
     #: Shown but not editable: a received message's own blocks in a reply
     #: form (the ICS-213's 1-8 under its reply).
     readonly: bool = False
+    #: A `rows` field Winlink lays out in fixed, named slots (the Damage
+    #: Assessment's twelve categories): the slot names in order, the column
+    #: holding the name, and the variable that names each slot after them
+    #: (`Other13`...). See `form_xml.py`.
+    xml_slots: tuple[str, ...] = ()
+    xml_slot_column: str = ""
+    xml_other: str = ""
 
 
 @dataclass(frozen=True)
@@ -210,7 +220,8 @@ def _field(raw: dict[str, Any]) -> Field:
         if key not in MAIL_LOG_KEYS or column not in {c.id for c in columns}:
             raise ValueError(f"field {raw.get('id')!r}: mail_log {key} = {column!r}")
     return Field(**{**raw, "choices": tuple(raw.get("choices", ())), "columns": columns,
-                    "derived": derived, "mail_log": mail_log})
+                    "derived": derived, "mail_log": mail_log,
+                    "xml_slots": tuple(raw.get("xml_slots", ()))})
 
 
 def split_strip(text: str) -> tuple[str, list[str]]:

@@ -18,7 +18,9 @@ import pytest  # noqa: E402
 
 from kissterm import __version__  # noqa: E402
 from kissterm.mail import form_xml  # noqa: E402
-from kissterm.mail.forms import defaults, filled_rows, get_form, load_forms, render  # noqa: E402
+from kissterm.mail.forms import (  # noqa: E402
+    defaults, filled_rows, get_form, load_forms, render, row_values,
+)
 from kissterm.winlink.message import build, serialize  # noqa: E402
 
 ICS213 = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -130,6 +132,11 @@ def _filled(form_id: str) -> tuple:
             values[f.id] = f"{f.id} value"
         if f.kind == "check":
             values[f.id] = "1"
+        if f.kind == "rows":
+            names = ["houses", "Barns"] if f.xml_slots else ["first", "second"]
+            values[f.id] = [{c.id: (name if c.id == f.xml_slot_column else f"{c.id} {name}")
+                             for c in f.columns if not c.choices and not c.sum_of}
+                            for name in names]
     return form, values
 
 
@@ -170,7 +177,37 @@ def test_every_viewer_variable_is_written_and_reads_back(form_id):
 
 
 def forms_filled_rows(f, rows):
-    return [{c.id: str(r.get(c.id, "")).strip() for c in f.columns} for r in filled_rows(f, rows)]
+    shown = [row_values(f, r) for r in filled_rows(f, rows)]
+    if f.xml_slots:  # a named category comes back under Winlink's own name
+        for row in shown:
+            if row[f.xml_slot_column].upper() in f.xml_slots:
+                row[f.xml_slot_column] = row[f.xml_slot_column].upper()
+    return shown
+
+
+def test_ics214_tables_use_winlink_names():
+    form, values = _filled("ics214")
+    found = form_xml.parse(form_xml.build(form, values, callsign="KC1JMH"))
+    assert found.variables["name1"] == "RName first" and found.variables["activities2"] == "Activity second"
+    assert found.variables["name8"] == "" and found.variables["activitydatetime24"] == ""
+
+
+def test_damage_categories_take_winlinks_slots():
+    form, values = _filled("damage_assessment")
+    found = form_xml.parse(form_xml.build(form, values, callsign="KC1JMH"))
+    assert found.variables["aff1"] == "Aff houses"  # HOUSES is slot 1
+    assert found.variables["other13"] == "Barns" and found.variables["aff13"] == "Aff Barns"
+    assert found.variables["aff2"] == "" and found.variables["other14"] == ""
+    values["damage"] += [{"Category": name, "Aff": "1"} for name in ("Sheds", "Silos", "Docks")]
+    with pytest.raises(form_xml.TooManyRows):
+        form_xml.build(form, values, callsign="KC1JMH")
+
+
+def test_fsr_answers_go_under_the_viewers_names():
+    form, values = _filled("fsr")
+    values["k4"] = "YES"
+    found = form_xml.parse(form_xml.build(form, values, callsign="KC1JMH"))
+    assert found.variables["pots"] == "YES"
 
 
 def test_the_checkin_subject_is_computed_into_the_xml():

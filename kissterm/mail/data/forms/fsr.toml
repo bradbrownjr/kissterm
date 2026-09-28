@@ -50,6 +50,21 @@ BT
 NNNN
 '''
 
+# Winlink's own names ("Form:" in "Field Situation Report.txt"): the viewer, every
+# {var} it reads outside the table cells, and what
+# Field Situation Report Initial.html sets itself.
+[winlink]
+viewer = "Field Situation Report viewer.html"
+viewer_vars = ["AMFM", "Cell", "Celltext", "City", "Comm0", "Comm1", "Comm1A", "Comm2",
+               "Comm2A", "Comm3", "Comm4", "Comm4b", "Comm4c", "Comm5", "Comm6",
+               "Comm6A", "Comm7", "Comm9c", "County", "gpsLat", "gpsLon", "Inter",
+               "kgc9", "locationSource", "Message", "MGRS", "MsgCc", "MsgNR",
+               "MsgSender", "MsgTo", "NOAA", "NOAAb", "NOAAcom", "NOAAcomb", "POC",
+               "POTS", "PowerStable", "PowerWorks", "Precedence", "Safetyneed", "State",
+               "Territory", "Title", "TVStatus", "TVStatusb", "TVStatusc", "UDTGfld",
+               "VOIP", "WaterWorks"]
+computed = { POTS = "<var k4>", VOIP = "<var k4A>", Cell = "<var k5>", Celltext = "<var k5A>", PowerWorks = "<var k9>", PowerStable = "<var k9A>", Templateversion = "Field Situation Report V 0.2.10" }
+
 [[fields]]
 id = "Precedence"
 label = "Precedence"

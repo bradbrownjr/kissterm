@@ -69,6 +69,19 @@ Other (Specify): <var f9>  <var Typeother>
 <var Contctinfo>
 '''
 
+# Winlink's own names ("Form:" in "Incident Status Report.txt"): the viewer, every
+# {var} it reads outside the table cells, and what
+# Incident_Status_Initial.html sets itself.
+[winlink]
+viewer = "Incident_Status_Viewer.html"
+viewer_vars = ["Contctinfo", "DateTimeReport", "DecDateTime", "Declaration",
+               "EOCStatus", "Evac", "Evacyes", "f1", "f10", "f11", "f12", "f2", "f3",
+               "f4", "f5", "f6", "f7", "f8", "f9", "hoursmonitor", "hoursofop",
+               "IncDateTime", "incidentname", "Issues", "numiFatalities", "numInjuries",
+               "Rversion", "Shelters", "SitSummary", "Submittedby", "Title",
+               "Typeother", "WEBEOC"]
+computed = { Templateversion = "Incident Status 2.3" }
+
 [[fields]]
 id = "Title"
 label = "Agency/group"

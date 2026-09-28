@@ -37,8 +37,13 @@ Pat do. # UNVERIFIED: the case Winlink Express itself writes names in;
 Pat writes them all lowercase and Winlink Express reads Pat's forms.
 
 A `rows` field (the 213RR's order lines) is numbered in the XML, one
-variable per cell: `Qty1` ... `Qty8`, the column id and the line number,
-as the viewers name them.
+variable per cell: `Qty1` ... `Qty8`, the column's name (its `xml`, else
+its id) and the line number, as the viewers name them. Every cell up to
+the form's `max_rows` is written, empty ones too. The Damage Assessment
+is laid out in fixed slots instead (`xml_slots`): a line whose category
+is one of Winlink's twelve takes that slot's number, and any other takes
+the next of slots 13-15, its name in `Other13`...; a fourth category of
+the operator's own does not fit Winlink's form (`TooManyRows`).
 
 **Writing** follows Pat's `buildXML` and its defaults: every name
 lowercase, sorted, each value trimmed; Pat's `msg*` bookkeeping
@@ -73,7 +78,7 @@ from .. import __version__
 from ..winlink.message import B2Error
 from ..winlink.message import parse as parse_b2
 from .form_parse import Parsed
-from .forms import Field, FormDef, Values, _fill, filled_rows, flat_values, load_forms, row_values
+from .forms import Column, Field, FormDef, Values, _fill, filled_rows, flat_values, load_forms, row_values
 
 #: The attachment's name: `RMS_Express_Form_<viewer>.xml`.
 _NAME_RE = re.compile(r"^RMS_Express_Form_.*\.xml$", re.IGNORECASE)
@@ -170,6 +175,39 @@ def form_for(found: FormXml) -> FormDef | None:
                 None)
 
 
+class TooManyRows(ValueError):
+    """A table has more lines than Winlink's form has room for."""
+
+
+def _cell(column: Column, number: int) -> str:
+    return f"{column.xml or column.id}{number}"
+
+
+def _slotted(f: Field, rows: list[dict[str, str]]) -> list[tuple[int, dict[str, str]]]:
+    """Each line with its number in the XML (module docstring)."""
+    if not f.xml_slots:
+        numbered = list(enumerate(rows, 1))
+    else:
+        slots = [s.upper() for s in f.xml_slots]
+        taken: set[int] = set()
+        other = len(slots)
+        numbered = []
+        for row in rows:
+            name = " ".join(str(row.get(f.xml_slot_column, "")).split()).upper()
+            if name in slots and slots.index(name) + 1 not in taken:
+                number = slots.index(name) + 1
+            else:
+                other += 1
+                number = other
+            taken.add(number)
+            numbered.append((number, row))
+    if numbered and max(n for n, _ in numbered) > f.max_rows:
+        raise TooManyRows(f"{f.label}: Winlink's form has room for {f.max_rows} lines"
+                          + (f", {f.max_rows - len(f.xml_slots)} of them your own"
+                             if f.xml_slots else ""))
+    return numbered
+
+
 def values(form: FormDef, found: FormXml) -> Values:
     """The form's values from the XML (module docstring)."""
     out: Values = {}
@@ -177,7 +215,15 @@ def values(form: FormDef, found: FormXml) -> Values:
         if f.kind == "rows":
             rows = []
             for number in range(1, (f.max_rows or 0) + 1):
-                row = {c.id: found.get(f"{c.id}{number}").strip() for c in f.columns}
+                cells = [c for c in f.columns if c.id != f.xml_slot_column or not f.xml_slots]
+                row = {c.id: found.get(_cell(c, number)).strip() for c in cells}
+                if f.xml_slots:
+                    name = (f.xml_slots[number - 1] if number <= len(f.xml_slots)
+                            else found.get(f"{f.xml_other}{number}").strip())
+                    if not any(row.values()):
+                        continue
+                    row = {f.xml_slot_column: name, **row}
+                    row = {c.id: row.get(c.id, "") for c in f.columns}
                 if any(row.values()):
                     rows.append(row)
             out[f.id] = rows
@@ -243,10 +289,20 @@ def variables(form: FormDef, values: Values, *, callsign: str, reply: bool = Fal
     for name, value in flat.items():
         out[name.lower()] = value
     for f in form.fields:
-        if f.kind == "rows":
-            for number, row in enumerate(filled_rows(f, values.get(f.id) or []), 1):
-                for column, value in row_values(f, row).items():
-                    out[f"{column}{number}".lower()] = value
+        if f.kind != "rows":
+            continue
+        cells = [c for c in f.columns if c.id != f.xml_slot_column or not f.xml_slots]
+        for number in range(1, f.max_rows + 1):
+            for c in cells:
+                out.setdefault(_cell(c, number).lower(), "")
+            if f.xml_slots and number > len(f.xml_slots):
+                out.setdefault(f"{f.xml_other}{number}".lower(), "")
+        for number, row in _slotted(f, filled_rows(f, values.get(f.id) or [])):
+            shown = row_values(f, row)
+            for c in cells:
+                out[_cell(c, number).lower()] = shown.get(c.id, "")
+            if f.xml_slots and number > len(f.xml_slots):
+                out[f"{f.xml_other}{number}".lower()] = shown.get(f.xml_slot_column, "")
     for name, template in form.winlink_computed:
         out[name.lower()] = _fill(template, flat)
     for name, value in (extra or {}).items():
@@ -258,7 +314,8 @@ def build(form: FormDef, values: Values, *, callsign: str, grid: str = "",
           now: datetime | None = None, reply: bool = False,
           extra: dict[str, str] | None = None) -> bytes:
     """The attachment for `form` filled with `values`. Raises `ValueError`
-    for a form with no Winlink viewer."""
+    for a form with no Winlink viewer, and `TooManyRows` for a table
+    Winlink's form has no room for."""
     if not form.winlink_viewer:
         raise ValueError(f"{form.title} has no Winlink viewer")
     root = ET.Element("RMS_Express_Form")

@@ -36,6 +36,15 @@ SUBJECT:
 </each>
 '''
 
+# Winlink's own names ("Form:" in "Form-309 Communications Log.txt"): the viewer, every
+# {var} it reads outside the table cells, and what
+# Form-309_Initial.html sets itself.
+[winlink]
+viewer = "Form-309_Viewer.html"
+viewer_vars = ["ActivityDateTime1", "MsgSender", "OperId", "OpName", "OpPer", "Page",
+               "Task", "TaskName", "Title"]
+computed = { Templateversion = "Form 309 v13.12" }
+
 [[fields]]
 id = "Title"
 label = "Agency/group"

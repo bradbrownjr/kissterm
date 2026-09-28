@@ -39,6 +39,16 @@ IAP Page:	<var IAP_Page>
 Express Sender:	<var MsgSender>
 '''
 
+# Winlink's own names ("Form:" in "ICS205 Radio Plan.txt"): the viewer, every
+# {var} it reads outside the table cells, and what
+# ICS205 Radio Plan_Initial.html sets itself.
+[winlink]
+viewer = "ICS205 Radio Plan_Viewer.html"
+viewer_vars = ["ActivityDateTime1", "ActivityDateTime2", "DateFrom", "DateTo",
+               "FormTitle", "IAP_Page", "Incident_Name", "PreparedName",
+               "SpecialInstructions", "TimeFrom", "TimeTo"]
+computed = { Templateversion = "ICS205- v 19.5" }
+
 [[fields]]
 id = "FormTitle"
 label = "Agency/group"

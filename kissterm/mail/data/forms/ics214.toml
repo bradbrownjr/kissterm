@@ -37,6 +37,15 @@ DATE & TIME	ACTIVITY
 ---------------------------------------------
 '''
 
+# Winlink's own names ("Form:" in "ICS214 Activity Log.txt"): the viewer, every
+# {var} it reads outside the table cells, and what
+# ICS214_Initial.html sets itself.
+[winlink]
+viewer = "ICS214_Viewer.html"
+viewer_vars = ["DateTimeFrom", "DateTimeTo", "FormTitle", "Home_Agency", "ICS_Position",
+               "Incident_Name", "MsgSender", "Name", "Page", "PreparedName"]
+computed = { Templateversion = "ICS 214 v 17.10" }
+
 [[fields]]
 id = "FormTitle"
 label = "Agency/group"
@@ -97,9 +106,9 @@ kind = "rows"
 max_rows = 8
 help = "People assigned with you: name, ICS position, home agency. Winlink's form holds eight."
 columns = [
-  { id = "RName", label = "Name", max_length = 30 },
-  { id = "RPosition", label = "ICS position", max_length = 35 },
-  { id = "RAgency", label = "Home agency", max_length = 50 },
+  { id = "RName", xml = "Name", label = "Name", max_length = 30 },
+  { id = "RPosition", xml = "ICS_Position", label = "ICS position", max_length = 35 },
+  { id = "RAgency", xml = "Home_Agency", label = "Home agency", max_length = 50 },
 ]
 
 [[fields]]
@@ -110,8 +119,8 @@ required = true
 max_rows = 24
 help = "Notable activities with the date and time of each. Winlink's form holds twenty-four."
 columns = [
-  { id = "ActTime", label = "Date & time", placeholder = "YYYY-MM-DD HH:MM", max_length = 20 },
-  { id = "Activity", label = "Activity", max_length = 100 },
+  { id = "ActTime", xml = "ActivityDateTime", label = "Date & time", placeholder = "YYYY-MM-DD HH:MM", max_length = 20 },
+  { id = "Activity", xml = "Activities", label = "Activity", max_length = 100 },
 ]
 
 [[fields]]
