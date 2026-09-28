@@ -5,6 +5,25 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — Winlink forms read from their XML
+
+### New Features
+
+- **A received Winlink form is shown from its XML attachment**
+  (`RMS_Express_Form_*.xml`), exactly as filled in, when it has one; the
+  text body is read against the template only when it does not. ICS-213,
+  its reply and Winlink Check-in are matched by viewer name; any other
+  Winlink form shows its filled variables as a list under its name. The
+  XML is size-capped and one with a DOCTYPE is refused. Format from Pat's
+  source (docs/PROTOCOL_GUIDE.md).
+
+**Files:** `kissterm/mail/form_xml.py`, `kissterm/mail/forms.py`,
+`kissterm/mail/data/forms/ics213.toml`, `ics213_reply.toml`,
+`winlink_checkin.toml`, `kissterm/ui/mail_pane.py`,
+`tests/unit/test_form_xml.py`, `tests/pilot/test_mail_pane.py`,
+`kissterm/mail/AGENTS.md`, `docs/PROTOCOL_GUIDE.md`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-27] — Every list of saved things ends with New
 
 ### Improvements

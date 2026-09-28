@@ -30,6 +30,12 @@ GENERAL MESSAGE (ICS 213)
 8a. Position/Title: <var Approved_PosTitle>
 '''
 
+# Winlink's own names for this form ("Form:" and "ReplyTemplate:" in
+# "ICS213 General Message.txt"): the XML attachment names the viewer.
+[winlink]
+viewer = "ICS213_Initial_Viewer.html"
+reply_template = "ICS213_SendReply.0"
+
 [[fields]]
 id = "IsExercise"
 label = "Exercise"

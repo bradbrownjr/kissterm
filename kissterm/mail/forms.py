@@ -180,6 +180,10 @@ class FormDef:
     hidden: bool = False
     #: The form a reply to this one is written on (Winlink's ReplyTemplate).
     reply_form: str = ""
+    #: The `[winlink]` table: the Winlink viewer file this form's XML names
+    #: as its `display_form`, and its `reply_template` (`form_xml.py`).
+    winlink_viewer: str = ""
+    winlink_reply: str = ""
 
     def field(self, field_id: str) -> Field:
         return next(f for f in self.fields if f.id == field_id)
@@ -284,7 +288,11 @@ def parse_form(text: str) -> FormDef:
         return strip_form(raw["strip"], form_id=raw["id"], title=raw["title"], source=raw["source"])
     fields = tuple(_field(f) for f in raw.pop("fields"))
     totals = tuple(Total(**t) for t in raw.pop("totals", ()))
-    form = FormDef(**raw, fields=fields, totals=totals)
+    winlink = dict(raw.pop("winlink", {}))
+    viewer, reply = winlink.pop("viewer", ""), winlink.pop("reply_template", "")
+    if winlink:
+        raise ValueError(f"form {raw.get('id')!r}: unknown [winlink] keys {sorted(winlink)}")
+    form = FormDef(**raw, fields=fields, totals=totals, winlink_viewer=viewer, winlink_reply=reply)
     names = {f.id.lower() for f in fields} | {
         c.id.lower() for f in fields for c in f.columns
     } | {d.id.lower() for f in fields for d in f.derived} | {

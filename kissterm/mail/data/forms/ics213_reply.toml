@@ -40,6 +40,10 @@ GENERAL MESSAGE (ICS 213)
     Date / Time: <var rply_dtm>
 '''
 
+# Winlink's own name for this form ("Form:" in ICS213_SendReply.0).
+[winlink]
+viewer = "ICS213_SendReply_Viewer.html"
+
 [[fields]]
 id = "inc_name"
 label = "1. Incident name"

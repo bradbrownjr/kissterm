@@ -50,6 +50,10 @@ Winlink Check-in
 Winlink Check-in 5.1.3
 '''
 
+# Winlink's own name for this form ("Form:" in "Winlink Check-in.txt").
+[winlink]
+viewer = "Winlink_Check_In_Viewer.html"
+
 [[fields]]
 id = "MsgTo"
 label = "1b. To"

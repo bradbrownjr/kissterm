@@ -46,6 +46,10 @@ of the two is marked `# UNVERIFIED:`.
   (`form_parse.py`); recognition stays conservative (a wrong form shown
   is worse than text), and `tests/unit/test_form_parse.py` round-trips
   every shipped form -- a new form file must pass it.
+- **A Winlink form's XML wins over its text** (`form_xml.py`): matched
+  to a shipped form by the `[winlink] viewer` in its file, names compared
+  without case; the XML is capped and a DOCTYPE refused
+  (`tests/unit/test_form_xml.py`).
 - **An information strip is split on `/` outside parentheses only**, and
   an answer containing `/` is refused (`forms.split_strip`,
   `test_mail_forms.py`).

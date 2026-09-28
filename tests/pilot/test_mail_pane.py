@@ -181,3 +181,27 @@ async def test_a_received_ics213_reads_as_a_form_and_v_shows_its_text(tmp_path):
         await pilot.pause()
         assert "Hello" in _reader_text(mail)
         assert table.check_action("toggle_form", ()) is False
+
+
+@pytest.mark.asyncio
+async def test_a_winlink_form_reads_from_its_xml_not_its_text(tmp_path):
+    from kissterm.winlink.message import build, serialize
+
+    from tests.unit.test_form_xml import ICS213
+
+    app, store = _app(tmp_path)
+    # The text says one thing, the XML another: the XML is what was filled in.
+    raw = build(sender="W1AW", to=["KC1JMH"], subject="ICS-213: Shelter status", body="text\n",
+                mid="ABCDEF123456", files=[("RMS_Express_Form_ICS213_Initial_Viewer.xml", ICS213)])
+    store.add("Mail/Winlink/Inbox", Message(sender="W1AW", to="KC1JMH", date=WHEN + timedelta(hours=1),
+                                            subject="ICS-213: Shelter status", body="text\n"),
+              raw=serialize(raw))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        mail = _browser(app, "mail")
+        mail.query_one(MessageList).focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        shown = _reader_text(mail)
+        assert "ICS-213 General Message" in shown and "ICE STORM" in shown
+        assert "Cots needed." in shown

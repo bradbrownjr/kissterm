@@ -41,7 +41,7 @@ from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Tree
 
-from ..mail import MessageStore, form_parse
+from ..mail import MessageStore, form_parse, form_xml
 from ..mail.store import ALL_INBOXES, DELETED, FILES, check_folder, is_deleted_folder
 from ..monitor import sanitize
 from . import slideouts
@@ -472,7 +472,10 @@ class MessageBrowser(Horizontal):
         message = self.store.read(ref)
         if ref != self._open_ref:
             self._open_ref, self._as_text = ref, False
-            self._open_form = form_parse.recognize(
+            # A Winlink form's XML is exactly what was filled in; the text
+            # is read against the template only when there is none.
+            found = form_xml.from_raw(self.store.raw_files(ref))
+            self._open_form = form_xml.read(found) if found is not None else form_parse.recognize(
                 message.subject, message.body, form_id=message.extra.get("Form", ""))
             self.query_one(MessageList).refresh_bindings()  # V, in the Footer
         head = Text()
