@@ -284,9 +284,11 @@ class Client:
 
     # -- reading and writing --
 
-    def _send_line(self, text: str) -> None:
+    def _send_line(self, text: str, shown: str | None = None) -> None:
+        """Queue `text`; its event (what the log and terminal show) is
+        `shown` when given."""
         self._out += text.encode("latin-1", errors="replace") + b"\r"
-        self._events.append(Line(">", text))
+        self._events.append(Line(">", text if shown is None else shown))
 
     def _read_line(self):
         while True:
@@ -381,7 +383,11 @@ class Client:
         if challenge:
             if not self.password:
                 raise B2FError("the gateway asks for a password, and none is set for this account")
-            self._send_line(f";PR: {login_response(challenge, self.password)}")
+            # Never logged: beside the ;PQ: challenge in a transcript, the
+            # answer lets anyone holding the file test guesses at the
+            # password offline (operator's session log, 2026-09-28).
+            self._send_line(f";PR: {login_response(challenge, self.password)}",
+                            shown=";PR: (secure login answer, not logged)")
         self._send_line(f"; {self.target} DE {self.mycall} ({self.locator})")
 
     def _outbound(self):

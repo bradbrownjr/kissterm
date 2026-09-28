@@ -243,8 +243,12 @@ def test_the_mid_is_kept_for_a_retry(tmp_path):
 def test_secure_login_and_a_wrong_password(tmp_path):
     store = _store(tmp_path)
     gateway = Gateway(challenge=True)
-    result, _ = asyncio.run(_run(gateway, store, password="FooBar"))
+    result, log = asyncio.run(_run(gateway, store, password="FooBar"))
     assert not result.stopped and ";PR: 95074758" in gateway.handshake
+    # The log shows that it answered, never the answer (beside ;PQ: it
+    # would let the password be guessed offline).
+    assert "> ;PR: (secure login answer, not logged)" in log
+    assert not any("95074758" in line for line in log)
     result, _ = asyncio.run(_run(Gateway(challenge=True, fail_login=True), store, password="x"))
     assert "Secure login failed - account password does not match" in result.stopped
 

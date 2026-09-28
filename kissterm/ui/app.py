@@ -4240,8 +4240,8 @@ class KissTermApp(App):
 
         G follows the folder in front (operator, 2026-09-26,
         `send_receive_kind`): a Winlink folder runs Winlink, a BBS folder
-        the Home BBS, and All Inboxes each one that has a dial entry, the
-        Home BBS first. Missing logins are asked before the first dial
+        the Home BBS, and All Inboxes each one in use, the Home BBS first
+        (`send_receive_kind`). Missing logins are asked before the first dial
         (`_bbs_prepare`, `_winlink_prepare`). Each run dials through
         `_dial_for_mail`, so the
         reminder, the transmit gate, the hop chain and the route's own
@@ -4342,20 +4342,22 @@ class KissTermApp(App):
 
     def send_receive_kind(self, folder: str, internet: bool = False) -> str:
         """What G does from `folder` (operator, 2026-09-26): "winlink" on a
-        Winlink folder; on All Inboxes "all" (the Home BBS, then Winlink)
-        when both have a dial entry, else whichever has one; "bbs"
-        anywhere else, and on All Inboxes when neither is set up yet (the
-        Home BBS's first-run question)."""
+        Winlink folder; "bbs" anywhere else. On All Inboxes, "all" (the
+        Home BBS, then Winlink) when both are in use, else whichever is,
+        and "bbs" when neither is yet (the Home BBS's first-run question).
+
+        In use = set up for G or for I, whichever key was pressed: what the
+        key still needs is then asked for, with its Skip button (operator,
+        2026-09-28: I "didn't ask for BBS over internet settings" when the
+        Home BBS had a radio route but no Internet contact). A service set
+        up for neither is not asked about, so a BBS-only station is not
+        asked about Winlink at every G."""
         if folder == WINLINK_FOLDER or folder.startswith(f"{WINLINK_FOLDER}/"):
             return "winlink"
         if folder == ALL_INBOXES:
-            # Set up = has a way to reach it: a dial entry for G; for I
-            # (`internet`), the BBS's Internet connection, and for Winlink
-            # a dial entry or a saved password (the CMS needs nothing else).
             home, winlink_config = self.config.home_bbs, self.config.winlink
-            bbs = bool((home.internet if internet else home.route).strip())
-            winlink = bool(winlink_config.route.strip()
-                           or (internet and winlink_config.credential.strip()))
+            bbs = bool(home.route.strip() or home.internet.strip())
+            winlink = bool(winlink_config.route.strip() or winlink_config.credential.strip())
             if bbs and winlink:
                 return "all"
             if winlink:
@@ -4562,7 +4564,19 @@ class KissTermApp(App):
     def _bbs_report(self, result) -> None:
         """The outcome toast of a Home BBS run, over radio or the Internet."""
         sent = f"{len(result.sent)} sent, " if result.sent else ""
-        if result.stopped:
+        if "unknown client type" in result.stopped.lower():
+            # The CMS's own words (operator's first session, 2026-09-28):
+            # its production servers turn away a client program they do not
+            # know, by the name in the SID (ROADMAP, Blockers). The published
+            # B2F specification names no registry; how a program becomes
+            # known is still to be learned. Not the password, network or radio.
+            self.notify(
+                "Winlink refused kissterm itself, not your login: its production servers "
+                "accept only client programs they know, and kissterm is not one of them yet. "
+                "Nothing was sent.",
+                severity="warning", timeout=15,
+            )
+        elif result.stopped:
             self.notify(
                 f"Send/Receive stopped: {result.stopped}. "
                 f"{sent}{len(result.filed)} received.",
@@ -4688,7 +4702,19 @@ class KissTermApp(App):
     def _winlink_report(self, result) -> None:
         """The outcome toast of a Winlink run, over radio or the Internet."""
         sent = f"{len(result.sent)} sent, " if result.sent else ""
-        if result.stopped:
+        if "unknown client type" in result.stopped.lower():
+            # The CMS's own words (operator's first session, 2026-09-28):
+            # its production servers turn away a client program they do not
+            # know, by the name in the SID (ROADMAP, Blockers). The published
+            # B2F specification names no registry; how a program becomes
+            # known is still to be learned. Not the password, network or radio.
+            self.notify(
+                "Winlink refused kissterm itself, not your login: its production servers "
+                "accept only client programs they know, and kissterm is not one of them yet. "
+                "Nothing was sent.",
+                severity="warning", timeout=15,
+            )
+        elif result.stopped:
             self.notify(
                 f"Winlink stopped: {result.stopped}. {sent}{len(result.filed)} received.",
                 severity="warning",

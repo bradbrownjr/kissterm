@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — All Inboxes asks for the BBS; Winlink's refusal explained
+
+### Improvements
+
+- **I (or G) on All Inboxes asks for what a service in use still needs**:
+  a Home BBS with a radio route but no Internet contact is asked for one
+  (with Skip) instead of being left out. A service set up for neither key
+  is still not asked about. Operator report, 2026-09-28 (ROADMAP P0.1).
+- **"Unknown client types are not allowed"** from the CMS is explained as
+  Winlink not knowing kissterm yet, not a login or network fault
+  (ROADMAP, Blockers).
+- **The `;PR:` secure-login answer is no longer written to transcripts**
+  or the terminal: beside the `;PQ:` challenge it allowed offline
+  password guessing.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/winlink/b2f.py`,
+`tests/pilot/test_winlink_send_receive.py`,
+`tests/unit/test_mail_winlink_collect.py`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-28] — Every shipped Winlink form carries its XML
 
 ### New Features

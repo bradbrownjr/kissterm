@@ -10,6 +10,18 @@ still has to try on the air.
 
 **Blockers outside the code:**
 
+- **Winlink CMS does not know kissterm** (2026-09-28). The production CMS
+  turns away a client program it does not know, by the name in its SID:
+  "Unknown client types are not allowed on production servers -- use
+  cms-z.winlink.org" (operator's first Internet session,
+  `[kissterm-0.1.325-B2FHM$]`). The published B2F specification
+  (winlink.org/B2F) names no developer registry, so how a program
+  becomes known is still to be learned; the operator is researching it,
+  and it can go in the same request to the Winlink Development Team as
+  the API key below. kissterm never borrows another program's SID name.
+  # UNVERIFIED: whether an RMS gateway over the radio passes the same
+  check to the CMS, and what cms-z.winlink.org delivers to.
+
 - **Winlink API access key** (2026-09-27). The RMS Gateway list (P2) needs
   a key issued to kissterm by a Winlink administrator. The operator will
   request it once kissterm is polished enough to share its repository or
@@ -90,6 +102,20 @@ under rule 2 above, with the date and their words:
 
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
+
+- **I on All Inboxes skipped the BBS without asking** (2026-09-28,
+  `awaiting confirmation`): "App didn't ask for BBS over internet
+  settings when I hit I from All Inboxes." Winlink had a saved password,
+  the Home BBS no Internet contact, so I ran Winlink alone. Fix: All
+  Inboxes runs both once either is set up, and asks for the other with
+  its Skip button (`send_receive_kind`), for G as well as I.
+
+- **Winlink over the Internet: "unknown client"** (2026-09-28, `open`,
+  outside the code): "tested, unknown client." The CMS answered "Unknown
+  client types are not allowed on production servers -- use
+  cms-z.winlink.org": it does not know kissterm's SID name (Blockers).
+  kissterm now says so in plain words. The same session's log held the `;PR:` answer beside the `;PQ:`
+  challenge; the answer is no longer logged.
 
 - **No way to make a contact or login from the list that asks for one**
   (2026-09-27, `awaiting confirmation`): "I'm looking to add telnet over

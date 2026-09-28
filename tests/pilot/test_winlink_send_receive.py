@@ -634,3 +634,51 @@ async def test_i_with_no_internet_contact_offers_a_new_one(tmp_path):
         assert app.screen.query_one("#addressbook-connect-by", Select).value == "ssh"
         assert not station.transport.sent
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_i_on_all_inboxes_asks_for_the_bbs_it_cannot_reach_yet(tmp_path):
+    """Operator, 2026-09-28: "App didn't ask for BBS over internet settings
+    when I hit I from All Inboxes." Winlink had a password, the Home BBS
+    no Internet contact (only its radio route), and I ran Winlink alone
+    without a word."""
+    from textual.widgets import Static
+
+    from kissterm.mail.store import ALL_INBOXES
+    from kissterm.ui.dialogs import HomeBbsSetupScreen
+
+    app, station, _tb = await _app(tmp_path)
+    app.config.home_bbs.route = "WS1EC-2"
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder(ALL_INBOXES)
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("i")
+        await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the BBS question")
+        await pilot.pause()
+        note = str(app.screen.query_one("#setup-all-note", Static).render())
+        assert note.startswith("You have All Inboxes selected") and "over the Internet" in note
+        assert "Skip Home BBS" in str(app.screen.query_one("#setup-skip").label)
+        await pilot.press("escape")
+        await wait_for(lambda: not app._collecting, "the cancelled run")
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_an_unregistered_client_refusal_is_explained(tmp_path):
+    """The CMS's words from the operator's first session, 2026-09-28."""
+    from kissterm.mail.winlink_collect import WinlinkResult
+
+    app, station, _tb = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app._winlink_report(WinlinkResult(stopped=(
+            "the gateway said: *** Unknown client types are not allowed on production servers "
+            "-- use cms-z.winlink.org - Disconnecting (192.0.2.1)")))
+        await pilot.pause()
+        [toast] = [n.message for n in app._notifications]
+        assert toast.startswith("Winlink refused kissterm itself, not your login")
+        assert "not one of them yet" in toast
+    station.close()
