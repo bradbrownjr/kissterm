@@ -194,6 +194,9 @@ from .dialogs import (
     SETUP_SKIP,
     GatewayChoice,
     HomeBbsSetupScreen,
+    InternetLogin,
+    InternetLoginScreen,
+    login_where,
     WinlinkGatewayScreen,
     LoginAskScreen,
     TranscriptsScreen,
@@ -4328,16 +4331,9 @@ class KissTermApp(App):
         if place == "connect":
             self.action_connect()
             return
-        if place == "contact":
-            # A new Address Book entry, By SSH to begin with (WS1EC's way in).
-            from .addressbook_pane import AddressBookPane
-
-            self.query(AddressBookPane).first()._new_entry(connect_by="ssh")
-            return
         path = {
             "winlink": "winlink.account",
             "bbs": "home_bbs.route",
-            "internet": "home_bbs.internet",
         }[place]
         self.query_one("#main-tabs", TabbedContent).active = "settings"
         pane = self.query_one(SettingsPane)
@@ -4844,33 +4840,46 @@ class KissTermApp(App):
         contacts = self._internet_contacts()
         wanted = home.internet.strip().upper()
         entry = next((e for e in contacts if e.target.upper() == wanted), None)
-        if entry is None:
-            note, skip = self._all_inboxes_ask()
-            chosen = self._setup_answer(await self.push_screen_wait(HomeBbsSetupScreen(
-                [e.target for e in contacts], missing=home.internet.strip(), internet=True,
-                all_note=note, skip=skip)), "internet" if contacts else "contact")
-            entry = next((e for e in contacts if e.target == chosen), None)
-            if entry is None:
-                return None
-            home.internet = entry.target
-            self._save_config()
-            self.query_one(SettingsPane).render_settings(self.config)
-        user = (credential_username(self.config, home.internet_credential) or home.internet_user
+        # A name that is no saved login may be a password typed in its
+        # place: never shown, replaced by a login made here.
+        name = (home.internet_credential
+                if credential_store(self.config, home.internet_credential) else "")
+        password = find_credential(self.config, name) if name else ""
+        user = (credential_username(self.config, name) or home.internet_user
                 or str(self.config.mycall or "").split("-")[0].upper())
-        login = await self._ask_login(
-            home.internet_credential, "Home BBS Telnet", f"Node password for {user}", "")
-        if login is None:
-            return None
-        if home.internet_credential != login[0]:
-            home.internet_credential = login[0]
+        if entry is None or not password:
+            # One question for all of it: the contact, the username and the
+            # password, saved as one login (operator, 2026-09-28).
+            note, skip = self._all_inboxes_ask()
+            answer = self._setup_answer(await self.push_screen_wait(InternetLoginScreen(
+                [e.target for e in contacts], entry.target if entry else "",
+                missing=home.internet.strip() if entry is None else "",
+                username=user, saved=bool(password), where=login_where(),
+                all_note=note, skip=skip)), "")
+            if not isinstance(answer, InternetLogin):
+                return None
+            entry = self.addressbook.find(answer.target)
+            if entry is None or not entry.is_internet:
+                return None
+            name = name or f"{entry.target} login"
+            password = answer.password or password
+            user = answer.username
+            where = set_credential(self.config, name, password, username=user)
+            home.internet, home.internet_credential, home.internet_user = entry.target, name, ""
             self._save_config()
             self.query_one(SettingsPane).render_settings(self.config)
+            self.notify(
+                f"Saved the login \"{name}\" for {entry.target}, its password in "
+                + ("the system keyring." if where == "keyring"
+                   else "config.toml (no system keyring here)."),
+                timeout=4,
+            )
         return entry, CollectOptions(
             bbs_call=home.call,
             software=home.software,
             ready_text=home.ready_text,
             telnet_user=user,
-            telnet_password=login[1],
+            telnet_password=password,
             after_login=home.internet_command.strip(),
         )
 

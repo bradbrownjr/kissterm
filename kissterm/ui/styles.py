@@ -475,7 +475,9 @@ AddressBookEntryScreen #connect-buttons { height: auto; margin-top: 0; }
 #setup-all-note { color: $warning; padding: 0 0 1 0; }
 /* The setup questions: one labelled choice in a row, like a Settings row. */
 #setup-hint-row { height: auto; }
-HomeBbsSetupScreen #connect-title, WinlinkGatewayScreen #connect-title {
+InternetLoginScreen .ab-label { width: 10; }
+HomeBbsSetupScreen #connect-title, WinlinkGatewayScreen #connect-title,
+InternetLoginScreen #connect-title, CredentialScreen #connect-title {
     text-style: bold; color: $accent; padding: 0 0 1 0;
 }
 #setup-route-label { width: 20; }

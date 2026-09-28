@@ -104,8 +104,8 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 - [ ] **WS1EC by SSH from the Address Book** (no radio): at the next
   launch a notice should say your Telnet/SSH connections are now in the
   Address Book. Open it (Ctrl+G), pick the WS1EC one, E: By should say
-  SSH, with host, port 4122, user packet and your known-hosts file, and
-  Password "saved". Enter on it: a new Terminal tab named after it opens
+  SSH, with host, port 4122 and your known-hosts file, and Sign in
+  naming its login (username packet). Enter on it: a new Terminal tab named after it opens
   beside any radio session, says "Connecting ... over the Internet", then
   the node's greeting. Type a command: it goes, and the status bar still
   says TX OFF. Ctrl+D hangs up (still TX OFF); Ctrl+R dials it again.
@@ -120,6 +120,24 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   now T1 5 and T2 1. Check Settings > Link shows what you want.
 
 ## Saved logins
+
+- [ ] **Your logins after the username-and-password change** (not a
+  radio test). Launch, then Settings > Logins: each login shows
+  "Username X; password saved in the system keyring." A login that was
+  two lines (username, then password) is now split that way; the Home
+  BBS node login carries your old "Node username". Edit one: Name,
+  Username and a masked Password, and Save with the password left empty
+  keeps it.
+- [ ] **I asks for what it needs, once.** In Settings > Mail set "Node
+  login" to (none) and Save, then I on the BBS inbox. Expected: "Send
+  and Receive by Internet" with your WS1EC contact chosen, your callsign
+  as Username, and an empty Password. Type the node password, then Save
+  and continue. The run should log in (`user:`, then `password:`, then
+  BBS), and Settings > Mail > Node login should now name
+  "<contact> login". Press I again: no question this time.
+- [ ] **An SSH contact signs in with its login.** Ctrl+G, E on the SSH
+  contact: "Sign in" should name its login, with no User or Password
+  box. Connect to it; it should sign in as before.
 
 - [ ] **Keyring on your desktop** (not a radio test): launch kissterm from
   your desktop session. A notice should say your saved logins moved into

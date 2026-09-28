@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — I asks for the contact, username and password in one question
+
+### Improvements
+
+- **I with no Telnet/SSH contact or no node password shows "Send and
+  Receive by Internet"**: the contact (ending "New Telnet/SSH
+  contact..."), the username (your callsign unless the login has one)
+  and a masked password. "Save and continue" saves them as one login
+  in the keyring, sets Settings > Mail, and runs. On All Inboxes it has
+  Skip Home BBS. It replaces the contact question and the password-only
+  question. Operator report, 2026-09-28 (ROADMAP P0.1).
+
+**Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/app.py`,
+`kissterm/ui/styles.py`, `tests/pilot/test_winlink_send_receive.py`,
+`tests/pilot/test_layout_fits.py`, `docs/ROADMAP.md`,
+`docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-28] — Mail and SSH sign in with a saved login
 
 ### Improvements

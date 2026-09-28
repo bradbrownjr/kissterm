@@ -317,10 +317,14 @@ async def test_i_on_a_winlink_folder_uses_the_cms_by_telnet(tmp_path, monkeypatc
 
 @pytest.mark.asyncio
 async def test_i_on_a_bbs_folder_logs_in_to_the_node_and_gets_mail(tmp_path):
-    """The Home BBS over a Telnet connection: BPQ's login, BBS, then LM."""
-    from kissterm.config import find_credential
+    """The Home BBS over a Telnet connection: BPQ's login, BBS, then LM.
+    Nothing set up yet: one question asks the contact, the username and
+    the password, saved as one login (operator, 2026-09-28)."""
+    from textual.widgets import Input, Select
+
+    from kissterm.config import credential_username, find_credential
     from kissterm.transcripts import list_transcripts
-    from kissterm.ui.dialogs import HomeBbsSetupScreen, LoginAskScreen
+    from kissterm.ui.dialogs import InternetLoginScreen
     from tests.pilot.test_get_mail import GREETING, REPLIES
 
     heard: list[str] = []
@@ -354,17 +358,30 @@ async def test_i_on_a_bbs_folder_logs_in_to_the_node_and_gets_mail(tmp_path):
         browser.query_one(MessageList).focus()
         await pilot.pause()
         await pilot.press("i")
-        await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the connection question")
+        await wait_for(lambda: isinstance(app.screen, InternetLoginScreen), "the question")
+        await pilot.pause()
+        ask = app.screen
+        assert str(ask.query_one("#connect-title").render()) == "Send and Receive by Internet"
+        assert ask.query_one("#internet-username", Input).value == "KC1JMH"
+        assert ask.query_one("#internet-password", Input).password
+        # Nothing chosen or typed: refused, the dialog stays.
+        await pilot.click("#connect-go")
+        await pilot.pause()
+        assert app.screen is ask and "contact" in str(ask.query_one("#login-ask-error").render())
+        ask.query_one("#internet-contact", Select).value = "ws1ec-telnet"
         await pilot.pause()
         await pilot.click("#connect-go")
-        await wait_for(lambda: isinstance(app.screen, LoginAskScreen), "the password question")
-        app.screen.query_one("#login-ask-text").value = "secret"
-        await pilot.press("enter")
+        await pilot.pause()
+        assert app.screen is ask and "password" in str(ask.query_one("#login-ask-error").render())
+        ask.query_one("#internet-password", Input).value = "secret"
+        await pilot.click("#connect-go")
         await wait_for(lambda: app.mail_store.list(BBS_INBOX), "the message to be filed", timeout=20)
         await wait_for(lambda: not app._collecting, "the run to finish")
         assert heard[:4] == ["KC1JMH", "secret", "BBS", "LM"]
-        assert app.config.home_bbs.internet == "ws1ec-telnet"
-        assert find_credential(app.config, app.config.home_bbs.internet_credential) == "secret"
+        home = app.config.home_bbs
+        assert home.internet == "ws1ec-telnet" and home.internet_credential == "ws1ec-telnet login"
+        assert find_credential(app.config, home.internet_credential) == "secret"
+        assert credential_username(app.config, home.internet_credential) == "KC1JMH"
         assert not station.transport.sent  # nothing on the radio side
         text = next(t for t in list_transcripts(app._transcript_directory())
                     if "ws1ec" in t.path.name.lower()).path.read_text()
@@ -622,7 +639,7 @@ async def test_a_refused_password_is_asked_again_and_saved(tmp_path):
 async def test_i_with_no_internet_contact_offers_a_new_one(tmp_path):
     from textual.widgets import Select
 
-    from kissterm.ui.dialogs import AddressBookEntryScreen, HomeBbsSetupScreen
+    from kissterm.ui.dialogs import AddressBookEdit, AddressBookEntryScreen, InternetLoginScreen
 
     app, station, _tb = await _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
@@ -633,13 +650,22 @@ async def test_i_with_no_internet_contact_offers_a_new_one(tmp_path):
         browser.query_one(MessageList).focus()
         await pilot.pause()
         await pilot.press("i")
-        await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the question")
+        await wait_for(lambda: isinstance(app.screen, InternetLoginScreen), "the question")
         await pilot.pause()
-        assert str(app.screen.query_one("#setup-go").label) == "New contact"
-        await pilot.click("#setup-go")
+        ask = app.screen
+        contact = ask.query_one("#internet-contact", Select)
+        label, value = contact._options[-1]
+        assert str(label) == "New Telnet/SSH contact..."
+        contact.value = value
         await wait_for(lambda: isinstance(app.screen, AddressBookEntryScreen), "the editor")
         await pilot.pause()
         assert app.screen.query_one("#addressbook-connect-by", Select).value == "ssh"
+        await app.screen.dismiss(AddressBookEdit(
+            "WS1EC by Telnet", internet={"connect_by": "telnet", "host": "ws1ec.example",
+                                         "port": "8010"}))
+        await wait_for(lambda: app.screen is ask, "back to the question")
+        await pilot.pause()
+        assert contact.value == "WS1EC by Telnet"  # made, and chosen
         assert not station.transport.sent
     station.close()
 
@@ -653,7 +679,7 @@ async def test_i_on_all_inboxes_asks_for_the_bbs_it_cannot_reach_yet(tmp_path):
     from textual.widgets import Static
 
     from kissterm.mail.store import ALL_INBOXES
-    from kissterm.ui.dialogs import HomeBbsSetupScreen
+    from kissterm.ui.dialogs import InternetLoginScreen
 
     app, station, _tb = await _app(tmp_path)
     app.config.home_bbs.route = "WS1EC-2"
@@ -665,7 +691,7 @@ async def test_i_on_all_inboxes_asks_for_the_bbs_it_cannot_reach_yet(tmp_path):
         browser.query_one(MessageList).focus()
         await pilot.pause()
         await pilot.press("i")
-        await wait_for(lambda: isinstance(app.screen, HomeBbsSetupScreen), "the BBS question")
+        await wait_for(lambda: isinstance(app.screen, InternetLoginScreen), "the BBS question")
         await pilot.pause()
         note = str(app.screen.query_one("#setup-all-note", Static).render())
         assert note.startswith("You have All Inboxes selected") and "over the Internet" in note

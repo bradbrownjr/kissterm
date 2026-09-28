@@ -104,14 +104,18 @@ Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
 - **A saved login is a plaintext text box, not a username and password**
-  (2026-09-28, `open`): "This isn't saving credentials, this is a
-  plaintext textarea field. I want to save a username and a password,
-  and have the password securely saved. Further, if I omit this and
-  attempt a send/receive to an Internet station, it should prompt me for
-  the credentials to save and provide the remote system." The text does
-  go to the keyring, but the editor shows it in the clear, has no
-  username, and I asks for the contact and the password separately,
-  never a username. Plan presented 2026-09-28.
+  (2026-09-28, `awaiting confirmation`): "This isn't saving credentials,
+  this is a plaintext textarea field. I want to save a username and a
+  password, and have the password securely saved. Further, if I omit this
+  and attempt a send/receive to an Internet station, it should prompt me
+  for the credentials to save and provide the remote system." Fix: a
+  login is a name, a username (config.toml) and a masked password (the
+  keyring); older logins are split at launch. Mail's BBS and node logins
+  and an SSH contact's sign-in are saved-login lists ending with "New
+  login...". I with no contact or no password asks for the contact, the
+  username and the password in one dialog and saves them as one login.
+  DESIGN.md section 8, "A login is one thing". Checks in
+  docs/ON-AIR-TESTS.md, "Saved logins".
 
 - **Settings: a wordy note above every section's box** (2026-09-28,
   `awaiting confirmation`): "I thought we had updated our design

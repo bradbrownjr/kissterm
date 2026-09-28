@@ -1547,7 +1547,7 @@ SETUP_GO = "\x00go"
 
 class HomeBbsSetupScreen(ModalScreen[str | None]):
     """Send/Receive's first-run step: which Address Book contact is the
-    home BBS (G), or reaches it over the Internet (I, `internet`).
+    home BBS (G). I asks with `InternetLoginScreen`.
 
     Shown when none is set, or the one set is gone from the Address Book.
     Returns the chosen contact's target, `SETUP_GO`/`SETUP_SKIP`, or None.
@@ -1558,16 +1558,14 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
     def __init__(self, targets: list[str], missing: str = "", *,
-                 internet: bool = False, all_note: str = "", skip: str = "") -> None:
+                 all_note: str = "", skip: str = "") -> None:
         super().__init__()
-        #: Why this is asked when G or I was pressed on All Inboxes, and the
+        #: Why this is asked when G was pressed on All Inboxes, and the
         #: label of the button that leaves this service out of the run.
         self._all_note = all_note
         self._skip = skip
         self._targets = targets
         self._missing = missing
-        #: I: `targets` are then the Address Book's Telnet and SSH contacts.
-        self._internet = internet
 
     def _buttons(self, go: str = "") -> ComposeResult:
         with Horizontal(id="connect-buttons"):
@@ -1581,25 +1579,19 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
-            yield Label(ALL_INBOXES_TITLE if self._all_note else
-                        "Home BBS by Internet" if self._internet else "Home BBS",
+            yield Label(ALL_INBOXES_TITLE if self._all_note else "Home BBS",
                         id="connect-title")
             if self._all_note:
                 yield Static(self._all_note, id="setup-all-note")
             if self._missing:
                 yield Static(f"{self._missing} isn't in your Address Book.", id="reminder-detail")
             if not self._targets:
-                if self._internet:
-                    yield Static("You have no Telnet or SSH contacts yet.", id="connect-hint")
-                    yield from self._buttons(go="New contact")
-                else:
-                    yield Static("Your Address Book is empty. Connect to your BBS once "
-                                 "and it will be listed here.", id="connect-hint")
-                    yield from self._buttons(go="Connect...")
+                yield Static("Your Address Book is empty. Connect to your BBS once "
+                             "and it will be listed here.", id="connect-hint")
+                yield from self._buttons(go="Connect...")
                 return
             with Horizontal(id="setup-hint-row"):
-                yield Label("Telnet/SSH contact" if self._internet else "BBS contact",
-                            id="setup-route-label")
+                yield Label("BBS contact", id="setup-route-label")
                 yield Select([(t, t) for t in self._targets], value=self._targets[0],
                              allow_blank=False, compact=True, id="home-bbs-route")
             with Horizontal(id="connect-buttons"):
@@ -1826,6 +1818,149 @@ class LoginAskScreen(ModalScreen[str | None]):
             self.query_one("#login-ask-error", Label).update("Empty: type it, or Cancel.")
             return
         self.dismiss(text)
+
+
+@dataclass
+class InternetLogin:
+    """`InternetLoginScreen`'s answer: the contact and the login for it."""
+
+    target: str
+    username: str
+    #: "" keeps the password already saved.
+    password: str
+
+
+#: "New Telnet/SSH contact..." in `InternetLoginScreen`'s contact list.
+_NEW_INTERNET_CONTACT = "\x00new-contact"
+
+
+class InternetLoginScreen(ModalScreen["InternetLogin | str | None"]):
+    """I's ask-before-connecting step, when the Home BBS has no Telnet/SSH
+    contact or no password for the node: the remote system, a username and
+    a masked password, saved together as one login (operator, 2026-09-28:
+    "if I omit this and attempt a send/receive to an Internet station, it
+    should prompt me for the credentials to save and provide the remote
+    system"). The contact list ends with "New Telnet/SSH contact..."
+    (DESIGN.md section 8). Returns an `InternetLogin`, `SETUP_SKIP`, or
+    None; the caller saves the login and points Settings at both.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, targets: list[str], current: str = "", *, missing: str = "",
+                 username: str = "", saved: bool = False, where: str = "keyring",
+                 all_note: str = "", skip: str = "") -> None:
+        super().__init__()
+        self._targets = list(targets)
+        self._current = current if current in targets else ""
+        self._missing = missing
+        self._username = username
+        #: A password is saved already: an empty field keeps it.
+        self._saved = saved
+        self._where = where
+        #: As for `HomeBbsSetupScreen`: why, on All Inboxes, and Skip's label.
+        self._all_note = all_note
+        self._skip = skip
+        self._previous: object = self._current or Select.NULL
+
+    def _options(self) -> list[tuple[str, str]]:
+        return [(t, t) for t in self._targets] + [
+            ("New Telnet/SSH contact...", _NEW_INTERNET_CONTACT)]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label(ALL_INBOXES_TITLE if self._all_note else "Send and Receive by Internet",
+                        id="connect-title")
+            if self._all_note:
+                yield Static(self._all_note, id="setup-all-note")
+            if self._missing:
+                yield Static(f"{self._missing} isn't in your Address Book.", id="reminder-detail")
+            with Horizontal(classes="ab-row"):
+                yield Label("Contact", classes="ab-label")
+                yield Select(self._options(), value=self._current or Select.NULL,
+                             allow_blank=True, prompt="Telnet or SSH contact for your node",
+                             compact=True, id="internet-contact")
+            with Horizontal(classes="ab-row"):
+                yield Label("Username", classes="ab-label")
+                yield Input(self._username, compact=True, id="internet-username",
+                            placeholder="the node's user: answer")
+            with Horizontal(classes="ab-row"):
+                yield Label("Password", classes="ab-label")
+                yield Input(password=True, compact=True, id="internet-password",
+                            placeholder="saved; type to replace it" if self._saved
+                            else "the node's password: answer")
+            yield Static(
+                "The password is kept in the system keyring." if self._where == "keyring" else
+                "No system keyring here: the password is kept in config.toml.",
+                id="credential-where")
+            yield Label("", id="login-ask-error")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save and continue", variant="primary", id="connect-go")
+                if self._skip:
+                    yield Button(self._skip, id="setup-skip")
+                yield Button("Cancel", id="connect-cancel")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        first = ("#internet-password" if self._current and self._username
+                 else "#internet-username" if self._current else "#internet-contact")
+        self.query_one(first).focus()
+
+    @on(Select.Changed, "#internet-contact")
+    def _contact_changed(self, event: Select.Changed) -> None:
+        if event.value == _NEW_INTERNET_CONTACT:
+            self._new_contact()
+        else:
+            self._previous = event.value
+
+    @work
+    async def _new_contact(self) -> None:
+        """The Address Book editor over this one, preset to SSH; what it
+        saves is chosen, cancelling puts the old choice back."""
+        from .addressbook_pane import AddressBookPane, edit_entry
+
+        select = self.query_one("#internet-contact", Select)
+        target = await edit_entry(self.app, None, "ssh")
+        entry = self.app.addressbook.find(target) if target else None  # type: ignore[attr-defined]
+        if entry is None or not entry.is_internet:
+            select.value = self._previous
+            return
+        for pane in self.app.query(AddressBookPane):
+            pane.refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
+        if entry.target not in self._targets:
+            self._targets.append(entry.target)
+        with self.prevent(Select.Changed):
+            select.set_options(self._options())
+        select.value = entry.target
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#setup-skip")
+    def _skip_it(self) -> None:
+        self.dismiss(SETUP_SKIP)
+
+    @on(Button.Pressed, "#connect-go")
+    @on(Input.Submitted, "#internet-username, #internet-password")
+    def _go(self) -> None:
+        error = self.query_one("#login-ask-error", Label)
+        contact = self.query_one("#internet-contact", Select).value
+        username = self.query_one("#internet-username", Input).value.strip()
+        password = self.query_one("#internet-password", Input).value
+        if not isinstance(contact, str) or contact == _NEW_INTERNET_CONTACT:
+            error.update("Choose the contact that reaches your node.")
+            self.query_one("#internet-contact").focus()
+            return
+        if not username:
+            error.update("Type the username.")
+            self.query_one("#internet-username").focus()
+            return
+        if not password and not self._saved:
+            error.update("Type the password.")
+            self.query_one("#internet-password").focus()
+            return
+        self.dismiss(InternetLogin(contact, username, password))
 
 
 class SessionTransportPickerScreen(ModalScreen[str | None]):

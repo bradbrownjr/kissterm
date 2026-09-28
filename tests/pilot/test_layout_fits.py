@@ -74,8 +74,9 @@ def _setup_dialogs():
                                        all_note=NOTE, skip="Skip Winlink")
     yield dialogs.WinlinkGatewayScreen([], "")
     yield dialogs.HomeBbsSetupScreen(["WS1EC-2"], all_note=NOTE, skip="Skip Home BBS")
-    yield dialogs.HomeBbsSetupScreen([], internet=True)
-    yield dialogs.HomeBbsSetupScreen(["ws1ec"], internet=True, all_note=NOTE, skip="Skip Home BBS")
+    yield dialogs.InternetLoginScreen([])
+    yield dialogs.InternetLoginScreen(["ws1ec"], "", missing="Old node", username="KC1JMH",
+                                      all_note=NOTE, skip="Skip Home BBS")
     yield dialogs.LoginAskScreen(
         "Winlink password", "The Winlink password for KC1JMH. It never goes on the "
         "air: the gateway sends a challenge, and only the answer to it is sent.",
