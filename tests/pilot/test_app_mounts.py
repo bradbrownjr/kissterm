@@ -1468,6 +1468,40 @@ async def test_selecting_a_saved_credential_disables_the_script_box(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_connect_makes_a_login_with_new_login(tmp_path):
+    """The Connect dialog's login list ends with "New login...", the same
+    username-and-password editor as everywhere else (operator, 2026-09-28);
+    no name-and-text box of its own."""
+    from kissterm.config import login_text
+    from kissterm.ui.dialogs import NEW_PICK, CredentialScreen
+
+    app, ta, tb, station = await _app()
+    _fresh_book(app, tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await asyncio.sleep(0.15)
+        connect = app.screen
+        assert not connect.query("#connect-credential-name")
+        select = connect.query_one("#connect-credential", Select)
+        assert str(select._options[-1][0]) == "New login..."
+        select.value = NEW_PICK
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, CredentialScreen)
+        app.screen.query_one("#credential-name", Input).value = "WS1EC BBS"
+        app.screen.query_one("#credential-username", Input).value = "KC1JMH"
+        app.screen.query_one("#credential-password", Input).value = "pw"
+        await pilot.pause()
+        await pilot.click("#credential-save")
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert app.screen is connect and select.value == "WS1EC BBS"
+        assert login_text(app.config, "WS1EC BBS") == "KC1JMH\npw"
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_tab_keys_work_while_an_input_has_focus():
     """The regression that made the tab keys unusable whenever you were typing.
 

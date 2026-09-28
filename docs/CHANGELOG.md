@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — The login editor asks for a username and a masked password
+
+### Improvements
+
+- **New login and Edit (Settings > Logins, Connect, Address Book) show
+  Name, Username and a masked Password**, and say where the password is
+  kept (system keyring, or config.toml when no keyring is available).
+  Editing a login leaves the password alone unless a new one is typed.
+  The Connect dialog's name-and-text box is gone; its login list ends
+  with "New login...", like every other list of saved items. Operator
+  report, 2026-09-28 (ROADMAP P0.1).
+
+**Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/settings_pane.py`,
+`kissterm/ui/app.py`, `kissterm/ui/styles.py`,
+`tests/pilot/test_settings.py`, `tests/pilot/test_addressbook_pane.py`,
+`tests/pilot/test_app_mounts.py`, `docs/CHANGELOG.md`
+
 ## [2026-09-28] — A saved login is a username and a password
 
 ### Improvements

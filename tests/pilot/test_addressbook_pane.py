@@ -568,9 +568,9 @@ async def test_the_login_list_ends_with_new_login(tmp_path):
     """DESIGN.md section 8, "A list of saved things ends with New": a login
     made from the entry editor is saved and chosen; cancelling puts the
     old choice back."""
-    from textual.widgets import Input, Select, TextArea
+    from textual.widgets import Input, Select
 
-    from kissterm.config import find_credential
+    from kissterm.config import find_credential, login_text
     from kissterm.ui.dialogs import NEW_PICK, AddressBookEntryScreen, CredentialScreen
 
     app, station, ta, tb = await _app()
@@ -589,14 +589,16 @@ async def test_the_login_list_ends_with_new_login(tmp_path):
         await asyncio.sleep(0.05)
         assert isinstance(app.screen, CredentialScreen)
         app.screen.query_one("#credential-name", Input).value = "WS1EC node"
-        app.screen.query_one("#credential-text", TextArea).text = "KC1JMH\nsecret"
+        app.screen.query_one("#credential-username", Input).value = "KC1JMH"
+        app.screen.query_one("#credential-password", Input).value = "secret"
         await pilot.pause()
         await pilot.click("#credential-save")
         await pilot.pause()
         await asyncio.sleep(0.05)
         assert app.screen is entry_screen
         assert select.value == "WS1EC node"
-        assert find_credential(app.config, "WS1EC node") == "KC1JMH\nsecret"
+        assert find_credential(app.config, "WS1EC node") == "secret"
+        assert login_text(app.config, "WS1EC node") == "KC1JMH\nsecret"
         # Cancel: the choice made before stays.
         select.value = NEW_PICK
         await pilot.pause()

@@ -68,15 +68,6 @@ class ConnectRequest:
     credential: str = ""
     script_name: str = ""
     transport_name: str = ""
-    #: Non-empty only when the operator typed a NAME next to the literal
-    #: login text under "+ Add new credential..." in `ConnectScreen` -- see
-    #: that screen's `_ADD_CREDENTIAL` sentinel. `credential` already holds
-    #: the chosen name in that case; `KissTermApp.action_connect` is what
-    #: actually writes `{"name": credential, "text": new_credential_text}`
-    #: into `Config.credentials` (replacing a same-named entry rather than
-    #: duplicating it) before resolving the login, because a dialog has no
-    #: business mutating `Config` itself -- see `_resolve_login`.
-    new_credential_text: str = ""
     #: KISS/AGW radio port selected for this attempt.  This is deliberately
     #: per-attempt rather than an Address Book property: the same node may be
     #: reachable on different channels as the operator changes the station.
@@ -622,6 +613,13 @@ def saved_options(items: list[dict], kind: str) -> list[tuple[str, str]]:
         (NEW_LABELS[kind], NEW_PICK)]
 
 
+def login_where() -> str:
+    """Where a new login's password will be kept: "keyring" or "config"."""
+    from .. import keystore
+
+    return "keyring" if keystore.available() else "config"
+
+
 class _NewFromList:
     """Mixin for a screen with saved-login/script Selects: choosing "New
     ..." opens `CredentialScreen` over this one; saving selects the new
@@ -645,7 +643,7 @@ class _NewFromList:
         from ..config import set_credential
 
         config = getattr(self.app, "config", None)
-        result = await self.app.push_screen_wait(CredentialScreen(kind=kind))
+        result = await self.app.push_screen_wait(CredentialScreen(kind=kind, where=login_where()))
         if result is None or config is None:
             select.value = previous
             return
@@ -654,7 +652,7 @@ class _NewFromList:
             config.scripts.append({"name": result.name, "text": result.text})
             items = config.scripts
         else:
-            set_credential(config, result.name, result.text)
+            set_credential(config, result.name, result.text, username=result.username)
             items = config.credentials
         save = getattr(self.app, "_save_config", None)
         if save is not None:
@@ -693,17 +691,15 @@ def _sync_login_source_controls(
     area.disabled = has_credential or has_script
 
 
-#: `ConnectScreen`'s Saved-credential dropdown grows a trailing sentinel
-#: option that means "define a new one inline" rather than "pick an
-#: existing one" -- see that screen's docstring for why this, and the
-#: matching `_SHOW_HOPS` sentinel, exist at all.
-_ADD_CREDENTIAL = "__add_credential__"
+#: `ConnectScreen`'s Saved-script dropdown option that shows the box for
+#: lines typed for this connect only (next to `_SHOW_HOPS`).
+_SHOW_LINES = "__show_lines__"
 #: `ConnectScreen`'s Saved-script dropdown's equivalent sentinel: not a
 #: script at all, just the switch that reveals the Node hops field.
 _SHOW_HOPS = "__show_hops__"
 
 
-class ConnectScreen(ModalScreen[ConnectRequest | None]):
+class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
     """Ask for a connect target. Accepts ``CALL-SSID [via DIGI,DIGI]``.
 
     Carries an address book of stations already tried, because `WS1EC-15` and
@@ -727,13 +723,12 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
       "+ Node hops (advanced)..." there (`_SHOW_HOPS`) -- or automatically
       when an address-book pick already has some, so a value that exists is
       never hidden from the operator editing it.
-    - The free-text login box lives under Saved credential, revealed by
-      picking "+ Add new credential..." there (`_ADD_CREDENTIAL`) -- typing
-      a Name next to it there defines a new, reusable, named entry in
-      `Config.credentials` (via `ConnectRequest.new_credential_text`,
-      applied by `KissTermApp.action_connect`); leaving Name blank keeps the
-      text a one-off, exactly like today's unnamed literal login. Same
-      auto-reveal rule for a preview that already has script text.
+    - The free-text lines box lives under Saved script too, revealed by
+      "+ Type lines to send..." (`_SHOW_LINES`) or by a preview that
+      already has lines. A saved login is made with "New login..." at the
+      end of its list (`_NewFromList`, DESIGN.md section 8): a username
+      and a masked password, never typed into a text box (operator,
+      2026-09-28).
 
     `credentials`/`scripts` are the raw `Config.credentials`/`Config.scripts`
     lists of `{"name", "text"}` dicts, for the two "send once connected"
@@ -838,10 +833,6 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
                 allow_blank=True,
                 prompt="Saved credential",
             )
-            yield Input(
-                placeholder="Name to save this login as (optional)",
-                id="connect-credential-name",
-            )
             yield TextArea(
                 id="connect-script",
                 tab_behavior="focus",
@@ -871,16 +862,19 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         target.focus()
 
     def _render_credentials(self) -> None:
-        select = self.query_one("#connect-credential", Select)
-        options = [(name, name) for c in self.credentials if (name := c.get("name"))]
-        options.append(("+ Add new credential...", _ADD_CREDENTIAL))
-        select.set_options(options)
+        self.query_one("#connect-credential", Select).set_options(
+            saved_options(self.credentials, "credential"))
 
     def _render_scripts(self) -> None:
         select = self.query_one("#connect-script-name", Select)
         options = [(name, name) for s in self.scripts if (name := s.get("name"))]
+        options.append(("+ Type lines to send...", _SHOW_LINES))
         options.append(("+ Node hops (advanced)...", _SHOW_HOPS))
         select.set_options(options)
+
+    def _saved_list_changed(self, kind: str, items: list[dict]) -> None:
+        if kind == "credential":
+            self.credentials = items
 
     # -- the address book -------------------------------------------------
     def _render_history(self, filter_text: str = "") -> None:
@@ -936,7 +930,6 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
             self._render_history("")
             self.query_one("#connect-hops", Input).value = ""
             self.query_one("#connect-script", TextArea).text = ""
-            self.query_one("#connect-credential-name", Input).value = ""
             self.query_one("#connect-credential", Select).value = Select.NULL
             self.query_one("#connect-script-name", Select).value = Select.NULL
             self._sync_login_controls()
@@ -974,7 +967,9 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
 
     @on(Select.Changed, "#connect-credential")
     @on(Select.Changed, "#connect-script-name")
-    def _login_source_changed(self) -> None:
+    def _login_source_changed(self, event: Select.Changed) -> None:
+        if event.select.id == "connect-credential" and self._note_pick(event.select):
+            return
         self._sync_login_controls()
 
     def _sync_login_controls(self) -> None:
@@ -988,8 +983,8 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
 
         Visibility follows two independent rules, checked every time this
         runs so a preview that already has a value is never left hidden:
-        the credential Name/textarea pair shows for the `_ADD_CREDENTIAL`
-        sentinel OR non-blank content; Node hops shows for the `_SHOW_HOPS`
+        the lines box shows for the `_SHOW_LINES` sentinel OR non-blank
+        content; Node hops shows for the `_SHOW_HOPS`
         sentinel OR a non-blank value. Precedence disabling (credential
         beats script beats literal text, per `ConnectRequest`'s docstring)
         only ever considers a REAL pick -- a sentinel is not itself a
@@ -999,24 +994,16 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
         credential_select = self.query_one("#connect-credential", Select)
         script_select = self.query_one("#connect-script-name", Select)
         area = self.query_one("#connect-script", TextArea)
-        name_input = self.query_one("#connect-credential-name", Input)
         hops_input = self.query_one("#connect-hops", Input)
 
         has_credential_pick = _select_has_value(credential_select)
         has_real_script = (
-            _select_has_value(script_select) and script_select.value != _SHOW_HOPS
+            _select_has_value(script_select) and script_select.value not in (_SHOW_HOPS, _SHOW_LINES)
         )
 
         script_select.disabled = has_credential_pick
-        disable_literal = (
-            has_credential_pick and credential_select.value != _ADD_CREDENTIAL
-        ) or has_real_script
-        area.disabled = disable_literal
-        name_input.disabled = disable_literal
-
-        show_literal = credential_select.value == _ADD_CREDENTIAL or bool(area.text)
-        area.display = show_literal
-        name_input.display = show_literal
+        area.disabled = has_credential_pick or has_real_script
+        area.display = script_select.value == _SHOW_LINES or bool(area.text)
         hops_input.display = script_select.value == _SHOW_HOPS or bool(hops_input.value)
 
     @on(Input.Changed, "#connect-target")
@@ -1043,27 +1030,13 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
             self.query_one("#connect-error", Label).update(f"[red]{error}[/red]")
             return
         credential_select = self.query_one("#connect-credential", Select)
-        cred_value = credential_select.value
-        credential = ""
-        new_credential_text = ""
-        if cred_value == _ADD_CREDENTIAL:
-            # A name turns the box below into a NEW, reusable, named
-            # credential (`KissTermApp.action_connect` is what actually
-            # writes it to `Config.credentials`); no name keeps it exactly
-            # what a hand-typed login has always been -- literal text used
-            # once and saved only on this address-book entry.
-            name = self.query_one("#connect-credential-name", Input).value.strip()
-            body = self.query_one("#connect-script", TextArea).text
-            if name and body:
-                credential = name
-                new_credential_text = body
-        elif _select_has_value(credential_select):
-            credential = str(cred_value)
+        credential = str(credential_select.value) if _select_has_value(credential_select) else ""
         script_name_select = self.query_one("#connect-script-name", Select)
         script_value = script_name_select.value
         script_name = (
             str(script_value)
-            if not credential and _select_has_value(script_name_select) and script_value != _SHOW_HOPS
+            if not credential and _select_has_value(script_name_select)
+            and script_value not in (_SHOW_HOPS, _SHOW_LINES)
             else ""
         )
         # A credential (saved or newly-named) or a saved script is
@@ -1096,7 +1069,6 @@ class ConnectScreen(ModalScreen[ConnectRequest | None]):
                 credential,
                 script_name,
                 transport_name,
-                new_credential_text=new_credential_text,
                 port=port,
             )
         )
@@ -1903,61 +1875,77 @@ class SessionTransportPickerScreen(ModalScreen[str | None]):
 
 @dataclass(frozen=True)
 class Credential:
-    """One saved login, as `CredentialScreen` hands it back."""
+    """One saved login or script, as `CredentialScreen` hands it back.
+    For a login `text` is the password, "" to keep the saved one when
+    editing; for a script it is the script."""
 
     name: str
     text: str
+    username: str = ""
 
 
 class CredentialScreen(ModalScreen[Credential | None]):
-    """Add or edit one saved credential OR one saved script (Settings >
-    Credentials / Scripts) -- same shape, same dialog.
+    """Add or edit one saved login or one saved script (Settings > Logins).
 
-    Kept deliberately simple -- a name and a block of text, nothing
-    structured -- because packet BBS logins do not agree on a shape: some
-    want a bare password, some want a real name and a password, some want a
-    CBBS-style multi-field login, and a script is any sequence at all. A
-    named block of text sent one line at a time covers all of them without
-    guessing a schema that will not fit the next BBS someone connects to.
+    **A login is a name, a username and a password** (operator,
+    2026-09-28: "I want to save a username and a password, and have the
+    password securely saved"). The password is a masked field, never
+    filled back in: editing shows it empty, and leaving it empty keeps the
+    saved one. It goes to the system keyring when there is one
+    (`config.set_credential`); the dialog says where. At a prompt the login
+    sends its username line, then its password (`config.login_text`).
 
-    `kind` picks only the words shown -- "credential" or "script" -- never
-    the shape of what is saved or how it is used; `Config.credentials` and
-    `Config.scripts` are kept as two separate lists by the CALLER
-    (`SettingsPane`), for the reasons in that field's docstring. This
-    dialog has no opinion on which list it is editing.
+    **A script** stays a name and a block of text, sent a line at a time:
+    commands, not secrets.
 
-    Saving here does not touch `config.toml` itself -- the caller
-    (`SettingsPane`) folds the result into the right list and saves the
-    whole config, same as every other Settings field.
+    Saving here does not touch `config.toml` itself: the caller stores the
+    result (`config.set_credential`, or the scripts list) and saves.
     """
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
-    def __init__(self, name: str = "", text: str = "", kind: str = "credential") -> None:
+    def __init__(self, name: str = "", text: str = "", kind: str = "credential", *,
+                 username: str = "", saved: bool = False, where: str = "") -> None:
         super().__init__()
         self._name = name
         self._text = text
         self._kind = kind
+        self._username = username
+        #: A login being edited has a password saved already.
+        self._saved = saved
+        #: "keyring" or "config": where a password is kept on this system.
+        self._where = where
 
     def compose(self) -> ComposeResult:
+        login = self._kind == "credential"
         with Vertical(id="connect-box"):
-            yield Label(f"Saved {self._kind}", id="connect-title")
-            yield Input(
-                value=self._name,
-                placeholder=(
-                    "Personal BBS login" if self._kind == "credential" else "Check WS1EC mail"
-                ),
-                id="credential-name",
-            )
+            yield Label("Saved login" if login else "Saved script", id="connect-title")
+            with Horizontal(classes="ab-row"):
+                yield Label("Name", classes="ab-label ab-label-wide")
+                yield Input(value=self._name, compact=True, id="credential-name",
+                            placeholder="e.g. WS1EC node" if login else "e.g. Check WS1EC mail")
+            if login:
+                with Horizontal(classes="ab-row"):
+                    yield Label("Username", classes="ab-label ab-label-wide")
+                    yield Input(value=self._username, compact=True, id="credential-username",
+                                placeholder="empty if only a password is asked")
+                with Horizontal(classes="ab-row"):
+                    yield Label("Password", classes="ab-label ab-label-wide")
+                    yield Input(password=True, compact=True, id="credential-password",
+                                placeholder="saved; type to replace it" if self._saved else "")
+                yield Static(
+                    "The password is kept in the system keyring."
+                    if self._where != "config" else
+                    "No system keyring here: the password is kept in config.toml.",
+                    id="credential-where",
+                )
+            else:
+                yield TextArea(self._text, id="credential-text", tab_behavior="focus")
             yield Label("", id="credential-error")
-            yield Label(
-                "Text -- one or more lines, sent in order once referenced by a station",
-                id="connect-script-title",
-            )
-            yield TextArea(self._text, id="credential-text", tab_behavior="focus")
             with Horizontal(id="connect-buttons"):
                 yield Button("Save", variant="primary", id="credential-save")
                 yield Button("Cancel", id="credential-cancel")
+        yield Footer()
 
     def on_mount(self) -> None:
         field = self.query_one("#credential-name", Input)
@@ -1969,17 +1957,24 @@ class CredentialScreen(ModalScreen[Credential | None]):
         self.dismiss(None)
 
     @on(Button.Pressed, "#credential-save")
-    @on(Input.Submitted, "#credential-name")
+    @on(Input.Submitted)
     def _save(self) -> None:
         name = self.query_one("#credential-name", Input).value.strip()
+        error = self.query_one("#credential-error", Label)
         if not name:
-            self.query_one("#credential-error", Label).update(
-                f"[red]Name this {self._kind} something -- it is how a station's "
-                "Connect entry will find it.[/red]"
-            )
+            error.update(f"Name this {'login' if self._kind == 'credential' else 'script'}: "
+                         "it is how a contact or setting finds it.")
             return
-        text = self.query_one("#credential-text", TextArea).text
-        self.dismiss(Credential(name, text))
+        if self._kind != "credential":
+            self.dismiss(Credential(name, self.query_one("#credential-text", TextArea).text))
+            return
+        username = self.query_one("#credential-username", Input).value.strip()
+        password = self.query_one("#credential-password", Input).value
+        if not password and not self._saved:
+            error.update("Type the password.")
+            self.query_one("#credential-password", Input).focus()
+            return
+        self.dismiss(Credential(name, password, username))
 
 
 _APRS_SERVICE_CHOICES = [

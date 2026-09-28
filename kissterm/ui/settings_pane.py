@@ -52,6 +52,7 @@ from textual.widgets.option_list import Option, OptionDoesNotExist
 from ..config import (
     SECRET_LOGINS,
     credential_store,
+    credential_username,
     find_credential,
     forget_credential,
     set_credential,
@@ -1009,13 +1010,14 @@ class SettingsPane(Vertical):
             )
             return
         text = find_credential(config, str(name))
-        lines = text.count("\n") + 1 if text else 0
+        user = credential_username(config, str(name))
         where = ("in the system keyring" if credential_store(config, str(name)) == "keyring"
                  else "in config.toml (no system keyring here)")
         if not text and credential_store(config, str(name)) == "keyring":
             detail.update("Kept in the system keyring, which did not answer: unlock it, or Edit to save it again.")
             return
-        detail.update(f"{lines} line(s) saved, {where}." if lines else "(empty)")
+        who = f"Username {user}" if user else "No username"
+        detail.update(f"{who}; password saved {where}." if text else f"{who}; no password.")
 
     def _render_scripts(self, config) -> None:
         select = self.query_one("#set-script", Select)
@@ -1336,13 +1338,13 @@ class SettingsPane(Vertical):
 
     @work
     async def _new_credential(self) -> None:
-        from .dialogs import CredentialScreen
+        from .dialogs import CredentialScreen, login_where
 
-        result = await self.app.push_screen_wait(CredentialScreen())
+        result = await self.app.push_screen_wait(CredentialScreen(where=login_where()))
         if result is None:
             return
         config = self.app.config  # type: ignore[attr-defined]
-        set_credential(config, result.name, result.text)
+        set_credential(config, result.name, result.text, username=result.username)
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_credentials(config)
         self.query_one("#set-credential", Select).value = result.name
@@ -1354,7 +1356,7 @@ class SettingsPane(Vertical):
 
     @work
     async def _edit_credential(self) -> None:
-        from .dialogs import CredentialScreen
+        from .dialogs import CredentialScreen, login_where
 
         config = self.app.config  # type: ignore[attr-defined]
         name = self.query_one("#set-credential", Select).value
@@ -1362,16 +1364,20 @@ class SettingsPane(Vertical):
         if entry is None:
             self.app.notify("Select a credential first.", severity="warning")  # type: ignore[attr-defined]
             return
-        result = await self.app.push_screen_wait(
-            CredentialScreen(entry.get("name", ""), find_credential(config, entry.get("name", "")))
-        )
+        old = str(entry.get("name", ""))
+        result = await self.app.push_screen_wait(CredentialScreen(
+            old, username=credential_username(config, old),
+            saved=bool(find_credential(config, old)),
+            where=credential_store(config, old) or login_where()))
         if result is None:
             return
+        # An empty password keeps the saved one (it is never shown back).
+        password = result.text or find_credential(config, old)
         # Drop both the old name and the new one (a rename could collide
         # with an existing entry) before re-adding, so a rename replaces
         # the old entry in place rather than leaving a stale duplicate a
         # station could still resolve to.
-        set_credential(config, result.name, result.text, old_name=str(name))
+        set_credential(config, result.name, password, old_name=old, username=result.username)
         self.app._save_config()  # type: ignore[attr-defined]
         self._render_credentials(config)
         self.query_one("#set-credential", Select).value = result.name

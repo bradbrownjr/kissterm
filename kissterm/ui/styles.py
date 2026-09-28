@@ -318,12 +318,12 @@ ConnectScreen { align: center middle; }
    which is longer than the dialog and was reading as cut off mid-sentence. */
 #connect-hint { color: $text-muted; width: 100%; height: auto; }
 #connect-script-title { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
+#credential-where { color: $text-muted; margin-top: 1; height: auto; }
 #connect-script-hint { color: $text-muted; width: 100%; height: auto; }
 #connect-credential { width: 100%; }
 /* Hidden by default (`ConnectScreen._sync_login_controls`) -- shown only
    for "+ Add new credential..." or a preview that already has one, same
    reasoning as #connect-hops below. */
-#connect-credential-name { margin-top: 1; }
 /* Fixed and short on purpose -- a login script is a handful of lines
    (callsign, password, maybe a mailbox command), not a document, and a
    box that grew with its content would push Connect/Cancel around. */

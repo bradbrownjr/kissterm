@@ -1029,18 +1029,30 @@ async def test_new_credential_is_saved_and_selectable():
         await pilot.pause()
         await asyncio.sleep(0.05)
 
-        from kissterm.ui.dialogs import Credential, CredentialScreen
+        from textual.widgets import Input, TextArea
 
-        assert isinstance(app.screen, CredentialScreen), type(app.screen).__name__
-        await app.screen.dismiss(Credential("Personal BBS login", "CLYDE\nMYPASS"))
+        from kissterm.ui.dialogs import CredentialScreen
+
+        screen = app.screen
+        assert isinstance(screen, CredentialScreen), type(screen).__name__
+        # A username and a masked password, not a block of text (operator,
+        # 2026-09-28).
+        assert not screen.query(TextArea)
+        assert screen.query_one("#credential-password", Input).password
+        screen.query_one("#credential-name", Input).value = "Personal BBS login"
+        screen.query_one("#credential-username", Input).value = "CLYDE"
+        screen.query_one("#credential-password", Input).value = "MYPASS"
+        await pilot.click("#credential-save")
         await pilot.pause()
 
+        # No keyring in tests, so the password stays in config.
         assert app.config.credentials == [
-            {"name": "Personal BBS login", "text": "CLYDE\nMYPASS"}
+            {"name": "Personal BBS login", "username": "CLYDE", "text": "MYPASS"}
         ]
         assert app.query_one("#set-credential", Select).value == "Personal BBS login"
         detail = _detail_text_of(app, "#settings-credential-detail")
-        assert "2 line" in detail, detail
+        assert detail.startswith("Username CLYDE; password saved"), detail
+        assert "MYPASS" not in detail
     station.close()
 
 
@@ -1061,12 +1073,17 @@ async def test_editing_a_credential_renames_it_without_leaving_a_duplicate():
         await pilot.pause()
         await asyncio.sleep(0.05)
 
-        from kissterm.ui.dialogs import Credential
+        from textual.widgets import Input
 
-        await app.screen.dismiss(Credential("New name", "NEWPASS"))
+        screen = app.screen
+        # The password is never shown back; left empty it is kept.
+        assert screen.query_one("#credential-password", Input).value == ""
+        screen.query_one("#credential-name", Input).value = "New name"
+        screen.query_one("#credential-username", Input).value = "CLYDE"
+        await pilot.click("#credential-save")
         await pilot.pause()
 
-        assert app.config.credentials == [{"name": "New name", "text": "NEWPASS"}]
+        assert app.config.credentials == [{"name": "New name", "username": "CLYDE", "text": "MYPASS"}]
     station.close()
 
 
