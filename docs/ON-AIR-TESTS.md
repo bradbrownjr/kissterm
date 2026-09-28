@@ -159,6 +159,21 @@ and then your Winlink password, before dialing. The password is saved
   Winlink > Inbox: the message's Attachments line should say
   `Files/Attachments/<name> (<size> bytes)`, and F4 Files > Attachments
   should list it, its text shown in the preview.
+- [ ] **A Winlink form opens in Winlink Express** (no radio, with I):
+  on a Winlink folder, Insert, Type: ICS-213 (form), fill it, Continue,
+  address it to a Winlink Express user (or your own account, read in
+  Winlink Express), Save without changing the text, I. In Winlink
+  Express it should open in the ICS-213 viewer with every block filled
+  and no `{var ...}` left on the page; the message should list
+  `RMS_Express_Form_ICS213_Initial_Viewer.xml`. Then the same with a
+  Winlink Check-in, and R, Reply on form on a received ICS-213 (the
+  reply viewer should name the original sender).
+- [ ] **A Winlink Express form read from its XML** (no radio, with I):
+  have a Winlink Express user send you an ICS-213 by Winlink. It should
+  show as the form, with the message exactly as typed. A form kissterm
+  does not ship (any other Winlink template) should show as "Winlink
+  form: <name>" with its fields listed. Keep the message: its `.b2f` in
+  Mail/Winlink/Inbox is the first real capture for the tests.
 - [ ] **First Winlink session over the radio, nothing to send**: on the Mail tab, select
   Winlink > Inbox; the Footer should say "Send/Receive Winlink". Press G.
   Expect the frequency reminder, then in the Terminal tab (F5): the

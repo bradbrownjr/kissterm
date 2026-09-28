@@ -305,10 +305,11 @@ net publishes; paste it.
   form. `# RESEARCH:` source the XML structure from Winlink's published
   Standard Templates, not from guesses. The form files' field ids are
   already Winlink's variable names, so the XML is built from the same
-  values. Reading the XML shipped 2026-09-28 (`mail/form_xml.py`).
-  Left: attach the XML when a form goes out by Winlink (each form's
-  hidden viewer fields read from its HTML: ICS-213, its reply and the
-  Check-in first, then the other shipped forms with a viewer). The
+  values. Reading the XML, and sending it with ICS-213, its reply and
+  the Check-in, shipped 2026-09-28 (`mail/form_xml.py`). Left: the
+  `[winlink]` table for the other shipped forms with a viewer (213RR,
+  309, 214, 205, FSR, Severe WX, Damage Assessment, Incident Status),
+  each form's hidden fields read from its HTML. The
   Radiogram template names no viewer, so Winlink Express sends it as
   text only, as kissterm already does.
 - [ ] **PackItForms/Outpost wire compatibility**, so an Outpost or Winlink

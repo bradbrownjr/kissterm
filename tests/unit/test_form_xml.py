@@ -12,10 +12,13 @@ from kissterm._isolate import isolate
 
 isolate()
 
+from datetime import datetime, timezone  # noqa: E402
+
 import pytest  # noqa: E402
 
+from kissterm import __version__  # noqa: E402
 from kissterm.mail import form_xml  # noqa: E402
-from kissterm.mail.forms import get_form, load_forms  # noqa: E402
+from kissterm.mail.forms import defaults, filled_rows, get_form, load_forms, render  # noqa: E402
 from kissterm.winlink.message import build, serialize  # noqa: E402
 
 ICS213 = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -112,3 +115,78 @@ def test_the_attachment_is_found_inside_a_raw_b2f_copy(tmp_path):
 def test_every_winlink_viewer_names_one_shipped_form():
     viewers = [f.winlink_viewer.lower() for f in load_forms() if f.winlink_viewer]
     assert viewers and len(viewers) == len(set(viewers))
+
+
+# -- writing ---------------------------------------------------------------------
+
+WHEN = datetime(2026, 9, 28, 14, 30, tzinfo=timezone.utc)
+
+
+def _filled(form_id: str) -> tuple:
+    form = get_form(form_id)
+    values = defaults(form, mycall="KC1JMH-7", grid="FN43", now=WHEN)
+    for f in form.fields:
+        if f.kind in ("text", "multiline") and not values.get(f.id):
+            values[f.id] = f"{f.id} value"
+        if f.kind == "check":
+            values[f.id] = "1"
+    return form, values
+
+
+def test_an_ics213_is_written_as_winlink_express_and_pat_write_it():
+    form, values = _filled("ics213")
+    values["Message"] = "Shelter open.\nCots needed."
+    data = form_xml.build(form, values, callsign="KC1JMH-7", grid="FN43", now=WHEN)
+    assert data.startswith(b'<?xml version="1.0" encoding="UTF-8"?>\n<RMS_Express_Form>')
+    found = form_xml.parse(data)
+    assert found.parameters == {
+        "xml_file_version": "1.0", "rms_express_version": f"kissterm {__version__}",
+        "submission_datetime": "20260928143000", "senders_callsign": "KC1JMH",
+        "grid_square": "FN43", "display_form": "ICS213_Initial_Viewer.html",
+        "reply_template": "ICS213_SendReply.0",
+    }
+    names = list(found.variables)
+    assert names == sorted(names) and all(n == n.lower() for n in names)
+    assert found.variables["message2"] == "Shelter open.\nCots needed."  # what the viewer shows
+    assert found.variables["isexercise"] == "** THIS IS AN EXERCISE **"
+    assert found.variables["templateversion"] == "ICS 213  v.43.8"
+    assert found.variables["msgsender"] == "KC1JMH" and found.variables["msgisreply"] == "False"
+    assert form_xml.attachment_name(form.winlink_viewer) == "RMS_Express_Form_ICS213_Initial_Viewer.xml"
+
+
+@pytest.mark.parametrize("form_id", [f.id for f in load_forms() if f.winlink_viewer])
+def test_every_viewer_variable_is_written_and_reads_back(form_id):
+    form, values = _filled(form_id)
+    found = form_xml.parse(form_xml.build(form, values, callsign="KC1JMH"))
+    for name in form.winlink_viewer_vars:
+        assert name.lower() in found.variables, name  # else the viewer shows {var name}
+    back = form_xml.read(found)
+    assert back.form.id == form_id
+    for f in form.fields:
+        if f.kind == "rows":
+            assert back.values[f.id] == forms_filled_rows(f, values[f.id])
+        else:
+            assert back.values[f.id] == str(values[f.id]).strip(), f.id
+
+
+def forms_filled_rows(f, rows):
+    return [{c.id: str(r.get(c.id, "")).strip() for c in f.columns} for r in filled_rows(f, rows)]
+
+
+def test_the_checkin_subject_is_computed_into_the_xml():
+    form, values = _filled("winlink_checkin")
+    found = form_xml.parse(form_xml.build(form, values, callsign="KC1JMH"))
+    assert found.variables["newsubject"] == render(form, values)[0]
+    assert found.variables["templateversion"] == "Winlink Check-in 5.1.3"
+
+
+def test_a_reply_names_the_original_sender():
+    form, values = _filled("ics213_reply")
+    found = form_xml.parse(form_xml.build(form, values, callsign="KC1JMH", reply=True,
+                                          extra={"theMsgSender": "W1AW"}))
+    assert found.variables["themsgsender"] == "W1AW" and found.variables["msgisreply"] == "True"
+
+
+def test_a_form_with_no_winlink_viewer_has_no_xml():
+    with pytest.raises(ValueError):
+        form_xml.build(get_form("pktnet_checkin"), {}, callsign="KC1JMH")

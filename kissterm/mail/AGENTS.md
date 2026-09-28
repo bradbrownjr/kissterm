@@ -49,7 +49,10 @@ of the two is marked `# UNVERIFIED:`.
 - **A Winlink form's XML wins over its text** (`form_xml.py`): matched
   to a shipped form by the `[winlink] viewer` in its file, names compared
   without case; the XML is capped and a DOCTYPE refused
-  (`tests/unit/test_form_xml.py`).
+  (`tests/unit/test_form_xml.py`). Sending writes every `{var}` the
+  viewer reads (`[winlink] viewer_vars`, `computed`), each read from the
+  form's own HTML; a form whose text was edited after Continue goes
+  without XML.
 - **An information strip is split on `/` outside parentheses only**, and
   an answer containing `/` is refused (`forms.split_strip`,
   `test_mail_forms.py`).

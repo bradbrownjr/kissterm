@@ -8,7 +8,9 @@ for a BBS. `kissterm/winlink/b2f.py` is the protocol; this is the glue:
 
 - **Outbox**: every message in Mail/Winlink/Outbox is offered. One without
   a MID gets one first, saved back, so a retry after a dropped link offers
-  the same MID and the CMS can refuse a duplicate.
+  the same MID and the CMS can refuse a duplicate. A form saved with
+  its Winlink XML (`<stem>.xml`) sends it as the attachment Winlink
+  clients open in the form's viewer (`form_xml.py`).
 - **Sent**: a message moves to Mail/Winlink/Sent only when the gateway has
   taken it (`b2f.Sent`), or said it already had it.
 - **Inbox**: each message that arrives whole goes to Mail/Winlink/Inbox,
@@ -43,10 +45,12 @@ import contextlib
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from ..winlink import b2f
 from ..winlink.message import SOURCE, B2Error, B2Message, build, generate_mid, to_mail
 from .message import Message
+from . import form_xml
 from .attachments import safe_filename, save_attachment
 from .store import FILES, INBOX, MAIL, OUTBOX, SENT, MessageStore
 
@@ -102,7 +106,8 @@ def addresses(text: str) -> list[str]:
     return [a for a in _ADDRESS_SPLIT.split(text.strip()) if a]
 
 
-def outbound_message(message: Message, account: str) -> B2Message:
+def outbound_message(message: Message, account: str,
+                     files: list[tuple[str, bytes]] | None = None) -> B2Message:
     """An Outbox message as B2. Raises `B2Error` if it cannot be sent."""
     return build(
         sender=account,
@@ -110,9 +115,27 @@ def outbound_message(message: Message, account: str) -> B2Message:
         cc=addresses(message.extra.get("Cc", "")),
         subject=message.subject,
         body=message.body,
+        files=files,
         mid=message.message_id,
         date=message.date,
     )
+
+
+def form_attachments(raw_files: list[Path]) -> list[tuple[str, bytes]]:
+    """A form message's XML (`<stem>.xml`, saved with it by the compose
+    flow), named as Winlink names it (`form_xml.attachment_name`). A file
+    that is not a form's XML is left behind, never sent."""
+    for path in raw_files:
+        if path.suffix.lower() != ".xml":
+            continue
+        try:
+            data = path.read_bytes()
+            found = form_xml.parse(data)
+        except (OSError, ValueError):
+            continue
+        if found.display_form:
+            return [(form_xml.attachment_name(found.display_form), data)]
+    return []
 
 
 class WinlinkCollector:
@@ -177,7 +200,9 @@ class WinlinkCollector:
                 message.message_id = generate_mid(self.options.account)
                 self.store.update(summary.ref, message)
             try:
-                messages.append(outbound_message(message, self.options.account))
+                messages.append(outbound_message(
+                    message, self.options.account,
+                    form_attachments(self.store.raw_files(summary.ref))))
             except B2Error as exc:
                 self._skipped.append(f"{message.subject or '(no subject)'}: {exc}")
                 continue

@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — Winlink forms sent with their XML
+
+### New Features
+
+- **An ICS-213, its reply or a Winlink Check-in saved to the Winlink
+  Outbox carries its `RMS_Express_Form_*.xml`**, so Winlink Express and
+  Pat open it in the form's own viewer. Written as Pat writes it, with
+  every variable the viewer reads and the ones the form's page computes
+  (the ICS-213's Message2, template versions, the reply's original
+  sender), transcribed from Standard Forms 1.1.20.0. A form whose text
+  was changed after Continue goes as text only, and says so; a BBS
+  message stays text only.
+
+**Files:** `kissterm/mail/form_xml.py`, `kissterm/mail/forms.py`,
+`kissterm/mail/winlink_collect.py`, `kissterm/ui/app.py`,
+`kissterm/mail/data/forms/ics213.toml`, `ics213_reply.toml`,
+`winlink_checkin.toml`, `tests/unit/test_form_xml.py`,
+`tests/unit/test_mail_winlink_collect.py`, `tests/pilot/test_forms.py`,
+`docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-28] — Winlink forms read from their XML
 
 ### New Features

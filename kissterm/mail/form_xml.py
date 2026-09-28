@@ -40,6 +40,18 @@ A `rows` field (the 213RR's order lines) is numbered in the XML, one
 variable per cell: `Qty1` ... `Qty8`, the column id and the line number,
 as the viewers name them.
 
+**Writing** follows Pat's `buildXML` and its defaults: every name
+lowercase, sorted, each value trimmed; Pat's `msg*` bookkeeping
+variables; `rms_express_version` says `kissterm <version>`, since this is
+not Winlink Express (the forms leave out its "Express Sending Station"
+line for the same reason). The variables are the form's own fields, then
+every `{var}` its viewer reads (`[winlink] viewer_vars`, empty when no
+field fills it: Pat's `placeholderReplacer` leaves a missing one on the
+page as a literal `{var name}`), then the
+values the form's own page computes (`[winlink] computed`). Only a form
+with a viewer gets XML, as in Pat: Winlink's Radiogram template has none,
+so a radiogram goes as text alone, as it does from Winlink Express.
+
 **A Winlink form kissterm does not ship** (there are hundreds) is still
 shown: its variables as a plain list under the viewer's name, empty
 ones and Winlink's own bookkeeping left out.
@@ -54,12 +66,14 @@ from __future__ import annotations
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
+from .. import __version__
 from ..winlink.message import B2Error
 from ..winlink.message import parse as parse_b2
 from .form_parse import Parsed
-from .forms import Field, FormDef, Values, load_forms
+from .forms import Field, FormDef, Values, _fill, filled_rows, flat_values, load_forms, row_values
 
 #: The attachment's name: `RMS_Express_Form_<viewer>.xml`.
 _NAME_RE = re.compile(r"^RMS_Express_Form_.*\.xml$", re.IGNORECASE)
@@ -201,3 +215,69 @@ def read(found: FormXml) -> Parsed:
         return Parsed(form, {f.id: found.variables[f.id].strip("\r\n") for f in form.fields}, 1.0,
                       dict(found.variables))
     return Parsed(form, values(form, found), 1.0, dict(found.variables))
+
+
+# -- writing -------------------------------------------------------------------
+
+
+def attachment_name(viewer: str) -> str:
+    """Pat's `xmlName`: `RMS_Express_Form_<viewer without extension>.xml`."""
+    stem = viewer.strip().rsplit("/", 1)[-1]
+    stem = stem.rsplit(".", 1)[0] if "." in stem else stem
+    return f"RMS_Express_Form_{stem}.xml"
+
+
+def variables(form: FormDef, values: Values, *, callsign: str, reply: bool = False,
+              extra: dict[str, str] | None = None) -> dict[str, str]:
+    """The `<variables>` of `form` filled with `values`, lowercase names."""
+    out: dict[str, str] = {
+        # Pat's setDefaultFormValues.
+        "msgto": "", "msgcc": "", "msgsubject": "", "msgbody": "", "msgp2p": "", "txtstr": "",
+        "msgisforward": "False", "msgisacknowledgement": "False", "msgseqnum": "0",
+        "msgisreply": "True" if reply else "False",
+        "msgsender": callsign.split("-")[0].upper(),
+    }
+    for name in form.winlink_viewer_vars:
+        out.setdefault(name.lower(), "")
+    flat = flat_values(form, values)
+    for name, value in flat.items():
+        out[name.lower()] = value
+    for f in form.fields:
+        if f.kind == "rows":
+            for number, row in enumerate(filled_rows(f, values.get(f.id) or []), 1):
+                for column, value in row_values(f, row).items():
+                    out[f"{column}{number}".lower()] = value
+    for name, template in form.winlink_computed:
+        out[name.lower()] = _fill(template, flat)
+    for name, value in (extra or {}).items():
+        out[name.lower()] = value
+    return {name: value.strip() for name, value in out.items()}
+
+
+def build(form: FormDef, values: Values, *, callsign: str, grid: str = "",
+          now: datetime | None = None, reply: bool = False,
+          extra: dict[str, str] | None = None) -> bytes:
+    """The attachment for `form` filled with `values`. Raises `ValueError`
+    for a form with no Winlink viewer."""
+    if not form.winlink_viewer:
+        raise ValueError(f"{form.title} has no Winlink viewer")
+    root = ET.Element("RMS_Express_Form")
+    parameters = ET.SubElement(root, "form_parameters")
+    when = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    for tag, text in (
+        ("xml_file_version", "1.0"),
+        ("rms_express_version", f"kissterm {__version__}"),
+        ("submission_datetime", when.strftime("%Y%m%d%H%M%S")),
+        ("senders_callsign", callsign.split("-")[0].upper()),
+        ("grid_square", grid),
+        ("display_form", form.winlink_viewer),
+        ("reply_template", form.winlink_reply),
+    ):
+        ET.SubElement(parameters, tag).text = text
+    section = ET.SubElement(root, "variables")
+    for name, value in sorted(variables(form, values, callsign=callsign, reply=reply,
+                                        extra=extra).items()):
+        ET.SubElement(section, name).text = value
+    ET.indent(root, space="    ")
+    return b'<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding="utf-8",
+                                                                     xml_declaration=False) + b"\n"

@@ -43,6 +43,13 @@ GENERAL MESSAGE (ICS 213)
 # Winlink's own name for this form ("Form:" in ICS213_SendReply.0).
 [winlink]
 viewer = "ICS213_SendReply_Viewer.html"
+# Every {var} ICS213_SendReply_Viewer.html reads; theMsgSender (the
+# original's sender) is added when the reply is saved.
+viewer_vars = ["Approved_Name", "Approved_PosTitle", "fm_name", "FormTitle", "inc_name",
+               "IsExercise", "mapLat", "mapLon", "Mdate", "Message", "Message2", "MGRS",
+               "Mtime", "reply", "rply_by", "rply_dtm", "rply_Position", "ShowDR",
+               "Subjectline", "theMsgSender", "to_name"]
+computed = { Message2 = "<var Message>" }
 
 [[fields]]
 id = "inc_name"

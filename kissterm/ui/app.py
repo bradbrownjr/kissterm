@@ -4110,7 +4110,7 @@ class KissTermApp(App):
         """
         from ..config import state_path
         from ..locator import to_grid
-        from ..mail import forms
+        from ..mail import form_xml, forms
         from ..mail.compose import BBS_OUTBOX, SEND_WINLINK, bulletin_choices, radiogram_defaults
         from ..mail.winlink_collect import WINLINK_OUTBOX
         from .compose import (
@@ -4139,6 +4139,8 @@ class KissTermApp(App):
         aprs = self.config.aprs
         grid = to_grid(aprs.latitude, aprs.longitude) if aprs.latitude or aprs.longitude else ""
 
+        filled: list = []  # (form, draft) of the last form filled in
+
         async def fill(form: forms.FormDef, values: forms.Values | None = None):
             draft = await self.push_screen_wait(FormScreen(
                 form, mycall=str(self.config.mycall or ""), grid=grid,
@@ -4148,6 +4150,7 @@ class KissTermApp(App):
             if draft is not None:
                 forms.save_remembered(remembered_at, form.id,
                                       forms.to_remember(form, draft.form_values))
+                filled[:] = [form, draft]
             return draft
 
         if message == REPLY_FORM and original is not None:
@@ -4193,10 +4196,24 @@ class KissTermApp(App):
         if message is None:
             return
         winlink = message.extra.get("Send-Type") == SEND_WINLINK
-        self.mail_store.add(WINLINK_OUTBOX if winlink else BBS_OUTBOX, message)
+        xml, note = None, ""
+        if winlink and filled and filled[0].winlink_viewer:
+            # A Winlink form carries its XML (`mail/form_xml.py`), unless
+            # the text was changed after the form: the XML would then
+            # show a Winlink viewer something other than what was sent.
+            form, draft = filled
+            if message.body.rstrip() == draft.body.rstrip():
+                xml = form_xml.build(
+                    form, draft.form_values, callsign=str(self.config.mycall or ""), grid=grid,
+                    reply=original is not None,
+                    extra={"theMsgSender": original.sender} if original is not None else None)
+            else:
+                note = " The text was changed after the form, so it goes as text only."
+        self.mail_store.add(WINLINK_OUTBOX if winlink else BBS_OUTBOX, message,
+                            raw=xml, raw_suffix=".xml")
         self._reload_mail_tabs()
         where = "Winlink Outbox" if winlink else "Outbox"
-        self.notify(f"Saved to the {where}: {message.subject}", timeout=4)
+        self.notify(f"Saved to the {where}: {message.subject}.{note}", timeout=6 if note else 4)
 
     def _mail_log_entries(self) -> list:
         """Every dated message in a Mail Inbox or Sent folder (BBS,

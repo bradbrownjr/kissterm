@@ -53,6 +53,13 @@ Winlink Check-in 5.1.3
 # Winlink's own name for this form ("Form:" in "Winlink Check-in.txt").
 [winlink]
 viewer = "Winlink_Check_In_Viewer.html"
+# Every {var} Winlink_Check_In_Viewer.html reads.
+viewer_vars = ["Assigned", "Band", "Comments", "ContactName", "DateTime", "exercise_id", "Grid",
+               "Location", "locationSource", "mapLat", "mapLon", "MGRS", "MsgSender", "MsgTo",
+               "Organization", "Service", "Session", "Status", "Templateversion"]
+# Winlink_Check_In_Initial.html's hidden Templateversion; Newsubject is
+# the rendered subject (subject_var).
+computed = { Templateversion = "Winlink Check-in 5.1.3" }
 
 [[fields]]
 id = "MsgTo"

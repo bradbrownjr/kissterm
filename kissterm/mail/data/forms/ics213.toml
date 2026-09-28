@@ -35,6 +35,15 @@ GENERAL MESSAGE (ICS 213)
 [winlink]
 viewer = "ICS213_Initial_Viewer.html"
 reply_template = "ICS213_SendReply.0"
+# Every {var} ICS213_Initial_Viewer.html reads; those no field fills go
+# out empty (the DR number, position and priority kissterm does not ask).
+viewer_vars = ["Approved_Name", "Approved_PosTitle", "DR_num", "fm_name", "inc_name",
+               "IsExercise", "locationSource", "mapLat", "mapLon", "Mdate", "Message",
+               "Message2", "MGRS", "Mtime", "Priority2", "ShowDR", "Subjectline", "to_name"]
+# Set by ICS213_Initial.html's own script: copydata() makes Message2 the
+# message with tabs as "|" (the viewer shows Message2, not Message);
+# kissterm's text has no tabs, so it is the message as it is.
+computed = { Message2 = "<var Message>", Templateversion = "ICS 213  v.43.8" }
 
 [[fields]]
 id = "IsExercise"

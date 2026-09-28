@@ -80,6 +80,41 @@ async def test_an_ics213_is_addressed_in_compose_and_saved(tmp_path):
         assert message.to == "W1BKW" and message.extra["Send-Type"] == "P"
         assert message.extra["Form"] == "ics213"
         assert message.body.startswith("GENERAL MESSAGE (ICS 213)\n")
+        assert not store.raw_files(summary.ref)  # a BBS carries text only
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("edited", [False, True])
+async def test_an_ics213_by_winlink_carries_its_xml_unless_its_text_was_changed(tmp_path, edited):
+    from kissterm.mail import form_xml
+    from kissterm.mail.winlink_collect import WINLINK_OUTBOX
+
+    app, store = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        screen = await _open(app, pilot, "ics213")
+        await _fill_ics213(screen, pilot)
+        await pilot.click("#form-continue")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the compose screen again")
+        await pilot.pause()
+        compose = app.screen
+        compose.query_one("#compose-type", Select).value = "W"
+        compose.query_one("#compose-to", Input).value = "w1bkw"
+        if edited:
+            body = compose.query_one("#compose-body", TextArea)
+            body.text = body.text + "Added after the form.\n"
+        await pilot.pause()
+        await pilot.click("#compose-save")
+        await wait_for(lambda: store.list(WINLINK_OUTBOX), "the Winlink Outbox message")
+        [summary] = store.list(WINLINK_OUTBOX)
+        raw = store.raw_files(summary.ref)
+        if edited:
+            assert raw == []
+            return
+        [xml] = raw
+        found = form_xml.parse(xml.read_bytes())
+        assert found.display_form == "ICS213_Initial_Viewer.html"
+        assert found.variables["to_name"] == "J SMITH, EOC"
+        assert found.variables["msgsender"] == "KC1JMH"
 
 
 @pytest.mark.asyncio

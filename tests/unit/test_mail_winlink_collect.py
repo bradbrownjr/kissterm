@@ -196,6 +196,29 @@ def test_send_and_receive(tmp_path):
     assert any(line.startswith("> [message ") for line in log)
 
 
+def test_a_form_goes_with_its_winlink_xml(tmp_path):
+    from kissterm.mail import form_xml, forms
+
+    store = _store(tmp_path)
+    form = forms.get_form("ics213")
+    values = forms.defaults(form, mycall="KC1JMH")
+    values.update(inc_name="ICE STORM", Subjectline="Shelter", Message="Open.")
+    subject, body = forms.render(form, values)
+    xml = form_xml.build(form, values, callsign="KC1JMH")
+    store.add(WINLINK_OUTBOX, Message(sender="KC1JMH", to="W1AW", subject=subject, body=body,
+                                      date=datetime(2026, 9, 26, 12, 0, tzinfo=timezone.utc)),
+              raw=xml, raw_suffix=".xml")
+    gateway = Gateway()
+    result, log = asyncio.run(_run(gateway, store))
+    assert not result.stopped, log
+    sent = b2.parse(gateway.received[0])
+    assert sent.files == [("RMS_Express_Form_ICS213_Initial_Viewer.xml", xml)]
+    assert "ICE STORM" in sent.text
+    # The XML moved to Sent with its message.
+    [kept] = store.raw_files(result.sent[0])
+    assert kept.read_bytes() == xml
+
+
 def test_a_message_already_here_is_not_sent_again(tmp_path):
     store = _store(tmp_path)
     raw = REAL.read_bytes()

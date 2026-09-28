@@ -184,6 +184,10 @@ class FormDef:
     #: as its `display_form`, and its `reply_template` (`form_xml.py`).
     winlink_viewer: str = ""
     winlink_reply: str = ""
+    #: Variables the viewer reads that no field fills, written empty, and
+    #: those computed by the form's own page, as templates (`<var name>`).
+    winlink_viewer_vars: tuple[str, ...] = ()
+    winlink_computed: tuple[tuple[str, str], ...] = ()
 
     def field(self, field_id: str) -> Field:
         return next(f for f in self.fields if f.id == field_id)
@@ -290,16 +294,20 @@ def parse_form(text: str) -> FormDef:
     totals = tuple(Total(**t) for t in raw.pop("totals", ()))
     winlink = dict(raw.pop("winlink", {}))
     viewer, reply = winlink.pop("viewer", ""), winlink.pop("reply_template", "")
+    viewer_vars = tuple(winlink.pop("viewer_vars", ()))
+    computed = tuple(winlink.pop("computed", {}).items())
     if winlink:
         raise ValueError(f"form {raw.get('id')!r}: unknown [winlink] keys {sorted(winlink)}")
-    form = FormDef(**raw, fields=fields, totals=totals, winlink_viewer=viewer, winlink_reply=reply)
+    form = FormDef(**raw, fields=fields, totals=totals, winlink_viewer=viewer, winlink_reply=reply,
+                   winlink_viewer_vars=viewer_vars, winlink_computed=computed)
     names = {f.id.lower() for f in fields} | {
         c.id.lower() for f in fields for c in f.columns
     } | {d.id.lower() for f in fields for d in f.derived} | {
         t.id.lower() for t in totals
     } | ({form.subject_var.lower()} if form.subject_var else set())
     conditions = [m.group(1) for m in _IF_RE.finditer(form.body)]
-    for name in _VAR_RE.findall(form.body + form.subject) + conditions:
+    computed = "".join(template for _, template in form.winlink_computed)
+    for name in _VAR_RE.findall(form.body + form.subject + computed) + conditions:
         if name.lower() not in names:
             raise ValueError(f"form {form.id!r}: template uses unknown <var {name}>")
     return form
@@ -500,7 +508,7 @@ def _money(text: str) -> str:
     return f"$ {whole}"
 
 
-def _row_values(field_def: Field, row: dict[str, str]) -> dict[str, str]:
+def row_values(field_def: Field, row: dict[str, str]) -> dict[str, str]:
     values = {c.id: str(row.get(c.id, "")).strip() for c in field_def.columns}
     for c in field_def.columns:
         if c.sum_of:
@@ -524,11 +532,10 @@ def _fill(template: str, values: dict[str, str]) -> str:
     return "\n".join(lines)
 
 
-def render(form: FormDef, values: Values) -> tuple[str, str]:
-    """(subject, body) as they will be sent."""
-    if form.strip:
-        answers = [" ".join(str(values.get(f.id, "")).split()) or "   " for f in form.fields]
-        return form.subject, f"{form.subject}/{'/'.join(answers)}//\n"
+def flat_values(form: FormDef, values: Values) -> dict[str, str]:
+    """Every single value the template fills, computed ones included (a
+    check's banner, derived figures, totals, the rendered subject); a
+    `rows` field's lines are not here (`row_values`)."""
     flat = {f.id: str(values.get(f.id, "")).strip() for f in form.fields if f.kind != "rows"}
     for f in form.fields:
         if f.kind == "check":
@@ -545,16 +552,25 @@ def render(form: FormDef, values: Values) -> tuple[str, str]:
         present = [n for n in column if n is not None]
         total = _whole_or_cents(sum(present)) if present else ""
         flat[t.id] = _money(total) if total and t.format == "money" else total
+    if form.subject_var:
+        flat[form.subject_var] = " ".join(_fill(form.subject, flat).split())
+    return flat
+
+
+def render(form: FormDef, values: Values) -> tuple[str, str]:
+    """(subject, body) as they will be sent."""
+    if form.strip:
+        answers = [" ".join(str(values.get(f.id, "")).split()) or "   " for f in form.fields]
+        return form.subject, f"{form.subject}/{'/'.join(answers)}//\n"
+    flat = flat_values(form, values)
 
     def each(match: re.Match) -> str:
         rows_field = form.field(match.group(1))
         rows = filled_rows(rows_field, values.get(rows_field.id) or [])
-        chunks = (_fill(match.group(2), _row_values(rows_field, r)) for r in rows)
+        chunks = (_fill(match.group(2), row_values(rows_field, r)) for r in rows)
         return "".join(c if c.endswith("\n") else c + "\n" for c in chunks)
 
     subject = " ".join(_fill(form.subject, flat).split())
-    if form.subject_var:
-        flat[form.subject_var] = subject
     lowered = {k.lower(): v for k, v in flat.items()}
     template = _IF_RE.sub(lambda m: m.group(2) if lowered.get(m.group(1).lower()) else "", form.body)
     body = _fill(_EACH_RE.sub(each, template), flat).strip("\n") + "\n"
