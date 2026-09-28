@@ -377,12 +377,16 @@ class Config:
     #: `name` of the transport in `transports` that should be opened on
     #: startup. Empty means "ask" (or use whatever discovery finds).
     active_transport: str = ""
-    #: Reusable named login snippets (`{"name": ..., "text": ...}`), managed
-    #: in Settings and referenced by name from an address-book entry's
-    #: `credential` field -- see `kissterm/addressbook.py`. A live reference,
-    #: not a copy: change a password here once and every entry that names it
-    #: picks up the change on its next connect, which is the entire point of
-    #: keeping logins here instead of retyped into each station's script.
+    #: Saved logins: a username and a password, by name (Settings > Logins),
+    #: `{"name", "username", "store": "keyring"}` with the password in the
+    #: OS keyring, or `{"name", "username", "text": <password>}` where there
+    #: is none (`kissterm/keystore.py`). Referenced by name wherever a login
+    #: is used (a contact's auto-login and SSH sign-in, the Home BBS, the
+    #: Winlink password); a live reference, so a change here reaches every
+    #: user on its next connect. At a prompt a login sends its username
+    #: line, then its password line (`login_text`). The operator asked for
+    #: a username and a masked password in place of a block of text
+    #: (2026-09-28); older logins are split at launch (`split_old_logins`).
     credentials: list[dict[str, Any]] = field(default_factory=list)
     #: Reusable named command sequences (`{"name": ..., "text": ...}`), same
     #: shape and same live-lookup-by-name mechanism as `credentials` and
@@ -688,8 +692,26 @@ def mail_path() -> Path:
     return _DATA_DIR / "mail"
 
 
+def _credential_entry(config: Config, name: str) -> dict | None:
+    return next((c for c in config.credentials if name and c.get("name") == name), None)
+
+
+def credential_username(config: Config, name: str) -> str:
+    """The username of the saved login `name`, or `""`."""
+    entry = _credential_entry(config, name)
+    return str(entry.get("username", "") or "") if entry else ""
+
+
+def login_text(config: Config, name: str) -> str:
+    """What the saved login `name` sends at a prompt: its username line,
+    then its password line; the password alone when it has no username."""
+    password = find_credential(config, name)
+    username = credential_username(config, name)
+    return f"{username}\n{password}" if username and password else password or username
+
+
 def find_credential(config: Config, name: str) -> str:
-    """The current text of the saved credential named `name`, or `""`.
+    """The password of the saved login named `name`, or `""`.
 
     A live lookup, not a cached copy -- see `Config.credentials`'s
     docstring for why. Returns `""` for a name that no longer exists (the
@@ -709,22 +731,52 @@ def find_credential(config: Config, name: str) -> str:
     return ""
 
 
-def set_credential(config: Config, name: str, text: str, *, old_name: str = "") -> str:
-    """Save (or rename and save) the credential `name`; returns where it
-    went, "keyring" or "config". The OS keyring when there is one
-    (`kissterm/keystore.py`), config.toml otherwise. Any same-named entry
+def set_credential(config: Config, name: str, text: str, *, old_name: str = "",
+                   username: str | None = None) -> str:
+    """Save (or rename and save) the login `name` with password `text`;
+    returns where the password went, "keyring" or "config". The OS keyring
+    when there is one (`kissterm/keystore.py`), config.toml otherwise.
+    `username` None keeps the login's current one. Any same-named entry
     is replaced, not shadowed: `find_credential` takes the first match.
     The caller saves the config."""
     from . import keystore
 
+    if username is None:
+        username = credential_username(config, old_name or name) or credential_username(config, name)
     if old_name and old_name != name:
         keystore.delete(old_name)  # renamed: the old name is gone
     config.credentials = [c for c in config.credentials if c.get("name") not in (name, old_name)]
     if keystore.put(name, text):
-        config.credentials.append({"name": name, "store": "keyring"})
+        config.credentials.append({"name": name, "username": username, "store": "keyring"})
         return "keyring"
-    config.credentials.append({"name": name, "text": text})
+    config.credentials.append({"name": name, "username": username, "text": text})
     return "config"
+
+
+def split_old_logins(config: Config) -> int:
+    """A login saved before logins had a username (a block of text, one
+    line per prompt) becomes one: two or more lines are the username and
+    the password, one line the password. Returns how many changed; the
+    caller saves the config. Run at launch, off the UI thread (it reads
+    the keyring). Lines past the second are dropped: the operator did not
+    use longer logins (2026-09-28), and a script does that job."""
+    changed = 0
+    for entry in list(config.credentials):
+        name = entry.get("name")
+        if not name or "username" in entry:
+            continue
+        text = find_credential(config, name)
+        if not text:
+            continue  # a locked keyring reads as empty: try again next launch
+        lines = [line for line in text.replace("\r\n", "\n").split("\n") if line.strip()]
+        if len(lines) >= 2:
+            set_credential(config, name, lines[1].strip(), username=lines[0].strip())
+        else:
+            entry["username"] = ""
+            if len(lines) == 1 and lines[0] != text:
+                set_credential(config, name, lines[0].strip(), username="")
+        changed += 1
+    return changed
 
 
 def forget_credential(config: Config, name: str) -> None:
@@ -798,6 +850,21 @@ def move_credentials_to_keyring(config: Config) -> int:
                 entry["store"] = "keyring"
                 moved += 1
     return moved
+
+
+def fold_home_bbs_user(config: Config) -> bool:
+    """The Home BBS's old "Node username" setting becomes its node
+    login's username (one login, one place: operator, 2026-09-28). True
+    if it changed anything; the caller saves the config."""
+    home = config.home_bbs
+    user = home.internet_user.strip()
+    entry = _credential_entry(config, home.internet_credential)
+    if not user or entry is None or "username" not in entry:
+        return False
+    if not entry.get("username"):
+        entry["username"] = user
+    home.internet_user = ""
+    return True
 
 
 def find_script(config: Config, name: str) -> str:

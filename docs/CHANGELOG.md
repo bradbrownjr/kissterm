@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — A saved login is a username and a password
+
+### Improvements
+
+- **Saved logins hold a username (in config.toml) and a password (in the
+  system keyring)**, and send the username line, then the password
+  line, at a prompt. At launch, an older two-line login becomes username
+  and password, and a one-line login its password. The Home BBS's "Node
+  username" and an SSH contact's own username move into their logins.
+  An SSH contact signs in with its login's username. The dialogs follow
+  in the next changes. Operator report, 2026-09-28 (ROADMAP P0.1).
+
+**Files:** `kissterm/config.py`, `kissterm/addressbook.py`,
+`kissterm/ui/app.py`, `tests/unit/test_keystore.py`,
+`tests/unit/test_addressbook.py`, `docs/CHANGELOG.md`
+
 ## [2026-09-28] — Settings: nothing above the box
 
 ### Improvements

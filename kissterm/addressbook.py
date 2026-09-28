@@ -136,8 +136,10 @@ class Entry:
     host: str = ""
     #: Kept as text like `paclen`; "" is the protocol's own (23, 22).
     port: str = ""
-    #: SSH only. The password and key passphrase are saved logins, by name
-    #: (`Config.credentials`, the keyring), never text in this file.
+    #: SSH only. `password_login` is the saved login it signs in with (its
+    #: username and its password, in the keyring); the key passphrase is a
+    #: saved login too. `username` is from before logins had one: moved
+    #: into the login at launch (`fold_ssh_usernames`), read only if not.
     username: str = ""
     password_login: str = ""
     client_key: str = ""
@@ -148,14 +150,19 @@ class Entry:
     def is_internet(self) -> bool:
         return self.connect_by in INTERNET_KINDS
 
-    def transport_config(self, find_login: Callable[[str], str]) -> dict:
+    def transport_config(self, find_login: Callable[[str], str],
+                         find_username: Callable[[str], str] | None = None) -> dict:
         """The `build_transport()` entry an Internet contact connects with;
-        `find_login` turns a saved login's name into its text."""
+        `find_login` turns a saved login's name into its password and
+        `find_username` into its username. An SSH contact signs in with its
+        login's username, or its own `username` from before logins had one."""
         config: dict = {"kind": self.connect_by, "host": self.host}
         if self.port.strip():
             config["port"] = int(self.port)
         if self.connect_by == "ssh":
-            config["username"] = self.username
+            login_user = find_username(self.password_login) if (
+                find_username is not None and self.password_login) else ""
+            config["username"] = login_user or self.username
             config["known_hosts"] = self.known_hosts
             if self.client_key:
                 config["client_key"] = self.client_key
@@ -178,6 +185,23 @@ class Entry:
 #: The fields `load` reads as text: everything but the target and counters.
 _TEXT_FIELDS = tuple(f.name for f in fields(Entry)
                      if f.name not in ("target", "last_used", "attempts", "connects"))
+def fold_ssh_usernames(book: "AddressBook", config) -> list[str]:
+    """Each SSH contact's own username becomes its sign-in login's
+    username, where the login has none (one login, one place: operator,
+    2026-09-28). Returns the contacts changed; the caller saves the config."""
+    changed = []
+    for entry in book.entries:
+        if entry.connect_by != "ssh" or not entry.username or not entry.password_login:
+            continue
+        login = next((c for c in config.credentials if c.get("name") == entry.password_login), None)
+        if login is None or "username" not in login:
+            continue
+        if not login.get("username"):
+            login["username"] = entry.username
+        changed.append(entry.target)
+    return changed
+
+
 #: The fields that say how an Internet contact is reached.
 INTERNET_FIELDS = frozenset({"connect_by", "host", "port", "username", "password_login",
                               "client_key", "key_login", "known_hosts"})

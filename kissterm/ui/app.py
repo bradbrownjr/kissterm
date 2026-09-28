@@ -141,11 +141,13 @@ from ..config import (
     AprsConfig,
     BeaconConfig,
     credential_store,
+    credential_username,
     find_credential,
     move_credentials_to_keyring,
     rescue_typed_secrets,
     set_credential,
     find_script,
+    login_text as saved_login_text,
     mail_path,
     state_path,
 )
@@ -891,12 +893,21 @@ class KissTermApp(App):
         """Logins saved as text in config.toml move to the OS keyring when
         there is one (`kissterm/keystore.py`); off the UI thread, since a
         keyring may be slow to answer or ask to be unlocked."""
+        from ..addressbook import fold_ssh_usernames
+        from ..config import fold_home_bbs_user, split_old_logins
+
         try:
             rescued = rescue_typed_secrets(self.config)
             moved = move_credentials_to_keyring(self.config)
+            # Logins became a username and a password (operator, 2026-09-28).
+            split = split_old_logins(self.config)
+            folded = fold_home_bbs_user(self.config)
+            folded = bool(fold_ssh_usernames(self.addressbook, self.config)) or folded
         except Exception as exc:  # noqa: BLE001 - never disturb the launch
             log.warning("keyring: moving saved logins failed: %s", exc)
             return
+        if split or folded:
+            self.call_from_thread(self._save_config)
         if rescued:
             self.call_from_thread(self._save_config)
             self.call_from_thread(
@@ -3787,7 +3798,8 @@ class KissTermApp(App):
             return
         try:
             transport = build_transport(entry.transport_config(
-                lambda name: find_credential(self.config, name)))
+                lambda name: find_credential(self.config, name),
+                lambda name: credential_username(self.config, name)))
         except (TransportError, TypeError, ValueError) as exc:
             self.notify(f"{key}: {exc}", severity="error")
             reached(False)
@@ -4055,7 +4067,7 @@ class KissTermApp(App):
         two separate saved lists rather than one.
         """
         if credential:
-            return find_credential(self.config, credential)
+            return saved_login_text(self.config, credential)
         if script_name:
             return find_script(self.config, script_name)
         return script
@@ -4528,7 +4540,8 @@ class KissTermApp(App):
                 home.credential = login[0]
                 self._save_config()
                 self.query_one(SettingsPane).render_settings(self.config)
-            login_text = login[1]
+            # The username line, then the password (a saved login's shape).
+            login_text = saved_login_text(self.config, login[0]) or login[1]
         options = CollectOptions(
             bbs_call=home.call,
             software=home.software,
@@ -4851,7 +4864,8 @@ class KissTermApp(App):
             home.internet = entry.target
             self._save_config()
             self.query_one(SettingsPane).render_settings(self.config)
-        user = home.internet_user or str(self.config.mycall or "").split("-")[0].upper()
+        user = (credential_username(self.config, home.internet_credential) or home.internet_user
+                or str(self.config.mycall or "").split("-")[0].upper())
         login = await self._ask_login(
             home.internet_credential, "Home BBS Telnet", f"Node password for {user}", "")
         if login is None:
@@ -4877,7 +4891,8 @@ class KissTermApp(App):
 
         try:
             transport = build_transport(entry.transport_config(
-                lambda name: find_credential(self.config, name)))
+                lambda name: find_credential(self.config, name),
+                lambda name: credential_username(self.config, name)))
         except (TransportError, TypeError, ValueError) as exc:
             self.notify(f"Send/Receive by Internet: {entry.target}: {exc}", severity="error")
             return

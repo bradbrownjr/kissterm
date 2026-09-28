@@ -305,3 +305,20 @@ def test_at_launch_the_adopted_connections_leave_the_transports(tmp_path):
     assert adopt_internet_transports(book, config, remove=True) == ["ws1ec"]
     assert [t["name"] for t in config.transports] == ["tnc"]
     assert len([e for e in book.entries if e.target == "ws1ec"]) == 1
+
+
+def test_an_ssh_contact_signs_in_with_its_logins_username(tmp_path):
+    from kissterm.addressbook import AddressBook, fold_ssh_usernames
+    from kissterm.config import Config, credential_username, set_credential
+
+    config = Config()
+    set_credential(config, "WS1EC SSH password", "pw", username="")
+    book = AddressBook(tmp_path / "book.json")
+    book.upsert("WS1EC", connect_by="ssh", host="ws1ec.example", username="packet",
+                password_login="WS1EC SSH password")
+    assert fold_ssh_usernames(book, config) == ["WS1EC"]
+    assert credential_username(config, "WS1EC SSH password") == "packet"
+    entry = book.find("WS1EC")
+    set_credential(config, "WS1EC SSH password", "pw", username="node")
+    built = entry.transport_config(lambda n: "pw", lambda n: credential_username(config, n))
+    assert (built["username"], built["password"]) == ("node", "pw")
