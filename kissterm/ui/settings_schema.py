@@ -352,6 +352,17 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 apply="live",
             ),
             Field(
+                "winlink.server",
+                "Internet server",
+                "choice",
+                "Where I (Send/Receive by Internet) connects. Winlink's servers do "
+                "not accept kissterm yet; its test server does, to try kissterm "
+                "out. Mail sent through the test server may not reach anyone.",
+                choices=(("Winlink (server.winlink.org)", "production"),
+                         ("Test (cms-z.winlink.org)", "test")),
+                apply="live",
+            ),
+            Field(
                 "winlink.locator",
                 "Grid square",
                 "text",

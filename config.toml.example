@@ -341,6 +341,9 @@ account = ""
 credential = ""
 # Maidenhead locator for the handshake; empty uses the APRS grid square.
 locator = ""
+# The CMS that Send/Receive by Internet (I) reaches: "production"
+# (server.winlink.org) or "test" (cms-z.winlink.org, Winlink's test server).
+server = "production"
 
 [beacon]
 enabled = false

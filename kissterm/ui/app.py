@@ -4573,7 +4573,8 @@ class KissTermApp(App):
             self.notify(
                 "Winlink refused kissterm itself, not your login: its production servers "
                 "accept only client programs they know, and kissterm is not one of them yet. "
-                "Nothing was sent.",
+                "Nothing was sent. Settings > Mail > Internet server can use Winlink's test "
+                "server instead.",
                 severity="warning", timeout=15,
             )
         elif result.stopped:
@@ -4711,7 +4712,8 @@ class KissTermApp(App):
             self.notify(
                 "Winlink refused kissterm itself, not your login: its production servers "
                 "accept only client programs they know, and kissterm is not one of them yet. "
-                "Nothing was sent.",
+                "Nothing was sent. Settings > Mail > Internet server can use Winlink's test "
+                "server instead.",
                 severity="warning", timeout=15,
             )
         elif result.stopped:
@@ -4801,7 +4803,7 @@ class KissTermApp(App):
         """Winlink through the CMS by Telnet (`winlink_collect.CMS_*`,
         from wl2k-go): its login, then the same exchange as over radio."""
         from ..mail.winlink_collect import (
-            CMS_HOST, CMS_PORT, CMS_TARGET, WinlinkCollector, WinlinkOptions,
+            CMS_PORT, CMS_TARGET, WinlinkCollector, WinlinkOptions, cms_host,
         )
         from ..transport import build_transport
 
@@ -4816,8 +4818,10 @@ class KissTermApp(App):
                                     received=received, progress=self._mail_status,
                                     early_lines_shown=False)
 
-        transport = build_transport({"kind": "telnet", "host": CMS_HOST, "port": CMS_PORT})
-        result = await self._internet_run(transport, CMS_TARGET, "the Winlink CMS", build)
+        server = self.config.winlink.server
+        transport = build_transport({"kind": "telnet", "host": cms_host(server), "port": CMS_PORT})
+        what = "Winlink's test server" if server == "test" else "the Winlink CMS"
+        result = await self._internet_run(transport, CMS_TARGET, what, build)
         if result is not None:
             self._winlink_report(result)
             await self._winlink_password_refused(result)

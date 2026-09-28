@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — Winlink's test server as an option
+
+### New Features
+
+- **Settings > Mail > Internet server**: I can reach Winlink's test CMS
+  (cms-z.winlink.org), the one the production CMS pointed kissterm at
+  when it refused an unknown client, to try kissterm while it is not yet
+  accepted. The refusal toast names the setting. Operator request,
+  2026-09-28. Where mail sent through it goes is unverified.
+
+**Files:** `kissterm/config.py`, `config.toml.example`,
+`kissterm/mail/winlink_collect.py`, `kissterm/ui/settings_schema.py`,
+`kissterm/ui/app.py`, `tests/pilot/test_winlink_send_receive.py`,
+`docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-28] — All Inboxes asks for the BBS; Winlink's refusal explained
 
 ### Improvements

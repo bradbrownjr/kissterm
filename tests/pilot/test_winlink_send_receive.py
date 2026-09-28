@@ -261,7 +261,8 @@ async def test_g_on_all_inboxes_runs_the_bbs_then_winlink(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_i_on_a_winlink_folder_uses_the_cms_by_telnet(tmp_path, monkeypatch):
+@pytest.mark.parametrize("server", ["production", "test"])
+async def test_i_on_a_winlink_folder_uses_the_cms_by_telnet(tmp_path, monkeypatch, server):
     from kissterm.mail import winlink_collect
     from kissterm.transcripts import list_transcripts
 
@@ -278,10 +279,14 @@ async def test_i_on_a_winlink_folder_uses_the_cms_by_telnet(tmp_path, monkeypatc
             gateway._got.set()
         serving.cancel()
 
-    server = await asyncio.start_server(handle, "127.0.0.1", 0)
-    monkeypatch.setattr(winlink_collect, "CMS_HOST", "127.0.0.1")
-    monkeypatch.setattr(winlink_collect, "CMS_PORT", server.sockets[0].getsockname()[1])
+    tcp = await asyncio.start_server(handle, "127.0.0.1", 0)
+    # Only the chosen server answers (Settings > Mail > Internet server).
+    chosen, other = ("CMS_TEST_HOST", "CMS_HOST") if server == "test" else ("CMS_HOST", "CMS_TEST_HOST")
+    monkeypatch.setattr(winlink_collect, chosen, "127.0.0.1")
+    monkeypatch.setattr(winlink_collect, other, "never.invalid")
+    monkeypatch.setattr(winlink_collect, "CMS_PORT", tcp.sockets[0].getsockname()[1])
     app, station, _tb = await _app(tmp_path)
+    app.config.winlink.server = server
     async with app.run_test(size=(120, 40)) as pilot:
         app.action_show_tab("mail")
         await pilot.pause()
@@ -299,11 +304,14 @@ async def test_i_on_a_winlink_folder_uses_the_cms_by_telnet(tmp_path, monkeypatc
         assert ";PR: 95074758" in gateway.handshake and gateway.handshake[-1].startswith("; WL2K DE KC1JMH")
         assert len(app.mail_store.list(WINLINK_INBOX)) == 1
         assert not station.transport.sent  # nothing on the radio side
-        # The log folder is shared by every test in this worker: find ours.
+        # The log folder is shared by every test in this worker (both
+        # servers' runs among them): ours is the newest of its kind.
         texts = [t.path.read_text() for t in list_transcripts(app._transcript_directory())]
-        [text] = [t for t in texts if "[WL2K-5.0-B2FWIHJM$]" in t and "Callsign :" in t]
-        assert "FQ" in text
-    server.close()
+        ours = [t for t in texts if "[WL2K-5.0-B2FWIHJM$]" in t and "Callsign :" in t]
+        assert ours and all("FQ" in text for text in ours)
+        if server == "test":
+            assert any("Winlink's test server" in t for t in toasts)
+    tcp.close()
     station.close()
 
 

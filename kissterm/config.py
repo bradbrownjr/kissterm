@@ -293,6 +293,15 @@ class WinlinkConfig:
     credential: str = ""
     #: Maidenhead locator sent in the handshake; "" uses the APRS grid square.
     locator: str = ""
+    #: The CMS that I (Send/Receive by Internet) reaches: "production"
+    #: (server.winlink.org) or "test" (cms-z.winlink.org), the one the
+    #: production CMS pointed kissterm at (ROADMAP, Blockers; operator,
+    #: 2026-09-28). See `winlink_collect.cms_host`.
+    server: str = "production"
+
+
+#: `WinlinkConfig.server`'s values.
+WINLINK_SERVERS = ("production", "test")
 
 
 @dataclass
@@ -1274,6 +1283,12 @@ def _load_winlink(value: Any, warnings: list[str]) -> WinlinkConfig:
         setattr(winlink, name, _load_str(value, name, getattr(default, name), warnings))
     winlink.account = winlink.account.strip().upper()
     winlink.locator = winlink.locator.strip()
+    server = _load_str(value, "server", default.server, warnings).strip().lower()
+    if server not in WINLINK_SERVERS:
+        warnings.append(f"winlink.server should be one of {', '.join(WINLINK_SERVERS)}, "
+                        f"got {server!r}; using {default.server!r}")
+        server = default.server
+    winlink.server = server
     return winlink
 
 

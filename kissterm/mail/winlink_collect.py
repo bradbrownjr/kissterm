@@ -69,7 +69,18 @@ _ADDRESS_SPLIT = re.compile(r"[,;\s]+")
 
 #: The Winlink CMS's Telnet service (wl2k-go `CMSAddress`, `CMSTargetCall`).
 CMS_HOST = "server.winlink.org"
+#: Winlink's test CMS, named by the production CMS when it refused kissterm:
+#: "Unknown client types are not allowed on production servers -- use
+#: cms-z.winlink.org" (operator's session, 2026-09-28).
+#: # UNVERIFIED: its port (taken to be production's) and where mail sent
+#: through it goes.
+CMS_TEST_HOST = "cms-z.winlink.org"
 CMS_PORT = 8772
+
+
+def cms_host(server: str) -> str:
+    """The CMS for `WinlinkConfig.server`."""
+    return CMS_TEST_HOST if server == "test" else CMS_HOST
 CMS_TARGET = "WL2K"
 #: The Telnet-layer password every client sends (wl2k-go `CMSPassword`).
 CMS_TELNET_PASSWORD = "CMSTelnet"

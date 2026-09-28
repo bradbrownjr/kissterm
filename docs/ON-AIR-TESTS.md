@@ -159,6 +159,12 @@ and then your Winlink password, before dialing. The password is saved
   Winlink > Inbox: the message's Attachments line should say
   `Files/Attachments/<name> (<size> bytes)`, and F4 Files > Attachments
   should list it, its text shown in the preview.
+- [ ] **Winlink's test server** (no radio): Settings > Mail > Internet
+  server: Test (cms-z.winlink.org). On a Winlink folder, I. It should log
+  in (no "Unknown client" refusal) and say "No new Winlink mail" or file
+  what is waiting. Then send yourself a short message and see whether it
+  arrives at KC1JMH@winlink.org from Winlink Express or the web: that
+  says whether the test server delivers anywhere. Keep the transcript.
 - [ ] **A Winlink form opens in Winlink Express** (no radio, with I):
   on a Winlink folder, Insert, Type: ICS-213 (form), fill it, Continue,
   address it to a Winlink Express user (or your own account, read in
