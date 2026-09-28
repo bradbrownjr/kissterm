@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — G asks for a BBS login as a username and a password
+
+### Improvements
+
+- **G to a Home BBS with a login prompt and no saved login asks for
+  Username and a masked Password**, saved as one login ("Home BBS", in
+  the keyring); the BBS gets the username line, then the password. The
+  Winlink password question stays password-only (the account has no
+  username). The login questions now have the same title style and Esc
+  footer as the other dialogs. Operator request, 2026-09-28.
+
+**Files:** `kissterm/ui/dialogs.py`, `kissterm/ui/app.py`,
+`kissterm/ui/styles.py`, `tests/pilot/test_get_mail.py`,
+`tests/pilot/test_layout_fits.py`, `docs/ROADMAP.md`,
+`docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-28] — I asks for the contact, username and password in one question
 
 ### Improvements

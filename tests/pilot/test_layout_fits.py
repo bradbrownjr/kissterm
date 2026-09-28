@@ -81,6 +81,8 @@ def _setup_dialogs():
         "Winlink password", "The Winlink password for KC1JMH. It never goes on the "
         "air: the gateway sends a challenge, and only the answer to it is sent.",
         "Winlink", all_note=NOTE, skip="Skip Winlink")
+    yield dialogs.LoginAskScreen("Home BBS login", "", "Home BBS", all_note=NOTE,
+                                 skip="Skip Home BBS", username="", where="keyring")
     yield dialogs.RadioReminderScreen("145.050", "tnc (tcp)", "a note")
 
 

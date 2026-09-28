@@ -194,6 +194,7 @@ from .dialogs import (
     SETUP_SKIP,
     GatewayChoice,
     HomeBbsSetupScreen,
+    Credential,
     InternetLogin,
     InternetLoginScreen,
     login_where,
@@ -4428,10 +4429,12 @@ class KissTermApp(App):
         return entry
 
     async def _ask_login(self, current: str, default_name: str, title: str, detail: str,
-                         *, secret: bool = True) -> tuple[str, str] | None:
-        """The saved login `current` names, as (name, text); if there is
-        none or it cannot be read, ask for it before dialing and save it
-        (`LoginAskScreen`). None if the operator cancelled."""
+                         *, secret: bool = True,
+                         username: bool = False) -> tuple[str, str] | None:
+        """The saved login `current` names, as (name, password); if there
+        is none or it cannot be read, ask for it before dialing and save it
+        (`LoginAskScreen`; with `username`, its username too). None if the
+        operator cancelled."""
         from ..config import set_credential
 
         text = find_credential(self.config, current) if current else ""
@@ -4441,11 +4444,15 @@ class KissTermApp(App):
         # never show it, save under the fixed name instead.
         name = current if current and credential_store(self.config, current) else default_name
         note, skip = self._all_inboxes_ask()
-        text = self._setup_answer(await self.push_screen_wait(
-            LoginAskScreen(title, detail, name, secret=secret, all_note=note, skip=skip)), "")
-        if not text:
+        answer = self._setup_answer(await self.push_screen_wait(LoginAskScreen(
+            title, detail, name, secret=secret, all_note=note, skip=skip,
+            username=credential_username(self.config, name) if username else None,
+            where=login_where() if username else "")), "")
+        if not answer:
             return None
-        where = set_credential(self.config, name, text)
+        text = answer.text if isinstance(answer, Credential) else answer
+        where = set_credential(self.config, name, text, username=(
+            answer.username if isinstance(answer, Credential) else None))
         self._save_config()
         self.notify(
             f"Saved the login \"{name}\" in "
@@ -4520,7 +4527,7 @@ class KissTermApp(App):
         if home.login_prompt:
             # Settings says the BBS asks for a login: have it before dialing.
             login = await self._ask_login(
-                home.credential, "Home BBS", "Home BBS password", "")
+                home.credential, "Home BBS", "Home BBS login", "", username=True)
             if login is None:
                 return None
             if home.credential != login[0]:

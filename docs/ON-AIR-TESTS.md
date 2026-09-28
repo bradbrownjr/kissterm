@@ -135,6 +135,11 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   and continue. The run should log in (`user:`, then `password:`, then
   BBS), and Settings > Mail > Node login should now name
   "<contact> login". Press I again: no question this time.
+- [ ] **G asks a BBS login as username and password** (only if your
+  BBS asks for a login by radio: Settings > Mail > Login prompt set, BBS
+  login (none)). G shows "Home BBS login" with Username and a masked
+  Password; the run should answer the prompt with the username line,
+  then the password.
 - [ ] **An SSH contact signs in with its login.** Ctrl+G, E on the SSH
   contact: "Sign in" should name its login, with no User or Password
   box. Connect to it; it should sign in as before.

@@ -113,7 +113,8 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   keyring); older logins are split at launch. Mail's BBS and node logins
   and an SSH contact's sign-in are saved-login lists ending with "New
   login...". I with no contact or no password asks for the contact, the
-  username and the password in one dialog and saves them as one login.
+  username and the password in one dialog and saves them as one login;
+  G's Home BBS login question asks a username and a password too.
   DESIGN.md section 8, "A login is one thing". Checks in
   docs/ON-AIR-TESTS.md, "Saved logins".
 

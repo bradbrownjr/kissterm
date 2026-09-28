@@ -306,9 +306,45 @@ async def test_a_login_prompt_without_a_saved_login_is_asked_before_dialing(tmp_
                        "the Mail tab to take focus")
         await pilot.press("g")
         await wait_for(lambda: isinstance(app.screen, LoginAskScreen), "the login question")
-        assert "Home BBS password" in str(app.screen.query_one("#connect-title").render())
+        assert "Home BBS login" in str(app.screen.query_one("#connect-title").render())
         await pilot.pause()
         await pilot.click("#connect-cancel")
         await wait_for(lambda: not app._collecting, "G to give up")
         assert not station.transport.sent
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_bbs_login_asked_is_a_username_and_a_password(tmp_path):
+    """Operator, 2026-09-28: a login is a username and a password, saved
+    securely; the BBS gets the username line, then the password."""
+    from textual.widgets import Input
+
+    from kissterm.config import login_text
+    from kissterm.ui.dialogs import LoginAskScreen
+
+    app, station, _tb = await _app(tmp_path)
+    app.config.home_bbs.login_prompt = "user:"
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.action_show_tab("mail")
+        browser = app.query_one("#mail-browser")
+        browser.show_folder("Mail/BBS/Inbox")
+        await wait_for(lambda: isinstance(app.focused, (MessageList, FolderTree)),
+                       "the Mail tab to take focus")
+        await pilot.press("g")
+        await wait_for(lambda: isinstance(app.screen, LoginAskScreen), "the login question")
+        await pilot.pause()
+        ask = app.screen
+        assert ask.query_one("#login-ask-text", Input).password
+        assert app.focused is ask.query_one("#login-ask-username", Input)
+        # No password: refused, the dialog stays.
+        ask.query_one("#login-ask-username", Input).value = "KC1JMH"
+        await pilot.click("#connect-go")
+        await pilot.pause()
+        assert app.screen is ask
+        ask.query_one("#login-ask-text", Input).value = "secret"
+        await pilot.click("#connect-go")
+        await wait_for(lambda: app.config.home_bbs.credential == "Home BBS", "the login saved")
+        assert login_text(app.config, "Home BBS") == "KC1JMH\nsecret"
     station.close()

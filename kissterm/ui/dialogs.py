@@ -1756,7 +1756,7 @@ class WinlinkGatewayScreen(ModalScreen["GatewayChoice | str | None"]):
             self._channel if choice == _OTHER_GATEWAY else None))
 
 
-class LoginAskScreen(ModalScreen[str | None]):
+class LoginAskScreen(ModalScreen["str | Credential | None"]):
     """Send/Receive's ask-before-dialing step for a login it needs and does
     not have: the Winlink password, or a Home BBS login when Settings names
     a login prompt (operator, 2026-09-26: "will the application ask me?").
@@ -1765,15 +1765,26 @@ class LoginAskScreen(ModalScreen[str | None]):
     connect's airtime. One masked line; the caller saves it as a saved
     login (the system keyring when there is one) under `name` and points
     Settings at it. Returns the text, or None if cancelled.
+
+    With `username` (a BBS login), a Username row above the masked
+    Password, and the answer is a `Credential`: a login is a username and
+    a password, never one of them alone (DESIGN.md section 8; operator,
+    2026-09-28). Winlink's account has no username, so it asks the
+    password only.
     """
 
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
     def __init__(self, title: str, detail: str, name: str, *, secret: bool = True,
                  all_note: str = "", skip: str = "",
-                 go_label: str = "Send/Receive") -> None:
+                 go_label: str = "Send/Receive", username: str | None = None,
+                 where: str = "") -> None:
         super().__init__()
         self._go_label = go_label
+        #: None: the password only. Else the username field's starting text.
+        self._username = username
+        #: "keyring" or "config": where the password will be kept, if said.
+        self._where = where
         #: As for `HomeBbsSetupScreen`: why, on All Inboxes, and Skip's label.
         self._all_note = all_note
         self._skip = skip
@@ -1791,16 +1802,32 @@ class LoginAskScreen(ModalScreen[str | None]):
                 yield Static(self._title, id="login-ask-what")
             if self._detail:
                 yield Static(self._detail, id="reminder-detail")
-            yield Input(password=self._secret, id="login-ask-text")
+            if self._username is None:
+                yield Input(password=self._secret, id="login-ask-text")
+            else:
+                with Horizontal(classes="ab-row"):
+                    yield Label("Username", classes="ab-label")
+                    yield Input(self._username, compact=True, id="login-ask-username",
+                                placeholder="empty if only a password is asked")
+                with Horizontal(classes="ab-row"):
+                    yield Label("Password", classes="ab-label")
+                    yield Input(password=True, compact=True, id="login-ask-text")
+            if self._where:
+                yield Static(
+                    "The password is kept in the system keyring." if self._where == "keyring"
+                    else "No system keyring here: the password is kept in config.toml.",
+                    id="credential-where")
             yield Label("", id="login-ask-error")
             with Horizontal(id="connect-buttons"):
                 yield Button(self._go_label, variant="primary", id="connect-go")
                 if self._skip:
                     yield Button(self._skip, id="setup-skip")
                 yield Button("Cancel", id="connect-cancel")
+        yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one("#login-ask-text", Input).focus()
+        self.query_one("#login-ask-username" if self._username == "" else "#login-ask-text",
+                       Input).focus()
 
     @on(Button.Pressed, "#connect-cancel")
     def _cancel(self) -> None:
@@ -1811,13 +1838,20 @@ class LoginAskScreen(ModalScreen[str | None]):
         self.dismiss(SETUP_SKIP)
 
     @on(Button.Pressed, "#connect-go")
-    @on(Input.Submitted, "#login-ask-text")
+    @on(Input.Submitted, "#login-ask-text, #login-ask-username")
     def _go(self) -> None:
         text = self.query_one("#login-ask-text", Input).value
         if not text.strip():
-            self.query_one("#login-ask-error", Label).update("Empty: type it, or Cancel.")
+            self.query_one("#login-ask-error", Label).update(
+                "Type the password, or Cancel." if self._username is not None
+                else "Empty: type it, or Cancel.")
+            self.query_one("#login-ask-text", Input).focus()
             return
-        self.dismiss(text)
+        if self._username is None:
+            self.dismiss(text)
+            return
+        username = self.query_one("#login-ask-username", Input).value.strip()
+        self.dismiss(Credential(self._name, text, username))
 
 
 @dataclass
