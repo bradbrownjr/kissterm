@@ -515,14 +515,16 @@ async def test_the_entry_dialog_fits_80x24_with_every_row_whole():
 @pytest.mark.asyncio
 async def test_an_ssh_contact_is_made_in_the_editor(tmp_path):
     """Operator, 2026-09-26: contacts are made in the Address Book whatever
-    the connection. SSH shows its own rows, hides the radio ones, and the
-    password goes to a saved login, never into addressbook.json."""
+    the connection. SSH shows its own rows, hides the radio ones, and signs
+    in with a saved login (username and password; operator, 2026-09-28),
+    never a password in addressbook.json."""
     from textual.widgets import Button, Input, Select
 
-    from kissterm.config import find_credential
+    from kissterm.config import credential_username, set_credential
     from kissterm.ui.dialogs import AddressBookEntryScreen
 
     app, station, ta, tb = await _app()
+    set_credential(app.config, "WS1EC shell", "s3cret", username="packet")
     async with app.run_test(size=(80, 24)) as pilot:
         _fresh_book(app, tmp_path)
         await _addressbook_tab(app, pilot)
@@ -535,30 +537,33 @@ async def test_an_ssh_contact_is_made_in_the_editor(tmp_path):
         screen.query_one("#addressbook-connect-by", Select).value = "ssh"
         await pilot.pause()
         assert not screen.query_one("#connect-hops").parent.display
-        assert screen.query_one("#addressbook-username").parent.display
+        assert screen.query_one("#addressbook-ssh-login").parent.display
         assert str(screen.query_one("#addressbook-target-label").render()) == "Name"
         for wid, value in (("connect-target", "WS1EC"), ("addressbook-host", "ws1ec.example.org"),
-                           ("addressbook-port", "4122"), ("addressbook-username", "packet"),
+                           ("addressbook-port", "4122"),
                            ("addressbook-known-hosts", "/k/known_hosts")):
             screen.query_one(f"#{wid}", Input).value = value
-        # No password or key yet: refused, the dialog stays.
+        # No login yet: refused, the dialog stays.
         screen._save()
         await pilot.pause()
         assert app.screen is screen
-        assert "password or a key" in str(screen.query_one("#connect-error").render())
+        assert "needs a login" in str(screen.query_one("#connect-error").render())
         assert screen.query_one("#addressbook-key-passphrase", Input).password
         assert screen.query_one("#addressbook-client-key", Input).display
-        screen.query_one("#addressbook-ssh-password", Input).value = "s3cret"
+        login = screen.query_one("#addressbook-ssh-login", Select)
+        assert str(login._options[-1][0]) == "New login..."
+        login.value = "WS1EC shell"
         save = screen.query_one("#connect-go", Button).region
         assert save.bottom <= 24
         screen._save()
         await pilot.pause()
         await asyncio.sleep(0.05)
         entry = app.addressbook.find("WS1EC")
-        assert (entry.connect_by, entry.host, entry.port, entry.username) == (
-            "ssh", "ws1ec.example.org", "4122", "packet")
-        assert entry.password_login == "WS1EC SSH password"
-        assert find_credential(app.config, "WS1EC SSH password") == "s3cret"
+        assert (entry.connect_by, entry.host, entry.port, entry.password_login) == (
+            "ssh", "ws1ec.example.org", "4122", "WS1EC shell")
+        built = entry.transport_config(lambda n: "s3cret" if n == "WS1EC shell" else "",
+                                       lambda n: credential_username(app.config, n))
+        assert (built["username"], built["password"]) == ("packet", "s3cret")
         assert "s3cret" not in (tmp_path / "addressbook.json").read_text()
     station.close()
 

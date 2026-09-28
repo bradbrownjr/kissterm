@@ -831,7 +831,7 @@ class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
                 [],
                 id="connect-credential",
                 allow_blank=True,
-                prompt="Saved credential",
+                prompt="Saved login",
             )
             yield TextArea(
                 id="connect-script",
@@ -1099,12 +1099,11 @@ class AddressBookEdit:
     window: str = ""
     note: str = ""
     #: How the contact is reached (`addressbook.Entry.connect_by`, `host`,
-    #: ...), for `AddressBook.upsert(**internet)`. A password or key
-    #: passphrase typed here is not in it: `ssh_password`/`key_passphrase`
-    #: carry the text to the caller, which saves it as a login and names
-    #: that login in `password_login`/`key_login`.
+    #: ...), for `AddressBook.upsert(**internet)`; `password_login` names
+    #: the saved login SSH signs in with. A key passphrase typed here is not
+    #: in it: `key_passphrase` carries the text to the caller, which saves
+    #: it as a login and names that login in `key_login`.
     internet: dict = field(default_factory=dict)
-    ssh_password: str = ""
     key_passphrase: str = ""
 
 
@@ -1209,13 +1208,12 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
                     yield Label("Port", classes="ab-label ab-label-2")
                     yield Input(value=net.get("port", ""), compact=True, id="addressbook-port",
                                 placeholder="default", classes="ab-port")
+                # One saved login, its username and password (operator,
+                # 2026-09-28: "I want to save a username and a password").
                 with Horizontal(classes="ab-row ab-ssh"):
-                    yield Label("User", classes="ab-label")
-                    yield Input(value=net.get("username", ""), compact=True,
-                                id="addressbook-username", placeholder="e.g. packet")
-                    yield Label("Password", classes="ab-label ab-label-2 ab-label-wide")
-                    yield Input(password=True, compact=True, id="addressbook-ssh-password",
-                                placeholder=self._saved_placeholder("password_login"))
+                    yield Label("Sign in", classes="ab-label")
+                    yield Select([], id="addressbook-ssh-login", allow_blank=True,
+                                 prompt="Saved login (username and password)", compact=True)
                 with Horizontal(classes="ab-row ab-ssh"):
                     yield Label("Key file", classes="ab-label")
                     yield Input(value=net.get("client_key", ""), compact=True,
@@ -1253,13 +1251,13 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
                 with Horizontal(classes="ab-row ab-heading"):
                     yield Label("Auto-login", id="connect-script-title")
                     yield Static(
-                        "optional: a saved credential, a saved script, or lines below",
+                        "optional: a saved login, a saved script, or lines below",
                         id="connect-script-hint",
                     )
                 with Horizontal(classes="ab-row"):
                     yield Label("Login", classes="ab-label")
                     yield Select([], id="connect-credential", allow_blank=True,
-                                 prompt="Saved credential", compact=True)
+                                 prompt="Saved login", compact=True)
                     yield Label("", classes="ab-gap")
                     yield Select([], id="connect-script-name", allow_blank=True,
                                  prompt="Saved script", compact=True)
@@ -1288,6 +1286,10 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
         script_name_select.value = (
             self._script_name if self._script_name in valid_scripts else Select.NULL
         )
+        ssh_login = self.query_one("#addressbook-ssh-login", Select)
+        ssh_login.set_options(saved_options(self.credentials, "credential"))
+        wanted = self._internet.get("password_login", "")
+        ssh_login.value = wanted if wanted in valid_credentials else Select.NULL
         self._sync_login_controls()
         self._render_connection_types()
         self._sync_connect_by()
@@ -1350,11 +1352,21 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
             return
         self._sync_login_controls()
 
+    @on(Select.Changed, "#addressbook-ssh-login")
+    def _ssh_login_changed(self, event: Select.Changed) -> None:
+        self._note_pick(event.select)
+
     def _saved_list_changed(self, kind: str, items: list[dict]) -> None:
         if kind == "script":
             self.scripts = items
-        else:
-            self.credentials = items
+            return
+        self.credentials = items
+        # A login made from one list is offered in the other too.
+        for select in self.query("#connect-credential, #addressbook-ssh-login").results(Select):
+            keep = select.value
+            with self.prevent(Select.Changed):
+                select.set_options(saved_options(items, "credential"))
+                select.value = keep if keep != NEW_PICK else Select.NULL
 
     def _sync_login_controls(self) -> None:
         _sync_login_source_controls(
@@ -1376,27 +1388,28 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
 
         fields = {"connect_by": by, "host": value("addressbook-host"),
                   "port": value("addressbook-port")}
-        password = key_passphrase = ""
+        key_passphrase = ""
         if by == "ssh":
-            fields.update(username=value("addressbook-username"),
+            login = self.query_one("#addressbook-ssh-login", Select)
+            name = str(login.value) if _select_has_value(login) else ""
+            # A contact from before logins had a username keeps its own
+            # until a login is chosen (`Entry.transport_config`).
+            fields.update(username="" if name else self._internet.get("username", ""),
                           client_key=value("addressbook-client-key"),
                           known_hosts=value("addressbook-known-hosts"),
-                          password_login=self._internet.get("password_login", ""),
+                          password_login=name,
                           key_login=self._internet.get("key_login", ""))
-            password = self.query_one("#addressbook-ssh-password", Input).value
             key_passphrase = self.query_one("#addressbook-key-passphrase", Input).value
         if not fields["host"]:
             return fields, "", "", "The host is needed."
         if fields["port"] and not (fields["port"].isdigit() and 0 < int(fields["port"]) < 65536):
             return fields, "", "", "The port is a number, 1 to 65535."
         if by == "ssh":
-            if not fields["username"]:
-                return fields, "", "", "SSH needs a user."
+            if not (fields["password_login"] or fields["username"]):
+                return fields, "", "", "SSH needs a login: choose one, or New login..."
             if not fields["known_hosts"]:
                 return fields, "", "", "SSH needs a known_hosts file holding the server's key."
-            if not (password or fields["password_login"] or fields["client_key"]):
-                return fields, "", "", "SSH needs a password or a key file."
-        return fields, password, key_passphrase, ""
+        return fields, "", key_passphrase, ""
 
     @on(Button.Pressed, "#connect-go")
     @on(Input.Submitted, "#connect-target")
@@ -1406,14 +1419,14 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
             return
         by = self._connect_by()
         if by:
-            internet, ssh_password, key_passphrase, error = self._internet_fields()
+            internet, _password, key_passphrase, error = self._internet_fields()
             hops = ""
         else:
             # Back to radio: what said how to reach it over the Internet goes.
             internet = {"connect_by": "", "host": "", "port": "", "username": "",
                         "password_login": "", "client_key": "", "key_login": "",
                         "known_hosts": ""}
-            ssh_password = key_passphrase = ""
+            key_passphrase = ""
             hops = self.query_one("#connect-hops", Input).value.strip()
             _path, error = _validate_target_and_hops(text, hops)
         if error:
@@ -1457,7 +1470,6 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
                 window,
                 note,
                 internet=internet,
-                ssh_password=ssh_password,
                 key_passphrase=key_passphrase,
             )
         )
@@ -2373,7 +2385,7 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
                     [],
                     id="transport-credential",
                     allow_blank=True,
-                    prompt="Saved credential",
+                    prompt="Saved login",
                 )
                 yield Select(
                     [],

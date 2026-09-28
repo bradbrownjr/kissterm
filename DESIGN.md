@@ -586,6 +586,15 @@ docstrings do: explain *why*, at the moment it matters.
   saving selects what was made, cancelling puts the old choice back. The
   operator never has to leave a form to create what it asks for
   (2026-09-27: "I can't go to the address book to set it up from here").
+- **A login is one thing: a username and a password.** Anywhere a remote
+  system signs in (a BBS prompt, a node's user: and password:, SSH), the
+  form offers one saved-login list, never a username box beside a
+  password box, and never a text area the password is typed into. The
+  login editor asks Name, Username and a masked Password, and says where
+  the password is kept (the system keyring, else config.toml). Only
+  Winlink's account password, which has no username of its own, is a
+  masked field by itself (2026-09-28: "I want to save a username and a
+  password, and have the password securely saved").
 - **A placeholder must stand alone.** It is the only text some operators will
   ever see in that field, so "(type your own below)" next to an unlabeled
   blank box is not a placeholder, it's a puzzle. Every empty `Input` or

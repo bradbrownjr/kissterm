@@ -232,12 +232,15 @@ def adopt_internet_transports(book: "AddressBook", config, *, remove: bool = Fal
                 added.append(name)
             continue
         logins = {}
+        username = str(transport.get("username", "") or "")
         for key, suffix in (("password", "SSH password"), ("key_passphrase", "SSH key passphrase")):
             text = str(transport.get(key, "") or "")
             if text:
                 login = f"{name} {suffix}"
                 config.credentials = [c for c in config.credentials if c.get("name") != login]
-                config.credentials.append({"name": login, "text": text})
+                # The sign-in login holds the username too: one login, one place.
+                config.credentials.append({"name": login, "text": text,
+                                           "username": username if key == "password" else ""})
                 logins[key] = login
         port = transport.get("port")
         book.upsert(
@@ -248,7 +251,7 @@ def adopt_internet_transports(book: "AddressBook", config, *, remove: bool = Fal
             connect_by=kind,
             host=str(transport.get("host", "") or ""),
             port="" if port in (None, "") else str(port),
-            username=str(transport.get("username", "") or ""),
+            username="" if "password" in logins else username,
             password_login=logins.get("password", ""),
             client_key=str(transport.get("client_key", "") or ""),
             key_login=logins.get("key_passphrase", ""),

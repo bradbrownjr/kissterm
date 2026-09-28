@@ -46,7 +46,11 @@ class Field:
     path: str
     label: str
     # "text" | "int" | "float" | "bool" | "choice" | "callsign" | "calllist" |
-    # "color" | "custom_choice" | "filtered_choice" | "secret" | "contact"
+    # "color" | "custom_choice" | "filtered_choice" | "secret" | "contact" |
+    # "login"
+    # "login": a saved login (Settings > Logins), chosen from a list of
+    # them ending "New login..."; the value is its name. A username and a
+    # password are one login, never two fields (operator, 2026-09-28).
     # "contact": an Address Book contact, chosen from a list of them
     # (`contacts` says which: "radio" or "internet"); the value is its
     # target, and one no longer in the book is kept, never cleared.
@@ -273,10 +277,10 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             ),
             Field(
                 "home_bbs.credential",
-                "BBS password",
-                "secret",
-                "What answers the BBS's login prompt. Saved in the system "
-                "keyring (Settings > Logins, \"Home BBS\"); leave empty to keep it.",
+                "BBS login",
+                "login",
+                "The saved login that answers the BBS's login prompt: its "
+                "username, then its password. New login... makes one.",
                 apply="live",
                 advanced=True,
             ),
@@ -292,19 +296,11 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 rule_before="Home BBS by Internet (I on the Mail tab)",
             ),
             Field(
-                "home_bbs.internet_user",
-                "Node username",
-                "text",
-                "Answers the node's user: prompt. Leave empty for your callsign.",
-                apply="live",
-                placeholder="your callsign",
-            ),
-            Field(
                 "home_bbs.internet_credential",
-                "Node password",
-                "secret",
-                "Answers the node's password: prompt. Saved in the system "
-                "keyring (Settings > Logins, \"Home BBS Telnet\"); leave empty to keep it.",
+                "Node login",
+                "login",
+                "The saved login that answers the node's user: and password: "
+                "prompts. New login... makes one; I asks for it if none is set.",
                 apply="live",
             ),
             Field(

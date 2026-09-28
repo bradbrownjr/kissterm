@@ -277,9 +277,10 @@ def test_telnet_and_ssh_transports_are_adopted_as_contacts(tmp_path):
     book = AddressBook(tmp_path / "ab.json")
     assert adopt_internet_transports(book, config) == ["ws1ec", "home"]
     ssh = book.find("ws1ec")
-    assert (ssh.connect_by, ssh.port, ssh.username, ssh.script) == ("ssh", "4122", "packet", "BBS")
+    assert (ssh.connect_by, ssh.port, ssh.username, ssh.script) == ("ssh", "4122", "", "BBS")
     assert ssh.password_login == "ws1ec SSH password"
-    assert {"name": "ws1ec SSH password", "text": "secret"} in config.credentials
+    # The username goes with the password: one login.
+    assert {"name": "ws1ec SSH password", "text": "secret", "username": "packet"} in config.credentials
     assert "secret" not in (tmp_path / "ab.json").read_text()
     assert book.find("home").transport_config(lambda _n: "") == {"kind": "telnet",
                                                                  "host": "bbs.example.net"}

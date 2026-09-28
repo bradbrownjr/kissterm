@@ -413,6 +413,8 @@ class SettingsPane(Vertical):
             return "typed, saved on Save" if raw else self._secret_where.get(spec.path, "not set")
         if spec.kind == "contact" and raw and self._find_contact(str(raw)) is None:
             return f"{raw} (not in the Address Book)"
+        if spec.kind == "login" and raw and not credential_store(self.app.config, str(raw)):  # type: ignore[attr-defined]
+            return f"{raw} (not a saved login)"
         # Content never reads markup; a control character from a
         # hand-edited config.toml would still move the cursor.
         return "".join(ch if ch.isprintable() else " " for ch in str(raw or ""))
@@ -444,7 +446,7 @@ class SettingsPane(Vertical):
         editor = self.query_one("#settings-editor", _Editor)
         editor.display = True
         self._place_editor()
-        if spec.kind in ("choice", "custom_choice", "contact"):
+        if spec.kind in ("choice", "custom_choice", "contact", "login"):
             select = self.query_one("#settings-edit-select", Select)
             select.focus()
             select.expanded = True
@@ -529,6 +531,7 @@ class SettingsPane(Vertical):
             "choice": {"select"},
             "custom_choice": {"select"},
             "contact": {"select"},
+            "login": {"select"},
             "filtered_choice": {"symbol"},
             "color": {"input", "swatch"},
         }.get(kind, {"input"})
@@ -548,6 +551,10 @@ class SettingsPane(Vertical):
                 select = widgets["select"]
                 options = self._contact_options(spec, str(raw or ""))
                 select.set_options(options)
+                select.value = str(raw or "")
+            elif kind == "login":
+                select = widgets["select"]
+                select.set_options(self._login_options(str(raw or "")))
                 select.value = str(raw or "")
             elif kind in ("choice", "custom_choice"):
                 options = [(str(label), value) for label, value in spec.choices]
@@ -597,6 +604,18 @@ class SettingsPane(Vertical):
                         _NEW_CONTACT))
         return options
 
+    def _login_options(self, current: str) -> list[tuple[str, str]]:
+        """"(none)", the saved logins, and "New login..." last (DESIGN.md
+        section 8); the current name is kept even when no login has it."""
+        from .dialogs import NEW_PICK
+
+        names = [n for c in self.app.config.credentials if (n := c.get("name"))]  # type: ignore[attr-defined]
+        options = [("(none)", "")] + [(n, n) for n in names]
+        if current and current not in names:
+            options.append((f"{current} (not a saved login)", current))
+        options.append(("New login...", NEW_PICK))
+        return options
+
     def _editing_spec(self) -> Field | None:
         return _SPECS.get(self._editing)
 
@@ -619,7 +638,7 @@ class SettingsPane(Vertical):
     @on(Select.Changed, "#settings-edit-select")
     def _select_changed(self, event: Select.Changed) -> None:
         spec = self._editing_spec()
-        if (spec is None or spec.kind not in ("choice", "custom_choice", "contact")
+        if (spec is None or spec.kind not in ("choice", "custom_choice", "contact", "login")
                 or event.value != event.select.value):
             return
         if spec.kind == "custom_choice":
@@ -636,6 +655,12 @@ class SettingsPane(Vertical):
             self._end_edit(cancel=True)
             self._new_contact(spec)
             return
+        from .dialogs import NEW_PICK
+
+        if spec.kind == "login" and event.value == NEW_PICK:
+            self._end_edit(cancel=True)
+            self._new_login(spec)
+            return
         self.set_field(spec.path, event.value, from_editor=True)
         self._end_edit()
 
@@ -651,6 +676,21 @@ class SettingsPane(Vertical):
         for pane in self.app.query(AddressBookPane):
             pane.refresh_from(self.app.addressbook)  # type: ignore[attr-defined]
         self.set_field(spec.path, target)
+
+    @work
+    async def _new_login(self, spec: Field) -> None:
+        """"New login...": the login editor; the login is saved at once
+        (like Logins' New button) and chosen in this field, unsaved."""
+        from .dialogs import CredentialScreen, login_where
+
+        result = await self.app.push_screen_wait(CredentialScreen(where=login_where()))
+        if result is None:
+            return
+        config = self.app.config  # type: ignore[attr-defined]
+        set_credential(config, result.name, result.text, username=result.username)
+        self.app._save_config()  # type: ignore[attr-defined]
+        self._render_credentials(config)
+        self.set_field(spec.path, result.name)
 
     @on(Checkbox.Changed, "#settings-edit-check")
     def _check_changed(self, event: Checkbox.Changed) -> None:

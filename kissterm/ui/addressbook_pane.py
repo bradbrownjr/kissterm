@@ -340,14 +340,11 @@ async def edit_entry(app, target: str | None, connect_by: str = "") -> str | Non
     if result is None:
         return None
     internet = dict(result.internet)
-    # A password typed in the editor becomes a saved login (the keyring
-    # when there is one); the entry keeps only its name.
-    for text, key, suffix in ((result.ssh_password, "password_login", "SSH password"),
-                              (result.key_passphrase, "key_login", "SSH key passphrase")):
-        if text:
-            internet[key] = internet.get(key) or f"{result.target} {suffix}"
-            set_credential(config, internet[key], text)
-    if result.ssh_password or result.key_passphrase:
+    # A key passphrase typed in the editor becomes a saved login (the
+    # keyring when there is one); the entry keeps only its name.
+    if result.key_passphrase:
+        internet["key_login"] = internet.get("key_login") or f"{result.target} SSH key passphrase"
+        set_credential(config, internet["key_login"], result.key_passphrase)
         app._save_config()
     book.upsert(
         result.target,

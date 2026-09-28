@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-28] — Mail and SSH sign in with a saved login
+
+### Improvements
+
+- **Settings > Mail's "BBS password", "Node username" and "Node password"
+  are now "BBS login" and "Node login"**: a list of saved logins ending
+  with "New login...". An Address Book SSH contact's "User" and
+  "Password" are one "Sign in" login list the same way; an SSH connection
+  moved from the old transports list keeps its username in its login.
+  DESIGN.md section 8, "A login is one thing". Operator report,
+  2026-09-28 (ROADMAP P0.1).
+
+**Files:** `kissterm/ui/settings_schema.py`, `kissterm/ui/settings_pane.py`,
+`kissterm/ui/dialogs.py`, `kissterm/ui/addressbook_pane.py`,
+`kissterm/addressbook.py`, `DESIGN.md`, `tests/pilot/test_settings.py`,
+`tests/pilot/test_addressbook_pane.py`, `tests/unit/test_addressbook.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-28] — The login editor asks for a username and a masked password
 
 ### Improvements

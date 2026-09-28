@@ -149,6 +149,8 @@ def test_every_nested_home_bbs_field_is_editable():
 
     paths = {f.path for s in SETTINGS_SCHEMA for f in s.fields}
     for f in dataclasses.fields(HomeBbsConfig):
+        if f.name == "internet_user":
+            continue  # read from an older config.toml only; folded into the Node login
         assert f"home_bbs.{f.name}" in paths, f"home_bbs.{f.name} has no Settings UI"
 
 
@@ -1582,6 +1584,47 @@ async def test_a_contact_list_ends_with_new_contact(tmp_path):
         await app.screen.dismiss(None)
         await pilot.pause()
         assert pane.field_value("home_bbs.route") == ""
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_node_login_is_a_saved_login_ending_with_new_login():
+    """Operator, 2026-09-28: "I want to save a username and a password".
+    The node's username and password are one saved login, chosen from the
+    list; New login... makes one, saved at once, chosen unsaved."""
+    import asyncio
+
+    from textual.widgets import Input
+
+    from kissterm.config import login_text
+    from kissterm.ui.dialogs import CredentialScreen
+
+    cfg = Config(mycall=str(MYCALL))
+    cfg.credentials = [{"name": "Old node", "username": "KC1JMH", "text": "x"}]
+    app, station = await _app(cfg)
+    async with app.run_test(size=(120, 40)) as pilot:
+        pane = await _edit(app, pilot, "home_bbs.internet_credential")
+        assert "home_bbs.internet_user" not in pane._draft
+        select = app.query_one("#settings-edit-select", Select)
+        assert [str(label) for label, _v in select._options] == [
+            "(none)", "Old node", "New login..."]
+        select.value = select._options[-1][1]
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert isinstance(app.screen, CredentialScreen)
+        app.screen.query_one("#credential-name", Input).value = "WS1EC node"
+        app.screen.query_one("#credential-username", Input).value = "KC1JMH"
+        app.screen.query_one("#credential-password", Input).value = "pw"
+        await pilot.pause()
+        await pilot.click("#credential-save")
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        assert login_text(app.config, "WS1EC node") == "KC1JMH\npw"
+        assert pane.field_value("home_bbs.internet_credential") == "WS1EC node"
+        assert "(unsaved)" in pane.row_text("home_bbs.internet_credential")
+        pane._save()
+        await pilot.pause()
+        assert app.config.home_bbs.internet_credential == "WS1EC node"
     station.close()
 
 
