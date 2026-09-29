@@ -14,8 +14,8 @@ the shack.
 - **Cross-platform.** It is Python, with no kernel setup and no root. Linux
   and the Raspberry Pi are where it is used every day; macOS and Windows
   run the same code but have had less testing.
-- **Talks to your TNC directly**: Direwolf or SoundModem on this computer
-  or another one on your network. USB, serial and Bluetooth TNCs are built
+- **Talks to your TNC directly**: a sound-card modem such as UZ7HO
+  SoundModem or Direwolf, on this computer or another one on your network. USB, serial and Bluetooth TNCs are built
   in and on the roadmap to be proven with real hardware.
 - **More ways to use it are planned.** Today kissterm is a text interface.
   A desktop app (Windows, macOS, Linux) and a web version for a tablet or a
@@ -86,8 +86,9 @@ frames, usually at 1200 baud on 2 m FM. A few words you will meet:
 
 - **TNC** (terminal node controller): the modem between your radio and your
   computer. It can be a box (a Mobilinkd, a NinoTNC, a Kantronics in KISS
-  mode) or software, such as [Direwolf](https://github.com/wb2osz/direwolf)
-  with a sound-card interface like a Digirig or SignaLink. kissterm talks
+  mode) or software, such as [UZ7HO SoundModem](https://uz7.ho.ua/packetradio.htm)
+  or [Direwolf](https://github.com/wb2osz/direwolf), with a sound-card
+  interface like a Digirig or SignaLink. kissterm talks
   to it using **KISS**, the common language TNCs speak.
 - **Node**: a station others connect to, which passes you on to other nodes
   and to services such as a BBS. BPQ32/LinBPQ is the most common.
@@ -121,8 +122,8 @@ uv tool install "git+https://github.com/bradbrownjr/kissterm"
 kissterm
 ```
 
-The first run asks for your callsign, then looks for your TNC: Direwolf or
-SoundModem on your network, plus USB serial ports and paired Bluetooth
+The first run asks for your callsign, then looks for your TNC: SoundModem
+or Direwolf on your network, plus USB serial ports and paired Bluetooth
 TNCs (those two are marked experimental until proven on hardware).
 Pick one and you are set. [SETUP.md](SETUP.md) walks through Direwolf,
 Bluetooth pairing, serial permissions, VARA and the Raspberry Pi.

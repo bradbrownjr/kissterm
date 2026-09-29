@@ -13,7 +13,8 @@ you need the history of a specific change.
   Settings, the Address Book and `--doctor`, like VARA and BLE: built and
   loopback-tested, but no operator has reported one working with a real
   TNC. The README says they are on the roadmap; SETUP.md and the guide
-  say the same; ROADMAP P3 and ON-AIR-TESTS have the checks.
+  say the same; ROADMAP P3 and ON-AIR-TESTS have the checks. The README
+  names UZ7HO SoundModem first, the modem in use on the air.
 
 **Files:** `kissterm/transport/__init__.py`,
 `tests/unit/test_transport_factory.py`, `README.md`, `docs/GUIDE.md`,

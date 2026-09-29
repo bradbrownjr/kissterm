@@ -449,7 +449,8 @@ network, or a Windows program such as BPQTerminal or UZ7HO EasyTerm.
 
 kissterm implements **AX.25 connected mode itself, in user code, over
 KISS**. That one decision lets it run without special privileges, on any
-platform, against Direwolf on a Raspberry Pi in the garage, and (once
+platform, against a sound-card modem (UZ7HO SoundModem, or Direwolf on a
+Raspberry Pi in the garage), and (once
 proven on hardware; ROADMAP P3) a TNC on a USB cable or a Bluetooth TNC in
 your pocket.
 
