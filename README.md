@@ -2,9 +2,10 @@
 
 **A packet radio mail client and terminal.** kissterm opens to your
 messages: mail from your local BBS and Winlink, bulletins, files, and the
-forms emergency nets use. A terminal for talking to nodes, and APRS, are
-one key away. It runs in any terminal window, including over SSH to a
-Raspberry Pi in the shack.
+forms emergency nets use. A terminal for the applications nodes offer
+(chat, weather, callsign lookups and the like) and APRS are one key away.
+It runs in any terminal window, including over SSH to a Raspberry Pi in
+the shack.
 
 - **Friendly to operators new to packet.** A node's commands are offered
   as you type, each with its meaning; the Help tab has guides and a
@@ -50,10 +51,11 @@ that arrives over the air is ever opened or run for you.
 
 ![The Files tab with a Winlink attachment open](assets/screenshot-files.png)
 
-**Terminal (F5).** Connect to a node or BBS and type at it. kissterm
-recognises the software on the other end from what it sends anyway (it
-never asks) and offers that system's commands with a one-line meaning as
-you type. Nothing is sent until you press Enter.
+**Terminal (F5).** For the node applications that need you at a prompt:
+chat, weather, callsign lookups, a BBS by hand, whatever your local nodes
+offer. kissterm recognises the software on the other end from what it
+sends anyway (it never asks) and offers that system's commands with a
+one-line meaning as you type. Nothing is sent until you press Enter.
 
 ![Connected to a BPQ node and its BBS; typing S lists the BBS's send commands](assets/screenshot-terminal.png)
 

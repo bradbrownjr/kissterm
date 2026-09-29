@@ -173,7 +173,10 @@ Downloads. Both protocols are built but not yet proven on the air.
 
 ## Connecting to nodes and BBSes
 
-`Ctrl+N` connects to a station, node or BBS. A digipeater path works too:
+The Terminal (F5) is for what needs you at a prompt: the applications a
+node offers (chat, weather, callsign lookups, a BBS by hand) and anything
+else you connect to. `Ctrl+N` connects to a station, node or BBS. A
+digipeater path works too:
 `WS1EC-7 via W1AW-1,W1XYZ`.
 
 **The connect dialog remembers where you have been.** `WS1EC-15` and
