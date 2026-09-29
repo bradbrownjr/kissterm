@@ -9,7 +9,9 @@ you need the history of a specific change.
 
 ### Improvements
 
-- **The README is a front page for people new to packet**: what kissterm
+- **The README is a front page for every operator, new to packet or
+  not** (its headline says what kissterm is; being friendly to newcomers
+  is one of its features, operator 2026-09-29): what kissterm
   is (cross-platform, open source, a desktop app and web version planned),
   a screenshot tour of Mail, forms, Bulletins, Files, Terminal, APRS,
   Heard, Monitor and Settings, a short "New to packet?" primer, install,

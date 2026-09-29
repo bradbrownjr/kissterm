@@ -1,11 +1,14 @@
 # kissterm
 
-**Packet radio mail and terminal, for people still learning packet.**
-kissterm opens to your messages: mail from your local BBS and Winlink,
-bulletins, files, and the forms emergency nets use. A terminal for talking
-to nodes, and APRS, are one key away. It runs in any terminal window,
-including over SSH to a Raspberry Pi in the shack.
+**A packet radio mail client and terminal.** kissterm opens to your
+messages: mail from your local BBS and Winlink, bulletins, files, and the
+forms emergency nets use. A terminal for talking to nodes, and APRS, are
+one key away. It runs in any terminal window, including over SSH to a
+Raspberry Pi in the shack.
 
+- **Friendly to operators new to packet.** A node's commands are offered
+  as you type, each with its meaning; the Help tab has guides and a
+  glossary; and transmit starts off, so you can watch and learn first.
 - **Free and open source** (MIT licence).
 - **Cross-platform.** It is Python, with no kernel setup and no root. Linux
   and the Raspberry Pi are where it is used every day; macOS and Windows
