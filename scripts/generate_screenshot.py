@@ -367,10 +367,13 @@ async def main() -> int:
         await _pause(pilot)
         await shot("screenshot-aprs")
         # 8. Heard, Monitor, Settings.
-        for tab in ("heard", "monitor"):
-            app.action_show_tab(tab)
-            await _pause(pilot)
-            await shot(f"screenshot-{tab}")
+        # Named one by one: tests/unit/test_readme_assets.py reads the names.
+        app.action_show_tab("heard")
+        await _pause(pilot)
+        await shot("screenshot-heard")
+        app.action_show_tab("monitor")
+        await _pause(pilot)
+        await shot("screenshot-monitor")
         from kissterm.ui.settings_pane import SettingsPane
 
         app.action_show_tab("settings")

@@ -205,6 +205,20 @@ changes.
   a `**Files:**` line; delete the roadmap item the same day. New capabilities
   go under "New Features", improvements to existing ones under
   "Improvements". Keep entries to a few lines.
+- **User documentation ships in the same commit as the change** (operator,
+  2026-09-29, once the README was ready to share with testers). Anything an
+  operator would notice (a feature, key, setting, message, or what is
+  proven) updates `docs/GUIDE.md` (the detail), `SETUP.md` (install and
+  hardware) and `README.md` (only when a front-page claim changes). Keep
+  claims honest: not proven on the air means "experimental" or "on the
+  roadmap", never a plain yes.
+- **Screenshots ship with the change too.** If a change alters a screen
+  that `assets/` shows, re-run `scripts/generate_screenshot.py`, look at
+  every image, and commit the PNGs with it; a new tab or feature worth
+  showing gets its own scene there. Without a renderer
+  (`KISSTERM_SHOT_RENDERER`), say so in the reply rather than committing
+  stale images silently. `tests/unit/test_readme_assets.py` keeps the
+  script, `assets/` and the docs in step.
 - **Module docstrings explain why** the design is what it is and what breaks
   otherwise. That is where a rule's history belongs.
 - **No emoji** in source, output or docs. Sole exception:

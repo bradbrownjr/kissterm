@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-29] — Documentation and screenshots ship with every change
+
+### Improvements
+
+- **AGENTS.md section 7: user documentation and screenshots ship in the
+  same commit as the change** they describe, with honest claims
+  (unproven means experimental or on the roadmap). Every release checks
+  the same (ROADMAP P7). A new test keeps the screenshot script,
+  `assets/` and the docs in step: every image shown exists, none is left
+  over, and every one comes from the script. Operator request, 2026-09-29,
+  as kissterm goes out to testers.
+
+**Files:** `AGENTS.md`, `docs/ROADMAP.md`, `tests/unit/test_readme_assets.py`,
+`scripts/generate_screenshot.py`, `docs/CHANGELOG.md`
+
 ## [2026-09-29] — Serial and Bluetooth TNCs labelled experimental
 
 ### Improvements

@@ -421,6 +421,10 @@ closed by a coding session.
 ## P7 — Packaging (1.0)
 
 - [ ] **PyPI release.** Needs: owner account and a version decision.
+  Every release, from the first: README, docs/GUIDE.md and SETUP.md read
+  true for the version going out, the screenshots are regenerated
+  (`scripts/generate_screenshot.py`), and the install section names the
+  real install command.
 - [ ] **`pipx` / `uv tool install`** verified against the published package
   and documented.
 - [ ] **Raspberry Pi note** in SETUP.md: serial backend fallback, `dialout`
