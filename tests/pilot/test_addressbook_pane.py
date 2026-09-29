@@ -615,3 +615,56 @@ async def test_the_login_list_ends_with_new_login(tmp_path):
         assert select.value == "WS1EC node"
     station.close()
 
+
+
+@pytest.mark.asyncio
+async def test_ssh_entry_names_both_sign_ins_and_has_no_lines_box(tmp_path):
+    """Operator, 2026-09-29: over SSH the first sign-in is the SSH server's
+    and the second the node's, and the multi-line box is gone (it is a text
+    box a password gets typed into; saved logins and scripts replace it)."""
+    from textual.widgets import Select, TextArea
+
+    from kissterm.ui.dialogs import AddressBookEntryScreen
+
+    app, station, ta, tb = await _app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        _fresh_book(app, tmp_path)
+        await _addressbook_tab(app, pilot)
+        app.query_one(AddressBookPane)._new_entry()
+        await pilot.pause()
+        await asyncio.sleep(0.05)
+        screen = app.screen
+        assert isinstance(screen, AddressBookEntryScreen)
+        assert not screen.query(TextArea)
+        screen.query_one("#addressbook-connect-by", Select).value = "ssh"
+        await pilot.pause()
+        assert str(screen.query_one("#connect-script-title").render()) == "Node login"
+        assert str(screen.query_one("#addressbook-login-label").render()) == "Node"
+        screen.query_one("#addressbook-connect-by", Select).value = ""
+        await pilot.pause()
+        assert str(screen.query_one("#connect-script-title").render()) == "Auto-login"
+        assert str(screen.query_one("#addressbook-login-label").render()) == "Login"
+
+
+@pytest.mark.asyncio
+async def test_a_login_may_be_a_username_alone(tmp_path):
+    """A passwordless SSH account (WS1EC's `packet`) is a username with no
+    password. A login with neither is still refused."""
+    from textual.widgets import Input
+
+    from kissterm.ui.dialogs import CredentialScreen
+
+    app, station, ta, tb = await _app()
+    async with app.run_test(size=(80, 24)) as pilot:
+        screen = CredentialScreen()
+        app.push_screen(screen)
+        await pilot.pause()
+        screen.query_one("#credential-name", Input).value = "WS1EC SSH"
+        screen._save()
+        await pilot.pause()
+        assert app.screen is screen
+        assert "username" in str(screen.query_one("#credential-error").render())
+        screen.query_one("#credential-username", Input).value = "packet"
+        screen._save()
+        await pilot.pause()
+        assert app.screen is not screen

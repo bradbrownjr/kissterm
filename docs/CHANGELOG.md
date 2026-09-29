@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-29] — SSH sign-ins told apart, no lines box, one button style
+
+### Improvements
+
+- **The Address Book's SSH dialog names its two sign-ins**: **SSH** for the
+  server's account and **Node login** for what is sent to the node after.
+  The multi-line "one line per prompt" box is gone from the Address Book
+  (saved logins and scripts replace it; lines an older version saved are
+  kept, not dropped). A saved login may be a username with no password, for
+  an account like WS1EC's `packet`.
+- **A dialog's buttons match its fields.** Five dialogs with compact fields
+  had bordered buttons (the saved-login editor opened from an Address Book
+  entry looked like another program). New rule in DESIGN.md section 3,
+  enforced by `tests/unit/test_dialog_consistency.py`. Operator report,
+  2026-09-29. No screenshot in `assets/` shows these dialogs.
+
+**Files:** `kissterm/ui/dialogs.py`, `DESIGN.md`, `docs/GUIDE.md`, `SETUP.md`,
+`tests/unit/test_dialog_consistency.py`, `tests/pilot/test_addressbook_pane.py`,
+`tests/pilot/test_winlink_send_receive.py`, `docs/CHANGELOG.md`
+
 ## [2026-09-29] — A station polling a connection kissterm does not have is explained
 
 ### Improvements

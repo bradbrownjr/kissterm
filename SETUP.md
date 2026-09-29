@@ -350,9 +350,14 @@ the Address Book (`Ctrl+G`), press New, and set **By** to Telnet or SSH:
 - **Name**: what the contact and its Terminal tab are called, e.g.
   `WS1EC by SSH`.
 - **Host** and **Port** (empty is 23 for Telnet, 22 for SSH).
-- SSH only: **User**, **Password** or **Key file** (plus **Passphrase** for
-  an encrypted key), and **Known** — an OpenSSH known-hosts file holding the
+- SSH only: **SSH**, the saved login for the server (username and password;
+  leave the password empty for an account that has none) or a **Key file**
+  (plus **Passphrase** for an encrypted key), and **Known** — an OpenSSH known-hosts file holding the
   server key you verified out of band.
+
+Under **Node login** (shown as **Auto-login** for Telnet and radio contacts)
+pick a saved login or script to send to the node once connected; over SSH
+that is the node's own sign-in, separate from the SSH one above.
 
 Enter on the contact dials it into its own Terminal tab, beside any radio
 session; the radio stays open. Ctrl+D hangs up and Ctrl+R dials it again. An

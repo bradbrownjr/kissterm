@@ -246,7 +246,10 @@ A node reachable over the Internet is an Address Book contact, By Telnet
 or SSH, dialed into its own Terminal tab beside the radio. It never
 touches the transmit switch. SSH signs in with a saved login (username and
 password) or a key, and needs an explicit known-hosts file
-([SETUP.md](../SETUP.md) section 6a).
+([SETUP.md](../SETUP.md) section 6a). An SSH contact has two sign-ins, kept
+apart: **SSH** is the server's own account (a login may be a username with
+no password, for an account that has none), and **Node login** is what is
+sent to the node once SSH is up (a saved login or a saved script).
 
 ### Link behaviour
 
@@ -270,7 +273,8 @@ carry:
   BPQ/NET-ROM nodes: kissterm connects to the first and sends `C <node>`
   for each hop, waiting for each CONNECTED before the next.
 - **A saved login** (a username and a password) or **a saved script** (any
-  lines to send after connecting, such as a login followed by a hop).
+  lines to send after connecting, such as a login followed by a hop). There
+  is no box to type lines into; make a script with "New script...".
   Both are managed in Settings > Logins and looked up fresh at every
   connect, so changing one updates every station that uses it. Passwords
   are kept in your system keyring (GNOME Keyring, KWallet, macOS Keychain,

@@ -574,7 +574,7 @@ async def test_setup_questions_fit_80x24(tmp_path):
         await _all_inboxes_with_winlink_gone(app, pilot)
         for button in app.screen.query("#connect-buttons Button"):
             r = button.region
-            assert r.height == 3 and r.bottom <= 24 and r.right <= 80, f"{button.id} at {r}"
+            assert r.height == 1 and r.bottom <= 24 and r.right <= 80, f"{button.id} at {r}"
         await pilot.click("#connect-cancel")
         await wait_for(lambda: not app._collecting, "the run to be cancelled")
     station.close()

@@ -75,6 +75,13 @@ was restyled, and it was spotted immediately in a screenshot.
   a form row is one consistent height regardless of which control it holds
   -- in forms. A screen whose job is writing or reading text uses compact
   controls instead (next rule).
+- **A dialog's buttons match its fields** (operator, 2026-09-29: "Inconsistency
+  in UI is unprofessional and unpolished looking"). A dialog with compact
+  fields has only compact buttons; a dialog with none has only bordered
+  ones. Never mix the two in one dialog, and a dialog opened from another
+  (the saved-login editor from an address-book entry) uses the same style as
+  its parent. Enforced by `tests/unit/test_dialog_consistency.py`, which
+  reads every `ModalScreen` in `ui/dialogs.py`.
 - **Dense where the content is the point** (2026-09-25). Rows are scarce
   in a terminal; a screen for writing or reading text gives them to the
   text, not to chrome. The compose screen is the reference:

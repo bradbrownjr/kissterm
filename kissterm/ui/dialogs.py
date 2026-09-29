@@ -666,7 +666,7 @@ class _NewFromList:
 
 
 def _sync_login_source_controls(
-    credential_select: Select, script_select: Select, area: TextArea
+    credential_select: Select, script_select: Select, area: TextArea | None
 ) -> None:
     """Keep the three login sources -- a saved credential, a saved script,
     and literal text -- mutually consistent on screen, matching the order
@@ -688,7 +688,8 @@ def _sync_login_source_controls(
     has_credential = _select_has_value(credential_select)
     has_script = _select_has_value(script_select)
     script_select.disabled = has_credential
-    area.disabled = has_credential or has_script
+    if area is not None:
+        area.disabled = has_credential or has_script
 
 
 #: `ConnectScreen`'s Saved-script dropdown option that shows the box for
@@ -1210,10 +1211,14 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
                                 placeholder="default", classes="ab-port")
                 # One saved login, its username and password (operator,
                 # 2026-09-28: "I want to save a username and a password").
+                # The SSH server's own sign-in. The node login further down
+                # is a different thing (operator, 2026-09-29): WS1EC's SSH
+                # account has no password and drops into a telnet to the node.
                 with Horizontal(classes="ab-row ab-ssh"):
-                    yield Label("Sign in", classes="ab-label")
+                    yield Label("SSH", classes="ab-label")
                     yield Select([], id="addressbook-ssh-login", allow_blank=True,
-                                 prompt="Saved login (username and password)", compact=True)
+                                 prompt="Saved login for the SSH server (username, password)",
+                                 compact=True)
                 with Horizontal(classes="ab-row ab-ssh"):
                     yield Label("Key file", classes="ab-label")
                     yield Input(value=net.get("client_key", ""), compact=True,
@@ -1251,23 +1256,16 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
                 with Horizontal(classes="ab-row ab-heading"):
                     yield Label("Auto-login", id="connect-script-title")
                     yield Static(
-                        "optional: a saved login, a saved script, or lines below",
+                        "optional: a saved login or a saved script",
                         id="connect-script-hint",
                     )
                 with Horizontal(classes="ab-row"):
-                    yield Label("Login", classes="ab-label")
+                    yield Label("Login", classes="ab-label", id="addressbook-login-label")
                     yield Select([], id="connect-credential", allow_blank=True,
                                  prompt="Saved login", compact=True)
                     yield Label("", classes="ab-gap")
                     yield Select([], id="connect-script-name", allow_blank=True,
                                  prompt="Saved script", compact=True)
-                yield TextArea(
-                    self._script,
-                    id="connect-script",
-                    tab_behavior="focus",
-                    compact=True,
-                    placeholder="One line per prompt, e.g. your callsign then password",
-                )
             with Horizontal(id="connect-buttons", classes="ab-foot"):
                 yield Label("", id="connect-error")
                 yield Button("Save", variant="primary", id="connect-go", compact=True)
@@ -1316,6 +1314,13 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
             row.display = bool(by)
         for row in self.query(".ab-ssh"):
             row.display = by == "ssh"
+        # Over SSH there are two sign-ins; say which is which.
+        ssh = by == "ssh"
+        self.query_one("#connect-script-title", Label).update("Node login" if ssh else "Auto-login")
+        self.query_one("#connect-script-hint", Static).update(
+            "optional: sent to the node once SSH is up" if ssh
+            else "optional: a saved login or a saved script")
+        self.query_one("#addressbook-login-label", Label).update("Node" if ssh else "Login")
         target = self.query_one("#connect-target", Input)
         self.query_one("#addressbook-target-label", Label).update("Name" if by else "Station")
         target.placeholder = ("e.g. WS1EC by SSH" if by
@@ -1372,7 +1377,7 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
         _sync_login_source_controls(
             self.query_one("#connect-credential", Select),
             self.query_one("#connect-script-name", Select),
-            self.query_one("#connect-script", TextArea),
+            None,
         )
 
     @on(Button.Pressed, "#connect-cancel")
@@ -1440,9 +1445,9 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
             if not credential and _select_has_value(script_name_select)
             else ""
         )
-        script = (
-            "" if (credential or script_name) else self.query_one("#connect-script", TextArea).text
-        )
+        # There is no box to type lines into any more (operator, 2026-09-29);
+        # lines saved by an older version are carried, not silently dropped.
+        script = "" if (credential or script_name) else self._script
         frequency = self.query_one("#addressbook-frequency", Input).value.strip()
         type_value = self.query_one("#addressbook-connection-type", Select).value
         connection_type = (
@@ -1570,12 +1575,12 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
     def _buttons(self, go: str = "") -> ComposeResult:
         with Horizontal(id="connect-buttons"):
             if go:
-                yield Button(go, variant="primary", id="setup-go")
+                yield Button(go, variant="primary", id="setup-go", compact=True)
             else:
-                yield Button("Send/Receive", variant="primary", id="connect-go")
+                yield Button("Send/Receive", variant="primary", id="connect-go", compact=True)
             if self._skip:
-                yield Button(self._skip, id="setup-skip")
-            yield Button("Cancel", id="connect-cancel")
+                yield Button(self._skip, id="setup-skip", compact=True)
+            yield Button("Cancel", id="connect-cancel", compact=True)
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
@@ -1595,11 +1600,11 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
                 yield Select([(t, t) for t in self._targets], value=self._targets[0],
                              allow_blank=False, compact=True, id="home-bbs-route")
             with Horizontal(id="connect-buttons"):
-                yield Button("Mail settings", id="setup-go")
-                yield Button("Send/Receive", variant="primary", id="connect-go")
+                yield Button("Mail settings", id="setup-go", compact=True)
+                yield Button("Send/Receive", variant="primary", id="connect-go", compact=True)
                 if self._skip:
-                    yield Button(self._skip, id="setup-skip")
-                yield Button("Cancel", id="connect-cancel")
+                    yield Button(self._skip, id="setup-skip", compact=True)
+                yield Button("Cancel", id="connect-cancel", compact=True)
 
     def on_mount(self) -> None:
         with contextlib.suppress(Exception):
@@ -1688,11 +1693,11 @@ class WinlinkGatewayScreen(ModalScreen["GatewayChoice | str | None"]):
             yield Checkbox("Remember as my gateway", value=bool(self._favourite),
                            compact=True, id="gateway-remember")
             with Horizontal(id="connect-buttons"):
-                yield Button("Gateway list...", id="gateway-list", disabled=not self._gateway_list)
-                yield Button("Connect", variant="primary", id="connect-go")
+                yield Button("Gateway list...", id="gateway-list", disabled=not self._gateway_list, compact=True)
+                yield Button("Connect", variant="primary", id="connect-go", compact=True)
                 if self._skip:
-                    yield Button(self._skip, id="setup-skip")
-                yield Button("Cancel", id="connect-cancel")
+                    yield Button(self._skip, id="setup-skip", compact=True)
+                yield Button("Cancel", id="connect-cancel", compact=True)
 
     def on_mount(self) -> None:
         self._sync()
@@ -1819,10 +1824,10 @@ class LoginAskScreen(ModalScreen["str | Credential | None"]):
                     id="credential-where")
             yield Label("", id="login-ask-error")
             with Horizontal(id="connect-buttons"):
-                yield Button(self._go_label, variant="primary", id="connect-go")
+                yield Button(self._go_label, variant="primary", id="connect-go", compact=True)
                 if self._skip:
-                    yield Button(self._skip, id="setup-skip")
-                yield Button("Cancel", id="connect-cancel")
+                    yield Button(self._skip, id="setup-skip", compact=True)
+                yield Button("Cancel", id="connect-cancel", compact=True)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -1929,10 +1934,10 @@ class InternetLoginScreen(ModalScreen["InternetLogin | str | None"]):
                 id="credential-where")
             yield Label("", id="login-ask-error")
             with Horizontal(id="connect-buttons"):
-                yield Button("Save and continue", variant="primary", id="connect-go")
+                yield Button("Save and continue", variant="primary", id="connect-go", compact=True)
                 if self._skip:
-                    yield Button(self._skip, id="setup-skip")
-                yield Button("Cancel", id="connect-cancel")
+                    yield Button(self._skip, id="setup-skip", compact=True)
+                yield Button("Cancel", id="connect-cancel", compact=True)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -2113,7 +2118,8 @@ class CredentialScreen(ModalScreen[Credential | None]):
                 with Horizontal(classes="ab-row"):
                     yield Label("Password", classes="ab-label ab-label-wide")
                     yield Input(password=True, compact=True, id="credential-password",
-                                placeholder="saved; type to replace it" if self._saved else "")
+                                placeholder="saved; type to replace it" if self._saved
+                                else "empty for a passwordless sign-in")
                 yield Static(
                     "The password is kept in the system keyring."
                     if self._where != "config" else
@@ -2124,8 +2130,8 @@ class CredentialScreen(ModalScreen[Credential | None]):
                 yield TextArea(self._text, id="credential-text", tab_behavior="focus")
             yield Label("", id="credential-error")
             with Horizontal(id="connect-buttons"):
-                yield Button("Save", variant="primary", id="credential-save")
-                yield Button("Cancel", id="credential-cancel")
+                yield Button("Save", variant="primary", id="credential-save", compact=True)
+                yield Button("Cancel", id="credential-cancel", compact=True)
         yield Footer()
 
     def on_mount(self) -> None:
@@ -2151,8 +2157,8 @@ class CredentialScreen(ModalScreen[Credential | None]):
             return
         username = self.query_one("#credential-username", Input).value.strip()
         password = self.query_one("#credential-password", Input).value
-        if not password and not self._saved:
-            error.update("Type the password.")
+        if not password and not self._saved and not username:
+            error.update("Type the password, or a username for a passwordless sign-in.")
             self.query_one("#credential-password", Input).focus()
             return
         self.dismiss(Credential(name, password, username))
