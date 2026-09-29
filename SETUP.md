@@ -8,12 +8,14 @@ your hardware; you don't need all of them.
 
 ## 1. Install kissterm
 
-Three ways, in order of how most people should do this:
+kissterm needs Python 3.11 or newer. It is not on PyPI yet, so each way
+below installs it straight from GitHub. In order of how most people should
+do this:
 
 **`uv tool install` (recommended if you have `uv`):**
 
 ```
-uv tool install kissterm
+uv tool install "git+https://github.com/bradbrownjr/kissterm"
 ```
 
 Installs kissterm into its own isolated environment and puts the `kissterm`
@@ -23,7 +25,7 @@ dependencies. `uv tool upgrade kissterm` updates it later.
 **`pipx` (the traditional equivalent):**
 
 ```
-pipx install kissterm
+pipx install "git+https://github.com/bradbrownjr/kissterm"
 ```
 
 Same isolation guarantee as `uv tool install`, if you don't already have
@@ -49,7 +51,8 @@ and any Bluetooth TNC bound to a serial device) also install the `serial`
 extra for faster asyncio I/O:
 
 ```
-uv tool install "kissterm[serial]"          # or: pipx install "kissterm[serial]"
+uv tool install "kissterm[serial] @ git+https://github.com/bradbrownjr/kissterm"
+pipx install "kissterm[serial] @ git+https://github.com/bradbrownjr/kissterm"
 pip install -e ".[serial]"                  # from-source
 ```
 
@@ -439,7 +442,8 @@ choose Session > File transfer, then the protocol. For an upload, choose **Brows
 and select the local file; kissterm starts the selected protocol only after
 that explicit choice. For a download, choose **Receive into directory** first,
 then issue the peer's YAPP or AutoBIN download command. Completed downloads
-are saved in kissterm's application-data `downloads` directory. Kissterm never
+are saved in the `downloads` folder beside kissterm's logs (not yet in the
+Files tab). Neither protocol has been tried on the air yet. Kissterm never
 auto-detects an AutoBIN header into a write, opens, or executes transferred
 files.
 

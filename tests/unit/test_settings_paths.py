@@ -25,7 +25,7 @@ _PATH = re.compile(r"Settings(?: \(`?F9`?\))?,? (?:>|->|then) ([A-Z][A-Za-z]*)")
 
 def _files():
     yield from (ROOT / "kissterm").rglob("*.py")
-    yield from (ROOT / name for name in ("README.md", "SETUP.md", "DESIGN.md"))
+    yield from (ROOT / name for name in ("README.md", "SETUP.md", "DESIGN.md", "docs/GUIDE.md"))
     yield ROOT / "docs" / "ON-AIR-TESTS.md"
 
 

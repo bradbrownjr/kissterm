@@ -1,310 +1,131 @@
 # kissterm
 
-A terminal for packet radio that talks to your TNC directly — over a serial
-cable, over Bluetooth, or over TCP/IP to a KISS TNC anywhere on your network.
-No kernel AX.25 stack. No root. No Windows.
+**Packet radio mail and terminal, for people still learning packet.**
+kissterm opens to your messages: mail from your local BBS and Winlink,
+bulletins, files, and the forms emergency nets use. A terminal for talking
+to nodes, and APRS, are one key away. It runs in any terminal window,
+including over SSH to a Raspberry Pi in the shack.
 
-![kissterm connected to a BPQ32 node](assets/screenshot.png)
+- **Free and open source** (MIT licence).
+- **Cross-platform.** It is Python, with no kernel setup and no root. Linux
+  and the Raspberry Pi are where it is used every day; macOS and Windows
+  run the same code but have had less testing.
+- **Talks to your TNC directly**: a USB or serial TNC, a Bluetooth TNC, or
+  Direwolf or SoundModem on this computer or another one on your network.
+- **More ways to use it are planned.** Today kissterm is a text interface.
+  A desktop app (Windows, macOS, Linux) and a web version for a tablet or a
+  shelter laptop are on the roadmap, built on the same core
+  ([ROADMAP](docs/ROADMAP.md), P7a).
 
-The monitor pane shows everything on the channel, and the heard list shows who
-has been active and whether you heard them directly:
+![The Mail tab: every inbox in one list, a message from the local BBS open](assets/screenshot-mail.png)
 
-![The monitor pane](assets/screenshot-monitor.png)
+## A quick tour
 
-![The heard list](assets/screenshot-heard.png)
+**Mail (F2).** All your inboxes in one list: your local BBS and Winlink,
+each message saying where it came from. Press **G** to send and receive
+over the radio, or **I** to do the same over the Internet. Insert writes a
+message; R replies. Every message is a plain text file you can open in any
+editor.
 
-Every station you've connected to, or set up in advance -- `Ctrl+G` opens the
-Address Book as a slide-out on the Terminal pane (and on Mail, Bulletins
-and Files, to pick a BBS), and dials one directly, with
-its node-hop chain, saved login and frequency reminder all still applying:
+**Forms.** ICS-213, ICS-213RR, ICS-205, ICS-214, ICS-309, damage
+assessments, Winlink and PKTNET check-ins, ARRL radiograms and more. Fill
+one in like a paper form; kissterm formats it the way other stations
+expect. A form you receive is shown as a form:
 
-![The address book slide-out](assets/screenshot-addressbook.png)
+![A received ICS-213 shown as the form, each value under its block number](assets/screenshot-mail-form.png)
 
-Everything the first-run wizard asks for stays editable in the app -- callsign,
-transport, link timing, APRS:
+![Filling in an ICS-213 General Message](assets/screenshot-form.png)
 
-![The settings pane](assets/screenshot-settings.png)
+**Bulletins (F3).** Notices to everyone, filed by category (WX, ARES,
+ALL), kept apart from your personal mail.
 
-**New to packet radio?** The thing that makes a node's command line
-intimidating is that nothing on screen tells you what you can type. kissterm
-reads the banner and prompt a node already sends and matches them against a
-shipped command reference for that software -- no manual to go find, no
-memorizing that one node's "bye" is another node's "B" is a third node's
-"*BYE*". `F1` shows you the actual list, for the actual node you are
-actually talking to, before you have spent a single byte finding out by
-guessing.
+![Weather bulletins](assets/screenshot-bulletins.png)
 
-## Why this exists
+**Files (F4).** Attachments from Winlink messages, with Downloads and
+Received folders for file transfers (still being connected up). Nothing
+that arrives over the air is ever opened or run for you.
 
-Packet radio on Linux has been stuck with a hard choice: use `linpac`, which
-needs the kernel AX.25 stack configured with root and cannot talk to a KISS TNC
-over the network at all — or boot Windows for BPQTerminal or UZ7HO EasyTerm.
+![The Files tab with a Winlink attachment open](assets/screenshot-files.png)
 
-kissterm implements **AX.25 connected mode itself, in userspace, over KISS**.
-That one decision is what lets it run unprivileged, on any platform, against a
-TNC on a USB cable, a Bluetooth TNC in your pocket, or a Direwolf instance on a
-Raspberry Pi in the garage — with nothing to configure at the OS level.
+**Terminal (F5).** Connect to a node or BBS and type at it. kissterm
+recognises the software on the other end from what it sends anyway (it
+never asks) and offers that system's commands with a one-line meaning as
+you type. Nothing is sent until you press Enter.
 
-| | kissterm | linpac | BPQTerminal | EasyTerm |
-|---|---|---|---|---|
-| KISS over serial | yes | via kernel | yes | yes |
-| KISS over TCP/IP | **yes** | no | yes | yes |
-| Bluetooth TNC | yes | via kernel | no | no |
-| Needs kernel AX.25 | **no** | yes | no | no |
-| Needs root to set up | **no** | yes | no | no |
-| Runs on Linux / macOS / BSD | **yes** | Linux | no | no |
-| Terminal UI (works over SSH) | **yes** | yes | no | no |
-| VARA / HF modems | in progress | no | yes | no |
-| APRS decode | yes | no | no | separate app |
+![Connected to a BPQ node and its BBS; typing S lists the BBS's send commands](assets/screenshot-terminal.png)
 
-## Features
+**APRS (F6).** Messages with other stations, with delivery
+acknowledgements, and a directory of APRS gateway services: SMS, email,
+weather and more.
 
-- **Mail, Bulletins and Files come first (in progress).** kissterm opens on
-  the Mail tab: a folder tree (All Inboxes, BBS, Winlink), the message
-  list, and a reader. Folders are by kind of mail, not by how you reached
-  the BBS, and each message says where it came from. Every message is a
-  plain text file under kissterm's data folder, so any editor can read
-  one; Delete moves to Deleted, and U puts it back. **G is Send/Receive**:
-  it sends your Outbox and gets your mail
-  from the BBS set in Settings > Mail (BPQMail so far): it dials the
-  Address Book entry you name there, lists your mail with `LM`, reads only
-  what kissterm does not already have, and disconnects, all shown in the
-  Terminal tab as it happens. Messages stay on the BBS. **Insert writes a
-  message, R replies and Q replies with the original quoted** (Settings >
-  Mail can make R quote too); it waits in Mail > BBS > Outbox, and G sends
-  it before reading, moving it to Sent once the BBS accepts it. **Type: NTS
-  radiogram** opens an ARRL radiogram form: each word converts to its
-  radiogram form as you finish it (a period becomes X, `ARL 46` ARL FORTY
-  SIX, with its meaning shown), the Check field counts the groups, the
-  `ST <zip> @ NTS<state>` routing shows as you type, and it suggests
-  your next message number. **Radiogram-ICS213** is the same form with
-  HXI and a subject line, as RRI's 2026 guidelines give it. A form you receive is shown as the
-  form, each value under its label, and V shows the text as sent; R on an ICS-213 offers
-  Reply on form, its blocks 1-8 read-only and 9-10 yours to fill. **Forms**: the ICS-213 General Message,
-  ICS-213RR Resource Request, Winlink Check-in, PKTNET Check-in, Field
-  Situation Report, Severe WX Report, Damage Assessment, Incident
-  Status Report, ICS-309 Communications Log, ICS-214 Activity Log and
-  ICS-205 Radio Plan are Types too (the 309 can fill its log from your mail), laid out as their published forms so any station reads them
-  (the PKTNET check-in comes back addressed `SB PKTNET@USA`); you fill in the form, then
-  address it like any message. **Information strips** (`TITLE/question/.../question//`):
-  GYX Weather Report and MCF720 ship, "Information strip (paste)" answers any other, and a
-  reply to a message carrying a strip offers Answer strip. **Winlink over
-  packet**: on a Winlink folder G sends and receives with a Winlink RMS
-  gateway instead (Settings > Mail > Winlink: the Address Book contact that
-  reaches it, and your account password, which never goes on
-  the air -- only the answer to the gateway's challenge does). A received
-  message's attachments are saved to Files > Attachments under cleaned
-  names, never opened or run. F10 > Session > RMS gateways lists
-  gateways nearest you by mode, and the one you choose becomes an Address
-  Book contact and the Winlink Dial; the list comes from winlink.org when
-  you ask, and needs an access key kissterm is still waiting for.
-  **I is Send/Receive by Internet**, the same
-  by folder without the radio: the Home BBS through a Telnet or SSH
-  contact in the Address Book (WS1EC's SSH login into its node; I answers the node's
-  `user:`/`password:` and sends `BBS`), Winlink through the CMS by Telnet. On All
-  Inboxes G does both, the Home BBS first. Anything missing -- the entry
-  to dial, the Winlink password, a BBS login -- is asked for before
-  anything is dialed. Insert on a
-  Winlink folder writes a Winlink message (Type "Winlink message": several
-  callsigns or email addresses, no @), and R on one received from Winlink
-  answers by Winlink. Not yet proven against a live gateway
-  (`docs/ROADMAP.md`, P2). Settings > Appearance > Open on keeps
-  Terminal as the first tab if you prefer.
+![An APRS conversation beside the contacts and gateway list](assets/screenshot-aprs.png)
 
-  ![The Mail tab](assets/screenshot-mail.png)
+**Heard (F7) and Monitor (F8).** Who is on the channel, how far away and
+in which direction; and every frame in both directions, decoded, for when
+you want to see exactly what happened.
 
-- **Context-aware help, so you never face a bare prompt with no idea what is
-  legal.** kissterm identifies the node you connected to -- BPQ32, JNOS, a
-  plain TNC2 command mode -- passively, from the banner and prompt it sends
-  you anyway, never by asking it anything extra. `F1` then shows that
-  node's actual command set, with a plain-English glossary of packet jargon
-  in the same pane, and picking one fills your input line without sending it.
-  Connected to a real node with a local menu of its own? "Learn from node"
-  asks it once, tells you what that will cost in airtime first, and caches
-  the answer under that node forever -- you never pay for it twice, and
-  neither does anyone else who pulls this repo, because the common command
-  sets ship as data (`kissterm/nodes/data/`) rather than everyone crawling
-  the same nodes from scratch. Detection is deliberately conservative: a
-  wrong command set shown with confidence is worse than an honest "unknown
-  node", so an unfamiliar banner just says so instead of guessing.
-- **Connect to any packet node or BBS.** Full AX.25 2.2 connected mode with
-  retransmission and timer recovery, so a marginal path recovers instead of
-  dropping you. Modulo 128 (extended sequence numbers) is supported; modulo 8
-  is the default because it is what everything on the air actually speaks.
-  A connect gives up after 5 attempts rather than the spec's 10 -- retrying is
-  one keystroke, while every unanswered SABM is another transmission on a
-  shared channel -- but an *established* link keeps the full N2, because
-  dropping a live session over a momentary fade is the expensive mistake.
-  Both are settings.
-- **Every transport.** KISS over serial, over TCP/IP, and over Bluetooth;
-  AGWPE (Direwolf, UZ7HO SoundModem); the Linux kernel AX.25 stack if you
-  already have one. VARA HF/FM and Mercury are implemented but not yet verified
-  against hardware — see [docs/ROADMAP.md](docs/ROADMAP.md).
-- **Telnet and SSH, for a node reachable over the Internet.** An Address
-  Book contact, By Telnet or SSH, dialed into its own Terminal tab beside the
-  radio, never touching the transmit gate. No AX.25 framing on either wire —
-  the remote node's own telnet or SSH server already ran the link layer, same
-  as SyncTERM or a plain `telnet`/`ssh` client. SSH takes a password or a key
-  and an explicit known-hosts file (see [SETUP.md](SETUP.md) §6a).
-- **The network scan covers the whole subnet, and says so if it cannot.** A
-  /24 across the well-known packet ports is over a thousand connection
-  attempts; the first version fit about a sixth of them into its time budget,
-  gave up at `.43`, and reported the result as though it had finished --
-  which hid a real TNC at `.128` behind a web server at `.3`. Ports are now
-  the outer loop, so a scan that does run short still touches every address
-  on the likeliest port, and a truncated sweep tells you how far it got
-  instead of pretending.
-- **USB TNCs are noticed when you plug them in.** No rescan, no restart --
-  enumerating serial ports costs 0.4 ms and touches nothing but the local
-  machine, so kissterm just watches. If the TNC you are *using* gets unplugged,
-  it says so instead of failing quietly later. **The network is never scanned
-  automatically**: a sweep is around 1,500 connection attempts, which is fine
-  when you ask for it and antisocial on a timer. A configured host that goes
-  away is reconnected to by address, not rediscovered by scanning.
-- **It finds your hardware.** First run enumerates serial ports, recognises the
-  common TNC chipsets by USB ID, sweeps your LAN for the well-known KISS, AGWPE
-  and VARA ports, and lists paired Bluetooth TNCs — then asks you to pick one.
-  Getting on the air should not require reading a manual first.
-- **A real monitor pane.** Every frame on the channel, decoded the way `listen`
-  and BPQ show it, with filtering by callsign or payload text.
-- **Heard list, with a bearing and distance to almost everyone in it.** Who
-  you have heard, when, how often, by what path, and whether you heard them
-  directly or through a digipeater — and once you've told kissterm where you
-  are, which way to point a beam and how far for any station reporting a
-  position, whether that came from an APRS beacon or an ordinary packet
-  node's plain-text sign-off ("de W1AW FN31pr"). kissterm reads a grid square
-  out of an everyday BTEXT/BBS banner too, not just out of APRS — a station
-  never has to speak APRS at all to show up with a bearing.
-- **Notices mail waiting for you, without connecting to check.** Nodes
-  running the W0RLI/FBB "MAIL FOR" convention beacon the callsigns they're
-  holding mail for; kissterm watches every beacon on the channel for yours in
-  that list and tells you — in the log and as a notification — the moment it
-  hears one, with nothing to poll and no connection spent finding out.
-- **APRS.** Positions (uncompressed, compressed, and Mic-E), messages, status,
-  objects, weather and telemetry — APRS is just an AX.25 UI frame, so it comes
-  almost free on top of the same stack.
-- **A terminal that only sends when you say so.** The conversation above is
-  read-only: scroll it, select and copy from it, click a URL in it. The input
-  line at the bottom is the only thing that ever transmits, and only when you
-  press Enter or click Send. Suggestions fill the input; they never send it.
-- **A BBS's own colour, without its escape sequences.** Remote ANSI is passed
-  through an allowlist: colour, bold and underline survive, so a board that
-  has painted its menus since 1988 still reads the way its sysop meant it to.
-  Cursor movement, screen erase, window-title and clipboard sequences do not
-  survive, whatever the setting -- an allowlist, not a denylist, because the
-  set of sequences a terminal understands is undocumented in practice and the
-  set that can only recolour a glyph is small enough to enumerate.
-- **Session transcripts.** One plain-text file per connection: everything
-  sent, everything received, every link-state change, timestamped. The
-  scrollback already holds it; this is what makes it survive closing the app.
-  A log that cannot be written is reported once and then never allowed to
-  disturb the link.
-- **A transmit switch you can see, like every other ham program.** `Ctrl+T`
-  is the master gate, in the same sense as WSJT-X's Enable Tx: with it off,
-  nothing keys the radio -- not a beacon, not answering a call, not the send
-  line. It starts **off**, so a fresh launch cannot transmit until you say so,
-  and the status bar reads `TX OFF` for as long as that is true. A station
-  meant to run unattended sets `tx_armed_at_start`. Asking to connect to a
-  named station (`Ctrl+N`) or to disconnect (`Ctrl+D`) **turns it on** rather
-  than being refused -- naming a station and confirming it is the clearest
-  way an operator can ask to transmit, and the switch exists to stop the
-  transmissions you did *not* ask for. It says so when it does: a
-  notification, a line in the log, and the status bar.
-- **Beacons.** A short text on a timer telling the channel you are there --
-  the `BTEXT` convention, sent as unproto UI frames, separate from APRS
-  beaconing. Off until you turn it on, silent while the text is empty, and a
-  ten-minute floor that is enforced rather than suggested. Settings shows what
-  your chosen interval actually costs the channel, in seconds and as a
-  percentage of the frequency. The timer waits a full interval before its
-  first transmission -- **the menu's Session > Send beacon sends one right now**, the way JS8Call's
-  heartbeat button does, without turning the timer on.
-- **`kissterm --doctor`.** Diagnoses the things that actually go wrong: serial
-  permissions, missing dependencies, an unreachable TNC host, a bad callsign.
+![The heard list with distance and bearing](assets/screenshot-heard.png)
+
+![The monitor: a connect, the node's banner, and the BBS login, frame by frame](assets/screenshot-monitor.png)
+
+**Settings (F9).** Everything the setup wizard asks is editable here, one
+section at a time, with a line of help for each setting.
+
+![Settings, Mail section](assets/screenshot-settings.png)
+
+## New to packet?
+
+Packet radio sends text between stations as small bundles of data called
+frames, usually at 1200 baud on 2 m FM. A few words you will meet:
+
+- **TNC** (terminal node controller): the modem between your radio and your
+  computer. It can be a box (a Mobilinkd, a NinoTNC, a Kantronics in KISS
+  mode) or software, such as [Direwolf](https://github.com/wb2osz/direwolf)
+  with a sound-card interface like a Digirig or SignaLink. kissterm talks
+  to it using **KISS**, the common language TNCs speak.
+- **Node**: a station others connect to, which passes you on to other nodes
+  and to services such as a BBS. BPQ32/LinBPQ is the most common.
+- **BBS**: a mailbox station. You connect, list and read your messages,
+  and send new ones. kissterm does this for you when you press G.
+- **Winlink**: radio email that reaches the Internet. kissterm speaks its
+  protocol over packet or over the Internet.
+- **APRS**: short position reports and messages, sent to everyone.
+
+**What you need:** a radio with a TNC or a sound-card interface, your
+callsign, and a computer with Python 3.11 or newer. You do not need to
+transmit to start: kissterm launches with transmit **off** (the status bar
+says `TX OFF`), so you can watch the channel, read the Monitor and learn
+the local nodes first. `Ctrl+T` turns transmit on, and connecting to a
+station you name turns it on for you, with a notice.
+
+The Help tab (F1) has guides written for newcomers: getting on the air, a
+first connection, reading a failed connect, APRS messaging, and sharing
+the channel politely. Its glossary explains packet jargon.
 
 ## Install
 
+kissterm is not on PyPI yet. Install it from GitHub with
+[pipx](https://pipx.pypa.io/) or [uv](https://docs.astral.sh/uv/):
+
 ```bash
-uv tool install kissterm      # or: pipx install kissterm
+pipx install "git+https://github.com/bradbrownjr/kissterm"
+# or
+uv tool install "git+https://github.com/bradbrownjr/kissterm"
+
 kissterm
 ```
 
-From source:
-
-```bash
-git clone https://github.com/bradbrownjr/kissterm
-cd kissterm
-python3 -m venv .venv && .venv/bin/pip install -e .
-.venv/bin/kissterm
-```
-
-That `pip install -e .` creates a real executable at `.venv/bin/kissterm`.
-Three equivalent ways to run it:
-
-```bash
-.venv/bin/kissterm            # the installed console script
-.venv/bin/python -m kissterm  # same thing, without relying on PATH
-./scripts/kissterm-dev        # wrapper: finds the venv itself, works from any directory
-```
-
-To get it on your PATH without installing system-wide:
-
-```bash
-ln -s "$(pwd)/scripts/kissterm-dev" ~/.local/bin/kissterm
-```
-
-First run asks for your callsign and then goes looking for your TNC. See
-[SETUP.md](SETUP.md) for Direwolf, Bluetooth pairing, serial permissions, and
-the rest.
-
-**Nothing you answer at setup is locked in.** The Settings tab (`F9`)
-lists its sections down the left -- Station, Radio, Link, Mail, APRS and the
-rest. Each section is a list of its settings with their values: Up and Down
-choose one, Enter changes it right there on its row (an on/off setting just
-flips), Enter again keeps the change and Esc puts the old value back. The help for the one you are on
-is in a line at the bottom. Tuning a new operator never needs (T1/T2/T3,
-retries, SmartBeaconing's curve) is listed last, under each section's
-Advanced. A change says "(unsaved)" and its section is starred until you
-press Save, under the list, or Discard changes; the help line says when a
-setting waits for the next connection or a restart. "Scan for hardware" re-runs discovery from inside the app, so moving
-your Direwolf host to a new IP does not mean editing a TOML file.
-
-**"New" adds a transport a scan cannot find.** Discovery can only identify a
-KISS TNC or an AGWPE engine by probing it -- it has no way to invent a VARA
-modem's callsign. "New" in Settings > Radio opens a form for exactly those
-(and a second entry for hardware a scan already found); the fields shown
-change with the kind you pick, and a VARA/Mercury entry gets the same
-auto-login section the Connect dialog has, sent right after that transport
-connects. A node reached by Telnet or SSH is an Address Book contact
-instead.
-
-**"Test" asks a configured host what it actually is.** Port 8000 and
-8001 are as popular with self-hosted web apps as with packet software, so a
-scan that matched on port number alone would offer you a media server as a
-TNC. The test settles it: an AGWPE engine is confirmed outright by its version
-reply, a KISS TNC is confirmed the moment a frame arrives, and anything that
-answers with an HTTP status line, an SSH banner, or a hang-up is reported as
-what it is and is no longer offered by the scan at all. A port that is open
-and silent stays "unconfirmed" rather than "broken" -- that is exactly what a
-working KISS TNC looks like on a quiet channel, since KISS has no version
-query and never greets you. Link
-parameters deliberately do not change under an established link; they were
-negotiated when it came up.
-
-**Changing your callsign is never more than the menu.** Session > My callsign, or
-`kissterm --callsign W1AW-9` from a shell -- neither re-runs the setup wizard.
-Operators change SSID constantly (a `-1` mailbox, a different SSID for portable
-or an emergency net, a club call for an event), so this is a first-class
-action, not something buried in a config file. It is refused while a link is
-up: the callsign is in the address field of every frame of an established
-conversation, and swapping it mid-session would kill the link by timeout.
+The first run asks for your callsign, then looks for your TNC: USB serial
+ports, paired Bluetooth TNCs, and Direwolf or SoundModem on your network.
+Pick one and you are set. [SETUP.md](SETUP.md) walks through Direwolf,
+Bluetooth pairing, serial permissions, VARA and the Raspberry Pi.
 
 ## Keys
 
-kissterm follows the keyboard convention of Midnight Commander and DOS-era
-text UIs (IBM CUA): **F1 is help, F10 is the menu, and every command is in
-the menu.** Shortcuts are accelerators for the commands you use most, not
-the only way in -- so there are few of them, and they are keys an ordinary
-terminal can actually deliver.
+kissterm follows the old DOS and Midnight Commander convention: **F1 is
+help, F10 is the menu, and every command is in the menu.** The bar at the
+bottom shows the keys that work on the tab you are looking at, and each
+can be clicked. `Ctrl+P` finds any command by name.
 
 <!-- keys:start (generated by scripts/sync_docs.py from kissterm/ui/commands.py; do not edit) -->
 | Key | What it does |
@@ -324,337 +145,65 @@ terminal can actually deliver.
 | `Ctrl+P` | **Search commands** -- Find any command by typing part of its name |
 <!-- keys:end -->
 
-Inside a list -- the Address Book, APRS contacts -- `Enter` is the default
-action, `Insert` adds, `E` edits and `Delete` forgets, and those keys appear
-in the bottom bar while the list has focus. In the Address Book a single
-click only selects a station; `Enter` or a double click dials it.
+## Safe by default
 
-To copy text from the terminal, Monitor, APRS or mail reader, drag over it
-with the mouse: it is copied when you let go (`Ctrl+C` copies it again). The
-copy reaches your clipboard through the terminal (OSC 52); a multiplexer such
-as tmux has to be set to pass that through.
-
-Everything else is in the **F10 menu**: send a beacon, send a position
-report, objects, bulletins, gateway forms, Watch APRS-IS, the SSID filter,
-file transfer, the NET/ROM panel, your callsign and saved transcripts. Open
-it, then press the underlined letter; Left and Right move between headings.
-A command that cannot run right now is listed anyway, dimmed, with the
-reason.
-
-**The bottom bar shows the keys that work on this tab, right now**, as many
-as fit the terminal width, with `F10 Menu` always at the right-hand end.
-Nothing is ever unreachable at a narrow width: the menu and `Ctrl+P` reach
-everything, and every key in the bar can also be clicked.
-
-**If `F1` or `F10` does nothing**, your terminal program took it first --
-GNOME Terminal opens its own help on `F1` and its menu bar on `F10` until
-you turn off "Enable the menu accelerator key" in its preferences. Clicking
-the Help tab, or Menu in the bottom bar, works regardless.
-
-**Closing a tab.** Each connection on the Terminal gets a tab once there is
-more than one, and each APRS correspondent gets one too. Close the one on
-screen with **Ctrl+W**, the small **X** at the end of the tab row, the menu
-(F10, Session > Close tab or APRS > Close conversation), or Delete while the
-tab row has focus. A connected Terminal tab is disconnected first. In the
-send line and the APRS compose box, Ctrl+Backspace and Ctrl+Delete delete
-the word to the left and right. Some terminals send Ctrl+Backspace as plain
-Backspace; `python scripts/keycheck.py` shows what yours delivers.
-
-**The Help tab is written for someone new to packet.** Its *Guides* walk
-through getting on the air, a first connection, the transmit switch, reading
-a failed connect, APRS messaging and sharing the channel. *Node commands*
-lists what each common node type understands, without connecting to one or
-spending airtime asking it. *About* shows the version and where your config
-and logs are, for a bug report.
-
-Connect targets accept a digipeater path: `WS1EC-7 via W1AW-1,W1XYZ`.
-
-**The connect dialog remembers where you have been.** `WS1EC-15` and `WS1EC-7`
-are different services on one machine, and a mistyped SSID fails in a way that
-looks exactly like a bad RF path -- so every target you confirm is kept.
-Typing narrows the list, Down moves into it, Enter connects, and Delete
-forgets a row for good. Stations are recorded on the *attempt*, not on
-success: the connect that got no answer is the one you are about to try
-again. Each row shows whether it has ever actually come up, so "five attempts,
-never connected" stays visible instead of being flattened into a bare list.
-The list lives in `addressbook.json` in your data directory, not in
-`config.toml` -- it is history, not settings, and nothing should rewrite a
-file you hand-edit.
-
-**If you have more than one transport of the same kind configured, the
-Connect dialog can switch between them before dialing** -- two KISS TNCs, or
-two VARA hosts. With only one configured (the usual case) there is no
-dropdown to get in the way; with two or more, it defaults to whichever is
-active and switches live if you pick a different one. Switching TIERS this
-way -- a frame-tier KISS TNC to a session-tier VARA host, or back -- is not
-supported live; Settings (`F9`) > Radio still needs a restart for that.
-
-**The Address Book slide-out (`Ctrl+G`, from Terminal or a mail tab) is the same
-list, with room to manage it.** A table of every saved station -- add one in
-advance, fix a typo in its hop chain, or dial it directly (Enter or the
-Connect button) without opening Ctrl+N first. Insert/E/Delete match
-`syncterm`'s dialing directory; Escape closes the panel again.
-An entry can carry:
-- a **node-to-node hop chain**, for a station reached only by connecting
-  through intermediate BPQ/NET-ROM nodes in turn -- no digipeater path
-  exists, so kissterm connects to the first node and sends `C <node>` over
-  that link for each remaining hop, waiting for its own CONNECTED reply
-  before the next;
-- a **saved credential** (managed in Settings > Logins) or a **saved
-  script** (Settings > Logins) instead of its own typed-out login, looked
-  up fresh every connect so changing one updates every station that points
-  at it. The two are kept as separate lists on purpose: a credential is a
-  login, named for the account it belongs to; a script is any sequence of
-  commands sent after connecting -- a login followed by a node hop, a
-  mailbox check, whatever you do after every connect to some station --
-  named for what it does. A credential wins if both happen to be set.
-  Credentials are kept in your system keyring (GNOME Keyring, KWallet,
-  macOS Keychain, Windows Credential Locker) when there is one, and
-  config.toml holds only their names; without one they stay in
-  config.toml, and Settings says which;
-- a **frequency and connection type**, purely informational -- kissterm
-  cannot tune a radio or start a modem for you, but it will ask you to
-  confirm both are set before a connect that has them on file goes out.
-  Connection type picks from whatever you've already set up in
-  Settings (`F9`) > Radio (a TCP KISS TNC, VARA HF, ...), so it's a
-  reminder that matches what you actually have
-  configured rather than a note you have to retype consistently by hand.
-
-**BBS mail helpers** are in F10 > Help > **Node commands** > **BBS mail helpers**. They provide
-dialect-specific starting commands for listing mail, reading a numbered
-message, and starting a message to a callsign; their displayed confidence tells
-you how much verification backs each command. Choosing one only puts
-the command in the terminal compose box; inspect it and press Enter or Send to
-transmit. This is intentionally not a BBS-output parser: prompt and message
-formats vary too much between systems for a rigid parser to be trustworthy.
-Typing a command prefix shows a stacked, Tab-to-fill list of matching
-commands with what each does. Up/Down selects one; Tab fills it without
-sending; Esc hides the list until you type again, so you can read the
-node's last lines first. The list follows the session. At a BPQ32 node, `L` offers `LINKS`.
-Once the node says `Connected to BBS`, it offers BPQMail's `L`, `LR`, `LM`,
-`LD`, `LF`, `LH`, `LK`, `LL` and the rest. When the node says
-`Returned to Node`, it switches back. kissterm reads these lines from what
-the node sends anyway and never asks. At a prompt it cannot identify, it
-suggests nothing rather than guess. Typing `BYE` finds `B`, and Tab fills
-`B`. A parameterised command (`LL`, `R`, `SP`) fills only the command text;
-you supply the number or callsign.
-
-F10 > Help > **Node commands** lists every command in reach: the current context's first, then
-the others (the BBS's while at the node, the node's while in the BBS). Each
-row says where it came from: **published** (G8BPQ's documentation, linked
-in the data files), **verified on air** (seen in a real node's own `?`
-reply), **recalled, unverified**, or **harvested only** (a name this node
-offered in a "Learn from node" reply that no documentation describes;
-kissterm does not invent a description for it). A harvested name that
-matches a documented command marks that row **offered here**.
-
-**Running under tmux or screen?** Nothing needs configuring. kissterm
-deliberately binds no key that a multiplexer eats or that needs an enhanced
-keyboard protocol to tell apart -- no `Ctrl+B` (tmux's prefix), no
-`Ctrl+Shift+` anything, no `Ctrl+Alt+` anything.
-
-**Ctrl+D is Disconnect, and still deletes a character.** Textual's text
-fields bind plain `Ctrl+D` to delete-the-character-right. kissterm claims the
-key only while there is a session to end, so it disconnects when that is what
-it could mean and deletes a character when it is not -- and `Delete` always
-deletes.
-
-## Command line
-
-```
-kissterm                     launch
-kissterm --doctor            run diagnostics and exit
-kissterm --discover          scan for TNCs and modems, print, exit
-kissterm --callsign W1AW-1   set your callsign and exit (no wizard)
-kissterm --setup             re-run the first-run wizard
-kissterm --transport NAME    open a specific configured transport
-kissterm --connect WS1EC-7   connect once the app is up
-kissterm --log-level debug   record every frame, both directions, to a file
-```
-
-## When a connection does not come up
-
-Packet links fail for two completely different reasons and they need opposite
-responses, so kissterm never reports them with the same words:
-
-- **`connection refused (DM)`** -- the far end heard you and said no. Your
-  signal is getting there. Check the callsign and SSID, and whether that node
-  accepts connections from you.
-- **`no answer from <call> after N tries`** -- nothing came back at all. That
-  is an antenna, power, squelch or propagation problem, not a configuration
-  one. kissterm sends 11 SABMs over about 33 seconds before saying this;
-  `connect_retries` in Settings (F9) changes that.
-
-The **Monitor tab (F8)** is the real instrument. It shows every frame in both
-directions, `>` for what you transmitted and `<` for what was heard, so you
-can see your SABM leave and watch for a reply -- including supervisory
-frames (RR, RNR, REJ), shown by default because on an ordinary one-to-one
-link an RR coming back is exactly the "did they get it" answer. On a busy
-multi-station link they can be most of the traffic and almost none of the
-information; the filter bar's **Supervisory** button (its label shows which
-state it's in) turns them back off for that case.
-
-**If you send a line and nothing comes back, kissterm says so.** Fifteen
-seconds after a send with no reply since, and only once the far end has
-actually acknowledged it at the AX.25 layer, a note appears: `<call>
-acknowledged that -- no reply yet`. That distinguishes "the link is fine and
-the node is just slow or silent" from "this never reached them" -- the two
-used to look identical unless you already knew to check the Monitor tab for
-a bare RR.
-
-For a record you can read afterwards or send to someone else:
-
-```
-kissterm --log-level debug
-```
-
-writes every frame, every T1 expiry with its retry count, and every link state
-transition to `~/.local/state/kissterm/logs/kissterm.log` (macOS:
-`~/Library/Application Support/kissterm/logs/`). It looks like this:
-
-```
-TX port 0: KC1JMH>WS1EC-15 SABM P cmd
-T1 expiry 1 in connecting, rc=0 of 10
-TX port 0: KC1JMH>WS1EC-15 SABM P cmd
-state -> <AX25Link KC1JMH>WS1EC-15 failed V(S)=0 V(R)=0 V(A)=0>
-```
-
-A frame the transmit gate suppressed is logged as `TX BLOCKED` and never as
-sent -- if `TX OFF` is showing in the status bar, the log says so rather than
-claiming you transmitted.
-
-## Clock
-
-Local time, UTC time and the date are three **independent** toggles -- show
-any combination, including none at all. Local time is on by default. Showing
-both times side by side is a real operating mode: amateur radio runs on UTC
-while you live in local time, and doing that arithmetic mid-net is how a log
-ends up an hour wrong. 12- or 24-hour (24 by default, the amateur convention).
-
-UTC is always marked (`Z` on a 24-hour clock, `UTC` on a 12-hour one); local
-time is unmarked, the same convention a paper log uses. Dates are ISO 8601
-(`2026-09-05`), never locale order -- `03/04` is March 4th to an American
-operator and April 3rd to nearly everyone else, and packet is international.
-On the nights the local and UTC dates disagree, each reading carries its own
-date rather than one covering both.
-
-Set it in Settings (`F9`) under Appearance, or in `config.toml`
-(`show_local_time`, `show_utc_time`, `clock_24h`, `show_date`).
-
-## Themes
-
-Every color in kissterm is a theme variable, so switching repaints the whole
-app instantly -- nothing to restart. Pick one in Settings (`F9`), set
-`theme = "..."` in `config.toml`, or answer the wizard's theme prompt on first
-run. Default is **Tokyo Night**.
-
-Twenty-one built-in options across Tokyo Night, Catppuccin (Latte/Frappe/
-Macchiato/Mocha), Nord, Gruvbox, Dracula, Monokai, Solarized, Rose Pine, Atom
-One, Textual's own light/dark, and `ansi-dark`/`ansi-light` -- the last two
-render using your **terminal emulator's own** 16-color palette, which is the
-truest way to sync with an external terminal theme: there is no separate
-palette to keep matched by hand.
-
-Some well-known dark themes (Tokyo Night, Nord, Gruvbox, Dracula, Monokai)
-have no official light counterpart upstream, so kissterm does not invent one.
-`catppuccin-latte`, `rose-pine-dawn`, or `ansi-light` are close relatives if
-you want a light mode.
-
-For an exact hex match to a theme kissterm doesn't ship, `theme = "custom"`
-reads a `[custom_theme]` table from `config.toml` -- one hex value per color,
-meant for an external theme-sync tool or values copied out of a terminal
-emulator's own color-scheme file. See `config.toml.example`.
-
-A theme name that no longer resolves falls back to Tokyo Night with a logged
-warning rather than leaving the app unstyled or refusing to start.
-
-## Safety notes
-
-**kissterm starts unable to transmit.** `Ctrl+T` is the master gate and it is
-closed on launch -- the same convention WSJT-X uses, for the same reason. It is
-enforced in `FrameTransport.send_frame` and `Session.send`, the one place every
-frame and every byte passes through, so it holds for the state machine, a
-background timer, and any backend written later; the checks in the panes exist
-only to tell you *why* nothing happened. A blocked transmission is counted, not
-raised, because AX.25 retransmission runs on timer callbacks where an exception
-has nowhere to go.
-
-Two keys are exempt, and only these two: `Ctrl+N` and `Ctrl+D`. Naming a
-station in the connect dialog and confirming it is an unambiguous request to
-key the radio, so it opens the gate instead of hitting a refusal that cannot
-be acted on. Disconnecting is the same, and skipping the DISC would leave the
-far station holding a session open until its own timers expire. Both announce
-it. Nothing that lacks a confirmation step and a named target does this --
-the menu's Send beacon still reports the closed gate and sends
-nothing.
-
-The two things that can transmit without you at the keyboard -- answering a
-call, and beaconing -- are additionally off on a fresh install, both say so in
-the status bar (`ANSWERING`, `BEACON`) for as long as they are armed, and both
-write every transmission into the terminal pane where you can see it happened.
-A beacon that the gate suppressed is reported as not sent, never as sent.
-
-**It does not answer calls from other stations unless you turn that on** -- answering is unattended
-transmission under your callsign, and a fresh install must not start doing that
-on its own. With it off, a station calling you gets a polite refusal (a DM) and
-stops retrying rather than transmitting into silence. With it on, the status
-bar says `ANSWERING` for as long as that is true, and callers get a banner you
-configure. Automatic-control rules differ by country and band; check what your
-licence allows before enabling it.
-
-**Nothing in discovery or the connection test can key your rig.** All either
-writes to a socket is two bare `FEND` bytes -- a KISS frame with no type byte,
-so there is no command for a TNC to act on -- or an AGWPE version query, which
-asks the software a question. VARA's ports are never spoken to at all, because
-its command channel takes line commands that could start a session. The exact
-bytes are asserted on the wire in `tests/unit/test_identify_tcp.py`.
-
-A beacon is unattended transmission under your callsign onto a channel
-everybody shares, so the interval floor is a clamp in code rather than advice
-in a help string, and an empty beacon is never sent -- `MAIL FOR:` with
-nothing after it is pure channel occupancy.
-
-Text arriving from a remote node is treated as untrusted. Colour, bold and
-underline may survive (turn that off with `remote_color = false`); everything
-else -- cursor movement, screen erase, scroll regions, window title, clipboard
-writes, terminal hyperlinks, DCS, and the query sequences whose replies a
-shell later reads as keystrokes -- is removed, and is removed whatever that
-setting says. A corrupt frame off a noisy channel produces the same bytes as a
-malicious one, and neither should be able to repaint your screen in the middle
-of a net. Transcripts get the fully stripped text, because `cat` on a log file
-would run whatever escapes it contained.
+- **Nothing transmits until you say so.** Transmit starts off; the switch
+  (`Ctrl+T`) is enforced where every frame leaves the program, so no
+  timer, beacon or bug can get around it.
+- **Nothing transmits on its own unless you turn it on.** Answering calls
+  and beaconing are off on a fresh install, and the status bar shows
+  `ANSWERING` or `BEACON` while they are on.
+- **Airtime is shared.** kissterm never asks a node something just to fill
+  in its screens; command lists ship with it.
+- **Text from other stations is filtered** before it reaches your screen,
+  so a garbled or hostile frame cannot take over your terminal.
+- **Passwords are kept in your system keyring** (GNOME Keyring, KWallet,
+  macOS Keychain, Windows Credential Locker) where there is one, and your
+  Winlink password never goes on the air.
 
 ## Status
 
-Version 0.1. The AX.25 stack, the KISS transports, the monitor, the heard list,
-APRS decoding, beacons and session transcripts are implemented and tested. VARA, Mercury and BLE TNCs are
-not yet verified against hardware. See [docs/ROADMAP.md](docs/ROADMAP.md) for
-what is open and [docs/CHANGELOG.md](docs/CHANGELOG.md) for what has changed.
+kissterm is young (version 0.1) and changing quickly. The AX.25 link,
+KISS transports, terminal, monitor, heard list, APRS and BBS mail have been
+used on the air. Winlink, VARA, Mercury and file transfers (YAPP, AutoBIN)
+are built but not yet proven on the air, and collecting bulletins from a
+BBS by category is next. Winlink's production servers do not recognise
+kissterm yet; until they do, the Internet server setting in
+Settings > Mail can use Winlink's test server.
 
-Bug reports are much more useful with `kissterm --doctor` output attached.
+- [docs/GUIDE.md](docs/GUIDE.md): the user guide, everything in detail.
+- [SETUP.md](SETUP.md): getting on the air with your hardware.
+- [docs/ROADMAP.md](docs/ROADMAP.md): what is planned.
+- [docs/CHANGELOG.md](docs/CHANGELOG.md): what has changed.
+
+Found a bug? `kissterm --doctor` output makes a report much more useful.
+
+## How it works, briefly
+
+Most Linux packet programs rely on the kernel's AX.25 stack, which needs
+root to set up and cannot reach a TNC over the network. kissterm
+implements AX.25 connected mode itself, in ordinary user code, over KISS.
+That is why it installs like any other program and runs the same way on
+every platform.
 
 ## Development
 
 [AGENTS.md](AGENTS.md) is the engineering document and
-[DESIGN.md](DESIGN.md) is the visual and interaction schema — read both before
-changing anything. Each package also has its own short contract file
-(`kissterm/ax25/AGENTS.md`, `kissterm/transport/AGENTS.md`, and so on) so a
-single-file change does not require reading the whole repo.
-
-For any wire-format or RF-behaviour change, start with the cited
-[protocol guide](docs/PROTOCOL_GUIDE.md). It distinguishes the AX.25, KISS,
-and APRS layers and identifies the primary specifications rather than treating
-existing code or another client as the authority.
+[DESIGN.md](DESIGN.md) the interface standard; read both before changing
+anything. [docs/PROTOCOL_GUIDE.md](docs/PROTOCOL_GUIDE.md) cites the
+specifications behind every wire format.
 
 ```bash
-.venv/bin/pip install -e ".[dev]"
+git clone https://github.com/bradbrownjr/kissterm
+cd kissterm
+python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 git config core.hooksPath hooks     # once per clone: version bump + dep resync
-.venv/bin/python -m pytest -q
+.venv/bin/kissterm
 ```
 
-The AX.25 stack is tested against a software loopback with injectable frame
-loss (`tests/loopback.py`), so the link layer — including retransmission and
-timer recovery — is exercised without a radio.
+The AX.25 stack is tested against a software loopback with frame loss, so
+the link layer is exercised without a radio. The screenshots come from
+`scripts/generate_screenshot.py`, with invented stations.
 
 ## License
 
@@ -665,12 +214,11 @@ The Winlink secure login and LZHUF code (`kissterm/winlink/`) are ports of
 Hebnes Pedersen (LA5NTA), MIT licence, and its test data ships in
 `tests/unit/data/winlink/`. The RMS gateway list request and mode filter
 follow [Pat](https://github.com/la5nta/pat) (same author, MIT licence).
-LZHUF itself comes from JNOS 2's `lzhuf.c`
-(Okumura, Yoshizaki, Rikitake), whose authors' terms are "Use, distribute,
-and modify this program freely".
+LZHUF itself comes from JNOS 2's `lzhuf.c` (Okumura, Yoshizaki, Rikitake),
+whose authors' terms are "Use, distribute, and modify this program freely".
 
 Portions of this project were developed with AI assistance (Claude).
 
 ## Author
 
-Brad Brown Jr — [github.com/bradbrownjr](https://github.com/bradbrownjr)
+Brad Brown Jr, KC1JMH — [github.com/bradbrownjr](https://github.com/bradbrownjr)

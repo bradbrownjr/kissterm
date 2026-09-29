@@ -5,6 +5,30 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-29] — README rewritten for newcomers, a user guide, new screenshots
+
+### Improvements
+
+- **The README is a front page for people new to packet**: what kissterm
+  is (cross-platform, open source, a desktop app and web version planned),
+  a screenshot tour of Mail, forms, Bulletins, Files, Terminal, APRS,
+  Heard, Monitor and Settings, a short "New to packet?" primer, install,
+  keys, safety and status. The detail moved, reorganised by task, to
+  **docs/GUIDE.md**, with stale facts corrected (connect retries are 10,
+  logins are a username and a password). Install now points at GitHub:
+  kissterm is not on PyPI yet (README and SETUP.md).
+- **Screenshots without broken borders.** `scripts/generate_screenshot.py`
+  renders its SVGs with headless Chrome (`KISSTERM_SHOT_RENDERER`), which
+  loads the font cairosvg could not, and stages a whole invented station:
+  mail, a received ICS-213, bulletins, files, a live node and BBS session
+  with command suggestions, and APRS. Old and unused images removed.
+  Operator request, 2026-09-29.
+
+**Files:** `README.md`, `docs/GUIDE.md`, `SETUP.md`, `AGENTS.md`,
+`docs/ROADMAP.md`, `scripts/generate_screenshot.py`, `assets/`,
+`tests/unit/test_docs_keys.py`, `tests/unit/test_settings_paths.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-09-28] — G asks for a BBS login as a username and a password
 
 ### Improvements

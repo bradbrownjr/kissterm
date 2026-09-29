@@ -28,7 +28,7 @@ from kissterm.ui.commands import (  # noqa: E402
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-USER_DOCS = ("README.md", "SETUP.md")
+USER_DOCS = ("README.md", "SETUP.md", "docs/GUIDE.md")
 ALL_DOCS = USER_DOCS + ("DESIGN.md",)
 
 #: Tab title -> its key label, e.g. "Settings" -> "F9". Help is a tab too.

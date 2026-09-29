@@ -296,6 +296,13 @@ exchange confirms it.
   follows every unattended-transmission rule in AGENTS.md: opt-in, a status
   marker, an interval floor, and every line logged.
 
+#### Files
+
+- [ ] **File transfers save into Files > Downloads.** YAPP and AutoBIN
+  downloads go to the state folder's `downloads` (`ui/app.py`, the
+  receive worker), so the Files tab's Downloads and Received folders stay
+  empty. Found 2026-09-29 while writing docs/GUIDE.md. Small.
+
 #### BBS mail (BPQMail first, then the applications P8 adds)
 
 - **On hold until the operator's Yagi is up** (2026-09-26): retrieval

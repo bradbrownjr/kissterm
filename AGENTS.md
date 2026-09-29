@@ -9,7 +9,9 @@ enforces it. The reasons behind a rule live in that code's docstring and in
 is in git at commit `6d81202`. Read this file top to bottom before touching
 code.
 
-Companion files: `README.md` (users), `SETUP.md` (getting on the air),
+Companion files: `README.md` (users, a newcomer's front page),
+`docs/GUIDE.md` (the user guide, everything in detail), `SETUP.md`
+(getting on the air),
 **`DESIGN.md` (how anything looks or is keyed -- read before changing
 either)**, `docs/ROADMAP.md` (what is open), `docs/CHANGELOG.md` (what
 changed). Each package has its own short `AGENTS.md` (`kissterm/ax25/`,
@@ -177,7 +179,8 @@ changes.
 - `LinkParams` is `slots=True`: copy with `dataclasses.replace()`.
 - Patch `serial.tools.list_ports.comports` itself, never `sys.modules`.
 - **Generate a screenshot after any layout change**
-  (`scripts/generate_screenshot.py` -> `assets/`) and look at it; write a
+  (`scripts/generate_screenshot.py` -> `assets/`, PNGs rendered by headless
+  Chrome at `KISSTERM_SHOT_RENDERER`; see its docstring) and look at it; write a
   geometry test (`tests/pilot/test_app_mounts.py`) for what it shows.
 - Two bottom-docked widgets overlap; put them in one docked container.
 - A pane fed by a periodic refresh needs a `TabActivated` hook.
