@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-29] — A station polling a connection kissterm does not have is explained
+
+### Improvements
+
+- **The terminal says so, once per station, when a node keeps polling a link
+  left open by a closed kissterm.** kissterm already answered each poll
+  DM (per spec, so the node stops); that was only in the DEBUG log, so the
+  operator saw a node "calling back" with no explanation and read the
+  standing `ANSWERING` label as a stuck state. With transmit off it says the
+  DM was not sent. Quitting already sends DISC on every live link. Operator
+  report, 2026-09-29 (ROADMAP P0.1).
+
+**Files:** `kissterm/ax25/station.py`, `kissterm/ui/app.py`,
+`tests/unit/test_station_max_links.py`, `docs/GUIDE.md`, `docs/ON-AIR-TESTS.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-29] — Documentation and screenshots ship with every change
 
 ### Improvements

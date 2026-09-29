@@ -718,6 +718,8 @@ class KissTermApp(App):
         #: out N2 retries with no way to stop them. See `action_connect` and
         #: `action_disconnect`.
         self._connecting: dict[str, tuple[AX25Address, int]] = {}
+        #: Callsigns already explained by `_on_stray_poll` this launch.
+        self._stray_noted: set[str] = set()
         #: True while Send/Receive runs (`action_get_mail`); one at a time.
         self._collecting = False
         #: While G or I on All Inboxes prepares its runs: (key, service
@@ -1074,6 +1076,7 @@ class KissTermApp(App):
             return
         self._attach_transport(self.station.transport)
         self.station.on_incoming.append(self._on_incoming_link)
+        self.station.on_stray_poll.append(self._on_stray_poll)
 
     def _attach_transport(self, transport) -> None:
         """Wire the app onto `transport`: gate, context and fan-out.
@@ -2006,6 +2009,31 @@ class KissTermApp(App):
             )
         self._send_banner(link)
         self.notify(f"Connection from {link.peer}", severity="information")
+
+    def _on_stray_poll(self, peer, port: int) -> None:
+        """A station polled a link we do not hold; the station answered DM.
+
+        Typical after a relaunch or a crash mid-connection: the node still
+        thinks it is connected and polls until its N2 runs out. Said once per
+        peer per launch (a node polls about every 7 s; a line each would bury
+        the terminal), and it says what the DM means, so a caller with no
+        matching tab is not a mystery. Not an incoming call, and Ctrl+D has
+        nothing to end.
+        """
+        call = str(peer)
+        if call in self._stray_noted:
+            return
+        self._stray_noted.add(call)
+        if self.gate.enabled:
+            what = "answered DM (no connection here) so it stops polling"
+        else:
+            what = "would answer DM, but transmit is disabled (Ctrl+T)"
+        self._to_terminal(
+            self._active_key(),
+            "write_note",
+            f"\n*** {call} is polling a connection kissterm does not have "
+            f"(left open when it last closed?); {what}\n",
+        )
 
     @work
     async def _send_banner(self, link) -> None:

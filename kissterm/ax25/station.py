@@ -71,6 +71,11 @@ class AX25Station:
         self.on_incoming: list[Callable[[AX25Link], None]] = []
         #: Frames not belonging to any link, for the monitor pane and APRS.
         self.on_unhandled: list[Callable[[AX25Frame, int], None]] = []
+        #: A poll for a link we do not have, just answered DM. The UI says so
+        #: once per peer: the DM is otherwise visible only in the DEBUG log,
+        #: and a node that keeps polling looks like an unexplained caller
+        #: (operator, 2026-09-29, after relaunching mid-connection).
+        self.on_stray_poll: list[Callable[[AX25Address, int], None]] = []
 
         self._unsubscribe = transport.subscribe(self._on_frame)
 
@@ -223,6 +228,8 @@ class AX25Station:
                     ),
                     port,
                 )
+                for cb in list(self.on_stray_poll):
+                    cb(frame.path.source, port)
             self._unhandled(frame, port)
             return
 

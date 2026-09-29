@@ -18,7 +18,7 @@ isolate()
 import pytest  # noqa: E402
 
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
-from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
+from kissterm.ax25.frame import AX25Frame, SType, UType  # noqa: E402
 from tests.loopback import LoopbackTransport  # noqa: E402
 
 MYCALL = AX25Address.parse("N1ABC-1")
@@ -91,5 +91,25 @@ async def test_no_cap_by_default():
 
     assert station._connected_count() == 5
     assert all(f.utype is UType.UA for f in transport.sent)
+
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_poll_for_a_link_we_do_not_have_is_dmed_and_reported():
+    """After a relaunch mid-connection the node keeps polling. The DM stays
+    (spec, and it ends the node's retries); the station also tells the UI."""
+    transport = LoopbackTransport("ours")
+    station = AX25Station(MYCALL, transport, LinkParams(t1=0.2, t2=0.05, t3=5.0))
+    heard: list[str] = []
+    station.on_stray_poll.append(lambda peer, port: heard.append(str(peer)))
+
+    poll = AX25Frame.s_frame(
+        AX25Path(MYCALL, _caller(2)), SType.RR, 0, pf=True, command=True
+    )
+    await station._on_frame(poll, 0)
+
+    assert transport.sent[-1].utype is UType.DM and transport.sent[-1].pf
+    assert heard == ["W1AW-2"]
 
     station.close()

@@ -104,7 +104,7 @@ Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
 - **Relaunch after closing mid-connection: stray polls, no way to see or
-  end them** (2026-09-29, `open`): "I closed the application and must've
+  end them** (2026-09-29, `awaiting confirmation`): "I closed the application and must've
   still had a connection opened. Relaunching the application, the
   application went into ANSWERING mode as the node was calling it back
   ... it's stuck in the ANSWERING mode and ^D doesn't appear to be an
@@ -115,9 +115,9 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   that was entered; there was never an incoming link, so Ctrl+D had
   nothing to end ("Not connected."). The gap is that the DMs appear only
   in the DEBUG log: the operator saw a node calling and no explanation.
-  Proposed, not built: one Terminal-pane note per peer when a stray poll
-  is refused ("WS1EC-2 still thinks it is connected; answered DM").
-  Also open: whether closing the app should DISC a live link first.
+  Fix: one Terminal-pane note per peer when a stray poll is refused.
+  Quit already sends DISC on live links (`disconnect_all`); a hard kill
+  cannot. Check in docs/ON-AIR-TESTS.md, "Stray polls".
 
 - **A saved login is a plaintext text box, not a username and password**
   (2026-09-28, `awaiting confirmation`): "This isn't saving credentials,

@@ -127,6 +127,13 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 - [ ] **T1 and T2**: your saved values were t1=3, t2=3; the defaults are
   now T1 5 and T2 1. Check Settings > Link shows what you want.
 
+## Stray polls
+
+- [ ] **Quit mid-connection, relaunch.** Connect to WS1EC-2, kill kissterm
+  (not Ctrl+Q). Relaunch within a minute. Expected: one Terminal line
+  naming WS1EC-2 as polling a connection kissterm does not have, and no
+  new tab. Say whether the node stops polling after the DM.
+
 ## Saved logins
 
 - [ ] **Your logins after the username-and-password change** (not a

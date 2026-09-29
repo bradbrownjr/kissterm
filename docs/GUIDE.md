@@ -407,7 +407,10 @@ does this.
 beaconing, are off on a fresh install, show `ANSWERING` and `BEACON` in the
 status bar while on, and write every transmission to the terminal. With
 answering off, a station calling you gets a polite refusal (a DM) so it
-stops retrying. Automatic-control rules differ by country and band; check
+stops retrying. The same refusal goes to a node that polls a connection
+you no longer have (kissterm was closed mid-connection); the terminal says
+so once per station, and Ctrl+D has nothing to end because there is no
+link. Automatic-control rules differ by country and band; check
 what your licence allows before turning answering on.
 
 **Nothing in discovery or the connection test can key your rig.** A probe
