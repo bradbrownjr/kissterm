@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-09-29] — Serial and Bluetooth TNCs labelled experimental
+
+### Improvements
+
+- **Serial and Bluetooth Classic KISS are labelled experimental** in
+  Settings, the Address Book and `--doctor`, like VARA and BLE: built and
+  loopback-tested, but no operator has reported one working with a real
+  TNC. The README says they are on the roadmap; SETUP.md and the guide
+  say the same; ROADMAP P3 and ON-AIR-TESTS have the checks.
+
+**Files:** `kissterm/transport/__init__.py`,
+`tests/unit/test_transport_factory.py`, `README.md`, `docs/GUIDE.md`,
+`SETUP.md`, `docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-29] — README rewritten for newcomers, a user guide, new screenshots
 
 ### Improvements

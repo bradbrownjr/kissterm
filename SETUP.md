@@ -79,6 +79,10 @@ then retry the `[serial]` extra install.
 
 ## 2. Serial TNC setup
 
+**Experimental:** the serial transport is built and tested on loopbacks,
+but has not yet been proven with a real TNC (ROADMAP P3). If you try one,
+say whether it worked.
+
 This covers any hardware TNC that presents as a serial device: a KPC-3,
 TNC2-class TNC, an Arduino-based soundcard modem, or a USB-serial adapter to
 any of those. (A Bluetooth TNC bound to `/dev/rfcomm0` also lands here once
@@ -242,8 +246,9 @@ From there you have two options:
 
 - **Let kissterm open the RFCOMM socket directly**, `kind = "bluetooth"` in
   `config.toml` (see `config.toml.example`) — no `rfcomm bind` step needed,
-  at the cost of one more moving part on kissterm's side. Both options work
-  today; `rfcomm bind` plus the ordinary serial transport is still the
+  at the cost of one more moving part on kissterm's side. Both are
+  **experimental**: built, but not yet proven with a real TNC (ROADMAP P3).
+  `rfcomm bind` plus the ordinary serial transport is still the
   simpler and more predictable one if you have no reason to prefer the
   other.
 

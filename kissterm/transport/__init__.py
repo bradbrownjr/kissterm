@@ -60,7 +60,10 @@ __all__ = [
 #: in their `KIND_LABELS` (so Settings > Radio, its New and the Address
 #: Book say so), in `--doctor`, and in SETUP.md. A kind leaves this set the
 #: day an operator confirms it on the air.
-EXPERIMENTAL_KINDS = frozenset({"ble", "kernel", "vara", "varafm", "mercury"})
+#: Serial and Bluetooth Classic joined 2026-09-29: built and tested on
+#: loopbacks, but no operator has yet reported one working with a real TNC.
+EXPERIMENTAL_KINDS = frozenset({"serial", "bluetooth", "ble", "kernel", "vara", "varafm",
+                                "mercury"})
 
 KIND_LABELS: dict[str, str] = {
     "serial": "Serial KISS",

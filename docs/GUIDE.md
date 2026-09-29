@@ -327,7 +327,8 @@ USB ID), paired Bluetooth TNCs, and your network's well-known KISS, AGWPE
 and VARA ports. A network scan covers the whole subnet, and says so if it
 ran short. The network is only scanned when you ask; USB TNCs are noticed
 when you plug them in, and one you are using that gets unplugged is
-reported at once.
+reported at once. Serial and Bluetooth TNCs are labelled experimental:
+they are built, but not yet proven with real hardware (ROADMAP P3).
 
 **"New" adds a transport a scan cannot find**, such as a VARA modem.
 **"Test" asks a configured host what it actually is**: an AGWPE engine
@@ -448,14 +449,15 @@ network, or a Windows program such as BPQTerminal or UZ7HO EasyTerm.
 
 kissterm implements **AX.25 connected mode itself, in user code, over
 KISS**. That one decision lets it run without special privileges, on any
-platform, against a TNC on a USB cable, a Bluetooth TNC in your pocket, or
-Direwolf on a Raspberry Pi in the garage.
+platform, against Direwolf on a Raspberry Pi in the garage, and (once
+proven on hardware; ROADMAP P3) a TNC on a USB cable or a Bluetooth TNC in
+your pocket.
 
 | | kissterm | linpac | BPQTerminal | EasyTerm |
 |---|---|---|---|---|
-| KISS over serial | yes | via kernel | yes | yes |
+| KISS over serial | experimental | via kernel | yes | yes |
 | KISS over TCP/IP | **yes** | no | yes | yes |
-| Bluetooth TNC | yes | via kernel | no | no |
+| Bluetooth TNC | experimental | via kernel | no | no |
 | Needs kernel AX.25 | **no** | yes | no | no |
 | Needs root to set up | **no** | yes | no | no |
 | Runs on Linux / macOS | **yes** | Linux | no | no |

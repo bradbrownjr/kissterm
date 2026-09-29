@@ -76,8 +76,8 @@ that does not work in their terminal. Concretely:
   at their current level. Met 2026-09-23; context-following suggestions
   confirmed by the operator on a live session the same day.
 - P7's PyPI, pipx/uv and Raspberry Pi items are done.
-- Transports never verified against hardware (kernel AX.25, VARA, Mercury,
-  BLE) are labelled **experimental** in Settings, `--doctor` and SETUP.md
+- Transports never verified against hardware (serial, Bluetooth, kernel
+  AX.25, VARA, Mercury, BLE) are labelled **experimental** in Settings, `--doctor` and SETUP.md
   rather than blocking the release. Met 2026-09-27
   (`transport.EXPERIMENTAL_KINDS`).
 
@@ -367,8 +367,15 @@ net publishes; paste it.
 ## P3 — Transports
 
 Not blocking 1.0 (see the finish line): each is labelled experimental until
-verified. All four need an operator with the hardware or peer; none can be
+verified. Each needs an operator with the hardware or peer; none can be
 closed by a coding session.
+
+- [ ] **Serial KISS against a real TNC** (USB-serial, a KPC-3 or TNC2 in
+  KISS mode, a NinoTNC). Built and loopback-tested; labelled experimental
+  2026-09-29 because no operator has reported one working.
+- [ ] **Bluetooth Classic KISS against a real TNC** (Mobilinkd TNC2/TNC3),
+  both routes: `rfcomm bind` to the serial transport, and kissterm's own
+  RFCOMM socket. Labelled experimental 2026-09-29, as above.
 
 - [ ] **Linux kernel AF_AX25 against real hardware.** Needs: a
   `kissattach`/`axports` station and an authorized peer. One socket detail

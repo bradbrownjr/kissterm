@@ -94,6 +94,14 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Connecting
 
+- [ ] **A serial TNC** (if you have one: USB-serial, KPC-3 or TNC2 in
+  KISS mode, NinoTNC). Settings > Radio, Scan for hardware: it should be
+  listed as "Serial KISS (experimental)". Use it, watch the Monitor for
+  frames heard, then connect to WS1EC-7. Say whether it worked; it then
+  loses the experimental label.
+- [ ] **A Bluetooth Classic TNC** (Mobilinkd TNC2/TNC3), both ways from
+  SETUP.md section 4: `rfcomm bind` then the serial transport, and
+  `kind = "bluetooth"`. Same checks as the serial TNC.
 - [ ] **Address Book on the Mail tab** (Ctrl+G there): pick WS1EC-2, Enter.
   It should close, move to Terminal, and connect through the frequency
   reminder as from Terminal. (Not a radio test until the connect.)

@@ -246,7 +246,8 @@ def test_unverified_transports_are_labelled_experimental():
     wherever a kind is shown by name."""
     from kissterm.transport import EXPERIMENTAL_KINDS, KIND_LABELS
 
-    assert EXPERIMENTAL_KINDS == {"ble", "kernel", "vara", "varafm", "mercury"}
+    assert EXPERIMENTAL_KINDS == {"serial", "bluetooth", "ble", "kernel", "vara", "varafm",
+                                  "mercury"}
     for kind, label in KIND_LABELS.items():
         assert label.endswith("(experimental)") == (kind in EXPERIMENTAL_KINDS), kind
 

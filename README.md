@@ -14,8 +14,9 @@ the shack.
 - **Cross-platform.** It is Python, with no kernel setup and no root. Linux
   and the Raspberry Pi are where it is used every day; macOS and Windows
   run the same code but have had less testing.
-- **Talks to your TNC directly**: a USB or serial TNC, a Bluetooth TNC, or
-  Direwolf or SoundModem on this computer or another one on your network.
+- **Talks to your TNC directly**: Direwolf or SoundModem on this computer
+  or another one on your network. USB, serial and Bluetooth TNCs are built
+  in and on the roadmap to be proven with real hardware.
 - **More ways to use it are planned.** Today kissterm is a text interface.
   A desktop app (Windows, macOS, Linux) and a web version for a tablet or a
   shelter laptop are on the roadmap, built on the same core
@@ -120,8 +121,9 @@ uv tool install "git+https://github.com/bradbrownjr/kissterm"
 kissterm
 ```
 
-The first run asks for your callsign, then looks for your TNC: USB serial
-ports, paired Bluetooth TNCs, and Direwolf or SoundModem on your network.
+The first run asks for your callsign, then looks for your TNC: Direwolf or
+SoundModem on your network, plus USB serial ports and paired Bluetooth
+TNCs (those two are marked experimental until proven on hardware).
 Pick one and you are set. [SETUP.md](SETUP.md) walks through Direwolf,
 Bluetooth pairing, serial permissions, VARA and the Raspberry Pi.
 
