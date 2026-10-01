@@ -692,9 +692,6 @@ def _sync_login_source_controls(
         area.disabled = has_credential or has_script
 
 
-#: `ConnectScreen`'s Saved-script dropdown option that shows the box for
-#: lines typed for this connect only (next to `_SHOW_HOPS`).
-_SHOW_LINES = "__show_lines__"
 #: `ConnectScreen`'s Saved-script dropdown's equivalent sentinel: not a
 #: script at all, just the switch that reveals the Node hops field.
 _SHOW_HOPS = "__show_hops__"
@@ -724,12 +721,12 @@ class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
       "+ Node hops (advanced)..." there (`_SHOW_HOPS`) -- or automatically
       when an address-book pick already has some, so a value that exists is
       never hidden from the operator editing it.
-    - The free-text lines box lives under Saved script too, revealed by
-      "+ Type lines to send..." (`_SHOW_LINES`) or by a preview that
-      already has lines. A saved login is made with "New login..." at the
-      end of its list (`_NewFromList`, DESIGN.md section 8): a username
-      and a masked password, never typed into a text box (operator,
-      2026-09-28).
+    - There is no free-text lines box. It used to live under Saved script, revealed by
+      "+ Type lines to send..." was removed (operator, 2026-09-29): a
+      login is made with "New login..." at the end of its list
+      (`_NewFromList`, DESIGN.md section 8), a script with "New script...",
+      never typed into a box here. Lines an older address-book entry
+      saved are carried in `_script`, not shown and not dropped.
 
     `credentials`/`scripts` are the raw `Config.credentials`/`Config.scripts`
     lists of `{"name", "text"}` dicts, for the two "send once connected"
@@ -782,6 +779,8 @@ class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
         # `_pick_from_address_book` actually remembers was picked, and what
         # `action_forget` acts on.
         self._last_picked = ""
+        #: Lines an older address-book entry saved; see the class docstring.
+        self._script = ""
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
@@ -824,7 +823,7 @@ class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
             yield Label("", id="connect-error")
             yield Label("Auto-login (optional)", id="connect-script-title")
             yield Static(
-                "Pick a saved credential or script -- both have an option to"
+                "Pick a saved login or script -- both have an option to"
                 " add a new one.",
                 id="connect-script-hint",
             )
@@ -833,11 +832,6 @@ class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
                 id="connect-credential",
                 allow_blank=True,
                 prompt="Saved login",
-            )
-            yield TextArea(
-                id="connect-script",
-                tab_behavior="focus",
-                placeholder="One line per prompt, e.g. your callsign then password",
             )
             yield Select(
                 [],
@@ -869,7 +863,6 @@ class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
     def _render_scripts(self) -> None:
         select = self.query_one("#connect-script-name", Select)
         options = [(name, name) for s in self.scripts if (name := s.get("name"))]
-        options.append(("+ Type lines to send...", _SHOW_LINES))
         options.append(("+ Node hops (advanced)...", _SHOW_HOPS))
         select.set_options(options)
 
@@ -930,7 +923,7 @@ class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
             self.query_one("#connect-target", Input).value = ""
             self._render_history("")
             self.query_one("#connect-hops", Input).value = ""
-            self.query_one("#connect-script", TextArea).text = ""
+            self._script = ""
             self.query_one("#connect-credential", Select).value = Select.NULL
             self.query_one("#connect-script-name", Select).value = Select.NULL
             self._sync_login_controls()
@@ -957,7 +950,7 @@ class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
         self._last_picked = entry.target
         self.query_one("#connect-target", Input).value = entry.target
         self.query_one("#connect-hops", Input).value = entry.hops
-        self.query_one("#connect-script", TextArea).text = entry.script
+        self._script = entry.script
         valid_credentials = {c.get("name") for c in self.credentials}
         credential = entry.credential if entry.credential in valid_credentials else ""
         self.query_one("#connect-credential", Select).value = credential or Select.NULL
@@ -984,27 +977,15 @@ class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
 
         Visibility follows two independent rules, checked every time this
         runs so a preview that already has a value is never left hidden:
-        the lines box shows for the `_SHOW_LINES` sentinel OR non-blank
-        content; Node hops shows for the `_SHOW_HOPS`
-        sentinel OR a non-blank value. Precedence disabling (credential
-        beats script beats literal text, per `ConnectRequest`'s docstring)
-        only ever considers a REAL pick -- a sentinel is not itself a
-        credential or a script, so it must never disable the very field it
-        exists to reveal.
+        Node hops shows for the `_SHOW_HOPS` sentinel OR a non-blank value.
+        A saved login disables the script dropdown (credential beats script,
+        per `ConnectRequest`'s docstring).
         """
         credential_select = self.query_one("#connect-credential", Select)
         script_select = self.query_one("#connect-script-name", Select)
-        area = self.query_one("#connect-script", TextArea)
         hops_input = self.query_one("#connect-hops", Input)
 
-        has_credential_pick = _select_has_value(credential_select)
-        has_real_script = (
-            _select_has_value(script_select) and script_select.value not in (_SHOW_HOPS, _SHOW_LINES)
-        )
-
-        script_select.disabled = has_credential_pick
-        area.disabled = has_credential_pick or has_real_script
-        area.display = script_select.value == _SHOW_LINES or bool(area.text)
+        script_select.disabled = _select_has_value(credential_select)
         hops_input.display = script_select.value == _SHOW_HOPS or bool(hops_input.value)
 
     @on(Input.Changed, "#connect-target")
@@ -1037,18 +1018,13 @@ class ConnectScreen(_NewFromList, ModalScreen[ConnectRequest | None]):
         script_name = (
             str(script_value)
             if not credential and _select_has_value(script_name_select)
-            and script_value not in (_SHOW_HOPS, _SHOW_LINES)
+            and script_value != _SHOW_HOPS
             else ""
         )
         # A credential (saved or newly-named) or a saved script is
-        # authoritative once present -- the literal-text box is disabled
-        # whenever one of those wins (see `_sync_login_controls`)
-        # specifically so its leftover text is never read here. Otherwise
-        # the box's text is read unconditionally, exactly as it always was:
-        # that covers both an unnamed "+ Add new credential..." entry (a
-        # one-off login) AND a plain address-book preview that carries a
-        # per-station literal script with neither dropdown touched.
-        script = "" if (credential or script_name) else self.query_one("#connect-script", TextArea).text
+        # authoritative once present. Otherwise an address-book preview's
+        # older literal lines (`_script`) are carried unchanged.
+        script = "" if (credential or script_name) else self._script
         # Recorded on the ATTEMPT, not on success: a connect that failed is
         # the one about to be retried, and withholding it until a UA arrives
         # would keep it out of the list at exactly the moment it is wanted.
@@ -2552,8 +2528,8 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
                     yield from self._field_rows(self._kind, self._entry)
                 yield Label("Auto-login (optional)", id="transport-script-title")
                 yield Static(
-                    "Pick a saved credential or script, or type a login "
-                    "below. Sent right after this transport connects.",
+                    "Pick a saved login or script. Sent right after this "
+                    "transport connects.",
                     id="transport-script-hint",
                 )
                 yield Select(
@@ -2567,12 +2543,6 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
                     id="transport-script-name",
                     allow_blank=True,
                     prompt="Saved script",
-                )
-                yield TextArea(
-                    str(self._entry.get("script", "")),
-                    id="transport-script",
-                    tab_behavior="focus",
-                    placeholder="One line per prompt, e.g. your callsign then password",
                 )
             with Horizontal(id="connect-buttons"):
                 yield Button("Save", variant="primary", id="transport-save")
@@ -2615,7 +2585,6 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
             "#transport-script-hint",
             "#transport-credential",
             "#transport-script-name",
-            "#transport-script",
         ):
             self.query_one(widget_id).display = session_tier
 
@@ -2669,7 +2638,7 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
         _sync_login_source_controls(
             self.query_one("#transport-credential", Select),
             self.query_one("#transport-script-name", Select),
-            self.query_one("#transport-script", TextArea),
+            None,
         )
 
     # -- save / cancel -------------------------------------------------------
@@ -2728,11 +2697,8 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
                 if not credential and _select_has_value(script_name_select)
                 else ""
             )
-            script = (
-                ""
-                if (credential or script_name)
-                else self.query_one("#transport-script", TextArea).text
-            )
+            # No lines box (operator, 2026-09-29); older lines are carried.
+            script = "" if (credential or script_name) else str(self._entry.get("script", ""))
             entry["script"] = script
             entry["credential"] = credential
             entry["script_name"] = script_name

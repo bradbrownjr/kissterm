@@ -14,7 +14,8 @@ you need the history of a specific change.
   The multi-line "one line per prompt" box is gone from the Address Book
   (saved logins and scripts replace it; lines an older version saved are
   kept, not dropped). A saved login may be a username with no password, for
-  an account like WS1EC's `packet`.
+  an account like WS1EC's `packet`. The same box is gone from Connect
+  (Ctrl+N, with "+ Type lines to send...") and from the transport editor.
 - **A dialog's buttons match its fields.** Five dialogs with compact fields
   had bordered buttons (the saved-login editor opened from an Address Book
   entry looked like another program). New rule in DESIGN.md section 3,
@@ -23,7 +24,8 @@ you need the history of a specific change.
 
 **Files:** `kissterm/ui/dialogs.py`, `DESIGN.md`, `docs/GUIDE.md`, `SETUP.md`,
 `tests/unit/test_dialog_consistency.py`, `tests/pilot/test_addressbook_pane.py`,
-`tests/pilot/test_winlink_send_receive.py`, `docs/CHANGELOG.md`
+`tests/pilot/test_winlink_send_receive.py`, `tests/pilot/test_app_mounts.py`,
+`kissterm/ui/styles.py`, `docs/CHANGELOG.md`
 
 ## [2026-09-29] — A station polling a connection kissterm does not have is explained
 

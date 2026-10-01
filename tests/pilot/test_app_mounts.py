@@ -401,20 +401,17 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
             svg = app.export_screenshot()
             assert not ({char for char in svg if char in app_owned_glyphs}), tab
 
-        # Both login-script TextAreas carry ID-specific round borders, so
-        # inspect their actual modal renders instead of treating the main tabs
+        # Inspect the dialogs' actual modal renders instead of treating the main tabs
         # as evidence for supported dialog paths.
         await pilot.press("ctrl+n")
         await pilot.pause()
         assert isinstance(app.screen, ConnectScreen)
-        # A saved credential disables the literal editor. Its
-        # ID-plus-pseudo-class CSS is more specific than the ordinary
-        # TextArea rule, so render this actual saved-credential state.
+        # No lines box (operator, 2026-09-29); a saved login disables the
+        # script dropdown. Render that actual state.
+        assert not app.screen.query(TextArea)
         app.screen.query_one("#connect-credential", Select).value = "Saved login"
         await pilot.pause()
-        connect_script = app.screen.query_one("#connect-script", TextArea)
-        await pilot.pause()
-        assert connect_script.disabled
+        assert app.screen.query_one("#connect-script-name", Select).disabled
         assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
         await app.screen.dismiss(None)
         await pilot.pause()
@@ -427,8 +424,8 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
         await pilot.pause()
         app.screen.query_one("#transport-credential", Select).value = "Saved login"
         await pilot.pause()
-        transport_script = app.screen.query_one("#transport-script", TextArea)
-        assert transport_script.disabled
+        assert not app.screen.query(TextArea)
+        assert app.screen.query_one("#transport-script-name", Select).disabled
         assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
         await app.screen.dismiss(None)
         await pilot.pause()
@@ -1362,7 +1359,7 @@ async def test_browsing_history_previews_that_stations_script(tmp_path):
 
         select.value = "W1AW-1"  # the most recent entry, no script
         await pilot.pause()
-        assert screen.query_one("#connect-script", TextArea).text == ""
+        assert screen._script == ""
 
         # Picking narrowed the dropdown to whatever now matches the target
         # field it just filled in (see `ConnectScreen._render_history`'s
@@ -1373,7 +1370,8 @@ async def test_browsing_history_previews_that_stations_script(tmp_path):
         await pilot.pause()
         select.value = "WS1EC-7"
         await pilot.pause()
-        assert screen.query_one("#connect-script", TextArea).text == "CLYDE\nMYPASS"
+        # No box to show it in; older lines are carried to the connect.
+        assert screen._script == "CLYDE\nMYPASS"
     station.close()
 
 
@@ -1439,10 +1437,9 @@ async def test_a_digipeater_path_and_node_hops_together_is_refused(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_selecting_a_saved_credential_disables_the_script_box(tmp_path):
-    """The script box is disabled, not cleared or overwritten, while a
-    credential is selected -- so toggling the dropdown back and forth can
-    never leak one credential's text into another station's saved script."""
+async def test_selecting_a_saved_credential_disables_the_script_dropdown(tmp_path):
+    """A saved login wins over a saved script: the script dropdown is
+    disabled, not cleared, while one is selected."""
     app, ta, tb, station = await _app()
     app.config.credentials = [{"name": "Personal BBS login", "text": "MYPASS"}]
     _fresh_book(app, tmp_path)
@@ -1451,18 +1448,15 @@ async def test_selecting_a_saved_credential_disables_the_script_box(tmp_path):
         await pilot.pause()
         await asyncio.sleep(0.15)
         screen = app.screen
-        area = screen.query_one("#connect-script", TextArea)
-        area.text = "something typed by hand"
+        scripts = screen.query_one("#connect-script-name", Select)
 
         screen.query_one("#connect-credential", Select).value = "Personal BBS login"
         await pilot.pause()
-        assert area.disabled is True
-        assert area.text == "something typed by hand", "typed text was overwritten"
+        assert scripts.disabled is True
 
         screen.query_one("#connect-credential", Select).value = Select.NULL
         await pilot.pause()
-        assert area.disabled is False
-        assert area.text == "something typed by hand", "typed text was lost"
+        assert scripts.disabled is False
     station.close()
 
 

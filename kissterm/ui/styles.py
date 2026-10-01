@@ -321,13 +321,6 @@ ConnectScreen { align: center middle; }
 #credential-where { color: $text-muted; margin-top: 1; height: auto; }
 #connect-script-hint { color: $text-muted; width: 100%; height: auto; }
 #connect-credential { width: 100%; }
-/* Hidden by default (`ConnectScreen._sync_login_controls`) -- shown only
-   for "+ Add new credential..." or a preview that already has one, same
-   reasoning as #connect-hops below. */
-/* Fixed and short on purpose -- a login script is a handful of lines
-   (callsign, password, maybe a mailbox command), not a document, and a
-   box that grew with its content would push Connect/Cancel around. */
-#connect-script { height: 4; margin-top: 1; }
 
 /* ComposeScreen: a dialog, but one with no empty rows in it -- one-row
    controls, the SR note beside the heading, the error beside the buttons,
@@ -432,7 +425,6 @@ OnboardingScreen { align: center middle; }
 AprsContactScreen { align: center middle; }
 #aprs-contact-service { width: 100%; margin-top: 1; }
 #aprs-contact-detail-hint { color: $text-muted; width: 100%; height: auto; }
-#connect-script:disabled { border: round $panel; }
 #connect-script-name { width: 100%; margin-top: 1; }
 /* Hidden by default -- almost no connect uses node hops, and a field that
    is blank 99% of the time does not earn a permanent row. Shown only for
@@ -462,8 +454,6 @@ AddressBookEntryScreen #connect-script-hint { width: 1fr; height: 1; }
 AddressBookEntryScreen #connect-credential { width: 1fr; }
 AddressBookEntryScreen #connect-hops,
 AddressBookEntryScreen #connect-script-name { margin-top: 0; width: 1fr; }
-AddressBookEntryScreen #connect-script { height: 4; margin-top: 0; background: $primary 15%; }
-AddressBookEntryScreen #connect-script:focus { background: $accent 25%; }
 AddressBookEntryScreen #connect-buttons { height: auto; margin-top: 0; }
 .ab-foot #connect-error { width: 1fr; height: auto; color: $error; }
 /* RadioReminderScreen -- a checkpoint, not a form; sized to its short
@@ -505,8 +495,6 @@ TransportEntryScreen { align: center middle; }
 #transport-script-hint { color: $text-muted; width: 100%; height: auto; }
 #transport-credential { width: 100%; }
 #transport-script-name { width: 100%; margin-top: 1; }
-#transport-script { height: 4; margin-top: 1; }
-#transport-script:disabled { border: round $panel; }
 
 .placeholder { padding: 1 2; color: $text-muted; }
 
@@ -690,10 +678,6 @@ SettingsPane { layout: vertical; }
 .-ascii-safe CommandInput, .-ascii-safe CommandInput:focus,
 .-ascii-safe CommandList, .-ascii-safe CommandList:focus { border: blank; }
 .-ascii-safe #menu-items, .-ascii-safe #menu-items:focus { border: none; }
-/* Disabled scripts deliberately use the muted panel colour. Their
-   ID-plus-pseudo-class rules outrank the enabled override above. */
-.-ascii-safe #connect-script:disabled,
-.-ascii-safe #transport-script:disabled { border: ascii $panel; }
 .-ascii-safe #settings-bar { border-top: ascii $panel; }
 .-ascii-safe .settings-section:focus-within { border: ascii $accent; }
 .-ascii-safe Underline { display: none; }
