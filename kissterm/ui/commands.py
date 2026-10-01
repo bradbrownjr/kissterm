@@ -265,6 +265,9 @@ COMMANDS: tuple[Command, ...] = (
             "Packet radio terms in plain words"),
     Command("help('help-about')", "About", "Help", "A",
             "Version, project links, and where your files are"),
+    Command("check_updates", "Check for updates", "Help", "U",
+            "Look on GitHub for a newer kissterm and offer to install it "
+            "(Internet only; nothing goes on the air)"),
     Command("command_reference", "Node commands", "Help", "N",
             "Every command the node you are on understands",
             tabs=("terminal",)),

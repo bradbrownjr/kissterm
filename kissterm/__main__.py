@@ -101,6 +101,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="skip the LAN sweep on first run (serial and Bluetooth only)",
     )
     parser.add_argument(
+        "--no-update-check",
+        action="store_true",
+        help="do not look on GitHub for a newer kissterm this launch",
+    )
+    parser.add_argument(
         "--log-level",
         default="warning",
         choices=["debug", "info", "warning", "error"],
@@ -600,6 +605,7 @@ async def _amain(args) -> int:
         station,
         session_transport=None if station is not None else transport,
         transport_problem=transport_problem,
+        check_updates=not args.no_update_check,
     )
     try:
         await app.run_async()

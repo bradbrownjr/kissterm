@@ -3250,6 +3250,62 @@ class ForgetLearnedScreen(ModalScreen[bool]):
         self.dismiss(True)
 
 
+class UpdateScreen(ModalScreen[bool]):
+    """Offer a newer kissterm, saying exactly what installing it runs.
+
+    Update is there only when kissterm knows the command for this install
+    (pipx, uv) and nothing is under way (`KissTermApp._update_blocker`);
+    otherwise the dialog says what to do instead and offers Close. See
+    kissterm/updater.py for why kissterm never upgrades by itself.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
+
+    def __init__(self, current: str, latest: str, method, blocker: str | None) -> None:
+        super().__init__()
+        self._current = current
+        self._latest = latest
+        self._method = method
+        self._blocker = blocker
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Static
+
+        can_run = self._method.command is not None and not self._blocker
+        if self._method.command is None:
+            detail = self._method.advice
+        elif self._blocker:
+            detail = f"Not now: {self._blocker}"
+        else:
+            detail = (
+                f"Update runs: {self._method.advice}\n"
+                "It downloads from GitHub over the Internet; nothing goes on the "
+                "air. Restart kissterm afterwards to use the new version."
+            )
+        with Vertical(id="connect-box"):
+            yield Label(
+                f"kissterm {self._latest} is available (you have {self._current})",
+                id="connect-title",
+            )
+            yield Static(detail, id="reminder-detail")
+            with Horizontal(id="connect-buttons"):
+                if can_run:
+                    yield Button("Update", variant="primary", id="connect-go")
+                yield Button("Cancel" if can_run else "Close", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        target = "#connect-go" if self.query("#connect-go") else "#connect-cancel"
+        self.query_one(target, Button).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#connect-go")
+    def _go(self) -> None:
+        self.dismiss(True)
+
+
 class CommandReferenceScreen(ModalScreen[str | None]):
     """The shipped command reference for the node we are talking to, plus a
     glossary of packet terminology in the same pane.

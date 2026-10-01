@@ -522,6 +522,9 @@ class Config:
     #: closed, nothing transmits, including the terminal send line. See
     #: kissterm/tx.py.
     tx_armed_at_start: bool = False
+    #: Look on GitHub once a day for a newer kissterm and say so. Internet
+    #: only, never the radio; never upgrades by itself. See kissterm/updater.py.
+    update_check: bool = True
     #: Answer connections from other stations. OFF by default and deliberately
     #: so: answering is UNATTENDED TRANSMISSION under your callsign, and a
     #: fresh install must not start doing that on its own. The operator is the
@@ -960,6 +963,7 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
         raw, "tx_armed_at_start", cfg.tx_armed_at_start, warnings
     )
     cfg.accept_incoming = _load_bool(raw, "accept_incoming", cfg.accept_incoming, warnings)
+    cfg.update_check = _load_bool(raw, "update_check", cfg.update_check, warnings)
     cfg.aprs_auto_ack = _load_bool(raw, "aprs_auto_ack", cfg.aprs_auto_ack, warnings)
     cfg.aprs_sms_gateway = _load_str(raw, "aprs_sms_gateway", cfg.aprs_sms_gateway, warnings)
     cfg.aprs_email_gateway = _load_str(raw, "aprs_email_gateway", cfg.aprs_email_gateway, warnings)

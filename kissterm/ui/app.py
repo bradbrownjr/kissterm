@@ -155,6 +155,7 @@ from ..mail import MessageStore
 from ..mail.store import ALL_INBOXES, INBOX, MAIL, SENT
 from ..mail.winlink_collect import WINLINK_FOLDER
 from .. import desktop_notify
+from .. import updater
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..heard import HeardTable
 from ..gps import GpsReader
@@ -202,6 +203,7 @@ from .dialogs import (
     LoginAskScreen,
     TranscriptsScreen,
     FileTransferScreen,
+    UpdateScreen,
 )
 from .heard_pane import HeardPane
 from .monitor_pane import MonitorPane
@@ -647,10 +649,19 @@ class KissTermApp(App):
         station: AX25Station | None = None,
         session_transport=None,
         transport_problem: str | None = None,
+        check_updates: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.config = config
+        #: Whether this launch may look on GitHub for a newer kissterm (once
+        #: a day, `Config.update_check` permitting). False unless the real
+        #: launch asks, so a test mounting the app never touches the network.
+        self._check_updates = check_updates
+        #: The newer version found, for the status bar; None when current.
+        self._update_available: str | None = None
+        #: Replaced in tests; see kissterm/updater.py.
+        self._fetch_latest = updater.fetch_latest
         #: The message store behind Mail, Bulletins and Files. Under the
         #: platformdirs data directory, so `_isolate` redirects it in tests.
         self.mail_store = MessageStore(mail_path())
@@ -942,6 +953,9 @@ class KissTermApp(App):
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(2.0, self._refresh_heard)
         self._attach_station()
+        if self._check_updates and getattr(self.config, "update_check", True):
+            # After the first screen, so the check never competes with it.
+            self.set_timer(3.0, lambda: self._update_check_worker(False))
         if self._transport_problem:
             banner = (
                 f"kissterm {__version__} -- the modem did not answer at startup "
@@ -2034,6 +2048,108 @@ class KissTermApp(App):
             f"\n*** {call} is polling a connection kissterm does not have "
             f"(left open when it last closed?); {what}\n",
         )
+
+    # ------------------------------------------------------------------
+    # Updates (Internet only; see kissterm/updater.py)
+    # ------------------------------------------------------------------
+    def action_check_updates(self) -> None:
+        self.notify("Checking GitHub for a newer kissterm...")
+        self._update_check_worker(True)
+
+    @work(thread=True, exclusive=True, group="update")
+    def _update_check_worker(self, manual: bool) -> None:
+        """Learn the version on GitHub. A launch check asks at most once a
+        day and otherwise reuses what it last heard; the menu always asks."""
+        stamp = state_path() / "update-check.json"
+        if manual or updater.due(stamp):
+            latest = self._fetch_latest()
+            updater.record_check(stamp, latest)
+        else:
+            latest = updater.cached_latest(stamp)
+        self.call_from_thread(self._on_update_result, latest, manual)
+
+    def _on_update_result(self, latest: str | None, manual: bool) -> None:
+        if latest is not None and updater.is_newer(latest):
+            first = self._update_available != latest
+            self._update_available = latest
+            self._refresh_status()
+            if manual:
+                self._offer_update(latest)
+            elif first:
+                self._to_terminal(
+                    self._active_key(),
+                    "write_note",
+                    f"\n*** kissterm {latest} is available (you have "
+                    f"{__version__}). F10 Help > Check for updates to install it.\n",
+                )
+            return
+        if not manual:
+            return
+        if latest is None:
+            self.notify(
+                "Could not reach GitHub to check for updates.", severity="warning"
+            )
+        else:
+            self.notify(f"kissterm {__version__} is the latest.")
+
+    def _update_blocker(self) -> str | None:
+        """Why updating now would hurt something under way, or None."""
+        for session in self._sessions.values():
+            if getattr(session.link, "connected", False):
+                return "a session is connected; disconnect it first."
+        if self._connecting or self._internet_connecting:
+            return "a connect is under way; let it finish or cancel it first."
+        if self._activity:
+            return f"{self._activity} is under way; let it finish first."
+        return None
+
+    def _offer_update(self, latest: str) -> None:
+        method = updater.detect_install()
+
+        def _chosen(go: bool | None) -> None:
+            if not go:
+                return
+            # Asked again at the moment of running: a connect may have
+            # started while the dialog was open.
+            blocker = self._update_blocker()
+            if blocker:
+                self.notify(f"Not updating: {blocker}", severity="warning")
+                return
+            self.notify(f"Running {method.advice}...")
+            self._run_upgrade_worker(method)
+
+        self.push_screen(
+            UpdateScreen(__version__, latest, method, self._update_blocker()), _chosen
+        )
+
+    # Its own group: `exclusive` cancels within a group, and a check started
+    # from the menu mid-upgrade must not cancel the upgrade's result.
+    @work(thread=True, exclusive=True, group="upgrade")
+    def _run_upgrade_worker(self, method: updater.InstallMethod) -> None:
+        result = updater.run_upgrade(method)
+        logging.getLogger(__name__).info(
+            "upgrade (%s): ok=%s version=%s\n%s",
+            " ".join(method.command or ()), result.ok, result.version, result.output,
+        )
+        self.call_from_thread(self._on_upgrade_result, result)
+
+    def _on_upgrade_result(self, result: updater.UpgradeResult) -> None:
+        if result.ok:
+            self._update_available = None
+            self._refresh_status()
+            text = (
+                f"\n*** kissterm {result.version} is installed. Quit (Ctrl+Q) and "
+                f"start kissterm again to use it; this window is still "
+                f"{__version__} until you do.\n"
+            )
+        else:
+            tail = "\n".join(result.output.splitlines()[-6:]) or "(no output)"
+            text = (
+                f"\n*** The update did not install (still {result.version or __version__}). "
+                f"The last of what it said:\n{sanitize(tail)}\n"
+            )
+        self._to_terminal(self._active_key(), "write_note", text)
+        self.notify(text.strip().splitlines()[0].removeprefix("*** "))
 
     @work
     async def _send_banner(self, link) -> None:
@@ -5433,6 +5549,8 @@ class KissTermApp(App):
             parts.append("LOGGING")
         if self.gps_reader is not None and self.gps_reader.running:
             parts.append("GPS FIX" if self.gps_reader.fix is not None else "GPS NO FIX")
+        if self._update_available:
+            parts.append(f"update {self._update_available}")
         parts.append(f"heard {len(self.heard)}")
         renderable = _status_row(parts)
         for bar in self._base_query("#status-bar"):

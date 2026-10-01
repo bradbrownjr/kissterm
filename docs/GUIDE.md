@@ -442,7 +442,18 @@ kissterm --setup             re-run the first-run wizard
 kissterm --transport NAME    open a specific configured transport
 kissterm --connect WS1EC-7   connect once the app is up
 kissterm --log-level debug   record every frame, both directions, to a file
+kissterm --no-update-check   do not look on GitHub for a newer version
 ```
+
+**Updates.** Once a day kissterm asks GitHub, over the Internet, whether a
+newer version exists, and says so once in the Terminal tab and as
+`update 0.1.360` in the status bar. It never installs anything on its own:
+F10 > Help > Check for updates offers **Update**, which shows the command
+first (`pipx upgrade kissterm` or `uv tool upgrade kissterm`) and is not
+offered while a session is connected, a connect is under way or
+Send/Receive is running. Restart kissterm afterwards to use the new
+version. A source checkout is told to `git pull`. Settings > Station >
+Check for updates turns the daily check off.
 
 `kissterm --doctor` diagnoses what usually goes wrong: serial
 permissions, missing dependencies, an unreachable TNC host, a bad

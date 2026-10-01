@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-01] — Update check against GitHub
+
+### New Features
+
+- **kissterm says when a newer version is on GitHub.** Once a day, in the
+  background, it reads `__version__` from `main` (one anonymous request,
+  Internet only) and writes one Terminal note plus `update X` in the status
+  bar. F10 > Help > Check for updates asks now and offers **Update**, which
+  runs `pipx upgrade` or `uv tool upgrade` after showing the command, is
+  refused while a session or Send/Receive is under way, and asks for a
+  restart. Never upgrades by itself; a source checkout is told to
+  `git pull`. Off with Settings > Station > Check for updates or
+  `--no-update-check`. Install detection checked against a real pipx
+  install; `uv tool upgrade` refetching a git source is UNVERIFIED.
+
+**Files:** `kissterm/updater.py`, `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/commands.py`, `kissterm/ui/settings_schema.py`, `kissterm/config.py`,
+`kissterm/__main__.py`, `config.toml.example`, `tests/unit/test_updater.py`,
+`tests/pilot/test_update_check.py`, `docs/GUIDE.md`, `SETUP.md`, `README.md`, `AGENTS.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-09-29] — SSH sign-ins told apart, no lines box, one button style
 
 ### Improvements

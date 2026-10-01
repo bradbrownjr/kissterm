@@ -457,8 +457,6 @@ closed by a coding session.
   build starts slower, since it unpacks itself first. Startup is fixed in
   the code, not by packaging.
 - [ ] **Debian package** -- post-1.0.
-- [ ] **Self-update check** against PyPI metadata, never blocking startup --
-  post-1.0.
 
 ## P7a — One back end, three front ends (post-milestone 2)
 

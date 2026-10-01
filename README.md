@@ -122,6 +122,9 @@ uv tool install "git+https://github.com/bradbrownjr/kissterm"
 kissterm
 ```
 
+kissterm tells you when a newer version is on GitHub, and F10 > Help >
+Check for updates installs it when you say so; it never updates itself.
+
 The first run asks for your callsign, then looks for your TNC: SoundModem
 or Direwolf on your network, plus USB serial ports and paired Bluetooth
 TNCs (those two are marked experimental until proven on hardware).

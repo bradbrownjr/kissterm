@@ -110,6 +110,14 @@ t3 = 300.0
 # taking the station off the air is the worse failure.
 tx_armed_at_start = false
 
+# --- Updates --------------------------------------------------------------
+#
+# Once a day, look on GitHub for a newer kissterm and mention it in the
+# Terminal tab. Internet only -- never the radio -- and it never upgrades by
+# itself: Help > Check for updates in the F10 menu does that when you ask.
+# Turn off for a station with no Internet, or run with --no-update-check.
+update_check = true
+
 # --- Unattended operation -------------------------------------------------
 #
 # Answering a call means TRANSMITTING UNDER YOUR CALLSIGN WITH NOBODY

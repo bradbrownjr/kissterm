@@ -123,6 +123,7 @@ kissterm/
   monitor.py (sanitize)  ansi.py (SGR allowlist, decode_text)
   discovery.py  hotplug.py  doctor.py
   beacon.py (BTEXT)  aprs_beacon.py (APRS)  aprs_*.py  desktop_notify.py
+  updater.py (GitHub update check; never upgrades unattended)
   session_log.py  transcripts.py  heard.py  locator.py
   addressbook.py  harvested.py  bbs.py  glossary.py  guides.py
   nodes/ aprs_services/   SHIPPED references (data/*.toml)
