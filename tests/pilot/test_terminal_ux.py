@@ -2084,7 +2084,8 @@ async def test_the_reference_screen_lists_every_context_with_its_source():
         assert sum(1 for row in rows if str(row[0]).startswith("N / NODES")) == 1
         assert by_name[("NRR", "Node")][4] == "published"
         assert by_name[("PASSWORD", "Node, sysop")][4] == "published"
-        assert by_name[("T / TALK", "Node")][4] == "recalled, unverified"
+        # LinBPQ's COMMANDS[] has no T/TALK (Cmd.c); it was recalled.
+        assert not any(str(row[0]).startswith("T / TALK") for row in rows)
         assert by_name[("LD", "BBS")][2].startswith("List messages with status D")
     a.close()
     b.close()

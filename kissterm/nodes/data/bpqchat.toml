@@ -1,7 +1,13 @@
 # BPQChat (the chat server built into BPQ32 / LinBPQ) user command reference.
 #
-# SOURCE: G8BPQ's "The G8BPQ Chat Server" page, "User Commands":
+# SOURCES: G8BPQ's "The G8BPQ Chat Server" page, "User Commands":
 #   https://www.cantab.net/users/john.wiseman/Documents/ChatServer.html
+# and the chat server's own source, LinBPQ HanksRT.c (g8bpq/linbpq master
+# 4b7a47b, read 2026-10-02; see docs/SOURCES.md): the long commands are
+# matched on their first few letters (`abbrev` below: /KEEP, /SHOW, /UTF,
+# /COD), and any other /<letter> goes to rt_cmd()'s one-letter switch. So
+# /Q is QTH, not quit (/QUIT needs all four letters), and anything starting
+# /B returns to the node.
 # No real chat session has been captured yet, so nothing here is "verified",
 # and there is no prompt or greeting pattern: kissterm only knows it is in
 # chat because the node said "Connected to CHAT".
@@ -23,6 +29,21 @@ The chat server built into BPQ32. Reached from a node with CHAT (or CHAT
 <topic>). Commands start with /; anything else you type is sent to everyone
 in your topic.
 """
+
+[[commands]]
+name = "/H"
+aliases = ["/?"]
+summary = "The chat server's command list"
+usage = "/H  |  /?"
+source = "https://github.com/g8bpq/linbpq/blob/master/HanksRT.c"
+
+[[commands]]
+name = "/HISTORY"
+abbrev = "/HI"
+summary = "Show chat messages from the last nn minutes"
+usage = "/HISTORY <minutes>"
+detail = "Up to 24 hours back. /HI is the shortest form; /H alone is help."
+source = "https://github.com/g8bpq/linbpq/blob/master/HanksRT.c"
 
 [[commands]]
 name = "/U"
@@ -75,32 +96,45 @@ summary = "Toggle colour mode (console and BPQTerminal only)"
 usage = "/C"
 
 [[commands]]
+name = "/COLOURS"
+abbrev = "/COLO"
+summary = "Show the colour codes, as a test of colour mode"
+usage = "/COLOURS"
+source = "https://github.com/g8bpq/linbpq/blob/master/HanksRT.c"
+
+[[commands]]
 name = "/TIME"
+abbrev = "/TIME"
 summary = "Toggle a timestamp on each message"
 usage = "/TIME"
 
 [[commands]]
 name = "/SHOWNAMES"
+abbrev = "/SHOW"
 summary = "Toggle showing names as well as calls"
 usage = "/SHOWNAMES"
 
 [[commands]]
 name = "/KEEPALIVE"
+abbrev = "/KEEP"
 summary = "Toggle keepalive messages every 10 minutes"
 usage = "/KEEPALIVE"
 
 [[commands]]
 name = "/AUTO"
+abbrev = "/AUTO"
 summary = "Toggle automatic character set selection"
 usage = "/AUTO"
 
 [[commands]]
 name = "/UTF-8"
+abbrev = "/UTF"
 summary = "Toggle UTF-8 or 8-bit output"
 usage = "/UTF-8"
 
 [[commands]]
 name = "/CODEPAGE"
+abbrev = "/COD"
 aliases = ["/CP"]
 summary = "Choose the code page used when UTF-8 is off"
 usage = "/CODEPAGE <page>"
@@ -117,5 +151,6 @@ usage = "/B"
 
 [[commands]]
 name = "/QUIT"
+abbrev = "/QUIT"
 summary = "Leave chat and disconnect from the node"
 usage = "/QUIT"

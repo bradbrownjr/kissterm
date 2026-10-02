@@ -12,19 +12,26 @@
 #                 https://www.cantab.net/users/john.wiseman/Documents/NodeCommands.html
 #                 and the older node commands page, for abbreviation rules:
 #                 https://www.cantab.net/users/john.wiseman/Documents/Commands.htm
+#   source     -- LinBPQ's own source, g8bpq/linbpq on GitHub (master
+#                 4b7a47b, read 2026-10-02; see docs/SOURCES.md). Cmd.c's
+#                 COMMANDS[] table is the command set; entries citing it
+#                 carry their own `source`.
 #   recalled   -- NOT found in either document or any capture. Shown flagged.
 #
-# ABBREVIATIONS: the older page says "all other commands can be abbreviated to
-# the first character of the command" and application names "must be entered
-# in full". The newer page capitalises the part of each command that must be
-# typed ("PAClen", "LISten", "IDLEtime"); `abbrev` below records that
-# capitalised prefix. It is typography, not a sentence in the document, so
-# treat the longer abbreviations as documented-by-layout.
+# ABBREVIATIONS come from Cmd.c, not the documentation's capitals. Each
+# COMMANDS[] entry has a minimum length; the node takes the FIRST entry in
+# table order that the typed word is a prefix of, at least that long. Sysop
+# commands sit first, then PASSWORD, then the application slots (typed in
+# full), then the user commands -- which is why NR is NRR (NODES does not
+# match "NR"), AP is APRS (ATTACH needs only "A" but APRS comes first) and
+# PASSWORD has no abbreviation at all.
 #
 # CORRECTIONS made against the documentation on 2026-09-23 (previously
 # "recalled"): PING is an IP ping on nodes running the IP gateway, not a
 # node reachability test (that is NRR); CQ works only in LISTEN mode; HELP
 # shows a sysop-written help file and is a separate command from "?".
+# Against the source on 2026-10-02: T/TALK removed (no such command in
+# COMMANDS[]); NC, NPING and STREAMS added.
 #
 # Local APPLICATION additions (WS1EC-15's CALENDAR, WALL, GOPHER, ...) are one
 # sysop's menu, not stock BPQ32, and belong to harvesting, not this file.
@@ -159,9 +166,33 @@ confidence = "verified"
 
 [[commands]]
 name = "APRS"
+abbrev = "AP"
 summary = "APRS stations the node has heard, or its APRS messages"
-usage = "APRS  |  APRS <port>  |  APRS <call-prefix>  |  APRS MSGS  |  APRS SENT"
-detail = "MSGS shows received APRS messages, SENT the node's sent ones. SEND, ENABLEIGATE, DISABLEIGATE and RECONFIG need sysop status."
+usage = "APRS  |  APRS <port>  |  APRS <call-prefix>  |  APRS MSGS  |  APRS SENT  |  APRS STATUS  |  APRS ?"
+detail = "MSGS shows received APRS messages, SENT the node's sent ones, STATUS the igate's state, ? the subcommands. SEND, BEACON, ENABLEIGATE, DISABLEIGATE and RECONFIG need sysop status (APRSCode.c APRSCMD)."
+
+[[commands]]
+name = "NC"
+abbrev = "NC"
+summary = "Connect, offering AX.25 2.2 (XID) first"
+usage = "NC <call>  |  NC <port> <call>"
+detail = "Like C, but the node opens the downlink with an XID to negotiate AX.25 2.2 where the port supports it."
+source = "https://github.com/g8bpq/linbpq/blob/master/Cmd.c"
+
+[[commands]]
+name = "NPING"
+abbrev = "NP"
+summary = "NET/ROM ping a node in the node table"
+usage = "NPING <call-or-alias>"
+detail = "Replies \"Ok\" when it sent the ping and \"Not found\" when the node is not in the table (Cmd.c NRPING)."
+source = "https://github.com/g8bpq/linbpq/blob/master/Cmd.c"
+
+[[commands]]
+name = "STREAMS"
+abbrev = "STREAM"
+summary = "The node's host-mode streams and the programs on them"
+usage = "STREAMS"
+source = "https://github.com/g8bpq/linbpq/blob/master/Cmd.c"
 
 [[commands]]
 name = "ATTACH"
@@ -190,6 +221,7 @@ usage = "VERSION"
 
 [[commands]]
 name = "NRR"
+abbrev = "NR"
 summary = "Trace the route to a NET/ROM node and back"
 usage = "NRR <call>"
 detail = "Sends a NET/ROM Record Route message; the reply shows the path taken, if the target supports NRR."
@@ -207,6 +239,7 @@ you. You cannot connect elsewhere while listening.\
 
 [[commands]]
 name = "CQ"
+abbrev = "CQ"
 summary = "Send a CQ beacon while in LISTEN mode on one port"
 usage = "CQ <text>"
 
@@ -243,6 +276,7 @@ usage = "RADIO ..."
 
 [[commands]]
 name = "PASSWORD"
+abbrev = "PASSWORD"
 summary = "Enter sysop mode"
 usage = "PASSWORD"
 sysop = true
@@ -298,14 +332,6 @@ usage = "TELSTATUS <port>"
 name = "UZ7HO"
 summary = "Send a command to the UZ7HO soundmodem driver"
 usage = "UZ7HO <port> FREQ [hz]  |  UZ7HO <port> MODEM [name|number]"
-
-[[commands]]
-name = "T"
-aliases = ["TALK"]
-summary = "Talk to another user connected to this node"
-usage = "T <call>"
-detail = "Not in G8BPQ's node command pages or any capture; may not exist on current BPQ32."
-confidence = "recalled"
 
 [[commands]]
 name = "BBS"

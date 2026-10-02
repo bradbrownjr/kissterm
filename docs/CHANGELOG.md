@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — BPQ node and Chat commands, checked against LinBPQ
+
+### Improvements
+
+- **Node abbreviations are the ones the node accepts.** LinBPQ takes the
+  first `COMMANDS[]` entry a word fits (`Cmd.c`), so NRR is NR, APRS is AP,
+  and PASSWORD has no short form. T/TALK, never in the table, is gone; NC
+  (connect offering AX.25 2.2), NPING and STREAMS are added; APRS lists
+  STATUS, `?` and the sysop-only BEACON.
+- **BPQChat** gains `/H` and `/?` (help), `/HISTORY` (`/HI`) and
+  `/COLOURS`, with the short forms `HanksRT.c` matches (`/KEEP`, `/SHOW`,
+  `/UTF`, `/COD`). `/Q` is QTH; only `/QUIT` disconnects.
+
+**Files:** `kissterm/nodes/data/bpq32.toml`,
+`kissterm/nodes/data/bpqchat.toml`, `tests/pilot/test_terminal_ux.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — JNOS: the mailbox a caller reaches, from its source
 
 ### Improvements
