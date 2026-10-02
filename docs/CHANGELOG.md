@@ -5,6 +5,13 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Evidence: Winlink's test server accepts kissterm
+
+- Recorded in ROADMAP's blocker: cms-z.winlink.org logged kissterm in
+  where the production CMS refuses its client name. No code change.
+
+**Files:** `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — A failed APRS beacon no longer retries in a tight loop
 
 ### Bug Fixes

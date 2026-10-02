@@ -19,6 +19,12 @@ still has to try on the air.
   becomes known is still to be learned; the operator is researching it,
   and it can go in the same request to the Winlink Development Team as
   the API key below. kissterm never borrows another program's SID name.
+  **The test server accepts kissterm** (2026-10-02, transcript
+  `20261002-134724_KC1JMH_WL2K.log`): cms-z.winlink.org took the same
+  SID, `[kissterm-0.1.349-B2FHM$]`, answered the `;PQ:` challenge with
+  `CMS>`, and did not refuse after `FF`. The production server had
+  refused at that point (`20260928-103900_KC1JMH_WL2K.log`). So the
+  refusal is the client-name check alone, not the login or the protocol.
   # UNVERIFIED: whether an RMS gateway over the radio passes the same
   check to the CMS, and what cms-z.winlink.org delivers to.
 
