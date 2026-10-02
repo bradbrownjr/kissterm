@@ -1374,7 +1374,7 @@ async def test_hopping_onward_forgets_the_node_it_hopped_through():
         assert app.reference.family is None, "a confirmed hop kept the old family"
         assert app.current_node == "JNOSNODE"
 
-        _feed(link, b"Welcome to JNOS\r")
+        _feed(link, b"Welcome KC1JMH,\rto the jnosnode TCP/IP Mailbox (JNOS 2.0p).\r")
         await pilot.pause()
         assert app.reference.family is not None and app.reference.family.id == "jnos"
     a.close()

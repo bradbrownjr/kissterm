@@ -1,103 +1,264 @@
-# JNOS command reference -- Phil Karn's NOS lineage, still widely run as a
-# packet BBS/gateway node (telnet, FTP, SMTP-over-AX.25, IP routing) rather
-# than a pure NET/ROM-style node.
+# JNOS 2.0 mailbox command reference -- what a station that connects to a
+# JNOS node over AX.25 (or NET/ROM, or Telnet) actually types at.
 #
-# provenance: JNOS's command set is long-standing Unix-shell-flavoured
-# convention (lowercase verbs, "?" for help) documented across JNOS HOWTOs
-# and FAQs going back to the 1990s. Nothing here has been checked against a
-# live JNOS session yet -- see docs/ROADMAP.md P8's "verify shipped
-# references against live nodes" item. Correct from a real session before
-# trusting the syntax.
+# SOURCE: the JNOS 2.0 source (Maiko Langelaar VE4KLM, after N5KNX and KA9Q),
+# read from the DigitalHERMES/jnos2 mirror (github.com/DigitalHERMES/jnos2,
+# last updated 2022-06-21; the official site, langelaar.net/jnos2, was not
+# reachable for the audit). Source audit, 2026-10-02 -- see docs/SOURCES.md.
+#   mailbox.c  Mbcmds[] (the command table), mbx_parse() (two-letter forms,
+#              digits alone read a message), putprompt() and Mbmenu (the
+#              prompt), Mbbanner (the greeting)
+#   cmdparse.c cmdparse(): a typed word matches the FIRST table entry it is
+#              a prefix of, case-insensitively -- so `abbrev` below is the
+#              shortest prefix that reaches each command in table order
+#              ("co" is connect; convers needs "conv").
+#   bmutil.c   the L/K/R subtypes; mboxmail.c dosend(): the S subtypes
+#   version.c  the mailbox's FBB-style SID, "[JNOS-<version>-B2FHIM$]"
 #
-# Deliberately NO detect_prompt: JNOS's default command prompt is commonly
-# left at its stock value, which on many configurations is exactly the
-# string "cmd:" -- identical to tnc2.toml's `^cmd:\s*$` pattern. A sysop can
-# (and often does) customize it to the node's hostname/callsign instead, but
-# nothing here can tell a customized JNOS prompt apart from a customized
-# TNC2 one, and a wrong family shown confidently is worse than "unknown
-# node" (AGENTS.md P8). Detection is banner-only until a real capture shows
-# a JNOS-specific prompt shape worth matching.
+# What this replaced (2026-10-02): a list of JNOS *console* commands
+# (route, who, ax25 status, ftp) written from memory. A caller never sees
+# the console; it lands in the mailbox, whose command set is this one.
+#
+# Which commands exist depends on how the sysop compiled JNOS (MAILCMDS,
+# FILECMDS, GATECMDS, CONVERS, ... in config.h); the menu line in the
+# prompt lists the ones a node has. Nothing here is "verified" until a real
+# session is captured (docs/ON-AIR-TESTS.md: KC1UIX's JNOS node).
 
 [family]
 id = "jnos"
-name = "JNOS"
+name = "JNOS mailbox"
+kind = "node"
 confidence = "documented"
+source = "https://github.com/DigitalHERMES/jnos2/blob/main/mailbox.c"
+harvest_context = "node"
 note = """
-Runs as a BBS/gateway more often than a plain node -- expect mail, telnet
-and FTP gatewaying alongside AX.25 connect. Commands are lowercase and
-Unix-shell-flavoured, unlike BPQ32's single-letter node commands.
+JNOS answers a caller with its mailbox: BBS-style commands (L, R, S, K),
+plus gateway commands (C, T, PI) when the sysop built them in. Any word
+can be shortened to the letters shown; a number alone reads that message.
 """
-detect_banner = ["JNOS"]
+# The greeting ends "... to the <host> TCP/IP Server (JNOS <version>)."
+# (Mbbanner), and a mailbox that exchanges mail sends its SID,
+# "[JNOS-2.0...-B2FHIM$]" (version.c).
+detect_banner = ["(JNOS ", "[JNOS-"]
+# putprompt(): without expert mode, "Area: <area> Current msg# N." and then
+# the menu line, which lists the commands this build has and ends " >"
+# ("?,A,B,C,CONV,D,E,F,H,I,IH,IP,J,K,L,M,N,NR,O,P,PI,Q,R,S,T,U,V,W,X,Z >"),
+# with any sysop-defined aliases before the "?". In expert mode, "(#N) >",
+# after "Area: <area> " if the caller turned that on (XA) and after the
+# node's "ALIAS:CALL " for a NET/ROM caller (Mbnrid, mboxcmd.c). Neither is
+# TNC2's "cmd:" -- the old file shipped no prompt pattern for fear of that,
+# but it was guarding JNOS's console, which a caller never sees.
+detect_prompt = [
+    '^(?:[^,\s]+,)*\?,(?:[A-Z]{1,4},)*X(?:,Z)? >\s*$',
+    '^(?:\S+:\S+ )?(?:Area: \S+ )?\(#\d+\) >\s*$',
+]
 
 [[commands]]
 name = "?"
-aliases = ["help"]
-summary = "List the commands this session accepts"
-usage = "?  |  ? <command>"
-detail = "A bare '?' lists commands; '? <command>' shows that command's own help, JNOS's equivalent of a man page."
-confidence = "recalled"
+aliases = ["HELP"]
+abbrev = "H"
+summary = "Help: the command list, or one command's help"
+usage = "?  |  H  |  H <command>"
+detail = "H <command> shows that command's help file, if the sysop installed it (dombhelp)."
 
 [[commands]]
-name = "bye"
-aliases = ["quit"]
-summary = "Disconnect from the node"
-usage = "bye"
-confidence = "recalled"
+name = "ALIAS"
+abbrev = "ALI"
+summary = "List the sysop's command aliases"
+usage = "ALI"
+detail = "AL is AREA: A takes a second letter as a subtype (mbx_parse twocmds)."
 
 [[commands]]
-name = "connect"
-aliases = ["c"]
-summary = "Connect onward to another station or node over AX.25"
-usage = "connect <call>  |  connect <port> <call>"
-confidence = "recalled"
+name = "AREA"
+abbrev = "A"
+summary = "List message areas, or change to one"
+usage = "A  |  A <area>"
 
 [[commands]]
-name = "telnet"
-summary = "Open a Telnet session through the node's IP gateway"
-usage = "telnet <host> [port]"
-detail = "Only works if the sysop has IP gatewaying enabled and routed; airtime for whatever the far end sends comes out of this link same as anything else."
-confidence = "recalled"
+name = "BYE"
+abbrev = "B"
+summary = "Disconnect"
+usage = "B"
 
 [[commands]]
-name = "ftp"
-summary = "Open an FTP session through the node's IP gateway"
-usage = "ftp <host>"
-detail = "Same gatewaying caveat as telnet -- and FTP directory listings and file transfers are exactly the kind of verbose traffic AGENTS.md warns costs real airtime."
-confidence = "recalled"
+name = "CONNECT"
+abbrev = "C"
+summary = "Connect onward from the node, by AX.25 or NET/ROM"
+usage = "C <call>  |  C <port> <call>"
+detail = "Present when the sysop built in the gateway commands (GATECMDS)."
 
 [[commands]]
-name = "finger"
-summary = "Query a user's finger information, local or remote"
-usage = "finger <user>@<host>  |  finger <user>"
-confidence = "recalled"
+name = "CONVERS"
+abbrev = "CONV"
+summary = "Join the convers (round-table chat)"
+usage = "CONV  |  CONV <channel>"
+detail = "Present when built with CONVERS. CO is CONNECT, not this."
 
 [[commands]]
-name = "who"
-summary = "Show who is connected to the node right now"
-usage = "who"
-confidence = "recalled"
+name = "DOWNLOAD"
+abbrev = "D"
+summary = "Download a file from the node's file area"
+usage = "D <file>"
 
 [[commands]]
-name = "mheard"
-summary = "Stations the node has heard, most recent first"
-usage = "mheard"
-confidence = "recalled"
+name = "ESCAPE"
+abbrev = "E"
+summary = "Show or set the escape character for gatewayed sessions"
+usage = "E  |  E <char>"
 
 [[commands]]
-name = "ax25 status"
-summary = "Show the status of active AX.25 links"
-usage = "ax25 status"
-confidence = "recalled"
+name = "FINGER"
+abbrev = "F"
+summary = "Finger a user, here or elsewhere"
+usage = "F  |  F <user>  |  F <user>@<host>"
 
 [[commands]]
-name = "route"
-summary = "Show or edit the node's IP routing table"
-usage = "route  |  route add <dest> <gateway>"
-detail = "Bare form lists routes; editing a running node's routes remotely is a sysop action most nodes will not have open to a guest session."
-confidence = "recalled"
+name = "INFO"
+abbrev = "I"
+summary = "Information about this system"
+usage = "I"
 
 [[commands]]
-name = "ping"
-summary = "Test IP reachability of another host through the gateway"
-usage = "ping <host>"
-confidence = "recalled"
+name = "IHEARD"
+abbrev = "IH"
+summary = "IP stations the node has heard"
+usage = "IH"
+
+[[commands]]
+name = "IPROUTE"
+abbrev = "IP"
+summary = "The node's IP routing table"
+usage = "IP"
+
+[[commands]]
+name = "JHEARD"
+abbrev = "J"
+summary = "AX.25 stations the node has heard"
+usage = "J  |  J <port>"
+
+[[commands]]
+name = "KILL"
+abbrev = "K"
+summary = "Kill (delete) messages"
+usage = "K <n>  |  KM  |  KU <n>"
+detail = "KM kills your messages already read; KU un-kills (bmutil.c)."
+
+[[commands]]
+name = "LIST"
+abbrev = "L"
+summary = "List messages"
+usage = "L  |  LM  |  LL <n>  |  L> <call>  |  L< <call>  |  LB  |  LT  |  LH"
+detail = "LM yours, LL the last n, L> to and L< from a call, LB bulletins, LT traffic, LH held (bmutil.c)."
+
+[[commands]]
+name = "MBOXUSER"
+abbrev = "M"
+summary = "Who is using the mailbox now"
+usage = "M"
+
+[[commands]]
+name = "NODES"
+abbrev = "N"
+summary = "The node's NET/ROM node list"
+usage = "N"
+
+[[commands]]
+name = "NROUTES"
+abbrev = "NR"
+summary = "The node's NET/ROM neighbours"
+usage = "NR"
+
+[[commands]]
+name = "NRR"
+abbrev = "NRR"
+summary = "NET/ROM route record to another node"
+usage = "NRR <node>"
+
+[[commands]]
+name = "OPERATOR"
+abbrev = "O"
+summary = "Page the sysop to chat"
+usage = "O"
+
+[[commands]]
+name = "PORTS"
+abbrev = "P"
+summary = "The node's ports"
+usage = "P"
+
+[[commands]]
+name = "PING"
+abbrev = "PI"
+summary = "IP ping a host through the node"
+usage = "PI <host> [<len>] [<timeout>]"
+
+[[commands]]
+name = "QUERY"
+abbrev = "Q"
+summary = "Callbook lookup"
+usage = "Q <call> [<call> ...]"
+
+[[commands]]
+name = "READ"
+abbrev = "R"
+summary = "Read messages"
+usage = "R <n>  |  <n>  |  RM"
+detail = "A number alone reads that message (mbx_parse). RM reads your new mail."
+
+[[commands]]
+name = "REGISTER"
+abbrev = "REG"
+summary = "Register your email address for replies"
+usage = "REG <address>"
+detail = "RE is READ: R takes a second letter as a subtype. Present when built with USERLOG and REGISTER."
+
+[[commands]]
+name = "SEND"
+abbrev = "S"
+summary = "Send a message"
+usage = "S <call> [@ <bbs>]  |  SP  |  SB <category>  |  ST  |  SC <call>  |  SR [<n>]"
+detail = "SP personal, SB bulletin, ST traffic, SC asks for a Cc: list, SR replies to message n or the current one (mboxmail.c dosend). End the text with /EX or Ctrl-Z in the first column; Ctrl-A aborts."
+
+[[commands]]
+name = "TELNET"
+abbrev = "T"
+summary = "Telnet to a host through the node"
+usage = "T <host>"
+detail = "Present when built with the gateway commands; whatever the far end sends comes back over this link."
+
+[[commands]]
+name = "UPLOAD"
+abbrev = "U"
+summary = "Upload a file to the node's file area"
+usage = "U <file>"
+
+[[commands]]
+name = "VERBOSE"
+abbrev = "V"
+summary = "Read a message with all its headers"
+usage = "V <n>"
+
+[[commands]]
+name = "WHAT"
+abbrev = "W"
+summary = "List the node's files"
+usage = "W  |  W <directory>"
+
+[[commands]]
+name = "WPAGES"
+abbrev = "WP"
+summary = "White pages lookup"
+usage = "WP <call> [@<bbs>]"
+
+[[commands]]
+name = "XPERT"
+abbrev = "X"
+summary = "Toggle expert mode (short prompt)"
+usage = "X  |  XM <lines>  |  XA  |  XP"
+detail = "XM <n> pauses with -more- every n lines; XA shows the area in the prompt; XP toggles line mode (dombexpert)."
+
+[[commands]]
+name = "ZAP"
+abbrev = "Z"
+summary = "Delete a file you uploaded"
+usage = "Z <file>"

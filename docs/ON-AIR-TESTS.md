@@ -94,6 +94,16 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Connecting
 
+- [ ] **A JNOS mailbox is recognised** (KC1UIX's node, AXIP/UDP through
+  WS1EC port 8: connect to WS1EC, then `C 8 KC1UIX` or whatever call
+  Dave gives you; or ask Dave KC1UIX to connect from kissterm and send
+  his transcript). Expected: the greeting ends "TCP/IP Mailbox (JNOS
+  ...)." or "TCP/IP Server (JNOS ...).", the prompt is a menu line like
+  `?,A,B,C,...,X >` (or `(#N) >` in expert mode), and F10 > Help > Node
+  commands shows "JNOS mailbox" with L, R, S, K, C, T. Then type `?` and
+  compare its list to the menu; send the transcript either way, since
+  this is the first real JNOS session kissterm will have seen.
+
 - [ ] **A serial TNC** (if you have one: USB-serial, KPC-3 or TNC2 in
   KISS mode, NinoTNC). Settings > Radio, Scan for hardware: it should be
   listed as "Serial KISS (experimental)". Use it, watch the Monitor for

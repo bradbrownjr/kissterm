@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — JNOS: the mailbox a caller reaches, from its source
+
+### Improvements
+
+- **The JNOS reference is the mailbox, not the console.** A caller lands
+  in JNOS's mailbox (`mailbox.c` `Mbcmds`), so the old list (`ftp`, `route`,
+  `who`, written from memory) never applied. Commands and abbreviations now
+  follow the table order `cmdparse` matches in (CO is CONNECT, AL is AREA,
+  RE is READ), with the L/K/R/S/X two-letter forms.
+- **A JNOS node is recognised by its prompt** (the `?,A,B,...,X >` menu
+  line or the expert `(#N) >`) and by its real greeting and SID, not the
+  bare word "JNOS". Unverified on air; the test is in ON-AIR-TESTS.
+
+**Files:** `kissterm/nodes/data/jnos.toml`, `tests/unit/test_nodes.py`,
+`tests/pilot/test_terminal_ux.py`, `docs/ON-AIR-TESTS.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — A BPQ node with no alias is recognised
 
 ### Improvements

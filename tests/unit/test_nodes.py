@@ -68,16 +68,51 @@ def test_tnc_command_prompt_is_recognised():
 
 
 def test_jnos_banner_is_recognised():
-    family = identify_family("Welcome to W1AW JNOS 2.0k\n")
-    assert family is not None and family.id == "jnos"
+    """mailbox.c's Mbwelcome + Mbbanner, and version.c's SID."""
+    for text in (
+        "Welcome KC1JMH,\nto the kc1uix TCP/IP Mailbox (JNOS 2.0p).\n",
+        "Welcome KC1JMH,\nto the kc1uix TCP/IP Server (JNOS 2.0p).\n",
+        "[JNOS-2.0p-B2FHIM$]\n",
+    ):
+        family = identify_family(text)
+        assert family is not None and family.id == "jnos", text
 
 
-def test_jnos_ships_no_detect_prompt():
-    """Deliberate: JNOS's stock prompt can be exactly tnc2.toml's 'cmd:'
-    pattern, so detection here is banner-only -- see jnos.toml's header."""
+def test_jnos_mailbox_prompts_are_recognised():
+    """putprompt(): the menu line (built from compile-time flags, sysop
+    aliases first) and the expert prompt, with and without its prefixes."""
+    for text in (
+        "Current msg# 0.\n?,A,B,C,CONV,D,E,F,H,I,IH,IP,J,K,L,M,N,NR,O,P,PI,Q,R,S,T,U,V,W,X,Z >\n",
+        "?,B,H,I,IH,IP,M,X >\n",
+        "bpq,dx,?,A,B,C,H,I,IH,IP,J,K,L,M,P,PI,R,S,T,V,X >\n",
+        "(#12) >\n",
+        "Area: kc1jmh (#3) >\n",
+        "UIXNOD:KC1UIX-1 Area: kc1jmh (#3) >\n",
+    ):
+        family = identify_family(text)
+        assert family is not None and family.id == "jnos", text
+
+
+def test_jnos_prompt_does_not_claim_a_tnc_or_bpq_node():
+    assert identify_family("cmd:").id == "tnc2"
+    assert identify_family("CCEMA:WS1EC-15} ").id == "bpq32"
+    assert identify_family("What? (#3)") is None
+
+
+def test_jnos_abbreviations_follow_the_mailbox_table_order():
+    """cmdparse() takes the first Mbcmds entry a word is a prefix of, and
+    mbx_parse() turns A/K/L/R/S/V/D/U/M/X plus one letter into a subtype --
+    so CO is CONNECT, AL is AREA, RE is READ."""
     family = load_family("jnos")
-    assert family is not None
-    assert family.detect_prompt == ()
+    abbrev = {c.name: c.abbrev for c in family.commands}
+    assert abbrev["CONNECT"] == "C"
+    assert abbrev["CONVERS"] == "CONV"
+    assert abbrev["ALIAS"] == "ALI"
+    assert abbrev["REGISTER"] == "REG"
+    assert abbrev["NRR"] == "NRR" and abbrev["NROUTES"] == "NR"
+    assert abbrev["PING"] == "PI" and abbrev["PORTS"] == "P"
+    # The console commands the old file listed are not the mailbox's.
+    assert not {"FTP", "ROUTE", "WHO", "MHEARD"} & set(abbrev)
 
 
 def test_thenet_x1j_loads_with_documented_commands():
@@ -100,7 +135,7 @@ def test_thenet_x1j_is_deliberately_not_auto_detected():
     assert identify_family("THENET:G8KBB-5>") is None
     assert identify_family("CCEMA:WS1EC-15}").id == "bpq32"
     assert identify_family("cmd:").id == "tnc2"
-    assert identify_family("Welcome to W1AW JNOS 2.0k\n").id == "jnos"
+    assert identify_family("to the w1aw TCP/IP Mailbox (JNOS 2.0k).\n").id == "jnos"
 
 
 def test_completion_needs_a_prefix():

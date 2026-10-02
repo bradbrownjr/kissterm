@@ -515,8 +515,7 @@ channel time during which nobody else can transmit. See
 `kissterm/nodes/reference.py` and AGENTS.md "Airtime is the scarce
 resource".
 
-- [ ] **More families:** FBB, KA-Node, DXSpider, Winlink RMS, the JNOS
-  mailbox. One data file each, with a detection pattern specific enough never
+- [ ] **More families:** FBB, KA-Node, DXSpider, Winlink RMS. One data file each, with a detection pattern specific enough never
   to false-match. An application family (`kind = "application"`) also needs
   `entered_by`, and its node family needs the `enter_pattern` /
   `return_pattern` lines that hand the session over (see `bpq32.toml`).
@@ -524,8 +523,9 @@ resource".
   `bpqchat.toml` has no captured chat session behind it, and "Returned to
   Node" is from G8BPQ's documentation only. Capture both on a real node.
 - [ ] **Verify against live nodes.** `recalled` entries in `bpq32.toml` and
-  all of `tnc2.toml`; JNOS and TheNet/X1J are unverified. Needs: sessions
-  on real nodes (JNOS reachable via a BPQ hop).
+  all of `tnc2.toml`; JNOS (now the mailbox, from its source) and
+  TheNet/X1J are unverified. Needs: sessions on real nodes (JNOS: KC1UIX,
+  through WS1EC port 8, in `docs/ON-AIR-TESTS.md`).
 - [ ] **PBBS / AEA PK-232 mailbox family** -- three samples in the
   `bpq-apps` node-map crawl (W1KRP-1, WD1F-1, W1ZE-1). Needs more captured
   examples before a detection pattern can be trusted.
