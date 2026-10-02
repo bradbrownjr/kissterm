@@ -14,6 +14,9 @@
 #   documented -- G8BPQ's "BPQ Mail Server User and SYSOP commands" page
 #                 (updated December 2020):
 #                 https://www.cantab.net/users/john.wiseman/Documents/BBSUserCommands.html
+#   source     -- LinBPQ BBSUtilities.c (g8bpq/linbpq master 4b7a47b, read
+#                 2026-10-01; see docs/SOURCES.md): the help text, prefix
+#                 matching, listing shapes and end markers.
 #   recalled   -- none. Where the meaning of a status letter is not stated in
 #                 either source, the summary says only what the source says
 #                 and the usual meaning is in `detail`, marked "(recalled)".

@@ -211,7 +211,8 @@ anyway, never by asking it anything, and knows that software's commands:
   marked with where it came from: **published** (the software's own
   documentation), **verified on air**, **recalled, unverified**, or
   **harvested only** (a name a node offered that no documentation
-  describes).
+  describes). [SOURCES.md](SOURCES.md) lists every document, source file
+  and captured session behind these.
 - **BBS mail helpers** (Node commands > BBS mail helpers) give starting
   commands for listing mail, reading a message and writing one. Choosing
   one only fills the send line.

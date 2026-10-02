@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Sources of what kissterm knows about the far end
+
+### Improvements
+
+- **`docs/SOURCES.md`** lists what each node, BBS and chat reference rests
+  on: the LinBPQ and JNOS source files read (with commits and dates), G8BPQ's
+  documentation, where the two disagreed, and the captured sessions. Linked
+  from AGENTS.md, the README and the guide; `bpqmail.toml` now cites
+  `BBSUtilities.c`.
+
+**Files:** `docs/SOURCES.md`, `AGENTS.md`, `README.md`, `docs/GUIDE.md`,
+`kissterm/nodes/data/bpqmail.toml`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — BPQ node and Chat commands, checked against LinBPQ
 
 ### Improvements

@@ -14,7 +14,8 @@ Companion files: `README.md` (users, a newcomer's front page),
 (getting on the air),
 **`DESIGN.md` (how anything looks or is keyed -- read before changing
 either)**, `docs/ROADMAP.md` (what is open), `docs/CHANGELOG.md` (what
-changed). Each package has its own short `AGENTS.md` (`kissterm/ax25/`,
+changed), `docs/SOURCES.md` (the far-end software's source,
+documentation and captures each reference rests on). Each package has its own short `AGENTS.md` (`kissterm/ax25/`,
 `transport/`, `aprs/`, `ui/`, `mail/`).
 
 ---
@@ -230,7 +231,8 @@ changes.
   on it, then verify against a capture** (operator, 2026-09-25: "shouldn't
   we have researched how BPQ BBS is supposed to work rather than rely on
   captures?"). Captures alone show one BBS's settings; the source shows
-  the rules. Cite both in the module docstring. **That includes the
+  the rules. Cite both in the module docstring and add the source to
+  `docs/SOURCES.md`. **That includes the
   software at the far end** -- read the node's own source (LinBPQ is on
   GitHub, `g8bpq/linbpq`) before routing a protocol through it; skipping
   that cost two releases and two operator test sessions on Winlink

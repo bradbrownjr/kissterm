@@ -202,7 +202,9 @@ every platform.
 [AGENTS.md](AGENTS.md) is the engineering document and
 [DESIGN.md](DESIGN.md) the interface standard; read both before changing
 anything. [docs/PROTOCOL_GUIDE.md](docs/PROTOCOL_GUIDE.md) cites the
-specifications behind every wire format.
+specifications behind every wire format, and
+[docs/SOURCES.md](docs/SOURCES.md) the node, BBS and chat software
+(LinBPQ, JNOS) each command reference is checked against.
 
 ```bash
 git clone https://github.com/bradbrownjr/kissterm
