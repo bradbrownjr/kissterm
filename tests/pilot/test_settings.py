@@ -941,7 +941,7 @@ async def test_switching_the_active_transport_and_saving_reopens_it():
                 app.station.transport.info.detail
             )
             status = _plain(app.query_one("#status-bar"))
-            assert f"{host}:{port_b}" in status, status
+            assert host in status and f":{port_b}" not in status, status
     finally:
         station.close()
         # The rebind leaves a SECOND live transport behind (`station.
@@ -1723,6 +1723,43 @@ async def test_the_editor_opens_on_the_row_itself():
         await pilot.pause()
         assert not editor.display and app.focused is fields
         assert pane.field_value("home_bbs.ready_text") == "xy"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_editor_moves_with_its_row_when_the_list_scrolls():
+    """Operator, 2026-10-02: click a field, scroll, and the editor stayed
+    put over other rows. It follows its row, and closes (keeping its value)
+    once the row has scrolled out of sight."""
+    app, station = await _app()
+    async with app.run_test(size=(120, 24)) as pilot:
+        pane = await _edit(app, pilot, "winlink.account")
+        fields = app.query_one("#settings-tab-mail")
+        fields.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        editor = app.query_one("#settings-editor")
+        field = app.query_one("#settings-edit-input")
+        assert editor.display
+
+        def row_y() -> int:
+            line = fields._index_to_line[fields.highlighted]
+            return fields.content_region.y + line - round(fields.scroll_offset.y)
+
+        assert field.region.y == row_y()
+        line = fields._index_to_line[fields.highlighted]
+        # The row three lines from the top: the editor goes with it.
+        fields.scroll_to(y=max(0, line - 3), animate=False)
+        await pilot.pause()
+        await pilot.pause()
+        assert editor.display and field.region.y == row_y(), (field.region, row_y())
+        # The row below the bottom: the edit closes.
+        assert line >= fields.content_region.height, "the row must be able to leave the view"
+        fields.scroll_to(y=0, animate=False)
+        await pilot.pause()
+        await pilot.pause()
+        assert not editor.display, "an editor left floating over other rows"
+        assert pane.field_value("winlink.account") is not None
     station.close()
 
 

@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Settings: the editor stays on its row when the list scrolls
+
+### Improvements
+
+- **Scrolling with a field open no longer leaves its editor floating** over
+  other rows. The editor moves with its row, and closes (keeping what was
+  typed) once the row scrolls out of sight.
+
+**Files:** `kissterm/ui/settings_pane.py`, `tests/pilot/test_settings.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — SSH to WS1EC: one echo, no password, a short name
 
 ### Improvements

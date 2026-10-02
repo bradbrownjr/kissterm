@@ -189,6 +189,14 @@ class _FieldList(OptionList):
 
     BINDINGS = [Binding("enter", "select", "Change")]
 
+    class Scrolled(Message):
+        """The list moved under an open editor (`SettingsPane._follow_row`)."""
+
+    def watch_scroll_y(self, old_value: float, new_value: float) -> None:
+        super().watch_scroll_y(old_value, new_value)
+        if old_value != new_value:
+            self.post_message(_FieldList.Scrolled())
+
 
 class _Editor(Vertical):
     """The one set of controls every field is edited with, laid over the
@@ -457,7 +465,7 @@ class SettingsPane(Vertical):
             field.focus()
             field.cursor_position = len(field.value)
 
-    def _place_editor(self) -> None:
+    def _place_editor(self, *, scroll: bool = True) -> None:
         """Lay the editor over the highlighted row, its label on the row's
         label and its control on the value.
 
@@ -468,13 +476,34 @@ class SettingsPane(Vertical):
         index = fields.highlighted
         if index is None:
             return
-        fields.scroll_to_highlight()
+        if scroll:
+            fields.scroll_to_highlight()
         line = fields._index_to_line.get(index, 0)
         area = fields.content_region
         main = self.query_one("#settings-main").content_region
         editor = self.query_one("#settings-editor", _Editor)
         editor.styles.offset = (area.x - main.x, area.y + line - round(fields.scroll_offset.y) - main.y)
         editor.styles.width = max(20, area.width - fields.scrollbar_size_vertical)
+
+    @on(_FieldList.Scrolled)
+    def _follow_row(self) -> None:
+        """Keep an open editor on its row as the list scrolls.
+
+        The editor is laid over the row once, when it opens, so a scroll
+        wheel used to leave it where it was, over whatever rows moved under
+        it (operator, 2026-10-02). It now moves with its row; once the row
+        has scrolled out of sight the edit closes, keeping its value, rather
+        than float over the list or snap the list back."""
+        if self._open_edit is None:
+            return
+        fields = self.query_one(f"#{self.current_section}", _FieldList)
+        index = fields.highlighted
+        line = fields._index_to_line.get(index, 0) if index is not None else -1
+        top = round(fields.scroll_offset.y)
+        if index is None or not top <= line < top + fields.content_region.height:
+            self._end_edit(to_list=True)
+            return
+        self._place_editor(scroll=False)
 
     def _end_edit(self, *, cancel: bool = False, to_list: bool = True) -> None:
         """Close the editor on its row; with `cancel`, put the value back.
