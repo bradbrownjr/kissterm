@@ -394,6 +394,39 @@ async def test_the_timer_fires_after_one_interval(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_a_failed_send_waits_a_full_interval_before_trying_again(monkeypatch):
+    """The 2026-10-01 log: the TNC host went away, a send failed, and the
+    next try came at once, then again, 582,000 times in four minutes. A
+    failed attempt counts for the schedule; only a success updates
+    `_last_sent_at`. Covers a refusal (gate closed) too, which spun
+    without even logging."""
+    station, ta, _ = await _station()
+    attempts = []
+
+    async def down(frame, port=0):
+        attempts.append(frame)
+        raise OSError("tcp transport is not connected")
+
+    ta.send_frame = down
+    beacon = AprsBeaconer(station, _config())
+    monkeypatch.setattr(type(beacon), "interval_seconds", property(lambda self: 0.1))
+    try:
+        assert beacon.start() == ""
+        await asyncio.sleep(0.35)
+        assert 2 <= len(attempts) <= 4
+        # A closed gate is refused before the transport; count the checks.
+        ta.gate.set(False)
+        checks = []
+        real_problem = beacon.problem
+        beacon.problem = lambda: checks.append(1) or real_problem()
+        await asyncio.sleep(0.25)
+        assert 1 <= len(checks) <= 3
+        assert beacon.running
+    finally:
+        await beacon.stop()
+
+
+@pytest.mark.asyncio
 async def test_start_is_idempotent_so_a_second_save_does_not_double_the_rate():
     station, _, _ = await _station()
     beacon = AprsBeaconer(station, _config())

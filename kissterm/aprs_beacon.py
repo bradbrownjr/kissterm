@@ -89,6 +89,9 @@ class AprsBeaconer:
         self._task: asyncio.Task | None = None
         self._wake = asyncio.Event()
         self._last_sent_at: float | None = None
+        #: When the timer last tried, sent or not: what the next wait counts
+        #: from (see `_run`).
+        self._last_attempt_at: float | None = None
         self._last_course: float | None = None
         self._corner_pending = False
         self.sent_count = 0
@@ -298,7 +301,7 @@ class AprsBeaconer:
         why = self.problem()
         if why:
             return why
-        self._last_sent_at = time.monotonic()
+        self._last_sent_at = self._last_attempt_at = time.monotonic()
         self._task = asyncio.create_task(self._run(), name="kissterm-aprs-beacon")
         return ""
 
@@ -323,17 +326,27 @@ class AprsBeaconer:
         except asyncio.CancelledError:
             pass
 
+    async def _attempt(self) -> None:
+        self._last_attempt_at = time.monotonic()
+        await self.send_once()
+
     async def _run(self) -> None:
         while True:
             # Sleep FIRST. Starting the app is not a request to transmit.
-            elapsed = time.monotonic() - (self._last_sent_at or time.monotonic())
-            delay = max(0.0, self.interval_seconds - elapsed)
+            # The wait counts from the later of the last success (a manual
+            # send resets the timer) and the last attempt. Counting from
+            # successes alone made a failed send due again at once: with
+            # the TNC host down the loop retried 582,000 times in four
+            # minutes (2026-10-01), and a closed gate spun without a word.
+            now = time.monotonic()
+            since = max(self._last_sent_at or now, self._last_attempt_at or now)
+            delay = max(0.0, self.interval_seconds - (now - since))
             try:
                 await asyncio.wait_for(self._wake.wait(), timeout=delay)
                 self._wake.clear()
             except asyncio.TimeoutError:
-                await self.send_once()
+                await self._attempt()
                 continue
             if self._corner_pending:
                 self._corner_pending = False
-                await self.send_once()
+                await self._attempt()

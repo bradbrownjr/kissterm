@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — A failed APRS beacon no longer retries in a tight loop
+
+### Bug Fixes
+
+- **The APRS beacon waits a full interval after a failed send.** The next
+  beacon was timed from the last *successful* one, so once a send failed
+  every later try was due at once: on 2026-10-01, with the TCP KISS host
+  down, it retried about 582,000 times in four minutes (all refused at
+  the transport, nothing transmitted, a 175 MB log). With the transmit
+  gate closed it spun silently at full CPU. Found in the operator's log.
+
+**Files:** `kissterm/aprs_beacon.py`, `tests/unit/test_aprs_beacon.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — Toasts stay up 10 seconds
 
 ### Improvements
