@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Status bar: no TNC port, no heard count
+
+### Improvements
+
+- **Room for a job's progress.** The transport field shows the TNC's host
+  without its port (`10.6.26.128`, not `10.6.26.128:8001`; a bare IPv6
+  address is left whole), and the heard count is gone (the Heard tab has
+  it). On a crowded bar a Send/Receive step such as "Checking for mail"
+  was cut to "Checking". Screenshots not regenerated: the renderer still
+  fails on pages that load Google Fonts.
+
+**Files:** `kissterm/ui/app.py`, `DESIGN.md`,
+`tests/unit/test_status_row.py`, `tests/pilot/test_app_mounts.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — Sources of what kissterm knows about the far end
 
 ### Improvements

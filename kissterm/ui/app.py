@@ -281,6 +281,22 @@ class _TerminalSession:
     line_buffer: str = ""
 
 
+_HOST_PORT = re.compile(r"^(\[[^\]]+\]|[^:\s]+):\d+(?:/\d+)?$")
+
+
+def _without_port(detail: str) -> str:
+    """A transport's detail with any `host:port` cut to the host, for the
+    status bar (operator, 2026-10-02: room for the fields that change).
+    `10.6.26.128:8001` -> `10.6.26.128`, `me@node:22` -> `me@node`, VARA's
+    `host:8300/8301` -> `host`. A bare IPv6 address has colons of its own
+    and is left whole rather than cut in the wrong place; a serial device
+    or Bluetooth address has no port to cut."""
+    return " ".join(
+        match[1] if (match := _HOST_PORT.match(word)) else word
+        for word in detail.split(" ")
+    )
+
+
 def _status_row(parts: list[str | Text]) -> Table:
     """Lay `parts` out across the FULL width of the status bar, not bunched
     at the left with the rest of the row empty.
@@ -292,7 +308,7 @@ def _status_row(parts: list[str | Text]) -> Table:
     fields changes (there are more of them once a link is connected), which a
     hand-computed padding string would not do without being recomputed on
     every resize event. The first field reads as a left anchor (the
-    transport), the last as a right anchor (heard count), and everything
+    transport), the last as a right anchor, and everything
     between is centered in its own share of the row -- the conventional shape
     of an editor or IDE status bar.
     """
@@ -5486,7 +5502,7 @@ class KissTermApp(App):
         if transport is None:
             return self._status
         state = transport.state
-        detail = transport.info.detail
+        detail = _without_port(transport.info.detail)
         if state is TransportState.OPEN:
             return detail
         if state is TransportState.OPENING:
@@ -5584,7 +5600,8 @@ class KissTermApp(App):
             parts.append("LOGGING")
         if self.gps_reader is not None and self.gps_reader.running:
             parts.append("GPS FIX" if self.gps_reader.fix is not None else "GPS NO FIX")
-        parts.append(f"heard {len(self.heard)}")
+        # No heard count (operator, 2026-10-02): the Heard tab has the list,
+        # and the room goes to the job under way.
         renderable = _status_row(parts)
         for bar in self._base_query("#status-bar"):
             bar.update(renderable)

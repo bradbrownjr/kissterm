@@ -688,6 +688,26 @@ async def test_status_bar_is_populated_on_mount():
 
 
 @pytest.mark.asyncio
+async def test_the_status_bar_has_no_port_and_no_heard_count():
+    """Operator, 2026-10-02: the TNC's host says which it is, and the Heard
+    tab has the count; the room goes to a job's progress."""
+    import dataclasses
+
+    app, ta, tb, station = await _app()
+    ta.info = dataclasses.replace(ta.info, detail="10.6.26.128:8001")
+    async with app.run_test(size=(110, 32)) as pilot:
+        path = AX25Path(AX25Address.parse("APRS"), AX25Address.parse("W1AW-7"))
+        await tb.send_frame(AX25Frame.u_frame(path, UType.UI, info=b"x"))
+        await pilot.pause()
+        app._refresh_status()
+        await pilot.pause()
+        text = _plain(app.query_one("#status-bar"))
+        assert "10.6.26.128" in text and ":8001" not in text, text
+        assert "heard" not in text, text
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_the_name_is_in_the_title_bar_only_and_the_terminal_starts_empty():
     """Operator, 2026-10-02: nothing in the Terminal that did not come from
     the node, and the app's name and version only in the title bar."""

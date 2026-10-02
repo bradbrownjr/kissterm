@@ -473,7 +473,7 @@ module docstring for the full reasoning:
 
 ```
  ^T TX  ^N Connect  ^G Book  ^R Reconnect  ^F Find  ^Q Quit  F10 Menu            <- Terminal Footer
- 192.168.1.40:8001       N1ABC-1       disconnected       heard 6             <- status
+ 192.168.1.40       N1ABC-1       disconnected       LOGGING             <- status
 ```
 
 Illustrative, not literal: which keys fit is a function of terminal width
@@ -490,6 +490,10 @@ session to end.
 - **Status fields spread across the full width** (`Table.grid`, equal-ratio
   columns, first left-anchored, last right-anchored). A joined string bunches
   at the left and leaves a wide terminal mostly blank.
+- **Only what changes, or what the operator must not miss.** No TCP port
+  on the transport (the host says which TNC), no heard count (the Heard
+  tab has it), no app name (the title bar has it): every field taken away
+  is room for a job's progress (operator, 2026-10-02).
 
 ### Where a message goes
 
