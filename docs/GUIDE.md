@@ -245,7 +245,8 @@ link is fine; the far application is slow or silent.
 A node reachable over the Internet is an Address Book contact, By Telnet
 or SSH, dialed into its own Terminal tab beside the radio. It never
 touches the transmit switch. SSH signs in with a saved login (username and
-password) or a key, and needs an explicit known-hosts file
+password) or a key. The first connect shows the server's key fingerprint
+and asks you to Trust it; after that a different key is refused
 ([SETUP.md](../SETUP.md) section 6a). An SSH contact has two sign-ins, kept
 apart: **SSH** is the server's own account (a login may be a username with
 no password, for an account that has none), and **Node login** is what is

@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — SSH asks to trust a new server instead of needing a file
+
+### Improvements
+
+- **An SSH contact saves without a known_hosts file.** The first connect
+  shows the server's key fingerprint with Trust/Cancel (Cancel focused);
+  Trust writes it to kissterm's own `ssh_known_hosts` (or the file named in
+  Known) and connects. A changed key is refused with no prompt. The
+  Address Book had refused to save until the operator ran `ssh-keyscan` by
+  hand, which nothing said to do. Operator report, 2026-10-02.
+
+**Files:** `kissterm/transport/ssh.py`, `kissterm/ui/dialogs.py`,
+`kissterm/ui/app.py`, `tests/unit/test_ssh_transport.py`,
+`tests/pilot/test_ssh_host_key.py`, `SETUP.md`, `docs/GUIDE.md`,
+`config.toml.example`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — The update notice is a pop-up, not a Terminal line
 
 ### Improvements

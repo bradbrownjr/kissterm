@@ -1206,7 +1206,7 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
                     yield Label("Known", classes="ab-label")
                     yield Input(value=net.get("known_hosts", ""), compact=True,
                                 id="addressbook-known-hosts",
-                                placeholder="known_hosts file holding the server's key")
+                                placeholder="optional: your own known_hosts file")
                 with Horizontal(classes="ab-row ab-radio"):
                     yield Label("Hops", classes="ab-label")
                     yield Input(value=self._hops, compact=True, id="connect-hops",
@@ -1385,11 +1385,10 @@ class AddressBookEntryScreen(_NewFromList, ModalScreen[AddressBookEdit | None]):
             return fields, "", "", "The host is needed."
         if fields["port"] and not (fields["port"].isdigit() and 0 < int(fields["port"]) < 65536):
             return fields, "", "", "The port is a number, 1 to 65535."
-        if by == "ssh":
-            if not (fields["password_login"] or fields["username"]):
-                return fields, "", "", "SSH needs a login: choose one, or New login..."
-            if not fields["known_hosts"]:
-                return fields, "", "", "SSH needs a known_hosts file holding the server's key."
+        # No known_hosts file is needed: the first connect asks to trust
+        # the server's key (TrustHostKeyScreen).
+        if by == "ssh" and not (fields["password_login"] or fields["username"]):
+            return fields, "", "", "SSH needs a login: choose one, or New login..."
         return fields, "", key_passphrase, ""
 
     @on(Button.Pressed, "#connect-go")
@@ -3296,6 +3295,48 @@ class UpdateScreen(ModalScreen[bool]):
     def on_mount(self) -> None:
         target = "#connect-go" if self.query("#connect-go") else "#connect-cancel"
         self.query_one(target, Button).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#connect-go")
+    def _go(self) -> None:
+        self.dismiss(True)
+
+
+class TrustHostKeyScreen(ModalScreen[bool]):
+    """First contact with an SSH server: show the key it offered and let
+    the operator trust it or not, as OpenSSH asks. Cancel is focused, so
+    a stray Enter trusts nothing. A changed key never comes here; the
+    transport refuses it (kissterm/transport/ssh.py)."""
+
+    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
+
+    def __init__(self, unknown) -> None:
+        super().__init__()
+        self._unknown = unknown
+
+    def compose(self) -> ComposeResult:
+        from textual.widgets import Static
+
+        u = self._unknown
+        detail = (
+            f"kissterm has not connected to {u.host} port {u.port} before. "
+            f"It offered this {u.key_type} key:\n\n  {u.fingerprint}\n\n"
+            "If you can, check it against what the server's operator publishes. "
+            f"Trust saves it in {u.path}; from then on a different key from "
+            "this server is refused."
+        )
+        with Vertical(id="connect-box"):
+            yield Label("Trust this SSH server?", id="connect-title")
+            yield Static(detail, id="reminder-detail")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Trust", variant="primary", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#connect-cancel", Button).focus()
 
     @on(Button.Pressed, "#connect-cancel")
     def _cancel(self) -> None:

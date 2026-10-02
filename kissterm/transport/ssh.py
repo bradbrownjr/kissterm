@@ -14,12 +14,20 @@ or set `client_key` to the private-key file to offer that key. An encrypted
 key additionally needs `key_passphrase`. kissterm never searches `~/.ssh` or
 silently selects an identity: the configured file is the one it offers.
 
-**Host-key verification is explicit and fail-closed.** Set `known_hosts` to
-an operator-maintained OpenSSH `known_hosts` file containing the expected
-server key. The transport reads that exact file before connecting and passes
-the parsed entries to AsyncSSH; it never trusts an ambient `~/.ssh/known_hosts`
-file or accepts a first-seen key. A missing, unreadable, malformed, unknown,
-or changed key raises `TransportError` before an interactive session exists.
+**Host-key verification is explicit and fail-closed.** The transport reads
+one OpenSSH `known_hosts` file before connecting and passes the parsed
+entries to AsyncSSH; it never consults an ambient `~/.ssh/known_hosts`. The
+file is `known_hosts` when set (one the operator maintains), else kissterm's
+own (`default_known_hosts`). A server with no entry there raises
+`UnknownHostKey`, carrying the key it offered, and nothing is signed in: the
+app shows the fingerprint and only an operator's Trust writes it
+(`trust_host_key`), as OpenSSH asks on first contact. A *changed* key is
+refused outright with no prompt -- that is the case host keys exist to
+catch. An unreadable or malformed configured file raises `TransportError`.
+
+Why ask rather than require a file (operator, 2026-10-02): requiring one
+meant the Address Book could not save an SSH contact until the operator had
+run ``ssh-keyscan`` by hand, which nothing told them to do.
 
 Needs the optional `asyncssh` dependency (``pip install kissterm[ssh]``),
 imported lazily inside `connect()` -- never at module import time, so a
@@ -33,6 +41,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
+from pathlib import Path
 
 from ..ax25.address import AX25Path
 from .base import Session, SessionState, SessionTransport, TransportError, TransportInfo, TransportState
@@ -40,6 +50,44 @@ from .base import Session, SessionState, SessionTransport, TransportError, Trans
 log = logging.getLogger(__name__)
 
 _READ_CHUNK = 4096
+
+
+def default_known_hosts() -> Path:
+    """kissterm's own known_hosts, used when an entry names none."""
+    from ..config import state_path
+
+    return state_path() / "ssh_known_hosts"
+
+
+def host_pattern(host: str, port: int) -> str:
+    """The known_hosts host field: bare on port 22, ``[host]:port`` otherwise."""
+    return host if port == 22 else f"[{host}]:{port}"
+
+
+class UnknownHostKey(TransportError):
+    """The server is not in the known_hosts file yet. Carries what it
+    offered so the operator can decide; nothing was signed in."""
+
+    def __init__(self, host: str, port: int, path: Path, key_type: str,
+                 fingerprint: str, line: str) -> None:
+        super().__init__(
+            f"{host}:{port} is not a known SSH server yet (key {fingerprint})"
+        )
+        self.host = host
+        self.port = port
+        self.path = path
+        self.key_type = key_type
+        self.fingerprint = fingerprint
+        #: The known_hosts line `trust_host_key` appends.
+        self.line = line
+
+
+def trust_host_key(path: Path, line: str) -> None:
+    """Append one operator-trusted line to a known_hosts file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    with os.fdopen(fd, "a", encoding="utf-8") as handle:
+        handle.write(line.rstrip("\n") + "\n")
 
 
 class SshTransport(SessionTransport):
@@ -87,6 +135,21 @@ class SshTransport(SessionTransport):
             await self._session.close()
         self.state = TransportState.CLOSED
 
+    async def _unknown_host(self, asyncssh, path: Path) -> TransportError:
+        """Fetch the key the server offers (key exchange only, no sign-in)
+        and wrap it in `UnknownHostKey` for the operator to judge."""
+        try:
+            key = await asyncssh.get_server_host_key(self.host, self.port, config=None)
+        except Exception as exc:  # noqa: BLE001 -- any failure means "could not reach it"
+            return TransportError(f"could not reach {self.host}:{self.port}: {exc}")
+        if key is None:
+            return TransportError(f"{self.host}:{self.port} offered no host key")
+        key_type, blob = key.export_public_key("openssh").decode("ascii").split()[:2]
+        return UnknownHostKey(
+            self.host, self.port, path, key_type, key.get_fingerprint(),
+            f"{host_pattern(self.host, self.port)} {key_type} {blob}",
+        )
+
     async def connect(self, path: AX25Path | None = None) -> Session:
         """Authenticate and open an interactive session.
 
@@ -103,22 +166,20 @@ class SshTransport(SessionTransport):
                 "install with 'pip install kissterm[ssh]'"
             ) from exc
 
-        if not self.known_hosts.strip():
-            raise TransportError(
-                "SSH host-key verification requires a configured 'known_hosts' "
-                "file containing this server's expected key"
-            )
-        try:
-            known_hosts = asyncssh.read_known_hosts(self.known_hosts)
-        except (OSError, UnicodeError, ValueError) as exc:
-            raise TransportError(
-                f"could not read SSH known-hosts file {self.known_hosts!r}: {exc}"
-            ) from exc
+        configured = self.known_hosts.strip()
+        hosts_file = Path(configured).expanduser() if configured else default_known_hosts()
+        if not configured and not hosts_file.exists():
+            # kissterm's own file before its first Trust: nothing known yet.
+            known_hosts = asyncssh.import_known_hosts("")
+        else:
+            try:
+                known_hosts = asyncssh.read_known_hosts(str(hosts_file))
+            except (OSError, UnicodeError, ValueError) as exc:
+                raise TransportError(
+                    f"could not read SSH known-hosts file {str(hosts_file)!r}: {exc}"
+                ) from exc
         if not any(known_hosts.match(self.host, "", self.port)):
-            raise TransportError(
-                f"SSH known-hosts file {self.known_hosts!r} has no valid entry "
-                f"for {self.host}:{self.port}"
-            )
+            raise await self._unknown_host(asyncssh, hosts_file)
 
         try:
             connect_options = dict(
@@ -156,8 +217,9 @@ class SshTransport(SessionTransport):
             )
         except asyncssh.HostKeyNotVerifiable as exc:
             raise TransportError(
-                f"SSH host-key verification failed for {self.host}:{self.port}: {exc}. "
-                "Check that 'known_hosts' contains this server's current key."
+                f"refused: {self.host}:{self.port} sent a different host key from "
+                f"the one trusted in {str(hosts_file)!r} ({exc}). If the server's operator "
+                "confirms its key changed, delete its line there and connect again."
             ) from exc
         except TransportError:
             raise

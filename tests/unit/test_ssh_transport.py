@@ -27,7 +27,8 @@ import pytest_asyncio  # noqa: E402
 asyncssh = pytest.importorskip("asyncssh")
 
 from kissterm.transport.base import SessionState, TransportError, TransportState  # noqa: E402
-from kissterm.transport.ssh import SshTransport  # noqa: E402
+from kissterm.transport import ssh as ssh_module  # noqa: E402
+from kissterm.transport.ssh import SshTransport, UnknownHostKey, trust_host_key  # noqa: E402
 
 USERNAME = "packet"
 PASSWORD = "letmein"
@@ -157,15 +158,30 @@ async def test_encrypted_client_key_authenticates(ssh_server):
 
 
 @pytest.mark.asyncio
-async def test_missing_known_hosts_rejects_before_a_shell_starts(ssh_server):
+async def test_a_new_server_is_asked_about_then_trusted(ssh_server, tmp_path: Path, monkeypatch):
+    """No file named: kissterm's own known_hosts. A first contact raises
+    UnknownHostKey with the server's real fingerprint and signs nothing in;
+    after the operator's Trust is written, the same connect succeeds."""
     host, port, _client_key_path, _known_hosts_path, state = ssh_server
+    own = tmp_path / "own" / "ssh_known_hosts"
+    monkeypatch.setattr(ssh_module, "default_known_hosts", lambda: own)
     transport = SshTransport(host, USERNAME, PASSWORD, port=port)
     await transport.open()
 
-    with pytest.raises(TransportError, match="host-key verification requires"):
+    with pytest.raises(UnknownHostKey) as caught:
         await transport.connect()
+    server_key = asyncssh.read_private_key(str(tmp_path / "host_key"))
+    assert caught.value.fingerprint == server_key.get_fingerprint()
+    assert caught.value.path == own
+    assert caught.value.line.startswith(f"[{host}]:{port} ssh-rsa ")
+    assert state["shells"] == 0 and not own.exists()
 
-    assert state["shells"] == 0
+    trust_host_key(caught.value.path, caught.value.line)
+    session = await transport.connect()
+    try:
+        assert session.connected
+    finally:
+        await transport.close()
 
 
 @pytest.mark.asyncio
@@ -174,12 +190,15 @@ async def test_unreadable_or_malformed_known_hosts_rejects_before_a_shell_starts
     malformed = tmp_path / "malformed_known_hosts"
     malformed.write_text("this is not an OpenSSH known-hosts entry\n")
 
-    for known_hosts in (tmp_path / "missing_known_hosts", malformed):
+    # A named file that is missing is an error; asyncssh skips lines it
+    # cannot parse, so a malformed one holds no entry and is asked about.
+    for known_hosts, raised in ((tmp_path / "missing_known_hosts", "known-hosts file"),
+                                (malformed, "not a known SSH server")):
         transport = SshTransport(
             host, USERNAME, PASSWORD, port=port, known_hosts=str(known_hosts)
         )
         await transport.open()
-        with pytest.raises(TransportError, match="known-hosts file"):
+        with pytest.raises(TransportError, match=raised):
             await transport.connect()
 
     assert state["shells"] == 0
@@ -198,7 +217,7 @@ async def test_unknown_or_changed_server_key_rejects_before_a_shell_starts(ssh_s
         host, USERNAME, PASSWORD, port=port, known_hosts=str(unknown)
     )
     await transport.open()
-    with pytest.raises(TransportError, match="has no valid entry"):
+    with pytest.raises(UnknownHostKey):
         await transport.connect()
 
     changed = tmp_path / "changed_known_hosts"
@@ -211,7 +230,9 @@ async def test_unknown_or_changed_server_key_rejects_before_a_shell_starts(ssh_s
         host, USERNAME, PASSWORD, port=port, known_hosts=str(changed)
     )
     await transport.open()
-    with pytest.raises(TransportError, match="host-key verification failed"):
+    with pytest.raises(TransportError, match="refused: .* different host key") as caught:
         await transport.connect()
+    # A changed key is refused, never offered for trust.
+    assert not isinstance(caught.value, UnknownHostKey)
 
     assert state["shells"] == 0

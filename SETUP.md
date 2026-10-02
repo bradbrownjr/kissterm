@@ -361,8 +361,8 @@ the Address Book (`Ctrl+G`), press New, and set **By** to Telnet or SSH:
 - **Host** and **Port** (empty is 23 for Telnet, 22 for SSH).
 - SSH only: **SSH**, the saved login for the server (username and password;
   leave the password empty for an account that has none) or a **Key file**
-  (plus **Passphrase** for an encrypted key), and **Known** — an OpenSSH known-hosts file holding the
-  server key you verified out of band.
+  (plus **Passphrase** for an encrypted key). **Known** is optional: an
+  OpenSSH known-hosts file of your own. Left empty, kissterm keeps its own.
 
 Under **Node login** (shown as **Auto-login** for Telnet and radio contacts)
 pick a saved login or script to send to the node once connected; over SSH
@@ -380,8 +380,16 @@ them up) is moved to the Address Book at launch, its password to the keyring.
 
 SSH needs the optional `asyncssh` package: `pip install kissterm[ssh]` (or
 `kissterm[all]`). kissterm does not silently search `~/.ssh` for identities,
-never consults ambient SSH configuration, and never accepts a first-seen key;
-a missing, malformed, unknown or changed key stops before the login shell.
+and never consults ambient SSH configuration or `~/.ssh/known_hosts`.
+
+**The first connect asks about the server's key.** A server kissterm has not
+seen shows its key fingerprint with Trust and Cancel (Cancel is focused).
+Check the fingerprint against what the server's operator publishes if you
+can. Trust saves it to the known-hosts file (yours, or kissterm's own
+`ssh_known_hosts` in its data folder) and connects; Cancel signs nothing in.
+From then on a different key from that server is refused outright, with no
+prompt: delete its line from the file only once its operator confirms the
+key changed.
 
 **Auto-login.** The contact's Login section (a saved login, a saved script,
 or lines typed there) is sent one line at a time once the connection is up.

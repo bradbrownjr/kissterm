@@ -522,8 +522,9 @@ port = 8300
 # (Ctrl+G, New, By Telnet or SSH), dialed in their own Terminal tab beside
 # the radio. A telnet or ssh entry found here is moved there at launch,
 # its password into the system keyring. WS1EC, for example: By SSH, host
-# ws1ec.mainepacketradio.org, port 4122, user packet, and a known-hosts
-# file holding its host key (verified out of band; never read from ~/.ssh).
+# ws1ec.mainepacketradio.org, port 4122, user packet. The first connect
+# shows the server's key fingerprint and asks to trust it (never read from
+# ~/.ssh); a different key later is refused.
 
 # --- Saved connect targets -------------------------------------------------
 # Optional shortcuts for stations you connect to often -- a local BBS, a

@@ -117,6 +117,13 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   beside any radio session, says "Connecting ... over the Internet", then
   the node's greeting. Type a command: it goes, and the status bar still
   says TX OFF. Ctrl+D hangs up (still TX OFF); Ctrl+R dials it again.
+- [ ] **SSH asks to trust a new server** (no radio): save your WS1EC SSH
+  contact with Known left empty (Save should now work). Enter on it: a
+  "Trust this SSH server?" dialog shows its key fingerprint, with Cancel
+  highlighted. Cancel: the tab says host key not trusted. Enter again,
+  Trust: it connects, and the next dial asks nothing. Compare the
+  fingerprint with `ssh-keyscan -p 4722 ws1ec.mainepacketradio.org |
+  ssh-keygen -lf -` if you like.
 - [ ] **Immediate SABM when polled** (Settings > Link > Retry at once when
   polled, on). On a marginal connect, the Monitor should show a SABM right
   after a poll from the node instead of waiting out T1.
@@ -186,7 +193,7 @@ and then your Winlink password, before dialing. The password is saved
 - [ ] **Home BBS by Internet (SSH to WS1EC)** (no radio): the WS1EC
   contact from the Address Book test under Connecting (or a new one:
   Address Book, New, By SSH, host ws1ec.mainepacketradio.org, port 4122,
-  user packet, and a known_hosts file holding its host key). On BBS >
+  user packet; the first connect asks you to Trust its key). On BBS >
   Inbox press I: pick that contact, give your node password. Expect in the transcript (Session
   > Transcripts): the node's `user:` answered with your call, `(password
   sent)`, `BBS`, the BBS greeting and `LM`. If it stalls after the

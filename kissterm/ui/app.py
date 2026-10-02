@@ -203,6 +203,7 @@ from .dialogs import (
     LoginAskScreen,
     TranscriptsScreen,
     FileTransferScreen,
+    TrustHostKeyScreen,
     UpdateScreen,
 )
 from .heard_pane import HeardPane
@@ -3911,6 +3912,37 @@ class KissTermApp(App):
         if on_reached is not None:
             on_reached(True)
 
+    async def _session_connect(self, transport):
+        """`transport.connect()`, asking the operator to trust an SSH server
+        seen for the first time (kissterm/transport/ssh.py). Not trusting
+        it is a `TransportError` like any other failed connect."""
+        from ..transport.ssh import UnknownHostKey, trust_host_key
+
+        try:
+            return await transport.connect()
+        except UnknownHostKey as unknown:
+            answer = asyncio.get_running_loop().create_future()
+            screen = TrustHostKeyScreen(unknown)
+            self.push_screen(
+                screen, lambda ok: answer.done() or answer.set_result(bool(ok)))
+            try:
+                trusted = await answer
+            except asyncio.CancelledError:
+                # Ctrl+D while the question is up: take it down too.
+                if self.screen is screen:
+                    screen.dismiss(False)
+                raise
+            if not trusted:
+                raise TransportError(
+                    f"{unknown.host}:{unknown.port}: host key not trusted; "
+                    "nothing was sent.") from None
+            try:
+                trust_host_key(unknown.path, unknown.line)
+            except OSError as exc:
+                raise TransportError(
+                    f"could not save the host key to {unknown.path}: {exc}") from exc
+            return await transport.connect()
+
     async def _dial_internet(self, entry, *, on_link=None, on_reached=None,
                              focus_session: bool = True) -> None:
         """Dial an Internet contact (`Entry.connect_by` "telnet" or "ssh")
@@ -3966,7 +3998,7 @@ class KissTermApp(App):
         self._refresh_context_footer()
         try:
             await transport.open()
-            session = await transport.connect()
+            session = await self._session_connect(transport)
         except asyncio.CancelledError:
             self._to_terminal(key, "write_note", "*** Connect cancelled by operator.\n")
             with contextlib.suppress(Exception):
@@ -4042,7 +4074,7 @@ class KissTermApp(App):
         self._session_connect_task = connect_task
         self._refresh_context_footer()
         try:
-            session = await transport.connect()
+            session = await self._session_connect(transport)
         except asyncio.CancelledError:
             # Ctrl+D is an operator decision, not a failed connection.
             # SessionTransport implementations clean up their partly-open
@@ -4921,7 +4953,7 @@ class KissTermApp(App):
         try:
             await transport.open()
             try:
-                session = await transport.connect()
+                session = await self._session_connect(transport)
             except TransportError as exc:
                 self.notify(f"Send/Receive by Internet: {exc}", severity="error")
                 return None
