@@ -349,9 +349,12 @@ account = ""
 credential = ""
 # Maidenhead locator for the handshake; empty uses the APRS grid square.
 locator = ""
-# The CMS that Send/Receive by Internet (I) reaches: "production"
-# (server.winlink.org) or "test" (cms-z.winlink.org, Winlink's test server).
+# Where Send/Receive by Internet (I) reaches Winlink: "production"
+# (server.winlink.org) or "test" (cms-z.winlink.org, Winlink's test server),
+# both directly; or "node": log in to the Home BBS's Internet contact
+# ([home_bbs] internet) and send node_command, so the node reaches Winlink.
 server = "production"
+node_command = "RMS"
 
 [beacon]
 enabled = false

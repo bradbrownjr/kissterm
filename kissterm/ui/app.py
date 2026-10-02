@@ -4957,8 +4957,9 @@ class KissTermApp(App):
         (operator, 2026-09-26): the same folders decide what runs, the Home
         BBS through its Telnet or SSH connection
         (`home_bbs.internet`, e.g. WS1EC's SSH login into its node) and
-        Winlink through the CMS by Telnet. Anything missing is asked for
-        before the first connection.
+        Winlink through the CMS by Telnet, or through that same node's RMS
+        command (`winlink.server` "node"), on a connection of its own.
+        Anything missing is asked for before the first connection.
 
         The transmit gate is not involved: nothing here can key a radio,
         and arming it would open RF for everything else too. Each run is
@@ -4972,7 +4973,7 @@ class KissTermApp(App):
             kind = self.send_receive_kind(self._mail_folder(), internet=True)
             runs = await self._prepare_runs(kind, "I", (
                 ("Home BBS", self._bbs_internet_prepare, self._bbs_internet_run),
-                ("Winlink", self._winlink_login, self._winlink_cms_run),
+                ("Winlink", self._winlink_internet_prepare, self._winlink_cms_run),
             ))
             for run, args in runs or ():
                 await run(*args)
@@ -5021,29 +5022,57 @@ class KissTermApp(App):
                 transcript.close()
             self._mail_status("")
 
-    async def _winlink_cms_run(self, account: str, password: str) -> None:
+    async def _winlink_internet_prepare(self):
+        """Everything Winlink needs over the Internet, asking for what is
+        missing: (account, password, node), node being the Home BBS's
+        contact and its login when Winlink is reached through it (Settings
+        > Mail > Internet server), else None. None if cancelled."""
+        login = await self._winlink_login()
+        if login is None:
+            return None
+        node = None
+        if self.config.winlink.server == "node":
+            node = await self._node_internet_login()
+            if node is None:
+                return None
+        return (*login, node)
+
+    async def _winlink_cms_run(self, account: str, password: str, node=None) -> None:
         """Winlink through the CMS by Telnet (`winlink_collect.CMS_*`,
-        from wl2k-go): its login, then the same exchange as over radio."""
+        from wl2k-go): its login, then the same exchange as over radio.
+        Through the node (`node` = (contact, user, password)): the node's
+        login and its RMS command instead, and the node reaches the CMS."""
         from ..mail.winlink_collect import (
             CMS_PORT, CMS_TARGET, WinlinkCollector, WinlinkOptions, cms_host,
         )
         from ..transport import build_transport
 
+        winlink = self.config.winlink
         options = WinlinkOptions(
             account, password=password, target=CMS_TARGET,
-            locator=self.config.winlink.locator or self.config.aprs.grid_square,
-            telnet_login=True,
+            locator=winlink.locator or self.config.aprs.grid_square,
+            telnet_login=node is None,
         )
+        if node is not None:
+            entry, options.node_user, options.node_password = node
+            options.node_command = winlink.node_command.strip() or "RMS"
 
         def build(link, note, sent, received):
             return WinlinkCollector(link, self.mail_store, options, note=note, sent=sent,
                                     received=received, progress=self._mail_status,
                                     early_lines_shown=False)
 
-        server = self.config.winlink.server
-        transport = build_transport({"kind": "telnet", "host": cms_host(server), "port": CMS_PORT})
-        what = "Winlink's test server" if server == "test" else "the Winlink CMS"
-        result = await self._internet_run(transport, CMS_TARGET, what, build)
+        if node is not None:
+            transport = self._contact_transport(entry)
+            if transport is None:
+                return
+            peer, what = entry.target, f"Winlink through {entry.target}"
+        else:
+            server = winlink.server
+            transport = build_transport({"kind": "telnet", "host": cms_host(server), "port": CMS_PORT})
+            peer = CMS_TARGET
+            what = "Winlink's test server" if server == "test" else "the Winlink CMS"
+        result = await self._internet_run(transport, peer, what, build)
         if result is not None:
             self._winlink_report(result)
             await self._winlink_password_refused(result)
@@ -5058,6 +5087,25 @@ class KissTermApp(App):
         is missing: (connection, options), or None if cancelled."""
         from ..mail.collect import CollectOptions
 
+        node = await self._node_internet_login()
+        if node is None:
+            return None
+        entry, user, password = node
+        home = self.config.home_bbs
+        return entry, CollectOptions(
+            bbs_call=home.call,
+            software=home.software,
+            ready_text=home.ready_text,
+            telnet_user=user,
+            telnet_password=password,
+            after_login=home.internet_command.strip(),
+        )
+
+    async def _node_internet_login(self):
+        """The Home BBS's Internet contact and the login that answers its
+        node, asking for what is missing: (contact, user, password), or
+        None if cancelled. The Home BBS and Winlink through the node
+        (`winlink.server` "node") share it."""
         home = self.config.home_bbs
         contacts = self._internet_contacts()
         wanted = home.internet.strip().upper()
@@ -5103,27 +5151,27 @@ class KissTermApp(App):
                 + ("the system keyring." if where == "keyring"
                    else "config.toml (no system keyring here)."),
             )
-        return entry, CollectOptions(
-            bbs_call=home.call,
-            software=home.software,
-            ready_text=home.ready_text,
-            telnet_user=user,
-            telnet_password=password,
-            after_login=home.internet_command.strip(),
-        )
+        return entry, user, password
 
-    async def _bbs_internet_run(self, entry, options) -> None:
-        """The Home BBS over its Telnet or SSH contact, built the one way
-        every connection is (`build_transport`)."""
-        from ..mail.collect import BbsCollector
+    def _contact_transport(self, entry):
+        """A Telnet or SSH contact's transport, built the one way every
+        connection is (`build_transport`); None having said why."""
         from ..transport import build_transport
 
         try:
-            transport = build_transport(entry.transport_config(
+            return build_transport(entry.transport_config(
                 lambda name: find_credential(self.config, name),
                 lambda name: credential_username(self.config, name)))
         except (TransportError, TypeError, ValueError) as exc:
             self.notify(f"Send/Receive by Internet: {entry.target}: {exc}", severity="error")
+            return None
+
+    async def _bbs_internet_run(self, entry, options) -> None:
+        """The Home BBS over its Telnet or SSH contact."""
+        from ..mail.collect import BbsCollector
+
+        transport = self._contact_transport(entry)
+        if transport is None:
             return
 
         def build(link, note, sent, received):

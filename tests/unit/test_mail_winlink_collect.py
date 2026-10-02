@@ -27,7 +27,7 @@ class Gateway:
     """A link whose far end is a Winlink CMS: SID, prompt, then turns."""
 
     def __init__(self, inbound: list[bytes] = (), *, challenge: bool = False, answer: str = "+",
-                 fail_login: bool = False, telnet: bool = False):
+                 fail_login: bool = False, telnet: bool = False, node: bool = False):
         self.connected = True
         self.on_data: list = []
         self.inbound = list(inbound)
@@ -36,6 +36,9 @@ class Gateway:
         self.fail_login = fail_login
         self.telnet = telnet
         self.telnet_login: list[str] = []
+        #: A BPQ node in front: its login, then the command to reach RMS.
+        self.node = node
+        self.node_login: list[str] = []
         self.handshake: list[str] = []
         self.received: list[bytes] = []
         self._rx = bytearray()
@@ -88,6 +91,15 @@ class Gateway:
         return out + bytes((4, -sum(data) & 0xFF)), len(data)
 
     async def serve(self) -> None:
+        if self.node:
+            # BPQ's Telnet login: its prompts end with no line end, the
+            # first after its option bytes (TelnetV6.c).
+            self.deliver(b"\xff\xfb\x01user:")
+            self.node_login.append(await self._line())
+            self.deliver(b"password:")
+            self.node_login.append(await self._line())
+            self.deliver(b"Welcome to WS1EC\rWS1EC:WS1EC} ")
+            self.node_login.append(await self._line())
         if self.telnet:
             # The CMS Telnet port's own login (wl2k-go listen.go).
             self.deliver(b"Callsign :\r")
@@ -297,6 +309,21 @@ def test_the_cms_telnet_login_comes_first(tmp_path):
     assert ";PR: 95074758" in gateway.handshake  # the real password, only as the answer
     assert "FooBar" not in " ".join(gateway.telnet_login + gateway.handshake)
     assert len(result.filed) == 1
+
+
+def test_through_a_node_its_login_then_rms_come_first(tmp_path):
+    """Operator, 2026-10-02: pull Winlink through the node's RMS
+    application over the Home BBS's own Telnet or SSH contact."""
+    store = _store(tmp_path)
+    gateway = Gateway([REAL.read_bytes()], challenge=True, node=True)
+    result, log = asyncio.run(_run(gateway, store, password="FooBar", node_command="RMS",
+                                   node_user="KC1JMH", node_password="nodepw"))
+    assert not result.stopped, log
+    assert gateway.node_login == ["KC1JMH", "nodepw", "RMS"]
+    assert ";PR: 95074758" in gateway.handshake
+    assert len(result.filed) == 1
+    # The node's password is never written to the transcript.
+    assert "nodepw" not in "\n".join(log) and "(password sent)" in "\n".join(log)
 
 
 def test_attachments_are_saved_to_files_and_named_in_the_message(tmp_path):

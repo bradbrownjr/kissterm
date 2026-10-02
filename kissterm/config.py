@@ -296,12 +296,16 @@ class WinlinkConfig:
     #: The CMS that I (Send/Receive by Internet) reaches: "production"
     #: (server.winlink.org) or "test" (cms-z.winlink.org), the one the
     #: production CMS pointed kissterm at (ROADMAP, Blockers; operator,
-    #: 2026-09-28). See `winlink_collect.cms_host`.
+    #: 2026-09-28), both directly by Telnet (`winlink_collect.cms_host`);
+    #: or "node": the Home BBS's Internet contact, then `node_command`,
+    #: so the node reaches Winlink (operator, 2026-10-02).
     server: str = "production"
+    #: Sent at the node, once logged in, to reach its Winlink application.
+    node_command: str = "RMS"
 
 
 #: `WinlinkConfig.server`'s values.
-WINLINK_SERVERS = ("production", "test")
+WINLINK_SERVERS = ("production", "test", "node")
 
 
 @dataclass
@@ -1350,10 +1354,11 @@ def _load_winlink(value: Any, warnings: list[str]) -> WinlinkConfig:
             warnings.append(f"'winlink' should be a table, got {value!r}; using defaults")
         return default
     winlink = WinlinkConfig()
-    for name in ("route", "account", "credential", "locator"):
+    for name in ("route", "account", "credential", "locator", "node_command"):
         setattr(winlink, name, _load_str(value, name, getattr(default, name), warnings))
     winlink.account = winlink.account.strip().upper()
     winlink.locator = winlink.locator.strip()
+    winlink.node_command = winlink.node_command.strip() or default.node_command
     server = _load_str(value, "server", default.server, warnings).strip().lower()
     if server not in WINLINK_SERVERS:
         warnings.append(f"winlink.server should be one of {', '.join(WINLINK_SERVERS)}, "

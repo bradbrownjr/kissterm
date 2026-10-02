@@ -316,6 +316,54 @@ async def test_i_on_a_winlink_folder_uses_the_cms_by_telnet(tmp_path, monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_i_through_the_node_logs_in_and_sends_rms(tmp_path, monkeypatch):
+    """Operator, 2026-10-02: Winlink through the node's RMS application,
+    over the Home BBS's own contact and login, never the CMS directly."""
+    from kissterm.config import set_credential
+    from kissterm.mail import winlink_collect
+
+    gateway = Gateway([REAL.read_bytes()], challenge=True, node=True)
+
+    async def handle(reader, writer):
+        gateway.deliver = writer.write
+        serving = asyncio.ensure_future(gateway.serve())
+        while data := await reader.read(4096):
+            gateway._rx += data
+            gateway._got.set()
+        serving.cancel()
+
+    tcp = await asyncio.start_server(handle, "127.0.0.1", 0)
+    monkeypatch.setattr(winlink_collect, "CMS_HOST", "never.invalid")
+    monkeypatch.setattr(winlink_collect, "CMS_TEST_HOST", "never.invalid")
+    app, station, _tb = await _app(tmp_path)
+    app.config.winlink.server = "node"
+    set_credential(app.config, "WS1EC node", "nodepw", username="KC1JMH")
+    app.addressbook.upsert("ws1ec-telnet", connect_by="telnet", host="127.0.0.1",
+                           port=str(tcp.sockets[0].getsockname()[1]), credential="WS1EC node")
+    app.config.home_bbs.internet = "ws1ec-telnet"
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder(WINLINK_INBOX)
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        toasts: list[str] = []
+        real_notify = app.notify
+        app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
+        await pilot.press("i")
+        await wait_for(lambda: any("Winlink message" in t for t in toasts), "the outcome toast", timeout=20)
+        assert gateway.node_login == ["KC1JMH", "nodepw", "RMS"]
+        assert ";PR: 95074758" in gateway.handshake
+        assert len(app.mail_store.list(WINLINK_INBOX)) == 1
+        assert any("Winlink through ws1ec-telnet" in t for t in toasts)
+        assert not station.transport.sent
+        await wait_for(lambda: not app._collecting, "the run to finish")
+    tcp.close()
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_i_on_a_bbs_folder_logs_in_to_the_node_and_gets_mail(tmp_path):
     """The Home BBS over a Telnet connection: BPQ's login, BBS, then LM.
     Nothing set up yet: one question asks the contact, the username and

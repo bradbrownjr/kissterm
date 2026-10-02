@@ -33,7 +33,13 @@ still has to try on the air.
   # UNVERIFIED: whether an RMS gateway over the radio passes the same
   check to the CMS; whether mail sent through cms-z reaches the Internet;
   and why one message, not five (already collected elsewhere, or the
-  test server holds only some).
+  test server holds only some). A second I at 14:30 the same day was
+  offered nothing, so cms-z had no more for the account.
+  **Next evidence:** I with Internet server "Through the node" (0.1.354)
+  reaches the CMS through WS1EC's RMS application instead; its transcript
+  will show whether a node-relayed session is judged by kissterm's SID
+  too (operator's view, 2026-10-02: the node presents its own client
+  info) and whether production holds the other messages.
 
 - **Winlink API access key** (2026-09-27). The RMS Gateway list (P2) needs
   a key issued to kissterm by a Winlink administrator. The operator will

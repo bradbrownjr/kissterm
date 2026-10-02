@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Winlink by Internet through the node's RMS
+
+### New Features
+
+- **Settings > Mail > Internet server: Through the node.** I logs in to
+  the Home BBS's Telnet or SSH contact (its Node login) on a connection
+  of its own and sends RMS (Node's Winlink command) instead of BBS, so
+  the node reaches Winlink. The node's password is never written to the
+  transcript. Direct Telnet to the CMS stays. Operator request, 2026-10-02.
+
+**Files:** `kissterm/mail/winlink_collect.py`, `kissterm/ui/app.py`,
+`kissterm/config.py`, `kissterm/ui/settings_schema.py`, `config.toml.example`,
+`tests/unit/test_mail_winlink_collect.py`, `tests/pilot/test_winlink_send_receive.py`,
+`docs/GUIDE.md`, `README.md`, `docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — One toast per event for Send/Receive
 
 ### Improvements
