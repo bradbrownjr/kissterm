@@ -2998,7 +2998,7 @@ class KissTermApp(App):
             self._to_terminal(self._active_key(), "write_note", "\n*** Transmit disabled\n")
         self._refresh_status()
 
-    def _arm_for(self, what: str) -> None:
+    def _arm_for(self, what: str, toast: bool = True) -> bool:
         """Open the transmit gate because the operator just asked for
         something that cannot happen without transmitting.
 
@@ -3019,15 +3019,29 @@ class KissTermApp(App):
         Arming is never silent. It is a notification, a line in the terminal
         log and a status-bar change, because "did this thing start
         transmitting behind my back?" must stay answerable from the screen.
+        `toast=False` is only for a caller that says it in its own toast
+        (`action_connect`'s `announce`), so the operator gets one notice,
+        not two. True if it armed now.
         """
         if self.gate.enabled:
-            return
+            return False
         self.gate.set(True)
         self._to_terminal(
             self._active_key(), "write_note", f"\n*** Transmit enabled automatically for: {what}\n"
         )
-        self.notify(f"Transmit ENABLED for {what}. Ctrl+T turns it back off.")
+        if toast:
+            self.notify(f"Transmit ENABLED for {what}. Ctrl+T turns it back off.")
         self._refresh_status()
+        return True
+
+    def _connect_problem(self, report, text: str, severity: str = "error") -> None:
+        """Why a connect did not happen: a toast, or handed to `report` when
+        the caller (Send/Receive) raises its own, so one failure is one
+        notice, not two (operator, 2026-10-02; DESIGN.md section 6)."""
+        if report is not None:
+            report(text)
+        else:
+            self.notify(text, severity=severity)
 
     @work
     async def action_beacon_now(self) -> None:
@@ -3602,6 +3616,8 @@ class KissTermApp(App):
         on_link=None,
         on_reached=None,
         focus_session: bool = True,
+        announce: str = "",
+        report=None,
     ) -> None:
         """Connect to a station, via the dialog or dialed directly.
 
@@ -3619,6 +3635,10 @@ class KissTermApp(App):
         has not) reached the target -- Send/Receive's hooks (`action_get_mail`).
         `focus_session=False` leaves focus alone: Send/Receive runs from the Mail
         tab, and focus in the hidden send line would switch to Terminal.
+        `announce` is the caller's "Connecting..." toast, raised when the
+        SABMs are about to go (with the gate's arming in the same toast), and
+        `report(text)` receives a failure's reason instead of a toast here:
+        Send/Receive says both in its own words, once each.
         """
         # An Internet contact dials its own connection, radio or no radio
         # (`_dial_internet`); a redial of one finds it by name.
@@ -3626,7 +3646,7 @@ class KissTermApp(App):
             self.addressbook.find(redial.target) if redial is not None else None)
         if contact is not None and contact.is_internet:
             await self._dial_internet(contact, on_link=on_link, on_reached=on_reached,
-                                      focus_session=focus_session)
+                                      focus_session=focus_session, report=report)
             return
         if self.station is None:
             if self.session_transport is not None:
@@ -3648,7 +3668,7 @@ class KissTermApp(App):
                             return
                 await self._connect_session_transport()
                 return
-            self.notify("No transport is open.", severity="error")
+            self._connect_problem(report, "No transport is open.")
             return
         if redial is not None:
             request = redial
@@ -3687,7 +3707,7 @@ class KissTermApp(App):
             contact = self.addressbook.find(request.target)
             if contact is not None and contact.is_internet:
                 await self._dial_internet(contact, on_link=on_link, on_reached=on_reached,
-                                          focus_session=focus_session)
+                                          focus_session=focus_session, report=report)
                 return
             if request.transport_name and request.transport_name != self.config.active_transport:
                 self.config.active_transport = request.transport_name
@@ -3733,7 +3753,7 @@ class KissTermApp(App):
         # many OTHER tabs are open -- see `TerminalPane.has_room_for`.
         port = request.port
         if port < 0 or port >= self.station.transport.ports:
-            self.notify(f"Radio port {port} is not available on this transport.", severity="error")
+            self._connect_problem(report, f"Radio port {port} is not available on this transport.")
             return
         key = self._session_key(path.destination, port)
         pane = self.query_one(TerminalPane)
@@ -3742,15 +3762,16 @@ class KissTermApp(App):
             # click on the dial and on the reminder's Connect, 2026-09-24).
             # Two SABM streams key the radio over the peer's UA, and a join
             # would run the login script twice; say so and drop this one.
-            self.notify(f"Already connecting to {path.destination}.", severity="warning")
+            self._connect_problem(report, f"Already connecting to {path.destination}.", "warning")
             return
         self._last_connect[key] = request
         self._last_connect_key = key
         if not pane.has_room_for(key):
-            self.notify(
+            self._connect_problem(
+                report,
                 f"Close a session first -- {MAX_TERMINAL_TABS} connections are "
                 "already open.",
-                severity="warning",
+                "warning",
             )
             return
         # The Address Book and passive NET/ROM claims deliberately share one
@@ -3789,16 +3810,17 @@ class KissTermApp(App):
                 f"an RF problem -- check the TNC, then Settings (F9) > Radio > "
                 f"Test.\n",
             )
-            self.notify(
-                f"TNC link is {state.value} -- nothing would be transmitted.",
-                severity="error",
-            )
+            self._connect_problem(
+                report, f"TNC link is {state.value} -- nothing would be transmitted.")
             return
         # A confirmed connect request ARMS the gate rather than being refused
         # by it. See `_arm_for` -- naming a station and confirming the dialog
         # is the operator asking to transmit, and refusing it here left them
         # with a dead end that only reads as "the far station is not there".
-        self._arm_for(f"connect to {path.destination}")
+        armed = self._arm_for(f"connect to {path.destination}", toast=not announce)
+        if announce:
+            self.notify(announce + (" Transmit ENABLED; Ctrl+T turns it back off."
+                                    if armed else ""))
         self._to_terminal(key, "write_note", f"\n*** Connecting to {path.destination} on port {port}...\n")
         # Set before the await, not after: `AX25Station.connect` registers the
         # link synchronously before it awaits anything, so by the time this
@@ -3814,7 +3836,7 @@ class KissTermApp(App):
                 window=_entry_link_override(reminder.window) if reminder else None,
             )
         except TransportError as exc:
-            self.notify(str(exc), severity="error")
+            self._connect_problem(report, str(exc))
             return
         finally:
             self._connecting.pop(key, None)
@@ -3853,9 +3875,8 @@ class KissTermApp(App):
                     "some of those frames never reached the radio. Fix that "
                     "first -- this is not an RF failure.\n",
                 )
-            self.notify(
-                f"Could not connect to {path.destination}{detail}", severity="warning"
-            )
+            self._connect_problem(
+                report, f"Could not connect to {path.destination}{detail}", "warning")
             return
         self._bind_link(link, key)
         if on_link is not None:
@@ -3894,7 +3915,7 @@ class KissTermApp(App):
             # it is that node's own onward routing, invisible to kissterm's
             # state machine and driven purely by watching what comes back
             # over this one link. See `_hop_through`.
-            reached_target = await self._hop_through(link, key, chain[1:])
+            reached_target = await self._hop_through(link, key, chain[1:], report)
         if not reached_target:
             # Left connected to whichever node was last reached -- the
             # operator can continue by hand from there, or Ctrl+D. Neither
@@ -3948,7 +3969,7 @@ class KissTermApp(App):
             return await transport.connect()
 
     async def _dial_internet(self, entry, *, on_link=None, on_reached=None,
-                             focus_session: bool = True) -> None:
+                             focus_session: bool = True, report=None) -> None:
         """Dial an Internet contact (`Entry.connect_by` "telnet" or "ssh")
         into its own Terminal tab, beside any radio session (operator,
         2026-09-26: every contact in the Address Book, whatever the
@@ -3970,7 +3991,7 @@ class KissTermApp(App):
                 on_reached(ok)
 
         if self.session_is_live(key):
-            self.notify(f"Already connected to {key}.", severity="information")
+            self._connect_problem(report, f"Already connected to {key}.", "information")
             reached(False)
             return
         try:
@@ -3978,7 +3999,7 @@ class KissTermApp(App):
                 lambda name: find_credential(self.config, name),
                 lambda name: credential_username(self.config, name)))
         except (TransportError, TypeError, ValueError) as exc:
-            self.notify(f"{key}: {exc}", severity="error")
+            self._connect_problem(report, f"{key}: {exc}")
             reached(False)
             return
         self.addressbook.record_attempt(entry.target, entry.script, "", entry.credential,
@@ -4011,7 +4032,7 @@ class KissTermApp(App):
             return
         except (TransportError, OSError) as exc:
             self._to_terminal(key, "write_note", f"*** Could not connect: {exc}\n")
-            self.notify(f"{key}: {exc}", severity="error")
+            self._connect_problem(report, f"{key}: {exc}")
             with contextlib.suppress(Exception):
                 await transport.close()
             reached(False)
@@ -4110,7 +4131,8 @@ class KissTermApp(App):
         if login_text.strip():
             self._run_connect_script(link, "", login_text)
 
-    async def _hop_through(self, link, session_key: str, nodes: list[str]) -> bool:
+    async def _hop_through(self, link, session_key: str, nodes: list[str],
+                           report=None) -> bool:
         """Walk a chain of node-to-node hops over an already-open link.
 
         For a station reached only by connecting through intermediate
@@ -4139,15 +4161,19 @@ class KissTermApp(App):
         for node in nodes:
             if not link.connected:
                 self._to_terminal(session_key, "write_note", "*** Hop chain stopped: no longer connected.\n")
+                if report is not None:
+                    report("the hop chain stopped: no longer connected")
                 return False
             if not self.gate.enabled:
                 self._to_terminal(session_key, "write_note", "*** Hop chain stopped: transmit is off.\n")
+                if report is not None:
+                    report("the hop chain stopped: transmit is off")
                 return False
             ok, detail = await self._hop_to(link, session_key, node)
             if not ok:
                 extra = f" -- {detail}" if detail else ""
                 self._to_terminal(session_key, "write_note", f"*** No connection to {node}{extra}\n")
-                self.notify(f"Hop to {node} did not connect{extra}", severity="warning")
+                self._connect_problem(report, f"Hop to {node} did not connect{extra}", "warning")
                 return False
         return True
 
@@ -4669,29 +4695,37 @@ class KissTermApp(App):
         def on_reached(reached: bool) -> None:
             state["reached"] = reached
 
-        # The operator stays on the Mail tab: a toast says a connect is under
-        # way, and the status bar follows it. The whole session is in the
-        # Terminal tab (F5) for anyone who wants to watch.
-        self.notify(f"Connecting to {entry.target} to send and receive {what}...")
+        # The operator stays on the Mail tab: one toast says a connect is
+        # under way (and that transmit was enabled, if it was), and the
+        # status bar follows it. The whole session is in the Terminal tab
+        # (F5) for anyone who wants to watch. A failure is one toast too: the
+        # connect hands its reason here (`report`) rather than raising its
+        # own beside this one (operator, 2026-10-02: two toasts per event).
+        reasons: list[str] = []
+        announce = f"Connecting to {entry.target} to send and receive {what}..."
+        if entry.is_internet:
+            # No transmit gate on the Internet, so nothing to fold in.
+            self.notify(announce)
+            announce = ""
         self._mail_status(f"Connecting to {entry.target}")
         worker = self.action_connect(
-            prefill=entry, on_link=on_link, on_reached=on_reached, focus_session=False
+            prefill=entry, on_link=on_link, on_reached=on_reached, focus_session=False,
+            announce=announce, report=reasons.append,
         )
         await worker.wait()
         runner = state["runner"]
+        why = reasons[-1].rstrip(".") if reasons else f"did not reach {entry.target}"
         if runner is None:
-            self.notify(
-                f"Send/Receive: could not connect to {entry.target}. "
-                "The Terminal tab (F5) says why.",
-                severity="error",
-            )
+            # No reason means the operator cancelled (the reminder, Ctrl+D):
+            # nothing to tell them.
+            if reasons:
+                self.notify(f"Send/Receive: {why}. The Terminal tab (F5) has the details.",
+                            severity="error")
             return None
         if not state["reached"]:
             runner.close()
-            self.notify(
-                f"Send/Receive: did not reach {entry.target}. The Terminal tab (F5) says why.",
-                severity="error",
-            )
+            self.notify(f"Send/Receive: {why}. The Terminal tab (F5) has the details.",
+                        severity="error")
             return None
         return runner, state["key"]
 

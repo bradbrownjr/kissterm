@@ -517,8 +517,15 @@ their place (Send/Receive's line above the message list, removed 2026-09-25).
   (operator, 2026-09-25). A sentence belongs in a toast or the log; a long
   field is truncated in its share of the row.
 - **A toast says what to do next when there is something to do** ("The
-  Terminal tab (F5) says why"), and is not raised for anything the operator
+  Terminal tab (F5) has the details"), and is not raised for anything the operator
   cannot act on or would not miss (section 1).
+- **One event, one toast.** When a job drives another part of the app
+  (Send/Receive dialing through the connect path), the job owns the
+  toasts: the part it drives hands back its reason (`report`) and folds
+  its own news in (`announce`: "Connecting... Transmit ENABLED") instead
+  of raising a second toast beside the job's (operator, 2026-10-02: "I got
+  two each time something happened";
+  `tests/pilot/test_get_mail.py::test_a_failed_g_is_one_toast_at_each_end`).
 - **A toast stays up at least 10 seconds** (`KissTermApp.NOTIFICATION_TIMEOUT`;
   pass `timeout` only to make one longer). A job's start and outcome often
   arrive as a pair, and at 4 seconds they went by before they could be

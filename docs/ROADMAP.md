@@ -25,8 +25,15 @@ still has to try on the air.
   `CMS>`, and did not refuse after `FF`. The production server had
   refused at that point (`20260928-103900_KC1JMH_WL2K.log`). So the
   refusal is the client-name check alone, not the login or the protocol.
+  The same session received real mail: cms-z offered one message (`FC EM
+  ED1VSIAJZVYF`, "Weekly Winlink Message Number 453" from KB1TCE) and
+  kissterm filed it. So the test server reads the operator's real mailbox,
+  at least for incoming mail; it offered one message where APRSLink had
+  reported five pending on 2026-09-21.
   # UNVERIFIED: whether an RMS gateway over the radio passes the same
-  check to the CMS, and what cms-z.winlink.org delivers to.
+  check to the CMS; whether mail sent through cms-z reaches the Internet;
+  and why one message, not five (already collected elsewhere, or the
+  test server holds only some).
 
 - **Winlink API access key** (2026-09-27). The RMS Gateway list (P2) needs
   a key issued to kissterm by a Winlink administrator. The operator will

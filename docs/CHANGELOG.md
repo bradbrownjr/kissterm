@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — One toast per event for Send/Receive
+
+### Improvements
+
+- **A Send/Receive connect raises one toast at each end, not two.** The
+  start toast says transmit was enabled, if it was (the gate's own toast
+  is folded in), and a failed connect is one toast with the reason
+  ("Send/Receive: Could not connect to WS1EC-2 -- ...") instead of the
+  connect's toast beside Mail's. New DESIGN.md section 6 rule, "One event,
+  one toast". Also recorded in ROADMAP: cms-z delivered real mail.
+  Operator report, 2026-10-02.
+
+**Files:** `kissterm/ui/app.py`, `tests/pilot/test_get_mail.py`, `DESIGN.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — Evidence: Winlink's test server accepts kissterm
 
 - Recorded in ROADMAP's blocker: cms-z.winlink.org logged kissterm in

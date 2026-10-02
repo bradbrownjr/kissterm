@@ -348,3 +348,38 @@ async def test_the_bbs_login_asked_is_a_username_and_a_password(tmp_path):
         await wait_for(lambda: app.config.home_bbs.credential == "Home BBS", "the login saved")
         assert login_text(app.config, "Home BBS") == "KC1JMH\nsecret"
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_failed_g_is_one_toast_at_each_end(tmp_path):
+    """Operator, 2026-10-02: "I got two each time something happened" --
+    Mail's "Connecting..." beside the gate's "Transmit ENABLED", and the
+    connect's "Could not connect" beside Mail's own. Now one toast says the
+    connect started (and that transmit was enabled), and one says why it
+    failed."""
+    import dataclasses
+
+    app, station, _tb = await _app(tmp_path)  # nothing answers on the far side
+    app.config.tx_armed_at_start = False
+    station.params = dataclasses.replace(FAST, connect_retries=2)
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.gate.set(False)
+        app.action_show_tab("mail")
+        await pilot.pause()
+        app.query_one("#mail-browser").query_one(MessageList).focus()
+        toasts: list[str] = []
+        real_notify = app.notify
+
+        def _toast(message, *args, **kwargs):
+            toasts.append(str(message))
+            return real_notify(message, *args, **kwargs)
+
+        app.notify = _toast
+        await pilot.press("g")
+        await wait_for(lambda: not app._collecting and len(toasts) >= 2, "the run to fail",
+                       timeout=20)
+        await pilot.pause()
+    assert len(toasts) == 2, toasts
+    assert "Connecting to WS1EC-2" in toasts[0] and "Transmit ENABLED" in toasts[0]
+    assert toasts[1].startswith("Send/Receive: Could not connect to WS1EC-2")
+    station.close()
