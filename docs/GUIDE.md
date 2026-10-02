@@ -112,12 +112,6 @@ Winlink's production servers refuse programs they do not recognise, and
 kissterm is not recognised yet. Until it is, the Internet server setting
 in Settings > Mail can use Winlink's test server.
 
-That setting can also be **Through the node**: I then logs in to the Home
-BBS's contact a second time and sends `RMS` (Settings > Mail > Node's
-Winlink command) instead of `BBS`, so your node, not this computer,
-reaches Winlink. Whether Winlink accepts kissterm that way is not proven
-yet.
-
 ### Writing messages
 
 **Insert writes a message, R replies and Q replies with the original

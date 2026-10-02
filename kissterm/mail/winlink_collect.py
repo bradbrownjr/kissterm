@@ -32,18 +32,6 @@ host, port and the `wl2k` target). The account's own password is never
 that: it answers the `;PQ:` challenge afterwards, as over radio.
 # UNVERIFIED: wl2k-go's constants, not yet a session of our own.
 
-**Through a node** (`node_command`): the Home BBS's own Telnet or SSH
-contact, logged in the way `collect.py` does it (the user at `user:`,
-the password at `password:`), then `RMS` -- BPQ's Winlink application --
-instead of `BBS`. From there the node's own connection to the CMS
-carries the exchange, so no Winlink server is reached from this machine
-(operator, 2026-10-02: "it might be helpful to pull all of it via the
-remote node"). The node's prompts may end a chunk with no line end
-(BPQ's `user:`), so a prompt is matched on the unfinished line too.
-# UNVERIFIED: whether the CMS judges kissterm's own SID on a session
-# relayed by the node's RMS application, as it does on its Telnet port
-# (ROADMAP, Blockers); the first session through WS1EC will say.
-
 **It stops rather than guesses**, with the reason in the operator's
 words: the gateway's own error line (a wrong password), a damaged
 message, silence past `idle_timeout`, a dropped link, or the transmit
@@ -111,11 +99,6 @@ class WinlinkOptions:
     idle_timeout: float = DEFAULT_IDLE_TIMEOUT
     #: Answer the CMS Telnet port's `Callsign :` / `Password :` first.
     telnet_login: bool = False
-    #: Through a node: its login (`user:`, `password:`), then this command
-    #: to reach its Winlink application ("RMS"); "" when not through one.
-    node_command: str = ""
-    node_user: str = ""
-    node_password: str = ""
 
 
 @dataclass
@@ -188,11 +171,8 @@ class WinlinkCollector:
         #: session's Terminal tab shows them); if not, they are logged too.
         self._early_lines_shown = early_lines_shown
         self._login_buffer = ""
-        #: (line, what the transcript shows of it): a password never shown.
-        self._login_out: list[tuple[str, str]] = []
-        self._logged_in = not (options.telnet_login or options.node_command)
-        #: The node login's next prompt: "user", "password", then "command".
-        self._node_stage = "user"
+        self._login_out: list[str] = []
+        self._logged_in = not options.telnet_login
         self.store = store
         self.options = options
         self._note = note
@@ -242,10 +222,7 @@ class WinlinkCollector:
 
     def _on_data(self, data: bytes) -> None:
         if not self._logged_in:
-            if self.options.node_command:
-                self._node_login(data)
-            else:
-                self._telnet_login(data)
+            self._telnet_login(data)
         self.client.feed(data)
         self._arrived.set()
 
@@ -257,38 +234,19 @@ class WinlinkCollector:
         for line in lines:
             line = line.strip().lower()
             if line.startswith("callsign"):
-                self._login_out.append((self.options.account, self.options.account))
+                self._login_out.append(self.options.account)
             elif line.startswith("password"):
-                self._login_out.append((CMS_TELNET_PASSWORD, CMS_TELNET_PASSWORD))
+                self._login_out.append(CMS_TELNET_PASSWORD)
                 self._logged_in = True
                 break
 
-    def _node_login(self, data: bytes) -> None:
-        """Queue the answers to a BPQ node's login, then its RMS command,
-        as `collect.py` answers the same prompts on the way to the BBS."""
-        self._login_buffer += data.decode("latin-1")
-        heard = [h.strip().lower() for h in re.split(r"[\r\n]", self._login_buffer) if h.strip()]
-        options = self.options
-        # `endswith`: BPQ sends its Telnet option bytes on the same line.
-        if self._node_stage == "user" and any(h.endswith(("user:", "callsign :")) for h in heard):
-            self._login_out.append((options.node_user, options.node_user))
-            self._node_stage, self._login_buffer = "password", ""
-        elif self._node_stage == "password" and any(
-                h.endswith(("password:", "password :")) for h in heard):
-            self._login_out.append((options.node_password, "(password sent)"))
-            self._node_stage, self._login_buffer = "command", ""
-        elif self._node_stage == "command" and heard:
-            # The node's welcome: logged in. Now into its Winlink application.
-            self._login_out.append((options.node_command, options.node_command))
-            self._logged_in, self._login_buffer = True, ""
-
     async def _flush(self) -> None:
         while self._login_out:
-            line, shown = self._login_out.pop(0)
+            line = self._login_out.pop(0)
             if not self._gate_open():
                 raise _Stop("transmit is off")
             await self.link.send(line.encode("latin-1") + b"\r")
-            self._sent(shown)
+            self._sent(line)
         out = self.client.take_output()
         if not out:
             return

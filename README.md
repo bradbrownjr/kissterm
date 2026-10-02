@@ -180,8 +180,7 @@ used on the air. Winlink, VARA, Mercury and file transfers (YAPP, AutoBIN)
 are built but not yet proven on the air, and collecting bulletins from a
 BBS by category is next. Winlink's production servers do not recognise
 kissterm yet; until they do, the Internet server setting in
-Settings > Mail can use Winlink's test server, or try your node's RMS
-command (experimental).
+Settings > Mail can use Winlink's test server.
 
 - [docs/GUIDE.md](docs/GUIDE.md): the user guide, everything in detail.
 - [SETUP.md](SETUP.md): getting on the air with your hardware.

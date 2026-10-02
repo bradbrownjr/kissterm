@@ -35,16 +35,14 @@ still has to try on the air.
   and why one message, not five (already collected elsewhere, or the
   test server holds only some). A second I at 14:30 the same day was
   offered nothing, so cms-z had no more for the account.
-  **Next evidence:** I with Internet server "Through the node" (0.1.354)
-  reaches the CMS through WS1EC's RMS application instead; its transcript
-  will show whether a node-relayed session is judged by kissterm's SID
-  too (operator's view, 2026-10-02: the node presents its own client
-  info) and whether production holds the other messages. First try
-  (`20261002-155701_KC1JMH_WS1ECSSH.log`): the node's RMS reached the
-  production CMS (`*** KC1JMH-8 Connected to CMS`, `CMS via WS1EC >`),
-  which challenged and waited; kissterm stopped itself when the SSH
-  terminal echoed its own `;FW:` line back, before the CMS answered `FF`.
-  0.1.355 asks for no terminal on that run; still open.
+  **Through the node** (0.1.354-0.1.355, removed in 0.1.356): I logged
+  in to WS1EC by SSH and sent `RMS`; the node reached the production CMS
+  (`CMS via WS1EC >`, `20261002-161514_KC1JMH_WS1ECSSH.log`), but BPQ's
+  Telnet user port echoes every byte and treats 0x08/0x7F as erase
+  (LinBPQ `TelnetV6.c`, `InnerProcessData`), so B2F cannot run over it.
+  BPQ's binary-clean relay port (`RELAYAPPL`) would need a firewall
+  change, and would reach the same CMS that refuses kissterm's SID, so
+  the operator chose to get kissterm authorized instead (2026-10-02).
 
 - **Winlink API access key** (2026-09-27). The RMS Gateway list (P2) needs
   a key issued to kissterm by a Winlink administrator. The operator will

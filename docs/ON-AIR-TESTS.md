@@ -210,16 +210,6 @@ and then your Winlink password, before dialing. The password is saved
   what is waiting. Then send yourself a short message and see whether it
   arrives at KC1JMH@winlink.org from Winlink Express or the web: that
   says whether the test server delivers anywhere. Keep the transcript.
-- [ ] **Winlink through the node's RMS** (no radio): Settings > Mail >
-  Internet server: Through the node; Node's Winlink command: RMS (or what
-  WS1EC calls it). On a Winlink folder, I. It should log in to the node,
-  send RMS, and then either file your waiting mail (the 5 the test server
-  never offered) or stop with Winlink's "Unknown client" refusal. Either
-  answer is evidence: keep the transcript (Session > Transcripts). The
-  first try (0.1.354) stopped on its own echoed lines; 0.1.355 asks SSH
-  for no terminal. If a message still arrives damaged, change WS1EC's
-  `packetbbs.sh` to `exec telnet -8 -E localhost 8010` (8-bit, no
-  escape character) and try again.
 - [ ] **A Winlink form opens in Winlink Express** (no radio, with I):
   on a Winlink folder, Insert, Type: ICS-213 (form), fill it, Continue,
   address it to a Winlink Express user (or your own account, read in

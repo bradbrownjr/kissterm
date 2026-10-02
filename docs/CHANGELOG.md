@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Removed: Winlink through the node
+
+### Improvements
+
+- **Settings > Mail > Internet server is back to Winlink and Test.**
+  "Through the node" (0.1.354-0.1.355) is gone: BPQ's Telnet user port
+  echoes every byte and treats 0x08/0x7F as erase (LinBPQ `TelnetV6.c`),
+  so Winlink cannot run over it, and the node would reach the same CMS
+  anyway. AGENTS.md now says to read the far end's source first.
+  Operator decision, 2026-10-02.
+
+**Files:** `kissterm/mail/winlink_collect.py`, `kissterm/ui/app.py`,
+`kissterm/config.py`, `kissterm/ui/settings_schema.py`,
+`kissterm/transport/ssh.py`, `config.toml.example`, tests, `docs/GUIDE.md`,
+`README.md`, `docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`, `AGENTS.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — Winlink through the node over SSH: no terminal
 
 ### Improvements

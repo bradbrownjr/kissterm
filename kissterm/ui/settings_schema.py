@@ -357,22 +357,10 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "choice",
                 "Where I (Send/Receive by Internet) connects. Winlink's servers do "
                 "not accept kissterm yet; its test server does, to try kissterm "
-                "out. Mail sent through the test server may not reach anyone. "
-                "Through the node logs in to the Home BBS's Internet contact and "
-                "sends the RMS command, so the node reaches Winlink.",
+                "out. Mail sent through the test server may not reach anyone.",
                 choices=(("Winlink (server.winlink.org)", "production"),
-                         ("Test (cms-z.winlink.org)", "test"),
-                         ("Through the node (Home BBS's Internet contact)", "node")),
+                         ("Test (cms-z.winlink.org)", "test")),
                 apply="live",
-            ),
-            Field(
-                "winlink.node_command",
-                "Node's Winlink command",
-                "text",
-                "Sent at the node, after its login, to reach Winlink when the "
-                "Internet server is Through the node.",
-                apply="live",
-                placeholder="RMS",
             ),
             Field(
                 "winlink.locator",

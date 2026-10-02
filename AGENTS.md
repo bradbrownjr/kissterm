@@ -230,7 +230,11 @@ changes.
   on it, then verify against a capture** (operator, 2026-09-25: "shouldn't
   we have researched how BPQ BBS is supposed to work rather than rely on
   captures?"). Captures alone show one BBS's settings; the source shows
-  the rules. Cite both in the module docstring.
+  the rules. Cite both in the module docstring. **That includes the
+  software at the far end** -- read the node's own source (LinBPQ is on
+  GitHub, `g8bpq/linbpq`) before routing a protocol through it; skipping
+  that cost two releases and two operator test sessions on Winlink
+  through BPQ's Telnet port (2026-10-02).
 - **Mark inferred protocol details `# UNVERIFIED:` or `# RESEARCH:`.** Never
   present a guessed wire format as fact.
 

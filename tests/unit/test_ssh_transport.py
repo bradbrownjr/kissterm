@@ -62,7 +62,6 @@ async def _shell(process, state: dict[str, int]) -> None:
     exactly the shape of WS1EC's own setup (login triggers a local telnet
     into the real node; this is that node's side of the conversation)."""
     state["shells"] += 1
-    state["term"] = process.term_type
     process.stdout.write(b"Welcome to FAKE-NODE\r\n")
     line = await process.stdin.readline()
     process.stdout.write(b"echo: " + line)
@@ -125,23 +124,6 @@ async def test_connect_authenticates_and_delivers_the_banner(ssh_server):
 
         await asyncio.sleep(0.2)  # the shell exits right after echoing
         assert session.state is SessionState.DISCONNECTED
-    finally:
-        await transport.close()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("pty", [True, False])
-async def test_a_terminal_only_when_asked(ssh_server, pty):
-    """A binary protocol asks for no pty: WS1EC's echoed Winlink's lines
-    back (2026-10-02)."""
-    host, port, _client_key_path, known_hosts_path, state = ssh_server
-    transport = SshTransport(host, USERNAME, PASSWORD, port=port,
-                             known_hosts=str(known_hosts_path), pty=pty)
-    await transport.open()
-    session = await transport.connect()
-    try:
-        await asyncio.wait_for(session.incoming.get(), timeout=3.0)
-        assert state["term"] == ("ansi" if pty else None)
     finally:
         await transport.close()
 
