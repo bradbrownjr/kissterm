@@ -103,8 +103,9 @@ On All Inboxes, G does both: the Home BBS first, then Winlink.
 **I** does the same without the radio: the Home BBS through a Telnet or
 SSH contact in the Address Book (the node's `user:` and `password:` are
 answered with a saved login, then `BBS` is sent), and Winlink through the
-CMS by Telnet. The first time, I asks for the contact, the username and
-the password in one question and saves them as a login. Internet contacts
+CMS by Telnet. If the contact has a Node login, that is what answers
+the node. Otherwise, the first time, I asks for the contact, the username
+and the password in one question and saves them as a login. Internet contacts
 never touch the transmit switch.
 
 Winlink's production servers refuse programs they do not recognise, and

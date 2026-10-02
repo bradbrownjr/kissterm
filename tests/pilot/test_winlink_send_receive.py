@@ -390,6 +390,52 @@ async def test_i_on_a_bbs_folder_logs_in_to_the_node_and_gets_mail(tmp_path):
     station.close()
 
 
+@pytest.mark.asyncio
+async def test_i_uses_the_contacts_node_login_without_asking(tmp_path):
+    """Operator, 2026-10-02: the contact's Node login is the node's sign-in
+    already; I must not ask for it a second time."""
+    from kissterm.config import set_credential
+    from kissterm.ui.dialogs import InternetLoginScreen
+    from tests.pilot.test_get_mail import GREETING, REPLIES
+
+    heard: list[str] = []
+
+    async def handle(reader, writer):
+        writer.write(b"user:")
+        answers = {"KC1JMH": b"password:", "nodepw": b"Welcome\rWS1EC:WS1EC} ", "BBS": GREETING}
+        buffer = b""
+        while data := await reader.read(4096):
+            buffer += data
+            while b"\r" in buffer:
+                line, buffer = buffer.split(b"\r", 1)
+                command = line.decode("latin-1").strip()
+                heard.append(command)
+                if reply := answers.get(command) or REPLIES.get(command):
+                    writer.write(reply)
+
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    app, station, _tb = await _app(tmp_path)
+    set_credential(app.config, "WS1EC node", "nodepw", username="KC1JMH")
+    app.addressbook.upsert("ws1ec-telnet", connect_by="telnet", host="127.0.0.1",
+                           port=str(port), credential="WS1EC node")
+    app.config.home_bbs.internet = "ws1ec-telnet"
+    async with app.run_test(size=(120, 40)) as pilot:
+        app.action_show_tab("mail")
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        browser.show_folder("Mail/BBS/Inbox")
+        browser.query_one(MessageList).focus()
+        await pilot.pause()
+        await pilot.press("i")
+        await wait_for(lambda: len(heard) >= 4, "the login and LM", timeout=20)
+        assert not isinstance(app.screen, InternetLoginScreen)
+        assert heard[:4] == ["KC1JMH", "nodepw", "BBS", "LM"]
+        await wait_for(lambda: not app._collecting, "the run to finish")
+    server.close()
+    station.close()
+
+
 async def _all_inboxes_with_winlink_gone(app, pilot):
     """G on All Inboxes with the Winlink entry forgotten (operator's
     screenshot, 2026-09-27): the Winlink question comes up."""

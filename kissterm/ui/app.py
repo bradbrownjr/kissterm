@@ -5030,6 +5030,14 @@ class KissTermApp(App):
         name = (home.internet_credential
                 if credential_store(self.config, home.internet_credential) else "")
         password = find_credential(self.config, name) if name else ""
+        if not password and entry is not None and entry.credential:
+            # The contact's own Node login is the node's sign-in already;
+            # asking for it again here was a second copy (operator,
+            # 2026-10-02: "It includes the node credentials, yet I still
+            # have to enter the credentials").
+            node_password = find_credential(self.config, entry.credential)
+            if node_password:
+                name, password = entry.credential, node_password
         user = (credential_username(self.config, name) or home.internet_user
                 or str(self.config.mycall or "").split("-")[0].upper())
         if entry is None or not password:

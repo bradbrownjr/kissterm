@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — I uses the contact's Node login
+
+### Improvements
+
+- **Send/Receive by Internet signs in with the contact's Node login** when
+  the Home BBS has no Internet login of its own, instead of asking for the
+  same username and password again. Operator report, 2026-10-02.
+
+**Files:** `kissterm/ui/app.py`, `tests/pilot/test_winlink_send_receive.py`,
+`docs/GUIDE.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — SSH asks to trust a new server instead of needing a file
 
 ### Improvements
