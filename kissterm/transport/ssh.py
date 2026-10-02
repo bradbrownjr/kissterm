@@ -29,6 +29,20 @@ Why ask rather than require a file (operator, 2026-10-02): requiring one
 meant the Address Book could not save an SSH contact until the operator had
 run ``ssh-keyscan`` by hand, which nothing told them to do.
 
+**A terminal (pty) unless the caller is moving bytes, not typing.** The
+operator's terminal gets one, as a bare ``ssh`` does. A binary protocol
+(Winlink through the node, `pty=False`) must not: on WS1EC the pty sits
+in front of ``telnet localhost 8010`` in cooked mode, which echoed every
+line kissterm sent straight back (``;FW: KC1JMH`` heard as the gateway's
+own, 2026-10-02 transcript `20261002-155701_KC1JMH_WS1ECSSH.log`) and
+would treat Ctrl+C, Ctrl+D, erase and kill-line inside a compressed
+message as commands, and add a CR to each LF on the way out. Without a
+pty the login program still runs (WS1EC's is a plain script, operator
+2026-10-02).
+# UNVERIFIED: that a remote `telnet` with no tty passes binary intact; its
+# escape character (0x1D) and CR handling still apply unless it runs as
+# `telnet -8 -E` -- the node's side to set.
+
 Needs the optional `asyncssh` dependency (``pip install kissterm[ssh]``),
 imported lazily inside `connect()` -- never at module import time, so a
 kissterm install without the extra still runs everything else, and
@@ -105,6 +119,7 @@ class SshTransport(SessionTransport):
         client_key: str = "",
         key_passphrase: str = "",
         known_hosts: str = "",
+        pty: bool = True,
     ) -> None:
         info = TransportInfo(
             kind="ssh",
@@ -120,6 +135,8 @@ class SshTransport(SessionTransport):
         self.client_key = client_key
         self.key_passphrase = key_passphrase
         self.known_hosts = known_hosts
+        #: Ask for a terminal; False for a binary protocol (module docstring).
+        self.pty = pty
         self._connection = None
         self._process = None
         self._pump_task: asyncio.Task[None] | None = None
@@ -213,7 +230,7 @@ class SshTransport(SessionTransport):
             # decode upstream of it would raise or replace on exactly the
             # bytes the latin-1 fallback is meant to pass through whole.
             self._process = await self._connection.create_process(
-                term_type="ansi", encoding=None
+                **({"term_type": "ansi"} if self.pty else {}), encoding=None
             )
         except asyncssh.HostKeyNotVerifiable as exc:
             raise TransportError(

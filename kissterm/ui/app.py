@@ -5063,7 +5063,7 @@ class KissTermApp(App):
                                     early_lines_shown=False)
 
         if node is not None:
-            transport = self._contact_transport(entry)
+            transport = self._contact_transport(entry, binary=True)
             if transport is None:
                 return
             peer, what = entry.target, f"Winlink through {entry.target}"
@@ -5153,15 +5153,20 @@ class KissTermApp(App):
             )
         return entry, user, password
 
-    def _contact_transport(self, entry):
+    def _contact_transport(self, entry, *, binary: bool = False):
         """A Telnet or SSH contact's transport, built the one way every
-        connection is (`build_transport`); None having said why."""
+        connection is (`build_transport`); None having said why. `binary`:
+        an SSH contact asks for no terminal, whose echo and control keys
+        would corrupt the protocol (`transport/ssh.py`)."""
         from ..transport import build_transport
 
         try:
-            return build_transport(entry.transport_config(
+            config = entry.transport_config(
                 lambda name: find_credential(self.config, name),
-                lambda name: credential_username(self.config, name)))
+                lambda name: credential_username(self.config, name))
+            if binary and config.get("kind") == "ssh":
+                config["pty"] = False
+            return build_transport(config)
         except (TransportError, TypeError, ValueError) as exc:
             self.notify(f"Send/Receive by Internet: {entry.target}: {exc}", severity="error")
             return None

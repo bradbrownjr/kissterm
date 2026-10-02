@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Winlink through the node over SSH: no terminal
+
+### Improvements
+
+- **Winlink through the node asks SSH for no terminal (pty).** WS1EC's
+  pty echoed kissterm's own `;FW:` line back as if the CMS had sent it,
+  stopping the first run; its control keys would also corrupt compressed
+  messages. The operator's terminal and the BBS run keep their pty.
+
+**Files:** `kissterm/transport/ssh.py`, `kissterm/ui/app.py`,
+`tests/unit/test_ssh_transport.py`, `docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — Winlink by Internet through the node's RMS
 
 ### New Features

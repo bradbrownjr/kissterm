@@ -39,7 +39,12 @@ still has to try on the air.
   reaches the CMS through WS1EC's RMS application instead; its transcript
   will show whether a node-relayed session is judged by kissterm's SID
   too (operator's view, 2026-10-02: the node presents its own client
-  info) and whether production holds the other messages.
+  info) and whether production holds the other messages. First try
+  (`20261002-155701_KC1JMH_WS1ECSSH.log`): the node's RMS reached the
+  production CMS (`*** KC1JMH-8 Connected to CMS`, `CMS via WS1EC >`),
+  which challenged and waited; kissterm stopped itself when the SSH
+  terminal echoed its own `;FW:` line back, before the CMS answered `FF`.
+  0.1.355 asks for no terminal on that run; still open.
 
 - **Winlink API access key** (2026-09-27). The RMS Gateway list (P2) needs
   a key issued to kissterm by a Winlink administrator. The operator will
