@@ -34,3 +34,11 @@ removed, and the operator's own keystrokes (`> ...`) dropped.
   `/EX` ends the text; acceptance is `Message: N Bid:  N_WS1EC Size: S`
   (two spaces after `Bid:`). Size counts CRLF line endings: 54 and 214
   match the bodies with their blank lines, so the BBS stored them.
+
+- `list_lc_ws1ec.txt`, `list_lb_wx_page1.txt`, `read_3104_bulletin.txt`:
+  2026-10-02, over WS1EC's SSH login (BPQMail 6.0.23.1, `BBS` from the
+  node). `LC`: fifteen categories, nine to a line; a three-digit count
+  runs into the next name (`SPACWX 142UPDATE 49`). `LB> WX`: the first
+  page of 310, newest first, ending in its page prompt. `R 3104`: a
+  bulletin (`Type/Status: BN`) with seven `R:` lines and one page prompt
+  inside the body, to its end marker.

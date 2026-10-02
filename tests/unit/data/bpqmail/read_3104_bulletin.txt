@@ -1,0 +1,49 @@
+From: N4SD
+To: WX
+Type/Status: BN
+Date/Time: 02-Oct 17:20Z
+Bid: 23459_N4SD
+Title: Tropical Weather Outlook
+
+R:261002/1823Z 8234@W1BKW.#OXFO.ME.USA.NOAM BPQ6.0.25
+R:261002/1823z @:N2MH.#NNJ.NJ.USA.NOAM [via AREDN Mesh] jnos 2.0p $:23459_N4SD
+R:261002/1823Z 38185@N2MH4.#SENC.NC.USA.NOAM LinBPQ6.0.24
+R:261002/1822Z 28634@N3MEL.#EPA.PA.USA.NOAM LinBPQ6.0.25
+R:261002/1821Z 20346@K3CLM.#WPA.PA.USA.NOAM LinBPQ6.0.25
+R:261002/1820Z 9204@KA3VSP.DE.USA.NOAM BPQ6.0.25
+R:261002/1720Z 23459@N4SD.#TIDE.VA.USA.NOAM BPQ6.0.24
+
+ABNT20 KNHC 021720
+TWOAT 
+
+Tropical Weather Outlook
+NWS National Hurricane Center Miami FL
+200 PM EDT Fri Oct 2 2026
+
+For the North Atlantic...Caribbean Sea and the Gulf of America:
+
+<A>bort, <CR> Continue..>
+Subtropical West-Central Atlantic (Remnants of Fay):
+Showers and thunderstorms associated with a trough of low pressure 
+(the remnants of former Tropical Storm Fay) located several hundred 
+miles southeast of Bermuda have become less organized during the 
+past several hours. Dry air and strong upper-level winds are 
+expected to prevent significant re-development while it moves 
+north-northwestward at 5 to 10 mph to the east of Bermuda. Any 
+formation chances should end by Sunday due to very strong 
+upper-level winds.
+* Formation chance through 48 hours...low...10 percent. 
+* Formation chance through 7 days...low...10 percent.
+
+$$
+Forecaster Pierce/Hagen
+
+------
+Received by NOAA Satellite Downlink at N4SD
+More Info: N4SD@N4SD.#TIDE.VA.USA.NOAM
+
+
+
+
+
+[End of Message #3104 from N4SD]

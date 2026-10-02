@@ -462,6 +462,19 @@ class MessageStore:
             s.bbs_number == wanted and s.source == source for _m, _z, s in self._index.values()
         )
 
+    def highest_bbs_number(self, source: str, category: str) -> int:
+        """The newest BBS number among bulletins in `category` from
+        `source`, 0 if none: a bulletin listing asks only for numbers above
+        it (`bulletins.list_command`). Deleted counts, as for `find`."""
+        self.refresh()
+        wanted = category.upper()
+        return max(
+            (int(s.bbs_number) for _m, _z, s in self._index.values()
+             if s.source == source and s.kind == KIND_BULLETIN
+             and s.category.upper() == wanted and s.bbs_number.isdigit()),
+            default=0,
+        )
+
     def expired(self, now: datetime | None = None) -> list[Summary]:
         """Bulletins past their expiry that are not already in a Deleted folder."""
         self.refresh()

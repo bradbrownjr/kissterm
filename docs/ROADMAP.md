@@ -360,8 +360,15 @@ exchange confirms it.
     filed, as mail is (`has_bbs_number`, then BID). Never `K`.
   - **S on the Bulletins tab** edits the subscriptions offline from the
     categories last seen; also a Settings > Mail field.
-  - **Capture first**: `LC`, `LB> <cat>` (or `L> <cat>`) and one full
-    bulletin read, from WS1EC-2. Asked for 2026-09-24. Medium.
+  - **Checked once in a while** (operator, 2026-10-02): `LC` on the first
+    run, then every `check_days` (default 7), not on every G.
+  - **First run goes back N days** (operator, 2026-10-02; WS1EC-2 held 310
+    WX bulletins): `A` at the listing's page prompt once it reaches older
+    dates.
+  - **Done 2026-10-02:** the conversation (`mail/bulletins.py`,
+    `BbsCollector` bulletin run), checked against the operator's capture.
+    **Left:** G and I on the Bulletins tab, the category checklist
+    screen, S, and the two day settings in Settings > Mail.
 
 #### Forms
 

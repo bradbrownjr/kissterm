@@ -26,6 +26,18 @@ would at the keyboard:
 5. File each complete read in Mail/BBS/Inbox (a bulletin under
    Bulletins/<category>), with the raw reply beside it as `.bbs`.
 
+A bulletin run (`CollectOptions.bulletins`, G on the Bulletins tab) does
+steps 1 and 2, then, in place of 3 and 4 (`kissterm/mail/bulletins.py`):
+`LC` when the category list is due (the first run, then every
+`check_days`), the operator's answer to any category not offered before
+(`choose`), then `LB> <category> <n>-` for each chosen category, asking
+only for numbers above the newest already filed, and reads and files the
+new ones as in 4 and 5. A category with nothing filed yet goes back only
+`first_days` (operator, 2026-10-02: WS1EC-2 held 310 WX bulletins): the
+listing is newest first, so `A` at the page prompt ends it once a page
+reaches older dates (`ProcessSuspendedListCommand`: `A` returns straight
+to the prompt), and older entries are not read.
+
 **It stops rather than guesses.** A reply it does not recognise, a read
 without its end marker, silence past `idle_timeout`, a dropped link or a
 closed transmit gate each end the run with a note saying which. Nothing
@@ -51,11 +63,19 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import re
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 
 from ..ansi import decode_text
 from . import bpqmail
+from .bulletins import (
+    DEFAULT_CHECK_DAYS,
+    DEFAULT_FIRST_DAYS,
+    SubscriptionBook,
+     list_command,
+    parse_categories,
+)
 from .compose import BBS_OUTBOX, ends_text_early, send_command
 from .message import KIND_BULLETIN
 from .store import BULLETINS, INBOX, MAIL, SENT, MessageStore
@@ -107,6 +127,19 @@ class CollectOptions:
     telnet_user: str = ""
     telnet_password: str = ""
     after_login: str = ""
+    #: Collect bulletins (the Bulletins tab) in place of mail.
+    bulletins: bool = False
+    #: Days between asking the BBS for its category list (`LC`).
+    check_days: int = DEFAULT_CHECK_DAYS
+    #: How far back the first collection from a category goes, in days.
+    first_days: int = DEFAULT_FIRST_DAYS
+
+
+#: The operator's answer to a category offer: the categories picked and
+#: whether "All" was; None if the offer was cancelled (asked again at the
+#: next check). Given the categories to offer, every category with its
+#: count, and whether this is the BBS's first offer.
+Choose = Callable[[list[str], dict[str, int], bool], Awaitable[tuple[list[str], bool] | None]]
 
 
 @dataclass
@@ -139,10 +172,16 @@ class BbsCollector:
         sent: Callable[[str], None],
         gate_open: Callable[[], bool] = lambda: True,
         progress: Callable[[str], None] = lambda _phase: None,
+        subscriptions: SubscriptionBook | None = None,
+        choose: Choose | None = None,
+        now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     ) -> None:
         self.link = link
         self.store = store
         self.options = options
+        self.subscriptions = subscriptions
+        self._choose = choose
+        self._now = now
         self._note = note
         self._sent = sent
         self._gate_open = gate_open
@@ -320,8 +359,11 @@ class BbsCollector:
             self._note(f"Sending {position} of {len(refs)}: {subject}")
             result.sent.append(await self._send_one(ref, source))
 
-    async def _until_prompt(self) -> tuple[list[str], str]:
-        """Lines up to the BBS prompt, answering page prompts with Enter.
+    async def _until_prompt(
+        self, enough: Callable[[list[str]], bool] | None = None
+    ) -> tuple[list[str], str]:
+        """Lines up to the BBS prompt, answering page prompts with Enter,
+        or with `A` (stop the listing) once `enough(lines so far)` is true.
 
         Returns the reply's lines (prompt excluded) and the prompt's call.
         """
@@ -338,7 +380,10 @@ class BbsCollector:
                 return reply, call
             if bpqmail.PAGE_PROMPT_RE.search(partial):
                 self._pending.clear()
-                await self._send("", shown="(Enter: continue)")
+                if enough is not None and enough(reply):
+                    await self._send("A", shown="A (stop listing: the rest is older)")
+                else:
+                    await self._send("", shown="(Enter: continue)")
             await self._wait_for_data()
 
     async def _until_ready(self) -> str:
@@ -436,6 +481,9 @@ class BbsCollector:
             )
         source = f"BBS {bbs_call}"
 
+        if self.options.bulletins:
+            await self._collect_bulletins(result, bbs_call, source)
+            return
         await self._send_outbox(result, source)
         self._progress("Checking for mail")
         await self._send("LM")
@@ -451,7 +499,76 @@ class BbsCollector:
             self._note(f"No new mail ({len(entries)} listed, all already here).")
             return
         self._note(f"{len(new)} new of {len(entries)} listed.")
+        await self._read_entries(new, result, bbs_call)
 
+    async def _collect_bulletins(self, result: CollectResult, bbs_call: str, source: str) -> None:
+        book = self.subscriptions if self.subscriptions is not None else SubscriptionBook()
+        subs = book.for_bbs(bbs_call)
+        if subs.due(self._now(), self.options.check_days):
+            self._progress("Checking categories")
+            await self._send("LC")
+            reply, _ = await self._until_prompt()
+            first = not subs.asked
+            subs.seen = parse_categories(reply)
+            subs.checked = self._now()
+            book.save()
+            self._note(
+                f"{len(subs.seen)} bulletin categories: "
+                + (", ".join(f"{c} ({n})" for c, n in sorted(subs.seen.items())) or "none")
+            )
+            offer = subs.to_offer(subs.seen)
+            if offer and self._choose is not None:
+                answer = await self._choose(offer, dict(subs.seen), first)
+                if answer is None:
+                    self._note("Category offer cancelled; asked again at the next check.")
+                else:
+                    picked, all_ = answer
+                    subs.answer(offer, picked, all_=all_)
+                    book.save()
+                    self._note(
+                        "Collecting: " + ("every category" if subs.all
+                                          else ", ".join(subs.chosen) or "none")
+                    )
+        categories = subs.collect()
+        if not categories:
+            raise CollectStopped(
+                "no bulletin categories are chosen; S on the Bulletins tab chooses them"
+            )
+        new: list[bpqmail.ListEntry] = []
+        now = self._now()
+        cutoff = now - timedelta(days=max(1, self.options.first_days))
+
+        def older(entry: bpqmail.ListEntry) -> bool:
+            when = bpqmail.infer_date(entry.date, now)
+            return when is not None and when < cutoff.replace(hour=0, minute=0)
+
+        def reached_older(lines: list[str]) -> bool:
+            return any(older(e) for e in bpqmail.parse_list(lines))
+
+        for position, category in enumerate(categories, 1):
+            self._progress(f"Listing {position} of {len(categories)}")
+            newest = self.store.highest_bbs_number(source, category)
+            await self._send(list_command(category, newest))
+            listing, _ = await self._until_prompt(None if newest else reached_older)
+            entries = [e for e in bpqmail.parse_list(listing)
+                       if e.type == "B" and e.to.upper() == category]
+            if not newest:
+                entries = [e for e in entries if not older(e)]
+            result.listed += len(entries)
+            fresh = [e for e in entries if not self.store.has_bbs_number(source, e.number)]
+            result.already_had += len(entries) - len(fresh)
+            new.extend(fresh)
+        new.sort(key=lambda e: e.number)
+        if not new:
+            self._note(f"No new bulletins in {', '.join(categories)}.")
+            return
+        self._note(f"{len(new)} new bulletins in {', '.join(categories)}.")
+        await self._read_entries(new, result, bbs_call)
+
+    async def _read_entries(
+        self, new: list[bpqmail.ListEntry], result: CollectResult, bbs_call: str
+    ) -> None:
+        """`R <n>` each listed message, oldest first, and file what is complete."""
         for position, entry in enumerate(new, 1):
             self._progress(f"Receiving {position} of {len(new)}")
             self._note(

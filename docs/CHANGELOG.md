@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Bulletin collection: the BBS conversation
+
+### New Features
+
+- **Collecting bulletins by category, the part that talks to the BBS**
+  (no key yet; ROADMAP P2 has the screens left). `LC` on the first run
+  and then weekly, new categories offered once and declined ones
+  remembered, `LB> <category> <n>-` asking only for what is newer, and a
+  first run that goes back 7 days, ending the listing with `A`. Built
+  from LinBPQ's source and checked against the operator's WS1EC-2
+  capture (`LC`, `LB> WX`, `R 3104`).
+
+**Files:** `kissterm/mail/bulletins.py`, `kissterm/mail/collect.py`,
+`kissterm/mail/store.py`, `tests/unit/test_mail_bulletins.py`,
+`tests/unit/data/bpqmail/`, `docs/SOURCES.md`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — Copying from the Terminal no longer crashes
 
 ### Improvements

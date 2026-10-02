@@ -44,6 +44,7 @@ grepping.
 | `TelnetV6.c` | Login prompts (`user:`, `password:`, relay `Callsign :`/`Password :`); the server sends IAC WILL ECHO and echoes every byte but the password; BS/DEL erase, LF becomes CR | `mail/collect.py`; why the node RMS path was removed |
 | `BBSUtilities.c` | `ListMessage` (four listing shapes); the read's end marker `[End of Message #N from ...]`; the `de CALL>` prompt; the help text; `Output aborted`; the default welcome; prefix-matched commands | `mail/bpqmail.py`, `nodes/data/bpqmail.toml` |
 | `lzhuf32.c` | The `@winlink.org` suffix on end markers for Winlink-sourced mail | `mail/bpqmail.py` |
+| `BBSUtilities.c`, `NNTPRoutines.c` | `ListCategories` (`LC`, `%-6s %-3d` nine to a line) and `BuildNNTPList` (bulletins neither killed nor held, by "to"); the list loop's `>` selector and number range; `ProcessSuspendedListCommand` (`A` at a listing page prompt returns to the prompt) | `mail/bulletins.py`, `mail/collect.py` |
 | `HanksRT.c` | BPQChat: the long `/` commands and their minimum lengths; `rt_cmd()`'s one-letter commands; the `/H` help text | `nodes/data/bpqchat.toml` |
 | `APRSCode.c` | The node's `APRS` command: `?`, `STATUS`, `MSGS`, `SENT`; sysop-only `SEND`, `BEACON`, `ENABLEIGATE`, `DISABLEIGATE`, `RECONFIG` | `bpq32.toml` `APRS` entry |
 
@@ -110,6 +111,7 @@ Sessions from real nodes, kept in the operator's transcripts
 |---------|-------------------|
 | WS1EC-15 (alias CCEMA), `?` reply, 2026-09-10 | The node's application list and the eight core commands |
 | WS1EC-2 (BPQMail 6.0.23.1) `?` reply, 2026-09-10 | The BBS user command list (`bpqmail.toml`) |
+| WS1EC-2 (BPQMail 6.0.23.1) `LC`, `LB> WX` and `R 3104`, over WS1EC's SSH login, 2026-10-02 | Bulletin categories and listing (`mail/bulletins.py`; `tests/unit/data/bpqmail/`) |
 | WS1EC-2 `L` listings, 2026-09-23 to 09-25 | Listing layout, split lines, the read end marker |
 | WS1EC-15, 2026-09-13 | The FRMR-to-SABM fallback (`ax25/session.py`) |
 | WS1EC-15 session, 2026-09-22 | The node's prompt arriving last, unterminated (`test_terminal_ux.py` replays it) |
