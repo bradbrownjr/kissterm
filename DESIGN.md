@@ -487,9 +487,13 @@ session to end.
 - Both live in one bottom-docked container. Docking each separately lands them
   in the **same region** and the Footer paints over the status bar — `Footer`
   sets `dock: bottom` in its own default CSS regardless of yield order.
-- **Status fields spread across the full width** (`Table.grid`, equal-ratio
-  columns, first left-anchored, last right-anchored). A joined string bunches
-  at the left and leaves a wide terminal mostly blank.
+- **Status fields spread across the full width** (`Table.grid`, first
+  left-anchored, last right-anchored). A joined string bunches at the left
+  and leaves a wide terminal mostly blank. **Each field is as wide as its
+  text; only the spare room is shared out.** Equal shares cut a long field
+  short while short ones sat in space ("Checking for" without "mail",
+  operator 2026-10-02); a field that still does not fit ends in an
+  ellipsis, never a hidden second line.
 - **Only what changes, or what the operator must not miss.** No TCP port
   on the transport (the host says which TNC), no heard count (the Heard
   tab has it), no app name (the title bar has it): every field taken away

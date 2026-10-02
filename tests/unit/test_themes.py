@@ -140,3 +140,9 @@ def test_midnight_commander_is_mcs_standard_skin():
     assert (mc.foreground, mc.background) == ("#AAAAAA", "#0000AA")
     assert mc.variables["block-cursor-background"] == "#00AAAA"
     assert mc.variables["block-cursor-foreground"] == "#000000"
+
+
+def test_choices_are_alphabetical_with_custom_last():
+    labels = [label for label, _ in themes.choices()]
+    assert themes.choices()[-1][1] == "custom"
+    assert labels[:-1] == sorted(labels[:-1], key=str.casefold)

@@ -88,7 +88,7 @@ class ThemeFamily:
     note: str = ""
 
 
-#: The curated catalog. Order is display order in the Settings dropdown.
+#: The curated catalog. `choices()` sorts it for the Settings dropdown.
 #: Every `ThemeVariant.id` must be a real key in `textual.theme.BUILTIN_THEMES`
 #: -- enforced by a test, not by convention.
 THEME_CATALOG: tuple[ThemeFamily, ...] = (
@@ -258,14 +258,15 @@ def all_theme_ids() -> tuple[str, ...]:
 
 
 def choices() -> tuple[tuple[str, str], ...]:
-    """`(label, id)` pairs for a Settings dropdown, grouped visually by family."""
+    """`(label, id)` pairs for a Settings dropdown, alphabetical by label
+    (operator, 2026-10-02: "a bit all over the place"), with Custom last:
+    it is the way out of the list, not one of its themes."""
     out: list[tuple[str, str]] = []
     for family in THEME_CATALOG:
         for variant in family.variants:
-            prefix = family.name if len(family.variants) == 1 else f"{family.name} -- "
             label = variant.label if len(family.variants) == 1 else f"{family.name} -- {variant.label}"
             out.append((label, variant.id))
-    return tuple(out)
+    return tuple(sorted(out, key=lambda pair: (pair[1] == "custom", pair[0].casefold())))
 
 
 def find_variant(theme_id: str) -> ThemeVariant | None:

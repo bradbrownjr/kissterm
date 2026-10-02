@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Status bar shows every field whole; themes in order
+
+### Improvements
+
+- **A job's progress is no longer cut off** ("Checking for" without
+  "mail", the link state and retry count likewise): each status field is
+  as wide as its text and only the spare room is shared out, where equal
+  shares hid the rest of a long field on a line nobody sees.
+- **The theme list is alphabetical**, with Custom last.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/themes.py`,
+`tests/unit/test_status_row.py`, `tests/unit/test_themes.py`, `DESIGN.md`,
+`assets/*.png`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — A Midnight Commander theme
 
 ### New Features

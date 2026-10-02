@@ -9,6 +9,7 @@ isolate()
 
 import pytest  # noqa: E402
 
+from kissterm.ui import app  # noqa: E402
 from kissterm.ui.app import _short_peer, _without_port  # noqa: E402
 
 
@@ -40,3 +41,18 @@ def test_only_a_port_is_cut(detail, shown):
 def test_a_link_peer_is_named_briefly(peer, shown):
     """Operator, 2026-10-02: "kc1uix-3 via" was all that fit."""
     assert _short_peer(peer) == shown
+
+
+def test_every_field_shows_whole_on_the_operators_bar():
+    """Operator, 2026-10-02: "Checking for" with "mail" cut off, and the
+    link state and retry count gone, nine fields across 119 columns."""
+    from rich.console import Console
+
+    parts = ["10.6.26.128", "KC1JMH", "WS1EC-2 connected", "tx 3 rx 3 rtx 0",
+             "Checking for mail", "ANSWERING", "BEACON", "APRS BEACON", "LOGGING"]
+    console = Console(width=119, record=True, color_system=None)
+    console.print(app._status_row(parts))
+    text = console.export_text()
+    assert text.count("\n") == 1, text
+    for part in parts:
+        assert part in text, text

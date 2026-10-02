@@ -324,13 +324,20 @@ def _status_row(parts: list[str | Text]) -> Table:
     transport), the last as a right anchor, and everything
     between is centered in its own share of the row -- the conventional shape
     of an editor or IDE status bar.
+
+    Each field is as wide as its text and only the spare room is shared out
+    (no `ratio`). Equal shares cut a long field to a ninth of the row
+    while short ones sat in empty space: "Checking for" with "mail" lost
+    on a second line nobody sees (operator, 2026-10-02). When even the text
+    does not fit, a field ends in an ellipsis rather than wrapping out of
+    sight.
     """
     # pad_edge: the one-space margin at each end, here rather than as the
     # widget's CSS padding, which crops the last field (styles.py).
     table = Table.grid(expand=True, padding=(0, 1), pad_edge=True)
     for i in range(len(parts)):
         justify = "left" if i == 0 else "right" if i == len(parts) - 1 else "center"
-        table.add_column(justify=justify, ratio=1)
+        table.add_column(justify=justify, no_wrap=True, overflow="ellipsis")
     table.add_row(*parts)
     return table
 
