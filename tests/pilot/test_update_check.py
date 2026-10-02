@@ -1,5 +1,5 @@
-"""The update check as the operator meets it: a note and a status-bar field,
-an Update dialog that names the command, and a refusal while anything is
+"""The update check as the operator meets it: a toast (never a Terminal line,
+which an operator on Mail would not see), an Update dialog that names the command, and a refusal while anything is
 under way. The network and the upgrade command are faked throughout; a test
 mounting the app never checks GitHub (`check_updates` defaults off)."""
 
@@ -53,20 +53,24 @@ async def test_a_test_app_never_checks_on_its_own():
 
 
 @pytest.mark.asyncio
-async def test_a_newer_version_is_noted_once_and_shown_in_the_status_bar():
+async def test_a_newer_version_is_a_toast_once_not_a_terminal_line():
     app = _app()
+    toasts = []
     async with app.run_test(size=(140, 32)) as pilot:
         await pilot.pause()
+        real_notify = app.notify
+        app.notify = lambda msg, **kw: (toasts.append(msg), real_notify(msg, **kw))
         app._update_check_worker(False)
         await wait_for(lambda: app._update_available == NEWER, "the check to finish")
         await pilot.pause()
-        assert f"kissterm {NEWER} is available" in _log_text(app)
-        assert f"update {NEWER}" in _plain(app.query_one("#status-bar"))
+        assert [t for t in toasts if f"kissterm {NEWER} is available" in t]
+        assert "is available" not in _log_text(app)
+        assert NEWER not in _plain(app.query_one("#status-bar"))
         # The launch check never pushes a dialog.
         assert not isinstance(app.screen, UpdateScreen)
-        # Heard again (the cached answer next launch): not written twice.
+        # Heard again (the cached answer next launch): not toasted twice.
         app._on_update_result(NEWER, False)
-        assert _log_text(app).count(f"kissterm {NEWER} is available") == 1
+        assert sum("is available" in t for t in toasts) == 1
 
 
 @pytest.mark.asyncio
@@ -75,10 +79,11 @@ async def test_current_or_unreachable_says_nothing_at_launch():
         app = _app(latest)
         async with app.run_test(size=(110, 32)) as pilot:
             await pilot.pause()
+            toasts = []
+            app.notify = lambda msg, **kw: toasts.append(msg)
             app._on_update_result(latest, False)
             await pilot.pause()
-            assert app._update_available is None
-            assert "is available" not in _log_text(app)
+            assert app._update_available is None and not toasts
 
 
 @pytest.mark.asyncio
@@ -98,9 +103,13 @@ async def test_update_now_runs_the_named_command_and_asks_for_a_restart(monkeypa
         await wait_for(lambda: isinstance(app.screen, UpdateScreen), "the Update dialog")
         await pilot.pause()
         assert "pipx upgrade kissterm" in _plain(app.screen.query_one("#reminder-detail"))
+        toasts = []
+        real_notify = app.notify
+        app.notify = lambda msg, **kw: (toasts.append(msg), real_notify(msg, **kw))
         await pilot.click("#connect-go")
         await wait_for(lambda: ran, "the upgrade to run")
-        await wait_for(lambda: "is installed" in _log_text(app), "the restart note")
+        await wait_for(lambda: any("is installed" in t for t in toasts), "the restart toast")
+        assert "is installed" not in _log_text(app)
         assert ran == [PIPX.command]
         assert app._update_available is None
 

@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — The update notice is a pop-up, not a Terminal line
+
+### Improvements
+
+- **A newer version is announced in a toast**, as is the result of Update;
+  no Terminal line and no `update X` status field (DESIGN.md section 6: one
+  place per notice). An operator who stays on Mail never saw the terminal.
+  New DESIGN.md rule: the Terminal record is for sessions only. Operator
+  request, 2026-10-02.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/settings_schema.py`,
+`tests/pilot/test_update_check.py`, `DESIGN.md`, `docs/GUIDE.md`, `SETUP.md`,
+`config.toml.example`, `docs/CHANGELOG.md`
+
 ## [2026-10-01] — Update check against GitHub
 
 ### New Features

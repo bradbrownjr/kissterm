@@ -446,8 +446,7 @@ kissterm --no-update-check   do not look on GitHub for a newer version
 ```
 
 **Updates.** Once a day kissterm asks GitHub, over the Internet, whether a
-newer version exists, and says so once in the Terminal tab and as
-`update 0.1.360` in the status bar. It never installs anything on its own:
+newer version exists, and says so once in a pop-up notice. It never installs anything on its own:
 F10 > Help > Check for updates offers **Update**, which shows the command
 first (`pipx upgrade kissterm` or `uv tool upgrade kissterm`) and is not
 offered while a session is connected, a connect is under way or

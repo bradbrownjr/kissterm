@@ -519,6 +519,11 @@ their place (Send/Receive's line above the message list, removed 2026-09-25).
 - **A toast says what to do next when there is something to do** ("The
   Terminal tab (F5) says why"), and is not raised for anything the operator
   cannot act on or would not miss (section 1).
+- **The Terminal record is for sessions only.** Something the app learns
+  on its own that is not about a session (a newer version on GitHub) is a
+  toast, never a Terminal line: an operator who stays on Mail never sees
+  the terminal (operator, 2026-10-02: "I don't want extra noise in the
+  terminal").
 - **Pane-owned text is not status.** A field's validation error beside the
   field, a Settings banner listing config.toml problems, and a pane's own
   summary strip (APRS weather) are content of that pane, laid out with it,

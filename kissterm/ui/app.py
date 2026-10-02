@@ -658,7 +658,7 @@ class KissTermApp(App):
         #: a day, `Config.update_check` permitting). False unless the real
         #: launch asks, so a test mounting the app never touches the network.
         self._check_updates = check_updates
-        #: The newer version found, for the status bar; None when current.
+        #: The newer version already announced, so it is toasted once.
         self._update_available: str | None = None
         #: Replaced in tests; see kissterm/updater.py.
         self._fetch_latest = updater.fetch_latest
@@ -2072,15 +2072,16 @@ class KissTermApp(App):
         if latest is not None and updater.is_newer(latest):
             first = self._update_available != latest
             self._update_available = latest
-            self._refresh_status()
             if manual:
                 self._offer_update(latest)
             elif first:
-                self._to_terminal(
-                    self._active_key(),
-                    "write_note",
-                    f"\n*** kissterm {latest} is available (you have "
-                    f"{__version__}). F10 Help > Check for updates to install it.\n",
+                # A toast, not a Terminal line: the operator may be on Mail
+                # all session and never see the terminal (DESIGN.md 6).
+                self.notify(
+                    f"kissterm {latest} is available (you have {__version__}). "
+                    "F10 > Help > Check for updates installs it.",
+                    title="Update available",
+                    timeout=15,
                 )
             return
         if not manual:
@@ -2136,20 +2137,21 @@ class KissTermApp(App):
     def _on_upgrade_result(self, result: updater.UpgradeResult) -> None:
         if result.ok:
             self._update_available = None
-            self._refresh_status()
-            text = (
-                f"\n*** kissterm {result.version} is installed. Quit (Ctrl+Q) and "
-                f"start kissterm again to use it; this window is still "
-                f"{__version__} until you do.\n"
+            self.notify(
+                f"kissterm {result.version} is installed. Quit (Ctrl+Q) and start "
+                f"kissterm again to use it; this window is {__version__} until you do.",
+                title="Updated",
+                timeout=20,
             )
         else:
-            tail = "\n".join(result.output.splitlines()[-6:]) or "(no output)"
-            text = (
-                f"\n*** The update did not install (still {result.version or __version__}). "
-                f"The last of what it said:\n{sanitize(tail)}\n"
+            # The full output is in the log (`_run_upgrade_worker`).
+            tail = "\n".join(result.output.splitlines()[-4:]) or "(no output)"
+            self.notify(
+                f"Still {result.version or __version__}. {sanitize(tail)}",
+                title="The update did not install",
+                severity="error",
+                timeout=30,
             )
-        self._to_terminal(self._active_key(), "write_note", text)
-        self.notify(text.strip().splitlines()[0].removeprefix("*** "))
 
     @work
     async def _send_banner(self, link) -> None:
@@ -5549,8 +5551,6 @@ class KissTermApp(App):
             parts.append("LOGGING")
         if self.gps_reader is not None and self.gps_reader.running:
             parts.append("GPS FIX" if self.gps_reader.fix is not None else "GPS NO FIX")
-        if self._update_available:
-            parts.append(f"update {self._update_available}")
         parts.append(f"heard {len(self.heard)}")
         renderable = _status_row(parts)
         for bar in self._base_query("#status-bar"):

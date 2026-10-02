@@ -114,7 +114,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "Check for updates",
                 "bool",
                 "Once a day, look on GitHub for a newer kissterm and say so "
-                "in the Terminal tab. Internet only, never the radio, and it "
+                "in a pop-up notice. Internet only, never the radio, and it "
                 "never installs anything by itself: F10 Help > Check for "
                 "updates does that when you ask.",
                 apply="restart",

@@ -32,8 +32,7 @@ Same isolation guarantee as `uv tool install`, if you don't already have
 `uv`. `pipx upgrade kissterm` updates it.
 
 **Staying up to date.** Once a day kissterm looks on GitHub for a newer
-version and, if there is one, says so in the Terminal tab and the status
-bar (`update 0.1.360`). That is an Internet request, never anything on the
+version and, if there is one, says so in a pop-up notice. That is an Internet request, never anything on the
 air, and it installs nothing by itself. F10 > Help > Check for updates
 checks now and offers **Update**, which runs `pipx upgrade kissterm` or
 `uv tool upgrade kissterm` for you (not while a session is connected);
