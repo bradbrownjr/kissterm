@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — BPQMail: mail kissterm could not list or finish reading
+
+### Improvements
+
+- **Every listing shape BPQMail prints is read.** Mail with no `@BBS` and
+  bulletins to a To of 7+ characters (`WEATHER@ALLUS`) were skipped by
+  `LM`/`L`, so never fetched. **A read from Winlink or email finishes**:
+  its end marker carries `@winlink.org` or an address after the sender,
+  which kissterm took for an unfinished read and stopped on. Found by
+  reading LinBPQ's `BBSUtilities.c` (`ListMessage`, `SendMessage`); tests
+  build each line with BPQMail's own formats.
+
+**Files:** `kissterm/mail/bpqmail.py`, `tests/unit/test_mail_bpqmail.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — The Terminal holds only the session
 
 ### Improvements

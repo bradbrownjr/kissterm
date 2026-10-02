@@ -27,8 +27,10 @@ What the captures show:
 - `K 2578` answers `Message #2578 Killed`; `R 99999` answers `Message 99999
   not found` (no `#`). Both are followed by the prompt.
 
-- The greeting says `You have N messages waiting for you.` -- N counts
-  unread mail only. `LM` lists read mail too (status `Y`), so a collector
+- WS1EC's greeting says `You have N messages waiting for you.` -- N counts
+  unread mail only. That is its sysop's welcome text (`$x`), not stock
+  BPQMail, whose default is `Hello $I. Latest Message is $L, Last listed
+  is $Z` (`BBSUtilities.c`); nothing here relies on it. `LM` lists read mail too (status `Y`), so a collector
   decides what it already has by BID (`MessageStore.find`), not by status.
   With the node's "Include SYSOP msgs in LM" off, `LM` lists only mail to
   the user's own call.
@@ -74,7 +76,11 @@ from .message import KIND_BULLETIN, KIND_MAIL, Message
 #: A page prompt, wherever it sits on a line: alone, or glued to text when
 #: the BBS sends it without a line ending.
 PAGE_PROMPT_RE = re.compile(r"<A>bort,.*?Continue\.\.>[ \t]*")
-END_RE = re.compile(r"^\[End of Message #(\d+) from ([A-Za-z0-9/-]+)\]\s*$")
+#: `[End of Message #%d from %s%s]` -- the sender, then `Msg->emailfrom`:
+#: "" for packet mail, `@winlink.org` for mail from Winlink, `@<address>`
+#: for email (`BBSUtilities.c` SendMessage; `lzhuf32.c`), so the sender
+#: is any text, not only a callsign (source audit, 2026-10-02).
+END_RE = re.compile(r"^\[End of Message #(\d+) from (.+?)\]\s*$")
 ABORTED = "Output aborted"
 #: The BBS prompt. LinBPQ's default is `de CALL>` (`BBSUtilities.c`:
 #: `sprintf(Prompt, "de %s>\r\n", BBSName)`); WS1EC's sysop made it
@@ -96,11 +102,24 @@ NOT_FOUND_RE = re.compile(r"^Message (\d+) not found\s*$")
 # UNVERIFIED: the singular ("1 message"); only 0 and 2 are captured.
 WAITING_RE = re.compile(r"^You have (\d+) messages? waiting for you\.?\s*$")
 
-#: `2705   22-Sep B$     472 WP     @WS1EC  WD1O   WP Update`
+#: One listing line. BPQMail prints it four ways (`ListMessage` in
+#: `BBSUtilities.c`), after `%-6d %s %c%c   %5d ` (number, date, type and
+#: status, size):
+#:
+#: - `%-7s@%-6s %-6s %-s` -- to@via: `2705   22-Sep B$     472 WP     @WS1EC  WD1O   WP Update`.
+#:   A To of 7 characters or more leaves no space before the `@`
+#:   (`WEATHER@ALLUS`).
+#: - `%-7s        %-6s %-s` -- no via at all, so no `@`.
+#: - `RMS:%s` or `smtp:%s` in place of the To -- mail for Winlink or email.
+#:
+#: Only the first was matched until the source audit of 2026-10-02, so mail
+#: with no `@BBS` and bulletins to a long category were never listed, and
+#: so never fetched.
 LIST_RE = re.compile(
     r"^(?P<number>\d+)\s+(?P<date>\d{1,2}-[A-Za-z]{3})\s+"
     r"(?P<type>[A-Z])(?P<status>\S)\s+(?P<size>\d+)\s+"
-    r"(?P<to>\S+)\s+@(?P<at>\S*)\s+(?P<sender>\S+)(?:\s+(?P<title>.*))?$"
+    r"(?P<to>(?:RMS|smtp):\S+|[^\s@]+)\s*(?:@(?P<at>\S*))?"
+    r"\s+(?P<sender>\S+)(?:\s+(?P<title>.*))?$"
 )
 
 _HEADER_RE = re.compile(r"^(From|To|Type/Status|Date/Time|Bid|Title):\s?(.*)$")
@@ -144,7 +163,7 @@ def parse_list_line(line: str) -> ListEntry | None:
         status=match["status"],
         size=int(match["size"]),
         to=match["to"],
-        at=match["at"],
+        at=match["at"] or "",
         sender=match["sender"],
         title=(match["title"] or "").strip(),
     )

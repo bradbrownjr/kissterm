@@ -155,3 +155,45 @@ def test_lm_with_no_mail_is_the_prompt_alone():
     lines = _lines("list_lm_empty.txt")
     assert parse_list(lines) == []
     assert [prompt_call(line) for line in lines if line.strip()] == ["WS1EC"]
+
+
+# Built with BPQMail's own formats (`ListMessage` and `SendMessage` in
+# LinBPQ's BBSUtilities.c), so each shape it can print is covered, not only
+# the one WS1EC's captures happened to show (source audit, 2026-10-02).
+_PREFIX = "%-6d %s %c%c   %5d "
+
+
+def _line(rest_format: str, *rest) -> str:
+    return (_PREFIX % (2801, "02-Oct", "P", "N", 312)) + (rest_format % rest)
+
+
+def test_every_listing_shape_bpqmail_prints_is_read():
+    via = parse_list_line(_line("%-7s@%-6s %-6s %-s", "KC1JMH", "WS1EC", "W1BKW", "Net tonight"))
+    assert (via.to, via.at, via.sender, via.title) == ("KC1JMH", "WS1EC", "W1BKW", "Net tonight")
+    # A To of 7+ characters leaves no space before the @.
+    long_to = parse_list_line(_line("%-7s@%-6s %-6s %-s", "WEATHER", "ALLUS", "W1AW", "Forecast"))
+    assert (long_to.to, long_to.at, long_to.sender) == ("WEATHER", "ALLUS", "W1AW")
+    # No via at all: no @ in the line. These were never listed before.
+    plain = parse_list_line(_line("%-7s        %-6s %-s", "KC1JMH", "W1BKW", "Local mail"))
+    assert (plain.number, plain.to, plain.at, plain.sender, plain.title) == (
+        2801, "KC1JMH", "", "W1BKW", "Local mail")
+    rms = parse_list_line(_line("%-7s %-6s %-s", "RMS:kc1jmh@example.com", "KC1JMH", "Out"))
+    assert (rms.to, rms.sender) == ("RMS:kc1jmh@example.com", "KC1JMH")
+    # The sender with Winlink's emailfrom appended.
+    winlink = parse_list_line(_line("%-7s@%-6s %-6s %-s", "KC1JMH", "WS1EC",
+                                    "KC1UIX@winlink.org", "Hello"))
+    assert (winlink.sender, winlink.title) == ("KC1UIX@winlink.org", "Hello")
+
+
+def test_a_read_from_winlink_or_email_ends_at_its_marker():
+    """`[End of Message #%d from %s%s]` carries `@winlink.org` or an email
+    address after the sender; such a read was never seen as complete."""
+    for sender in ("KC1UIX@winlink.org", "SMTP:someone@example.com"):
+        lines = [
+            f"From: {sender}", "To: KC1JMH", "Type/Status: PN", "Date/Time: 02-Oct 14:00Z",
+            "Bid: 2801_WS1EC", "Title: Hello", "", "Body text", "", "",
+            f"[End of Message #2801 from {sender}]",
+        ]
+        read = parse_read(lines)
+        assert read is not None and read.complete and read.number == 2801, sender
+        assert read.body == ["Body text"]
