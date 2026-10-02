@@ -325,7 +325,9 @@ def _status_row(parts: list[str | Text]) -> Table:
     between is centered in its own share of the row -- the conventional shape
     of an editor or IDE status bar.
     """
-    table = Table.grid(expand=True, padding=(0, 1))
+    # pad_edge: the one-space margin at each end, here rather than as the
+    # widget's CSS padding, which crops the last field (styles.py).
+    table = Table.grid(expand=True, padding=(0, 1), pad_edge=True)
     for i in range(len(parts)):
         justify = "left" if i == 0 else "right" if i == len(parts) - 1 else "center"
         table.add_column(justify=justify, ratio=1)

@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Status bar: the right-most field keeps its last letter
+
+### Improvements
+
+- **`LOGGING` no longer shows as `LOGGIN`.** Textual drew the status
+  table one cell wider than the padded bar and cropped it; the margin is
+  now the table's own. Found once the heard count stopped being the field
+  that lost its letter.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/styles.py`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — Settings: the editor stays on its row when the list scrolls
 
 ### Improvements

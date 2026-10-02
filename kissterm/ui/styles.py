@@ -128,9 +128,13 @@ MenuScreen #menu-items, MenuScreen #menu-items:focus { border: none; }
    the status readout should look like the same black chrome as the row
    above the panes, not like the Header/Footer's own shade. */
 #status-bar {
-    height: 1; width: 100%; padding: 0 1;
+    height: 1; width: 100%; padding: 0;
     background: $background; color: $text-muted;
 }
+/* No padding: Textual 8.2.8 renders an expanding Table one cell wider
+   than a padded Static's content and crops it, so the right-most field
+   lost its last letter ("LOGGIN"). The edge space is the table's own
+   (`_status_row`, pad_edge). */
 
 /* Terminal pane */
 TerminalPane { layout: horizontal; }
