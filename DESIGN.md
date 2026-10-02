@@ -519,6 +519,10 @@ their place (Send/Receive's line above the message list, removed 2026-09-25).
 - **A toast says what to do next when there is something to do** ("The
   Terminal tab (F5) says why"), and is not raised for anything the operator
   cannot act on or would not miss (section 1).
+- **A toast stays up at least 10 seconds** (`KissTermApp.NOTIFICATION_TIMEOUT`;
+  pass `timeout` only to make one longer). A job's start and outcome often
+  arrive as a pair, and at 4 seconds they went by before they could be
+  read (operator, 2026-10-02; `tests/unit/test_toast_dwell.py`).
 - **The Terminal record is for sessions only.** Something the app learns
   on its own that is not about a session (a newer version on GitHub) is a
   toast, never a Terminal line: an operator who stays on Mail never sees

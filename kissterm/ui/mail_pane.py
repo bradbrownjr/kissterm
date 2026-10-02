@@ -513,14 +513,14 @@ class MessageBrowser(Horizontal):
         if ref and self.can_delete():
             self.store.delete(ref)
             self._refresh_after_change()
-            self.app.notify(f"Moved to {DELETED}. U restores it from there.", timeout=4)
+            self.app.notify(f"Moved to {DELETED}. U restores it from there.")
 
     def restore_selected(self) -> None:
         ref = self._selected()
         if ref and self.can_restore():
             back = self.store.restore(ref)
             self._refresh_after_change()
-            self.app.notify(f"Restored to {back.rsplit('/', 1)[0]}.", timeout=4)
+            self.app.notify(f"Restored to {back.rsplit('/', 1)[0]}.")
 
     def _refresh_after_change(self) -> None:
         """Reload labels and list after a move, keeping the cursor's row."""

@@ -630,6 +630,10 @@ class KissTermApp(App):
     """
 
     TITLE = "kissterm"
+    #: Seconds a toast stays up; nothing passes a shorter one (DESIGN.md
+    #: section 6). Textual's 5, and the 4 some toasts had, went by before a
+    #: pair could be read (operator, 2026-10-02).
+    NOTIFICATION_TIMEOUT = 10
 
     CSS = APP_CSS
 
@@ -904,7 +908,7 @@ class KissTermApp(App):
         for pane in self.query(AddressBookPane):
             pane.refresh_from(self.addressbook)
         self.notify("In the Address Book now: " + ", ".join(added)
-                    + " (Telnet and SSH connections are contacts).", timeout=8)
+                    + " (Telnet and SSH connections are contacts).")
 
     @work(thread=True, exclusive=True, group="keyring")
     def _move_credentials_to_keyring(self) -> None:
@@ -939,7 +943,7 @@ class KissTermApp(App):
             self.call_from_thread(
                 self.notify,
                 f"Moved {moved} saved login{'s' if moved != 1 else ''} from config.toml "
-                "into the system keyring.", timeout=6)
+                "into the system keyring.")
 
     def on_mount(self) -> None:
         self.query_one(SettingsPane).render_settings(self.config)
@@ -1635,7 +1639,7 @@ class KissTermApp(App):
         self.notify(
             f"{decision.title}: {decision.body}" if decision.body else decision.title,
             severity="warning" if decision.urgent else "information",
-            timeout=15 if decision.urgent else 5,
+            timeout=15 if decision.urgent else 10,
         )
         self._notify_aprs_desktop(decision.title, decision.body, urgent=decision.urgent)
 
@@ -4401,7 +4405,7 @@ class KissTermApp(App):
                             raw=xml, raw_suffix=".xml")
         self._reload_mail_tabs()
         where = "Winlink Outbox" if winlink else "Outbox"
-        self.notify(f"Saved to the {where}: {message.subject}.{note}", timeout=6 if note else 4)
+        self.notify(f"Saved to the {where}: {message.subject}.{note}")
 
     def _mail_log_entries(self) -> list:
         """Every dated message in a Mail Inbox or Sent folder (BBS,
@@ -4470,7 +4474,7 @@ class KissTermApp(App):
                 try:
                     prepared = await prepare()
                 except _SkipService:
-                    self.notify(f"Skipping {name} this time.", timeout=4)
+                    self.notify(f"Skipping {name} this time.")
                     continue
                 if prepared is None:
                     return None
@@ -4478,7 +4482,7 @@ class KissTermApp(App):
         finally:
             self._all_inboxes = None
         if not runs:
-            self.notify("Nothing to send or receive: every service was skipped.", timeout=4)
+            self.notify("Nothing to send or receive: every service was skipped.")
         return runs
 
     def _all_inboxes_ask(self) -> tuple[str, str]:
@@ -4635,7 +4639,6 @@ class KissTermApp(App):
         self.notify(
             f"Saved the login \"{name}\" in "
             + ("the system keyring." if where == "keyring" else "config.toml (no system keyring here)."),
-            timeout=4,
         )
         return name, text
 
@@ -4669,7 +4672,7 @@ class KissTermApp(App):
         # The operator stays on the Mail tab: a toast says a connect is under
         # way, and the status bar follows it. The whole session is in the
         # Terminal tab (F5) for anyone who wants to watch.
-        self.notify(f"Connecting to {entry.target} to send and receive {what}...", timeout=4)
+        self.notify(f"Connecting to {entry.target} to send and receive {what}...")
         self._mail_status(f"Connecting to {entry.target}")
         worker = self.action_connect(
             prefill=entry, on_link=on_link, on_reached=on_reached, focus_session=False
@@ -4773,7 +4776,7 @@ class KissTermApp(App):
         elif result.sent:
             self.notify(f"{len(result.sent)} sent. No new mail on the Home BBS.")
         else:
-            self.notify("No new mail on the Home BBS.", timeout=4)
+            self.notify("No new mail on the Home BBS.")
         self._reload_mail_tabs()
 
     async def _winlink_prepare(self):
@@ -4883,7 +4886,7 @@ class KissTermApp(App):
         self._save_config()
         self.query_one(SettingsPane).render_settings(self.config)
         self.notify("Saved in " + ("the system keyring" if where == "keyring" else "config.toml")
-                    + ". Send/Receive again to use it.", timeout=6)
+                    + ". Send/Receive again to use it.")
 
     def _winlink_report(self, result) -> None:
         """The outcome toast of a Winlink run, over radio or the Internet."""
@@ -4911,7 +4914,7 @@ class KissTermApp(App):
         elif result.sent:
             self.notify(f"{len(result.sent)} sent. No new Winlink mail.")
         else:
-            self.notify("No new Winlink mail.", timeout=4)
+            self.notify("No new Winlink mail.")
         self._reload_mail_tabs()
 
     @work(exclusive=False)
@@ -4947,7 +4950,7 @@ class KissTermApp(App):
         """Connect a session `transport` and run the collector
         `build(link, note, sent, received)` makes over it, with a
         transcript. Returns its result, or None having said why."""
-        self.notify(f"Connecting to {what} over the Internet...", timeout=4)
+        self.notify(f"Connecting to {what} over the Internet...")
         self._mail_status(f"Connecting to {what}")
         link = transcript = None
         try:
@@ -5065,7 +5068,6 @@ class KissTermApp(App):
                 f"Saved the login \"{name}\" for {entry.target}, its password in "
                 + ("the system keyring." if where == "keyring"
                    else "config.toml (no system keyring here)."),
-                timeout=4,
             )
         return entry, CollectOptions(
             bbs_call=home.call,

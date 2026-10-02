@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Toasts stay up 10 seconds
+
+### Improvements
+
+- **Every toast stays up at least 10 seconds** (was Textual's 5, and 4
+  for Send/Receive's "Connecting..." and "No new mail"), so a job's start
+  and outcome can both be read. New DESIGN.md section 6 rule, held by
+  `tests/unit/test_toast_dwell.py`. Operator request, 2026-10-02.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/mail_pane.py`, `DESIGN.md`,
+`tests/unit/test_toast_dwell.py`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — I uses the contact's Node login
 
 ### Improvements
