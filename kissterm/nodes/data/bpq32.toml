@@ -45,16 +45,21 @@ commands accept the abbreviation shown.
 """
 
 # The node answers every command with its ALIAS:CALL} prefix -- "CCEMA:WS1EC-15}"
-# on the real node above, "NOTTS:G8BPQ-3}" in the documentation. "de CALL>" is
-# a sysop's own CTEXT on WS1EC-15, kept because it is how that node is first
-# recognised before any command is typed.
-detect_prompt = ['^[A-Z0-9#_]{1,6}:[A-Z0-9]{1,6}(-\d{1,2})?\}', '^de [A-Z0-9]{1,6}(-\d{1,2})?>\s*$']
+# on the real node above, "NOTTS:G8BPQ-3}" in the documentation. A node with
+# no alias drops "ALIAS:" and answers "CALL}" (LinBPQ Cmd.c: DecodeNodeName
+# skips an empty alias; SetupNodeHeader appends HEADERCHAR, fixed at '}' in
+# cMain.c, then a space). "de CALL>" is a sysop's own CTEXT on WS1EC-15,
+# kept because it is how that node is first recognised before any command
+# is typed.
+detect_prompt = ['^(?:[A-Z0-9#_]{1,6}:)?[A-Z0-9]{1,6}(-\d{1,2})?\}', '^de [A-Z0-9]{1,6}(-\d{1,2})?>\s*$']
 detect_banner = ['LinBPQ']
 # "CCEMA:WS1EC-15} Connected to BBS" (WS1EC-15, 2026-09-10): the node hands
 # the session to an application and says which. The name is matched against
 # each application family's `entered_by`.
-enter_pattern = '^[A-Z0-9#_]{1,6}:[A-Z0-9]{1,6}(?:-\d{1,2})?\} Connected to ([A-Z0-9]+)\s*$'
-# Coming back from an application ("Returned to Node" in Commands.htm).
+# Sent only when the application is configured to tell the user
+# (MSG_TO_USER, Cmd.c "Connected to %s").
+enter_pattern = '^(?:[A-Z0-9#_]{1,6}:)?[A-Z0-9]{1,6}(?:-\d{1,2})?\} Connected to ([A-Z0-9]+)\s*$'
+# Coming back from an application: "Returned to Node %s" (L4Code.c).
 return_pattern = 'Returned to Node'
 
 [[commands]]

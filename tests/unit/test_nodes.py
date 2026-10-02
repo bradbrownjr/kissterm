@@ -50,7 +50,8 @@ def test_bpq_prompt_is_recognised():
     CTEXT sign-off seen on WS1EC-15. The earlier fixture, "W1AW-7:CCEMA}",
     had the SSID on the alias side -- a shape no BPQ32 node sends -- and the
     pattern written to match it never matched the real node."""
-    for prompt in ("CCEMA:WS1EC-15} ", "NOTTS:G8BPQ-3}", "de WS1EC-15>"):
+    # "WS1EC-15} ": a node with no alias (LinBPQ DecodeNodeName skips it).
+    for prompt in ("CCEMA:WS1EC-15} ", "NOTTS:G8BPQ-3}", "WS1EC-15} ", "de WS1EC-15>"):
         family = identify_family(prompt)
         assert family is not None and family.id == "bpq32", f"missed {prompt!r}"
 

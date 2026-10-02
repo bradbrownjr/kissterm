@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — A BPQ node with no alias is recognised
+
+### Improvements
+
+- **`CALL}` is a BPQ node too.** A node with no alias answers `WS1EC-15}`
+  rather than `CCEMA:WS1EC-15}` (LinBPQ `Cmd.c`, `DecodeNodeName`), and
+  showed as an unknown node.
+
+**Files:** `kissterm/nodes/data/bpq32.toml`, `tests/unit/test_nodes.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — BPQMail: mail kissterm could not list or finish reading
 
 ### Improvements
