@@ -394,7 +394,7 @@ async def test_status_bar_shows_the_session_transport_detail():
         async with app.run_test(size=(110, 32)) as pilot:
             await pilot.pause()
             status = _plain(app.query_one("#status-bar"))
-            assert f"{host}:{port}" in status, status
+            assert host in status and f":{port}" not in status, status
     finally:
         await transport.close()
         server.close()

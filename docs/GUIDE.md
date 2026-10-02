@@ -263,6 +263,11 @@ apart: **SSH** is the server's own account (a login may be a username with
 no password, for an account that has none), and **Node login** is what is
 sent to the node once SSH is up (a saved login or a saved script).
 
+A BPQ node's Telnet port echoes back what you type; kissterm drops that
+echo, so each line shows once. The password line of a saved login is
+shown as `********`, on screen and in the transcript. The status bar
+names the contact by its host (`WS1EC`, not the full address).
+
 ### Link behaviour
 
 Full AX.25 2.2 connected mode, with retransmission and timer recovery, so

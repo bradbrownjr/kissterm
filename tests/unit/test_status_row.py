@@ -9,7 +9,7 @@ isolate()
 
 import pytest  # noqa: E402
 
-from kissterm.ui.app import _without_port  # noqa: E402
+from kissterm.ui.app import _short_peer, _without_port  # noqa: E402
 
 
 @pytest.mark.parametrize(("detail", "shown"), [
@@ -27,3 +27,16 @@ from kissterm.ui.app import _without_port  # noqa: E402
 ])
 def test_only_a_port_is_cut(detail, shown):
     assert _without_port(detail) == shown
+
+
+@pytest.mark.parametrize(("peer", "shown"), [
+    ("packet@ws1ec.mainepacketradio.org:4722", "WS1EC"),
+    ("ws1ec.mainepacketradio.org", "WS1EC"),
+    ("WS1EC-15", "WS1EC-15"),
+    ("localhost:8010", "localhost"),
+    ("10.0.0.2:23", "10.0.0.2"),
+    ("[::1]:22", "[::1]"),
+])
+def test_a_link_peer_is_named_briefly(peer, shown):
+    """Operator, 2026-10-02: "kc1uix-3 via" was all that fit."""
+    assert _short_peer(peer) == shown

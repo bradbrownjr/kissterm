@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — SSH to WS1EC: one echo, no password, a short name
+
+### Improvements
+
+- **A line typed over Telnet or SSH shows once.** BPQ's Telnet port echoes
+  everything but the password (`TelnetV6.c`); the session adapter now drops
+  bytes that repeat what was just sent, and delivers them after all the
+  moment they differ, so nothing the node said is lost.
+- **A saved login's password is masked** as `********` in the Terminal and
+  the transcript; it was written there in plain text.
+- **The status bar names an Internet peer briefly**: `KC1UIX-3 via WS1EC`,
+  where the full `user@host:port` made the field wrap to "kc1uix-3 via".
+
+**Files:** `kissterm/ui/app.py`, `tests/unit/test_session_echo.py`,
+`tests/unit/test_login_mask.py`, `tests/unit/test_status_row.py`,
+`tests/pilot/test_connect_scripts.py`, `tests/pilot/test_session_transport.py`,
+`docs/GUIDE.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — Status bar: no TNC port, no heard count
 
 ### Improvements

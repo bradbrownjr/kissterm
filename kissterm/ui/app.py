@@ -297,6 +297,19 @@ def _without_port(detail: str) -> str:
     )
 
 
+def _short_peer(peer: str) -> str:
+    """A link peer as the status bar names it. An AX.25 call is itself; an
+    Internet session's `user@host:port` is its host's first label in
+    capitals (`packet@ws1ec.mainepacketradio.org:4722` -> `WS1EC`), which
+    for a packet node's own domain is its callsign. An IP address stays
+    whole. The full address made the field wrap, and the bar showed only
+    "kc1uix-3 via" (operator, 2026-10-02: "plenty of room to say WS1EC")."""
+    host = _without_port(peer).rsplit("@", 1)[-1]
+    if "." not in host or re.fullmatch(r"[\d.]+|\[.*\]|.*:.*", host):
+        return host
+    return host.split(".", 1)[0].upper()
+
+
 def _status_row(parts: list[str | Text]) -> Table:
     """Lay `parts` out across the FULL width of the status bar, not bunched
     at the left with the rest of the row empty.
@@ -502,7 +515,23 @@ class _SessionLinkAdapter:
     on_error` -- `self.on_error` exists so `_bind_link` can append to it
     without a branch, but nothing here ever calls what is in it. Session
     transports do not have a "why" beyond a plain disconnect yet.
+
+    **The far end's echo is removed here.** BPQ's Telnet server answers
+    IAC WILL ECHO and sends back every byte typed except the password
+    (LinBPQ `TelnetV6.c`), and WS1EC's SSH account runs `telnet` into it,
+    so each line showed twice: kissterm's own echo, then the node's
+    (operator, 2026-10-02). What was sent is held as the expected echo;
+    bytes that match it at the start of what comes back are dropped, CR LF
+    standing for the CR sent. The moment anything differs -- a password the
+    server does not echo, a far end that never echoes -- the held bytes are
+    delivered after all and the expectation is dropped, so nothing the far
+    end really said is lost. A partial match left waiting is delivered
+    after `ECHO_WAIT` seconds. AX.25 nodes do not echo; this is the session
+    tier only, the only place it happens.
     """
+
+    #: How long a partial echo match waits for the rest before it is shown.
+    ECHO_WAIT = 1.0
 
     def __init__(self, session, transport=None) -> None:
         self._session = session
@@ -514,6 +543,12 @@ class _SessionLinkAdapter:
         self.on_data: list = []
         self.on_state: list = []
         self.on_error: list = []
+        #: The echo still expected, and the received bytes held while they
+        #: match it (class docstring).
+        self._echo = bytearray()
+        self._held = bytearray()
+        self._after_cr = False
+        self._echo_timer: asyncio.TimerHandle | None = None
         session.on_state_change(lambda _session, state: self._emit_state(state))
         self._pump_task = asyncio.get_event_loop().create_task(
             self._pump(), name=f"session-adapter-pump:{session.peer}"
@@ -535,6 +570,55 @@ class _SessionLinkAdapter:
 
     async def send(self, data: bytes) -> None:
         await self._session.send(data)
+        self._echo += data.replace(b"\r\n", b"\r").replace(b"\n", b"\r")
+
+    def _strip_echo(self, data: bytes) -> bytes:
+        """`data` less the leading part that echoes what was sent; may hold
+        bytes back while a match is incomplete (class docstring)."""
+        if not self._echo and not self._after_cr:
+            return data
+        for i, byte in enumerate(data):
+            if self._after_cr and byte == 0x0A:
+                # The LF of a CR LF that echoed a CR.
+                self._after_cr = False
+                continue
+            self._after_cr = False
+            if self._echo and byte == self._echo[0]:
+                del self._echo[0]
+                self._held.append(byte)
+                self._after_cr = byte == 0x0D
+                if not self._echo:
+                    # The whole echo arrived: drop it.
+                    self._held.clear()
+                continue
+            # Past the echo, or not an echo at all: show what was held (if
+            # anything), and stop expecting one.
+            rest = bytes(self._held) + data[i:]
+            self._echo.clear()
+            self._held.clear()
+            return rest
+        if self._held:
+            self._arm_echo_timer()
+        return b""
+
+    def _arm_echo_timer(self) -> None:
+        if self._echo_timer is not None:
+            self._echo_timer.cancel()
+        self._echo_timer = asyncio.get_event_loop().call_later(self.ECHO_WAIT, self._release_echo)
+
+    def _release_echo(self) -> None:
+        """A partial match that never finished: the far end said it."""
+        self._echo_timer = None
+        held = bytes(self._held)
+        self._echo.clear()
+        self._held.clear()
+        self._after_cr = False
+        if held:
+            self._deliver(held)
+
+    def _deliver(self, data: bytes) -> None:
+        for cb in list(self.on_data):
+            cb(data)
 
     async def disconnect(self) -> None:
         """The session-tier equivalent of `AX25Link.disconnect()` -- there
@@ -564,9 +648,12 @@ class _SessionLinkAdapter:
     async def _pump(self) -> None:
         try:
             while True:
-                data = await self._session.incoming.get()
-                for cb in list(self.on_data):
-                    cb(data)
+                data = self._strip_echo(await self._session.incoming.get())
+                if data:
+                    if self._echo_timer is not None:
+                        self._echo_timer.cancel()
+                        self._echo_timer = None
+                    self._deliver(data)
         except asyncio.CancelledError:
             pass
 
@@ -2349,7 +2436,7 @@ class KissTermApp(App):
         # continuation of the prompt and "Connected to BBS" never matches.
         session.line_buffer = ""
         if session.transcript is not None:
-            session.transcript.sent(text)
+            session.transcript.sent(self._masked(text))
         if watch_hop:
             self._watch_typed_hop(session_key, text)
         self._cancel_reply_timer(session_key)
@@ -4288,7 +4375,7 @@ class KissTermApp(App):
                 self.notify("Auto-login stopped: transmit is off.", severity="warning")
                 return
             await link.send(line.encode("latin-1", "replace") + b"\r")
-            self._to_terminal(session_key, "write_note", line + "\n")
+            self._to_terminal(session_key, "write_note", self._masked(line) + "\n")
             self.log_sent(session_key, line)
             await asyncio.sleep(CONNECT_SCRIPT_LINE_DELAY)
 
@@ -4985,7 +5072,7 @@ class KissTermApp(App):
 
             collector = build(
                 link, note,
-                lambda text: log.sent(text) if log is not None else None,
+                lambda text: log.sent(self._masked(text)) if log is not None else None,
                 lambda text: log.received(text) if log is not None else None,
             )
             return await collector.run()
@@ -5142,9 +5229,26 @@ class KissTermApp(App):
         except Exception:  # noqa: BLE001 -- before the theme is applied
             return "green"
 
+    def _masked(self, text: str) -> str:
+        """`text`, or `********` when it is a saved login's password.
+
+        A saved login sends its username line and then its password line
+        (`config.login_text`), and the line-by-line echo used to put the
+        password in the Terminal and in plain text in the transcript
+        (operator's WS1EC SSH session, 2026-10-02). A sent line is masked
+        when it equals any saved password, wherever it came from: by the
+        time a script runs it no longer knows which line was the secret."""
+        if not text.strip():
+            return text
+        for entry in getattr(self.config, "credentials", ()):
+            name = entry.get("name", "")
+            if name and find_credential(self.config, name) == text:
+                return "********"
+        return text
+
     def _mail_sent(self, key: str, text: str) -> None:
         """Echo a line Send/Receive sent, as a typed line is echoed."""
-        self._to_terminal(key, "write_note", text + "\n")
+        self._to_terminal(key, "write_note", self._masked(text) + "\n")
         self.log_sent(key, text, watch_hop=False)
 
     def _reload_mail_tabs(self) -> None:
@@ -5539,8 +5643,10 @@ class KissTermApp(App):
             # exists to clear up. `via <link peer>` keeps the real link-layer
             # peer on screen rather than hiding which station is actually
             # carrying the session.
-            node = self.current_node or str(self.link.peer)
-            where = node if node == str(self.link.peer) else f"{node} via {self.link.peer}"
+            peer = str(self.link.peer)
+            node = self.current_node or peer
+            where = (_short_peer(peer) if node == peer
+                     else f"{node.upper()} via {_short_peer(peer)}")
             peer_part = f"{where} {self.link.state.value}"
             family = self.reference.family
             session = self._sessions.get(self._active_key())

@@ -271,6 +271,8 @@ async def test_a_saved_credential_is_looked_up_live_at_connect_time(tmp_path):
     book.record_attempt("WS1EC-7", credential="Personal BBS login")
 
     peer = AX25Station(NODE, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
+    received: list[bytes] = []
+    peer.on_incoming.append(lambda link: link.on_data.append(received.append))
 
     # Changed after the entry was saved -- proves the lookup is live, not a
     # copy taken when the entry was created.
@@ -281,9 +283,11 @@ async def test_a_saved_credential_is_looked_up_live_at_connect_time(tmp_path):
         await asyncio.sleep(0.5)
         await pilot.pause()
 
+        sent = b"".join(received)
+        assert b"NEWPASS" in sent and b"OLDPASS" not in sent, sent
+        # What went out is the new password; what is shown is a mask.
         text = _log_text(app)
-        assert "NEWPASS" in text, text
-        assert "OLDPASS" not in text, text
+        assert "NEWPASS" not in text and "********" in text, text
     peer.close()
     station.close()
 

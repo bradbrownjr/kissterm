@@ -94,6 +94,14 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Connecting
 
+- [ ] **Each line shows once over WS1EC SSH.** Connect to the WS1EC SSH
+  contact and type `routes`, then `c 8 kc1uix-3`. Expected: each line you
+  typed appears once, not twice; the login's password shows as
+  `********` in the Terminal and in the transcript (Session >
+  Transcripts); the status bar reads `KC1UIX-3 via WS1EC`. If a blank
+  line or a stray fragment of your own text still appears, send the
+  transcript.
+
 - [ ] **A JNOS mailbox is recognised** (KC1UIX's node, AXIP/UDP through
   WS1EC port 8: connect to WS1EC, then `C 8 KC1UIX` or whatever call
   Dave gives you; or ask Dave KC1UIX to connect from kissterm and send
