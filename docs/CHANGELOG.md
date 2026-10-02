@@ -5,6 +5,28 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — The Terminal holds only the session
+
+### Improvements
+
+- **No more `***` notes in the Terminal.** It shows what the node sent
+  and what was sent to it; kissterm's notes (connecting, connected,
+  auto-login, hop and mail progress, transmit enabled) go to the
+  session's transcript, or kissterm.log when a connect never came up.
+  Anything that was only a note is now a toast (a link error, a stray
+  poll, a reply that never came, learned commands); beacons and APRS
+  sends show in the Monitor. A failed connect's toast now carries the
+  attempt count and a dropped TNC link. Operator request, 2026-10-02.
+
+### New Features
+
+- **Transcripts button on the Monitor tab**: the same list as Session >
+  Transcripts, beside the frames.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/monitor_pane.py`,
+`kissterm/ui/terminal_pane.py`, `DESIGN.md`, `AGENTS.md`, `docs/GUIDE.md`,
+tests (`tests/pilot/_records.py` and 17 pilot files), `docs/CHANGELOG.md`
+
 ## [2026-10-02] — The Terminal starts empty; the name leaves the status bar
 
 ### Improvements

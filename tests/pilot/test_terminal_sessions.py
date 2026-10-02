@@ -176,12 +176,12 @@ async def test_delete_disconnects_first_then_closes_the_tab():
         await asyncio.sleep(0.2)
         await pilot.pause()
 
-        # First Delete: a DISC went out, the tab is still there reading the
-        # disconnect note.
+        # First Delete: a DISC went out, the tab is still there; the status
+        # bar says so, not a note in the Terminal (DESIGN.md section 6).
         assert pane.session_count == 2, "the first Delete must disconnect, not close"
         log = pane.query_one("#session-log")
         shown = "\n".join(str(line) for line in log.lines)
-        assert "Disconnecting" in shown
+        assert "Disconnecting" not in shown
 
         await asyncio.sleep(0.3)
         await pilot.pause()

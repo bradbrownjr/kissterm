@@ -782,13 +782,16 @@ class TerminalPane(Container):
             self.mark_unread(session_key)
 
     def write_note(self, session_key: str, text: str) -> None:
-        """Write locally-generated text: status notes, echoes of what we sent.
+        """Write what was sent to the far end (typed, login-script, hop and
+        Send/Receive lines) -- the only text of kissterm's own the Terminal
+        holds; notes about the session go to its transcript (DESIGN.md
+        section 6, `KissTermApp._record`).
 
         Deliberately separate from `write_incoming`. Text kissterm produced is
         already trusted, and putting it through `sanitize` would strip
         formatting chosen on purpose. Flushes any buffered incoming bytes
-        first, so a "*** Disconnecting..." note (or any other status line)
-        cannot jump ahead of output the far end already sent -- and a link
+        first, so a line we sent cannot jump ahead of output the far end
+        already sent -- and a link
         that drops mid-word never loses the word.
         """
         self._flush_incoming(session_key, final=True)

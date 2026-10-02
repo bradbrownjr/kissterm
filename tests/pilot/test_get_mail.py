@@ -109,7 +109,7 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
         app.query_one("#mail-browser").query_one(MessageList).focus()
         tree_region = app.query_one("#mail-browser").query_one(MessageList).region
         shown: list[str] = []
-        real_status = app._mail_status
+        real_status = app._set_activity
 
         styled: list[str] = []
 
@@ -121,7 +121,7 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
                           for cell in column._cells
                           if hasattr(cell, "plain") and cell.plain == phase and phase)
 
-        app._mail_status = _record
+        app._set_activity = _record
         toasts: list[str] = []
         real_notify = app.notify
 
@@ -156,7 +156,8 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
         [summary] = app.mail_store.list(BBS_INBOX)
         assert (summary.subject, summary.source) == ("Test message", "BBS WS1EC")
         text = _log_text(app)
-        assert "*** Mail: Reading 1 of 1: #2578" in text, text
+        # The command sent is the session; the progress note is not.
+        assert "Mail:" not in text, text
         assert "R 2578" in text
         app.action_show_tab("mail")
         await pilot.pause()

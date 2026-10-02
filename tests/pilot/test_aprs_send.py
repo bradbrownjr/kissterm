@@ -197,7 +197,10 @@ async def test_pressing_send_with_a_closed_gate_arms_it_instead_of_refusing(tmp_
     thing the operator just asked for is the one thing the refusal would not
     do. See `test_the_retry_timer_never_arms_the_gate` for the other half --
     an *unattended* resend must never do this."""
+    from tests.pilot._records import spy_records
+
     app, mine, theirs, ta = await _app(tmp_path, tx_armed=False)
+    records = spy_records(app)
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
         assert app.gate.enabled is False
@@ -208,8 +211,9 @@ async def test_pressing_send_with_a_closed_gate_arms_it_instead_of_refusing(tmp_
         assert app.gate.enabled is True
         assert ta.sent
         assert app.aprs_conversations.conversations["WS1EC-15"].messages[0].text == "hello"
-        assert "Sent APRS message" in _terminal_text(app)
-        assert "Transmit enabled automatically" in _terminal_text(app)
+        # Recorded, never written into the Terminal (DESIGN.md section 6).
+        assert any(r.startswith("Transmit enabled automatically") for r in records)
+        assert "Transmit enabled" not in _terminal_text(app)
     mine.close()
     theirs.close()
 
@@ -275,7 +279,7 @@ async def test_an_incoming_ack_marks_the_sent_message_acked_and_stops_retrying(t
         pane._check_retries()
         await asyncio.sleep(0.3)
         await pilot.pause()
-        assert "Resent APRS message" not in _terminal_text(app)
+        assert "APRS message" not in _terminal_text(app)
         assert pane._pending.due(now=time.monotonic() + 1000) == []
     mine.close()
     theirs.close()
@@ -292,18 +296,22 @@ async def test_an_unacked_message_is_retried(tmp_path):
         app.query_one("#aprs-to-input", Input).value = "WS1EC-15"
         app.query_one("#aprs-compose-input", Input).value = "hello there"
         await pilot.click("#aprs-send-button")
+        def sends() -> int:
+            return sum(b"hello there" in f.info for f in ta.sent)
+
         for _ in range(20):
-            if "Sent APRS message" in _terminal_text(app):
+            if sends():
                 break
             await pilot.pause()
 
         await asyncio.sleep(0.2)
         pane._check_retries()
         for _ in range(20):
-            if "Resent APRS message" in _terminal_text(app):
+            if sends() >= 2:
                 break
             await pilot.pause()
-        assert "Resent APRS message" in _terminal_text(app)
+        assert sends() >= 2  # resent: the Monitor shows it, not the Terminal
+        assert "APRS message" not in _terminal_text(app)
 
         # Never a second history entry for a retry -- same logical message.
         convo = app.aprs_conversations.conversations["WS1EC-15"]

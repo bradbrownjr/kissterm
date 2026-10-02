@@ -127,6 +127,9 @@ async def test_ctrl_d_cancels_a_hanging_session_transport_connect():
     transport = HangingTransport()
     await transport.open()
     app = KissTermApp(Config(mycall="N1ABC-1"), station=None, session_transport=transport)
+    from tests.pilot._records import spy_records
+
+    records = spy_records(app)
     try:
         async with app.run_test(size=(110, 32)) as pilot:
             await pilot.pause()
@@ -139,9 +142,10 @@ async def test_ctrl_d_cancels_a_hanging_session_transport_connect():
 
             assert app._session_connect_task is None
             assert app.link is None
-            text = _log_text(app)
+            text = "\n".join(records)
             assert "cancelled by operator" in text.lower(), text
             assert "could not connect" not in text.lower(), text
+            assert "cancelled" not in _log_text(app).lower()
     finally:
         await transport.close()
 
@@ -167,7 +171,7 @@ async def test_ctrl_n_connects_directly_with_no_dialog():
             assert app.link.peer == f"{host}:{port}"
             text = _log_text(app)
             assert "Welcome to FAKE-NODE" in text, text
-            assert "Connected to" in text, text
+            assert "Connected to" not in text, text  # the transcript's, below
             assert app.transcript is not None
             assert "Connected to" in app.transcript.path.read_text()
 

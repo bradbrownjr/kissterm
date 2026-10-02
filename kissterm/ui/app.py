@@ -1240,13 +1240,15 @@ class KissTermApp(App):
             self.notify(f"Beacon not started: {why}", severity="warning")
 
     def _on_beacon_sent(self, frame: AX25Frame) -> None:
-        """Every beacon is visible in the terminal pane, without exception.
+        """Every beacon is visible, without exception: the Monitor tab shows
+        the frame (`_on_sent_frame`), the status bar shows BEACON while it is
+        armed, and kissterm.log keeps the record. Not the Terminal, which
+        holds only sessions (DESIGN.md section 6).
 
         A station that transmits without the operator being able to see that
-        it did is exactly what the opt-in exists to prevent. This is the
-        record of it, not a debug aid.
+        it did is exactly what the opt-in exists to prevent.
         """
-        self._to_terminal(self._active_key(), "write_note", f"\n*** Beacon sent to {frame.path.destination}\n")
+        log.info("beacon sent to %s", frame.path.destination)
 
     def _gps_position(self) -> tuple[float, float] | None:
         """The receiver's live position, never copied into configuration."""
@@ -1303,7 +1305,7 @@ class KissTermApp(App):
 
     def _on_aprs_beacon_sent(self, frame: AX25Frame) -> None:
         """Same rule as `_on_beacon_sent`: every transmission is visible."""
-        self._to_terminal(self._active_key(), "write_note", "\n*** APRS position beacon sent\n")
+        log.info("APRS position beacon sent")
 
     def on_unmount(self) -> None:
         """Disarm the beacons as the app goes away.
@@ -1351,9 +1353,6 @@ class KissTermApp(App):
                 # TNC. Log it for --doctor, do not interrupt the operator.
                 log.info("serial port appeared: %s (%s)", event.device, event.note)
                 return
-            self._to_terminal(
-                self._active_key(), "write_note", f"\n*** Plugged in: {event.device} -- {event.detail}\n"
-            )
             self.notify(
                 f"{event.device} looks like a TNC ({event.detail}). "
                 f"Settings (F9) > Radio to use it.",
@@ -1364,7 +1363,6 @@ class KissTermApp(App):
 
         # Removed. Only worth shouting about if it is the one in use.
         if self._active_device() == event.device:
-            self._to_terminal(self._active_key(), "write_note", f"\n*** {event.device} was unplugged\n")
             self.notify(
                 f"{event.device} -- the transport in use -- was unplugged.",
                 severity="error",
@@ -1459,11 +1457,6 @@ class KissTermApp(App):
         if key in self._mail_notified:
             return
         self._mail_notified.add(key)
-        self._to_terminal(
-            self._active_key(),
-            "write_note",
-            f"\n*** {source} is holding mail for {matched} (heard on the channel)\n",
-        )
         self.notify(f"{source} has mail waiting for {matched}.", severity="information")
         self._notify_mail_desktop(source, matched)
 
@@ -1772,12 +1765,6 @@ class KissTermApp(App):
                     severity="warning",
                     timeout=10,
                 )
-                self._to_terminal(
-                    self._active_key(),
-                    "write_note",
-                    f"\n*** Message from {addressee} needs an ack, but Transmit is OFF "
-                    "-- press Ctrl+T\n",
-                )
             return
         source = self.config.aprs.source_for(str(self.station.mycall))
         try:
@@ -1794,10 +1781,10 @@ class KissTermApp(App):
         # incoming`) -- a protocol ack is not conversation content, and
         # showing "ack407" as if it were a message someone typed answered
         # nothing an operator asked and only invited "what does this mean?"
-        # The terminal-pane line below is the transmission record; the gate
-        # rule above (never claim a suppressed send went out) covers it the
-        # same way a real message would be covered.
-        self._to_terminal(self._active_key(), "write_note", f"\n*** Auto-ack sent to {addressee} (msg {number})\n")
+        # The Monitor tab shows the frame and kissterm.log records it; the
+        # gate rule above (never claim a suppressed send went out) covers it
+        # the same way a real message would be covered.
+        log.info("APRS auto-ack sent to %s (msg %s)", addressee, number)
 
     async def _send_aprs_message(
         self, addressee: str, text: str, number: str | None, *, port: int = 0, retry: bool = False
@@ -1834,7 +1821,7 @@ class KissTermApp(App):
             return False
         verb = "Resent" if retry else "Sent"
         kind = "bulletin" if number is None else f"message {number}"
-        self._to_terminal(self._active_key(), "write_note", f"\n*** {verb} APRS {kind} to {addressee}\n")
+        log.info("%s APRS %s to %s", verb, kind, addressee)
         return True
 
     def start_aprs_is_watch_for_debug(self) -> None:
@@ -1901,7 +1888,7 @@ class KissTermApp(App):
         # received bytes.
         log.debug("APRS object transmission accepted: %s:%s", outframe.path, payload.decode("ascii"))
         state = "live" if request.alive else "killed"
-        self._to_terminal(self._active_key(), "write_note", f"\n*** Sent {state} APRS object {request.name.strip()}\n")
+        log.info("sent %s APRS object %s", state, request.name.strip())
         return True
 
     def _session_key(self, peer, port: int = 0) -> str:
@@ -2000,16 +1987,12 @@ class KissTermApp(App):
             # Opened a tab, did not steal the view -- see the module and
             # terminal_pane.py docstrings' "never steal the view" rule.
             pane.mark_unread(key)
-        self._to_terminal(key, "write_note", f"\n*** Incoming connection from {link.peer}\n")
+        self._record(key, f"Incoming connection from {link.peer}")
         if not self.gate.enabled:
             # The UA never went out, so the caller is talking to nobody. Say
             # so: "somebody called and you could not answer" is exactly the
             # thing an operator wants to find in the scrollback later.
-            self._to_terminal(
-                key,
-                "write_note",
-                f"*** Could not answer {link.peer} -- transmit is disabled (Ctrl+T)\n",
-            )
+            self._record(key, f"Could not answer {link.peer} -- transmit is disabled (Ctrl+T)")
             self.notify(
                 f"{link.peer} called, but transmit is disabled.", severity="warning"
             )
@@ -2034,11 +2017,9 @@ class KissTermApp(App):
             what = "answered DM (no connection here) so it stops polling"
         else:
             what = "would answer DM, but transmit is disabled (Ctrl+T)"
-        self._to_terminal(
-            self._active_key(),
-            "write_note",
-            f"\n*** {call} is polling a connection kissterm does not have "
-            f"(left open when it last closed?); {what}\n",
+        self.notify(
+            f"{call} is polling a connection kissterm does not have "
+            f"(left open when it last closed?); {what}."
         )
 
     # ------------------------------------------------------------------
@@ -2210,7 +2191,7 @@ class KissTermApp(App):
         self._start_transcript(key, link)
         link.on_data.append(lambda data: self._on_link_data(key, data))
         link.on_state.append(lambda state: self._on_link_state(key, state))
-        link.on_error.append(lambda why: self._note(key, f"\n*** {why}\n"))
+        link.on_error.append(lambda why: self._link_error(key, why))
         self._to_terminal(key, "set_placeholder", f"connected to {link.peer}")
         self._refresh_context_footer()
         return key
@@ -2248,7 +2229,7 @@ class KissTermApp(App):
         )
         transcript = SessionLog(directory, mycall, str(link.peer))
         if not transcript.open():
-            self._to_terminal(session_key, "write_note", f"\n*** No transcript: {transcript.failed}\n")
+            self.notify(f"No transcript for {link.peer}: {transcript.failed}", severity="warning")
             return
         session = self._sessions.get(session_key)
         if session is not None:
@@ -2268,11 +2249,30 @@ class KissTermApp(App):
             self._close_transcript(key)
 
     def _note(self, session_key: str, text: str) -> None:
-        """A local note for one session: to its tab, and to its transcript."""
-        self._to_terminal(session_key, "write_note", text)
+        """A note about one session: to its transcript, never its tab."""
+        self._record(session_key, text)
+
+    def _link_error(self, session_key: str, why: str) -> None:
+        """A link failed under a session: recorded, and one toast, since
+        the Terminal no longer says so (`_record`)."""
+        self._record(session_key, why)
+        self.notify(f"{session_key or 'Session'}: {why}", severity="warning")
+
+    def _record(self, session_key: str, text: str) -> None:
+        """Something kissterm did or saw about a session, for the record:
+        to that session's transcript, or to kissterm.log when it has none
+        (a connect that never came up has no transcript). Never to the
+        Terminal, which holds only what the far end sent and what was sent
+        to it (operator, 2026-10-02: "I again don't want anything in there
+        that didn't come from the node"); the status bar shows states and
+        a toast reports events (DESIGN.md section 6).
+        """
+        text = text.strip().lstrip("* ")
         session = self._sessions.get(session_key)
         if session is not None and session.transcript is not None:
-            session.transcript.note(text.strip().lstrip("* "))
+            session.transcript.note(text)
+        else:
+            log.info("%s: %s", session_key or "session", text)
 
     def log_sent(self, session_key: str, text: str, *, watch_hop: bool = True) -> None:
         """Record a line the operator transmitted on `session_key`. Called
@@ -2619,9 +2619,7 @@ class KissTermApp(App):
         session.reference.learned = ()
         if session.node_reference is not None:
             session.node_reference.learned = ()
-        self._to_terminal(
-            session_key, "write_note", f"\n*** Forgot {dropped} learned command(s) for {node}.\n"
-        )
+        self.notify(f"Forgot {dropped} learned command(s) for {node}.")
         return dropped
 
     def reference_sections(self, session_key: str) -> tuple[CommandReference, ...]:
@@ -2787,9 +2785,8 @@ class KissTermApp(App):
         # path in this app that leaves no record of what went out.
         self._to_terminal(session_key, "write_note", "?\n")
         self.log_sent(session_key, "?")
-        self._to_terminal(
-            session_key, "write_note", "\n*** Asked the node for its command list...\n"
-        )
+        self._record(session_key, "Asked the node for its command list")
+        self._set_activity("Reading the command list")
         waited = 0.0
         quiet = 0.0
         last_length = 0
@@ -2814,9 +2811,8 @@ class KissTermApp(App):
         session.last_harvest_text = text
         names = parse_harvested(text)
         if not names:
-            self._to_terminal(
-                session_key, "write_note", "\n*** No commands recognised in the reply.\n"
-            )
+            self._set_activity("")
+            self.notify("No commands recognised in the node's reply.", severity="warning")
             return ()
         # Keyed on the LOGICAL peer, not `link.peer`. After a confirmed hop
         # the AX.25 link is still to the first node while the `?` was
@@ -2827,12 +2823,9 @@ class KissTermApp(App):
         node = session.current_node or str(link.peer)
         self._harvested.add(node, names, context=context)
         session.reference.learned = self._learned(node, self._context_of(session))
-        self._to_terminal(
-            session_key,
-            "write_note",
-            f"\n*** Learned {len(names)} command(s) from {node}: "
-            f"{', '.join(names)}\n",
-        )
+        self._set_activity("")
+        self._record(session_key, f"Learned {len(names)} command(s) from {node}: {', '.join(names)}")
+        self.notify(f"Learned {len(names)} command(s) from {node}.")
         return names
 
     def last_harvest_text(self, session_key: str) -> str:
@@ -2882,7 +2875,7 @@ class KissTermApp(App):
         recovering = state is SessionState.TIMER_RECOVERY
         recovered = state is SessionState.CONNECTED and previous is SessionState.TIMER_RECOVERY
         if not recovering and not recovered:
-            self._note(session_key, f"\n*** {state.value}\n")
+            self._note(session_key, state.value)
         if session is not None:
             session.last_state = state
         if state is not SessionState.CONNECTED:
@@ -2939,11 +2932,9 @@ class KissTermApp(App):
         link = session.link
         if link is None or not link.connected or link.va != link.vs:
             return
-        self._to_terminal(
-            session_key,
-            "write_note",
-            f"\n*** {link.peer} acknowledged that -- no reply yet. See "
-            "Monitor (F8) for what has come back since.\n",
+        self.notify(
+            f"{link.peer} acknowledged that -- no reply yet. The Monitor tab (F8) "
+            "shows what has come back since."
         )
 
     # ------------------------------------------------------------------
@@ -2975,14 +2966,14 @@ class KissTermApp(App):
         enabled = self.gate.toggle()
         if enabled:
             self.notify("Transmit ENABLED. This station can now key the radio.")
-            self._to_terminal(self._active_key(), "write_note", "\n*** Transmit enabled\n")
+            self._record(self._active_key(), "Transmit enabled")
         else:
             blocked = ""
             self.notify(
                 "Transmit DISABLED. Nothing will be sent." + blocked,
                 severity="warning",
             )
-            self._to_terminal(self._active_key(), "write_note", "\n*** Transmit disabled\n")
+            self._record(self._active_key(), "Transmit disabled")
         self._refresh_status()
 
     def _arm_for(self, what: str, toast: bool = True) -> bool:
@@ -3013,9 +3004,7 @@ class KissTermApp(App):
         if self.gate.enabled:
             return False
         self.gate.set(True)
-        self._to_terminal(
-            self._active_key(), "write_note", f"\n*** Transmit enabled automatically for: {what}\n"
-        )
+        self._record(self._active_key(), f"Transmit enabled automatically for: {what}")
         if toast:
             self.notify(f"Transmit ENABLED for {what}. Ctrl+T turns it back off.")
         self._refresh_status()
@@ -3789,16 +3778,10 @@ class KissTermApp(App):
         state = self.station.transport.state
         if state is not TransportState.OPEN:
             where = self.station.transport.info.detail
-            self._to_terminal(
-                key,
-                "write_note",
-                f"\n*** Not connecting: the link to the TNC at {where} is "
-                f"{state.value}, so nothing would reach the air. This is not "
-                f"an RF problem -- check the TNC, then Settings (F9) > Radio > "
-                f"Test.\n",
-            )
             self._connect_problem(
-                report, f"TNC link is {state.value} -- nothing would be transmitted.")
+                report, f"Not connecting: the link to the TNC at {where} is {state.value}, "
+                "so nothing would reach the air. This is not an RF problem -- check the "
+                "TNC, then Settings (F9) > Radio > Test.")
             return
         # A confirmed connect request ARMS the gate rather than being refused
         # by it. See `_arm_for` -- naming a station and confirming the dialog
@@ -3808,7 +3791,7 @@ class KissTermApp(App):
         if announce:
             self.notify(announce + (" Transmit ENABLED; Ctrl+T turns it back off."
                                     if armed else ""))
-        self._to_terminal(key, "write_note", f"\n*** Connecting to {path.destination} on port {port}...\n")
+        self._record(key, f"Connecting to {path.destination} on port {port}")
         # Set before the await, not after: `AX25Station.connect` registers the
         # link synchronously before it awaits anything, so by the time this
         # coroutine yields control the link is already reachable by peer
@@ -3832,7 +3815,7 @@ class KissTermApp(App):
             failed = self.station.link_to(path.destination, port)
             reason = getattr(failed, "last_error", "") if failed else ""
             if reason == CANCELLED_REASON:
-                self._to_terminal(key, "write_note", f"*** Connect to {path.destination} cancelled.\n")
+                self._record(key, f"Connect to {path.destination} cancelled")
                 return
             # Say WHY. "No connection" alone cannot be acted on: a DM means
             # the node heard us and refused, which is a configuration problem
@@ -3842,28 +3825,20 @@ class KissTermApp(App):
             # diagnosis, and it is already known here.
             attempts = getattr(failed, "rc", 0) if failed else 0
             detail = f" -- {reason}" if reason else ""
-            self._to_terminal(key, "write_note", f"*** No connection to {path.destination}{detail}\n")
+            why = f"Could not connect to {path.destination}{detail}."
             if attempts:
-                self._to_terminal(
-                    key,
-                    "write_note",
-                    f"*** {attempts} attempt(s) sent. Check the Monitor tab (F8) "
-                    "for what went out and what came back.\n",
-                )
+                why += (f" {attempts} attempt(s) sent; the Monitor tab (F8) shows "
+                        "what went out and what came back.")
             # It was up when we started or we would not be here, so a
             # transport that is down NOW dropped during the attempt -- and
             # some of those SABMs never left the process. Say so, or the
             # operator spends the evening on an antenna that is fine.
             if self.station.transport.state is not TransportState.OPEN:
-                self._to_terminal(
-                    key,
-                    "write_note",
-                    "*** The link to the TNC dropped during this attempt, so "
-                    "some of those frames never reached the radio. Fix that "
-                    "first -- this is not an RF failure.\n",
-                )
-            self._connect_problem(
-                report, f"Could not connect to {path.destination}{detail}", "warning")
+                why += (" The link to the TNC dropped during this attempt, so some "
+                        "of those frames never reached the radio. Fix that first -- "
+                        "this is not an RF failure.")
+            self._record(key, why)
+            self._connect_problem(report, why.rstrip("."), "warning")
             return
         self._bind_link(link, key)
         if on_link is not None:
@@ -3889,7 +3864,7 @@ class KissTermApp(App):
         # late to see this first transition either, so writing straight to
         # the terminal pane fixed what the operator watched live but left
         # the durable transcript with the same hole.
-        self._note(key, f"\n*** Connected to {link.peer}\n")
+        self._note(key, f"Connected to {link.peer}")
         if focus_session and pane.active_session_key == key:
             # Only if the operator is still looking at this tab -- a long
             # SABM retry (or an HF hop chain below) can outlast several
@@ -4001,9 +3976,8 @@ class KissTermApp(App):
                     self.action_show_tab("terminal")
         pane.open_tab(key, activate=focus_session)
         where = entry.host + (f":{entry.port}" if entry.port else "")
-        self._to_terminal(key, "write_note",
-                          f"\n*** Connecting to {key} by {entry.connect_by.upper()} "
-                          f"({where}), over the Internet...\n")
+        self._record(key, f"Connecting to {key} by {entry.connect_by.upper()} ({where}), "
+                          "over the Internet")
         task = asyncio.current_task()
         assert task is not None
         self._internet_connecting[key] = task
@@ -4012,13 +3986,13 @@ class KissTermApp(App):
             await transport.open()
             session = await self._session_connect(transport)
         except asyncio.CancelledError:
-            self._to_terminal(key, "write_note", "*** Connect cancelled by operator.\n")
+            self._record(key, "Connect cancelled by operator")
             with contextlib.suppress(Exception):
                 await transport.close()
             reached(False)
             return
         except (TransportError, OSError) as exc:
-            self._to_terminal(key, "write_note", f"*** Could not connect: {exc}\n")
+            self._record(key, f"Could not connect: {exc}")
             self._connect_problem(report, f"{key}: {exc}")
             with contextlib.suppress(Exception):
                 await transport.close()
@@ -4031,7 +4005,7 @@ class KissTermApp(App):
         if on_link is not None:
             on_link(link, key)
         self._bind_link(link, key, activate=focus_session)
-        self._note(key, f"\n*** Connected to {key}\n")
+        self._note(key, f"Connected to {key}")
         self.addressbook.record_connect(entry.target)
         if focus_session:
             pane.focus_input()
@@ -4080,7 +4054,7 @@ class KissTermApp(App):
                 self.action_show_tab("terminal")
         self._arm_for(f"connect via {transport.info.detail}")
         self.query_one(TerminalPane).clear("")
-        self._to_terminal("", "write_note", f"\n*** Connecting to {transport.info.detail}...\n")
+        self._record("", f"Connecting to {transport.info.detail}")
         connect_task = asyncio.current_task()
         assert connect_task is not None
         self._session_connect_task = connect_task
@@ -4091,10 +4065,10 @@ class KissTermApp(App):
             # Ctrl+D is an operator decision, not a failed connection.
             # SessionTransport implementations clean up their partly-open
             # connection before propagating this cancellation.
-            self._to_terminal("", "write_note", "*** Connect cancelled by operator.\n")
+            self._record("", "Connect cancelled by operator")
             return
         except TransportError as exc:
-            self._to_terminal("", "write_note", f"*** Could not connect: {exc}\n")
+            self._record("", f"Could not connect: {exc}")
             self.notify(str(exc), severity="error")
             return
         finally:
@@ -4105,7 +4079,7 @@ class KissTermApp(App):
         self._bind_link(link, "")
         # Same gap as the frame-tier connect above (`action_connect`) and
         # the same fix -- see the comment there.
-        self._note("", f"\n*** Connected to {link.peer}\n")
+        self._note("", f"Connected to {link.peer}")
         self.query_one(TerminalPane).focus_input()
         # Same auto-login as the address-book flow above (`request.script`/
         # `request.credential`/`request.script_name`), just sourced from the
@@ -4147,19 +4121,19 @@ class KissTermApp(App):
         """
         for node in nodes:
             if not link.connected:
-                self._to_terminal(session_key, "write_note", "*** Hop chain stopped: no longer connected.\n")
-                if report is not None:
-                    report("the hop chain stopped: no longer connected")
+                self._record(session_key, "Hop chain stopped: no longer connected")
+                self._connect_problem(report, "The hop chain stopped: no longer connected",
+                                      "warning")
                 return False
             if not self.gate.enabled:
-                self._to_terminal(session_key, "write_note", "*** Hop chain stopped: transmit is off.\n")
-                if report is not None:
-                    report("the hop chain stopped: transmit is off")
+                self._record(session_key, "Hop chain stopped: transmit is off")
+                self._connect_problem(report, "The hop chain stopped: transmit is off",
+                                      "warning")
                 return False
             ok, detail = await self._hop_to(link, session_key, node)
             if not ok:
                 extra = f" -- {detail}" if detail else ""
-                self._to_terminal(session_key, "write_note", f"*** No connection to {node}{extra}\n")
+                self._record(session_key, f"No connection to {node}{extra}")
                 self._connect_problem(report, f"Hop to {node} did not connect{extra}", "warning")
                 return False
         return True
@@ -4288,13 +4262,14 @@ class KissTermApp(App):
         lines = [ln for ln in script.splitlines() if ln.strip()]
         if not lines:
             return
-        self._to_terminal(session_key, "write_note", f"\n*** Auto-login: sending {len(lines)} line(s)...\n")
+        self._record(session_key, f"Auto-login: sending {len(lines)} line(s)")
         for line in lines:
             if not link.connected:
-                self._to_terminal(session_key, "write_note", "*** Auto-login stopped: no longer connected.\n")
+                self._record(session_key, "Auto-login stopped: no longer connected")
                 return
             if not self.gate.enabled and not getattr(link, "internet", False):
-                self._to_terminal(session_key, "write_note", "*** Auto-login stopped: transmit is off.\n")
+                self._record(session_key, "Auto-login stopped: transmit is off")
+                self.notify("Auto-login stopped: transmit is off.", severity="warning")
                 return
             await link.send(line.encode("latin-1", "replace") + b"\r")
             self._to_terminal(session_key, "write_note", line + "\n")
@@ -4471,7 +4446,7 @@ class KissTermApp(App):
                 await run(entry, options)
         finally:
             self._collecting = False
-            self._mail_status("")
+            self._set_activity("")
 
     async def _prepare_runs(self, kind: str, key: str, services) -> list | None:
         """Ask everything each service in `kind` needs, in order; the runs
@@ -4694,7 +4669,7 @@ class KissTermApp(App):
             # No transmit gate on the Internet, so nothing to fold in.
             self.notify(announce)
             announce = ""
-        self._mail_status(f"Connecting to {entry.target}")
+        self._set_activity(f"Connecting to {entry.target}")
         worker = self.action_connect(
             prefill=entry, on_link=on_link, on_reached=on_reached, focus_session=False,
             announce=announce, report=reasons.append,
@@ -4706,12 +4681,12 @@ class KissTermApp(App):
             # No reason means the operator cancelled (the reminder, Ctrl+D):
             # nothing to tell them.
             if reasons:
-                self.notify(f"Send/Receive: {why}. The Terminal tab (F5) has the details.",
+                self.notify(f"Send/Receive: {why}.",
                             severity="error")
             return None
         if not state["reached"]:
             runner.close()
-            self.notify(f"Send/Receive: {why}. The Terminal tab (F5) has the details.",
+            self.notify(f"Send/Receive: {why}.",
                         severity="error")
             return None
         return runner, state["key"]
@@ -4759,7 +4734,7 @@ class KissTermApp(App):
                 note=lambda text: self._mail_note(key, text),
                 sent=lambda text: self._mail_sent(key, text),
                 gate_open=lambda: self.gate.enabled,
-                progress=self._mail_status,
+                progress=self._set_activity,
             )
 
         dialed = await self._dial_for_mail(entry, build, "mail")
@@ -4870,7 +4845,7 @@ class KissTermApp(App):
                 sent=lambda text: self._mail_sent(key, text),
                 received=lambda text: self._winlink_received(key, text),
                 gate_open=lambda: self.gate.enabled,
-                progress=self._mail_status,
+                progress=self._set_activity,
             )
 
         dialed = await self._dial_for_mail(entry, build, "Winlink mail")
@@ -4965,14 +4940,14 @@ class KissTermApp(App):
                 await run(*args)
         finally:
             self._collecting = False
-            self._mail_status("")
+            self._set_activity("")
 
     async def _internet_run(self, transport, peer: str, what: str, build):
         """Connect a session `transport` and run the collector
         `build(link, note, sent, received)` makes over it, with a
         transcript. Returns its result, or None having said why."""
         self.notify(f"Connecting to {what} over the Internet...")
-        self._mail_status(f"Connecting to {what}")
+        self._set_activity(f"Connecting to {what}")
         link = transcript = None
         try:
             await transport.open()
@@ -5006,7 +4981,7 @@ class KissTermApp(App):
                 await transport.close()
             if transcript is not None:
                 transcript.close()
-            self._mail_status("")
+            self._set_activity("")
 
     async def _winlink_cms_run(self, account: str, password: str) -> None:
         """Winlink through the CMS by Telnet (`winlink_collect.CMS_*`,
@@ -5024,7 +4999,7 @@ class KissTermApp(App):
 
         def build(link, note, sent, received):
             return WinlinkCollector(link, self.mail_store, options, note=note, sent=sent,
-                                    received=received, progress=self._mail_status,
+                                    received=received, progress=self._set_activity,
                                     early_lines_shown=False)
 
         server = self.config.winlink.server
@@ -5115,7 +5090,7 @@ class KissTermApp(App):
 
         def build(link, note, sent, received):
             return BbsCollector(link, self.mail_store, options, note=note, sent=sent,
-                                progress=self._mail_status)
+                                progress=self._set_activity)
 
         result = await self._internet_run(transport, entry.target, entry.target, build)
         if result is not None:
@@ -5131,12 +5106,12 @@ class KissTermApp(App):
             session.transcript.received_stream(data, sanitize)
 
     def _mail_note(self, key: str, text: str) -> None:
-        """A Send/Receive progress sentence, for the session log."""
-        self._to_terminal(key, "write_note", f"*** Mail: {text}\n")
+        """A Send/Receive progress sentence, for the transcript only."""
+        self._record(key, f"Mail: {text}")
 
-    def _mail_status(self, phase: str) -> None:
-        """Send/Receive's status-bar field, in green ("Sending 1 of 2"); ""
-        removes it.
+    def _set_activity(self, phase: str) -> None:
+        """The status-bar field for a job the operator started, in green
+        ("Sending 1 of 2", "YAPP send"); "" removes it.
 
         Ongoing state goes in the status bar, never in a line inserted
         above a pane's content (DESIGN.md section 6)."""
@@ -5199,7 +5174,6 @@ class KissTermApp(App):
         self.query_one(SettingsPane).render_settings(self.config)
         where = "saved" if saved else "applied for this session only (could not write config)"
         self.notify(f"Callsign is now {new_call} -- {where}.")
-        self._to_terminal(self._active_key(), "write_note", f"\n*** Callsign changed to {new_call}\n")
 
     def _save_config(self) -> bool:
         """Persist config, reporting failure rather than raising.
@@ -5327,7 +5301,8 @@ class KissTermApp(App):
             self._arm_for(f"{request.protocol.upper()} {request.mode}")
         self._transfer_active.add(key)
         protocol = request.protocol.upper()
-        self._note(key, f"\n*** {protocol} {request.mode} starting\n")
+        self._note(key, f"{protocol} {request.mode} starting")
+        self._set_activity(f"{protocol} {request.mode}")
         try:
             if request.protocol == "yapp":
                 sender, receiver = send_file, receive_file
@@ -5340,13 +5315,14 @@ class KissTermApp(App):
                 downloads.mkdir(parents=True, exist_ok=True)
                 result = await receiver(session.link, downloads)
         except (OSError, ValueError, YappError, AutoBinError) as exc:
-            self._note(key, f"\n*** {protocol} {request.mode} failed: {exc}\n")
+            self._note(key, f"{protocol} {request.mode} failed: {exc}")
             self.notify(f"{protocol} {request.mode} failed: {exc}", severity="warning")
         else:
-            self._note(key, f"\n*** {protocol} {request.mode} complete: {result.path.name} ({result.size} bytes)\n")
+            self._note(key, f"{protocol} {request.mode} complete: {result.path.name} ({result.size} bytes)")
             self.notify(f"{protocol} {request.mode} complete: {result.path.name}")
         finally:
             self._transfer_active.discard(key)
+            self._set_activity("")
 
     @work
     async def action_disconnect(self) -> None:
@@ -5372,7 +5348,7 @@ class KissTermApp(App):
             # be avoiding.
             if not getattr(session.link, "internet", False):
                 self._arm_for(f"disconnect from {session.link.peer}")
-            self._to_terminal(session_key, "write_note", "\n*** Disconnecting...\n")
+            self._record(session_key, "Disconnecting")
             await session.link.disconnect()
             return
         # No established link -- but a connect attempt may still be working
@@ -5384,17 +5360,13 @@ class KissTermApp(App):
             target, port = pending
             connecting = self.station.link_to(target, port)
             if connecting is not None and not connecting.connected:
-                self._to_terminal(
-                    session_key,
-                    "write_note",
-                    f"\n*** Cancelling connect to {connecting.peer} -- no "
-                    "further SABMs will be sent.\n",
-                )
+                self._record(session_key, f"Cancelling connect to {connecting.peer} -- no "
+                                          "further SABMs will be sent")
                 connecting.close(reason=CANCELLED_REASON)
                 return
         internet = self._internet_connecting.get(session_key)
         if internet is not None and not internet.done():
-            self._to_terminal(session_key, "write_note", "\n*** Cancelling connect...\n")
+            self._record(session_key, "Cancelling connect")
             internet.cancel()
             return
         session_connect_task = self._session_connect_task
@@ -5403,11 +5375,7 @@ class KissTermApp(App):
             and session_connect_task is not None
             and not session_connect_task.done()
         ):
-            self._to_terminal(
-                session_key,
-                "write_note",
-                "\n*** Cancelling session transport connect...\n",
-            )
+            self._record(session_key, "Cancelling session transport connect")
             session_connect_task.cancel()
             return
         self.notify("Not connected.", severity="warning")

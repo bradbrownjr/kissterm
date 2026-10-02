@@ -107,11 +107,15 @@ async def test_a_telnet_contact_dials_beside_the_radio_without_the_gate(tmp_path
 async def test_a_contact_that_cannot_connect_says_why_and_leaves_nothing_open(tmp_path):
     app, station = await _app(tmp_path)
     entry = app.addressbook.upsert("Nowhere", connect_by="telnet", host="127.0.0.1", port="1")
+    toasts: list[str] = []
+    real_notify = app.notify
+    app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
     try:
         async with app.run_test(size=(120, 40)) as pilot:
             await pilot.pause()
             app.action_connect(prefill=entry)
-            await wait_for(lambda: "Could not connect" in _log(app), "the failure")
+            await wait_for(lambda: any(t.startswith("Nowhere: ") for t in toasts), "the failure")
+            assert "Could not connect" not in _log(app)
             assert not app._internet_connecting
             assert not app.gate.enabled
     finally:
@@ -137,7 +141,7 @@ async def test_an_ssh_contact_logs_in_with_its_saved_password(tmp_path, ssh_serv
             # The fake shell reads to LF and kissterm ends lines with CR, as
             # BPQ expects, so it cannot echo the line: see that it went out.
             await wait_for(lambda: "Welcome to FAKE-NODE" in _log(app), "the shell's greeting")
-            await wait_for(lambda: "Auto-login: sending 1 line" in _log(app), "the login script")
+            await wait_for(lambda: "C 2" in _log(app), "the login script")
             assert state["shells"] == 1
             assert not app.gate.enabled
             assert PASSWORD not in _log(app)

@@ -43,6 +43,11 @@ class MonitorPane(Container):
                     allow_blank=False,
                 )
             yield Button(self._supervisory_label(), id="monitor-toggle-s")
+            # The record of each session: what kissterm noted about it lives
+            # in its transcript, never in the Terminal (DESIGN.md section 6),
+            # so it is one press away from where frames are read (operator,
+            # 2026-10-02). The same screen as Session > Transcripts.
+            yield Button("Transcripts", id="monitor-transcripts")
         # `WrapLog` -- see `kissterm/ui/wraplog.py` for why a plain `RichLog`
         # cuts the end off every line on an 80-column terminal.
         yield WrapLog(
@@ -89,6 +94,10 @@ class MonitorPane(Container):
         else:
             monitor_filter.calls = ()
             monitor_filter.contains = value
+
+    @on(Button.Pressed, "#monitor-transcripts")
+    async def _show_transcripts(self) -> None:
+        await self.app.run_action("show_transcripts")
 
     @on(Button.Pressed, "#monitor-toggle-s")
     def _toggle_supervisory(self) -> None:

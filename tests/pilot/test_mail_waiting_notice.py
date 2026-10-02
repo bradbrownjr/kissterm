@@ -48,7 +48,12 @@ async def _beacon(theirs: AX25Station, text: str) -> None:
 
 @pytest.mark.asyncio
 async def test_a_mail_for_beacon_notifies_with_no_connection():
+    from tests.pilot._records import terminal_text  # noqa: F401
+
     app, mine, theirs = await _app()
+    toasts: list[str] = []
+    real_notify = app.notify
+    app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         await _beacon(theirs, "MAIL FOR: N1ABC K1XYZ")
@@ -57,11 +62,8 @@ async def test_a_mail_for_beacon_notifies_with_no_connection():
                 break
             await pilot.pause()
         assert ("WS1EC-15", "N1ABC") in app._mail_notified
-        text = "\n".join(
-            str(line)
-            for line in app.query_one(TerminalPane).query_one("#session-log").lines
-        )
-        assert "WS1EC-15 is holding mail for N1ABC" in text, text
+        assert any("WS1EC-15 has mail waiting for N1ABC" in t for t in toasts), toasts
+        assert "holding mail" not in terminal_text(app)
     mine.close()
     theirs.close()
 
@@ -85,7 +87,12 @@ async def test_matches_our_ssid_alias_even_when_the_beacon_carries_none():
 
 @pytest.mark.asyncio
 async def test_a_repeated_beacon_does_not_notify_twice():
+    from tests.pilot._records import terminal_text  # noqa: F401
+
     app, mine, theirs = await _app()
+    toasts: list[str] = []
+    real_notify = app.notify
+    app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         await _beacon(theirs, "MAIL FOR: N1ABC")
@@ -97,11 +104,7 @@ async def test_a_repeated_beacon_does_not_notify_twice():
 
         await _beacon(theirs, "MAIL FOR: N1ABC")
         await pilot.pause()
-        text = "\n".join(
-            str(line)
-            for line in app.query_one(TerminalPane).query_one("#session-log").lines
-        )
-        assert text.count("is holding mail for N1ABC") == 1, text
+        assert sum("has mail waiting for N1ABC" in t for t in toasts) == 1, toasts
     mine.close()
     theirs.close()
 

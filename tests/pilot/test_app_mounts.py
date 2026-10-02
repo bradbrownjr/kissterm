@@ -855,20 +855,21 @@ async def test_unplugging_the_active_transport_is_reported():
     )
     station = AX25Station(MYCALL, ta, LinkParams())
     app = KissTermApp(config, station)
+    toasts: list[str] = []
+    real_notify = app.notify
+    app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         assert app._active_device() == "/dev/ttyUSB0"
         app._on_port_event(PortEvent(action="removed", device="/dev/ttyUSB0"))
         await pilot.pause()
-        text = "\n".join(str(line) for line in app.query_one("#session-log").lines)
-        assert "unplugged" in text.lower(), f"no warning logged: {text!r}"
+        assert any("unplugged" in t for t in toasts), f"no warning: {toasts!r}"
 
         # A different port disappearing is not the operator's problem.
-        before = text
+        before = len(toasts)
         app._on_port_event(PortEvent(action="removed", device="/dev/ttyS9"))
         await pilot.pause()
-        after = "\n".join(str(line) for line in app.query_one("#session-log").lines)
-        assert after == before, "an unrelated port produced a warning"
+        assert len(toasts) == before, "an unrelated port produced a warning"
     station.close()
 
 
@@ -1422,7 +1423,8 @@ async def test_a_saved_script_is_sent_after_the_connect_comes_up(tmp_path):
 
         log = app.query_one(TerminalPane).query_one("#session-log")
         text = "\n".join(str(line) for line in log.lines)
-        assert "Auto-login: sending 2 line(s)" in text, text
+        # The lines sent are the session; kissterm's own note is not.
+        assert "Auto-login" not in text, text
         assert "CLYDE" in text and "MYPASS" in text, text
 
         assert peer_station.link_to(MYCALL) is not None, "the connect never reached the peer"
@@ -1594,4 +1596,23 @@ async def test_address_book_buttons_stay_inside_the_slide_out(size):
             assert pane.x <= r.x and r.right <= pane.right, (
                 f"{button.id} at {r} runs outside the pane {pane} at {size}")
             assert r.bottom <= pane.bottom, f"{button.id} below the pane at {size}"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_the_monitor_opens_the_transcripts():
+    """Operator, 2026-10-02: kissterm's notes about a session live in its
+    transcript, not the Terminal, so the Monitor gives a way to read them."""
+    from kissterm.ui.dialogs import TranscriptsScreen
+
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()  # mounting opens Mail; switch only after that
+        app.action_show_tab("monitor")
+        await pilot.pause()
+        await pilot.click("#monitor-transcripts")
+        await wait_for(lambda: isinstance(app.screen, TranscriptsScreen), "the transcripts")
+        await pilot.pause()
+        await pilot.press("escape")
+        await wait_for(lambda: not isinstance(app.screen, TranscriptsScreen), "it to close")
     station.close()

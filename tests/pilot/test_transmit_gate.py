@@ -19,6 +19,7 @@ from kissterm.app import KissTermApp  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
+from tests.pilot._records import spy_records  # noqa: E402
 from tests.pilot._wait import wait_for  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
@@ -129,14 +130,18 @@ async def test_arming_for_a_connect_is_never_silent():
     """Auto-arming is only defensible while it stays visible: "did this thing
     start transmitting behind my back?" has to be answerable from the screen."""
     app, station, ta = await _app()
+    records = spy_records(app)
+    toasts: list[str] = []
+    real_notify = app.notify
+    app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         app._arm_for("connect to WS1EC-7")
         await pilot.pause()
-        log = app.query_one(TerminalPane).query_one("#session-log")
-        text = "\n".join(str(line) for line in log.lines)
-        assert "Transmit enabled automatically" in text, (
-            "the gate opened with nothing said about it in the log"
+        # A toast and the transcript say so (DESIGN.md section 6).
+        assert any("Transmit ENABLED" in t for t in toasts), toasts
+        assert any(r.startswith("Transmit enabled automatically") for r in records), (
+            "the gate opened with nothing recorded about it"
         )
         assert "TX OFF" not in _plain(app.query_one("#status-bar")), (
             "the status bar still claims transmit is off"
@@ -245,6 +250,10 @@ async def test_a_dead_tnc_link_is_not_reported_as_a_dead_rf_path():
     from kissterm.transport.base import TransportState
 
     app, station, ta = await _app(tx_armed_at_start=True)
+    records = spy_records(app)
+    toasts: list[str] = []
+    real_notify = app.notify
+    app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         ta.state = TransportState.OPENING  # what a reconnecting socket looks like
@@ -265,11 +274,7 @@ async def test_a_dead_tnc_link_is_not_reported_as_a_dead_rf_path():
         await pilot.pause()
         await asyncio.sleep(0.3)
 
-        log = app.query_one(TerminalPane).query_one("#session-log")
-        # Joined with spaces: the log wraps to its width, and the phrase can
-        # fall across a line break at any terminal size.
-        text = " ".join(" ".join(strip.text.split()) for strip in log.lines)
-        assert "not an RF problem" in text, text
+        assert any("not an RF problem" in t for t in toasts), toasts
         assert ta.sent == [], "SABMs were sent into a transport that was down"
     station.close()
 
@@ -287,6 +292,10 @@ async def test_ctrl_d_cancels_a_stuck_connect_instead_of_saying_not_connected():
     # simulated keypress costs a full render, and an attempt that ended on
     # its own tests nothing about cancelling one.
     station.params.connect_retries = 60
+    records = spy_records(app)
+    toasts: list[str] = []
+    real_notify = app.notify
+    app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         await pilot.press("ctrl+n")
@@ -315,8 +324,7 @@ async def test_ctrl_d_cancels_a_stuck_connect_instead_of_saying_not_connected():
         assert len(ta.sent) == sent_after_cancel, "a retry fired after cancellation"
         await pilot.pause()
 
-        log = app.query_one(TerminalPane).query_one("#session-log")
-        text = "\n".join(str(line) for line in log.lines)
+        text = "\n".join(records)
         assert "cancel" in text.lower(), text
         assert "No connection to" not in text, (
             "a cancelled attempt was reported as a timed-out one: " + text
@@ -383,6 +391,10 @@ async def test_sending_a_line_with_a_closed_gate_arms_it_instead_of_refusing():
     station = AX25Station(MYCALL, ta, LinkParams(t1=0.2, t2=0.05, t3=5.0))
     peer_station = AX25Station(peer, tb, LinkParams(t1=0.2, t2=0.05, t3=5.0))
     app = KissTermApp(config, station)
+    records = spy_records(app)
+    toasts: list[str] = []
+    real_notify = app.notify
+    app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         link = await station.connect(AX25Path(peer, MYCALL), timeout=2.0)
@@ -400,7 +412,8 @@ async def test_sending_a_line_with_a_closed_gate_arms_it_instead_of_refusing():
 
         assert app.gate.enabled is True, "sending a line did not re-arm a closed gate"
         assert ta.sent, "the line never reached the wire after arming"
-        assert "Transmit enabled automatically" in "\n".join(
+        assert any(r.startswith("Transmit enabled automatically") for r in records)
+        assert "Transmit enabled" not in "\n".join(
             str(line) for line in pane.query_one("#session-log").lines
         )
     station.close()

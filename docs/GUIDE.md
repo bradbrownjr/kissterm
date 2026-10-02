@@ -83,7 +83,8 @@ it Terminal instead): a folder tree, the message list, and a reader.
 Settings > Mail (BPQMail so far). It dials the Address Book entry named
 there, lists your mail with `LM`, reads only what kissterm does not
 already have, and disconnects, all shown in the Terminal tab as it
-happens. Messages stay on the BBS. Anything missing (the entry to dial, a
+happens (the BBS's side and the commands kissterm sent; progress is in
+the status bar, and a note of each step in the session's transcript). Messages stay on the BBS. Anything missing (the entry to dial, a
 password, a BBS login) is asked for before anything is dialed, so a
 missing setting never costs airtime.
 
@@ -233,12 +234,20 @@ colour, bold and underline survive (turn them off with
 clipboard writes and every other escape sequence are removed, whatever the
 setting.
 
+**The Terminal shows only the session:** what the far end sent and what
+was sent to it. kissterm's own notes (connecting, connected, a login
+script starting, a hop that failed) go to the status bar, a notice, and
+the session's transcript.
+
 **Session transcripts:** one plain-text file per connection, everything
-sent and received, timestamped, with colour codes removed.
+sent and received plus kissterm's notes, timestamped, with colour codes
+removed. Read them from Session > Transcripts, or the Transcripts button
+on the Monitor tab. A connect that never came up has no transcript; its
+notes are in kissterm.log.
 
 **If you send a line and nothing comes back**, kissterm says so: fifteen
 seconds after a send the far end acknowledged at the link layer with no
-reply since, a note says `<call> acknowledged that -- no reply yet`. The
+reply since, a notice says `<call> acknowledged that -- no reply yet`. The
 link is fine; the far application is slow or silent.
 
 ### Telnet and SSH
@@ -405,16 +414,17 @@ transmission is counted and logged, never reported as sent.
 **Asking to connect turns it on.** Naming a station and confirming the
 connect (`Ctrl+N`, an Address Book dial, `Ctrl+R`) or disconnecting
 (`Ctrl+D`) is a clear request to transmit, so it switches transmit on
-rather than refusing, and says so: a notice, a line in the terminal, and
-the status bar. Nothing without a confirmation step and a named station
+rather than refusing, and says so: a notice, the status bar, and a line
+in the session's transcript. Nothing without a confirmation step and a named station
 does this.
 
 **The two things that can transmit without you**, answering a call and
 beaconing, are off on a fresh install, show `ANSWERING` and `BEACON` in the
-status bar while on, and write every transmission to the terminal. With
+status bar while on, and every transmission shows in the Monitor tab
+and is logged to kissterm.log. With
 answering off, a station calling you gets a polite refusal (a DM) so it
 stops retrying. The same refusal goes to a node that polls a connection
-you no longer have (kissterm was closed mid-connection); the terminal says
+you no longer have (kissterm was closed mid-connection); a notice says
 so once per station, and Ctrl+D has nothing to end because there is no
 link. Automatic-control rules differ by country and band; check
 what your licence allows before turning answering on.

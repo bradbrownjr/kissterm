@@ -65,6 +65,12 @@ async def _send_third_party(theirs: AX25Station, inner_source: str, inner_payloa
     await theirs.transport.send_frame(frame, 0)
 
 
+def _acked(mine, number: str) -> bool:
+    """Whether an ack for message `number` went out (the Monitor tab shows
+    it; the Terminal does not, DESIGN.md section 6)."""
+    return any(f":ack{number}".encode() in f.info for f in mine.transport.sent)
+
+
 def _terminal_text(app: KissTermApp) -> str:
     return "\n".join(
         str(line) for line in app.query_one(TerminalPane).query_one("#session-log").lines
@@ -81,17 +87,17 @@ async def test_a_message_addressed_to_me_is_recorded_and_auto_acked(tmp_path):
         # `filter_by_ssid` defaults on, requiring an exact match.
         await _send_message(theirs, "N1ABC-1", "hello there", "1")
         for _ in range(20):
-            if "Auto-ack sent" in _terminal_text(app):
+            if any(b":ack" in f.info for f in mine.transport.sent):
                 break
             await pilot.pause()
         convo = app.aprs_conversations.conversations["WS1EC-15"]
         assert convo.messages[0].direction == "in"
         assert convo.messages[0].text == "hello there"
-        # The auto-ack transmits (the terminal line below is its record) but
+        # The auto-ack transmits (the Monitor shows it) but
         # is never filed as a chat line -- same as an incoming ack, which is
         # only ever a `mark_acked` flip, never a `record_incoming` message.
         assert not any(m.direction == "out" for m in convo.messages)
-        assert "Auto-ack sent to WS1EC-15 (msg 1)" in _terminal_text(app)
+        assert _acked(mine, "1") and "Auto-ack" not in _terminal_text(app)
     mine.close()
     theirs.close()
 
@@ -144,7 +150,7 @@ async def test_auto_ack_transmits_under_the_configured_aprs_ssid_not_the_address
         # off, but must not steer the ack's own transmitted identity.
         await _send_message(theirs, "N1ABC", "hello", "1")
         for _ in range(20):
-            if "Auto-ack sent" in _terminal_text(app):
+            if any(b":ack" in f.info for f in mine.transport.sent):
                 break
             await pilot.pause()
         acks = [f for f in mine.transport.sent if b":ack1" in f.info]
@@ -171,14 +177,13 @@ async def test_a_blocked_auto_ack_notifies_the_operator_instead_of_dropping_sile
         await pilot.pause()
         await _send_message(theirs, "N1ABC-1", "hello", "1")
         for _ in range(20):
-            if seen or "needs an ack" in _terminal_text(app):
+            if seen:
                 break
             await pilot.pause()
         assert not any(b":ack1" in f.info for f in mine.transport.sent)
         assert any("Transmit is OFF" in m for m in seen)
-        terminal_text = _terminal_text(app)
-        assert "needs an ack, but" in terminal_text
-        assert "Transmit is OFF" in terminal_text
+        # The toast is the notice; the Terminal holds only sessions.
+        assert "needs an ack" not in _terminal_text(app)
     mine.close()
     theirs.close()
 
@@ -238,7 +243,7 @@ async def test_a_message_to_someone_else_is_not_acked(tmp_path):
         convo = app.aprs_conversations.conversations["WS1EC-15"]
         assert convo.messages[0].direction == "in"
         assert not any(m.direction == "out" for m in convo.messages)
-        assert "Auto-ack sent" not in _terminal_text(app)
+        assert not any(b":ack" in f.info for f in mine.transport.sent)
     mine.close()
     theirs.close()
 
@@ -259,7 +264,7 @@ async def test_a_telemetry_definition_message_is_not_recorded_as_chat(tmp_path):
         for _ in range(10):
             await pilot.pause()
         assert "WS1EC-15" not in app.aprs_conversations.conversations
-        assert "Auto-ack sent" not in _terminal_text(app)
+        assert not any(b":ack" in f.info for f in mine.transport.sent)
     mine.close()
     theirs.close()
 
@@ -330,7 +335,7 @@ async def test_a_closed_transmit_gate_blocks_the_ack_and_never_reports_it_sent(t
             await pilot.pause()
         convo = app.aprs_conversations.conversations["WS1EC-15"]
         assert not any(m.direction == "out" for m in convo.messages)
-        assert "Auto-ack sent" not in _terminal_text(app)
+        assert not any(b":ack" in f.info for f in mine.transport.sent)
     mine.close()
     theirs.close()
 
@@ -374,14 +379,14 @@ async def test_a_third_party_relayed_message_addressed_to_us_is_recorded_and_ack
         await pilot.pause()
         await _send_third_party(theirs, "WHO-IS", aprs.message("N1ABC-1", "found it", "9"))
         for _ in range(20):
-            if "Auto-ack sent" in _terminal_text(app):
+            if any(b":ack" in f.info for f in mine.transport.sent):
                 break
             await pilot.pause()
         convo = app.aprs_conversations.conversations["WHO-IS"]
         assert convo.messages[0].direction == "in"
         assert convo.messages[0].text == "found it"
         assert not any(m.direction == "out" for m in convo.messages)
-        assert "Auto-ack sent to WHO-IS (msg 9)" in _terminal_text(app)
+        assert _acked(mine, "9") and "Auto-ack" not in _terminal_text(app)
     mine.close()
     theirs.close()
 
@@ -460,7 +465,7 @@ async def test_filter_on_by_default_ignores_a_message_to_a_different_ssid(tmp_pa
         await _send_message(theirs, "N1ABC", "hello", "1")
         for _ in range(10):
             await pilot.pause()
-        assert "Auto-ack sent" not in _terminal_text(app)
+        assert not any(b":ack" in f.info for f in mine.transport.sent)
         convo = app.aprs_conversations.conversations["WS1EC-15"]
         assert convo.messages[0].direction == "in"
     mine.close()
@@ -494,9 +499,9 @@ async def test_turning_the_filter_off_lets_a_message_to_a_different_ssid_get_ack
         await pilot.pause()
         await _send_message(theirs, "N1ABC", "hello", "1")
         for _ in range(20):
-            if "Auto-ack sent" in _terminal_text(app):
+            if any(b":ack" in f.info for f in mine.transport.sent):
                 break
             await pilot.pause()
-        assert "Auto-ack sent to WS1EC-15 (msg 1)" in _terminal_text(app)
+        assert _acked(mine, "1") and "Auto-ack" not in _terminal_text(app)
     mine.close()
     theirs.close()

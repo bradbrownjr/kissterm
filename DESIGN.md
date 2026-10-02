@@ -503,12 +503,19 @@ their place (Send/Receive's line above the message list, removed 2026-09-25).
 |---|---|---|
 | A state that lasts (seconds or more) | Status bar field, removed when it ends | `TX OFF`, `ANSWERING`, `BEACON`; in green, `Receiving 2 of 4` |
 | An event: something started, finished or failed | Toast (`notify`); `warning` or `error` severity for a problem | "Connecting to WS1EC-2 to send and receive mail...", "No new mail", "Send/Receive stopped: ..." |
-| The record of a session | The Terminal pane's scrollback and transcript | `*** Mail: Reading 1 of 3: #2578 ...`, every line sent |
+| The record of a session | The session's transcript (Session > Transcripts); kissterm.log when there is none | `Mail: Reading 1 of 3: #2578 ...`, `Connecting to WS1EC-2`, `Transmit enabled automatically for: ...` |
 
+- **The Terminal holds only the session itself:** what the far end sent
+  and what was sent to it (typed lines, login-script and hop lines,
+  Send/Receive's commands). Nothing kissterm says about itself -- no
+  banner, no `***` notes (operator, 2026-10-02: "I again don't want
+  anything in there that didn't come from the node";
+  `tests/pilot/test_app_mounts.py`). A fact a note used to carry goes to
+  the status bar, a toast, or the transcript, by the table above.
 - **No redundancy between them.** A state is in the status bar *or* a
   toast, not both: a job's start and outcome are toasts, its progress is
-  the status-bar field. The terminal record may repeat either, because it
-  is the log, not a notice.
+  the status-bar field. The transcript may repeat either, because it is
+  the record, not a notice.
 - **Status-bar fields are a few words.** A standing mode is one upper-case
   word or two (`TX OFF`, `BEACON`). **A job the operator started shows its
   progress in words, in bold `$success` green** (`Sending 1 of 2`,
@@ -516,8 +523,8 @@ their place (Send/Receive's line above the message list, removed 2026-09-25).
   got, where a label like `GET MAIL` said only that something was running
   (operator, 2026-09-25). A sentence belongs in a toast or the log; a long
   field is truncated in its share of the row.
-- **A toast says what to do next when there is something to do** ("The
-  Terminal tab (F5) has the details"), and is not raised for anything the operator
+- **A toast says what to do next when there is something to do** ("the
+  Monitor tab (F8) shows what went out and what came back"), and is not raised for anything the operator
   cannot act on or would not miss (section 1).
 - **One event, one toast.** When a job drives another part of the app
   (Send/Receive dialing through the connect path), the job owns the

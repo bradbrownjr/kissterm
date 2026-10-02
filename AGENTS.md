@@ -287,8 +287,9 @@ changes.
   Ctrl+R Reconnect), disconnect, `TerminalPane.send_line` while connected,
   `AprsPane._send_compose`, APRS > Send position. **An unattended resend never
   arms** (`AprsPane._retry_worker`, beacon timers).
-- **Arming is never silent**: `_arm_for` writes a terminal line, a toast and
-  the status bar.
+- **Arming is never silent**: `_arm_for` raises a toast, changes the status
+  bar and records it in the session's transcript (never the Terminal,
+  DESIGN.md section 6).
 - **Enforced at the transport, not the UI.** `FrameTransport.send_frame` is
   concrete; backends implement `_send_frame` and **never override
   `send_frame`** (`tests/unit/test_tx_gate.py`). `Session.send` gates the
@@ -309,7 +310,8 @@ changes.
 ### Unattended transmission
 - **Answering calls and beaconing are the only unattended transmitters.** Both
   off by default, both shown in the status bar (`ANSWERING`, `BEACON`) while
-  armed, both log every transmission to the terminal pane.
+  armed; every transmission shows in the Monitor tab and is logged to
+  kissterm.log (not the Terminal, DESIGN.md section 6).
 - **A login script or hop chain rides the connect the operator confirmed**
   (`_run_connect_script`, `_hop_through`): each line echoed, stops if the
   gate closes or the link drops, and the login runs only if the whole chain

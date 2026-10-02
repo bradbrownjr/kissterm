@@ -114,15 +114,17 @@ async def test_turning_it_off_in_settings_disarms_it():
 
 
 @pytest.mark.asyncio
-async def test_a_beacon_that_fires_is_visible_in_the_terminal_pane():
+async def test_a_beacon_that_fires_is_visible_in_the_monitor():
+    """Shown in the Monitor tab, never the Terminal (DESIGN.md 6)."""
+    from tests.pilot._records import monitor_text, terminal_text
+
     app, station, ta = await _app(enabled=True, latitude=41.7, longitude=-72.7)
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         assert await app.aprs_beaconer.send_once() is True
         await pilot.pause()
-        log = app.query_one(TerminalPane).query_one("#session-log")
-        rendered = "\n".join(str(line) for line in log.lines)
-        assert "APRS position beacon sent" in rendered, rendered
+        assert "APRS" in await monitor_text(app, pilot)
+        assert "beacon sent" not in terminal_text(app)
         assert len(ta.sent) == 1
     station.close()
 

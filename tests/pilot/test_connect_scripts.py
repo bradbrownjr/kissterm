@@ -32,6 +32,7 @@ from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
 from kissterm.ax25.frame import UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
+from tests.pilot._records import spy_records  # noqa: E402
 from tests.loopback import loopback_pair  # noqa: E402
 
 MYCALL = AX25Address.parse("N1ABC-1")
@@ -157,6 +158,7 @@ async def test_a_hop_that_refuses_stops_the_chain_without_logging_in(tmp_path):
     link nothing confirmed is ready) and the login step must not run,
     since the actual target was never reached."""
     app, station, tb = await _app()
+    records = spy_records(app)
     book = _fresh_book(app, tmp_path)
     book.record_attempt("W1LH-6", script="MYPASS", hops="WS1EC-7")
 
@@ -169,7 +171,8 @@ async def test_a_hop_that_refuses_stops_the_chain_without_logging_in(tmp_path):
         await pilot.pause()
 
         text = _log_text(app)
-        assert "No connection to W1LH-6" in text, text
+        assert any("No connection to W1LH-6" in r for r in records), records
+        assert "No connection" not in text, text
         assert "BUSY" in text, text
         assert "MYPASS" not in text, "logged in past a hop that refused"
         assert app.link is not None and app.link.connected, (
@@ -196,6 +199,7 @@ async def test_a_refused_hop_leaves_the_node_we_are_still_on_identified(tmp_path
     "unknown node" every time a hop was refused.
     """
     app, station, tb = await _app()
+    records = spy_records(app)
     book = _fresh_book(app, tmp_path)
     book.record_attempt("W1LH-6", hops="WS1EC-7")
 
@@ -211,7 +215,7 @@ async def test_a_refused_hop_leaves_the_node_we_are_still_on_identified(tmp_path
         await asyncio.sleep(1.0)
         await pilot.pause()
 
-        assert "No connection to W1LH-6" in _log_text(app)
+        assert any("No connection to W1LH-6" in r for r in records), records
         family = app.reference.family
         assert family is not None and family.id == "bpq32", (
             "a refused hop wiped the identification of the node we are still on"
@@ -232,6 +236,7 @@ async def test_a_hop_that_stays_silent_times_out_distinctly_from_a_refusal(tmp_p
     from kissterm.ui import app as app_module
 
     app, station, tb = await _app()
+    records = spy_records(app)
     book = _fresh_book(app, tmp_path)
     book.record_attempt("W1LH-6", hops="WS1EC-7")
     node = AX25Station(NODE, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
@@ -245,7 +250,7 @@ async def test_a_hop_that_stays_silent_times_out_distinctly_from_a_refusal(tmp_p
             await asyncio.sleep(1.2)
             await pilot.pause()
 
-            text = _log_text(app)
+            text = "\n".join(records)
             assert "no response within" in text, text
             assert "BUSY" not in text and "FAILED" not in text, text
     finally:
@@ -309,8 +314,8 @@ async def test_a_plain_connect_announces_itself_clearly(tmp_path):
         await asyncio.sleep(0.3)
         await pilot.pause()
 
-        text = _log_text(app)
-        assert "Connected to WS1EC-7" in text, text
+        # In the transcript, not the Terminal (DESIGN.md section 6).
+        assert "Connected to WS1EC-7" not in _log_text(app)
         assert app.transcript is not None
         transcript_text = app.transcript.path.read_text()
         assert "Connected to WS1EC-7" in transcript_text, transcript_text

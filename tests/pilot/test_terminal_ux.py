@@ -1302,13 +1302,16 @@ async def test_timer_recovery_flapping_does_not_clutter_the_terminal():
 
 
 @pytest.mark.asyncio
-async def test_a_genuine_disconnect_still_shows_inline():
+async def test_a_genuine_disconnect_is_still_recorded():
     """The suppression is specific to timer-recovery churn, not a blanket
-    silencing of every state note -- disconnecting must still be visible
-    inline, since nothing else announces it."""
+    silencing of every state note -- disconnecting is still recorded (the
+    transcript), though never inline: the Terminal holds only the session
+    and the status bar shows the link state (DESIGN.md section 6)."""
     from kissterm.transport.base import SessionState
+    from tests.pilot._records import spy_records
 
     app, a, b, incoming = await _connected_app()
+    records = spy_records(app)
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()
         link = await a.connect(AX25Path(PEER, MYCALL))
@@ -1320,8 +1323,8 @@ async def test_a_genuine_disconnect_still_shows_inline():
         app._on_link_state(key, SessionState.DISCONNECTING)
         await pilot.pause()
 
-        text = _plain(app.query_one("#session-log"))
-        assert "disconnecting" in text
+        assert "disconnecting" in records
+        assert "disconnecting" not in _plain(app.query_one("#session-log"))
     a.close()
     b.close()
 

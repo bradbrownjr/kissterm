@@ -234,6 +234,9 @@ async def test_a_note_appears_once_a_sent_line_goes_unanswered(tmp_path, monkeyp
     # test failed with nothing wrong in the app (P0.4).
     monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 1.0)
     app, a, b, incoming = await _app(_config(tmp_path))
+    toasts: list[str] = []
+    real_notify = app.notify
+    app.notify = lambda message, *a_, **k: (toasts.append(str(message)), real_notify(message, *a_, **k))[1]
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         await _connect(app, a, b, incoming, pilot)
@@ -244,13 +247,14 @@ async def test_a_note_appears_once_a_sent_line_goes_unanswered(tmp_path, monkeyp
         # at the AX.25 layer automatically, same as any real peer would.
         # Waits on the note itself, not a fixed 0.5 s: under parallel load
         # the ACK plus the 0.2 s reply wait did not always fit (P0.4).
+        # A toast, not a line in the Terminal (DESIGN.md section 6).
         log = app.query_one(TerminalPane).query_one("#session-log")
-        await wait_for(lambda: "acknowledged that" in _rendered(log), "the no-reply note")
+        await wait_for(lambda: any("acknowledged that" in t for t in toasts), "the no-reply note")
         await pilot.pause()
 
-        text = _rendered(log)
-        assert "acknowledged that" in text, text
-        assert str(PEER) in text, text
+        [note] = [t for t in toasts if "acknowledged that" in t]
+        assert str(PEER) in note, note
+        assert "acknowledged that" not in _rendered(log)
     a.close()
     b.close()
 

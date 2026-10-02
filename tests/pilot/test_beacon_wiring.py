@@ -131,16 +131,18 @@ async def test_turning_it_off_in_settings_disarms_it():
 
 
 @pytest.mark.asyncio
-async def test_a_beacon_that_fires_is_visible_in_the_terminal_pane():
+async def test_a_beacon_that_fires_is_visible_in_the_monitor():
     """A station that transmits without the operator being able to see that
-    it did is what the whole opt-in exists to prevent."""
+    it did is what the whole opt-in exists to prevent. The Monitor tab is
+    where it shows; the Terminal holds only sessions (DESIGN.md 6)."""
+    from tests.pilot._records import monitor_text, terminal_text
+
     app, station, ta = await _app(enabled=True, text="N1ABC test")
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         assert await app.beaconer.send_once() is True
         await pilot.pause()
-        log = app.query_one(TerminalPane).query_one("#session-log")
-        rendered = "\n".join(str(line) for line in log.lines)
-        assert "Beacon sent to BEACON" in rendered, rendered
+        assert "BEACON" in await monitor_text(app, pilot)
+        assert "Beacon sent" not in terminal_text(app)
         assert len(ta.sent) == 1
     station.close()
