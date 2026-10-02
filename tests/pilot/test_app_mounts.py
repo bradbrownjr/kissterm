@@ -688,6 +688,22 @@ async def test_status_bar_is_populated_on_mount():
 
 
 @pytest.mark.asyncio
+async def test_the_name_is_in_the_title_bar_only_and_the_terminal_starts_empty():
+    """Operator, 2026-10-02: nothing in the Terminal that did not come from
+    the node, and the app's name and version only in the title bar."""
+    from kissterm import __version__
+
+    app, ta, tb, station = await _app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        assert app.title == f"kissterm {__version__}"
+        assert "kissterm" not in _plain(app.query_one("#status-bar"))
+        log = app.query_one(TerminalPane).query_one("#session-log")
+        assert not [str(line) for line in log.lines if str(line).strip()]
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_heard_table_populates_the_moment_the_tab_opens():
     """Regression: it stayed empty until the 2-second interval ticked.
 

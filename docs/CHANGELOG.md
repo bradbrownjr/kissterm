@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — The Terminal starts empty; the name leaves the status bar
+
+### Improvements
+
+- **No startup banner in the Terminal.** It repeated the title bar, the
+  Footer and the status bar; the Terminal holds only what a node sent and
+  what you sent. **The status bar no longer starts with "kissterm" and its
+  version**; the title bar shows both, and the remaining fields share the
+  row. Operator request, 2026-10-02. Screenshots not regenerated: the
+  renderer could not load its web font.
+
+**Files:** `kissterm/ui/app.py`, `tests/pilot/test_app_mounts.py`, `DESIGN.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — Removed: Winlink through the node
 
 ### Improvements

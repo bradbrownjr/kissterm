@@ -473,7 +473,7 @@ module docstring for the full reasoning:
 
 ```
  ^T TX  ^N Connect  ^G Book  ^R Reconnect  ^F Find  ^Q Quit  F10 Menu            <- Terminal Footer
- kissterm 0.1  |  192.168.1.40:8001  |  N1ABC-1  |  heard 6                    <- status
+ 192.168.1.40:8001       N1ABC-1       disconnected       heard 6             <- status
 ```
 
 Illustrative, not literal: which keys fit is a function of terminal width

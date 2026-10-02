@@ -291,8 +291,8 @@ def _status_row(parts: list[str | Text]) -> Table:
     re-flows automatically as the terminal is resized and as the number of
     fields changes (there are more of them once a link is connected), which a
     hand-computed padding string would not do without being recomputed on
-    every resize event. The first field reads as a left anchor (the app
-    identity), the last as a right anchor (heard count), and everything
+    every resize event. The first field reads as a left anchor (the
+    transport), the last as a right anchor (heard count), and everything
     between is centered in its own share of the row -- the conventional shape
     of an editor or IDE status bar.
     """
@@ -629,7 +629,7 @@ class KissTermApp(App):
     would make every UI test require hardware.
     """
 
-    TITLE = "kissterm"
+    TITLE = f"kissterm {__version__}"
     #: Seconds a toast stays up; nothing passes a shorter one (DESIGN.md
     #: section 6). Textual's 5, and the 4 some toasts had, went by before a
     #: pair could be read (operator, 2026-10-02).
@@ -961,23 +961,10 @@ class KissTermApp(App):
         if self._check_updates and getattr(self.config, "update_check", True):
             # After the first screen, so the check never competes with it.
             self.set_timer(3.0, lambda: self._update_check_worker(False))
-        if self._transport_problem:
-            banner = (
-                f"kissterm {__version__} -- the modem did not answer at startup "
-                f"({self._transport_problem}). Fix it in F9 Settings > Radio, "
-                "then Save to try again.\n"
-            )
-        elif self.station is None and self.session_transport is None:
-            banner = (
-                f"kissterm {__version__} -- no transport configured. "
-                "Open F9 Settings, then Radio to add one.\n"
-            )
-        else:
-            banner = (
-                f"kissterm {__version__} -- Ctrl+N to connect, F1 for help, "
-                "F10 for the menu.\n"
-            )
-        self.query_one(TerminalPane).write_note("", banner)
+        # No banner in the Terminal: it holds only what the far end sent and
+        # what the operator sent (operator, 2026-10-02). The version is in
+        # the title bar, the keys in the Footer, a transport problem in the
+        # status bar and `_show_transport_problem`.
         self.apply_runtime_settings()
         if not self.config.mycall or (
             self.station is None
@@ -5541,9 +5528,11 @@ class KissTermApp(App):
         return f"{detail} {state.value}"
 
     def _refresh_status(self) -> None:
-        parts = [f"kissterm {__version__}", self._transport_status()]
+        # No app name or version: the title bar has both (operator,
+        # 2026-10-02), and the room goes to the fields that remain.
+        parts = [self._transport_status()]
         if not self.gate.enabled:
-            # First after the version, and always present while it is true.
+            # First after the transport, and always present while it is true.
             # "Why is nothing happening?" must be answerable without opening
             # a menu -- this is the state that explains a failed connect, a
             # silent send line and a beacon that never fires.
