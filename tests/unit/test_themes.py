@@ -17,7 +17,7 @@ def test_every_catalog_entry_is_a_real_textual_theme():
     """No hand-typed hex values pretending to be an upstream theme."""
     for family in themes.THEME_CATALOG:
         for variant in family.variants:
-            if variant.id == "custom":
+            if variant.id == "custom" or variant.id in themes.EXTRA_THEMES:
                 continue
             assert variant.id in BUILTIN_THEMES, (
                 f"{family.name} -- {variant.label} ({variant.id}) is not a "
@@ -30,7 +30,7 @@ def test_dark_flag_matches_the_real_theme():
         for variant in family.variants:
             if variant.id == "custom":
                 continue
-            real = BUILTIN_THEMES[variant.id]
+            real = BUILTIN_THEMES.get(variant.id) or themes.EXTRA_THEMES[variant.id]
             assert variant.dark == real.dark, (
                 f"{variant.id} claims dark={variant.dark} but Textual says {real.dark}"
             )
@@ -120,3 +120,23 @@ def test_build_custom_theme_uses_the_given_colors():
 def test_build_custom_theme_defaults_dark_true():
     theme = themes.build_custom_theme({f: "#000000" for f in themes.CUSTOM_THEME_FIELDS})
     assert theme.dark is True
+
+
+# ---------------------------------------------------------------------------
+# Themes kissterm defines itself
+# ---------------------------------------------------------------------------
+
+
+def test_extra_themes_are_in_the_catalog_and_not_shadowing_textual():
+    for name in themes.EXTRA_THEMES:
+        assert name not in BUILTIN_THEMES
+        assert themes.find_variant(name) is not None
+
+
+def test_midnight_commander_is_mcs_standard_skin():
+    """mc misc/skins/default.ini: [core] _default_ = lightgray;blue,
+    selected = black;cyan; in the Linux console's palette."""
+    mc = themes.EXTRA_THEMES["midnight-commander"]
+    assert (mc.foreground, mc.background) == ("#AAAAAA", "#0000AA")
+    assert mc.variables["block-cursor-background"] == "#00AAAA"
+    assert mc.variables["block-cursor-foreground"] == "#000000"

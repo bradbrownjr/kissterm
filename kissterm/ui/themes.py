@@ -12,7 +12,10 @@ validates what `Config.theme` is allowed to name.
 `BUILTIN_THEMES`, verified against `textual.theme.BUILTIN_THEMES` at import
 time (`test_every_catalog_entry_is_a_real_textual_theme`) rather than typed in
 by hand from memory -- a theme name that silently resolves to the wrong colors
-because a hex code was mistyped is worse than one that fails loudly.
+because a hex code was mistyped is worse than one that fails loudly. The one
+kind of exception is `EXTRA_THEMES`: a theme Textual does not ship
+(Midnight Commander, operator request 2026-10-02), transcribed from the
+upstream project's own skin file with the file and commit cited beside it.
 
 **Not every family has a light variant, and this catalog does not pretend
 otherwise.** Tokyo Night, Nord, Dracula, Monokai and Gruvbox ship from their
@@ -156,6 +159,12 @@ THEME_CATALOG: tuple[ThemeFamily, ...] = (
         note="kissterm's own original default, before theming existed.",
     ),
     ThemeFamily(
+        "Midnight Commander",
+        (ThemeVariant("midnight-commander", "Midnight Commander", True),),
+        note="mc's standard skin, transcribed from mc's "
+        "misc/skins/default.ini, in the Linux console's colours.",
+    ),
+    ThemeFamily(
         "Terminal (ANSI passthrough)",
         (
             ThemeVariant("ansi-dark", "Terminal ANSI (dark)", True),
@@ -172,6 +181,71 @@ THEME_CATALOG: tuple[ThemeFamily, ...] = (
         "Settings or by hand in config.toml's [custom_theme] table.",
     ),
 )
+
+#: The Linux console's 16 colours (`drivers/tty/vt/vt.c` `default_red`,
+#: `default_grn`, `default_blu`): what Midnight Commander's colour names
+#: mean on the console it was written for.
+VGA = {
+    "black": "#000000", "blue": "#0000AA", "green": "#00AA00", "cyan": "#00AAAA",
+    "red": "#AA0000", "lightgray": "#AAAAAA", "gray": "#555555",
+    "yellow": "#FFFF55", "white": "#FFFFFF",
+}
+
+#: Midnight Commander's "Standard skin", transcribed from upstream
+#: `misc/skins/default.ini` (mc 23a260a); its colour names are ANSI numbers
+#: by `lib/tty/color-internal.c`'s `color_table` (lightgray = 7, white =
+#: bright 15, yellow = bright 11, gray = bright black 8), drawn in `VGA`.
+#: Panels are lightgray on blue (`[core] _default_`); the cursor bar,
+#: inputs, menu and status bar black on cyan; marked and header text
+#: yellow; errors white on red. Hex rather than Textual's `ansi=True`,
+#: whose `:ansi` rules paint the screen and buttons in the terminal's
+#: default background and would lose the blue; these values survive a
+#: terminal without truecolor almost unchanged (#0000AA -> #0000AF).
+MIDNIGHT_COMMANDER = Theme(
+    name="midnight-commander",
+    dark=True,
+    primary=VGA["cyan"],            # selected = black;cyan
+    secondary=VGA["cyan"],          # input = black;cyan
+    accent=VGA["yellow"],           # marked / header = yellow;blue
+    warning=VGA["yellow"],
+    error=VGA["red"],               # [error] _default_ = white;red
+    success=VGA["green"],
+    foreground=VGA["lightgray"],    # [core] _default_ = lightgray;blue
+    background=VGA["blue"],
+    surface=VGA["blue"],
+    panel=VGA["cyan"],              # [menu] / [statusbar] on cyan
+    boost=VGA["blue"],
+    variables={
+        "border": VGA["lightgray"],              # frame = lightgray;blue
+        "border-blurred": VGA["lightgray"],
+        "block-cursor-foreground": VGA["black"],     # selected = black;cyan
+        "block-cursor-background": VGA["cyan"],
+        "block-cursor-text-style": "none",
+        # mc hides an unfocused panel's bar; kissterm keeps it, in mc's
+        # gray, since lightgray text (what Textual draws there) on cyan
+        # is unreadable.
+        "block-cursor-blurred-foreground": VGA["lightgray"],
+        "block-cursor-blurred-background": VGA["gray"],
+        "block-cursor-blurred-text-style": "none",
+        "input-cursor-background": VGA["lightgray"],
+        "input-cursor-foreground": VGA["black"],
+        "input-selection-background": VGA["black"],  # inputmark = cyan;black
+        "screen-selection-background": VGA["cyan"],
+        "screen-selection-foreground": VGA["black"],
+        "footer-background": VGA["cyan"],        # [buttonbar] button = black;cyan
+        "footer-foreground": VGA["black"],
+        "footer-key-foreground": VGA["white"],   # hotkey = white;black
+        "footer-key-background": VGA["black"],
+        "footer-description-foreground": VGA["black"],
+        "footer-description-background": VGA["cyan"],
+        "scrollbar": VGA["cyan"],
+        "scrollbar-background": VGA["blue"],
+    },
+)
+
+#: Themes kissterm defines itself, each transcribed from a cited upstream
+#: source (never from memory); `KissTermApp` registers them at start.
+EXTRA_THEMES: dict[str, Theme] = {MIDNIGHT_COMMANDER.name: MIDNIGHT_COMMANDER}
 
 #: When a family has no light member, the nearest honest substitute -- never
 #: a fabricated light palette for that family.
@@ -214,7 +288,7 @@ def resolve_theme_id(requested: str) -> tuple[str, str]:
     requested = (requested or "").strip()
     if not requested:
         return DEFAULT_THEME, ""
-    if requested == "custom" or requested in BUILTIN_THEMES:
+    if requested == "custom" or requested in BUILTIN_THEMES or requested in EXTRA_THEMES:
         return requested, ""
     return (
         DEFAULT_THEME,

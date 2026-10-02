@@ -99,6 +99,7 @@ Before this audit `jnos.toml` listed JNOS *console* commands from memory
 | TheNet X-1J | G8KBB's [User Guide for TheNet X-1J release 4](https://datenfunk.org/X1J4/userguid.htm), consulted 2026-09-18 | Documented only; deliberately not auto-detected |
 | TNC2 command mode | The long-standing TAPR TNC2 command set as cloned by Kantronics, MFJ, PacComm, Timewave | Mostly recalled; no source document cited yet |
 | APRS services (`aprs_services/data/`) | Each file cites its service's own page | See each file |
+| Midnight Commander theme (`ui/themes.py`) | [mc](https://github.com/MidnightCommander/mc) `misc/skins/default.ini` and `lib/tty/color-internal.c` (colour names to ANSI numbers), commit 23a260a; Linux `drivers/tty/vt/vt.c` `default_red/grn/blu` for the colours; read 2026-10-02 | Source |
 
 ## Captures
 

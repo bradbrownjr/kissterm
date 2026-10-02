@@ -794,6 +794,8 @@ class KissTermApp(App):
         # Applied before the rest of __init__ so the very first frame paints
         # in the configured theme rather than Textual's own default and then
         # visibly flashing over to the right one a moment later.
+        for extra in themes.EXTRA_THEMES.values():
+            self.register_theme(extra)
         self.apply_theme()
         self.station = station
         #: Set when the active transport is a `SessionTransport` (Telnet,

@@ -367,10 +367,16 @@ refused while a link is up.
 clock); dates are ISO 8601 (`2026-09-05`), never locale order.
 
 **Themes.** Every colour is a theme variable, so switching repaints the
-whole app at once. Twenty-one built-in themes across Tokyo Night (the
-default), Catppuccin, Nord, Gruvbox, Dracula, Monokai, Solarized, Rose
-Pine, Atom One and Textual's own; `ansi-dark` and `ansi-light` use your
-terminal's own 16-colour palette. For an exact match to something else,
+whole app at once. Textual's themes across Tokyo Night (the default),
+Catppuccin, Nord, Gruvbox, Dracula, Monokai, Solarized, Rose Pine, Atom
+One and Textual's own; `ansi-dark` and `ansi-light` use your terminal's
+own 16-colour palette, and so does `midnight-commander`, Midnight
+Commander's standard skin (lightgray on blue, a black-on-cyan cursor bar),
+taken from mc's own `misc/skins/default.ini`. The other themes need a
+terminal that reports truecolor (`COLORTERM=truecolor`, which SSH does not
+pass on by default); without it their colours are rounded to the nearest of
+256 and look wrong (Tokyo Night's panels turn navy). `kissterm --doctor`
+says which you have. For an exact match to something else,
 `theme = "custom"` reads a `[custom_theme]` table from `config.toml` (see
 `config.toml.example`). An unknown theme name falls back to Tokyo Night.
 

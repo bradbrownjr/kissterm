@@ -178,6 +178,8 @@ reply_quote = false
 #                   rose-pine-dawn                                  (light)
 #   Atom One        atom-one-dark / atom-one-light
 #   Textual         textual-dark / textual-light      (kissterm's original default)
+#   Midnight Commander midnight-commander  (mc's standard skin, in your
+#                                           terminal's 16 colours)
 #   Terminal (ANSI) ansi-dark / ansi-light
 #   Custom          custom               (uses [custom_theme] below)
 #

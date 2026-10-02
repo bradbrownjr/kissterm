@@ -690,4 +690,16 @@ SettingsPane { layout: vertical; }
 .-ascii-safe #ref-box,
 .-ascii-safe #transcripts-box { scrollbar-visibility: hidden; }
 
+/* Midnight Commander (`themes.MIDNIGHT_COMMANDER`): mc's idle menu bar
+   is black on cyan (`[menu] menuinactive`), where every other theme's
+   header keeps $foreground, which here is lightgray and hard to read.
+   A table's column headings are yellow on blue (`[core] header`).
+   Textual tags the app `-theme-<name>`, so no other theme is touched. */
+App.-theme-midnight-commander KissTermHeader,
+App.-theme-midnight-commander KissTermClock { color: #000000; text-opacity: 100%; }
+App.-theme-midnight-commander DataTable > .datatable--header {
+    background: #0000AA;
+    color: #FFFF55;
+}
+
 """

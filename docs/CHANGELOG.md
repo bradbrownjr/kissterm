@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — A Midnight Commander theme
+
+### New Features
+
+- **`midnight-commander` theme** (Settings > Appearance): mc's standard
+  skin, lightgray on blue with a black-on-cyan cursor bar, menu and
+  footer and yellow column headings, transcribed from mc's
+  `misc/skins/default.ini` in the Linux console's VGA colours, so it
+  survives a terminal without truecolor almost unchanged. The GUIDE now explains why the other themes look off when
+  `COLORTERM` is not set (Tokyo Night's panels turn navy over SSH).
+
+**Files:** `kissterm/ui/themes.py`, `kissterm/ui/app.py`, `kissterm/ui/styles.py`,
+`tests/unit/test_themes.py`, `config.toml.example`, `docs/GUIDE.md`,
+`docs/SOURCES.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — Screenshots drawn with Pillow, no browser
 
 ### Improvements
