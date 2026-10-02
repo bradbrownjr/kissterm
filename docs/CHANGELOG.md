@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Copying from the Terminal no longer crashes
+
+### Improvements
+
+- **A mouse selection that starts below the last line of the Terminal
+  copies nothing instead of crashing kissterm** (`IndexError` in
+  Textual's `Selection.extract`, which indexes the start line unchecked).
+
+**Files:** `kissterm/ui/wraplog.py`, `tests/pilot/test_wraplog_selection.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-02] — Status bar shows every field whole; themes in order
 
 ### Improvements

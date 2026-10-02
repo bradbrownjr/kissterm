@@ -146,6 +146,12 @@ class WrapLog(RichLog):
 
     def get_selection(self, selection: Selection) -> tuple[str, str] | None:
         text = "\n".join(strip.text.rstrip() for strip in self.lines)
+        # A drag that starts below the last line (the empty part of the
+        # pane) selects nothing. Textual's `Selection.extract` indexes the
+        # start line unchecked and raised IndexError there, out of the
+        # app (operator, 2026-10-02).
+        if selection.start is not None and selection.start.y >= len(text.splitlines()):
+            return None
         return selection.extract(text), "\n"
 
     def selection_updated(self, selection: Selection | None) -> None:
