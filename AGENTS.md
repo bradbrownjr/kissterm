@@ -181,9 +181,9 @@ changes.
 - `LinkParams` is `slots=True`: copy with `dataclasses.replace()`.
 - Patch `serial.tools.list_ports.comports` itself, never `sys.modules`.
 - **Generate a screenshot after any layout change**
-  (`scripts/generate_screenshot.py` -> `assets/`, PNGs rendered by headless
-  Chrome at `KISSTERM_SHOT_RENDERER`; see its docstring) and look at it; write a
-  geometry test (`tests/pilot/test_app_mounts.py`) for what it shows.
+  (`scripts/generate_screenshot.py` -> `assets/`, PNGs drawn cell by cell
+  by `scripts/cellshot.py` with Pillow and 0xProto Nerd Font) and look at
+  it; write a geometry test (`tests/pilot/test_app_mounts.py`) for what it shows.
 - Two bottom-docked widgets overlap; put them in one docked container.
 - A pane fed by a periodic refresh needs a `TabActivated` hook.
 - `KissTermApp` takes `config` and `station` as arguments so tests can mount
@@ -217,8 +217,8 @@ changes.
 - **Screenshots ship with the change too.** If a change alters a screen
   that `assets/` shows, re-run `scripts/generate_screenshot.py`, look at
   every image, and commit the PNGs with it; a new tab or feature worth
-  showing gets its own scene there. Without a renderer
-  (`KISSTERM_SHOT_RENDERER`), say so in the reply rather than committing
+  showing gets its own scene there. If the images cannot be made (the
+  font download failed, say), say so in the reply rather than committing
   stale images silently. `tests/unit/test_readme_assets.py` keeps the
   script, `assets/` and the docs in step.
 - **Module docstrings explain why** the design is what it is and what breaks

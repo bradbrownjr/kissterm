@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-02] — Screenshots drawn with Pillow, no browser
+
+### Improvements
+
+- **The README screenshots are drawn cell by cell** (`scripts/cellshot.py`,
+  Pillow, 0xProto Nerd Font, downloaded once from a pinned Nerd Fonts
+  release and checked by SHA-256). Box-drawing and block characters are
+  drawn from their Unicode names, so every border joins; a glyph the font
+  lacks comes from an installed monospace font, as a terminal falls back.
+  The browserless renderer (`KISSTERM_SHOT_RENDERER`) is gone: it refused
+  any page scale but 1, then every page. All ten screenshots regenerated.
+
+**Files:** `scripts/cellshot.py`, `scripts/generate_screenshot.py`,
+`tests/unit/test_cellshot.py`, `assets/*.png`, `AGENTS.md`,
+`pyproject.toml`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — Status bar: the right-most field keeps its last letter
 
 ### Improvements

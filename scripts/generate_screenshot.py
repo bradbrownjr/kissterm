@@ -3,22 +3,13 @@
 
 Runs the real `KissTermApp` under Textual's headless `run_test` pilot against a
 loopback transport, fills it with a plausible station's mail, bulletins,
-files, a node session and APRS traffic, and captures one screen per tab as
-SVG. The SVGs are then rendered to PNG in `assets/` by headless Chrome.
+files, a node session and APRS traffic, and draws one screen per tab as a
+PNG in `assets/` with `scripts/cellshot.py` (Pillow, 0xProto Nerd Font).
 
-Why Chrome, not cairosvg (operator, 2026-09-29: "the screenshots have broken
-lines in the rendering"): Textual's SVG names the Fira Code web font. cairosvg
-cannot load a web font, falls back to a system font whose box-drawing
-characters are shorter than a row, and every border comes out dashed. An SVG
-put straight into the README fails the same way, because GitHub serves it as
-an image and an image cannot load fonts either. A real browser loads the font
-and the borders join.
-
-Set `KISSTERM_SHOT_RENDERER` to a browserless-compatible `/screenshot`
-endpoint, token included, for example
-`http://host:3000/screenshot?token=...`. It is read from the environment so
-no address or token is ever committed. Without it the SVGs are written to a
-temporary folder, `assets/` is left alone, and the script says so.
+Why not an SVG rendered elsewhere: every renderer tried failed on the font.
+cairosvg drew dashed borders and seams; headless Chrome needed a browserless
+server that stopped rendering (2026-10-02). `cellshot.py` draws the cell
+grid itself and has the reasons. The first run downloads the font once.
 
 Everything shown is invented here. Nothing touches a real config directory,
 a real TNC, or the air:
@@ -36,12 +27,7 @@ here.
 
 from __future__ import annotations
 
-import json
-import os
-import re
 import sys
-import tempfile
-import urllib.request
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -64,9 +50,6 @@ from tests.loopback import loopback_pair  # noqa: E402
 
 ASSETS = REPO / "assets"
 SIZE = (110, 32)  # wide enough that the footer's keys do not collide
-#: Chrome's pixels per SVG pixel: sharp on a high-density screen, and the
-#: README shows it scaled down anyway.
-SCALE = 1.25
 
 MYCALL = AX25Address.parse("N1ABC-1")
 NODE = AX25Address.parse("W1AW-7")
@@ -288,17 +271,19 @@ async def _node_session(app, pilot, node) -> None:
 
 
 async def main() -> int:
-    renderer = os.environ.get("KISSTERM_SHOT_RENDERER", "")
-    out = Path(tempfile.mkdtemp(prefix="kissterm-shots-"))
+    sys.path.insert(0, str(REPO / "scripts"))
+    import cellshot
+
+    fonts = cellshot.font_dir()
     app, ta, tb, station, node = await _build()
-    shots: list[str] = []
 
     async with app.run_test(size=SIZE) as pilot:
         await pilot.pause()
 
         async def shot(name: str) -> None:
-            app.save_screenshot(f"{name}.svg", str(out))
-            shots.append(name)
+            png = ASSETS / f"{name}.png"
+            cellshot.save(app, png, fonts=fonts)
+            print(f"wrote {png.relative_to(REPO)}")
 
         for src, dest, via, info in MONITOR:
             await tb.send_frame(_frame(src, dest, via, info))
@@ -384,32 +369,7 @@ async def main() -> int:
     station.close()
     node.close()
 
-    if not renderer:
-        print(f"SVGs in {out}. assets/ unchanged: set KISSTERM_SHOT_RENDERER to a "
-              "browserless-compatible /screenshot URL to render PNGs (see the docstring).")
-        return 1
-    for name in shots:
-        png = ASSETS / f"{name}.png"
-        png.write_bytes(_render(renderer, (out / f"{name}.svg").read_text()))
-        print(f"wrote {png.relative_to(REPO)}")
     return 0
-
-
-def _render(renderer: str, svg: str) -> bytes:
-    """One SVG as PNG, by headless Chrome (see the module docstring)."""
-    box = re.search(r'viewBox="0 0 ([\d.]+) ([\d.]+)"', svg)
-    width, height = (int(float(box[1])) + 1, int(float(box[2])) + 1) if box else (1400, 900)
-    body = json.dumps({
-        "html": f'<!doctype html><html><body style="margin:0">{svg}</body></html>',
-        "viewport": {"width": width, "height": height, "deviceScaleFactor": SCALE},
-        "options": {"type": "png"},
-        # The font comes from a CDN; give it time to arrive.
-        "waitForTimeout": 1500,
-    }).encode()
-    request = urllib.request.Request(renderer, data=body,
-                                     headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=90) as response:
-        return response.read()
 
 
 if __name__ == "__main__":
