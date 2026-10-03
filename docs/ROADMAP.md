@@ -334,6 +334,32 @@ exchange confirms it.
   follows every unattended-transmission rule in AGENTS.md: opt-in, a status
   marker, an interval floor, and every line logged.
 
+#### Files
+
+- [ ] **G on the Files tab gets files from the Home BBS** (operator,
+  2026-10-03: "It lists what's available and the user selects what they
+  want to download"). I over the Internet, as for mail and bulletins.
+  From the LinBPQ source (`BBSUtilities.c`, read 2026-10-03):
+  - `FILES` (or `LISTFILES`) lists the BBS's `Files` folder as
+    `name size`, one per line, alphabetical, dot-files skipped; an
+    argument filters by substring. On Linux it reads `Files` relative to
+    the working directory (`scandir("Files")`), while `YAPP` reads
+    `BaseDir/Files`: the same folder when LinBPQ runs from its base.
+  - `YAPP <name>` sends one file by YAPP: `ENQ 1` at once, then on our
+    `ACK 1` the header `SOH len name NUL size NUL`, data, `ETX 1`, `EOT
+    1` (`YAPPSendFile`, `ProcessYAPPMessage`), which `yapp.receive_file`
+    already speaks. `File <name> not found` / `Invalid filename` and the
+    prompt otherwise. `READFILE <name>` shows a text file and ends
+    `[End of File <name>]`.
+  - The plan: G connects (the Mail tab's route and logins), sends `FILES`,
+    shows a checklist with each file's size and its airtime at the link's
+    speed, then `YAPP <name>` for each one ticked, into Files > Downloads.
+  - **Capture first** (asked 2026-10-03): over WS1EC's SSH login, `BBS`,
+    `FILES`, then F10 > Session > File transfer, YAPP, Download, Start,
+    and `YAPP <a small file>`. Whether YAPP's binary bytes survive the
+    SSH-to-Telnet path (BPQ's Telnet server, kissterm's echo removal) is
+    the open question; over RF it is plain AX.25.
+
 #### BBS mail (BPQMail first, then the applications P8 adds)
 
 - **On hold until the operator's Yagi is up** (2026-09-26): retrieval
