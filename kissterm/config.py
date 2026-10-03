@@ -272,6 +272,11 @@ class HomeBbsConfig:
     internet_credential: str = ""
     #: Sent once logged in, to leave the node for the BBS.
     internet_command: str = "BBS"
+    #: Days between asking the BBS for its bulletin categories (`LC`), to
+    #: offer new ones (`kissterm/mail/bulletins.py`).
+    bulletin_check_days: int = 7
+    #: How far back the first collection from a bulletin category goes.
+    bulletin_days: int = 7
 
 
 @dataclass
@@ -1340,6 +1345,12 @@ def _load_home_bbs(value: Any, warnings: list[str]) -> HomeBbsConfig:
         warnings.append(f"home_bbs.software {software!r} is not auto or bpqmail; using auto")
         software = "auto"
     home.software = software
+    for name in ("bulletin_check_days", "bulletin_days"):
+        days = _load_int(value, name, getattr(default, name), warnings)
+        if days < 1:
+            warnings.append(f"home_bbs.{name} should be at least 1, got {days}; using 1")
+            days = 1
+        setattr(home, name, days)
     return home
 
 

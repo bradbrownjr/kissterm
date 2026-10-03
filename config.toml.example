@@ -336,6 +336,12 @@ internet = ""
 internet_user = ""
 internet_credential = ""
 internet_command = "BBS"
+# Bulletins (G on the Bulletins tab; S chooses the categories, kept in the
+# state folder's bulletin_subscriptions.json). Days between asking the BBS
+# for its category list, to offer new ones; and how far back the first
+# collection from a category goes. Both at least 1.
+bulletin_check_days = 7
+bulletin_days = 7
 
 [winlink]
 # The Winlink account Send/Receive uses (G on a Mail/Winlink folder). route

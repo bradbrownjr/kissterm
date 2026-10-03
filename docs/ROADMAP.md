@@ -344,32 +344,10 @@ exchange confirms it.
 #### BBS mail (BPQMail first, then the applications P8 adds)
 
 - **On hold until the operator's Yagi is up** (2026-09-26): retrieval
-  filters and bulletin collection below both need listings from WS1EC-2.
+  filters below need listings from WS1EC-2 (WS1EC's SSH login reaches the
+  same BBS, as the 2026-10-02 bulletin capture did).
 - [ ] **Retrieval filters beyond `LM`** (NTS traffic for your area,
   bulletins); the P11 notes below describe Outpost's. Medium.
-- [ ] **Bulletin collection** (Bulletins tab, G), into Bulletins/<category>,
-  from the Home BBS. Decided 2026-09-24 with the operator:
-  - **Subscriptions, not everything**: a BBS holds hundreds of bulletins and
-    the weak path moved 9 listing lines in 4 minutes. The first G connects,
-    sends `LC` (list categories) and offers them as a checklist, with All;
-    the picks are saved.
-  - **New categories are offered**: each G sends `LC`; a category not seen
-    before on that BBS is offered while connected ("subscribe?"). Declined
-    ones are remembered and not offered again.
-  - **Read them all**: every subscribed bulletin the store lacks is read and
-    filed, as mail is (`has_bbs_number`, then BID). Never `K`.
-  - **S on the Bulletins tab** edits the subscriptions offline from the
-    categories last seen; also a Settings > Mail field.
-  - **Checked once in a while** (operator, 2026-10-02): `LC` on the first
-    run, then every `check_days` (default 7), not on every G.
-  - **First run goes back N days** (operator, 2026-10-02; WS1EC-2 held 310
-    WX bulletins): windows of 100 message numbers back from the latest,
-    since most users do not page; `A` at a page prompt for those who do.
-  - **Done 2026-10-02:** the conversation (`mail/bulletins.py`,
-    `BbsCollector` bulletin run), checked against the operator's capture.
-    **Left:** G and I on the Bulletins tab, the category checklist
-    screen, S, and the two day settings in Settings > Mail.
-
 #### Forms
 
 Decided 2026-09-26 (operator approved the plan, and confirmed that the

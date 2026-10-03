@@ -176,6 +176,16 @@ class Subscriptions:
         self.chosen.sort()
         self.declined.sort()
 
+    def choose(self, categories: list[str], picked: list[str], *, all_: bool) -> None:
+        """Replace the choice (S on the Bulletins tab): `picked` wanted, the
+        rest of `categories` declined, `all_` everything."""
+        self.all = all_
+        wanted = {p.upper() for p in picked}
+        names = {c.upper() for c in categories}
+        self.chosen = sorted(wanted | ({c.upper() for c in self.chosen} - names))
+        self.declined = sorted((names - wanted)
+                               | ({c.upper() for c in self.declined} - names - wanted))
+
     def collect(self) -> list[str]:
         """The categories to list on this run, in order."""
         if self.all:

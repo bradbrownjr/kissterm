@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — Get bulletins: G, I and S on the Bulletins tab
+
+### New Features
+
+- **G on the Bulletins tab gets bulletins from the Home BBS** (I over the
+  Internet). The first time, the BBS's categories are offered as a
+  checklist with their counts, plus All; a category that appears later is
+  offered at the next check (Settings > Mail > Category check, 7 days),
+  and one left unticked is not offered again. **S** changes the choice
+  offline. The first collection from a category goes back Settings > Mail
+  > First collection (7 days). Filed under Bulletins, one folder per
+  category.
+
+**Files:** `kissterm/ui/bulletin_screen.py`, `kissterm/ui/app.py`,
+`kissterm/ui/mail_pane.py`, `kissterm/ui/styles.py`,
+`kissterm/ui/settings_schema.py`, `kissterm/config.py`,
+`kissterm/mail/bulletins.py`, `config.toml.example`,
+`tests/pilot/test_get_bulletins.py`, `tests/pilot/test_get_mail.py`,
+`docs/GUIDE.md`, `README.md`, `DESIGN.md`, `docs/ON-AIR-TESTS.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`, `assets/screenshot-bulletins.png`
+
 ## [2026-10-03] — Bulletins: a first run that works without paging
 
 ### Improvements

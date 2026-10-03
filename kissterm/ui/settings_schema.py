@@ -295,6 +295,29 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 advanced=True,
             ),
             Field(
+                "home_bbs.bulletin_check_days",
+                "Category check (days)",
+                "int",
+                "Days between asking the BBS for its bulletin categories, "
+                "to offer any that are new. The list is airtime, so it is "
+                "not asked for on every G.",
+                minimum=1,
+                maximum=365,
+                apply="live",
+                rule_before="Bulletins (G on the Bulletins tab)",
+            ),
+            Field(
+                "home_bbs.bulletin_days",
+                "First collection (days)",
+                "int",
+                "Days of bulletins the first collection from a category "
+                "reads. A BBS can hold hundreds in one category; later "
+                "collections read only what is newer.",
+                minimum=1,
+                maximum=365,
+                apply="live",
+            ),
+            Field(
                 "home_bbs.internet",
                 "Telnet/SSH contact",
                 "contact",

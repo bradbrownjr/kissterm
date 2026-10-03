@@ -10,6 +10,22 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## Bulletins (G and I on the Bulletins tab)
+
+- [ ] **First collection over the Internet.** On the Bulletins tab press
+  **I**. Expected: the category list appears with WS1EC-2's counts (WX
+  310, SPACWX 142, ...). Tick WX only and Save. kissterm sends
+  `LB> WX 3005-3104` (numbers will have moved on), then the hundred before
+  only if every bulletin listed is still within 7 days, reads those within
+  7 days oldest first, and files them under Bulletins > WX. The Terminal
+  tab (F5) shows each command. Send Claude the transcript name: the
+  `LB> WX n-m` range form is from the LinBPQ source, not yet seen.
+- [ ] **A second I lists only what is new.** Straight after: no category
+  list this time, `LB> WX <newest+1>-` only, and "No new bulletins" unless
+  one arrived meanwhile.
+- [ ] **The same over the air with G**, once the Yagi is up: the windows
+  are short, so the first collection should take minutes, not hours.
+
 ## Mail: Send/Receive (G on the Mail tab)
 
 - [ ] **Resend the message to W1BKW** ("Hello from kissterm", still in

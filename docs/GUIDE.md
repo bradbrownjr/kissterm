@@ -153,8 +153,27 @@ a reply to a message carrying a strip offers Answer strip.
 
 **Bulletins (F3)** are notices addressed to a category (WX, ARES, ALL)
 rather than a person, filed by category and kept apart from your mail.
-Write one with Insert, Type: Bulletin; G sends it. Collecting bulletins
-from your BBS by category is the next piece of work (ROADMAP P2).
+Write one on the Mail tab with Insert, Type: Bulletin; G there sends it.
+
+**Getting bulletins (G on the Bulletins tab; I over the Internet).** A
+BBS can hold hundreds of bulletins in one category (WS1EC-2 had 310 in
+WX), so kissterm collects only the categories you choose:
+
+- The first G connects to your Home BBS, asks for its category list and
+  shows it with each category's count. Tick the ones you want, or All
+  (every category, including new ones as they appear).
+- The list itself is airtime, so it is asked for again only every
+  Settings > Mail > Category check (days), 7 by default. A category that
+  has appeared since is offered then; one you leave unticked is not
+  offered again.
+- The first collection from a category goes back Settings > Mail > First
+  collection (days), 7 by default, listing a hundred message numbers at a
+  time so it can stop as soon as the bulletins are older. Later ones ask
+  only for bulletins newer than the newest you have.
+- **S** changes your choice at any time, offline, from the categories the
+  BBS listed last.
+- Bulletins are filed under Bulletins, one folder per category. Nothing
+  is ever deleted from the BBS.
 
 **Files (F4)** has three folders:
 

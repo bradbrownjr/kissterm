@@ -240,7 +240,9 @@ is the enforcement.
    each one that is set up, the Home BBS first, the Footer saying which
    (operator, 2026-09-26); I does the same over the Internet (the Home
    BBS by its Telnet or SSH connection, Winlink by the CMS) -- and Insert
-   writes a new message; on Mail and Bulletins, V switches a message
+   writes a new message; on Bulletins, G gets bulletins from the Home BBS,
+   I the same over the Internet, and S chooses the categories; on Mail and
+   Bulletins, V switches a message
    received as a form between the form and its text, R replies and Q
    replies with the original quoted. None of them transmits.
 5. **The Footer shows only what works right now.** An action that does not

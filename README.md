@@ -42,7 +42,8 @@ expect. A form you receive is shown as a form:
 ![Filling in an ICS-213 General Message](assets/screenshot-form.png)
 
 **Bulletins (F3).** Notices to everyone, filed by category (WX, ARES,
-ALL), kept apart from your personal mail.
+ALL), kept apart from your personal mail. G collects the categories you
+choose from your BBS, and only what is new.
 
 ![Weather bulletins](assets/screenshot-bulletins.png)
 
@@ -176,9 +177,9 @@ can be clicked. `Ctrl+P` finds any command by name.
 
 kissterm is young (version 0.1) and changing quickly. The AX.25 link,
 KISS transports, terminal, monitor, heard list, APRS and BBS mail have been
-used on the air. Winlink, VARA, Mercury and file transfers (YAPP, AutoBIN)
-are built but not yet proven on the air, and collecting bulletins from a
-BBS by category is next. Winlink's production servers do not recognise
+used on the air. Winlink, VARA, Mercury, file transfers (YAPP, AutoBIN)
+and collecting bulletins by category are built but not yet proven on the
+air. Winlink's production servers do not recognise
 kissterm yet; until they do, the Internet server setting in
 Settings > Mail can use Winlink's test server.
 

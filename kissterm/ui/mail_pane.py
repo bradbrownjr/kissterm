@@ -19,7 +19,9 @@ rule 4, bound on the list itself so they work only while it has focus and
 never while typing: Enter opens, Delete moves to Deleted, U restores from
 Deleted, and on the Mail tab G sends and receives: with the Home BBS on a
 BBS folder, with Winlink on a Winlink folder, and with each one set up on
-All Inboxes (`KissTermApp.send_receive_kind`; the Footer says which). Each key is shown only where it works
+All Inboxes (`KissTermApp.send_receive_kind`; the Footer says which). On
+the Bulletins tab G gets bulletins, I gets them over the Internet and S
+chooses the categories. Each key is shown only where it works
 (`MessageList.check_action`). Compose (Insert) and reply are added when
 they exist, not before.
 
@@ -64,6 +66,16 @@ def _short_date(value: datetime | None) -> str:
 #: (`KissTermApp.send_receive_kind`): only the one that applies is shown.
 _G_KIND = {"get_mail": "bbs", "get_winlink": "winlink", "get_all": "all"}
 
+#: The Bulletins tab's own keys (ROADMAP P2, bulletin collection): G gets
+#: the chosen categories from the Home BBS, I the same over the Internet,
+#: S chooses the categories (`bulletin_screen.py`).
+_BULLETIN_BINDINGS = (
+    Binding("g", "get_bulletins", "Get bulletins"),
+    Binding("i", "get_bulletins_internet", "By Internet"),
+    Binding("s", "bulletin_categories", "Categories"),
+)
+_BULLETIN_ACTIONS = {b.action for b in _BULLETIN_BINDINGS}
+
 
 class FolderTree(Tree):
     """The folder tree. Each node's data is a folder path or `ALL_INBOXES`.
@@ -78,10 +90,13 @@ class FolderTree(Tree):
         Binding("g", "get_winlink", "Send/Receive Winlink"),
         Binding("g", "get_all", "Send/Receive all"),
         Binding("i", "get_internet", "By Internet"),
+        *_BULLETIN_BINDINGS,
     ]
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         browser = self.query_ancestor(MessageBrowser)
+        if action in _BULLETIN_ACTIONS:
+            return browser.id == "bulletins-browser"
         if action == "get_internet":
             return browser.id == "mail-browser"
         if action in _G_KIND:
@@ -105,6 +120,15 @@ class FolderTree(Tree):
     def action_new_message(self) -> None:
         self.app.action_compose_mail()  # type: ignore[attr-defined]
 
+    def action_get_bulletins(self) -> None:
+        self.app.action_get_bulletins()  # type: ignore[attr-defined]
+
+    def action_get_bulletins_internet(self) -> None:
+        self.app.action_get_bulletins_internet()  # type: ignore[attr-defined]
+
+    def action_bulletin_categories(self) -> None:
+        self.app.action_bulletin_categories()  # type: ignore[attr-defined]
+
 
 class MessageList(DataTable):
     """The message (or file) list, with the tab's context keys."""
@@ -121,6 +145,7 @@ class MessageList(DataTable):
         Binding("g", "get_all", "Send/Receive all"),
         Binding("i", "get_internet", "By Internet"),
         Binding("v", "toggle_form", "Form/text"),
+        *_BULLETIN_BINDINGS,
     ]
 
     def _browser(self) -> "MessageBrowser":
@@ -128,6 +153,8 @@ class MessageList(DataTable):
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         browser = self._browser()
+        if action in _BULLETIN_ACTIONS:
+            return browser.id == "bulletins-browser"
         if action == "open_message":
             return self.row_count > 0
         if action == "delete_message":
@@ -194,6 +221,15 @@ class MessageList(DataTable):
 
     def action_get_internet(self) -> None:
         self.app.action_get_mail_internet()  # type: ignore[attr-defined]
+
+    def action_get_bulletins(self) -> None:
+        self.app.action_get_bulletins()  # type: ignore[attr-defined]
+
+    def action_get_bulletins_internet(self) -> None:
+        self.app.action_get_bulletins_internet()  # type: ignore[attr-defined]
+
+    def action_bulletin_categories(self) -> None:
+        self.app.action_bulletin_categories()  # type: ignore[attr-defined]
 
 
 class MessageBrowser(Horizontal):

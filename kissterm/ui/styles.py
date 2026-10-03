@@ -463,6 +463,9 @@ AddressBookEntryScreen #connect-buttons { height: auto; margin-top: 0; }
 /* RadioReminderScreen -- a checkpoint, not a form; sized to its short
    fixed content rather than the wider #connect-box default. */
 #reminder-detail { color: $text; padding: 0 0 1 0; }
+/* Bulletin categories (`bulletin_screen.py`): a long list scrolls inside
+   the box rather than pushing its buttons off the screen. */
+#categories-list { height: auto; max-height: 14; margin: 0 0 1 0; }
 #login-ask-what { text-style: bold; padding: 0 0 1 0; }
 /* Send/Receive's setup questions: why this is asked on All Inboxes, and a
    hint line with a button that goes where it says. */

@@ -887,6 +887,11 @@ class KissTermApp(App):
         #: node -- see `kissterm/harvested.py` and `harvest_commands` below.
         self._harvested = HarvestedCommands()
         self._harvested.load()
+        from ..mail.bulletins import SubscriptionBook
+
+        #: Bulletin categories chosen per BBS (`mail/bulletins.py`).
+        self.bulletin_subscriptions = SubscriptionBook()
+        self.bulletin_subscriptions.load()
         #: APRS message history, keyed by correspondent -- see
         #: kissterm/aprs_conversations.py. Loaded here rather than by the
         #: APRS pane so a message that arrives before the operator ever
@@ -4849,6 +4854,8 @@ class KissTermApp(App):
                 sent=lambda text: self._mail_sent(key, text),
                 gate_open=lambda: self.gate.enabled,
                 progress=self._set_activity,
+                subscriptions=self.bulletin_subscriptions,
+                choose=self._choose_categories,
             )
 
         dialed = await self._dial_for_mail(entry, build, "mail")
@@ -4856,12 +4863,22 @@ class KissTermApp(App):
             return
         collector, key = dialed
         result = await collector.run()
-        self._bbs_report(result)
+        self._bbs_report(result, bulletins=options.bulletins)
         await self._disconnect_session(key)
 
-    def _bbs_report(self, result) -> None:
+    def _bbs_report(self, result, bulletins: bool = False) -> None:
         """The outcome toast of a Home BBS run, over radio or the Internet."""
         sent = f"{len(result.sent)} sent, " if result.sent else ""
+        if bulletins:
+            if result.stopped:
+                self.notify(f"Getting bulletins stopped: {result.stopped}. "
+                            f"{len(result.filed)} received.", severity="warning")
+            elif result.filed:
+                self.notify(f"{len(result.filed)} new bulletin(s) from the Home BBS.")
+            else:
+                self.notify("No new bulletins on the Home BBS.")
+            self._reload_mail_tabs()
+            return
         if "unknown client type" in result.stopped.lower():
             # The CMS's own words (operator's first session, 2026-09-28):
             # its production servers turn away a client program they do not
@@ -5056,6 +5073,78 @@ class KissTermApp(App):
             self._collecting = False
             self._set_activity("")
 
+    @work(exclusive=False)
+    async def action_get_bulletins(self, internet: bool = False) -> None:
+        """Get bulletins (Bulletins tab, G; I over the Internet). ROADMAP P2.
+
+        The Home BBS run with `CollectOptions.bulletins`: the same dial,
+        reminder, gate and logins as Send/Receive, then the categories
+        chosen (`mail/bulletins.py`), offered on the first run and when a
+        check finds a new one (`_choose_categories`)."""
+        if self._collecting:
+            self.notify("Already sending and receiving.", severity="warning")
+            return
+        self._collecting = True
+        try:
+            prepared = await (self._bbs_internet_prepare() if internet
+                              else self._bbs_prepare())
+            if prepared is None:
+                return
+            entry, options = prepared
+            home = self.config.home_bbs
+            options.bulletins = True
+            options.check_days = home.bulletin_check_days
+            options.first_days = home.bulletin_days
+            run = self._bbs_internet_run if internet else self._bbs_run
+            await run(entry, options)
+        except _SkipService:
+            pass
+        finally:
+            self._collecting = False
+            self._set_activity("")
+
+    def action_get_bulletins_internet(self) -> None:
+        self.action_get_bulletins(internet=True)
+
+    def _bulletin_bbs(self) -> str:
+        """The Home BBS's callsign as its choices are kept, or ""."""
+        home = self.config.home_bbs
+        if home.call:
+            return home.call
+        route = home.route or home.internet
+        return str(parse_path(route).destination.callsign) if route else ""
+
+    async def _choose_categories(self, offer: list[str], counts: dict[str, int],
+                                 first: bool):
+        """The collector's question (`collect.Choose`), asked mid-run."""
+        from .bulletin_screen import BulletinCategoriesScreen
+
+        bbs = self._bulletin_bbs() or "the BBS"
+        return await self.push_screen_wait(BulletinCategoriesScreen(
+            bbs, {c: counts.get(c, 0) for c in offer}, new_only=not first))
+
+    @work
+    async def action_bulletin_categories(self) -> None:
+        """S on the Bulletins tab: change which categories are collected,
+        offline, from those the BBS listed last."""
+        from .bulletin_screen import BulletinCategoriesScreen
+
+        bbs = self._bulletin_bbs()
+        subs = self.bulletin_subscriptions.for_bbs(bbs) if bbs else None
+        if subs is None or not subs.seen:
+            self.notify("No categories yet: G asks the BBS for its list on the first "
+                        "collection.")
+            return
+        answer = await self.push_screen_wait(BulletinCategoriesScreen(
+            bbs, subs.seen, ticked=subs.chosen, all_=subs.all))
+        if answer is None:
+            return
+        picked, all_ = answer
+        subs.choose(list(subs.seen), picked, all_=all_)
+        self.bulletin_subscriptions.save()
+        self.notify("Collecting " + ("every category." if subs.all
+                                     else (", ".join(subs.chosen) or "no categories") + "."))
+
     async def _internet_run(self, transport, peer: str, what: str, build):
         """Connect a session `transport` and run the collector
         `build(link, note, sent, received)` makes over it, with a
@@ -5204,11 +5293,13 @@ class KissTermApp(App):
 
         def build(link, note, sent, received):
             return BbsCollector(link, self.mail_store, options, note=note, sent=sent,
-                                progress=self._set_activity)
+                                progress=self._set_activity,
+                                subscriptions=self.bulletin_subscriptions,
+                                choose=self._choose_categories)
 
         result = await self._internet_run(transport, entry.target, entry.target, build)
         if result is not None:
-            self._bbs_report(result)
+            self._bbs_report(result, bulletins=options.bulletins)
 
     def _winlink_received(self, key: str, text: str) -> None:
         """A line from the Winlink gateway, shown and kept in the

@@ -241,7 +241,8 @@ async def test_mail_opens_with_its_list_focused_and_g_in_the_footer(tmp_path):
         await pilot.pause()
         await pilot.pause()
         assert isinstance(app.focused, MessageList)
-        assert "g" not in app.screen.active_bindings  # Mail only
+        # Bulletins has its own G: get bulletins, not send and receive.
+        assert app.screen.active_bindings["g"].binding.action == "get_bulletins"
     station.close()
 
 
