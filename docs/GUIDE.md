@@ -193,12 +193,18 @@ a session is connected in the Terminal.
 
 Nothing that arrives over the air is ever opened or run for you.
 
-**File transfers (YAPP and AutoBIN)**: while connected to a station or BBS
-that supports one, F10 > Session > File transfer. An upload starts only
-after you choose the file; for a download, choose Download first, then
-give the far end its download command. The file is saved in Files >
-Downloads, and the toast says its name. Both protocols are built but not
-yet proven on the air.
+**File transfers (YAPP and AutoBIN)**: to download from a BPQ BBS, type
+`FILES` to see what it has and `YAPP <name>` to ask for one. The
+download starts by itself when the BBS begins sending, within a minute of
+asking; the status bar counts the bytes, the Terminal stays quiet while
+it runs, and the file is saved in Files > Downloads with a toast naming
+it. Nothing arrives unasked: a sender you did not ask in the last minute
+is ignored. To upload, F10 > Session > File transfer (or S on a file in
+the Files tab), choose the file and press Start; BPQ takes a YAPP upload
+at its prompt. The dialog's Download is for AutoBIN, or a sender that
+needs the receiver started first. Both protocols are built to LinBPQ's
+source but not yet proven on the air; over an SSH login the file passes
+through the server's `telnet`, which may not carry binary intact.
 
 ## Connecting to nodes and BBSes
 

@@ -28,12 +28,23 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Files (YAPP and AutoBIN)
 
-- [ ] **A download lands in Files > Downloads.** Connected to a station
-  or BBS that can send by YAPP, F10 > Session > File transfer, YAPP,
-  "Download into Files > Downloads", Start, then give the far end its
-  send command. Expected: "YAPP download complete: <name>, in Files >
-  Downloads (F4)", and the file listed there. Download the same file
-  again: it is saved as `<name>-1.<ext>` beside the first.
+- [ ] **Asking WS1EC-2 for a file downloads it by itself.** Over the
+  air, connected to WS1EC-2 (or the node, then `BBS`), type `FILES`, then
+  `YAPP bulletin.html.zip`. Expected: nothing to arm first; the status
+  bar counts `YAPP bulletin.html.zip n/2286` up, the toast says "YAPP
+  download complete: bulletin.html.zip, in Files > Downloads (F4)", the
+  file is listed there and unzips. Ask again: saved as
+  `bulletin.html-1.zip` beside the first. (Failed before the 2026-10-03
+  YAPP framing fix: "YAPP peer did not respond before the crash timer".)
+- [ ] **The same over WS1EC's SSH login** (`BBS`, then `YAPP
+  bulletin.html.zip`). Unknown whether binary survives the server's pty
+  and `telnet` client: either it completes and the zip opens, or it fails
+  with "YAPP file exceeds advertised size" / "ended unexpectedly". Either
+  result is the answer; send the transcript name.
+- [ ] **An upload to WS1EC-2.** F10 > Session > File transfer, YAPP,
+  Upload, a small file, Start. Expected: "YAPP upload complete"; `FILES`
+  then lists it. The same name again: "YAPP upload failed: YAPP peer
+  refused: YAPP File <name> already exists".
 
 ## Mail: Send/Receive (G on the Mail tab)
 

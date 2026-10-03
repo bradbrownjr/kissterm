@@ -354,11 +354,16 @@ exchange confirms it.
   - The plan: G connects (the Mail tab's route and logins), sends `FILES`,
     shows a checklist with each file's size and its airtime at the link's
     speed, then `YAPP <name>` for each one ticked, into Files > Downloads.
-  - **Capture first** (asked 2026-10-03): over WS1EC's SSH login, `BBS`,
-    `FILES`, then F10 > Session > File transfer, YAPP, Download, Start,
-    and `YAPP <a small file>`. Whether YAPP's binary bytes survive the
-    SSH-to-Telnet path (BPQ's Telnet server, kissterm's echo removal) is
-    the open question; over RF it is plain AX.25.
+  - **Captured 2026-10-03** over the air (WS1EC-2, kissterm transcript
+    `20261003-151432`): `FILES` gave eight `name.html.zip size` lines and
+    a last `zType YAPP FILENAME to retrieve 0`, a sysop's empty file
+    named as a hint (sorted last by its `z`); a name with spaces or a size
+    of 0 is not offered. That session's `YAPP bulletin.html.zip` failed on
+    kissterm's YAPP framing, fixed 2026-10-03.
+  - **Before building**: the operator's on-air YAPP download with the
+    fix (docs/ON-AIR-TESTS.md, Files). Over SSH the bytes pass a pty and a
+    `telnet` client on the server, either of which may alter binary
+    (# UNVERIFIED); the transfer fails on the size check if so.
 
 #### BBS mail (BPQMail first, then the applications P8 adds)
 

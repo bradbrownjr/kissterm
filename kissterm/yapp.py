@@ -30,6 +30,7 @@ import asyncio
 import contextlib
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -171,11 +172,18 @@ def _destination(directory: Path, name: str) -> Path:
 
 
 async def receive_file(
-    link, directory: str | Path, *, timeout: float = 30.0, initial: bytes = b""
+    link,
+    directory: str | Path,
+    *,
+    timeout: float = 30.0,
+    initial: bytes = b"",
+    progress: Callable[[str, int, int], None] | None = None,
 ) -> YappResult:
     """Receive one sender-initiated YAPP 1.1 file into an existing directory.
     `initial` is what already arrived (the `ENQ 1` that showed a download
-    starting, `starts_download`), read before anything new."""
+    starting, `starts_download`), read before anything new. `progress` is
+    called with the file's name, bytes so far and its size, once the header
+    is in and after each data packet."""
     target_dir = Path(directory).expanduser().resolve()
     if not target_dir.is_dir():
         raise ValueError("receive directory does not exist")
@@ -198,6 +206,8 @@ async def receive_file(
         temp = target.with_name(f".{target.name}.part")
         await wire.send(ACK, b"\x02")
         written = 0
+        if progress is not None:
+            progress(name, 0, expected)
         with temp.open("wb") as stream:
             while True:
                 kind, payload = await wire.packet(timeout)
@@ -206,6 +216,8 @@ async def receive_file(
                         raise YappError("YAPP file exceeds advertised size")
                     stream.write(payload)
                     written += len(payload)
+                    if progress is not None:
+                        progress(name, written, expected)
                     continue
                 if kind != ETX or payload != b"\x01" or written != expected:
                     raise YappError("YAPP file ended unexpectedly")

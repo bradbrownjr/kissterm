@@ -91,3 +91,93 @@ async def test_s_sends_the_highlighted_file_only_while_connected(tmp_path):
         assert sent == [app.mail_store.root / "Files" / "Downloads" / "roster.txt"]
         assert not station.transport.sent
     station.close()
+
+
+def _bpq_yapp_sender(far, body: bytes, name: str = "form.txt") -> list[bytes]:
+    """BPQMail's `YAPP <name>` on `far`, byte for byte (LinBPQ
+    `YAPPSendFile`/`ProcessYAPPMessage`): `ENQ 1` alone, then the header,
+    data and `ETX 1`, `EOT 1`, each after kissterm's answer. Returns what
+    kissterm sent."""
+    import asyncio
+
+    header = name.encode() + b"\x00" + str(len(body)).encode() + b"\x00"
+    script = {
+        b"\x06\x01": bytes((1, len(header))) + header,
+        b"\x06\x02": bytes((2, len(body))) + body + b"\x03\x01",
+        b"\x06\x03": b"\x04\x01",
+    }
+    heard: list[bytes] = []
+
+    def answer(data: bytes) -> None:
+        heard.append(bytes(data))
+        if data.upper().startswith(b"YAPP "):
+            reply = b"\x05\x01"
+        else:
+            reply = script.get(bytes(data[:2]))
+        if reply:
+            asyncio.get_event_loop().create_task(far.send(reply))
+
+    far.on_data.append(answer)
+    return heard
+
+
+@pytest.mark.asyncio
+async def test_asking_bpq_for_a_file_downloads_it_without_arming_anything(tmp_path):
+    """The operator types `YAPP form.txt`; the BBS's `ENQ 1` starts the
+    download by itself, into Files > Downloads, and none of its bytes
+    reach the Terminal (operator, 2026-10-03)."""
+    import asyncio
+
+    from kissterm.ax25 import AX25Path, AX25Station
+    from kissterm.ui.terminal_pane import TerminalPane
+    from tests.pilot.test_get_mail import BBS, FAST, MYCALL, _log_text
+
+    app, station, tb = await _app(tmp_path)
+    bbs = AX25Station(BBS, tb, FAST)
+    incoming = []
+    bbs.on_incoming.append(incoming.append)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        link = await station.connect(AX25Path(BBS, MYCALL), timeout=2.0)
+        app._bind_link(link)
+        await pilot.pause()
+        await wait_for(lambda: incoming, "the BBS to see the connect")
+        heard = _bpq_yapp_sender(incoming[0], b"ICS 213\r\x00\xff\x01\x05\x01 binary")
+        await app.query_one(TerminalPane).send_line("YAPP form.txt")
+        saved = app._downloads_dir() / "form.txt"
+        await wait_for(lambda: saved.exists(), "the download saved")
+        assert saved.read_bytes() == b"ICS 213\r\x00\xff\x01\x05\x01 binary"
+        await wait_for(lambda: b"\x06\x04" in heard, "the final ACK 4")
+        await asyncio.sleep(0.1)
+        await pilot.pause()
+        assert "ICS 213" not in _log_text(app)
+        assert not app._transfer_active
+    station.close()
+    bbs.close()
+
+
+@pytest.mark.asyncio
+async def test_an_enq_nobody_asked_for_is_not_a_download(tmp_path):
+    """No `YAPP <name>` sent, no download: an unasked sender is the
+    unattended mailbox's business (ROADMAP P9), not the Terminal's."""
+    import asyncio
+
+    from kissterm.ax25 import AX25Path, AX25Station
+    from tests.pilot.test_get_mail import BBS, FAST, MYCALL
+
+    app, station, tb = await _app(tmp_path)
+    bbs = AX25Station(BBS, tb, FAST)
+    incoming = []
+    bbs.on_incoming.append(incoming.append)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        link = await station.connect(AX25Path(BBS, MYCALL), timeout=2.0)
+        app._bind_link(link)
+        await wait_for(lambda: incoming, "the BBS to see the connect")
+        await incoming[0].send(b"\x05\x01")
+        await asyncio.sleep(0.3)
+        await pilot.pause()
+        assert not app._transfer_active
+        assert not any(app._downloads_dir().iterdir())
+    station.close()
+    bbs.close()

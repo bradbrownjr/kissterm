@@ -489,8 +489,10 @@ class FileTransferScreen(ModalScreen[FileTransferRequest | None]):
             yield Input(str(self._path) if self._path else "",
                         placeholder="Local file path", id="yapp-path")
             yield Button("Browse files", id="yapp-browse")
-            yield Static("Upload starts the selected protocol. For download, start this first, "
-                         "then request it from the peer; it is saved in Files > Downloads (F4).")
+            yield Static("Upload sends the file on Start. A YAPP download from a BPQ BBS needs "
+                         "none of this: type YAPP <name> and it starts by itself. Download here "
+                         "is for AutoBIN, or a sender that needs the receiver started first; "
+                         "either way it is saved in Files > Downloads (F4).")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Start", id="yapp-start", classes="-primary")
                 yield Button("Cancel", id="yapp-cancel")

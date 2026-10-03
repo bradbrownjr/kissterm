@@ -167,7 +167,7 @@ from ..transport.base import SessionState, TransportError, TransportState
 from ..tx import DISABLED_MESSAGE, TransmitGate
 from ..watched_notify import WatchNotifier, claimed_callsigns, normalize_callsigns
 from ..autobin import AutoBinError, receive_file as receive_autobin, send_file as send_autobin
-from ..yapp import YappError, receive_file, send_file
+from ..yapp import YappError, receive_file, send_file, starts_download
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
@@ -279,6 +279,9 @@ class _TerminalSession:
     #: The unterminated tail of the last chunk received, so a line split
     #: across two frames is still matched whole.
     line_buffer: str = ""
+    #: Until when (`time.monotonic()`) a YAPP send init on this session is
+    #: the download the operator asked for; 0 when none was asked.
+    download_until: float = 0.0
 
 
 _HOST_PORT = re.compile(r"^(\[[^\]]+\]|[^:\s]+):\d+(?:/\d+)?$")
@@ -407,6 +410,16 @@ HOP_COMMAND_WORDS = frozenset({"C", "CONNECT"})
 #: knowing to look for a hidden-by-default supervisory frame. Long enough
 #: that an ordinary node's response time does not trip it on every line.
 REPLY_WAIT_SECONDS = 15.0
+
+#: How long after the operator sends `YAPP <name>` a YAPP send init is
+#: taken as the file they asked for (`KissTermApp._watch_for_download`).
+#: WS1EC-2 answered in 3 s over the air (2026-10-03); a minute covers a
+#: slow path without leaving a stale request armed.
+DOWNLOAD_WAIT_SECONDS = 60.0
+
+#: BPQMail's download command (`YAPP <name>`, LinBPQ `BBSUtilities.c`
+#: matches its first four letters, any case).
+_YAPP_REQUEST = re.compile(r"^\s*YAPP\s+\S", re.IGNORECASE)
 
 #: `KissTermApp.harvest_commands` NEVER waits longer than this, no matter
 #: what. From a real report: a fixed 5-second window (this constant's first
@@ -2475,6 +2488,8 @@ class KissTermApp(App):
             session.transcript.sent(self._masked(text))
         if watch_hop:
             self._watch_typed_hop(session_key, text)
+        if _YAPP_REQUEST.match(text):
+            session.download_until = time.monotonic() + DOWNLOAD_WAIT_SECONDS
         self._cancel_reply_timer(session_key)
         # Not for a blank line: that is a nudge, and a node owes it no reply.
         # From a real report (CCEMA, 2026-09-22): with the prompt hidden, the
@@ -2654,6 +2669,8 @@ class KissTermApp(App):
 
     def _on_link_data(self, session_key: str, data: bytes) -> None:
         if session_key in self._transfer_active:
+            return
+        if self._watch_for_download(session_key, data):
             return
         # Any data back answers the "did they get it" question the reply
         # timer exists for -- see `_note_if_no_reply`.
@@ -5552,6 +5569,69 @@ class KissTermApp(App):
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
+    def _watch_for_download(self, session_key: str, data: bytes) -> bool:
+        """Start a YAPP download by itself when the file the operator asked
+        for arrives: True if `data` began one.
+
+        Only after the operator sent `YAPP <name>` (`log_sent`), and only
+        for `DOWNLOAD_WAIT_SECONDS`: a request they made, never a sender
+        that turns up unasked (that is the unattended mailbox, ROADMAP P9).
+        BPQ sends its `ENQ 1` alone and then waits for the answer
+        (`yapp.py`), so nothing can arrive before the receiver subscribes.
+        Until 2026-10-03 a download had to be armed first from F10 > File
+        transfer; the operator: "this is the only application that
+        requires me to start a file download session"."""
+        session = self._sessions.get(session_key)
+        if session is None or not session.download_until:
+            return False
+        if time.monotonic() > session.download_until:
+            session.download_until = 0.0
+            return False
+        if not starts_download(data):
+            return False
+        session.download_until = 0.0
+        self._transfer_active.add(session_key)
+        self._receive_requested(session_key, bytes(data))
+        return True
+
+    @work
+    async def _receive_requested(self, key: str, initial: bytes) -> None:
+        """The YAPP download `_watch_for_download` saw start, into Files >
+        Downloads, its progress in the status bar."""
+        session = self._sessions.get(key)
+        if session is None or session.link is None:
+            self._transfer_active.discard(key)
+            return
+
+        def progress(name: str, done: int, size: int) -> None:
+            self._set_activity(f"YAPP {name} {done}/{size}")
+
+        await self._run_transfer(key, "YAPP", "download", receive_file(
+            session.link, self._downloads_dir(), initial=initial, progress=progress,
+        ))
+
+    async def _run_transfer(self, key: str, protocol: str, mode: str, transfer) -> None:
+        """Await one transfer on session `key` (already in
+        `_transfer_active`, so the Terminal does not print its bytes), then
+        say how it went: a note in the transcript and one toast."""
+        self._note(key, f"{protocol} {mode} starting")
+        self._set_activity(f"{protocol} {mode}")
+        try:
+            result = await transfer
+        except (OSError, ValueError, YappError, AutoBinError) as exc:
+            self._note(key, f"{protocol} {mode} failed: {exc}")
+            self.notify(f"{protocol} {mode} failed: {exc}", severity="warning")
+        else:
+            self._note(key, f"{protocol} {mode} complete: {result.path.name} ({result.size} bytes)")
+            if mode == "upload":
+                self.notify(f"{protocol} upload complete: {result.path.name}")
+            else:
+                self.notify(f"{protocol} download complete: {result.path.name}, in Files > Downloads (F4).")
+                self._reload_mail_tabs()
+        finally:
+            self._transfer_active.discard(key)
+            self._set_activity("")
+
     def can_send_file(self) -> bool:
         """Whether S on the Files tab can send: a connected session in the
         Terminal and no transfer already running on it."""
@@ -5576,31 +5656,15 @@ class KissTermApp(App):
         if self.gate is not None and not self.gate.enabled:
             self._arm_for(f"{request.protocol.upper()} {request.mode}")
         self._transfer_active.add(key)
-        protocol = request.protocol.upper()
-        self._note(key, f"{protocol} {request.mode} starting")
-        self._set_activity(f"{protocol} {request.mode}")
-        try:
-            if request.protocol == "yapp":
-                sender, receiver = send_file, receive_file
-            else:
-                sender, receiver = send_autobin, receive_autobin
-            if request.mode == "upload":
-                result = await sender(session.link, request.path)
-            else:
-                result = await receiver(session.link, self._downloads_dir())
-        except (OSError, ValueError, YappError, AutoBinError) as exc:
-            self._note(key, f"{protocol} {request.mode} failed: {exc}")
-            self.notify(f"{protocol} {request.mode} failed: {exc}", severity="warning")
+        if request.protocol == "yapp":
+            sender, receiver = send_file, receive_file
         else:
-            self._note(key, f"{protocol} {request.mode} complete: {result.path.name} ({result.size} bytes)")
-            if request.mode == "upload":
-                self.notify(f"{protocol} upload complete: {result.path.name}")
-            else:
-                self.notify(f"{protocol} download complete: {result.path.name}, in Files > Downloads (F4).")
-                self._reload_mail_tabs()
-        finally:
-            self._transfer_active.discard(key)
-            self._set_activity("")
+            sender, receiver = send_autobin, receive_autobin
+        if request.mode == "upload":
+            transfer = sender(session.link, request.path)
+        else:
+            transfer = receiver(session.link, self._downloads_dir())
+        await self._run_transfer(key, request.protocol.upper(), request.mode, transfer)
 
     @work
     async def action_disconnect(self) -> None:

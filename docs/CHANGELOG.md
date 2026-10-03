@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — A YAPP download starts by itself when you ask for it
+
+### Improvements
+
+- **`YAPP <name>` typed at a BPQ BBS downloads the file without arming
+  anything**: the BBS's send init within a minute of asking starts the
+  download into Files > Downloads, the status bar counts the bytes and
+  the Terminal stays quiet. A sender nobody asked for is ignored. The
+  File transfer dialog's Download stays for AutoBIN.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/yapp.py`, `kissterm/ui/dialogs.py`,
+`tests/pilot/test_files_downloads.py`, `docs/GUIDE.md`, `SETUP.md`,
+`docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-03] — YAPP speaks BPQ's two-byte control packets
 
 ### Bug Fixes

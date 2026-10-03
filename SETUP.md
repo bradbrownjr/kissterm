@@ -467,9 +467,11 @@ not something kissterm can silently work around.
 While connected to a peer or BBS that supports YAPP or AutoBIN, open the F10 menu and
 choose Session > File transfer, then the protocol. For an upload, choose **Browse files**
 and select the local file; kissterm starts the selected protocol only after
-that explicit choice. For a download, choose **Download into Files >
-Downloads** first, then issue the peer's YAPP or AutoBIN download command.
-Completed downloads are saved in Files > Downloads (F4); one whose name is
+that explicit choice. A YAPP download from a BPQ BBS needs no setup: type
+`YAPP <name>` and it starts by itself when the BBS begins sending, within
+a minute of asking. For AutoBIN, or a sender that needs the receiver
+started first, choose **Download into Files > Downloads**, then issue the
+peer's download command. Completed downloads are saved in Files > Downloads (F4); one whose name is
 taken is saved as `name-1.ext`, never over the first. Neither protocol has
 been tried on the air yet. Kissterm never
 auto-detects an AutoBIN header into a write, opens, or executes transferred
