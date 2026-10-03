@@ -541,9 +541,13 @@ class FilePickerScreen(ModalScreen[Path | None]):
     def on_mount(self) -> None:
         table = self.query_one("#file-picker-table", DataTable)
         table.add_columns("Name", "Size")
-        self._render()
+        self._list_folder()
 
-    def _render(self) -> None:
+    def _list_folder(self) -> None:
+        """Fill the table with `directory`. Named `_render` until
+        2026-10-03, which replaced Textual's own `Widget._render` (a screen
+        is a widget): it returned None and Browse files crashed the app on
+        the first redraw (`tests/unit/test_textual_overrides.py`)."""
         table = self.query_one("#file-picker-table", DataTable)
         table.clear()
         table.add_row("..", "folder", key="..")
@@ -561,7 +565,7 @@ class FilePickerScreen(ModalScreen[Path | None]):
     def _choose(self, event: DataTable.RowSelected) -> None:
         entry = self.directory.parent if event.row_key.value == ".." else self.directory / str(event.row_key.value)
         if entry.is_dir():
-            self.directory = entry.resolve(); self._render()
+            self.directory = entry.resolve(); self._list_folder()
         elif entry.is_file():
             self.dismiss(entry.resolve())
 

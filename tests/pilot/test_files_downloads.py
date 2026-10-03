@@ -181,3 +181,35 @@ async def test_an_enq_nobody_asked_for_is_not_a_download(tmp_path):
         assert not any(app._downloads_dir().iterdir())
     station.close()
     bbs.close()
+
+
+@pytest.mark.asyncio
+async def test_browse_files_opens_the_picker_and_picks_a_file(tmp_path):
+    """F10 > File transfer > Browse files crashed the app (operator,
+    2026-10-03): the picker's helper replaced Textual's `_render`."""
+    from textual.widgets import DataTable
+
+    from kissterm.ui.dialogs import FilePickerScreen, FileTransferScreen
+
+    (tmp_path / "form.txt").write_text("ICS 213\n")
+    app, station, _tb = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.push_screen(FileTransferScreen())
+        await pilot.pause()
+        app.screen.query_one("#yapp-browse").press()
+        await pilot.pause()
+        assert isinstance(app.screen, FilePickerScreen)
+        picker = app.screen
+        picker.directory = tmp_path
+        picker._list_folder()
+        await pilot.pause()
+        table = picker.query_one(DataTable)
+        row = next(i for i in range(table.row_count) if table.get_row_at(i)[0] == "form.txt")
+        table.move_cursor(row=row)
+        table.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, FileTransferScreen)
+        assert app.screen.query_one("#yapp-path").value == str(tmp_path / "form.txt")
+    station.close()

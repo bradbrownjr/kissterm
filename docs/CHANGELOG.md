@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — Browse files no longer crashes
+
+### Bug Fixes
+
+- **Browse files in the File transfer dialog opens the picker**: its
+  helper was named `_render`, which replaced the method Textual draws a
+  widget with, and the first redraw crashed the app. A new test fails if
+  any kissterm widget replaces a private Textual method unlisted.
+
+**Files:** `kissterm/ui/dialogs.py`, `tests/unit/test_textual_overrides.py`,
+`tests/pilot/test_files_downloads.py`, `docs/CHANGELOG.md`
+
 ## [2026-10-03] — A YAPP download starts by itself when you ask for it
 
 ### Improvements
