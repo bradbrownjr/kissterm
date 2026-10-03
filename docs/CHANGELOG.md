@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — F fills in a PKTNET form from the Files viewer
+
+### New Features
+
+- **F on a PKTNET form page** (vden.org/pktnet, the zips WS1EC-2 offers)
+  opens kissterm's form for it: a new PKTNET Bulletin form, the PKTNET
+  Check-in, or the NTS radiogram. It goes to compose and the Outbox like
+  any form. Each kissterm form is tested against the page's own Generate
+  handler, run under Node with jQuery stubbed.
+
+**Files:** `kissterm/files_view.py`, `kissterm/ui/file_viewer.py`,
+`kissterm/ui/app.py`, `kissterm/mail/data/forms/pktnet_bulletin.toml`,
+`tests/tools/pktnet_generate.js`, `tests/unit/test_pktnet_forms.py`,
+`tests/unit/data/pktnet/`, `tests/pilot/test_files_downloads.py`,
+`assets/screenshot-file-viewer.png`, `docs/GUIDE.md`, `docs/PROTOCOL_GUIDE.md`,
+`DESIGN.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-03] — Files viewer: zips, Markdown and HTML
 
 ### New Features

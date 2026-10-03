@@ -4439,13 +4439,16 @@ class KissTermApp(App):
             await asyncio.sleep(CONNECT_SCRIPT_LINE_DELAY)
 
     @work(exclusive=False)
-    async def action_compose_mail(self, reply: str = "", quoted: bool | None = False) -> None:
+    async def action_compose_mail(self, reply: str = "", quoted: bool | None = False,
+                                  form: str = "") -> None:
         """Write a message into Mail/BBS/Outbox, or Mail/Winlink/Outbox
         for a Winlink one (Mail tab: Insert, R, Q).
 
         `reply` is the store ref of the message answered; `quoted` None
         means "as Settings > Mail says" (R), True always quotes (Q).
-        Nothing transmits: the message waits in the Outbox.
+        `form` starts at a Type as the compose screen returns it
+        (`FORM_PREFIX` + id, or `RADIOGRAM`): F on a PKTNET form in the
+        Files viewer. Nothing transmits: the message waits in the Outbox.
         """
         from ..config import state_path
         from ..locator import to_grid
@@ -4470,7 +4473,7 @@ class KissTermApp(App):
             quoted = self.config.reply_quote
         folder = self._mail_folder()
         on_winlink = folder == WINLINK_FOLDER or folder.startswith(f"{WINLINK_FOLDER}/")
-        message = await self.push_screen_wait(
+        message = form or await self.push_screen_wait(
             ComposeScreen(str(self.config.mycall or ""), reply_to=original, quoted=bool(quoted),
                           bulletins=bulletin_choices(self.mail_store), winlink=on_winlink)
         )

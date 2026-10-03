@@ -106,6 +106,24 @@ def html_title(data: bytes) -> str:
     return parser.title.strip()
 
 
+#: The PKTNET forms (vden.org/pktnet, KN4LQN and N3MEL) by their page's
+#: `<title>`, and the kissterm form that fills each: a forms-framework id
+#: (`mail/data/forms/`), or "radiogram" for the NTS radiogram screen. The
+#: page's script is never run; the kissterm form reproduces what its
+#: "Generate" button writes, from the page's source (each data file says
+#: which version). A title not here is shown and not offered.
+PKTNET_FORMS = {
+    "PACKET BULLETIN MESSAGE": "pktnet_bulletin",
+    "PACKET CHECK-IN FORM": "pktnet_checkin",
+    "PACKET RADIOGRAM": "radiogram",
+}
+
+
+def pktnet_form(data: bytes) -> str:
+    """The kissterm form for a PKTNET form page (`PKTNET_FORMS`), or ""."""
+    return PKTNET_FORMS.get(" ".join(html_title(data).split()).upper(), "")
+
+
 def html_to_markdown(data: bytes) -> str:
     """An HTML page as Markdown (module docstring)."""
     parser = _HtmlToMarkdown()

@@ -13,6 +13,12 @@ the plain preview in the reader; Enter is the deliberate "open".
 
 Links are shown but never followed (`open_links=False`): a page from the
 air does not get to open a browser.
+
+**F fills in a PKTNET form** (operator, 2026-10-03: "make them fillable").
+A page recognised by its title (`files_view.PKTNET_FORMS`) opens the
+matching kissterm form, as Mail > Insert does with that Type chosen; the
+message is addressed in the compose screen and saved to the Outbox, so
+nothing transmits from here. The page's own script is never run.
 """
 
 from __future__ import annotations
@@ -27,7 +33,14 @@ from textual.containers import Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Label, Markdown, Static
 
-from ..files_view import html_to_markdown, kind_of, text_of, zip_members, zip_read
+from ..files_view import (
+    html_to_markdown,
+    kind_of,
+    pktnet_form,
+    text_of,
+    zip_members,
+    zip_read,
+)
 from .wraplog import WrapLog
 
 #: The most of a file on disk the viewer reads.
@@ -53,7 +66,10 @@ class FileViewerScreen(ModalScreen[None]):
     FileViewerScreen #viewer-members { height: 1fr; }
     """
 
-    BINDINGS = [Binding("escape", "dismiss(None)", "Close")]
+    BINDINGS = [
+        Binding("escape", "dismiss(None)", "Close"),
+        Binding("f", "fill_in", "Fill in"),
+    ]
 
     def __init__(self, name: str, data: bytes) -> None:
         super().__init__()
@@ -62,6 +78,8 @@ class FileViewerScreen(ModalScreen[None]):
         self.kind = kind_of(name, data)
         self._members: list[tuple[str, int]] = []
         self._problem = ""
+        #: The kissterm form this page is, if it is a PKTNET form.
+        self.form = pktnet_form(data) if self.kind == "html" else ""
         if self.kind == "zip":
             try:
                 self._members = zip_members(data)
@@ -99,6 +117,20 @@ class FileViewerScreen(ModalScreen[None]):
             log.focus()
         elif self.kind in ("markdown", "html"):
             self.query_one("#viewer-body").focus()
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        if action == "fill_in":
+            return bool(self.form)
+        return True
+
+    def action_fill_in(self) -> None:
+        """Close every viewer and open the form in the compose flow."""
+        from .compose import FORM_PREFIX, RADIOGRAM
+
+        start = RADIOGRAM if self.form == "radiogram" else FORM_PREFIX + self.form
+        while isinstance(self.app.screen, FileViewerScreen):
+            self.app.pop_screen()
+        self.app.action_compose_mail(form=start)  # type: ignore[attr-defined]
 
     @on(DataTable.RowSelected, "#viewer-members")
     def _open_member(self, event: DataTable.RowSelected) -> None:

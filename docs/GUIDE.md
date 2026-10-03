@@ -132,7 +132,7 @@ and a subject line, as the 2026 RRI guidelines give it.
 ### Forms
 
 The ICS-213 General Message, ICS-213RR Resource Request, Winlink Check-in,
-PKTNET Check-in, Field Situation Report, Severe WX Report, Damage
+PKTNET Check-in, PKTNET Bulletin, Field Situation Report, Severe WX Report, Damage
 Assessment, Incident Status Report, ICS-309 Communications Log, ICS-214
 Activity Log and ICS-205 Radio Plan are message Types. Each is laid out as
 its published form, so any station can read it; you fill in the form,
@@ -203,6 +203,14 @@ shows a plain preview in the reader, and Esc closes the viewer.
   (`[________]`, `[Routine v]`). Scripts are not run and nothing the page
   links to is fetched; links show their address and are never followed.
 - **Other text** is shown as text; anything else is named with its size.
+
+**F fills in a PKTNET form.** The PKTNET packet forms (vden.org/pktnet,
+the zips WS1EC-2 offers) are recognised by their title, and F opens
+kissterm's own form for that page: the Bulletin, the Check-in, or the NTS
+radiogram (kissterm's radiogram screen, laid out by the ARRL rules rather
+than the page's). You fill it in and address it as any message; it waits
+in the Outbox. The page's script is never run; kissterm's form writes the
+same text its Generate button does, checked against the page itself.
 
 ![A downloaded PKTNET form in the viewer](../assets/screenshot-file-viewer.png)
 

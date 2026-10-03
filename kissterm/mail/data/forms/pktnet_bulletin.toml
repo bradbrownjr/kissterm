@@ -1,0 +1,74 @@
+# PACKET BULLETIN MESSAGE, the PKTNET bulletin form.
+# Body: vden.org PKTNET bulletin.html (Ver 1.1, KN4LQN, concept N3MEL;
+# the copy WS1EC-2 serves, 2026-10-03, and pktnet-forms.zip v1.2), its
+# "#generate" handler line for line. Date and time default to local
+# now, YYYY-MM-DD and HH:MM, as its document.ready does. Precedence's
+# option text "Immediate " carries a trailing space in the page; the
+# value here has none. Subject: the page's own title for the field;
+# where it goes (SB, SP) is chosen in the compose screen.
+id = "pktnet_bulletin"
+title = "PKTNET Bulletin"
+source = "vden.org PKTNET bulletin.html Ver 1.1 (KN4LQN, N3MEL)"
+subject = "<var subject>"
+send_type = "B"
+body = '''
+PACKET BULLETIN MESSAGE
+
+For: <var for>   Bulletin #: <var bulletin_no>
+
+From: <var from>
+
+Date: <var date>
+
+Time: <var time>
+
+Precedence: <var precedence>
+
+Subject: <var subject>
+
+Bulletin Message:
+<var message>
+'''
+
+[[fields]]
+id = "for"
+label = "For"
+help = "Name or group the bulletin is for."
+
+[[fields]]
+id = "bulletin_no"
+label = "Bulletin #"
+
+[[fields]]
+id = "from"
+label = "From"
+help = "Name or group it is from."
+remember = true
+
+[[fields]]
+id = "date"
+label = "Date"
+kind = "date"
+
+[[fields]]
+id = "time"
+label = "Time"
+kind = "time"
+
+[[fields]]
+id = "precedence"
+label = "Precedence"
+kind = "choice"
+choices = ["Flash", "Immediate", "Priority", "Routine"]
+default = "Routine"
+
+[[fields]]
+id = "subject"
+label = "Subject"
+required = true
+
+[[fields]]
+id = "message"
+label = "Bulletin message"
+kind = "multiline"
+required = true
