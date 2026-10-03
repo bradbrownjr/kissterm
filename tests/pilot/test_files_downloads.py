@@ -213,3 +213,46 @@ async def test_browse_files_opens_the_picker_and_picks_a_file(tmp_path):
         assert isinstance(app.screen, FileTransferScreen)
         assert app.screen.query_one("#yapp-path").value == str(tmp_path / "form.txt")
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_enter_opens_a_zip_and_its_files_formatted(tmp_path):
+    """Enter on a downloaded zip lists its files; Enter on one shows it
+    formatted; Esc goes back a level each time (operator, 2026-10-03)."""
+    import io
+    import zipfile
+    from pathlib import Path
+
+    from textual.widgets import DataTable, Markdown
+
+    from kissterm.ui.file_viewer import FileViewerScreen
+
+    page = (Path(__file__).parents[1] / "unit" / "data" / "pktnet" / "bulletin.html").read_bytes()
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("bulletin.html", page)
+        archive.writestr("README.md", b"# Forms\n\nRead **me**.\n")
+    app, station, _tb = await _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        (app._downloads_dir() / "forms.zip").write_bytes(buffer.getvalue())
+        browser, table = await _files_tab(app, pilot, "Files/Downloads")
+        await wait_for(lambda: table.row_count == 1, "the zip in the list")
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, FileViewerScreen) and app.screen.kind == "zip"
+        members = app.screen.query_one(DataTable)
+        assert members.row_count == 2
+        members.move_cursor(row=0)
+        await pilot.press("enter")
+        await pilot.pause()
+        viewer = app.screen
+        assert isinstance(viewer, FileViewerScreen) and viewer.kind == "html"
+        assert "Precedence: [Routine v]" in viewer.query_one(Markdown).source
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.screen.kind == "zip"
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.screen, FileViewerScreen)
+    station.close()

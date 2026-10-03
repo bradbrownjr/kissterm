@@ -242,8 +242,9 @@ is the enforcement.
    BBS by its Telnet or SSH connection, Winlink by the CMS) -- and Insert
    writes a new message; on Bulletins, G gets bulletins from the Home BBS,
    I the same over the Internet, and S chooses the categories; on Files,
-   Delete and U work on files too (Files > Deleted), and S sends the
-   highlighted file over the connected session; on Mail and
+   Delete and U work on files too (Files > Deleted), S sends the
+   highlighted file over the connected session, and Enter opens the file
+   full screen in the viewer (a click previews it in the reader); on Mail and
    Bulletins, V switches a message
    received as a form between the form and its text, R replies and Q
    replies with the original quoted. None of them transmits; Files' S

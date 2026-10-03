@@ -191,6 +191,21 @@ by YAPP or AutoBIN: it opens the file-transfer dialog with the file
 filled in, and nothing goes out until you press Start. S shows only while
 a session is connected in the Terminal.
 
+**Enter opens a file in the viewer**, full screen; clicking one still
+shows a plain preview in the reader, and Esc closes the viewer.
+
+- **A zip** lists its files and sizes; Enter on one opens it, and Esc goes
+  back to the list. Nothing is unpacked to disk: each file is read from
+  the zip in memory, up to 1 MB, and a password-protected one is refused.
+- **Markdown** is shown formatted.
+- **HTML** is shown formatted too: headings, lists, tables and
+  preformatted text are kept, and a form's boxes are drawn as blanks
+  (`[________]`, `[Routine v]`). Scripts are not run and nothing the page
+  links to is fetched; links show their address and are never followed.
+- **Other text** is shown as text; anything else is named with its size.
+
+![A downloaded PKTNET form in the viewer](../assets/screenshot-file-viewer.png)
+
 Nothing that arrives over the air is ever opened or run for you.
 
 **File transfers (YAPP and AutoBIN)**: to download from a BPQ BBS, type

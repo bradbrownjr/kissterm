@@ -45,6 +45,7 @@ from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Tree
 
+from ..files_view import kind_of, zip_members
 from ..mail import MessageStore, form_parse, form_xml
 from ..mail.store import ALL_INBOXES, DELETED, FILES, check_folder, is_deleted_folder
 from ..monitor import sanitize
@@ -209,7 +210,21 @@ class MessageList(DataTable):
             self._browser().open_selected()
 
     def action_open_message(self) -> None:
-        self._browser().open_selected()
+        """Enter: a message opens in the reader; a file opens full screen
+        in the viewer (`file_viewer.py`), a click still previewing it."""
+        browser = self._browser()
+        path = browser.selected_file()
+        if path is None:
+            browser.open_selected()
+            return
+        from .file_viewer import FileViewerScreen, read_for_viewer
+
+        try:
+            data = read_for_viewer(path)
+        except OSError as exc:
+            self.app.notify(f"Can't read {path.name}: {exc}", severity="warning")
+            return
+        self.app.push_screen(FileViewerScreen(path.name, data))
 
     def action_delete_message(self) -> None:
         self._browser().delete_selected()
@@ -516,12 +531,25 @@ class MessageBrowser(Horizontal):
             path = self.store.root / ref
             with open(path, "rb") as handle:
                 data = handle.read(_PREVIEW_BYTES + 1)
-            if b"\x00" in data[:1024]:
+            kind = kind_of(path.name, data)
+            if kind == "zip":
+                try:
+                    members = zip_members(path.read_bytes())
+                except (OSError, ValueError) as exc:
+                    reader.write(Text(f"{path.name}: {exc}"))
+                    return
+                listing = "\n".join(f"{size:>10,}  {name}" for name, size in members)
+                reader.write(Text(sanitize(listing.encode()) or "(empty zip)"))
+                reader.write(Text("Enter opens the zip to read its files.", style="dim"))
+                return
+            if kind == "binary":
                 reader.write(Text(f"{path.name}: not a text file ({path.stat().st_size:,} bytes)."))
                 return
             reader.write(Text(sanitize(data[:_PREVIEW_BYTES])))
             if len(data) > _PREVIEW_BYTES:
                 reader.write(Text("[preview ends here]", style="dim"))
+            if kind in ("markdown", "html"):
+                reader.write(Text("Enter shows it formatted.", style="dim"))
             return
         message = self.store.read(ref)
         if ref != self._open_ref:

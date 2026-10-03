@@ -338,6 +338,15 @@ async def main() -> int:
         app.action_show_tab("files")
         await _show(app, pilot, "files-browser", "Files/Attachments", row=1)
         await shot("screenshot-files")
+        # 5b. A downloaded PKTNET form, opened with Enter.
+        from kissterm.ui.file_viewer import FileViewerScreen
+
+        page = (REPO / "tests" / "unit" / "data" / "pktnet" / "bulletin.html").read_bytes()
+        app.push_screen(FileViewerScreen("bulletin.html.zip / bulletin.html", page))
+        await _pause(pilot, 0.3)
+        await shot("screenshot-file-viewer")
+        app.pop_screen()
+        await _pause(pilot)
         # 6. The terminal at a BBS prompt, its commands suggested.
         await _node_session(app, pilot, node)
         await shot("screenshot-terminal")

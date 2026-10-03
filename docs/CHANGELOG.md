@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — Files viewer: zips, Markdown and HTML
+
+### New Features
+
+- **Enter on a file opens it full screen**: a zip lists its files and
+  opens each one, read in memory and never unpacked to disk; Markdown is
+  shown formatted; HTML is converted to Markdown with the standard library
+  (no scripts run, nothing fetched, links never followed, form boxes drawn
+  as blanks). A click still previews; a zip's preview lists its files.
+
+**Files:** `kissterm/files_view.py`, `kissterm/ui/file_viewer.py`,
+`kissterm/ui/mail_pane.py`, `scripts/generate_screenshot.py`,
+`assets/screenshot-file-viewer.png`, `tests/unit/test_files_view.py`,
+`tests/unit/data/pktnet/bulletin.html`, `tests/pilot/test_files_downloads.py`,
+`docs/GUIDE.md`, `DESIGN.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-03] — Browse files no longer crashes
 
 ### Bug Fixes
