@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — YAPP speaks BPQ's two-byte control packets
+
+### Bug Fixes
+
+- **A YAPP download from a BPQ BBS works**: kissterm read BPQ's opening
+  `ENQ 1` as the start of a longer packet and never answered, so the
+  download timed out while the BBS waited (WS1EC-2, over the air). YAPP's
+  control packets are two bytes; only the header, data, refusal and
+  cancel carry a length (LinBPQ `BBSUtilities.c`). An upload had the same
+  fault, sent 256-byte packets BPQ reads as empty, and now reports a
+  BBS's refusal with its reason ("already exists").
+
+**Files:** `kissterm/yapp.py`, `tests/unit/test_yapp.py`, `docs/SOURCES.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-03] — Two crashes over SSH; no secrets in a crash report
 
 ### Bug Fixes
