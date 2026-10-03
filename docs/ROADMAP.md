@@ -282,7 +282,7 @@ Mail
   Local            Inbox  Sent  Deleted             (P9's mailbox; hidden until it ships)
 Bulletins          ALL  ARES  WX  ...  Deleted      (by category, with expiry)
 Files
-  Downloads  Attachments  Received
+  Downloads  Attachments  Received  Deleted
 ```
 
 - **Plain files, one per message, in a directory tree that mirrors the UI**,

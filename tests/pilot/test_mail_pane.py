@@ -140,7 +140,7 @@ async def test_files_tab_lists_and_previews_text(tmp_path):
         await pilot.pause()
         table = files.query_one(MessageList)
         assert str(table.get_row_at(0)[0]) == "notes.txt"
-        assert not files.can_delete()
+        assert files.can_delete()  # to Files > Deleted (operator, 2026-10-03)
         table.focus()
         await pilot.press("enter")
         await pilot.pause()

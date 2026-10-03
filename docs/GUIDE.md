@@ -183,6 +183,13 @@ WX), so kissterm collects only the categories you choose:
   name already there is saved as `name-1.ext`, never over the first.
 - **Received**: kept for files that arrive while you are away, which needs
   the unattended mailbox (ROADMAP P9); empty until then.
+- **Deleted**: Delete on a file moves it here; U puts it back where it
+  was, under its own name.
+
+**S sends the highlighted file** to the station you are connected to,
+by YAPP or AutoBIN: it opens the file-transfer dialog with the file
+filled in, and nothing goes out until you press Start. S shows only while
+a session is connected in the Terminal.
 
 Nothing that arrives over the air is ever opened or run for you.
 

@@ -470,6 +470,11 @@ class FileTransferScreen(ModalScreen[FileTransferRequest | None]):
     """Explicit local-file choice for one YAPP or AutoBIN client transfer."""
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
+    def __init__(self, path: Path | None = None) -> None:
+        super().__init__()
+        #: A file to upload, filled in (S on the Files tab).
+        self._path = path
+
     def compose(self) -> ComposeResult:
         with Vertical(id="connect-box"):
             yield Label("File transfer", id="connect-title")
@@ -481,7 +486,8 @@ class FileTransferScreen(ModalScreen[FileTransferRequest | None]):
                 [("Upload local file", "upload"), ("Download into Files > Downloads", "download")],
                 value="upload", id="yapp-mode", allow_blank=False,
             )
-            yield Input(placeholder="Local file path", id="yapp-path")
+            yield Input(str(self._path) if self._path else "",
+                        placeholder="Local file path", id="yapp-path")
             yield Button("Browse files", id="yapp-browse")
             yield Static("Upload starts the selected protocol. For download, start this first, "
                          "then request it from the peer; it is saved in Files > Downloads (F4).")

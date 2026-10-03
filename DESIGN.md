@@ -241,10 +241,13 @@ is the enforcement.
    (operator, 2026-09-26); I does the same over the Internet (the Home
    BBS by its Telnet or SSH connection, Winlink by the CMS) -- and Insert
    writes a new message; on Bulletins, G gets bulletins from the Home BBS,
-   I the same over the Internet, and S chooses the categories; on Mail and
+   I the same over the Internet, and S chooses the categories; on Files,
+   Delete and U work on files too (Files > Deleted), and S sends the
+   highlighted file over the connected session; on Mail and
    Bulletins, V switches a message
    received as a form between the form and its text, R replies and Q
-   replies with the original quoted. None of them transmits.
+   replies with the original quoted. None of them transmits; Files' S
+   only opens the transfer dialog, which transmits on Start.
 5. **The Footer shows only what works right now.** An action that does not
    apply on this tab, or in this state, is absent — not shown and then
    answered with a toast. `KissTermApp.check_action` is where that decision

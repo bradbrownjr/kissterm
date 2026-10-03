@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — Files tab: Delete, U and S
+
+### New Features
+
+- **S on the Files tab sends the highlighted file** over the connected
+  session, opening the YAPP/AutoBIN dialog with the file filled in;
+  shown only while a session is connected, and nothing goes out before
+  Start.
+
+### Improvements
+
+- **Delete works on files**: moves one to a new Files > Deleted folder,
+  and U puts it back where it was, under its own name (a hidden note
+  beside it records both).
+
+**Files:** `kissterm/mail/store.py`, `kissterm/ui/mail_pane.py`,
+`kissterm/ui/app.py`, `kissterm/ui/dialogs.py`, `tests/unit/test_mail_store.py`,
+`tests/pilot/test_files_downloads.py`, `tests/pilot/test_mail_pane.py`,
+`docs/GUIDE.md`, `DESIGN.md`, `docs/ROADMAP.md`, `assets/screenshot-files.png`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-03] — Downloads in Files > Downloads
 
 ### Improvements

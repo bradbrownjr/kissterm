@@ -251,3 +251,35 @@ def test_has_bbs_number_by_source_including_deleted(tmp_path):
     assert store.has_bbs_number("BBS WS1EC", "2578")
     # The index is a cache: a fresh store rebuilds the number from the file.
     assert MessageStore(tmp_path).has_bbs_number("BBS WS1EC", 2578)
+
+
+# -- files (the Files tab) -------------------------------------------------------
+
+
+def test_a_deleted_file_goes_to_files_deleted_and_back(tmp_path):
+    store = MessageStore(tmp_path / "mail")
+    store.ensure_default_tree()
+    (store.root / "Files" / "Downloads" / "roster.txt").write_text("x")
+    gone = store.delete_file("Files/Downloads/roster.txt")
+    assert gone == "Files/Deleted/roster.txt"
+    assert not (store.root / "Files" / "Downloads" / "roster.txt").exists()
+    back = store.restore_file(gone)
+    assert back == "Files/Downloads/roster.txt"
+    assert not list((store.root / "Files" / "Deleted").iterdir())  # note removed too
+
+
+def test_deleting_never_overwrites_and_never_leaves_files(tmp_path):
+    import pytest
+
+    store = MessageStore(tmp_path / "mail")
+    store.ensure_default_tree()
+    for folder in ("Downloads", "Attachments"):
+        (store.root / "Files" / folder / "a.txt").write_text(folder)
+    store.delete_file("Files/Downloads/a.txt")
+    second = store.delete_file("Files/Attachments/a.txt")
+    assert second == "Files/Deleted/a-1.txt"
+    assert store.restore_file(second) == "Files/Attachments/a.txt"
+    with pytest.raises(ValueError):
+        store.delete_file("../outside.txt")
+    with pytest.raises(ValueError):
+        store.restore_file("Files/Downloads/missing.txt")

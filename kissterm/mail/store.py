@@ -93,6 +93,7 @@ DEFAULT_FOLDERS = (
     f"{FILES}/Downloads",
     f"{FILES}/Attachments",
     f"{FILES}/Received",
+    f"{FILES}/{DELETED}",
 )
 
 _SEGMENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}$")
@@ -601,6 +602,61 @@ class MessageStore:
         self._rewrite(new_ref, restored)
         return new_ref
 
+    # -- files (the Files tab) ----------------------------------------------
+
+    def delete_file(self, ref: str) -> str:
+        """Move a file from a Files folder to Files/Deleted; returns its new
+        ref. Where it came from, and its name, are kept beside it in a
+        hidden `.<name>.from` (the Files tab lists no dot-files), so
+        `restore_file` can put it back as it was; a name already in Deleted
+        gets `-1`, `-2` ... ."""
+        root = self.root.resolve()
+        source = self._file_path(ref)
+        folder = source.parent.relative_to(root).as_posix()
+        if is_deleted_folder(folder):
+            raise ValueError("already in Deleted")
+        deleted = root / FILES / DELETED
+        deleted.mkdir(parents=True, exist_ok=True)
+        target = _free_name(deleted, source.name)
+        os.replace(source, target)
+        (deleted / f".{target.name}.from").write_text(f"{folder}\n{source.name}\n", "utf-8")
+        return target.relative_to(root).as_posix()
+
+    def restore_file(self, ref: str) -> str:
+        """Put a file in Files/Deleted back where it was deleted from
+        (Downloads if that is not recorded); returns its new ref."""
+        root = self.root.resolve()
+        source = self._file_path(ref)
+        if source.parent != root / FILES / DELETED:
+            raise ValueError("only a file in Files/Deleted can be restored")
+        note = source.with_name(f".{source.name}.from")
+        name = source.name
+        try:
+            recorded = note.read_text("utf-8").splitlines()
+            folder = check_folder(recorded[0].strip())
+            if not folder.startswith(f"{FILES}/") or is_deleted_folder(folder):
+                raise ValueError(folder)
+            original = recorded[1].strip() if len(recorded) > 1 else ""
+            if original and "/" not in original and "\\" not in original \
+                    and not original.startswith("."):
+                name = original
+        except (OSError, ValueError, IndexError):
+            folder = f"{FILES}/Downloads"
+        directory = root.joinpath(*folder.split("/"))
+        directory.mkdir(parents=True, exist_ok=True)
+        target = _free_name(directory, name)
+        os.replace(source, target)
+        note.unlink(missing_ok=True)
+        return target.relative_to(root).as_posix()
+
+    def _file_path(self, ref: str) -> Path:
+        unresolved = self.root / ref
+        path = unresolved.resolve()
+        if not path.is_relative_to((self.root / FILES).resolve()) or not path.is_file() \
+                or unresolved.is_symlink():
+            raise ValueError(f"not a file in {FILES}: {ref}")
+        return path
+
     def purge(self, ref: str) -> None:
         """Remove a message and its raw siblings for good. Deleted folders only."""
         if not is_deleted_folder(self._folder_of(ref)):
@@ -610,3 +666,16 @@ class MessageStore:
             sibling.unlink()
         path.unlink()
         self._touch_index(removed=(ref,))
+
+
+def _free_name(directory: Path, name: str) -> Path:
+    """`directory/name`, or `stem-1.ext` and up when that is taken."""
+    target = directory / name
+    if not target.exists():
+        return target
+    stem, suffix = target.stem, target.suffix
+    for index in range(1, 10_000):
+        candidate = directory / f"{stem}-{index}{suffix}"
+        if not candidate.exists():
+            return candidate
+    raise ValueError(f"too many files named {name}")

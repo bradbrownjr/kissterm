@@ -5518,15 +5518,25 @@ class KissTermApp(App):
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
+    def can_send_file(self) -> bool:
+        """Whether S on the Files tab can send: a connected session in the
+        Terminal and no transfer already running on it."""
+        key = self._active_key()
+        session = self._sessions.get(key)
+        return (session is not None and session.link is not None and session.link.connected
+                and key not in self._transfer_active)
+
     @work
-    async def action_file_transfer(self) -> None:
-        """Start one explicit YAPP/AutoBIN upload or arm an explicit download."""
+    async def action_file_transfer(self, path: Path | None = None) -> None:
+        """Start one explicit YAPP/AutoBIN upload or arm an explicit download.
+        `path` (S on the Files tab) fills in an upload of that file; the
+        operator still chooses the protocol and presses Start."""
         key = self._active_key()
         session = self._sessions.get(key)
         if session is None or session.link is None or not session.link.connected:
             self.notify("Connect before starting a file transfer.", severity="warning")
             return
-        request = await self.push_screen_wait(FileTransferScreen())
+        request = await self.push_screen_wait(FileTransferScreen(path))
         if request is None:
             return
         if self.gate is not None and not self.gate.enabled:

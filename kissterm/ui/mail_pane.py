@@ -21,7 +21,9 @@ Deleted, and on the Mail tab G sends and receives: with the Home BBS on a
 BBS folder, with Winlink on a Winlink folder, and with each one set up on
 All Inboxes (`KissTermApp.send_receive_kind`; the Footer says which). On
 the Bulletins tab G gets bulletins, I gets them over the Internet and S
-chooses the categories. Each key is shown only where it works
+chooses the categories. On the Files tab Delete moves a file to Files >
+Deleted (U restores it), and S sends it by YAPP or AutoBIN over the
+connected session. Each key is shown only where it works
 (`MessageList.check_action`). Compose (Insert) and reply are added when
 they exist, not before.
 
@@ -146,6 +148,7 @@ class MessageList(DataTable):
         Binding("i", "get_internet", "By Internet"),
         Binding("v", "toggle_form", "Form/text"),
         *_BULLETIN_BINDINGS,
+        Binding("s", "send_file", "Send"),
     ]
 
     def _browser(self) -> "MessageBrowser":
@@ -155,6 +158,10 @@ class MessageList(DataTable):
         browser = self._browser()
         if action in _BULLETIN_ACTIONS:
             return browser.id == "bulletins-browser"
+        if action == "send_file":
+            return (browser.files and self.row_count > 0
+                    and not is_deleted_folder(browser.folder or "Files")
+                    and self.app.can_send_file())  # type: ignore[attr-defined]
         if action == "open_message":
             return self.row_count > 0
         if action == "delete_message":
@@ -230,6 +237,11 @@ class MessageList(DataTable):
 
     def action_bulletin_categories(self) -> None:
         self.app.action_bulletin_categories()  # type: ignore[attr-defined]
+
+    def action_send_file(self) -> None:
+        path = self._browser().selected_file()
+        if path is not None:
+            self.app.action_file_transfer(path)  # type: ignore[attr-defined]
 
 
 class MessageBrowser(Horizontal):
@@ -433,6 +445,7 @@ class MessageBrowser(Horizontal):
                     datetime.fromtimestamp(stat.st_mtime).strftime("%m-%d %H:%M"),
                 )
                 self._rows.append(path.relative_to(self.store.root).as_posix())
+            self.refresh_bindings()
             return
         combined = folder == ALL_INBOXES
         columns = ["", "From", "Subject", "Date"]
@@ -465,6 +478,11 @@ class MessageBrowser(Horizontal):
         """The highlighted message's store ref, or "" (none, or a file)."""
         return "" if self.files else self._selected()
 
+    def selected_file(self) -> Path | None:
+        """The highlighted file on the Files tab, or None."""
+        ref = self._selected() if self.files else ""
+        return self.store.root / ref if ref else None
+
     def _selected(self) -> str:
         table = self.query_one(MessageList)
         if not self._rows or table.cursor_row < 0 or table.cursor_row >= len(self._rows):
@@ -476,14 +494,14 @@ class MessageBrowser(Horizontal):
         return self.app.send_receive_kind(self.folder)  # type: ignore[attr-defined]
 
     def can_delete(self) -> bool:
-        return not self.files and self.folder != "" and (
+        if self.files:
+            return self.folder != "" and not is_deleted_folder(self.folder)
+        return self.folder != "" and (
             self.folder == ALL_INBOXES or not is_deleted_folder(self.folder)
         )
 
     def can_restore(self) -> bool:
-        return not self.files and self.folder not in ("", ALL_INBOXES) and is_deleted_folder(
-            self.folder
-        )
+        return self.folder not in ("", ALL_INBOXES) and is_deleted_folder(self.folder)
 
     # -- reader -------------------------------------------------------------
 
@@ -547,6 +565,11 @@ class MessageBrowser(Horizontal):
     def delete_selected(self) -> None:
         ref = self._selected()
         if ref and self.can_delete():
+            if self.files:
+                self.store.delete_file(ref)
+                self._refresh_after_change()
+                self.app.notify(f"Moved to Files > {DELETED}. U restores it from there.")
+                return
             self.store.delete(ref)
             self._refresh_after_change()
             self.app.notify(f"Moved to {DELETED}. U restores it from there.")
@@ -554,6 +577,11 @@ class MessageBrowser(Horizontal):
     def restore_selected(self) -> None:
         ref = self._selected()
         if ref and self.can_restore():
+            if self.files:
+                back = self.store.restore_file(ref)
+                self._refresh_after_change()
+                self.app.notify(f"Restored to {back.rsplit('/', 1)[0].replace('/', ' > ')}.")
+                return
             back = self.store.restore(ref)
             self._refresh_after_change()
             self.app.notify(f"Restored to {back.rsplit('/', 1)[0]}.")
