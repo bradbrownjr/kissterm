@@ -91,7 +91,7 @@ class WinlinkOptions:
     #: The Winlink account (callsign, no SSID).
     account: str
     #: The account's password, for a `;PQ:` challenge; "" if none is set.
-    password: str = ""
+    password: str = field(default="", repr=False)
     #: Who we say we are talking to (`; TARGET DE ACCOUNT`).
     target: str = "WL2K"
     #: Maidenhead locator for the handshake; may be "".

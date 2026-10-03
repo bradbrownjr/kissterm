@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — Two crashes over SSH; no secrets in a crash report
+
+### Bug Fixes
+
+- **G on Mail no longer crashes while an SSH or Telnet session is open**:
+  the "already connected" check read the session's peer, a host name,
+  as an AX.25 address.
+- **No crash 25 s after a line typed over SSH or Telnet**: the "no reply
+  yet" note read AX.25 sequence numbers a session link does not have.
+- **A crash report no longer prints local variables**: Textual's showed
+  the Winlink password among them. The report (stack only) also goes to
+  kissterm.log, and password-holding options are left out of their repr.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/mail/collect.py`,
+`kissterm/mail/winlink_collect.py`, `tests/pilot/test_session_transport.py`,
+`tests/pilot/test_crash_report.py`, `tests/unit/test_login_mask.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-03] — Files tab: Delete, U and S
 
 ### New Features

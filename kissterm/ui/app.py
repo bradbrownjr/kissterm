@@ -1426,6 +1426,26 @@ class KissTermApp(App):
         """Same rule as `_on_beacon_sent`: every transmission is visible."""
         log.info("APRS position beacon sent")
 
+    def _fatal_error(self) -> None:
+        """Textual's crash report, without local variables. Textual prints
+        every frame's locals, and a crash inside Get mail printed the
+        Winlink password among them (operator, 2026-10-03). The stack alone
+        names the line; the full report also goes to kissterm.log, still
+        without locals, so a crash can be sent in without editing it.
+        Overrides a private Textual method (8.2.8);
+        `tests/pilot/test_crash_report.py` fails if it stops being called."""
+        import rich
+        from rich.segment import Segments
+        from rich.traceback import Traceback
+
+        log.error("kissterm crashed", exc_info=True)
+        self.bell()
+        traceback = Traceback(show_locals=False, width=None, suppress=[rich])
+        self._exit_renderables.append(
+            Segments(self.console.render(traceback, self.console.options))
+        )
+        self._close_messages_no_wait()
+
     def on_unmount(self) -> None:
         """Disarm the beacons as the app goes away.
 
@@ -3049,7 +3069,13 @@ class KissTermApp(App):
             return
         session.reply_timer = None
         link = session.link
-        if link is None or not link.connected or link.va != link.vs:
+        # A session-tier link (Telnet, SSH, VARA) has no V(A)/V(S): its
+        # transport acknowledges nothing kissterm can see, so there is no
+        # "acknowledged, no reply" to report (operator, 2026-10-03: this
+        # timer crashed the app 25 s after a line typed over SSH).
+        if link is None or not link.connected or isinstance(link, _SessionLinkAdapter):
+            return
+        if link.va != link.vs:
             return
         self.notify(
             f"{link.peer} acknowledged that -- no reply yet. The Monitor tab (F8) "
@@ -4749,6 +4775,18 @@ class KissTermApp(App):
         )
         return name, text
 
+    def _connected_to(self, peer: AX25Address) -> bool:
+        """Whether a Terminal session is already connected to `peer` over
+        AX.25. Only an AX.25 link has an address to compare: a session-tier
+        link's peer is a host or a modem's name, a string (operator,
+        2026-10-03: G on Mail with WS1EC's SSH login open crashed here)."""
+        return any(
+            s.link is not None and s.link.connected
+            and isinstance(s.link.peer, AX25Address)
+            and (s.link.peer.callsign, s.link.peer.ssid) == (peer.callsign, peer.ssid)
+            for s in self._sessions.values()
+        )
+
     async def _dial_for_mail(self, entry, build, what: str):
         """Dial `entry` for Send/Receive. `build(link, key)` makes the
         runner the moment the link is up, before anything awaits, so the
@@ -4757,11 +4795,7 @@ class KissTermApp(App):
         """
         first = [h.strip() for h in entry.hops.split(",") if h.strip()] or [entry.target]
         peer = parse_path(first[0]).destination
-        if any(
-            s.link is not None and s.link.connected
-            and (s.link.peer.callsign, s.link.peer.ssid) == (peer.callsign, peer.ssid)
-            for s in self._sessions.values()
-        ):
+        if self._connected_to(peer):
             self.notify(
                 f"Already connected to {peer}. Disconnect first, then press G.",
                 severity="warning",

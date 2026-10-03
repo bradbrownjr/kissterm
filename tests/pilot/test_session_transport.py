@@ -399,3 +399,31 @@ async def test_status_bar_shows_the_session_transport_detail():
         await transport.close()
         server.close()
         await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_ax25_only_checks_skip_a_session_tier_link():
+    """Two crashes the operator hit with WS1EC's SSH login open
+    (2026-10-03): G on Mail compared the session's peer, a string, as an
+    AX.25 address, and the no-reply timer read V(A)/V(S) the adapter does
+    not have. Both now pass over a session-tier link."""
+    from kissterm.ax25.address import AX25Address
+
+    server = await asyncio.start_server(_fake_node, "127.0.0.1", 0)
+    host, port = server.sockets[0].getsockname()[:2]
+    transport = TelnetTransport(host, port)
+    await transport.open()
+    app = KissTermApp(Config(mycall="N1ABC-1"), station=None, session_transport=transport)
+    try:
+        async with app.run_test(size=(110, 32)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+n")
+            await pilot.pause()
+            await asyncio.sleep(0.3)
+            assert app.link is not None and app.link.connected
+            assert not app._connected_to(AX25Address.parse("WS1EC-2"))
+            app._note_if_no_reply(app._active_key())
+    finally:
+        await transport.close()
+        server.close()
+        await server.wait_closed()

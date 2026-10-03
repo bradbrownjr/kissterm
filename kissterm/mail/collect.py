@@ -127,13 +127,14 @@ class CollectOptions:
     ready_text: str = ""
     #: Text after which `login_text` is sent; "" sends no login.
     login_prompt: str = ""
-    login_text: str = ""
+    #: The login lines, a password among them: kept out of repr (2026-10-03).
+    login_text: str = field(default="", repr=False)
     idle_timeout: float = DEFAULT_IDLE_TIMEOUT
     #: Over the Internet (Telnet, or SSH into a Telnet session): answer
     #: BPQ's `user:` and `password:` with these, then send `after_login`
     #: (`BBS`: a BPQ Telnet login lands at the node, not the BBS).
     telnet_user: str = ""
-    telnet_password: str = ""
+    telnet_password: str = field(default="", repr=False)
     after_login: str = ""
     #: Collect bulletins (the Bulletins tab) in place of mail.
     bulletins: bool = False

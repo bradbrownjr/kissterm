@@ -13,7 +13,7 @@ from kissterm.ui.app import KissTermApp  # noqa: E402
 
 def test_a_saved_password_line_is_masked_and_nothing_else():
     config = Config(mycall="N1ABC")
-    config.credentials = [{"name": "WS1EC SSH login", "username": "N1ABC", "text": "YXVFFC"}]
+    config.credentials = [{"name": "WS1EC SSH login", "username": "N1ABC", "text": "hunter2"}]
     app = KissTermApp(config, station=None)
     username, password = login_text(config, "WS1EC SSH login").splitlines()
     assert app._masked(password) == "********"
