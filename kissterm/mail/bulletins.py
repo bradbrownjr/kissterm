@@ -26,7 +26,11 @@ What BPQMail sends, from the LinBPQ source (`BBSUtilities.c`,
   by column.
 - `LB> WX` lists bulletins whose "to" is WX, ignoring case (`DoListCommand`:
   type `B`, selector `>`), newest first; `LB> WX 2801-` lists only from
-  2801 up, which is how a later run asks for what is new and no more.
+  2801 up, which is how a later run asks for what is new and no more, and
+  `LB> WX 2705-2804` one window of numbers, which is how a first run goes
+  back a few days without a listing that cannot be stopped: **most users
+  do not page** (operator, 2026-10-02), so `A` at a page prompt is only a
+  second brake. `LL 1` lists the newest message, for its number.
   An empty listing is the prompt alone, as for `LM`.
 
 Confirmed by the operator's capture from WS1EC-2, 2026-10-02
@@ -34,8 +38,8 @@ Confirmed by the operator's capture from WS1EC-2, 2026-10-02
 fifteen categories, `SPACWX 142UPDATE 49` (a three-digit count runs into
 the next name), and `LB> WX` paging 310 bulletins 23 to a page.
 
-# UNVERIFIED: the range form (`LB> WX 2801-`) is the source's, not yet
-# seen in a capture.
+# UNVERIFIED: the range forms (`LB> WX 2801-`, `LB> WX 2705-2804`) and
+# `LL 1` are the source's, not yet seen in a capture.
 
 The choices live in a small JSON file in the state folder, one record per
 BBS callsign (categories differ from BBS to BBS). Same persistence shape
@@ -91,10 +95,37 @@ def parse_categories(lines: list[str]) -> dict[str, int]:
     return categories
 
 
+#: Message numbers per window on a first run (`window_command`).
+WINDOW = 100
+#: Windows asked for at most on a first run: 1000 message numbers back.
+MAX_WINDOWS = 10
+#: BPQMail's default welcome, `Hello $I. Latest Message is $L, Last listed
+#: is $Z` (`BBSUtilities.c`); WS1EC-2 keeps it. A sysop may change it, so
+#: `LL 1` (list the last one) is asked when it is missing.
+LATEST_RE = re.compile(r"Latest Message is (\d+)")
+LATEST_COMMAND = "LL 1"
+
+
 def list_command(category: str, after: int = 0) -> str:
     """The listing command for one category; only numbers above `after`
     when one is given."""
     return f"LB> {category} {after + 1}-" if after else f"LB> {category}"
+
+
+def window_command(category: str, low: int, high: int) -> str:
+    """One window of a first run: bulletins to `category` numbered `low`
+    to `high`. Windows, not a bare `LB>`, because most users do not page
+    (`OP`): a bare listing of 310 WX bulletins cannot be stopped once it
+    starts, while a window lists a hundred numbers' worth at most."""
+    return f"LB> {category} {low}-{high}"
+
+
+def latest_number(lines: list[str]) -> int:
+    """The BBS's latest message number from its greeting, 0 if absent."""
+    for line in lines:
+        if (match := LATEST_RE.search(line)):
+            return int(match.group(1))
+    return 0
 
 
 @dataclass

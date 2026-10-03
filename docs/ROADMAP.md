@@ -363,8 +363,8 @@ exchange confirms it.
   - **Checked once in a while** (operator, 2026-10-02): `LC` on the first
     run, then every `check_days` (default 7), not on every G.
   - **First run goes back N days** (operator, 2026-10-02; WS1EC-2 held 310
-    WX bulletins): `A` at the listing's page prompt once it reaches older
-    dates.
+    WX bulletins): windows of 100 message numbers back from the latest,
+    since most users do not page; `A` at a page prompt for those who do.
   - **Done 2026-10-02:** the conversation (`mail/bulletins.py`,
     `BbsCollector` bulletin run), checked against the operator's capture.
     **Left:** G and I on the Bulletins tab, the category checklist

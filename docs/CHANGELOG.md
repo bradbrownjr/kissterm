@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — Bulletins: a first run that works without paging
+
+### Improvements
+
+- **A first collection from a category asks for numbered windows**
+  (`LB> WX 3005-3104`, then the hundred before, while every bulletin is
+  still inside the N days), back from the greeting's latest number or
+  `LL 1`'s. Most users do not page (operator), and a bare listing of 310
+  WX bulletins cannot be stopped once it starts; `A` at a page prompt
+  remains for those who do.
+
+**Files:** `kissterm/mail/bulletins.py`, `kissterm/mail/collect.py`,
+`tests/unit/test_mail_bulletins.py`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-02] — Bulletin collection: the BBS conversation
 
 ### New Features

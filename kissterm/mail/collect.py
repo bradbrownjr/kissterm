@@ -33,10 +33,13 @@ steps 1 and 2, then, in place of 3 and 4 (`kissterm/mail/bulletins.py`):
 (`choose`), then `LB> <category> <n>-` for each chosen category, asking
 only for numbers above the newest already filed, and reads and files the
 new ones as in 4 and 5. A category with nothing filed yet goes back only
-`first_days` (operator, 2026-10-02: WS1EC-2 held 310 WX bulletins): the
-listing is newest first, so `A` at the page prompt ends it once a page
-reaches older dates (`ProcessSuspendedListCommand`: `A` returns straight
-to the prompt), and older entries are not read.
+`first_days` (operator, 2026-10-02: WS1EC-2 held 310 WX bulletins), in
+windows of `bulletins.WINDOW` message numbers back from the latest (the
+greeting's, or `LL 1`), until a window reaches older dates: most users
+do not page, and a bare listing cannot be stopped. For those who do,
+`A` at a page prompt ends a window once it reaches older dates
+(`ProcessSuspendedListCommand`: `A` returns straight to the prompt).
+Older entries are never read.
 
 **It stops rather than guesses.** A reply it does not recognise, a read
 without its end marker, silence past `idle_timeout`, a dropped link or a
@@ -72,9 +75,14 @@ from . import bpqmail
 from .bulletins import (
     DEFAULT_CHECK_DAYS,
     DEFAULT_FIRST_DAYS,
+    LATEST_COMMAND,
+    MAX_WINDOWS,
+    WINDOW,
     SubscriptionBook,
-     list_command,
+    latest_number,
+    list_command,
     parse_categories,
+    window_command,
 )
 from .compose import BBS_OUTBOX, ends_text_early, send_command
 from .message import KIND_BULLETIN
@@ -545,15 +553,29 @@ class BbsCollector:
         def reached_older(lines: list[str]) -> bool:
             return any(older(e) for e in bpqmail.parse_list(lines))
 
+        latest = 0
         for position, category in enumerate(categories, 1):
             self._progress(f"Listing {position} of {len(categories)}")
             newest = self.store.highest_bbs_number(source, category)
-            await self._send(list_command(category, newest))
-            listing, _ = await self._until_prompt(None if newest else reached_older)
-            entries = [e for e in bpqmail.parse_list(listing)
-                       if e.type == "B" and e.to.upper() == category]
-            if not newest:
-                entries = [e for e in entries if not older(e)]
+            if newest:
+                await self._send(list_command(category, newest))
+                listing, _ = await self._until_prompt()
+                entries = self._bulletins_to(category, listing)
+            else:
+                latest = latest or await self._latest()
+                entries = []
+                high = latest
+                for _window in range(MAX_WINDOWS):
+                    if high < 1:
+                        break
+                    low = max(1, high - WINDOW + 1)
+                    await self._send(window_command(category, low, high))
+                    listing, _ = await self._until_prompt(reached_older)
+                    found = self._bulletins_to(category, listing)
+                    entries.extend(e for e in found if not older(e))
+                    if any(older(e) for e in found):
+                        break
+                    high = low - 1
             result.listed += len(entries)
             fresh = [e for e in entries if not self.store.has_bbs_number(source, e.number)]
             result.already_had += len(entries) - len(fresh)
@@ -564,6 +586,23 @@ class BbsCollector:
             return
         self._note(f"{len(new)} new bulletins in {', '.join(categories)}.")
         await self._read_entries(new, result, bbs_call)
+
+    @staticmethod
+    def _bulletins_to(category: str, listing: list[str]) -> list[bpqmail.ListEntry]:
+        return [e for e in bpqmail.parse_list(listing)
+                if e.type == "B" and e.to.upper() == category]
+
+    async def _latest(self) -> int:
+        """The BBS's latest message number: its greeting's, else `LL 1`'s."""
+        latest = latest_number(self._transcript)
+        if latest:
+            return latest
+        await self._send(LATEST_COMMAND)
+        listing, _ = await self._until_prompt()
+        entries = bpqmail.parse_list(listing)
+        if not entries:
+            raise CollectStopped("the BBS did not say its latest message number (LL 1)")
+        return max(e.number for e in entries)
 
     async def _read_entries(
         self, new: list[bpqmail.ListEntry], result: CollectResult, bbs_call: str
