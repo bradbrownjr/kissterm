@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — Downloads in Files > Downloads
+
+### Improvements
+
+- **A YAPP or AutoBIN download is saved in Files > Downloads** and shows
+  in the Files tab (F4) at once; it went to the state folder's
+  `downloads`, out of sight. The toast names it. Received is kept for
+  files that arrive unattended (ROADMAP P9).
+- **A YAPP download never overwrites an earlier file of the same name**:
+  it is saved as `name-1.ext`, as AutoBIN already did.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/dialogs.py`, `kissterm/yapp.py`,
+`tests/unit/test_yapp.py`, `tests/pilot/test_files_downloads.py`,
+`docs/GUIDE.md`, `SETUP.md`, `README.md`, `docs/ON-AIR-TESTS.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-03] — Get bulletins: G, I and S on the Bulletins tab
 
 ### New Features

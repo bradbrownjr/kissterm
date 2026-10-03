@@ -106,6 +106,24 @@ async def send_file(link, source: str | Path, *, timeout: float = 30.0) -> YappR
         wire.close()
 
 
+def _destination(directory: Path, name: str) -> Path:
+    """Where a received file goes: `name`, or `name-1.ext` and so on when
+    that is taken. Every download lands in one folder (Files > Downloads),
+    so writing over an earlier file of the same name would lose it; AutoBIN
+    does the same (`autobin._destination`)."""
+    target = (directory / name).resolve()
+    if not target.is_relative_to(directory):
+        raise YappError("YAPP filename escapes receive directory")
+    if not target.exists():
+        return target
+    stem, suffix = target.stem, target.suffix
+    for index in range(1, 10_000):
+        candidate = (directory / f"{stem}-{index}{suffix}").resolve()
+        if candidate.is_relative_to(directory) and not candidate.exists():
+            return candidate
+    raise YappError("too many files with this YAPP name")
+
+
 async def receive_file(link, directory: str | Path, *, timeout: float = 30.0) -> YappResult:
     """Receive one sender-initiated YAPP 1.1 file into an existing directory."""
     target_dir = Path(directory).expanduser().resolve()
@@ -126,9 +144,7 @@ async def receive_file(link, directory: str | Path, *, timeout: float = 30.0) ->
             raise YappError("invalid YAPP filename or size") from exc
         if expected < 0 or not _SAFE_NAME.fullmatch(name):
             raise YappError("unsafe YAPP filename or size")
-        target = (target_dir / name).resolve()
-        if not target.is_relative_to(target_dir):
-            raise YappError("YAPP filename escapes receive directory")
+        target = _destination(target_dir, name)
         temp = target.with_name(f".{target.name}.part")
         await wire.send(ACK, b"\x02")
         written = 0

@@ -47,9 +47,9 @@ choose from your BBS, and only what is new.
 
 ![Weather bulletins](assets/screenshot-bulletins.png)
 
-**Files (F4).** Attachments from Winlink messages, with Downloads and
-Received folders for file transfers (still being connected up). Nothing
-that arrives over the air is ever opened or run for you.
+**Files (F4).** Attachments from Winlink messages and the files you
+download with YAPP or AutoBIN. Nothing that arrives over the air is ever
+opened or run for you.
 
 ![The Files tab with a Winlink attachment open](assets/screenshot-files.png)
 

@@ -478,12 +478,13 @@ class FileTransferScreen(ModalScreen[FileTransferRequest | None]):
                 value="yapp", id="transfer-protocol", allow_blank=False,
             )
             yield Select(
-                [("Upload local file", "upload"), ("Receive into directory", "download")],
+                [("Upload local file", "upload"), ("Download into Files > Downloads", "download")],
                 value="upload", id="yapp-mode", allow_blank=False,
             )
             yield Input(placeholder="Local file path", id="yapp-path")
             yield Button("Browse files", id="yapp-browse")
-            yield Static("Upload starts the selected protocol. For download, start this first, then request it from the peer.")
+            yield Static("Upload starts the selected protocol. For download, start this first, "
+                         "then request it from the peer; it is saved in Files > Downloads (F4).")
             with Horizontal(classes="dialog-buttons"):
                 yield Button("Start", id="yapp-start", classes="-primary")
                 yield Button("Cancel", id="yapp-cancel")
@@ -505,7 +506,7 @@ class FileTransferScreen(ModalScreen[FileTransferRequest | None]):
     @on(Button.Pressed, "#yapp-browse")
     def _browse(self) -> None:
         if self.query_one("#yapp-mode", Select).value != "upload":
-            self.notify("Downloads use kissterm's fixed Downloads folder.")
+            self.notify("A download is saved in Files > Downloads (F4).")
             return
         self.app.push_screen(FilePickerScreen(), self._picked)
 

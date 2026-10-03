@@ -26,6 +26,15 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 - [ ] **The same over the air with G**, once the Yagi is up: the windows
   are short, so the first collection should take minutes, not hours.
 
+## Files (YAPP and AutoBIN)
+
+- [ ] **A download lands in Files > Downloads.** Connected to a station
+  or BBS that can send by YAPP, F10 > Session > File transfer, YAPP,
+  "Download into Files > Downloads", Start, then give the far end its
+  send command. Expected: "YAPP download complete: <name>, in Files >
+  Downloads (F4)", and the file listed there. Download the same file
+  again: it is saved as `<name>-1.<ext>` beside the first.
+
 ## Mail: Send/Receive (G on the Mail tab)
 
 - [ ] **Resend the message to W1BKW** ("Hello from kissterm", still in

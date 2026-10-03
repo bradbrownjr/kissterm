@@ -5508,6 +5508,16 @@ class KissTermApp(App):
         """
         await self.push_screen_wait(TranscriptsScreen(self._transcript_directory()))
 
+    def _downloads_dir(self) -> Path:
+        """Files > Downloads in the message store, where a YAPP or AutoBIN
+        download is saved, so the Files tab (F4) shows it. It went to the
+        state folder's `downloads` until 2026-10-03, out of sight."""
+        from ..mail.store import FILES
+
+        folder = self.mail_store.root / FILES / "Downloads"
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
     @work
     async def action_file_transfer(self) -> None:
         """Start one explicit YAPP/AutoBIN upload or arm an explicit download."""
@@ -5533,15 +5543,17 @@ class KissTermApp(App):
             if request.mode == "upload":
                 result = await sender(session.link, request.path)
             else:
-                downloads = state_path() / "downloads"
-                downloads.mkdir(parents=True, exist_ok=True)
-                result = await receiver(session.link, downloads)
+                result = await receiver(session.link, self._downloads_dir())
         except (OSError, ValueError, YappError, AutoBinError) as exc:
             self._note(key, f"{protocol} {request.mode} failed: {exc}")
             self.notify(f"{protocol} {request.mode} failed: {exc}", severity="warning")
         else:
             self._note(key, f"{protocol} {request.mode} complete: {result.path.name} ({result.size} bytes)")
-            self.notify(f"{protocol} {request.mode} complete: {result.path.name}")
+            if request.mode == "upload":
+                self.notify(f"{protocol} upload complete: {result.path.name}")
+            else:
+                self.notify(f"{protocol} download complete: {result.path.name}, in Files > Downloads (F4).")
+                self._reload_mail_tabs()
         finally:
             self._transfer_active.discard(key)
             self._set_activity("")

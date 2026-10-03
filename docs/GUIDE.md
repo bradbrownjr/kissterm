@@ -179,18 +179,19 @@ WX), so kissterm collects only the categories you choose:
 
 - **Attachments**: files that came with Winlink messages, saved under
   cleaned names.
-- **Downloads** and **Received**: for files fetched with a file transfer
-  and files other stations send you. File transfers do not save here yet
-  (see below).
+- **Downloads**: files you download with a file transfer (below). A
+  name already there is saved as `name-1.ext`, never over the first.
+- **Received**: kept for files that arrive while you are away, which needs
+  the unattended mailbox (ROADMAP P9); empty until then.
 
 Nothing that arrives over the air is ever opened or run for you.
 
 **File transfers (YAPP and AutoBIN)**: while connected to a station or BBS
 that supports one, F10 > Session > File transfer. An upload starts only
-after you choose the file; for a download, choose to receive first, then
-give the far end its download command. A download is saved in the
-`downloads` folder beside kissterm's logs for now, not yet in Files >
-Downloads. Both protocols are built but not yet proven on the air.
+after you choose the file; for a download, choose Download first, then
+give the far end its download command. The file is saved in Files >
+Downloads, and the toast says its name. Both protocols are built but not
+yet proven on the air.
 
 ## Connecting to nodes and BBSes
 

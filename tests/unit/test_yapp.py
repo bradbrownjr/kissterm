@@ -37,3 +37,34 @@ async def test_yapp_upload_and_download_round_trip_binary_file(tmp_path):
     finally:
         a.close()
         b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_second_download_of_the_same_name_keeps_the_first(tmp_path):
+    """Files > Downloads holds every download; one with a name already
+    there is saved beside it (`sample-1.bin`), as AutoBIN does, never over it."""
+    left, right = loopback_pair()
+    await left.open()
+    await right.open()
+    a = AX25Station(AX25Address.parse("N1ABC"), left, LinkParams(t1=.1, t2=.01, t3=5))
+    b = AX25Station(AX25Address.parse("W1AW"), right, LinkParams(t1=.1, t2=.01, t3=5))
+    source = tmp_path / "sample.bin"
+    source.write_bytes(b"second copy")
+    download = tmp_path / "downloads"
+    download.mkdir()
+    (download / "sample.bin").write_bytes(b"first copy")
+    try:
+        incoming = []
+        b.on_incoming.append(incoming.append)
+        sender_link = await a.connect(AX25Path(AX25Address.parse("W1AW"), AX25Address.parse("N1ABC")))
+        await asyncio.sleep(.05)
+        receiving = asyncio.create_task(receive_file(incoming[0], download, timeout=2))
+        await asyncio.sleep(0)
+        await send_file(sender_link, source, timeout=2)
+        received = await receiving
+        assert received.path.name == "sample-1.bin"
+        assert received.path.read_bytes() == b"second copy"
+        assert (download / "sample.bin").read_bytes() == b"first copy"
+    finally:
+        a.close()
+        b.close()
