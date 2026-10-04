@@ -117,8 +117,10 @@ Everything from P9 on comes after milestone 2.
 
 ## P0 — Stabilize: the product that exists, working
 
-No open items (2026-09-23). A live bug the operator reports goes here first,
-under rule 2 above, with the date and their words:
+A live bug the operator reports goes here first, under rule 2 above, with
+the date and their words. A bug reported and fixed the same day goes to
+CHANGELOG only. As of 2026-10-04: one item open outside the code
+(Winlink's client list), the rest awaiting the operator's re-test.
 
 ### P0.1 Reported bugs
 
