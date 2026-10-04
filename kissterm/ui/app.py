@@ -4447,7 +4447,7 @@ class KissTermApp(App):
         `reply` is the store ref of the message answered; `quoted` None
         means "as Settings > Mail says" (R), True always quotes (Q).
         `form` starts at a Type as the compose screen returns it
-        (`FORM_PREFIX` + id, or `RADIOGRAM`): F on a PKTNET form in the
+        (`FORM_PREFIX` + id, or `RADIOGRAM`): Enter on a PKTNET form in the
         Files viewer. Nothing transmits: the message waits in the Outbox.
         """
         from ..config import state_path

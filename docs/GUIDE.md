@@ -204,9 +204,9 @@ shows a plain preview in the reader, and Esc closes the viewer.
   links to is fetched; links show their address and are never followed.
 - **Other text** is shown as text; anything else is named with its size.
 
-**F fills in a PKTNET form.** The PKTNET packet forms (vden.org/pktnet,
-the zips WS1EC-2 offers) are recognised by their title, and F opens
-kissterm's own form for that page: the Bulletin, the Check-in, or the NTS
+**Enter fills in a PKTNET form.** The PKTNET packet forms (vden.org/pktnet,
+the zips WS1EC-2 offers) are recognised by their title, and Enter
+opens kissterm's own form for that page: the Bulletin, the Check-in, or the NTS
 radiogram (kissterm's radiogram screen, laid out by the ARRL rules rather
 than the page's). You fill it in and address it as any message; it waits
 in the Outbox. The page's script is never run; kissterm's form writes the

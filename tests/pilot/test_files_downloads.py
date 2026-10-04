@@ -259,8 +259,8 @@ async def test_enter_opens_a_zip_and_its_files_formatted(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_f_on_a_pktnet_form_opens_kissterms_form_for_it(tmp_path):
-    """F in the viewer on KN4LQN's bulletin page opens the PKTNET Bulletin
+async def test_enter_on_a_pktnet_form_opens_kissterms_form_for_it(tmp_path):
+    """Enter in the viewer on KN4LQN's bulletin page opens the PKTNET Bulletin
     form, as Mail > Insert does; nothing is sent (operator, 2026-10-03)."""
     from pathlib import Path
 
@@ -273,8 +273,8 @@ async def test_f_on_a_pktnet_form_opens_kissterms_form_for_it(tmp_path):
         await pilot.pause()
         app.push_screen(FileViewerScreen("bulletin.html", page))
         await pilot.pause()
-        assert app.screen.active_bindings["f"].binding.action == "fill_in"
-        await pilot.press("f")
+        assert app.screen.active_bindings["enter"].binding.action == "fill_in"
+        await pilot.press("enter")
         await wait_for(lambda: isinstance(app.screen, FormScreen), "the form screen")
         assert app.screen.form.id == "pktnet_bulletin"
         await pilot.press("escape")
@@ -284,7 +284,7 @@ async def test_f_on_a_pktnet_form_opens_kissterms_form_for_it(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_f_is_absent_on_a_page_that_is_no_known_form(tmp_path):
+async def test_fill_in_is_absent_on_a_page_that_is_no_known_form(tmp_path):
     from kissterm.ui.file_viewer import FileViewerScreen
 
     app, station, _tb = await _app(tmp_path)
@@ -292,5 +292,5 @@ async def test_f_is_absent_on_a_page_that_is_no_known_form(tmp_path):
         await pilot.pause()
         app.push_screen(FileViewerScreen("page.html", b"<title>Hello</title><p>hi</p>"))
         await pilot.pause()
-        assert "f" not in app.screen.active_bindings
+        assert "enter" not in app.screen.active_bindings
     station.close()

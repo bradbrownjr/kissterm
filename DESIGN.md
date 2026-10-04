@@ -244,7 +244,7 @@ is the enforcement.
    I the same over the Internet, and S chooses the categories; on Files,
    Delete and U work on files too (Files > Deleted), S sends the
    highlighted file over the connected session, and Enter opens the file
-   full screen in the viewer (a click previews it in the reader), where F
+   full screen in the viewer (a click previews it in the reader), where Enter
    fills in a recognised PKTNET form; on Mail and
    Bulletins, V switches a message
    received as a form between the form and its text, R replies and Q

@@ -14,7 +14,10 @@ the plain preview in the reader; Enter is the deliberate "open".
 Links are shown but never followed (`open_links=False`): a page from the
 air does not get to open a browser.
 
-**F fills in a PKTNET form** (operator, 2026-10-03: "make them fillable").
+**Enter fills in a PKTNET form** (operator, 2026-10-03: "make them
+fillable"); Enter as the default action (DESIGN.md section 5 rule 4),
+since a plain letter is for lists only and a page has nothing else for
+Enter to do.
 A page recognised by its title (`files_view.PKTNET_FORMS`) opens the
 matching kissterm form, as Mail > Insert does with that Type chosen; the
 message is addressed in the compose screen and saved to the Outbox, so
@@ -68,7 +71,7 @@ class FileViewerScreen(ModalScreen[None]):
 
     BINDINGS = [
         Binding("escape", "dismiss(None)", "Close"),
-        Binding("f", "fill_in", "Fill in"),
+        Binding("enter", "fill_in", "Fill in"),
     ]
 
     def __init__(self, name: str, data: bytes) -> None:

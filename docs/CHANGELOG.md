@@ -5,11 +5,11 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
-## [2026-10-03] — F fills in a PKTNET form from the Files viewer
+## [2026-10-03] — Enter fills in a PKTNET form from the Files viewer
 
 ### New Features
 
-- **F on a PKTNET form page** (vden.org/pktnet, the zips WS1EC-2 offers)
+- **Enter on a PKTNET form page** (vden.org/pktnet, the zips WS1EC-2 offers)
   opens kissterm's form for it: a new PKTNET Bulletin form, the PKTNET
   Check-in, or the NTS radiogram. It goes to compose and the Outbox like
   any form. Each kissterm form is tested against the page's own Generate
