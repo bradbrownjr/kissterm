@@ -2,7 +2,7 @@
 
 Things built or fixed without a radio, waiting to be tried on the air.
 Newest first within each section. When a test passes, tick it and add the
-date; when it fails, note what happened and tell Claude (the transcript in
+date (Claude ticks one from a result the operator reports); when it fails, note what happened and tell Claude (the transcript in
 `~/.local/state/kissterm/logs/` and `kissterm.log` there are the evidence).
 A ticked item is removed once the matching ROADMAP or CHANGELOG entry
 records it.
@@ -28,24 +28,31 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Files (YAPP and AutoBIN)
 
-- [ ] **Asking WS1EC-2 for a file downloads it by itself.** Over the
+- [x] **Asking WS1EC-2 for a file downloads it by itself.** Over the
   air, connected to WS1EC-2 (or the node, then `BBS`), type `FILES`, then
-  `YAPP bulletin.html.zip`. Expected: nothing to arm first; the status
-  bar counts `YAPP bulletin.html.zip n/2286` up, the toast says "YAPP
-  download complete: bulletin.html.zip, in Files > Downloads (F4)", the
-  file is listed there and unzips. Ask again: saved as
-  `bulletin.html-1.zip` beside the first. (Failed before the 2026-10-03
-  YAPP framing fix: "YAPP peer did not respond before the crash timer".)
+  `YAPP bulletin.html.zip`. Expected: nothing to arm first; the toast
+  says "YAPP download complete: bulletin.html.zip, in Files > Downloads
+  (F4)", the file is listed there and unzips. **Passed 2026-10-03**
+  (operator: "File download worked great!"; the zip opened in the Files
+  viewer). Failed before that day's YAPP framing fix.
+- [ ] **A second download of the same file is kept beside the first.**
+  `YAPP bulletin.html.zip` again: saved as `bulletin.html-1.zip`, the
+  first untouched. (Not reported with the download above.)
 - [ ] **Over WS1EC's SSH login, YAPP is refused before it goes out.**
   (`BBS`, then `YAPP bulletin.html.zip`.) Expected: a notice "File
   transfers are not supported over SSH...", the line still in the send
   field, nothing new from the BBS; F10 > Session > File transfer gives
   the same notice. (2026-10-04: sent, the download stalled because the
   server's telnet held kissterm's replies until the next line.)
-- [ ] **An upload to WS1EC-2.** F10 > Session > File transfer, YAPP,
+- [x] **An upload to WS1EC-2.** F10 > Session > File transfer, YAPP,
   Upload, a small file, Start. Expected: "YAPP upload complete"; `FILES`
-  then lists it. The same name again: "YAPP upload failed: YAPP peer
-  refused: YAPP File <name> already exists".
+  then lists it. **Passed 2026-10-04** over RF (operator: "Test file
+  uploaded over RF", `test.md`, picked with Enter before the picker had
+  a Choose button).
+- [ ] **Uploading a name the BBS already has is refused with its
+  reason.** Upload `test.md` again: "YAPP upload failed: YAPP peer
+  refused: YAPP File test.md already exists". (Not reported with the
+  upload above.)
 
 ## Mail: Send/Receive (G on the Mail tab)
 
