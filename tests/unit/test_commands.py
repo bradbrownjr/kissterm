@@ -72,9 +72,13 @@ def test_the_footer_shows_only_what_applies_to_the_tab():
     assert "clear_log" in aprs
     for tab in cmd.TAB_ORDER:
         actions = [c.action for c in cmd.footer_commands(tab)]
-        # Transmit leads: it is the one switch every tab needs in view. Help
-        # is not here at all -- it is a tab, printed in the tab row.
-        assert actions[0] == "toggle_transmit", tab
+        # Transmit leads where something on the tab transmits, and is left
+        # out where nothing does (2026-10-04). Help is not here at all --
+        # it is a tab, printed in the tab row.
+        if tab in cmd.TRANSMITTING_TABS:
+            assert actions[0] == "toggle_transmit", tab
+        else:
+            assert "toggle_transmit" not in actions, tab
         assert "help" not in actions, tab
         assert len(set(actions)) == len(actions), f"{tab} repeats a key: {actions}"
 

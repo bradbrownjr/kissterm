@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-04] — ^T TX only on tabs that can transmit
+
+### Improvements
+
+- **The Footer shows `^T TX` only on Mail, Bulletins, Files, Terminal
+  and APRS**, where a key can transmit; Heard, Monitor and Settings
+  transmit nothing and no longer show it. Ctrl+T still works on every
+  tab, and `TX OFF` stays in the status bar. The Help page's Mail,
+  Bulletins and Files paragraphs now say which of their keys transmit
+  (they said "Nothing here transmits", stale since G).
+
+**Files:** `kissterm/ui/commands.py`, `tests/unit/test_commands.py`,
+`DESIGN.md`, `assets/screenshot-heard.png`, `assets/screenshot-monitor.png`,
+`assets/screenshot-settings.png`, `docs/CHANGELOG.md`
+
 ## [2026-10-04] — G on the Files tab gets files from the Home BBS
 
 ### New Features

@@ -39,6 +39,13 @@ TAB_ORDER = (
     "mail", "bulletins", "files", "terminal", "aprs", "heard", "monitor", "settings",
 )
 
+#: Tabs with a key that can transmit (G on Mail, Bulletins and Files, S on
+#: Files, a sent line, an APRS message): only these show ^T TX in the Footer.
+#: Ctrl+T itself works on every tab, and the status bar's TX OFF is always in
+#: view; Heard, Monitor and Settings transmit nothing, so the key there was
+#: a reminder of a switch nothing on them uses (operator, 2026-10-04).
+TRANSMITTING_TABS = ("mail", "bulletins", "files", "terminal", "aprs")
+
 TAB_TITLES = {
     "mail": "Mail",
     "bulletins": "Bulletins",
@@ -58,16 +65,18 @@ TAB_HELP = {
         "Your mail, filed by kind: BBS, Winlink, and All Inboxes for both "
         "at once. Choose a folder on the left, then a message: Enter opens "
         "it, Delete moves it to Deleted, and U in Deleted puts it back. "
-        "Nothing here transmits."
+        "G sends and receives over the air; nothing else here transmits."
     ),
     "bulletins": (
         "Bulletins by category (WX, ARES, ALL ...). Enter opens one; Delete "
-        "moves it to Deleted. Nothing here transmits."
+        "moves it to Deleted. G gets new bulletins from the Home BBS over "
+        "the air; nothing else here transmits."
     ),
     "files": (
         "Files you have downloaded or received, and message attachments. "
-        "Enter shows a text file; nothing here is ever run or opened by "
-        "another program."
+        "Enter opens a file in the viewer; nothing here is ever run or "
+        "opened by another program. G gets files from the Home BBS and S "
+        "sends one over the connected session."
     ),
     "terminal": (
         "Talk to a node, a BBS or another station. Ctrl+N connects. Then type "
@@ -170,7 +179,7 @@ COMMANDS: tuple[Command, ...] = (
             tabs=("terminal",), footer=("terminal",), priority=True),
     Command("toggle_transmit", "Transmit on/off", "Session", "T",
             "The master transmit switch; nothing keys the radio while it is off",
-            key="ctrl+t", footer=("*",), short="TX"),
+            key="ctrl+t", footer=TRANSMITTING_TABS, short="TX"),
     Command("reconnect", "Reconnect", "Session", "E",
             "Connect again to the station this Terminal tab was connected to, "
             "the same way (hops and login included)", key="ctrl+r",

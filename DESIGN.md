@@ -500,7 +500,10 @@ Illustrative, not literal: which keys fit is a function of terminal width
 (see section 5's Footer rules). `F10 Menu` is pinned to the right (F1 is
 in the tab row, not here); the keys before it are dropped from the right as the
 terminal narrows, and `^D Disconnect` joins them only while there is a
-session to end.
+session to end. `^T TX` leads on the tabs where a key can transmit (Mail,
+Bulletins, Files, Terminal, APRS) and is left out on Heard, Monitor and
+Settings, where nothing does; Ctrl+T still works there, and `TX OFF` in
+the status bar is always in view (`commands.TRANSMITTING_TABS`).
 
 - **Footer above, status below.** Keys you might press come first, reading top
   to bottom; the passive readout comes last.
