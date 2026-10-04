@@ -78,6 +78,9 @@ _BULLETIN_BINDINGS = (
     Binding("s", "bulletin_categories", "Categories"),
 )
 _BULLETIN_ACTIONS = {b.action for b in _BULLETIN_BINDINGS}
+#: The Files tab's G (ROADMAP P2, Files): the Home BBS's `FILES`, a pick,
+#: and a YAPP download of each, by radio only (`collect.py`).
+_FILES_GET = Binding("g", "get_files", "Get files")
 
 
 class FolderTree(Tree):
@@ -94,12 +97,15 @@ class FolderTree(Tree):
         Binding("g", "get_all", "Send/Receive all"),
         Binding("i", "get_internet", "By Internet"),
         *_BULLETIN_BINDINGS,
+        _FILES_GET,
     ]
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
         browser = self.query_ancestor(MessageBrowser)
         if action in _BULLETIN_ACTIONS:
             return browser.id == "bulletins-browser"
+        if action == "get_files":
+            return browser.id == "files-browser"
         if action == "get_internet":
             return browser.id == "mail-browser"
         if action in _G_KIND:
@@ -132,6 +138,9 @@ class FolderTree(Tree):
     def action_bulletin_categories(self) -> None:
         self.app.action_bulletin_categories()  # type: ignore[attr-defined]
 
+    def action_get_files(self) -> None:
+        self.app.action_get_files()  # type: ignore[attr-defined]
+
 
 class MessageList(DataTable):
     """The message (or file) list, with the tab's context keys."""
@@ -149,6 +158,7 @@ class MessageList(DataTable):
         Binding("i", "get_internet", "By Internet"),
         Binding("v", "toggle_form", "Form/text"),
         *_BULLETIN_BINDINGS,
+        _FILES_GET,
         Binding("s", "send_file", "Send"),
     ]
 
@@ -159,6 +169,8 @@ class MessageList(DataTable):
         browser = self._browser()
         if action in _BULLETIN_ACTIONS:
             return browser.id == "bulletins-browser"
+        if action == "get_files":
+            return browser.id == "files-browser"
         if action == "send_file":
             return (browser.files and self.row_count > 0
                     and not is_deleted_folder(browser.folder or "Files")
@@ -252,6 +264,9 @@ class MessageList(DataTable):
 
     def action_bulletin_categories(self) -> None:
         self.app.action_bulletin_categories()  # type: ignore[attr-defined]
+
+    def action_get_files(self) -> None:
+        self.app.action_get_files()  # type: ignore[attr-defined]
 
     def action_send_file(self) -> None:
         path = self._browser().selected_file()

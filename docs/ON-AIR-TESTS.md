@@ -53,6 +53,16 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   reason.** Upload `test.md` again: "YAPP upload failed: YAPP peer
   refused: YAPP File test.md already exists". (Not reported with the
   upload above.)
+- [ ] **G on the Files tab downloads what is ticked.** F4, G (the Home
+  BBS over the air, Settings > Mail's route). Expected: after the
+  reminder and the BBS prompt, a checklist of WS1EC-2's files (eight in
+  October, not the `zType YAPP...` hint), each with its size and "about
+  N s", nothing ticked; tick one, Download. The status bar counts the
+  bytes, the Terminal shows `FILES` and `YAPP <name>` but none of the
+  file, the toast says "1 file(s) downloaded into Files > Downloads",
+  and the link disconnects. Tick two the next time: both arrive, one
+  after the other. (Built 2026-10-04 against the 2026-10-03 capture and
+  BPQ's source.)
 
 ## Mail: Send/Receive (G on the Mail tab)
 

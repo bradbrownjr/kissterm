@@ -248,7 +248,9 @@ is the enforcement.
    BBS by its Telnet or SSH connection, Winlink by the CMS) -- and Insert
    writes a new message; on Bulletins, G gets bulletins from the Home BBS,
    I the same over the Internet, and S chooses the categories; on Files,
-   Delete and U work on files too (Files > Deleted), S sends the
+   Delete and U work on files too (Files > Deleted), G gets files from
+   the Home BBS by radio (a checklist of what it lists, then a YAPP
+   download of each ticked), S sends the
    highlighted file over the connected session, and Enter opens the file
    full screen in the viewer (a click previews it in the reader), where Enter
    fills in a recognised PKTNET form; on Mail and

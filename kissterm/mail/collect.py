@@ -41,6 +41,16 @@ do not page, and a bare listing cannot be stopped. For those who do,
 (`ProcessSuspendedListCommand`: `A` returns straight to the prompt).
 Older entries are never read.
 
+A files run (`CollectOptions.files`, G on the Files tab,
+`kissterm/mail/bbs_files.py`) does steps 1 and 2, then `FILES`, the
+operator's pick from what it lists (`pick_files`, with sizes and
+airtime), and `YAPP <name>` for each, saved to Files > Downloads by
+`yapp.receive_file`. The collector stops reading lines while a file
+comes in (`transferring` tells the app, so the Terminal does not print
+it), and listens again after the last ACK: BPQ sends no prompt after a
+YAPP transfer (`YAPPSendData`). A reply that is not `ENQ 1` (the file is
+not there) is noted and the next file asked for.
+
 **It stops rather than guesses.** A reply it does not recognise, a read
 without its end marker, silence past `idle_timeout`, a dropped link or a
 closed transmit gate each end the run with a note saying which. Nothing
@@ -70,8 +80,12 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
+from pathlib import Path
+
 from ..ansi import decode_text
+from ..yapp import YappError, receive_file, starts_download
 from . import bpqmail
+from .bbs_files import BbsFile, parse_files
 from .bulletins import (
     DEFAULT_CHECK_DAYS,
     DEFAULT_FIRST_DAYS,
@@ -142,6 +156,8 @@ class CollectOptions:
     check_days: int = DEFAULT_CHECK_DAYS
     #: How far back the first collection from a category goes, in days.
     first_days: int = DEFAULT_FIRST_DAYS
+    #: Download files (the Files tab) in place of mail.
+    files: bool = False
 
 
 #: The operator's answer to a category offer: the categories picked and
@@ -149,6 +165,9 @@ class CollectOptions:
 #: next check). Given the categories to offer, every category with its
 #: count, and whether this is the BBS's first offer.
 Choose = Callable[[list[str], dict[str, int], bool], Awaitable[tuple[list[str], bool] | None]]
+#: The operator's pick from the BBS's files: the names to download, or None
+#: if cancelled. Given what `FILES` listed.
+PickFiles = Callable[[list[BbsFile]], Awaitable[list[str] | None]]
 
 
 @dataclass
@@ -159,6 +178,8 @@ class CollectResult:
     not_found: list[int] = field(default_factory=list)
     #: Refs in Mail/BBS/Sent of the messages the BBS accepted.
     sent: list[str] = field(default_factory=list)
+    #: Files downloaded (a files run): where each was saved.
+    downloaded: list[Path] = field(default_factory=list)
     stopped: str = ""
 
 
@@ -183,6 +204,9 @@ class BbsCollector:
         progress: Callable[[str], None] = lambda _phase: None,
         subscriptions: SubscriptionBook | None = None,
         choose: Choose | None = None,
+        pick_files: PickFiles | None = None,
+        files_dir: Path | None = None,
+        transferring: Callable[[bool], None] = lambda _on: None,
         now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     ) -> None:
         self.link = link
@@ -190,6 +214,12 @@ class BbsCollector:
         self.options = options
         self.subscriptions = subscriptions
         self._choose = choose
+        self._pick_files = pick_files
+        self._files_dir = files_dir
+        self._transferring = transferring
+        #: Raw bytes while waiting to see whether a `YAPP` request starts a
+        #: download; None while reading lines.
+        self._raw: bytearray | None = None
         self._now = now
         self._note = note
         self._sent = sent
@@ -212,6 +242,10 @@ class BbsCollector:
     # -- input ---------------------------------------------------------------
 
     def _on_data(self, data: bytes) -> None:
+        if self._raw is not None:
+            self._raw.extend(data)
+            self._arrived.set()
+            return
         self._pending.extend(data)
         # Lines end in CR (BPQMail), LF or CRLF. The tail after the last one
         # stays pending: a prompt or page prompt arrives without an ending.
@@ -493,6 +527,9 @@ class BbsCollector:
         if self.options.bulletins:
             await self._collect_bulletins(result, bbs_call, source)
             return
+        if self.options.files:
+            await self._collect_files(result)
+            return
         await self._send_outbox(result, source)
         self._progress("Checking for mail")
         await self._send("LM")
@@ -587,6 +624,66 @@ class BbsCollector:
             return
         self._note(f"{len(new)} new bulletins in {', '.join(categories)}.")
         await self._read_entries(new, result, bbs_call)
+
+    async def _collect_files(self, result: CollectResult) -> None:
+        if self._files_dir is None or self._pick_files is None:
+            raise CollectStopped("nowhere to save files")
+        self._progress("Listing files")
+        await self._send("FILES")
+        reply, _ = await self._until_prompt()
+        files = parse_files(reply)
+        result.listed = len(files)
+        self._note(f"{len(files)} file(s) on the BBS: "
+                   + (", ".join(f"{f.name} ({f.size})" for f in files) or "none"))
+        if not files:
+            return
+        picked = await self._pick_files(files)
+        if not picked:
+            self._note("No files chosen.")
+            return
+        for position, name in enumerate(picked, 1):
+            self._progress(f"Getting {position} of {len(picked)}")
+            self._note(f"Getting {position} of {len(picked)}: {name}")
+            saved = await self._get_file(name)
+            if saved is not None:
+                result.downloaded.append(saved)
+
+    async def _get_file(self, name: str) -> Path | None:
+        """`YAPP <name>` and the download it starts; None if the BBS
+        answered with text (no such file), which is noted."""
+        self._raw = bytearray()
+        self._transferring(True)
+        try:
+            await self._send(f"YAPP {name}")
+            while len(self._raw) < len(b"\x05\x01"):
+                self._arrived.clear()
+                if self._raw and not self._raw.startswith(b"\x05"):
+                    break
+                await self._wait_for_data()
+            if starts_download(bytes(self._raw)):
+                initial, self._raw = bytes(self._raw), None
+                self.close()
+                try:
+                    saved = await receive_file(
+                        self.link, self._files_dir, timeout=self.options.idle_timeout,
+                        initial=initial,
+                        progress=lambda n, done, size: self._progress(f"{n} {done}/{size}"),
+                    )
+                except YappError as exc:
+                    raise CollectStopped(f"{name} did not arrive: {exc}") from None
+                finally:
+                    self.link.on_data.append(self._on_data)
+                self._note(f"Saved {saved.path.name} ({saved.size} bytes).")
+                return saved.path
+        finally:
+            self._transferring(False)
+            if self._raw is not None:
+                raw, self._raw = bytes(self._raw), None
+                self._on_data(raw)
+        reply, _ = await self._until_prompt()
+        why = " ".join(line.strip() for line in reply if line.strip()) or "no file"
+        self._note(f"BBS: {why}")
+        return None
 
     @staticmethod
     def _bulletins_to(category: str, listing: list[str]) -> list[bpqmail.ListEntry]:

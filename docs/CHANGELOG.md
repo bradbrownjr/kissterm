@@ -5,6 +5,25 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-04] — G on the Files tab gets files from the Home BBS
+
+### New Features
+
+- **G on the Files tab** dials the Home BBS by radio, sends `FILES`,
+  and shows a checklist of what it lists with each file's size and
+  airtime (and the total ticked), then downloads each ticked file by
+  YAPP into Files > Downloads. The Terminal holds the binary while a
+  file comes in; a name the BBS no longer has is noted and skipped.
+  Radio only (no I), as SSH cannot carry YAPP. Built against WS1EC-2's
+  2026-10-03 listing and LinBPQ's `YAPPSendFile`; not yet on the air.
+
+**Files:** `kissterm/mail/bbs_files.py`, `kissterm/mail/collect.py`,
+`kissterm/ui/bbs_files_screen.py`, `kissterm/ui/app.py`,
+`kissterm/ui/mail_pane.py`, `tests/unit/test_bbs_files.py`,
+`tests/pilot/test_get_files.py`, `tests/unit/data/bpqmail/`,
+`docs/GUIDE.md`, `README.md`, `DESIGN.md`, `docs/ROADMAP.md`,
+`docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`, `assets/screenshot-files.png`
+
 ## [2026-10-04] — A first bulletin collection keeps its oldest day
 
 ### Bug Fixes

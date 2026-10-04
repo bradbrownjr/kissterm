@@ -2502,7 +2502,9 @@ class KissTermApp(App):
             session.transcript.sent(self._masked(text))
         if watch_hop:
             self._watch_typed_hop(session_key, text)
-        if _YAPP_REQUEST.match(text):
+        if _YAPP_REQUEST.match(text) and session_key not in self._transfer_active:
+            # Not while G on the Files tab is fetching it: that run reads
+            # the download itself (`collect.BbsCollector._get_file`).
             session.download_until = time.monotonic() + DOWNLOAD_WAIT_SECONDS
         self._cancel_reply_timer(session_key)
         # Not for a blank line: that is a nudge, and a node owes it no reply.
@@ -4927,6 +4929,9 @@ class KissTermApp(App):
                 progress=self._set_activity,
                 subscriptions=self.bulletin_subscriptions,
                 choose=self._choose_categories,
+                pick_files=self._pick_bbs_files,
+                files_dir=self._downloads_dir() if options.files else None,
+                transferring=lambda on: self._transferring(key, on),
             )
 
         dialed = await self._dial_for_mail(entry, build, "mail")
@@ -4934,12 +4939,31 @@ class KissTermApp(App):
             return
         collector, key = dialed
         result = await collector.run()
-        self._bbs_report(result, bulletins=options.bulletins)
+        self._bbs_report(result, bulletins=options.bulletins, files=options.files)
         await self._disconnect_session(key)
 
-    def _bbs_report(self, result, bulletins: bool = False) -> None:
+    def _transferring(self, key: str, on: bool) -> None:
+        """A files run's download starting or ending on session `key`: the
+        Terminal holds the YAPP bytes meanwhile, as for a typed request."""
+        if on:
+            self._transfer_active.add(key)
+        else:
+            self._transfer_active.discard(key)
+
+    def _bbs_report(self, result, bulletins: bool = False, files: bool = False) -> None:
         """The outcome toast of a Home BBS run, over radio or the Internet."""
         sent = f"{len(result.sent)} sent, " if result.sent else ""
+        if files:
+            got = len(result.downloaded)
+            if result.stopped:
+                self.notify(f"Getting files stopped: {result.stopped}. {got} downloaded.",
+                            severity="warning")
+            elif got:
+                self.notify(f"{got} file(s) downloaded into Files > Downloads.")
+            elif not result.listed:
+                self.notify("The Home BBS lists no files.")
+            self._reload_mail_tabs()
+            return
         if bulletins:
             if result.stopped:
                 self.notify(f"Getting bulletins stopped: {result.stopped}. "
@@ -5176,6 +5200,41 @@ class KissTermApp(App):
 
     def action_get_bulletins_internet(self) -> None:
         self.action_get_bulletins(internet=True)
+
+    @work(exclusive=False)
+    async def action_get_files(self) -> None:
+        """Get files from the Home BBS (Files tab, G). ROADMAP P2, Files.
+
+        The Home BBS run with `CollectOptions.files`, by radio only: the
+        same dial, reminder, gate and login as Send/Receive, then `FILES`,
+        the operator's pick (`_pick_bbs_files`) and a YAPP download of each.
+        No Internet twin: YAPP does not survive a server's telnet (SSH
+        refuses transfers, `refuse_line`)."""
+        if self._collecting:
+            self.notify("Already sending and receiving.", severity="warning")
+            return
+        self._collecting = True
+        try:
+            prepared = await self._bbs_prepare()
+            if prepared is None:
+                return
+            entry, options = prepared
+            options.files = True
+            await self._bbs_run(entry, options)
+        except _SkipService:
+            pass
+        finally:
+            self._collecting = False
+            self._set_activity("")
+
+    async def _pick_bbs_files(self, files):
+        """The collector's question (`collect.PickFiles`), asked mid-run."""
+        from .bbs_files_screen import BbsFilesScreen
+
+        folder = self._downloads_dir()
+        have = {p.name: p.stat().st_size for p in folder.iterdir() if p.is_file()}
+        return await self.push_screen_wait(BbsFilesScreen(
+            self._bulletin_bbs() or "the BBS", files, have=have))
 
     def _bulletin_bbs(self) -> str:
         """The Home BBS's callsign as its choices are kept, or ""."""

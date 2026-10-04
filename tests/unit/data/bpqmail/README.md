@@ -42,3 +42,9 @@ removed, and the operator's own keystrokes (`> ...`) dropped.
   page of 310, newest first, ending in its page prompt. `R 3104`: a
   bulletin (`Type/Status: BN`) with seven `R:` lines and one page prompt
   inside the body, to its end marker.
+
+- `files_ws1ec.txt`: 2026-10-03, over the air (WS1EC-2, BPQMail
+  6.0.23.1, transcript `20261003-151432`), the reply to `FILES`: eight
+  `name size` lines and the sysop's hint, an empty file named
+  `zType YAPP FILENAME to retrieve` (sorted last by its `z`), then the
+  prompt.

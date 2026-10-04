@@ -220,7 +220,19 @@ same text its Generate button does, checked against the page itself.
 
 Nothing that arrives over the air is ever opened or run for you.
 
-**File transfers (YAPP and AutoBIN)**: to download from a BPQ BBS, type
+**Getting files from the Home BBS (G on the Files tab)**: G connects
+to the Home BBS over the air (the route and login Send/Receive uses),
+asks it for its `FILES` list and shows a checklist: each file's size and
+about how long it takes on the air at 1200 baud, with the total of what
+you tick. Nothing is ticked at first, and a file already in Downloads at
+the same size says so. Download fetches each ticked file by YAPP into
+Files > Downloads, one after the other, the status bar counting bytes;
+then kissterm disconnects. A name the BBS no longer has is noted in the
+session log and the rest still come. Radio only: there is no I for files
+(see "Not over SSH" below). Built against WS1EC-2's listing and BPQ's
+source; not yet tried over the air (experimental).
+
+**File transfers (YAPP and AutoBIN)**: to download from a BPQ BBS by hand, type
 `FILES` to see what it has and `YAPP <name>` to ask for one. The
 download starts by itself when the BBS begins sending, within a minute of
 asking; the status bar counts the bytes, the Terminal stays quiet while
