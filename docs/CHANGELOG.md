@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-04] — File transfers refused over SSH
+
+### Improvements
+
+- **`YAPP <name>` is not sent over SSH**: WS1EC's SSH login runs
+  `telnet` into BPQ in line mode, which held kissterm's YAPP replies
+  until the next line typed, so the download stalled and the BBS read
+  later lines as YAPP data (operator's test). The line stays in the send
+  field with a notice; File transfer and S on Files are refused there
+  too. Over the air nothing changes.
+
+**Files:** `kissterm/ui/app.py`, `kissterm/ui/terminal_pane.py`,
+`tests/pilot/test_session_transport.py`, `docs/GUIDE.md`, `SETUP.md`,
+`docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-03] — PKTNET ICS-213, FSR, Severe WX and Form 309 forms
 
 ### New Features

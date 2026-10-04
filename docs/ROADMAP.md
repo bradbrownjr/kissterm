@@ -360,10 +360,11 @@ exchange confirms it.
     named as a hint (sorted last by its `z`); a name with spaces or a size
     of 0 is not offered. That session's `YAPP bulletin.html.zip` failed on
     kissterm's YAPP framing, fixed 2026-10-03.
-  - **Before building**: the operator's on-air YAPP download with the
-    fix (docs/ON-AIR-TESTS.md, Files). Over SSH the bytes pass a pty and a
-    `telnet` client on the server, either of which may alter binary
-    (# UNVERIFIED); the transfer fails on the size check if so.
+  - **The YAPP download works over the air** (operator, 2026-10-03), so
+    this can be built. **Radio only**: over WS1EC's SSH login the server's
+    `telnet` holds YAPP's replies until a line end (2026-10-04), and the
+    operator chose to mark SSH unsupported rather than change the node's
+    login; G offers no I.
 
 #### BBS mail (BPQMail first, then the applications P8 adds)
 

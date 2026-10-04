@@ -1319,6 +1319,11 @@ class TerminalPane(Container):
         if link is None or not link.connected:
             self.app.notify("Not connected.", severity="warning")
             return
+        # A line the link cannot carry through is kept in the field, with
+        # the app's reason, and nothing is sent (`KissTermApp.refuse_line`).
+        refuse = getattr(self.app, "refuse_line", None)
+        if refuse is not None and refuse(text):
+            return
         gate = getattr(self.app, "gate", None)
         # An Internet contact's session cannot key a radio: no gate to arm.
         if gate is not None and not gate.enabled and not getattr(link, "internet", False):

@@ -427,3 +427,50 @@ async def test_ax25_only_checks_skip_a_session_tier_link():
         await transport.close()
         server.close()
         await server.wait_closed()
+
+
+async def _recording_node(heard: list[bytes]):
+    async def node(reader, writer):
+        writer.write(b"de WS1EC#>\r\n")
+        await writer.drain()
+        while data := await reader.read(256):
+            heard.append(data)
+    return node
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,refused", [("ssh", True), ("telnet", False)])
+async def test_yapp_is_held_back_over_ssh_only(kind, refused):
+    """Over SSH a YAPP download cannot finish (the server's telnet holds
+    its replies; operator, 2026-10-04), so `YAPP <name>` is not sent: it
+    stays in the field with a notice, and the far end hears nothing. File
+    transfer and S on Files are refused there too."""
+    heard: list[bytes] = []
+    server = await asyncio.start_server(await _recording_node(heard), "127.0.0.1", 0)
+    host, port = server.sockets[0].getsockname()[:2]
+    transport = TelnetTransport(host, port)
+    transport.info.kind = kind
+    await transport.open()
+    app = KissTermApp(Config(mycall="N1ABC-1"), station=None, session_transport=transport)
+    notes: list[str] = []
+    try:
+        async with app.run_test(size=(110, 32)) as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+n")
+            await pilot.pause()
+            await asyncio.sleep(0.3)
+            assert app.link is not None and app.link.connected
+            app.notify = lambda message, **kw: notes.append(message)
+            pane = app.query_one(TerminalPane)
+            pane.query_one("#session-input").value = "YAPP bulletin.html.zip"
+            await pane.send_line("YAPP bulletin.html.zip")
+            await asyncio.sleep(0.3)
+            sent = b"".join(heard)
+            assert (b"YAPP" not in sent) is refused
+            assert any("not supported over SSH" in n for n in notes) is refused
+            assert (pane.query_one("#session-input").value == "YAPP bulletin.html.zip") is refused
+            assert app.can_send_file() is not refused
+    finally:
+        await transport.close()
+        server.close()
+        await server.wait_closed()

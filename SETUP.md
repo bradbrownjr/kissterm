@@ -472,8 +472,11 @@ that explicit choice. A YAPP download from a BPQ BBS needs no setup: type
 a minute of asking. For AutoBIN, or a sender that needs the receiver
 started first, choose **Download into Files > Downloads**, then issue the
 peer's download command. Completed downloads are saved in Files > Downloads (F4); one whose name is
-taken is saved as `name-1.ext`, never over the first. Neither protocol has
-been tried on the air yet. Kissterm never
+taken is saved as `name-1.ext`, never over the first. A YAPP download
+from a BPQ BBS has worked over the air; uploads and AutoBIN are not yet
+proven. File transfers are not supported over an SSH login (the
+server's `telnet` holds YAPP's replies): kissterm refuses them there.
+Kissterm never
 auto-detects an AutoBIN header into a write, opens, or executes transferred
 files.
 

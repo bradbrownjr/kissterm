@@ -36,11 +36,12 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   file is listed there and unzips. Ask again: saved as
   `bulletin.html-1.zip` beside the first. (Failed before the 2026-10-03
   YAPP framing fix: "YAPP peer did not respond before the crash timer".)
-- [ ] **The same over WS1EC's SSH login** (`BBS`, then `YAPP
-  bulletin.html.zip`). Unknown whether binary survives the server's pty
-  and `telnet` client: either it completes and the zip opens, or it fails
-  with "YAPP file exceeds advertised size" / "ended unexpectedly". Either
-  result is the answer; send the transcript name.
+- [ ] **Over WS1EC's SSH login, YAPP is refused before it goes out.**
+  (`BBS`, then `YAPP bulletin.html.zip`.) Expected: a notice "File
+  transfers are not supported over SSH...", the line still in the send
+  field, nothing new from the BBS; F10 > Session > File transfer gives
+  the same notice. (2026-10-04: sent, the download stalled because the
+  server's telnet held kissterm's replies until the next line.)
 - [ ] **An upload to WS1EC-2.** F10 > Session > File transfer, YAPP,
   Upload, a small file, Start. Expected: "YAPP upload complete"; `FILES`
   then lists it. The same name again: "YAPP upload failed: YAPP peer

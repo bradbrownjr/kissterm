@@ -587,6 +587,20 @@ class _SessionLinkAdapter:
         return self._transport is not None
 
     @property
+    def carries_binary(self) -> bool:
+        """Whether a file transfer (YAPP, AutoBIN) can run over this link.
+        False over SSH: WS1EC's login runs `telnet` into BPQ in line mode on
+        the server's terminal, which holds YAPP's two-byte answers until a
+        line end and acts on its control bytes (Ctrl+C, Ctrl+D) itself. The
+        operator's test, 2026-10-04: BPQ's header arrived only after the
+        next line was typed. Changing the node's login would break other
+        users' telnet clients, so the operator chose to mark it
+        unsupported (`KissTermApp.refuse_line`). An `AX25Link` has no such
+        property and carries binary."""
+        transport = getattr(self._session, "transport", None)
+        return getattr(getattr(transport, "info", None), "kind", "") != "ssh"
+
+    @property
     def state(self):
         return self._session.state
 
@@ -5572,6 +5586,22 @@ class KissTermApp(App):
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
+    def refuse_line(self, text: str) -> bool:
+        """Whether `TerminalPane.send_line` should hold `text` back, having
+        said why. Only `YAPP <name>` over a link that cannot carry a file
+        (`_SessionLinkAdapter.carries_binary`): sent, it would leave the
+        BBS waiting on a transfer that cannot finish, reading the next lines
+        typed as YAPP data."""
+        link = self.link
+        if _YAPP_REQUEST.match(text) and not getattr(link, "carries_binary", True):
+            self.notify(
+                "File transfers are not supported over SSH: the server's telnet holds "
+                "YAPP's replies. Connect by radio to download a file.",
+                severity="warning",
+            )
+            return True
+        return False
+
     def _watch_for_download(self, session_key: str, data: bytes) -> bool:
         """Start a YAPP download by itself when the file the operator asked
         for arrives: True if `data` began one.
@@ -5641,6 +5671,7 @@ class KissTermApp(App):
         key = self._active_key()
         session = self._sessions.get(key)
         return (session is not None and session.link is not None and session.link.connected
+                and getattr(session.link, "carries_binary", True)
                 and key not in self._transfer_active)
 
     @work
@@ -5652,6 +5683,11 @@ class KissTermApp(App):
         session = self._sessions.get(key)
         if session is None or session.link is None or not session.link.connected:
             self.notify("Connect before starting a file transfer.", severity="warning")
+            return
+        if not getattr(session.link, "carries_binary", True):
+            self.notify("File transfers are not supported over SSH: the server's telnet "
+                        "holds YAPP's replies. Connect by radio to send a file.",
+                        severity="warning")
             return
         request = await self.push_screen_wait(FileTransferScreen(path))
         if request is None:

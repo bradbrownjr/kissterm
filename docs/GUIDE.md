@@ -229,9 +229,14 @@ it. Nothing arrives unasked: a sender you did not ask in the last minute
 is ignored. To upload, F10 > Session > File transfer (or S on a file in
 the Files tab), choose the file and press Start; BPQ takes a YAPP upload
 at its prompt. The dialog's Download is for AutoBIN, or a sender that
-needs the receiver started first. Both protocols are built to LinBPQ's
-source but not yet proven on the air; over an SSH login the file passes
-through the server's `telnet`, which may not carry binary intact.
+needs the receiver started first. A YAPP download from WS1EC-2 has
+worked over the air (2026-10-03); uploads and AutoBIN are not yet proven.
+
+**Not over SSH.** An SSH login like WS1EC's runs `telnet` into the node on
+the server, and that holds YAPP's replies until a line end, so a transfer
+cannot finish. kissterm does not send `YAPP <name>` over SSH: the line
+stays in the send field with a notice, and File transfer and S on the
+Files tab are refused there too. Connect by radio for files.
 
 ## Connecting to nodes and BBSes
 
