@@ -165,6 +165,9 @@ WX), so kissterm collects only the categories you choose:
 - The first G connects to your Home BBS, asks for its category list and
   shows it with each category's count. Tick the ones you want, or All
   (every category, including new ones as they appear).
+
+  ![The bulletin category checklist](../assets/screenshot-bulletin-categories.png)
+
 - The list itself is airtime, so it is asked for again only every
   Settings > Mail > Category check (days), 7 by default. A category that
   has appeared since is offered then; one you leave unticked is not

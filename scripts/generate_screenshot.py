@@ -334,6 +334,17 @@ async def main() -> int:
         app.action_show_tab("bulletins")
         await _show(app, pilot, "bulletins-browser", "Bulletins/WX")
         await shot("screenshot-bulletins")
+        # 4b. The first G's category checklist, from WS1EC-2's own `LC`.
+        from kissterm.mail.bulletins import parse_categories
+        from kissterm.ui.bulletin_screen import BulletinCategoriesScreen
+
+        lc = (REPO / "tests" / "unit" / "data" / "bpqmail" / "list_lc_ws1ec.txt")
+        categories = parse_categories(lc.read_text("utf-8").splitlines())
+        app.push_screen(BulletinCategoriesScreen("WS1EC", categories, ticked=["WX", "ALERT"]))
+        await _pause(pilot, 0.3)
+        await shot("screenshot-bulletin-categories")
+        app.pop_screen()
+        await _pause(pilot)
         # 5. Files.
         app.action_show_tab("files")
         await _show(app, pilot, "files-browser", "Files/Attachments", row=1)

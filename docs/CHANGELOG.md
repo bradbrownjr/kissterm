@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-04] — A screenshot of the bulletin category checklist
+
+### Improvements
+
+- **The guide shows the category checklist** the first G on Bulletins
+  offers, drawn from WS1EC-2's own `LC` reply with its counts.
+
+**Files:** `scripts/generate_screenshot.py`,
+`assets/screenshot-bulletin-categories.png`, `docs/GUIDE.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-04] — kissterm.log is rotated at launch
 
 ### Improvements
