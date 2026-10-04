@@ -4826,11 +4826,14 @@ class KissTermApp(App):
             for s in self._sessions.values()
         )
 
-    async def _dial_for_mail(self, entry, build, what: str):
-        """Dial `entry` for Send/Receive. `build(link, key)` makes the
-        runner the moment the link is up, before anything awaits, so the
-        far end's first bytes are not missed; it starts once the chain has
-        reached the target. Returns (runner, key), or None having said why.
+    async def _dial_for_mail(self, entry, build, doing: str, label: str = "Send/Receive"):
+        """Dial `entry` for a Home BBS or Winlink run. `build(link, key)`
+        makes the runner the moment the link is up, before anything awaits,
+        so the far end's first bytes are not missed; it starts once the
+        chain has reached the target. Returns (runner, key), or None having
+        said why. `doing` ("get files") goes in the connect toast and
+        `label` ("Get files") leads a failure's, so each says what was
+        asked for (operator, 2026-10-04: G on Files said "to get mail").
         """
         first = [h.strip() for h in entry.hops.split(",") if h.strip()] or [entry.target]
         peer = parse_path(first[0]).destination
@@ -4856,7 +4859,7 @@ class KissTermApp(App):
         # connect hands its reason here (`report`) rather than raising its
         # own beside this one (operator, 2026-10-02: two toasts per event).
         reasons: list[str] = []
-        announce = f"Connecting to {entry.target} to send and receive {what}..."
+        announce = f"Connecting to {entry.target} to {doing}..."
         if entry.is_internet:
             # No transmit gate on the Internet, so nothing to fold in.
             self.notify(announce)
@@ -4873,12 +4876,12 @@ class KissTermApp(App):
             # No reason means the operator cancelled (the reminder, Ctrl+D):
             # nothing to tell them.
             if reasons:
-                self.notify(f"Send/Receive: {why}.",
+                self.notify(f"{label}: {why}.",
                             severity="error")
             return None
         if not state["reached"]:
             runner.close()
-            self.notify(f"Send/Receive: {why}.",
+            self.notify(f"{label}: {why}.",
                         severity="error")
             return None
         return runner, state["key"]
@@ -4934,7 +4937,13 @@ class KissTermApp(App):
                 transferring=lambda on: self._transferring(key, on),
             )
 
-        dialed = await self._dial_for_mail(entry, build, "mail")
+        if options.files:
+            doing, label = "get files", "Get files"
+        elif options.bulletins:
+            doing, label = "get bulletins", "Get bulletins"
+        else:
+            doing, label = "send and receive mail", "Send/Receive"
+        dialed = await self._dial_for_mail(entry, build, doing, label)
         if dialed is None:
             return
         collector, key = dialed
@@ -5074,7 +5083,7 @@ class KissTermApp(App):
                 progress=self._set_activity,
             )
 
-        dialed = await self._dial_for_mail(entry, build, "Winlink mail")
+        dialed = await self._dial_for_mail(entry, build, "send and receive Winlink mail")
         if dialed is None:
             return
         collector, key = dialed
@@ -5275,10 +5284,12 @@ class KissTermApp(App):
         self.notify("Collecting " + ("every category." if subs.all
                                      else (", ".join(subs.chosen) or "no categories") + "."))
 
-    async def _internet_run(self, transport, peer: str, what: str, build):
+    async def _internet_run(self, transport, peer: str, what: str, build,
+                            label: str = "Send/Receive"):
         """Connect a session `transport` and run the collector
         `build(link, note, sent, received)` makes over it, with a
-        transcript. Returns its result, or None having said why."""
+        transcript. Returns its result, or None having said why, led by
+        `label` (`_dial_for_mail`)."""
         self.notify(f"Connecting to {what} over the Internet...")
         self._set_activity(f"Connecting to {what}")
         link = transcript = None
@@ -5287,7 +5298,7 @@ class KissTermApp(App):
             try:
                 session = await self._session_connect(transport)
             except TransportError as exc:
-                self.notify(f"Send/Receive by Internet: {exc}", severity="error")
+                self.notify(f"{label} by Internet: {exc}", severity="error")
                 return None
             link = _SessionLinkAdapter(session)
             mycall = str(self.config.mycall or "").upper()
@@ -5413,12 +5424,13 @@ class KissTermApp(App):
         from ..mail.collect import BbsCollector
         from ..transport import build_transport
 
+        label = "Get bulletins" if options.bulletins else "Send/Receive"
         try:
             transport = build_transport(entry.transport_config(
                 lambda name: find_credential(self.config, name),
                 lambda name: credential_username(self.config, name)))
         except (TransportError, TypeError, ValueError) as exc:
-            self.notify(f"Send/Receive by Internet: {entry.target}: {exc}", severity="error")
+            self.notify(f"{label} by Internet: {entry.target}: {exc}", severity="error")
             return
 
         def build(link, note, sent, received):
@@ -5427,7 +5439,7 @@ class KissTermApp(App):
                                 subscriptions=self.bulletin_subscriptions,
                                 choose=self._choose_categories)
 
-        result = await self._internet_run(transport, entry.target, entry.target, build)
+        result = await self._internet_run(transport, entry.target, entry.target, build, label)
         if result is not None:
             self._bbs_report(result, bulletins=options.bulletins)
 

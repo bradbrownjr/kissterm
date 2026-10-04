@@ -79,6 +79,14 @@ async def test_g_lists_the_files_and_downloads_the_one_ticked(tmp_path):
         app.query_one("#files-browser").query_one(MessageList).focus()
         await pilot.pause()
         assert app.screen.active_bindings["g"].binding.action == "get_files"
+        toasts: list[str] = []
+        real_notify = app.notify
+
+        def _toast(message, *args, **kwargs):
+            toasts.append(str(message))
+            return real_notify(message, *args, **kwargs)
+
+        app.notify = _toast
         await pilot.press("g")
         await wait_for(lambda: isinstance(app.screen, BbsFilesScreen), "the file checklist",
                        timeout=15)
@@ -88,6 +96,9 @@ async def test_g_lists_the_files_and_downloads_the_one_ticked(tmp_path):
                    for i in range(listing.option_count)]
         assert "fsr.html.zip  3,471 bytes, about 29 s" in prompts
         assert not listing.selected
+        # Operator, 2026-10-04: the connect toast said "to get mail".
+        assert any("Connecting to WS1EC-2 to get files" in t for t in toasts), toasts
+        assert not any("mail" in t for t in toasts), toasts
         listing.select("fsr.html.zip")
         await pilot.pause()
         total = str(app.screen.query_one("#bbs-files-total", Static).render())

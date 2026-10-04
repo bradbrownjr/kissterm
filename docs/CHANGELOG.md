@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-04] — G on Files and Bulletins says what it is getting
+
+### Bug Fixes
+
+- **G on Files said "Connecting to WS1EC-2 to send and receive mail"**
+  (operator report). The Home BBS dial always named mail; it now says
+  "to get files" or "to get bulletins", and a failure toast leads with
+  "Get files:" or "Get bulletins:" instead of "Send/Receive:", over the
+  Internet as well.
+
+**Files:** `kissterm/ui/app.py`, `tests/pilot/test_get_files.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-04] — A failed YAPP transfer is cancelled at the BBS
 
 ### Improvements
