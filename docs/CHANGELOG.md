@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-04] — A first bulletin collection keeps its oldest day
+
+### Bug Fixes
+
+- **G on Bulletins no longer drops the first day of a first collection.**
+  The cutoff was set to midnight with the clock's seconds left on, so a
+  bulletin listed on that day (BPQ lists dates without a time) fell just
+  before it and was never read, except in the first minute of an hour.
+  Found when the Bulletins test failed at 02:21.
+
+**Files:** `kissterm/mail/collect.py`, `tests/unit/test_mail_bulletins.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-04] — A clicked tab is focused like a tab opened by its key
 
 ### Bug Fixes

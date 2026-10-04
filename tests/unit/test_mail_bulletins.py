@@ -243,10 +243,13 @@ async def test_nothing_chosen_stops_by_name(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_a_first_run_goes_back_only_first_days_and_stops_the_listing(tmp_path):
+@pytest.mark.parametrize("now", [NOW, NOW + timedelta(seconds=54, microseconds=7)])
+async def test_a_first_run_goes_back_only_first_days_and_stops_the_listing(tmp_path, now):
     """WS1EC-2 held 310 WX bulletins (operator, 2026-10-02: "Last N days").
     The captured first page reaches 29-Sep; with one day back from 2 Oct,
-    the page prompt is answered A and only 1-2 Oct are read."""
+    the page prompt is answered A and only 1-2 Oct are read. Run at a
+    clock with seconds too: the cutoff kept them until 2026-10-04, so a
+    listing's undated-time `01-Oct` fell before it and was dropped."""
     store, book = _store(tmp_path), SubscriptionBook(tmp_path / "subs.json")
     subs = book.for_bbs("WS1EC")
     subs.answer(["WX"], ["WX"])
@@ -257,7 +260,7 @@ async def test_a_first_run_goes_back_only_first_days_and_stops_the_listing(tmp_p
     kept = (3076, 3079, 3083, 3084, 3096, 3099)
     replies.update({f"R {n}": _bulletin(n) for n in kept})
     bbs = Bbs(replies)
-    result, _ = await _bulletins(bbs, store, book, now=NOW, first_days=1)
+    result, _ = await _bulletins(bbs, store, book, now=now, first_days=1)
     assert not result.stopped, result.stopped
     assert bbs.sent[:2] == ["LB> WX 3005-3104", "A"]  # one window, stopped at its page
     assert [c for c in bbs.sent if c.startswith("R ")] == [

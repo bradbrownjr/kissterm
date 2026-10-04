@@ -549,7 +549,7 @@ class BbsCollector:
 
         def older(entry: bpqmail.ListEntry) -> bool:
             when = bpqmail.infer_date(entry.date, now)
-            return when is not None and when < cutoff.replace(hour=0, minute=0)
+            return when is not None and when < cutoff.replace(hour=0, minute=0, second=0, microsecond=0)
 
         def reached_older(lines: list[str]) -> bool:
             return any(older(e) for e in bpqmail.parse_list(lines))
