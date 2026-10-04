@@ -20,6 +20,7 @@ import argparse
 import asyncio
 import logging
 import sys
+from pathlib import Path
 
 from . import __version__
 
@@ -114,6 +115,33 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+#: kissterm.log is set aside at launch once it passes this size, and the
+#: oldest of `LOG_KEEP` earlier ones dropped.
+LOG_MAX_BYTES = 5 * 1024 * 1024
+LOG_KEEP = 3
+
+
+def _rotate_log(path: Path, max_bytes: int = LOG_MAX_BYTES, keep: int = LOG_KEEP) -> None:
+    """Set `path` aside as `path.1` (and `.1` as `.2` ...) when it has
+    grown past `max_bytes`. A debug session writes every frame, and
+    kissterm.log had no limit until 2026-10-04.
+
+    At launch only, never mid-run: a `RotatingFileHandler` renames the file
+    under a live session, which fails on Windows while another kissterm has
+    it open, and logging then prints its own traceback over the screen. A
+    rename that fails here is skipped; the log just keeps growing."""
+    try:
+        if not path.exists() or path.stat().st_size <= max_bytes:
+            return
+        for index in range(keep - 1, 0, -1):
+            older = path.with_name(f"{path.name}.{index}")
+            if older.exists():
+                older.replace(path.with_name(f"{path.name}.{index + 1}"))
+        path.replace(path.with_name(f"{path.name}.1"))
+    except OSError:
+        pass
+
+
 def _setup_logging(level: str) -> None:
     from .config import log_path
 
@@ -124,6 +152,7 @@ def _setup_logging(level: str) -> None:
         # reports the directory as unwritable, which is true but baffling.
         directory = log_path()
         directory.mkdir(parents=True, exist_ok=True)
+        _rotate_log(directory / "kissterm.log")
         # Root stays at WARNING and only the `kissterm` tree gets the
         # requested level. `--log-level debug` is a request to see what THIS
         # program did on the air; letting it also uncork asyncio's and

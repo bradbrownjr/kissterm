@@ -494,6 +494,10 @@ state -> <AX25Link KC1JMH>WS1EC-15 failed V(S)=0 V(R)=0 V(A)=0>
 A frame the transmit switch stopped is logged as `TX BLOCKED`, never as
 sent.
 
+kissterm.log is set aside as `kissterm.log.1` when kissterm starts and
+finds it over 5 MB; the three most recent are kept (`.1` to `.3`), the
+oldest dropped. Session transcripts in the same folder are never touched.
+
 ## Safety
 
 **kissterm starts unable to transmit.** `Ctrl+T` is the master switch, off

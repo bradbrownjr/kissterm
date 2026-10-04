@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-04] — kissterm.log is rotated at launch
+
+### Improvements
+
+- **kissterm.log no longer grows without limit**: at launch, one over
+  5 MB becomes `kissterm.log.1`, the earlier ones move up, and three are
+  kept. Only at launch, so a live session's log is never renamed under
+  it (which fails on Windows while another kissterm has it open).
+
+**Files:** `kissterm/__main__.py`, `tests/unit/test_log_rotation.py`,
+`docs/GUIDE.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-04] — ^T TX only on tabs that can transmit
 
 ### Improvements
