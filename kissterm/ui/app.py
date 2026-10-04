@@ -3552,35 +3552,38 @@ class KissTermApp(App):
         # Terminal's Connect/Disconnect) until a click changed focus. Queue a
         # second refresh after the tab switch's layout pass instead.
         self.call_after_refresh(_refresh_context_footer)
+        self.call_after_refresh(self._focus_tab_target, tab)
+
+    def _focus_tab_target(self, tab: str) -> None:
+        """Focus `tab`'s `_TAB_FOCUS` widget, after the switch has settled,
+        so this focus lands in the pane that is now visible. A missing
+        widget is not an error: a pane can legitimately not have composed
+        it yet.
+
+        Re-checks the active tab first: two tab keys pressed in quick
+        succession queue two of these, and the first one firing late would
+        focus a widget in a pane the operator has already left --
+        re-activating it, the very bug `action_show_tab` exists to fix.
+
+        A FALLBACK, not an override: anything focused by now was claimed
+        deliberately (`action_find_in_terminal` switches to the Terminal and
+        focuses the find box; stealing that back put the operator's typing
+        in the wrong widget). Only a vacuum is filled -- no focus, or focus
+        on the tab row itself, which is where a click on a tab's label
+        leaves it. Until 2026-10-04 a click took no part in this, so
+        clicking Bulletins left G and I out of the Footer until the list
+        was clicked too, and a click on Terminal left the send line without
+        focus (operator: "a section isn't automatically selected").
+        """
         target = self._TAB_FOCUS.get(tab)
-        if target is None:
+        tabs = self.query_one("#main-tabs", TabbedContent)
+        if target is None or tabs.active != tab:
             return
-
-        def _focus_target() -> None:
-            # After the switch has settled, so this focus lands in the pane
-            # that is now visible. Missing widget is not an error -- a pane
-            # can legitimately not have composed it yet.
-            #
-            # Re-check the active tab first: two tab keys pressed in quick
-            # succession queue two of these, and the first one firing late
-            # would focus a widget in a pane the operator has already left --
-            # re-activating it, which is the very bug this method exists to
-            # fix, just with a different trigger.
-            if tabs.active != tab:
-                return
-            # This is a FALLBACK, not an override. `set_focus(None)` above
-            # left focus empty, so anything focused by now was claimed
-            # deliberately by whoever called us -- `action_find_in_terminal`
-            # switches to the Terminal tab and then focuses the find box, and
-            # stealing that back to the send line put the operator's typing
-            # in the wrong widget. Only fill a vacuum.
-            if self.focused is not None:
-                return
-            for widget in self._base_query(target):
-                widget.focus()
-                return
-
-        self.call_after_refresh(_focus_target)
+        if self.focused is not None and not isinstance(self.focused, Tabs):
+            return
+        for widget in self._base_query(target):
+            widget.focus()
+            return
 
     def action_toggle_contacts(self) -> None:
         """Ctrl+G: show or hide whichever slide-out belongs to the active
@@ -6045,6 +6048,9 @@ class KissTermApp(App):
         # layout pass too, otherwise Footer can retain Terminal's context
         # until an APRS child receives focus.
         self.call_after_refresh(self._refresh_context_footer)
+        # A click on a tab's label focuses the tab row; give the pane's own
+        # widget focus as the tab keys do (`_focus_tab_target`).
+        self.call_after_refresh(self._focus_tab_target, event.pane.id)
 
 
 class _SkipService(Exception):

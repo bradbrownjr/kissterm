@@ -133,6 +133,7 @@ async def test_bulletins_by_category_and_remote_text_is_inert(tmp_path):
 async def test_files_tab_lists_and_previews_text(tmp_path):
     app, _store = _app(tmp_path)
     async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()  # past launch, which opens on Mail
         app.action_show_tab("files")
         await pilot.pause()
         files = _browser(app, "files")
@@ -141,10 +142,15 @@ async def test_files_tab_lists_and_previews_text(tmp_path):
         table = files.query_one(MessageList)
         assert str(table.get_row_at(0)[0]) == "notes.txt"
         assert files.can_delete()  # to Files > Deleted (operator, 2026-10-03)
-        table.focus()
-        await pilot.press("enter")
+        files.open_selected()  # a click previews in the reader
         await pilot.pause()
         assert "plain text file" in _reader_text(files)
+        table.focus()
+        await pilot.press("enter")  # Enter opens the viewer (2026-10-03)
+        await pilot.pause()
+        from kissterm.ui.file_viewer import FileViewerScreen
+
+        assert isinstance(app.screen, FileViewerScreen) and app.screen.kind == "text"
 
 
 @pytest.mark.asyncio

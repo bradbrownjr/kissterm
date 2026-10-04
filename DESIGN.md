@@ -293,6 +293,11 @@ is the enforcement.
   find it, and reported it missing. As a tab it has room for what a modal
   could not hold -- the shipped node command lists, the guides, the
   glossary, About -- and like every tab key, F1 is not in the Footer too.
+- **A tab opened by a click is focused as one opened by its key**: the
+  list on Mail, Bulletins and Files, so their keys are in the Footer at
+  once; the line to type in on Terminal, APRS and Monitor (operator,
+  2026-10-04: a click on Bulletins left G and I out of the Footer).
+  `KissTermApp._focus_tab_target`; `tests/pilot/test_tab_focus.py`.
 - **The `TabPane` ids never move with the labels** (`help`, `mail`,
   `bulletins`, `files`, `terminal`, `aprs`, `heard`, `monitor`, `settings`): every `active == "aprs"` check addresses a
   pane by id, so a reordering is a table edit, not a search through the app.

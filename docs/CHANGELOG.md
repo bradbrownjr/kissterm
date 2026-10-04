@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-04] — A clicked tab is focused like a tab opened by its key
+
+### Bug Fixes
+
+- **Clicking a tab's label focuses that tab's list or input**, as its F
+  key always did: a click left focus on the tab row, so Bulletins showed
+  no G or I until the list was clicked, Mail and Files lost their keys,
+  and on Terminal, APRS and Monitor typing went nowhere.
+
+**Files:** `kissterm/ui/app.py`, `tests/pilot/test_tab_focus.py`,
+`tests/pilot/test_mail_pane.py`, `DESIGN.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-04] — The file picker has a Choose button
 
 ### Improvements
