@@ -132,9 +132,12 @@ and a subject line, as the 2026 RRI guidelines give it.
 ### Forms
 
 The ICS-213 General Message, ICS-213RR Resource Request, Winlink Check-in,
-PKTNET Check-in, PKTNET Bulletin, Field Situation Report, Severe WX Report, Damage
-Assessment, Incident Status Report, ICS-309 Communications Log, ICS-214
-Activity Log and ICS-205 Radio Plan are message Types. Each is laid out as
+Field Situation Report, Severe WX Report, Damage Assessment, Incident
+Status Report, ICS-309 Communications Log, ICS-214 Activity Log and
+ICS-205 Radio Plan are message Types, in Winlink's layouts. The PKTNET
+net's forms (vden.org/pktnet) are Types too, in their own layouts: the
+PKTNET Check-in, Bulletin, ICS-213, Field Situation Report, Severe
+Weather Report and Form 309 Log. Each is laid out as
 its published form, so any station can read it; you fill in the form,
 then address it like any message. The 309 can fill its log from your mail,
 and the PKTNET check-in comes back addressed `SB PKTNET@USA`. Sent by
@@ -206,9 +209,10 @@ shows a plain preview in the reader, and Esc closes the viewer.
 
 **Enter fills in a PKTNET form.** The PKTNET packet forms (vden.org/pktnet,
 the zips WS1EC-2 offers) are recognised by their title, and Enter
-opens kissterm's own form for that page: the Bulletin, the Check-in, or the NTS
-radiogram (kissterm's radiogram screen, laid out by the ARRL rules rather
-than the page's). You fill it in and address it as any message; it waits
+opens opens kissterm's own form for that page: the Bulletin, Check-in, ICS-213,
+Field Situation Report, Severe Weather Report or Form 309 Log, each
+written in the page's layout, or the NTS radiogram (kissterm's radiogram
+screen, laid out by the ARRL rules rather than the page's). You fill it in and address it as any message; it waits
 in the Outbox. The page's script is never run; kissterm's form writes the
 same text its Generate button does, checked against the page itself.
 

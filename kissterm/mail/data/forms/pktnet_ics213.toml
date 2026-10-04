@@ -1,0 +1,109 @@
+# GENERAL MESSAGE (ICS 213), the PKTNET layout.
+# Body: vden.org PKTNET ics213.html (Ver 1.1, KN4LQN, concept N3MEL;
+# pktnet-forms.zip v1.2), its "#generate" handler line for line: the
+# paper form's numbering in one block, unlike Winlink's (ics213.toml).
+# Date and time default to UTC, YYYY-MM-DD and HH:MMZ. The page writes
+# its date in UTC but its time from the local clock with a Z after it;
+# kissterm writes the UTC time the Z claims.
+id = "pktnet_ics213"
+title = "PKTNET ICS-213"
+source = "vden.org PKTNET ics213.html Ver 1.1 (KN4LQN, N3MEL)"
+subject = "<var subject>"
+body = '''
+GENERAL MESSAGE (ICS 213)
+
+1. Incident Name (Optional): <var incident>
+
+2. To (Name and Position): <var to>
+
+3. From (Name and Position): <var from>
+
+4. Subject: <var subject>
+
+5. Date: <var date>
+
+6. Time: <var time>
+
+7. Message: <var message>
+
+8. Approved by: Name: <var sender_name> Signature: <var sender_signature> Position/Title: <var sender_position>
+
+9. Reply: <var reply>
+
+10. Replied by: Name: <var reply_name> Signature: <var reply_signature> Position/Title: <var reply_position>
+'''
+
+[[fields]]
+id = "incident"
+label = "1. Incident"
+placeholder = "optional"
+
+[[fields]]
+id = "to"
+label = "2. To"
+required = true
+help = "Name and position."
+
+[[fields]]
+id = "from"
+label = "3. From"
+required = true
+remember = true
+help = "Name and position. Remembered."
+
+[[fields]]
+id = "subject"
+label = "4. Subject"
+required = true
+
+[[fields]]
+id = "date"
+label = "5. Date"
+kind = "date"
+utc = true
+
+[[fields]]
+id = "time"
+label = "6. Time"
+kind = "time"
+utc = true
+format = "%H:%MZ"
+
+[[fields]]
+id = "message"
+label = "7. Message"
+kind = "multiline"
+required = true
+
+[[fields]]
+id = "sender_name"
+label = "8. Approved by"
+remember = true
+help = "Name of who approved the message. Remembered."
+
+[[fields]]
+id = "sender_signature"
+label = "Signature"
+
+[[fields]]
+id = "sender_position"
+label = "Position/title"
+remember = true
+
+[[fields]]
+id = "reply"
+label = "9. Reply"
+kind = "multiline"
+placeholder = "for the recipient"
+
+[[fields]]
+id = "reply_name"
+label = "10. Replied by"
+
+[[fields]]
+id = "reply_signature"
+label = "Signature"
+
+[[fields]]
+id = "reply_position"
+label = "Position/title"

@@ -86,15 +86,30 @@ class Parsed:
     found: dict[str, str] = field(default_factory=dict)
 
 
-def _line_regex(line: str) -> re.Pattern:
+def _line_regex(line: str, choices: dict[str, tuple[str, ...]] | None = None) -> re.Pattern:
+    """A template line as a regex, one named group per variable.
+
+    Two variables with only spaces between (`<var snow> <var snow_units>`,
+    the PKTNET Severe WX report) cannot be told apart by position: the
+    first would take one word. When the second is a choice (`choices`, by
+    lower-cased name) it matches only one of its choices, so the first
+    keeps the rest. Only that case: a choice anywhere else matches any
+    text, as before, so a received value outside the list still reads."""
+    choices = choices or {}
     parts = re.split(r"(<var\s+\w+\s*>)", line, flags=re.IGNORECASE)
     pattern = [r"^\s*"]
     for index, part in enumerate(parts):
         name = _VAR_RE.fullmatch(part)
         if name:
+            key = name.group(1).lower()
+            after_var = (index >= 2 and not parts[index - 1].strip() and parts[index - 1]
+                         and _VAR_RE.fullmatch(parts[index - 2]))
+            if after_var and choices.get(key):
+                options = "|".join(re.escape(c) for c in sorted(choices[key], key=len, reverse=True))
+                pattern.append(f"(?P<{key}>(?:{options})?)")
+                continue
             last = all(not p.strip() for p in parts[index + 1:])
-            pattern.append(f"(?P<{name.group(1).lower()}>.*)" if last else
-                           f"(?P<{name.group(1).lower()}>.*?)")
+            pattern.append(f"(?P<{key}>.*)" if last else f"(?P<{key}>.*?)")
             continue
         between_vars = 0 < index < len(parts) - 1 and not part.strip()
         if between_vars and "\t" in part:
@@ -115,6 +130,7 @@ def _line_regex(line: str) -> re.Pattern:
 
 def _items(form: FormDef) -> list[_Item]:
     template = _IF_RE.sub(lambda m: m.group(2), form.body)
+    choices = {f.id.lower(): f.choices for f in form.fields if f.kind == "choice"}
     items: list[_Item] = []
     position = 0
     chunks: list[tuple[str, str]] = []
@@ -134,7 +150,7 @@ def _items(form: FormDef) -> list[_Item]:
                 items.append(_Item(kind, names, block=block))
             else:
                 labelled = len(re.sub(r"[\W_]", "", literal)) >= 3
-                items.append(_Item("line", names, _line_regex(line), block, labelled))
+                items.append(_Item("line", names, _line_regex(line, choices), block, labelled))
     return items
 
 

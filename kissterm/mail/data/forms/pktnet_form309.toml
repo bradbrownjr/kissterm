@@ -1,0 +1,90 @@
+# PACKET COMMUNICATIONS LOG FORM 309, the PKTNET layout.
+# Body: vden.org PKTNET form309.html (Ver 1.0, pktnet-forms.zip v1.2),
+# its "#generate" handler line for line, unlike Winlink's 309
+# (ics309.toml). Its date and time default to local now, as the page
+# fills them. The page writes every log row up to the last one filled,
+# empty ones between included; kissterm writes the filled rows only.
+# Subject: the page's own name for the saved file, "Communications
+# Log - task - date time".
+id = "pktnet_form309"
+title = "PKTNET Form 309 Log"
+source = "vden.org PKTNET form309.html Ver 1.0, pktnet-forms.zip v1.2"
+subject = "Communications Log - <var task_name> <var task_number> - <var date_prepared> <var time_prepared>"
+body = '''
+PACKET COMMUNICATIONS LOG FORM 309
+
+Task #: <var task_number>
+
+Date Prepared: <var date_prepared>
+Time Prepared: <var time_prepared>
+
+For Operation Period #: <var operational_period>
+Task Name: <var task_name>
+
+Radio Operator Name: <var operator_name>
+Station I.D.: <var station_id>
+
+=== LOG ===
+
+<each log>
+TIME: <var log_time>
+TO: <var log_to>
+FROM: <var log_from>
+SUBJECT: <var log_subject>
+
+
+</each>
+'''
+
+[[fields]]
+id = "task_number"
+label = "Task #"
+required = true
+
+[[fields]]
+id = "date_prepared"
+label = "Date prepared"
+kind = "date"
+required = true
+
+[[fields]]
+id = "time_prepared"
+label = "Time prepared"
+kind = "time"
+required = true
+
+[[fields]]
+id = "operational_period"
+label = "Op period #"
+required = true
+
+[[fields]]
+id = "task_name"
+label = "Task name"
+required = true
+
+[[fields]]
+id = "operator_name"
+label = "Operator name"
+required = true
+remember = true
+
+[[fields]]
+id = "station_id"
+label = "Station I.D."
+required = true
+auto = "mycall"
+
+[[fields]]
+id = "log"
+label = "Log"
+kind = "rows"
+max_rows = 50
+help = "One line per message: time, to, from and subject."
+columns = [
+  { id = "log_time", label = "Time" },
+  { id = "log_to", label = "To" },
+  { id = "log_from", label = "From" },
+  { id = "log_subject", label = "Subject" },
+]
+mail_log = { time = "log_time", from = "log_from", to = "log_to", subject = "log_subject" }

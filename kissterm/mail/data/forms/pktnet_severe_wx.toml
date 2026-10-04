@@ -1,0 +1,208 @@
+# PACKET RADIO SEVERE WEATHER REPORT, the PKTNET layout.
+# Body: vden.org PKTNET severe_wx.html (KN4LQN, concept N3MEL;
+# pktnet-forms.zip v1.2), its "#generate" handler line for line,
+# including its "21.Time period" and "22.Additional" with no space.
+# Date/time defaults to local, with seconds, as the page fills it. Each
+# measurement's unit is the page's label beside it (MPH, inches; KM/h,
+# centimeters, millimeters with its Metric choice), a choice here. A list the page leaves at "Choose" is sent empty here,
+# not as the word. Subject: kissterm's; the page has none.
+id = "pktnet_severe_wx"
+title = "PKTNET Severe Weather Report"
+source = "vden.org PKTNET severe_wx.html (KN4LQN, N3MEL), pktnet-forms.zip v1.2"
+subject = "Severe Weather Report <var datetime>"
+body = '''
+PACKET RADIO SEVERE WEATHER REPORT
+
+1. Sender: <var sender>
+
+2. Report Date/Time (local): <var datetime>
+
+3. Report Version: <var report_version>
+
+4. Reporting Party Name: <var reporting_name>
+
+5. Reporting Party Phone Number: <var reporting_phone>
+
+6. Reporting Party Email Address: <var reporting_email>
+
+EVENT AREA
+
+7. City: <var city>
+
+8. State/Province/Region: <var state>
+
+9. County: <var county>
+
+10. Other: <var other>
+
+11. Reporting Grid Square: <var gridsquare>
+
+OBSERVED EVENT CONDITIONS
+
+12. Flood: <var flood>
+
+13. Hail size: <var hail_size>
+
+14. High Wind Speed: <var high_wind_speed> <var high_wind_units>
+
+15. Tornado / Funnel Cloud: <var tornado_cloud>
+
+16. Wind Damage: <var wind_damage>
+
+17. Winter Precipitation: <var winter_precip>
+
+18. Snow: <var snow> <var snow_units>
+
+19. Freezing Rain: <var freezing_rain> <var freezing_rain_units>
+
+20. Heavy Rain: <var heavy_rain> <var heavy_rain_units>
+
+21.Time period: <var time_period> hours
+
+22.Additional Information or Damage Descriptions: <var additional_info>
+'''
+
+[[fields]]
+id = "sender"
+label = "1. Sender"
+auto = "mycall"
+required = true
+
+[[fields]]
+id = "datetime"
+label = "2. Date/time"
+kind = "datetime"
+format = "%Y-%m-%d %H:%M:%S"
+help = "Local time, as the page fills it."
+
+[[fields]]
+id = "report_version"
+label = "3. Version"
+kind = "choice"
+choices = ["1st Report", "2nd Report Updated Report", "Final Report"]
+default = "1st Report"
+
+[[fields]]
+id = "reporting_name"
+label = "4. Name"
+remember = true
+
+[[fields]]
+id = "reporting_phone"
+label = "5. Phone"
+remember = true
+
+[[fields]]
+id = "reporting_email"
+label = "6. Email"
+remember = true
+
+[[fields]]
+id = "city"
+label = "7. City"
+required = true
+remember = true
+
+[[fields]]
+id = "state"
+label = "8. State"
+remember = true
+
+[[fields]]
+id = "county"
+label = "9. County"
+remember = true
+
+[[fields]]
+id = "other"
+label = "10. Other"
+
+[[fields]]
+id = "gridsquare"
+label = "11. Grid square"
+auto = "grid"
+
+[[fields]]
+id = "flood"
+label = "12. Flood"
+kind = "choice"
+choices = ["Unknown None", "Minor Street Flooding", "Low Water Crossing Flooded", "Wide Spread Flooding Home/Business", "Flooded Creek/Stream out of banks", "River out of Banks", "Other (please elaborate below"]
+
+[[fields]]
+id = "hail_size"
+label = "13. Hail size"
+kind = "choice"
+choices = ["None", "(penny) 0.88\" | 22.352 mm", "(nickel) 1.00\" | 25.4 mm", "(quarter) 1.25\" | 31.75 mm", "(half dollar) 1.50\" | 38.1 mm", "(walnut) 1.75\" | 44.45 mm", "(golfball) 2.00\" | 50.8 mm", "(hens egg) 2.50\" | 69.85 mm", "(tennisball) 2.75\" | 76.2 mm", "(baseball) 3.00\" | 76.2 mm", "(teacup) 4.00\" | 101.6 mm", "(grapefruit) 4.50\" | 114.3 mm"]
+
+[[fields]]
+id = "high_wind_speed"
+label = "14. Wind speed"
+
+[[fields]]
+id = "high_wind_units"
+label = "14. Wind units"
+kind = "choice"
+choices = ["MPH", "KM/h"]
+default = "MPH"
+
+[[fields]]
+id = "tornado_cloud"
+label = "15. Tornado/funnel"
+kind = "choice"
+choices = ["Unknown", "None", "Funnel Cloud", "Tornado", "Wall Cloud"]
+
+[[fields]]
+id = "wind_damage"
+label = "16. Wind damage"
+kind = "choice"
+choices = ["Unknown", "None", "Small Tree Limbs Down", "Large Tree Limbs/Branches Down", "Trees Snapped or Uprooted", "Power Lines Down", "Roof or Structural Damage", "Other (please elaborate below)"]
+
+[[fields]]
+id = "winter_precip"
+label = "17. Winter precip"
+kind = "choice"
+choices = ["Unknown", "None", "Snow", "Sleet", "Freezing", "Rain Mixture"]
+
+[[fields]]
+id = "snow"
+label = "18. Snow"
+
+[[fields]]
+id = "snow_units"
+label = "18. Snow units"
+kind = "choice"
+choices = ["inches", "centimeters"]
+default = "inches"
+
+[[fields]]
+id = "freezing_rain"
+label = "19. Freezing rain"
+
+[[fields]]
+id = "freezing_rain_units"
+label = "19. Freezing units"
+kind = "choice"
+choices = ["inches", "millimeters"]
+default = "inches"
+
+[[fields]]
+id = "heavy_rain"
+label = "20. Heavy rain"
+
+[[fields]]
+id = "heavy_rain_units"
+label = "20. Rain units"
+kind = "choice"
+choices = ["inches", "millimeters"]
+default = "inches"
+
+[[fields]]
+id = "time_period"
+label = "21. Time period"
+help = "Hours. Report 1 inch or greater in an hour, and every inch after."
+
+[[fields]]
+id = "additional_info"
+label = "22. Additional info"
+kind = "multiline"
+help = "Damage descriptions; be brief."

@@ -116,6 +116,10 @@ PKTNET_FORMS = {
     "PACKET BULLETIN MESSAGE": "pktnet_bulletin",
     "PACKET CHECK-IN FORM": "pktnet_checkin",
     "PACKET RADIOGRAM": "radiogram",
+    "ICS-213 GENERAL MESSAGE": "pktnet_ics213",
+    "PACKET RADIO FIELD SITUATION REPORT": "pktnet_fsr",
+    "PACKET RADIO SEVERE WEATHER REPORT": "pktnet_severe_wx",
+    "PACKET COMMUNICATIONS LOG FORM 309": "pktnet_form309",
 }
 
 

@@ -59,7 +59,53 @@ CASES = {
         "service_type": "AMATEUR", "band": "VHF", "mode": "AX25 Packet",
         "location": "Waterboro, ME", "gridsquare": "FN43pp", "town": "Waterboro",
         "state": "ME", "comments": ""}),
+    "pktnet_ics213": ("ics213.html", {
+        "incident": "SHELTER DRILL", "to": "W1AW, Town Hall", "from": "KC1JMH, EOC Radio",
+        "subject": "Blankets", "date": "2026-10-03", "time": "23:10Z",
+        "message": "20 blankets leave the EOC at 1630.", "sender_name": "Brad",
+        "sender_signature": "BB", "sender_position": "Radio officer", "reply": "",
+        "reply_name": "", "reply_signature": "", "reply_position": ""}),
+    "pktnet_fsr": ("fsr.html", {
+        "agency": "WSSM ECT", "precedence": "P/ Priority", "datetime": "2026-10-03 23:10:00Z",
+        "task": "4", "from": "KC1JMH", "to": "CCEMA", "info": "", "lifesafety": "NO",
+        "city": "Waterboro", "county": "York", "state": "ME", "territory": "",
+        "gridsquare": "FN43pp", "latitude": "43.53", "longitude": "-70.71",
+        "pots": "YES", "voip": "NO", "cellcalls": "YES", "celltexts": "YES", "amfm": "YES",
+        "otatv": "Unknown - N/A", "sattv": "Unknown - N/A", "cabletv": "NO", "water": "YES",
+        "powerfunc": "NO", "powerstable": "NO - Brown outs/blinking lights", "gas": "Unknown - N/A",
+        "internet": "NO", "noaafunc": "YES", "noaadeg": "NO",
+        "comments": "Power out since 1500.", "poc": "KC1JMH"}),
+    "pktnet_severe_wx": ("severe_wx.html", {
+        "sender": "KC1JMH", "datetime": "2026-10-03 19:10:00", "report_version": "1st Report",
+        "reporting_name": "Brad", "reporting_phone": "", "reporting_email": "",
+        "city": "Waterboro", "state": "ME", "county": "York", "other": "",
+        "gridsquare": "FN43pp", "flood": "Minor Street Flooding", "hail_size": "None",
+        "high_wind_speed": "45", "high_wind_units": "MPH", "tornado_cloud": "None",
+        "wind_damage": "Small Tree Limbs Down", "winter_precip": "None",
+        "snow": "", "snow_units": "inches", "freezing_rain": "", "freezing_rain_units": "inches",
+        "heavy_rain": "1.5", "heavy_rain_units": "inches", "time_period": "2",
+        "additional_info": "Route 5 closed."}),
+    "pktnet_form309": ("form309.html", {
+        "task_number": "4", "date_prepared": "2026-10-03", "time_prepared": "19:00",
+        "operational_period": "1", "task_name": "SET", "operator_name": "Brad",
+        "station_id": "KC1JMH",
+        "log": [
+            {"log_time": "1905", "log_to": "NCS", "log_from": "KC1JMH", "log_subject": "Check-in"},
+            {"log_time": "1912", "log_to": "KC1JMH", "log_from": "W1AW", "log_subject": "Traffic"},
+        ]}),
 }
+
+
+def _page_values(values: dict) -> dict:
+    """The page's own field ids: Form 309's log rows are `log_time_1`...
+    with `number_rows` saying how many the page holds."""
+    flat = {k: v for k, v in values.items() if k != "log"}
+    rows = values.get("log", [])
+    for number, row in enumerate(rows, 1):
+        flat.update({f"{column}_{number}": text for column, text in row.items()})
+    if rows:
+        flat["number_rows"] = str(len(rows) + 3)  # the page holds spare rows
+    return flat
 
 
 def _lines(text: str) -> list[str]:
@@ -74,13 +120,18 @@ def _lines(text: str) -> list[str]:
 def test_the_form_writes_what_the_page_writes(form_id, tmp_path):
     page, values = CASES[form_id]
     form_id = form_id.removesuffix("_no_agency")
-    assert _lines(_kissterm_text(form_id, values)) == _lines(_page_text(page, values, tmp_path))
+    assert _lines(_kissterm_text(form_id, values)) == _lines(
+        _page_text(page, _page_values(values), tmp_path))
 
 
 @pytest.mark.parametrize("page,form_id", [
     ("bulletin.html", "pktnet_bulletin"),
     ("check_in.html", "pktnet_checkin"),
     ("radiogram.html", "radiogram"),
+    ("ics213.html", "pktnet_ics213"),
+    ("fsr.html", "pktnet_fsr"),
+    ("severe_wx.html", "pktnet_severe_wx"),
+    ("form309.html", "pktnet_form309"),
 ])
 def test_each_page_is_recognised_by_its_title(page, form_id):
     assert pktnet_form((DATA / page).read_bytes()) == form_id

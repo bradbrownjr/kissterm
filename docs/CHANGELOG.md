@@ -5,6 +5,30 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-03] — PKTNET ICS-213, FSR, Severe WX and Form 309 forms
+
+### New Features
+
+- **Four more PKTNET forms**, in the pages' own layouts (Winlink's stay
+  as they were): ICS-213, Field Situation Report, Severe Weather Report
+  and Form 309 Log. Mail > Insert offers them, and Enter on the page in
+  the Files viewer opens them. Each is tested against its page's own
+  Generate handler.
+
+### Improvements
+
+- **A received form reads a number and its unit apart** (`14. High Wind
+  Speed: 45 MPH`): a choice variable straight after another matches only
+  its choices.
+
+**Files:** `kissterm/mail/data/forms/pktnet_ics213.toml`,
+`kissterm/mail/data/forms/pktnet_fsr.toml`,
+`kissterm/mail/data/forms/pktnet_severe_wx.toml`,
+`kissterm/mail/data/forms/pktnet_form309.toml`, `kissterm/mail/form_parse.py`,
+`kissterm/files_view.py`, `tests/tools/pktnet_generate.js`,
+`tests/unit/test_pktnet_forms.py`, `tests/unit/data/pktnet/`, `docs/GUIDE.md`,
+`docs/PROTOCOL_GUIDE.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-03] — Enter fills in a PKTNET form from the Files viewer
 
 ### New Features

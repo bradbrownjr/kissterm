@@ -1,0 +1,275 @@
+# PACKET RADIO FIELD SITUATION REPORT, the PKTNET layout.
+# Body: vden.org PKTNET fsr.html (Ver 1.2, KN4LQN, concept N3MEL;
+# pktnet-forms.zip v1.2), its "#generate" handler line for line, with
+# its ":=" separators, unlike Winlink's FSR (fsr.toml). Date/time
+# defaults to UTC with seconds and a Z, as the page fills it. Every
+# status list offers YES, NO and "Unknown - N/A", the page's default;
+# 9b's NO is "NO - Brown outs/blinking lights". Subject: kissterm's; the
+# page has none (its file name reads a #subject field it lacks). With no
+# agency the page leaves three blank lines under its title; kissterm
+# drops the empty agency line (`forms.py`) and leaves two.
+id = "pktnet_fsr"
+title = "PKTNET Field Situation Report"
+source = "vden.org PKTNET fsr.html Ver 1.2 (KN4LQN, N3MEL)"
+subject = "Field Situation Report <var datetime>"
+body = '''
+PACKET RADIO FIELD SITUATION REPORT
+
+<var agency>
+
+PRECEDENCE:= <var precedence>
+
+DATE/TIME:= <var datetime>    TASK:= # <var task>
+
+FROM:= <var from>
+
+TO:= <var to>
+
+INFO (CC):= <var info>
+
+1. Is there an EMERGENT/LIFE SAFETY Need = <var lifesafety>
+
+2. City:= <var city>
+
+2a. County:= <var county>
+
+2b. State:= <var state>
+
+2c. Territory:= <var territory>
+
+3. Reporting Grid Sq:= <var gridsquare>
+
+3a. Latitude:= <var latitude>
+
+3b. Longitude:= <var longitude>
+
+4a. POTS landlines functioning?:= <var pots>
+
+4b. VOIP landlines functioning?:= <var voip>
+
+5a. Cell phone voice calls functioning?:= <var cellcalls>
+
+5b. Cell phone texts functioning?:= <var celltexts>
+
+6. AM/FM Broadcast Stations functioning?:= <var amfm>
+
+7a. OTA TV functioning?:= <var otatv>
+
+7b. Satellite TV functioning?:= <var sattv>
+
+7c. Cable TV functioning?:= <var cabletv>
+
+8. Public Water Works functioning?:= <var water>
+
+9a. Commercial Power functioning?:= <var powerfunc>
+
+9b. Commercial Power Stable?:= <var powerstable>
+
+9c. Natural Gas Supply functioning?:= <var gas>
+
+10. Internet functioning?:= <var internet>
+
+11a. NOAA weather radio functioning?:= <var noaafunc>
+
+11b. NOAA weather radio audio degraded?:= <var noaadeg>
+
+12. Additional Comments: <var comments>
+
+13. POC:= <var poc>
+'''
+
+[[fields]]
+id = "agency"
+label = "Agency/group"
+remember = true
+placeholder = "optional"
+
+[[fields]]
+id = "precedence"
+label = "Precedence"
+kind = "choice"
+choices = ["Z/ Flash", "O/ Immediate", "P/ Priority", "R/ Routine"]
+default = "R/ Routine"
+
+[[fields]]
+id = "datetime"
+label = "Date/time"
+kind = "datetime"
+utc = true
+format = "%Y-%m-%d %H:%M:%SZ"
+
+[[fields]]
+id = "task"
+label = "Task #"
+
+[[fields]]
+id = "from"
+label = "From"
+auto = "mycall"
+required = true
+
+[[fields]]
+id = "to"
+label = "To"
+required = true
+
+[[fields]]
+id = "info"
+label = "Info (CC)"
+
+[[fields]]
+id = "lifesafety"
+label = "1. Life safety need"
+kind = "choice"
+choices = ["YES", "NO"]
+default = "NO"
+
+[[fields]]
+id = "city"
+label = "2. City"
+required = true
+remember = true
+
+[[fields]]
+id = "county"
+label = "2a. County"
+remember = true
+
+[[fields]]
+id = "state"
+label = "2b. State"
+remember = true
+
+[[fields]]
+id = "territory"
+label = "2c. Territory"
+
+[[fields]]
+id = "gridsquare"
+label = "3. Grid square"
+auto = "grid"
+
+[[fields]]
+id = "latitude"
+label = "3a. Latitude"
+
+[[fields]]
+id = "longitude"
+label = "3b. Longitude"
+
+[[fields]]
+id = "pots"
+label = "4a. POTS landlines functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "voip"
+label = "4b. VOIP landlines functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "cellcalls"
+label = "5a. Cell phone voice calls functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "celltexts"
+label = "5b. Cell phone texts functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "amfm"
+label = "6. AM/FM Broadcast Stations functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "otatv"
+label = "7a. OTA TV functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "sattv"
+label = "7b. Satellite TV functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "cabletv"
+label = "7c. Cable TV functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "water"
+label = "8. Public Water Works functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "powerfunc"
+label = "9a. Commercial Power functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "powerstable"
+label = "9b. Commercial Power Stable?"
+kind = "choice"
+choices = ["YES", "NO - Brown outs/blinking lights", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "gas"
+label = "9c. Natural Gas Supply functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "internet"
+label = "10. Internet functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "noaafunc"
+label = "11a. NOAA weather radio functioning?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "noaadeg"
+label = "11b. NOAA weather radio audio degraded?"
+kind = "choice"
+choices = ["YES", "NO", "Unknown - N/A"]
+default = "Unknown - N/A"
+
+[[fields]]
+id = "comments"
+label = "12. Comments"
+kind = "multiline"
+help = "Brief summary of the current situation: expected outage times, major observations."
+
+[[fields]]
+id = "poc"
+label = "13. POC"
+auto = "mycall"
+help = "Your call."

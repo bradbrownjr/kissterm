@@ -14,6 +14,8 @@ const [page, valuesPath] = process.argv.slice(2);
 const html = fs.readFileSync(page, "utf8");
 const values = JSON.parse(fs.readFileSync(valuesPath, "utf8"));
 const store = {};
+// A <span id> label's text, as the page has it (Severe WX's units).
+for (const m of html.matchAll(/<span id="([\w-]+)">([^<]*)<\/span>/g)) store[m[1]] = m[2];
 const handlers = {};
 let captured = null;
 let ready = [];
@@ -27,7 +29,8 @@ function field(id) {
     on(evt, fn) { handlers[id + ":" + evt] = fn; return el; },
     empty() { return el; }, dialog() { return el; }, trigger() { return el; },
     appendTo() { return el; }, append() { return el; }, click() { return el; },
-    each() { return el; }, text() { return el; }, remove() { return el; },
+    each() { return el; }, remove() { return el; },
+    text(v) { if (v === undefined) return store[id] === undefined ? "" : String(store[id]); store[id] = v; return el; },
     is() { return false; }, find() { return el; }, length: 1,
   };
   return el;
