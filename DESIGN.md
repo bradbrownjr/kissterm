@@ -82,6 +82,12 @@ was restyled, and it was spotted immediately in a screenshot.
   (the saved-login editor from an address-book entry) uses the same style as
   its parent. Enforced by `tests/unit/test_dialog_consistency.py`, which
   reads every `ModalScreen` in `ui/dialogs.py`.
+- **A dialog shows its action as a button**, not only as Enter on a list
+  (operator, 2026-10-04, on the file picker: "There is no upload button.
+  Thankfully, enter worked"). A dialog built around a list has a button
+  that does what Enter on the highlighted row does, beside Cancel or
+  Close. A full-screen viewer and the menu, which show their keys in the
+  Footer, are the exceptions. `tests/unit/test_dialog_consistency.py`.
 - **Dense where the content is the point** (2026-09-25). Rows are scarce
   in a terminal; a screen for writing or reading text gives them to the
   text, not to chrome. The compose screen is the reference:

@@ -227,10 +227,12 @@ asking; the status bar counts the bytes, the Terminal stays quiet while
 it runs, and the file is saved in Files > Downloads with a toast naming
 it. Nothing arrives unasked: a sender you did not ask in the last minute
 is ignored. To upload, F10 > Session > File transfer (or S on a file in
-the Files tab), choose the file and press Start; BPQ takes a YAPP upload
+the Files tab), pick the file (Browse files, then Choose or Enter) and
+press Start; BPQ takes a YAPP upload
 at its prompt. The dialog's Download is for AutoBIN, or a sender that
-needs the receiver started first. A YAPP download from WS1EC-2 has
-worked over the air (2026-10-03); uploads and AutoBIN are not yet proven.
+needs the receiver started first. A YAPP download and upload with WS1EC-2
+have worked over the air (2026-10-03 and 10-04); AutoBIN is not yet
+proven.
 
 **Not over SSH.** An SSH login like WS1EC's runs `telnet` into the node on
 the server, and that holds YAPP's replies until a line end, so a transfer

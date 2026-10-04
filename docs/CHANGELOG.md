@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-04] — The file picker has a Choose button
+
+### Improvements
+
+- **Browse files has a Choose button** beside Cancel, doing what Enter
+  does on the highlighted row (open a folder, pick a file); it had only
+  Cancel, so the way to pick was a key it never showed. DESIGN.md now
+  asks every list dialog for such a button, and a test checks it. The
+  YAPP upload to WS1EC-2 worked over the air with it.
+
+**Files:** `kissterm/ui/dialogs.py`, `tests/unit/test_dialog_consistency.py`,
+`tests/pilot/test_files_downloads.py`, `DESIGN.md`, `docs/GUIDE.md`,
+`SETUP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-04] — File transfers refused over SSH
 
 ### Improvements

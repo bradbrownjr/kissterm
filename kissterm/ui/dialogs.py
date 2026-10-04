@@ -19,6 +19,7 @@ from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, DataTable, Footer, Input, Label, Select, Static, Tab, Tabs, TextArea
 
@@ -524,7 +525,13 @@ class FileTransferScreen(ModalScreen[FileTransferRequest | None]):
 
 
 class FilePickerScreen(ModalScreen[Path | None]):
-    """Local read-only browser for an explicit upload selection."""
+    """Local read-only browser for an explicit upload selection.
+
+    Choose acts on the highlighted row as Enter does: a folder opens, a
+    file is chosen. It had only Cancel until 2026-10-04, so the way to pick
+    a file was a key the screen never showed (operator: "There is no
+    upload button. Thankfully, enter worked"); DESIGN.md section 3, "A
+    dialog shows its action as a button"."""
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
     def __init__(self, directory: Path | None = None) -> None:
@@ -536,7 +543,10 @@ class FilePickerScreen(ModalScreen[Path | None]):
             yield Label("Choose upload file", id="connect-title")
             yield Static(str(self.directory), id="file-picker-path")
             yield DataTable(id="file-picker-table", cursor_type="row")
-            yield Button("Cancel", id="file-picker-cancel")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("Choose", id="file-picker-choose", classes="-primary")
+                yield Button("Cancel", id="file-picker-cancel")
+        yield Footer()
 
     def on_mount(self) -> None:
         table = self.query_one("#file-picker-table", DataTable)
@@ -563,7 +573,17 @@ class FilePickerScreen(ModalScreen[Path | None]):
 
     @on(DataTable.RowSelected, "#file-picker-table")
     def _choose(self, event: DataTable.RowSelected) -> None:
-        entry = self.directory.parent if event.row_key.value == ".." else self.directory / str(event.row_key.value)
+        self._open(str(event.row_key.value))
+
+    @on(Button.Pressed, "#file-picker-choose")
+    def _choose_button(self) -> None:
+        table = self.query_one("#file-picker-table", DataTable)
+        if table.row_count and table.cursor_row >= 0:
+            key = table.coordinate_to_cell_key(Coordinate(table.cursor_row, 0)).row_key.value
+            self._open(str(key))
+
+    def _open(self, key: str) -> None:
+        entry = self.directory.parent if key == ".." else self.directory / key
         if entry.is_dir():
             self.directory = entry.resolve(); self._list_folder()
         elif entry.is_file():

@@ -207,8 +207,8 @@ async def test_browse_files_opens_the_picker_and_picks_a_file(tmp_path):
         table = picker.query_one(DataTable)
         row = next(i for i in range(table.row_count) if table.get_row_at(i)[0] == "form.txt")
         table.move_cursor(row=row)
-        table.focus()
-        await pilot.press("enter")
+        await pilot.pause()
+        picker.query_one("#file-picker-choose").press()  # the button, not only Enter
         await pilot.pause()
         assert isinstance(app.screen, FileTransferScreen)
         assert app.screen.query_one("#yapp-path").value == str(tmp_path / "form.txt")

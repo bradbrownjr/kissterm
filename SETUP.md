@@ -465,15 +465,15 @@ not something kissterm can silently work around.
 ## 9. File transfers: YAPP and AutoBIN
 
 While connected to a peer or BBS that supports YAPP or AutoBIN, open the F10 menu and
-choose Session > File transfer, then the protocol. For an upload, choose **Browse files**
-and select the local file; kissterm starts the selected protocol only after
+choose Session > File transfer, then the protocol. For an upload, choose **Browse files**,
+highlight the local file and press **Choose**; kissterm starts the selected protocol only after
 that explicit choice. A YAPP download from a BPQ BBS needs no setup: type
 `YAPP <name>` and it starts by itself when the BBS begins sending, within
 a minute of asking. For AutoBIN, or a sender that needs the receiver
 started first, choose **Download into Files > Downloads**, then issue the
 peer's download command. Completed downloads are saved in Files > Downloads (F4); one whose name is
-taken is saved as `name-1.ext`, never over the first. A YAPP download
-from a BPQ BBS has worked over the air; uploads and AutoBIN are not yet
+taken is saved as `name-1.ext`, never over the first. YAPP downloads and
+uploads with a BPQ BBS have worked over the air; AutoBIN is not yet
 proven. File transfers are not supported over an SSH login (the
 server's `telnet` holds YAPP's replies): kissterm refuses them there.
 Kissterm never

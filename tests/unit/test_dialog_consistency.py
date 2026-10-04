@@ -39,3 +39,17 @@ def test_every_dialog_uses_one_button_style():
         if not fields and any(compact):
             mixed.append(f"{name}: bordered fields with compact buttons")
     assert not mixed, "\n".join(mixed)
+
+
+def test_a_dialog_built_around_a_list_has_a_button_for_its_action():
+    """DESIGN.md section 3: Enter on a list is not the only way to act
+    (2026-10-04: the file picker had only Cancel)."""
+    lists = ("DataTable(", "OptionList(", "SelectionList(", "ListView(", "Tree(")
+    missing = []
+    for name, body in _classes().items():
+        if "ModalScreen" not in body.split("\n", 1)[0] or not any(w in body for w in lists):
+            continue
+        labels = re.findall(r'yield Button\("([^"]+)"', body)
+        if not [label for label in labels if label not in ("Cancel", "Close")]:
+            missing.append(name)
+    assert not missing, f"only Enter acts in: {missing}"
