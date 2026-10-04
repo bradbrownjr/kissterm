@@ -149,3 +149,32 @@ async def test_a_bpqmail_refusal_is_reported_with_its_reason(tmp_path):
 
     with pytest.raises(YappError, match="refused: YAPP File form.txt already exists"):
         await send_file(link, source, timeout=2)
+    # The peer ended it: nothing to cancel.
+    assert not any(packet[:1] == b"\x18" for packet in link.sent)
+
+
+@pytest.mark.asyncio
+async def test_a_download_kissterm_gives_up_on_is_cancelled(tmp_path):
+    """A header kissterm will not save ends in `CAN len reason`, so BPQ
+    leaves YAPP mode (`ProcessYAPPMessage`'s CAN case) instead of eating
+    the operator's next line."""
+    header = b"../evil.sh\x00" + b"5\x00"
+    link = _BpqLink({b"\x06\x01": bytes((1, len(header))) + header})
+    from kissterm.yapp import YappError
+
+    with pytest.raises(YappError, match="unsafe"):
+        await receive_file(link, tmp_path, timeout=2, initial=b"\x05\x01")
+    assert link.sent[0] == b"\x06\x01"
+    cancel = link.sent[-1]
+    assert cancel[0] == 0x18 and cancel[1] == len(cancel) - 2
+    assert b"unsafe" in cancel[2:]
+
+
+@pytest.mark.asyncio
+async def test_a_silent_peer_is_cancelled_after_the_timeout(tmp_path):
+    link = _BpqLink({})
+    from kissterm.yapp import YappError
+
+    with pytest.raises(YappError, match="did not respond"):
+        await receive_file(link, tmp_path, timeout=0.05, initial=b"\x05\x01")
+    assert link.sent[-1][:1] == b"\x18"

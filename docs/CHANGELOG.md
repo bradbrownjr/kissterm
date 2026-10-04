@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-04] — A failed YAPP transfer is cancelled at the BBS
+
+### Improvements
+
+- **When kissterm gives up on a YAPP transfer** (a timeout, a file it
+  will not save, a local error), it sends YAPP `CAN` with the reason.
+  BPQ then answers "File Rejected" and leaves YAPP mode; before, it
+  stayed in it and ate the operator's next typed line ("Unexpected
+  message during YAPP Transfer"). Not sent when the peer ended it.
+
+**Files:** `kissterm/yapp.py`, `tests/unit/test_yapp.py`, `docs/GUIDE.md`,
+`docs/SOURCES.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-04] — A screenshot of the bulletin category checklist
 
 ### Improvements

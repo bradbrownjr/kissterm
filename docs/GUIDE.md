@@ -244,7 +244,9 @@ it. Nothing arrives unasked: a sender you did not ask in the last minute
 is ignored. To upload, F10 > Session > File transfer (or S on a file in
 the Files tab), pick the file (Browse files, then Choose or Enter) and
 press Start; BPQ takes a YAPP upload
-at its prompt. The dialog's Download is for AutoBIN, or a sender that
+at its prompt. If a transfer fails on kissterm's side (a timeout, a file
+it will not save), it tells the BBS with a YAPP cancel, so the BBS
+answers "File Rejected" and takes your next command as a command again. The dialog's Download is for AutoBIN, or a sender that
 needs the receiver started first. A YAPP download and upload with WS1EC-2
 have worked over the air (2026-10-03 and 10-04); AutoBIN is not yet
 proven.

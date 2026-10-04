@@ -23,6 +23,15 @@ the same mistake, which is why the loopback test passed;
 
 BPQ reads a data length of 0 as no data, not 256, and sends at most
 `paclen - 2` bytes a packet; the sender here keeps to 255 and below.
+
+**A transfer that fails here sends `CAN len reason`** (2026-10-04), unless
+the peer ended it (its own `CAN` or `NAK`). BPQ answers `ACK 5`, says
+"File Rejected - reason" and leaves YAPP mode (`ProcessYAPPMessage`'s
+`CAN` case); without it BPQ stays in YAPP mode after kissterm has given
+up, and reads the operator's next typed line as a YAPP packet ("Unexpected
+message during YAPP Transfer"), eating it. The `ACK 5` is not waited
+for: the failure is reported at once, and the two control bytes are
+filtered out of the Terminal like any other.
 """
 from __future__ import annotations
 
@@ -45,7 +54,13 @@ _SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 
 
 class YappError(RuntimeError):
-    """The peer declined, cancelled, malformed, or timed out a transfer."""
+    """The peer declined, cancelled, malformed, or timed out a transfer.
+    `peer_ended`: the peer sent `CAN` or `NAK`, so there is nothing to
+    cancel."""
+
+    def __init__(self, message: str, *, peer_ended: bool = False) -> None:
+        super().__init__(message)
+        self.peer_ended = peer_ended
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,9 +131,21 @@ async def _expect(wire: _Wire, kind: int, payload: bytes, timeout: float) -> Non
     if got_kind in (CAN, NAK):
         reason = got_payload.decode("ascii", "replace").strip()
         what = "cancelled" if got_kind == CAN else "refused"
-        raise YappError(f"YAPP peer {what}" + (f": {reason}" if reason else ""))
+        raise YappError(f"YAPP peer {what}" + (f": {reason}" if reason else ""),
+                        peer_ended=True)
     if (got_kind, got_payload) != (kind, payload):
         raise YappError(f"unexpected YAPP packet {got_kind:#x}/{got_payload!r}")
+
+
+async def _cancel(wire: _Wire, exc: BaseException) -> None:
+    """Tell the peer this side has given up (module docstring), unless it
+    ended the transfer itself. Best effort: a link that is gone cannot be
+    told, and the failure being reported matters more."""
+    if isinstance(exc, YappError) and exc.peer_ended:
+        return
+    reason = str(exc).encode("ascii", "replace")[:80]
+    with contextlib.suppress(Exception):
+        await wire.send(CAN, reason)
 
 
 async def send_file(link, source: str | Path, *, timeout: float = 30.0) -> YappResult:
@@ -142,6 +169,9 @@ async def send_file(link, source: str | Path, *, timeout: float = 30.0) -> YappR
         await wire.send(EOT, b"\x01")
         await _expect(wire, ACK, b"\x04", timeout)
         return YappResult(path, size)
+    except Exception as exc:
+        await _cancel(wire, exc)
+        raise
     finally:
         wire.close()
 
@@ -185,11 +215,11 @@ async def receive_file(
     called with the file's name, bytes so far and its size, once the header
     is in and after each data packet."""
     target_dir = Path(directory).expanduser().resolve()
-    if not target_dir.is_dir():
-        raise ValueError("receive directory does not exist")
     wire = _Wire(link, initial)
     temp: Path | None = None
     try:
+        if not target_dir.is_dir():
+            raise ValueError("receive directory does not exist")
         await _expect(wire, ENQ, b"\x01", timeout)
         await wire.send(ACK, b"\x01")
         kind, header = await wire.packet(timeout)
@@ -228,6 +258,9 @@ async def receive_file(
         await _expect(wire, EOT, b"\x01", timeout)
         await wire.send(ACK, b"\x04")
         return YappResult(target, written)
+    except Exception as exc:
+        await _cancel(wire, exc)
+        raise
     finally:
         if temp is not None:
             with contextlib.suppress(FileNotFoundError):

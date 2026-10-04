@@ -53,6 +53,12 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   reason.** Upload `test.md` again: "YAPP upload failed: YAPP peer
   refused: YAPP File test.md already exists". (Not reported with the
   upload above.)
+- [ ] **After a YAPP transfer fails, the BBS takes the next command.**
+  Only when one fails by itself (a timeout on a weak path, say): the
+  Terminal shows "File Rejected - ..." from the BBS, and the next command
+  typed (`FILES`) is answered normally, not with "Unexpected message
+  during YAPP Transfer". (kissterm sends YAPP CAN on failure since
+  2026-10-04, per BPQ's source; never seen on the air.)
 - [ ] **G on the Files tab downloads what is ticked.** F4, G (the Home
   BBS over the air, Settings > Mail's route). Expected: after the
   reminder and the BBS prompt, a checklist of WS1EC-2's files (eight in
