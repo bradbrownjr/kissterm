@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — The core's messages name no keys
+
+### Improvements
+
+- **The core's notices name no key and no tab** (`kissterm/core/
+  wording.py`, ROADMAP P7a M7's first step): where one would, it writes
+  a token that each client renders. The terminal still says "Ctrl+T" and
+  "the Monitor tab (F8)"; a phone or browser will say "the Transmit
+  switch" and "the Monitor". Transcripts no longer add "(Ctrl+T)" to "Could
+  not answer ... -- transmit is disabled".
+
+**Files:** `kissterm/core/wording.py` (new), `aprs.py`, `connect.py`,
+`sessions.py`, `mail.py`, `transfers.py`, `operator.py`, `AGENTS.md`,
+`kissterm/ui/operator.py`, `kissterm/tx.py`,
+`tests/unit/test_core_wording.py` (new), `tests/pilot/test_transmit_gate.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-05] — The channel and Settings move into the core
 
 ### Improvements

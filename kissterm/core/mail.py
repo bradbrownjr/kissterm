@@ -411,7 +411,7 @@ class Mail:
         first = [h.strip() for h in entry.hops.split(",") if h.strip()] or [entry.target]
         peer = parse_path(first[0]).destination
         if self.connected_to(peer):
-            self._notice(f"Already connected to {peer}. Disconnect first, then press G.",
+            self._notice(f"Already connected to {peer}. Disconnect first, then press {{key:get_mail}}.",
                          Severity.WARNING)
             return None
         state: dict = {"runner": None, "key": "", "reached": False}

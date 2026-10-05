@@ -38,12 +38,6 @@ from collections.abc import Callable
 
 log = logging.getLogger(__name__)
 
-#: What the UI says when it refuses. One string so the terminal pane, the
-#: connect dialog and the beacon cannot drift into three different wordings
-#: for the same state.
-DISABLED_MESSAGE = "Transmit is disabled -- press Ctrl+T to enable it."
-
-
 class TransmitGate:
     """Open or closed. Closed means nothing reaches the air."""
 

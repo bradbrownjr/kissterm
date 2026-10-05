@@ -378,7 +378,7 @@ async def test_sending_a_line_with_a_closed_gate_arms_it_instead_of_refusing():
     """The same "confirmed, targeted" reasoning `_arm_for` already applies to
     a confirmed Connect applies here: a line the operator typed, to a station
     they are already connected to, committed with Enter or Send. Refusing it
-    with DISABLED_MESSAGE would be the identical dead end -- the one thing
+    with `wording.TRANSMIT_DISABLED` would be the identical dead end -- the one thing
     the operator just asked for is the one thing the refusal would not do."""
     from kissterm.ax25 import AX25Path
 

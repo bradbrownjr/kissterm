@@ -214,7 +214,7 @@ class Connector:
                          f"Transmit enabled automatically for: {what}")
         if toast:
             self.core.operator.notice(
-                Notice(f"Transmit ENABLED for {what}. Ctrl+T turns it back off."))
+                Notice(f"Transmit ENABLED for {what}. {{key:toggle_transmit}} turns it back off."))
         return True
 
     # ------------------------------------------------------------------
@@ -334,12 +334,12 @@ class Connector:
             self._problem(
                 report, f"Not connecting: the link to the TNC at {where} is {state.value}, "
                 "so nothing would reach the air. This is not an RF problem -- check the "
-                "TNC, then Settings (F9) > Radio > Test.")
+                "TNC, then {view:settings/Radio} > Test.")
             return
         armed = self.arm_for(f"connect to {path.destination}", key, toast=not announce)
         if announce:
             self.core.operator.notice(Notice(
-                announce + (" Transmit ENABLED; Ctrl+T turns it back off." if armed else "")))
+                announce + (" Transmit ENABLED; {key:toggle_transmit} turns it back off." if armed else "")))
         self.core.sessions.record(key, f"Connecting to {path.destination} on port {port}")
         # Set before the await: `AX25Station.connect` registers the link
         # synchronously before it awaits anything, so a disconnect can find
@@ -371,7 +371,7 @@ class Connector:
             detail = f" -- {reason}" if reason else ""
             why = f"Could not connect to {path.destination}{detail}."
             if attempts:
-                why += (f" {attempts} attempt(s) sent; the Monitor tab (F8) shows "
+                why += (f" {attempts} attempt(s) sent; the {{view:monitor}} shows "
                         "what went out and what came back.")
             # It was up when we started, so a transport that is down NOW
             # dropped during the attempt and some SABMs never left the

@@ -48,7 +48,6 @@ from ..config import AprsConfig, BeaconConfig
 from ..gps import GpsReader
 from ..locator import find_grid_in_text
 from ..monitor import aprs_message_matches, sanitize
-from ..tx import DISABLED_MESSAGE
 from .events import (
     Alert,
     AprsAcked,
@@ -58,6 +57,7 @@ from .events import (
     AprsRetried,
 )
 from .operator import Notice, Severity
+from .wording import TRANSMIT_DISABLED
 
 log = logging.getLogger(__name__)
 
@@ -317,7 +317,7 @@ class Aprs:
             if self.ack_blocked_cooldown.allow((addressee, number)):
                 self._notice(
                     f"{addressee} sent a message that needs an acknowledgment, but "
-                    "Transmit is OFF, so nothing was sent back. Press Ctrl+T to turn "
+                    "Transmit is OFF, so nothing was sent back. Press {key:toggle_transmit} to turn "
                     "Transmit on.",
                     Severity.WARNING,
                     timeout=10,
@@ -404,7 +404,7 @@ class Aprs:
         if self.core.station is not None:
             self.core.connector.arm_for(f"sending to {addressee}")
         if not await self.send_message(addressee, wire_text, number):
-            self._notice("Message not sent -- transmit is disabled (Ctrl+T).", Severity.WARNING)
+            self._notice("Message not sent -- transmit is disabled ({key:toggle_transmit}).", Severity.WARNING)
             return ""
         if bulletin:
             return "bulletin"
@@ -499,7 +499,7 @@ class Aprs:
         does NOT arm the gate: one keystroke, no target, is the shape of an
         accidental transmission. A closed gate is reported."""
         if not self.core.gate.enabled:
-            self._notice(DISABLED_MESSAGE, Severity.WARNING)
+            self._notice(TRANSMIT_DISABLED, Severity.WARNING)
             return
         why = self.beaconer.problem()
         # "beaconing is off" is about the TIMER, not a reason to refuse.

@@ -41,7 +41,6 @@ from ..nodes import Command, CommandReference
 from ..nodes.reference import application_named, applications_of, identify_family, parse_harvested
 from ..session_log import SessionLog
 from ..transport.base import SessionState
-from ..tx import DISABLED_MESSAGE
 from .connect import session_key
 from .events import (
     ActivityChanged,
@@ -55,6 +54,7 @@ from .events import (
 from .hops import HOP_COMMAND_WORDS, HopConfirmation
 from .links import SessionLinkAdapter
 from .operator import Notice, Severity
+from .wording import TRANSMIT_DISABLED
 
 log = logging.getLogger(__name__)
 
@@ -267,7 +267,7 @@ class Sessions:
             # The UA never went out, so the caller is talking to nobody. Say
             # so: "somebody called and you could not answer" is exactly what
             # an operator wants to find later.
-            self.record(key, f"Could not answer {link.peer} -- transmit is disabled (Ctrl+T)")
+            self.record(key, f"Could not answer {link.peer} -- transmit is disabled")
             self._notice(f"{link.peer} called, but transmit is disabled.", Severity.WARNING)
         self._spawn(self.send_banner(link))
         self._notice(f"Connection from {link.peer}")
@@ -287,7 +287,7 @@ class Sessions:
         if self.core.gate.enabled:
             what = "answered DM (no connection here) so it stops polling"
         else:
-            what = "would answer DM, but transmit is disabled (Ctrl+T)"
+            what = "would answer DM, but transmit is disabled ({key:toggle_transmit})"
         self._notice(
             f"{call} is polling a connection kissterm does not have "
             f"(left open when it last closed?); {what}."
@@ -702,7 +702,7 @@ class Sessions:
         if link.va != link.vs:
             return
         self._notice(
-            f"{link.peer} acknowledged that -- no reply yet. The Monitor tab (F8) "
+            f"{link.peer} acknowledged that -- no reply yet. The {{view:monitor}} "
             "shows what has come back since."
         )
 
@@ -803,7 +803,7 @@ class Sessions:
         if session is None or session.link is None or not session.link.connected:
             return ()
         if not self.core.gate.enabled:
-            self._notice(DISABLED_MESSAGE, Severity.WARNING)
+            self._notice(TRANSMIT_DISABLED, Severity.WARNING)
             return ()
         link = session.link
         # A second, unanswered harvest must not show the previous reply as

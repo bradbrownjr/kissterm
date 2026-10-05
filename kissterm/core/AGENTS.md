@@ -27,6 +27,7 @@ same tests passing unchanged.
 | `transfers.py` | `Transfers` (`core.transfers`): YAPP/AutoBIN on a session -- the requested-download window, the byte interceptor, explicit transfers (which arm). |
 | `questions.py` | The typed questions: `RadioReminder`, `TrustHostKey`, `ChooseSessionTransport`, `CallsignAsk`; Send/Receive's `HomeBbsRoute`, `WinlinkGateway`, `LoginAsk`, `InternetLoginAsk`, `ChooseCategories`, `PickFiles`; their answer types (`Credential`, `GatewayChoice`, `InternetLogin`, `SETUP_SKIP`, `SETUP_GO`). |
 | `hops.py` | `HopConfirmation` and `HOP_TIMEOUT`: the one definition of "the hop came up". |
+| `wording.py` | Key and view tokens in notice text, and their neutral rendering (`neutral`); `TRANSMIT_DISABLED`. |
 | `links.py` | `SessionLinkAdapter`: a session-tier `Session` in `AX25Link`'s shape. |
 
 ## The rules
@@ -34,15 +35,14 @@ same tests passing unchanged.
 1. **Talk to the operator only through `Operator`.** A flow that needs to
    say something calls `self.operator.notice(...)`; one that needs a
    decision awaits `self.operator.ask(SomeQuestion(...))`. Never a widget,
-   never a toast, never screen wording such as a key name. **Known gap:**
-   notices moved from the terminal UI kept their words so nothing changed
-   on screen ("Ctrl+T turns it back off", "the Monitor tab (F8)",
-   "Settings (F9) > Radio > Test" in `connect.py`; "(Ctrl+T)", "the
-   Monitor tab (F8)" and `tx.DISABLED_MESSAGE` in `sessions.py`; "Ctrl+T"
-   in `aprs.py`; "press G", "Files > Downloads (F4)" in `mail.py` and
-   `transfers.py`). They become
-   client-neutral before any other client exists (the WebSocket server);
-   do not add more.
+   never a toast. **Never a key or tab name in the core's words**: write a
+   token (`wording.py`: `{key:toggle_transmit}`, `{view:monitor}`,
+   `{view:settings/Radio}`) and each client renders it -- the terminal as
+   "Ctrl+T" and "Monitor tab (F8)", anything else neutrally ("the
+   Transmit switch", "Monitor"). Transcripts and the log get the neutral
+   form. **Known gap:** some `settings_schema.py` help texts still name
+   keys ("Ctrl+G", "F10 menu"); tokenize them before the schema is
+   served to another client.
 2. **A question is data**: a frozen dataclass subclassing `Question`, with
    its answer type in the docstring. Each client draws it its own way; the
    terminal UI maps it to a screen in `ui/operator.py`'s `SCREENS`.

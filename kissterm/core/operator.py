@@ -93,7 +93,9 @@ class NullOperator:
             Severity.ERROR: logging.ERROR,
             Severity.WARNING: logging.WARNING,
         }.get(notice.severity, logging.INFO)
-        log.log(level, "notice: %s", notice.text)
+        from .wording import neutral
+
+        log.log(level, "notice: %s", neutral(notice.text))
 
     async def ask(self, question: Question) -> Any | None:
         log.info("question declined, no operator: %r", question)

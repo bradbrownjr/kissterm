@@ -19,6 +19,7 @@ from typing import Any
 from textual.app import App, ScreenStackError
 from textual.screen import Screen
 
+from ..core import wording
 from ..core.operator import Notice, Question
 from ..core.questions import (
     CallsignAsk,
@@ -116,6 +117,37 @@ SCREENS: dict[type[Question], Callable[[Any], Screen]] = {
 }
 
 
+def _key(action: str) -> str | None:
+    """The key bound to command `action` ("Ctrl+T"), or None."""
+    from .commands import commands_for, key_label
+
+    for command in commands_for(action):
+        if command.key or command.list_key:
+            return key_label(command.key or command.list_key, short=False)
+    return None
+
+
+def _tab_key(tab: str) -> str:
+    return _key(f"show_tab('{tab}')") or ""
+
+
+def _view(name: str) -> str | None:
+    """Where a view is in this UI, with its tab key: "Monitor tab (F8)",
+    "Settings (F9) > Radio", "Files > Downloads (F4)"."""
+    if name.startswith("settings/"):
+        return f"Settings ({_tab_key('settings')}) > {name.split('/', 1)[1]}"
+    if name == "monitor":
+        return f"Monitor tab ({_tab_key('monitor')})"
+    if name == "downloads":
+        return f"Files > Downloads ({_tab_key('files')})"
+    return None
+
+
+def render(text: str) -> str:
+    """The core's wording (`core/wording.py`) in this UI's keys and tabs."""
+    return wording.render(text, key=_key, view=_view)
+
+
 class TextualOperator:
     """`Operator` for `KissTermApp`."""
 
@@ -124,7 +156,7 @@ class TextualOperator:
 
     def notice(self, notice: Notice) -> None:
         self._app.notify(
-            notice.text,
+            render(notice.text),
             title=notice.title,
             severity=str(notice.severity),  # type: ignore[arg-type]
             timeout=notice.timeout,

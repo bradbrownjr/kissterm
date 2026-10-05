@@ -133,7 +133,7 @@ class Transfers:
                 self._notice(f"{protocol} upload complete: {result.path.name}")
             else:
                 self._notice(f"{protocol} download complete: {result.path.name}, "
-                             "in Files > Downloads (F4).")
+                             "in {view:downloads}.")
                 self.core.events.publish(MailChanged())
         finally:
             self.active.discard(key)
