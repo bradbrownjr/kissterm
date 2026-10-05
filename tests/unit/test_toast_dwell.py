@@ -33,6 +33,21 @@ def test_no_toast_passes_a_shorter_timeout():
                 # A conditional (urgent ? 15 : 10) is checked branch by branch.
                 values = ([kw.value.body, kw.value.orelse] if isinstance(kw.value, ast.IfExp)
                           else [kw.value])
+                # The core's notices pass their own timeout, which `Notice`
+                # holds to the same floor (test below).
+                if path.name == "operator.py" and ast.unparse(kw.value) == "notice.timeout":
+                    continue
                 if not all(isinstance(v, ast.Constant) and v.value >= MIN_SECONDS for v in values):
                     short.append(f"{path.name}:{node.lineno}")
     assert not short, f"toasts shorter than {MIN_SECONDS}s: {short}"
+
+
+def test_a_core_notice_cannot_ask_for_a_shorter_toast():
+    import pytest
+
+    from kissterm.core.operator import MIN_NOTICE_SECONDS, Notice
+
+    assert MIN_NOTICE_SECONDS >= MIN_SECONDS
+    assert Notice("ok", timeout=15).timeout == 15
+    with pytest.raises(ValueError):
+        Notice("too quick", timeout=4)

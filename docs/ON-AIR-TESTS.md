@@ -10,6 +10,23 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## Connecting, after the core rework (0.1.399, 2026-10-05)
+
+The connect flow moved out of the terminal UI into kissterm's core, with
+nothing meant to change on screen. Worth one session on the air to confirm.
+
+- [ ] **A dial from the Address Book with a frequency on file.** Give a
+  node a frequency (E in the Address Book), then dial it. Expected: the
+  "Before connecting" reminder first; Cancel sends nothing (Monitor, F8,
+  stays quiet). Dial again and Connect: "Transmit ENABLED" toast if TX was
+  off, SABMs on the Monitor, the node's banner in its own Terminal tab.
+- [ ] **Ctrl+D while it is still calling.** Dial a station that will not
+  answer and press Ctrl+D during the SABMs. Expected: no more SABMs on the
+  Monitor, and the transcript says the connect was cancelled.
+- [ ] **A saved login and a hop.** A contact with a hop (via WS1EC-7) and
+  a saved login: the "C <node>" goes out, then the login lines, each shown
+  in the Terminal, the password as `********`.
+
 ## Bulletins (G and I on the Bulletins tab)
 
 - [ ] **First collection over the Internet.** On the Bulletins tab press

@@ -112,8 +112,23 @@ class Core:
         #: The station's `on_incoming` and `on_stray_poll` callbacks.
         self.incoming_subscribers: list[Callable] = []
         self.stray_poll_subscribers: list[Callable] = []
+        #: The Address Book (`kissterm/addressbook.py`), loaded by whoever
+        #: builds the core; the connect flow reads reminders from it and
+        #: records attempts in it. None means none (a bare test core).
+        self.addressbook = None
+        #: The connect flow (`connect.Connector`), set once the front end
+        #: that keeps the sessions is attached (`use_session_host`).
+        self.connector = None
         self._unsubscribes: list[Callable[[], None]] = []
         self._attached_sent: list[Callable] = []
+
+    def use_session_host(self, host):
+        """Build the connect flow over `host`, which keeps the sessions
+        until they move into the core (ROADMAP P7a milestone 3)."""
+        from .connect import Connector
+
+        self.connector = Connector(self, host)
+        return self.connector
 
     # ------------------------------------------------------------------
     @property

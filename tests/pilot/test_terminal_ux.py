@@ -1521,10 +1521,10 @@ async def test_a_hop_that_times_out_leaves_the_node_we_are_still_on_alone():
     harmless as a refusal. `HOP_TIMEOUT` is patched down rather than waited
     out -- 20 seconds of real time in a unit test is not a test, it is a
     pause."""
-    from kissterm.ui import app as app_module
+    from kissterm.core import hops as hops_module  # HOP_TIMEOUT lives in the core
 
-    original_timeout = app_module.HOP_TIMEOUT
-    app_module.HOP_TIMEOUT = 0.3
+    original_timeout = hops_module.HOP_TIMEOUT
+    hops_module.HOP_TIMEOUT = 0.3
     app, a, b, _ = await _connected_app()
     try:
         async with app.run_test(size=(110, 32)) as pilot:
@@ -1545,7 +1545,7 @@ async def test_a_hop_that_times_out_leaves_the_node_we_are_still_on_alone():
             assert app.reference.family is before, "a silent hop wiped detection"
             assert app.current_node == str(PEER)
     finally:
-        app_module.HOP_TIMEOUT = original_timeout
+        hops_module.HOP_TIMEOUT = original_timeout
         a.close()
         b.close()
 

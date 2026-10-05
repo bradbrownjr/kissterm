@@ -311,7 +311,7 @@ byte stream. That fits the existing architecture exactly: **B2F is a
 session protocol on top of whatever link is open.** It runs over an
 `AX25Link` to an RMS Gateway (packet, kissterm's own state machine), a
 `Session` from the VARA transport, or Telnet to the Winlink CMS, via the
-same `_SessionLinkAdapter` seam the terminal uses. It needs no new transport.
+same `SessionLinkAdapter` seam the terminal uses. It needs no new transport.
 
 Sources: Winlink's published B2F and secure-login documentation, and **Pat**
 (getpat.io, github.com/la5nta/pat, with its protocol library wl2k-go). Pat

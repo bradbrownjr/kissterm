@@ -41,19 +41,31 @@ class Severity(StrEnum):
     ERROR = "error"
 
 
+#: The shortest time a notice may ask to stay up (DESIGN.md section 6;
+#: operator, 2026-10-02: pairs of 4-second toasts "went by too fast to
+#: read"). Enforced here, so it holds for every client.
+MIN_NOTICE_SECONDS = 10
+
+
 @dataclass(frozen=True, slots=True)
 class Notice:
     """Something the operator should be told, with no answer expected.
 
-    `timeout` is a request in seconds (None: the client's default);
-    `title` is optional. Text is plain and already sanitized -- a notice is
-    kissterm's own words, never remote bytes.
+    `timeout` is a request in seconds, at least `MIN_NOTICE_SECONDS` (None:
+    the client's default, which is no shorter); `title` is optional. Text
+    is plain and already sanitized -- a notice is kissterm's own words,
+    never remote bytes.
     """
 
     text: str
     severity: Severity = Severity.INFORMATION
     title: str = ""
     timeout: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.timeout is not None and self.timeout < MIN_NOTICE_SECONDS:
+            raise ValueError(
+                f"a notice stays up at least {MIN_NOTICE_SECONDS}s, not {self.timeout}")
 
 
 @dataclass(frozen=True, slots=True)

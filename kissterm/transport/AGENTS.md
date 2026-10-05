@@ -52,8 +52,8 @@ split exists to prevent.
 Every config entry may also carry `script`/`credential` for an optional
 post-connect auto-login -- `build_transport` strips these into
 `Transport.script`/`Transport.credential` rather than forwarding them as
-constructor keywords (see `_ENTRY_ONLY_KEYS`). Only `KissTermApp.
-_connect_session_transport` reads them today, since a frame-tier connect
+constructor keywords (see `_ENTRY_ONLY_KEYS`). Only `Connector.
+connect_session_transport` (`kissterm/core/connect.py`) reads them today, since a frame-tier connect
 already gets its script from the address-book request instead -- but they
 live on every transport, not just the session tier, so a new transport
 kind's constructor must not declare a `script` or `credential` parameter of

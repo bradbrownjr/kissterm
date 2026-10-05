@@ -67,8 +67,8 @@ digipeats or gates to the internet (ROADMAP P4).
   one link corrupt it.
 
 They return different objects: `AX25Station.connect()` gives an `AX25Link`,
-`SessionTransport.connect()` a `Session`. `KissTermApp._SessionLinkAdapter`
-(`ui/app.py`) wraps a `Session` in `AX25Link`'s shape at bind time. **Add UI
+`SessionTransport.connect()` a `Session`. `SessionLinkAdapter`
+(`core/links.py`) wraps a `Session` in `AX25Link`'s shape at bind time. **Add UI
 logic that must work on both tiers by extending the adapter, never by
 reshaping `Session`** (that ripples into vara/mercury/kernel_ax25 and
 `tests/unit/test_tx_gate.py`).
@@ -299,11 +299,11 @@ changes.
 - **`kissterm/tx.py` is the master switch, CLOSED on launch.** `Ctrl+T`
   toggles it; `Config.tx_armed_at_start` defaults false.
 - **A confirmed, operator-named request arms the gate** through
-  `KissTermApp._arm_for` only: connect (Ctrl+N dialog, Address Book dial,
+  `Connector.arm_for` (`core/connect.py`) only: connect (Ctrl+N dialog, Address Book dial,
   Ctrl+R Reconnect), disconnect, `TerminalPane.send_line` while connected,
   `AprsPane._send_compose`, APRS > Send position. **An unattended resend never
   arms** (`AprsPane._retry_worker`, beacon timers).
-- **Arming is never silent**: `_arm_for` raises a toast, changes the status
+- **Arming is never silent**: `arm_for` raises a notice, changes the status
   bar and records it in the session's transcript (never the Terminal,
   DESIGN.md section 6).
 - **Enforced at the transport, not the UI.** `FrameTransport.send_frame` is
@@ -329,7 +329,7 @@ changes.
   armed; every transmission shows in the Monitor tab and is logged to
   kissterm.log (not the Terminal, DESIGN.md section 6).
 - **A login script or hop chain rides the connect the operator confirmed**
-  (`_run_connect_script`, `_hop_through`): each line echoed, stops if the
+  (`Connector.run_connect_script`, `hop_through`): each line echoed, stops if the
   gate closes or the link drops, and the login runs only if the whole chain
   came up.
 - **`RadioReminderScreen` comes before the gate arms**; cancelling transmits

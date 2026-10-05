@@ -233,7 +233,7 @@ async def test_a_hop_that_stays_silent_times_out_distinctly_from_a_refusal(tmp_p
     """Silence and an explicit refusal are different diagnoses (same
     reasoning as a DM versus an N2 timeout) and must not be reported with
     the same words."""
-    from kissterm.ui import app as app_module
+    from kissterm.core import hops as hops_module  # HOP_TIMEOUT lives in the core
 
     app, station, tb = await _app()
     records = spy_records(app)
@@ -242,8 +242,8 @@ async def test_a_hop_that_stays_silent_times_out_distinctly_from_a_refusal(tmp_p
     node = AX25Station(NODE, tb, LinkParams(t1=0.3, t2=0.05, t3=5.0))
     # No relay installed at all -- the node hears "C W1LH-6" and says nothing.
 
-    original_timeout = app_module.HOP_TIMEOUT
-    app_module.HOP_TIMEOUT = 0.5
+    original_timeout = hops_module.HOP_TIMEOUT
+    hops_module.HOP_TIMEOUT = 0.5
     try:
         async with app.run_test(size=(120, 40)) as pilot:
             await _connect_via_history(app, pilot)
@@ -254,7 +254,7 @@ async def test_a_hop_that_stays_silent_times_out_distinctly_from_a_refusal(tmp_p
             assert "no response within" in text, text
             assert "BUSY" not in text and "FAILED" not in text, text
     finally:
-        app_module.HOP_TIMEOUT = original_timeout
+        hops_module.HOP_TIMEOUT = original_timeout
         node.close()
         station.close()
 

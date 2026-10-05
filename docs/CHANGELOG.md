@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — The connect flow moves into the core
+
+### Improvements
+
+- **Connecting is the core's** (`kissterm/core/connect.py`, ROADMAP P7a
+  second step): arming the transmit gate, the radio reminder, the dial and
+  its failure wording, Internet contacts, the session tier, hop chains,
+  auto-login, Ctrl+D cancel and Ctrl+R's request. The reminder and the SSH
+  trust question are typed questions the core asks, so another client can
+  draw them its own way. Nothing changes on screen; a check on the air is
+  in docs/ON-AIR-TESTS.md. A notice can no longer ask for a toast shorter
+  than 10 seconds, whichever client shows it.
+
+**Files:** `kissterm/core/connect.py`, `questions.py`, `hops.py`, `links.py`
+(new), `kissterm/core/service.py`, `operator.py`, `AGENTS.md`,
+`kissterm/ui/app.py`, `operator.py`, `dialogs.py`,
+`tests/unit/test_core_connect.py` (new), `tests/unit/test_toast_dwell.py`,
+`tests/pilot/test_connect_scripts.py`, `tests/pilot/test_terminal_ux.py`,
+`AGENTS.md`, `kissterm/transport/AGENTS.md`, `docs/ROADMAP.md`,
+`docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-05] — The core begins: transports and the gate leave the Textual app
 
 ### Improvements

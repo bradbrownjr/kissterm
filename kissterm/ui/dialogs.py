@@ -34,45 +34,12 @@ from ..aprs_contacts import (
     validate_contact,
 )
 from ..ax25 import parse_path
+#: Defined in the core (`kissterm/core/connect.py`), re-exported for the
+#: screens and callers that build one.
+from ..core.connect import ConnectRequest  # noqa: F401
 from ..locator import LocatorError, from_grid, from_mgrs, from_utm
 from .symbol_picker import SymbolPicker
 from .wraplog import WrapLog
-
-
-@dataclass(frozen=True)
-class ConnectRequest:
-    """What the Connect dialog hands back: where to connect, and what to
-    do once there.
-
-    `hops` is a comma-separated chain of intermediate nodes to reach
-    `target` node-to-node, for when no digipeater path does the job --
-    almost always empty. `script`/`credential`/`script_name` are the three
-    mutually exclusive ways to say what to send once the FULL chain (or the
-    plain direct connect, if `hops` is empty) comes up, checked in that
-    order by `KissTermApp._resolve_login`: the name of a saved credential,
-    the name of a saved script, or literal text -- see `Config.credentials`
-    for why a login and a script are two separate saved lists rather than
-    one, and `_run_connect_script` for how the winning text gets sent.
-
-    `transport_name`, when non-empty and different from the currently
-    active transport, asks `action_connect` to switch to it (via
-    `KissTermApp._switch_frame_transport`) BEFORE dialing -- only ever a
-    same-tier alternative to whatever this dialog was shown for, since
-    `ConnectScreen` itself only appears on the frame tier; see
-    `transport.FRAME_TIER_KINDS`'s docstring for why a live tier switch is
-    not offered anywhere.
-    """
-
-    target: str
-    script: str = ""
-    hops: str = ""
-    credential: str = ""
-    script_name: str = ""
-    transport_name: str = ""
-    #: KISS/AGW radio port selected for this attempt.  This is deliberately
-    #: per-attempt rather than an Address Book property: the same node may be
-    #: reachable on different channels as the operator changes the station.
-    port: int = 0
 
 
 @dataclass(frozen=True)

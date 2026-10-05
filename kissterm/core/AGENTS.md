@@ -17,13 +17,22 @@ same tests passing unchanged.
 | `service.py` | `Core`: station, session transport, transmit gate, transport lifecycle (open, switch, rebind, subscriber wiring). `build_station`, `MAX_LINKS`. |
 | `operator.py` | The `Operator` port: `notice(Notice)` and `await ask(Question)`. `NullOperator` declines everything. |
 | `events.py` | Domain events and the `EventBus` (sequence-numbered, synchronous). |
+| `connect.py` | `Connector` (`core.connector`): gate arming, the radio reminder, the dial and its failure wording, Internet contacts, the session tier, hop chain, auto-login, disconnect/cancel, reconnect. `ConnectRequest`, `session_key`. `SessionHost` is the temporary seam to the UI's session tabs (milestone 3 absorbs it). |
+| `questions.py` | The typed questions: `RadioReminder`, `TrustHostKey`. |
+| `hops.py` | `HopConfirmation` and `HOP_TIMEOUT`: the one definition of "the hop came up". |
+| `links.py` | `SessionLinkAdapter`: a session-tier `Session` in `AX25Link`'s shape. |
 
 ## The rules
 
 1. **Talk to the operator only through `Operator`.** A flow that needs to
    say something calls `self.operator.notice(...)`; one that needs a
    decision awaits `self.operator.ask(SomeQuestion(...))`. Never a widget,
-   never a toast, never screen wording such as a key name.
+   never a toast, never screen wording such as a key name. **Known gap:**
+   notices moved from the terminal UI kept their words so nothing changed
+   on screen ("Ctrl+T turns it back off", "the Monitor tab (F8)",
+   "Settings (F9) > Radio > Test" in `connect.py`). They become
+   client-neutral before any other client exists (the WebSocket server);
+   do not add more.
 2. **A question is data**: a frozen dataclass subclassing `Question`, with
    its answer type in the docstring. Each client draws it its own way; the
    terminal UI maps it to a screen in `ui/operator.py`'s `SCREENS`.

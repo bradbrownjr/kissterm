@@ -134,6 +134,11 @@ from ..aprs_conversations import ConversationStore, MessageDeduplicator
 from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import AX25Station, parse_path
 from ..core import Core, GateChanged, TransportChanged
+from ..core.connect import ConnectRequest
+from ..core.connect import session_key as _session_key_of
+from ..core.hops import HOP_COMMAND_WORDS
+from ..core.hops import HopConfirmation as _HopConfirmation
+from ..core.links import SessionLinkAdapter as _SessionLinkAdapter
 from ..ax25.address import AX25Address, AX25AddressError
 from ..aprs_beacon import AprsBeaconer
 from ..beacon import Beaconer
@@ -146,7 +151,6 @@ from ..config import (
     move_credentials_to_keyring,
     rescue_typed_secrets,
     set_credential,
-    find_script,
     login_text as saved_login_text,
     mail_path,
     state_path,
@@ -185,12 +189,10 @@ from ..nodes.reference import (
 from .dialogs import (
     CallsignScreen,
     CommandReferenceScreen,
-    ConnectRequest,
     ConnectScreen,
     AprsObjectScreen,
     AprsObjectRequest,
     AprsIsWatchScreen,
-    RadioReminderScreen,
     SETUP_GO,
     SETUP_SKIP,
     GatewayChoice,
@@ -203,7 +205,6 @@ from .dialogs import (
     LoginAskScreen,
     TranscriptsScreen,
     FileTransferScreen,
-    TrustHostKeyScreen,
     UpdateScreen,
 )
 from .heard_pane import HeardPane
@@ -213,7 +214,7 @@ from .help_pane import HelpPane
 from .mail_pane import MessageBrowser, MessageList, bulletins_browser, files_browser, mail_browser
 from .styles import APP_CSS
 from .operator import TextualOperator
-from .terminal_pane import MAX_TERMINAL_TABS, TerminalPane
+from .terminal_pane import TerminalPane
 
 log = logging.getLogger(__name__)
 
@@ -346,61 +347,7 @@ def _status_row(parts: list[str | Text]) -> Table:
     return table
 
 
-#: `AX25Link.last_error` set by `action_disconnect` when it cancels a connect
-#: still in the SABM/retry phase. Checked back in `action_connect` so a
-#: cancelled attempt is reported as cancelled, not run through the "no
-#: answer" / "check the Monitor tab" wording meant for a genuine timeout.
-CANCELLED_REASON = "cancelled by operator"
 
-
-def _entry_link_override(text: str) -> int | None:
-    """Turn an `addressbook.Entry.paclen`/`window` string into an override
-    for `AX25Station.connect`, or `None` to mean "use the global default".
-
-    `AddressBookEntryScreen` already refuses to save anything but blank or a
-    positive whole number (`dialogs._validate_link_params`), but the address
-    book is a JSON file an operator could still hand-edit into something
-    invalid -- treating that the same as blank (fall back to the global
-    default) is a data-format mismatch, not a reason to refuse a connect.
-    """
-    try:
-        value = int(text.strip())
-    except ValueError:
-        return None
-    return value if value >= 1 else None
-
-#: Pause between auto-login lines (`KissTermApp._run_connect_script`). A
-#: login sequence is normally two or three short commands, not a burst --
-#: pacing them gives a BBS's own line handling a moment to catch up rather
-#: than racing several commands in before it has processed the first.
-CONNECT_SCRIPT_LINE_DELAY = 0.75
-
-#: How long to wait for one intermediate node's own CONNECTED reply
-#: (`KissTermApp._hop_to`) before giving up on that hop. Fixed rather than
-#: scaled to the remaining chain length (unlike the bpq-apps node-map
-#: crawler this is modelled on) -- that crawler walks up to ten
-#: auto-discovered hops, this walks a short chain the operator typed by
-#: hand, so a flat, generous timeout is simpler and does the job.
-HOP_TIMEOUT = 20.0
-
-#: A hop that answers with any of these has explicitly refused or dropped,
-#: which is a different diagnosis from silence and must be reported
-#: differently -- see `AX25Station.connect`'s DM-vs-timeout distinction for
-#: the same reasoning one layer down. Matched case-insensitively as a
-#: substring against everything received since the "C <node>" command went
-#: out, the same heuristic bpq-apps' crawler uses against real BPQ nodes.
-HOP_FAIL_WORDS = ("BUSY", "FAILED", "DISCONNECTED", "TIMEOUT")
-
-#: The first word of an outgoing line that means "connect onward to a
-#: different node" across every shipped family's own command set -- bpq32/
-#: NET-ROM's "C"/"CONNECT" and JNOS's "connect" (its own alias table also
-#: has "c"). `log_sent` starts a confirmation watch when it sees one of
-#: these followed by a target, so an operator typing the command by hand
-#: mid-session gets the same confirm-then-reset treatment the scripted hop
-#: chain already gets from `_hop_to` -- see `log_sent`'s hop paragraph for
-#: why detection otherwise never notices the switch, and `_commit_hop` for
-#: why the reset must wait for the hop to actually come up.
-HOP_COMMAND_WORDS = frozenset({"C", "CONNECT"})
 
 #: How long after sending a line, with nothing back, before saying so
 #: (`KissTermApp._note_if_no_reply`). From a real report: WS1EC-15
@@ -460,239 +407,74 @@ HARVEST_POLL_INTERVAL = 0.5
 HARVEST_CAPTURE_LIMIT = 4096
 
 
-class _HopConfirmation:
-    """Watches one link for a node's own reply to a "C <node>" that has just
-    gone out, and decides whether the hop came up.
+class _TerminalSessionHost:
+    """The connect flow's `SessionHost` (kissterm/core/connect.py): the
+    Terminal tabs, transcripts and node identification it still reaches
+    in this app, until sessions move into the core (ROADMAP P7a M3). Each
+    method is what `action_connect` and its helpers did here before."""
 
-    THE one definition of "the hop worked" in this app -- both the scripted
-    hop chain (`KissTermApp._hop_to`) and a hand-typed hop
-    (`KissTermApp.log_sent`'s background watch) go through it, so the two
-    cannot drift apart on, say, whether DISCONNECTED counts as a refusal.
+    def __init__(self, app: "KissTermApp") -> None:
+        self._app = app
 
-    A small class rather than a plain coroutine for one reason that is not
-    cosmetic: it subscribes to `link.on_data` in `__init__`, SYNCHRONOUSLY.
-    A coroutine can only subscribe once the event loop first runs it, and
-    `log_sent` is a synchronous method that cannot await anything before
-    returning -- so a reply arriving in that window would be fanned out to
-    every other subscriber and missed by this one, and the hop would never
-    be confirmed at all.
+    def _pane(self) -> "TerminalPane":
+        return self._app.query_one(TerminalPane)
 
-    Subscribing is non-destructive: the terminal pane has its own separate
-    subscriber from `_bind_link` and goes on displaying the same bytes, the
-    same one-fan-out-many-subscribers shape as the frame transport's own
-    `subscribe()`. `stop()` must always be called -- a watcher left
-    subscribed goes on matching a later, unrelated hop's traffic.
-    """
+    def active_key(self) -> str:
+        return self._app._active_key()
 
-    def __init__(self, link, node: str) -> None:
-        self._link = link
-        self._node = node
-        self._seen = bytearray()
-        self.result: asyncio.Future[tuple[bool, str]] = (
-            asyncio.get_event_loop().create_future()
-        )
-        link.on_data.append(self._on_data)
+    def link(self, key: str):
+        session = self._app._sessions.get(key)
+        return session.link if session is not None else None
 
-    def _on_data(self, data: bytes) -> None:
-        self._seen.extend(data)
-        # latin-1 for the same reason every other payload decode in this app
-        # uses it: a corrupt frame off a noisy channel must lose the noise,
-        # not the readable part around it.
-        text = self._seen.decode("latin-1", "replace").upper()
-        if "CONNECTED" in text:
-            if not self.result.done():
-                self.result.set_result((True, ""))
+    def has_room_for(self, key: str) -> bool:
+        return self._pane().has_room_for(key)
+
+    def open_session(self, key: str, *, kind: str, focus: bool) -> None:
+        """Close the Address Book slide-outs a dial came from and put the
+        session's tab on screen. Radio: always, the tab activated, Terminal
+        shown if dialed from a mail tab and `focus`. Internet: only with
+        `focus`, the tab activated only then. Session tier: the one `""`
+        tab, cleared for the new connection."""
+        app = self._app
+        pane = self._pane()
+        if kind == "internet" and not focus:
+            pane.open_tab(key, activate=False)
             return
-        for word in HOP_FAIL_WORDS:
-            if word in text:
-                if not self.result.done():
-                    self.result.set_result((False, f"{self._node} answered {word}"))
-                return
+        pane.close_addressbook_for_connection()
+        dialed_from_mail = False
+        for browser in app.query(MessageBrowser):
+            dialed_from_mail |= browser.close_addressbook(refocus=False)
+        if dialed_from_mail and (focus or kind != "radio"):
+            app.action_show_tab("terminal")
+        if kind == "session":
+            pane.clear("")
+        else:
+            pane.open_tab(key, activate=True)
 
-    def stop(self) -> None:
-        """Unsubscribe. Idempotent -- it is called from both the awaiting
-        coroutine's `finally` and the watching task's done callback, and
-        either one may get there first."""
-        with contextlib.suppress(ValueError):
-            self._link.on_data.remove(self._on_data)
+    def bind(self, link, key: str, *, activate: bool = True) -> None:
+        self._app._bind_link(link, key, activate=activate)
 
+    def record(self, key: str, text: str) -> None:
+        self._app._record(key, text)
 
-class _SessionLinkAdapter:
-    """Presents a session-tier `Session` (VARA, Mercury, kernel AX.25,
-    Telnet, SSH) with the same shape `AX25Link` already has, so every piece
-    of connect-flow logic written once against `AX25Link` -- `_bind_link`,
-    `_hop_through`/`_hop_to`, `_run_connect_script`, `action_disconnect` --
-    works unchanged for either tier, with no branch scattered through any
-    of them.
+    def note(self, key: str, text: str) -> None:
+        self._app._note(key, text)
 
-    The two really do differ: `Session.on_state_change` is a registration
-    *method*, `AX25Link.on_state` a plain callback list; `Session` has no
-    `on_data` at all, only an `incoming` queue fed by `deliver()`, because
-    `Session` predates any real caller -- nothing in this app constructed
-    one through `SessionTransport.connect()` before this adapter existed.
-    Adapting here rather than reshaping `Session` to match keeps
-    `kernel_ax25.py`/`vara.py`/`mercury.py` and their existing tests
-    (`tests/unit/test_tx_gate.py` included) untouched.
+    def is_active(self, key: str) -> bool:
+        return self._pane().active_session_key == key
 
-    `Session` also has no error-reporting channel to match `AX25Link.
-    on_error` -- `self.on_error` exists so `_bind_link` can append to it
-    without a branch, but nothing here ever calls what is in it. Session
-    transports do not have a "why" beyond a plain disconnect yet.
+    def focus_input(self) -> None:
+        self._pane().focus_input()
 
-    **The far end's echo is removed here.** BPQ's Telnet server answers
-    IAC WILL ECHO and sends back every byte typed except the password
-    (LinBPQ `TelnetV6.c`), and WS1EC's SSH account runs `telnet` into it,
-    so each line showed twice: kissterm's own echo, then the node's
-    (operator, 2026-10-02). What was sent is held as the expected echo;
-    bytes that match it at the start of what comes back are dropped, CR LF
-    standing for the CR sent. The moment anything differs -- a password the
-    server does not echo, a far end that never echoes -- the held bytes are
-    delivered after all and the expectation is dropped, so nothing the far
-    end really said is lost. A partial match left waiting is delivered
-    after `ECHO_WAIT` seconds. AX.25 nodes do not echo; this is the session
-    tier only, the only place it happens.
-    """
+    def echo_sent(self, key: str, shown: str, sent: str, *, watch_hop: bool = True) -> None:
+        self._app._to_terminal(key, "write_note", shown + "\n")
+        self._app.log_sent(key, sent, watch_hop=watch_hop)
 
-    #: How long a partial echo match waits for the rest before it is shown.
-    ECHO_WAIT = 1.0
+    def commit_hop(self, key: str, node: str) -> None:
+        self._app._commit_hop(key, node)
 
-    def __init__(self, session, transport=None) -> None:
-        self._session = session
-        #: An Internet contact's own connection (`_dial_internet`), closed
-        #: with the session. None for the app's configured transport.
-        self._transport = transport
-        self._transport_closed = False
-        self.peer = session.peer
-        self.on_data: list = []
-        self.on_state: list = []
-        self.on_error: list = []
-        #: The echo still expected, and the received bytes held while they
-        #: match it (class docstring).
-        self._echo = bytearray()
-        self._held = bytearray()
-        self._after_cr = False
-        self._echo_timer: asyncio.TimerHandle | None = None
-        session.on_state_change(lambda _session, state: self._emit_state(state))
-        self._pump_task = asyncio.get_event_loop().create_task(
-            self._pump(), name=f"session-adapter-pump:{session.peer}"
-        )
-
-    @property
-    def connected(self) -> bool:
-        return self._session.connected
-
-    @property
-    def internet(self) -> bool:
-        """An Internet contact's session: it cannot reach the air, so the
-        transmit gate is neither checked nor armed for it."""
-        return self._transport is not None
-
-    @property
-    def carries_binary(self) -> bool:
-        """Whether a file transfer (YAPP, AutoBIN) can run over this link.
-        False over SSH: WS1EC's login runs `telnet` into BPQ in line mode on
-        the server's terminal, which holds YAPP's two-byte answers until a
-        line end and acts on its control bytes (Ctrl+C, Ctrl+D) itself. The
-        operator's test, 2026-10-04: BPQ's header arrived only after the
-        next line was typed. Changing the node's login would break other
-        users' telnet clients, so the operator chose to mark it
-        unsupported (`KissTermApp.refuse_line`). An `AX25Link` has no such
-        property and carries binary."""
-        transport = getattr(self._session, "transport", None)
-        return getattr(getattr(transport, "info", None), "kind", "") != "ssh"
-
-    @property
-    def state(self):
-        return self._session.state
-
-    async def send(self, data: bytes) -> None:
-        await self._session.send(data)
-        self._echo += data.replace(b"\r\n", b"\r").replace(b"\n", b"\r")
-
-    def _strip_echo(self, data: bytes) -> bytes:
-        """`data` less the leading part that echoes what was sent; may hold
-        bytes back while a match is incomplete (class docstring)."""
-        if not self._echo and not self._after_cr:
-            return data
-        for i, byte in enumerate(data):
-            if self._after_cr and byte == 0x0A:
-                # The LF of a CR LF that echoed a CR.
-                self._after_cr = False
-                continue
-            self._after_cr = False
-            if self._echo and byte == self._echo[0]:
-                del self._echo[0]
-                self._held.append(byte)
-                self._after_cr = byte == 0x0D
-                if not self._echo:
-                    # The whole echo arrived: drop it.
-                    self._held.clear()
-                continue
-            # Past the echo, or not an echo at all: show what was held (if
-            # anything), and stop expecting one.
-            rest = bytes(self._held) + data[i:]
-            self._echo.clear()
-            self._held.clear()
-            return rest
-        if self._held:
-            self._arm_echo_timer()
-        return b""
-
-    def _arm_echo_timer(self) -> None:
-        if self._echo_timer is not None:
-            self._echo_timer.cancel()
-        self._echo_timer = asyncio.get_event_loop().call_later(self.ECHO_WAIT, self._release_echo)
-
-    def _release_echo(self) -> None:
-        """A partial match that never finished: the far end said it."""
-        self._echo_timer = None
-        held = bytes(self._held)
-        self._echo.clear()
-        self._held.clear()
-        self._after_cr = False
-        if held:
-            self._deliver(held)
-
-    def _deliver(self, data: bytes) -> None:
-        for cb in list(self.on_data):
-            cb(data)
-
-    async def disconnect(self) -> None:
-        """The session-tier equivalent of `AX25Link.disconnect()` -- there
-        is no DISC to send, only the connection itself to close."""
-        self._pump_task.cancel()
-        await self._session.close()
-        await self._close_transport()
-
-    def close(self) -> None:
-        self._pump_task.cancel()
-
-    async def _close_transport(self) -> None:
-        # Once: both a hang-up and Ctrl+D can get here.
-        if self._transport is None or self._transport_closed:
-            return
-        self._transport_closed = True
-        with contextlib.suppress(Exception):
-            await self._transport.close()
-
-    def _emit_state(self, state) -> None:
-        for cb in list(self.on_state):
-            cb(state)
-        if state == SessionState.DISCONNECTED and self._transport is not None:
-            # The far end hung up: its connection goes with it.
-            asyncio.get_event_loop().create_task(self._close_transport())
-
-    async def _pump(self) -> None:
-        try:
-            while True:
-                data = self._strip_echo(await self._session.incoming.get())
-                if data:
-                    if self._echo_timer is not None:
-                        self._echo_timer.cancel()
-                        self._echo_timer = None
-                    self._deliver(data)
-        except asyncio.CancelledError:
-            pass
+    def connecting_changed(self) -> None:
+        self._app._refresh_context_footer()
 
 
 class KissTermFooter(Footer):
@@ -848,6 +630,9 @@ class KissTermApp(App):
         self.core.incoming_subscribers.append(self._on_incoming_link)
         self.core.stray_poll_subscribers.append(self._on_stray_poll)
         self.core.events.subscribe(self._on_core_event)
+        #: The connect flow (`kissterm/core/connect.py`), over this app's
+        #: Terminal tabs until sessions move into the core.
+        self.core.use_session_host(_TerminalSessionHost(self))
         self.gate.on_change.append(self._on_transmit_change)
         self.heard = HeardTable()
         self.monitor_filter = MonitorFilter()
@@ -857,14 +642,6 @@ class KissTermApp(App):
         #: `_TerminalSession`'s. `self.link`/`self.reference`/`self.transcript`
         #: below are read-only properties over whichever entry is active.
         self._sessions: dict[str, _TerminalSession] = {"": _TerminalSession()}
-        #: Targets of connect attempts still in the SABM/retry phase,
-        #: session key -> the peer address. Needed because a session's
-        #: `_sessions` entry does not exist until the attempt SUCCEEDS, so
-        #: without this Ctrl+D during a stuck connect has nothing to act on
-        #: and can only say "Not connected", leaving the operator to wait
-        #: out N2 retries with no way to stop them. See `action_connect` and
-        #: `action_disconnect`.
-        self._connecting: dict[str, tuple[AX25Address, int]] = {}
         #: Callsigns already explained by `_on_stray_poll` this launch.
         self._stray_noted: set[str] = set()
         #: True while Send/Receive runs (`action_get_mail`); one at a time.
@@ -875,19 +652,6 @@ class KissTermApp(App):
         self._all_inboxes: tuple[str, str] | None = None
         #: A background job's status-bar field ("Receiving 1 of 3"), shown green.
         self._activity = ""
-        # What each Terminal tab last dialed, for Ctrl+R Reconnect: the whole
-        # request (hops, login, port), not just the callsign, so a reconnect
-        # to a station reached through two nodes goes back the same way.
-        self._last_connect: dict[str, ConnectRequest] = {}
-        self._last_connect_key = ""
-        #: Internet contacts still connecting, by session key, so Ctrl+D
-        #: can cancel one (`_dial_internet`).
-        self._internet_connecting: dict[str, asyncio.Task] = {}
-        #: The one in-flight SessionTransport.connect() call, if any. Session
-        #: transports have no AX.25 link for Ctrl+D to close during setup, so
-        #: the task itself is the cancellation handle. It is set only while
-        #: awaiting connect(), not for an established session or login script.
-        self._session_connect_task: asyncio.Task[object] | None = None
         #: Stations already tried, offered in the connect dialog. Owned here
         #: rather than by the dialog so a successful connect can be recorded
         #: after the dialog has closed, and so the file is read once at
@@ -998,6 +762,34 @@ class KissTermApp(App):
         the app lands on Settings > Radio with this in front of them,
         because that is the page that fixes it -- see `_show_transport_problem`."""
         return self.core.transport_problem
+
+    @property
+    def addressbook(self):
+        """Stations already tried, offered in the connect dialog; held by
+        the core, which the connect flow reads and records into."""
+        return self.core.addressbook
+
+    @addressbook.setter
+    def addressbook(self, book) -> None:
+        self.core.addressbook = book
+
+    # The connect flow's state, held by `core.connector`: attempts still
+    # calling (Ctrl+D cancels them), what each tab last dialed (Ctrl+R).
+    @property
+    def _connecting(self) -> dict:
+        return self.core.connector.connecting
+
+    @property
+    def _internet_connecting(self) -> dict:
+        return self.core.connector.internet_connecting
+
+    @property
+    def _session_connect_task(self):
+        return self.core.connector.session_connect_task
+
+    @property
+    def _last_connect(self) -> dict:
+        return self.core.connector.last_connect
 
     def _on_core_event(self, seq: int, event) -> None:
         """The status bar follows the core's transport and gate changes at
@@ -1436,6 +1228,7 @@ class KissTermApp(App):
         if self.gps_reader is not None:
             self.gps_reader.cancel()
         self.core.detach_transport()
+        self.core.connector.cancel_tasks()
         self._close_all_transcripts()
         self._cancel_all_reply_timers()
         self._cancel_all_hop_watches()
@@ -2007,12 +1800,8 @@ class KissTermApp(App):
         return True
 
     def _session_key(self, peer, port: int = 0) -> str:
-        """The identity a Terminal-pane tab is keyed on. Plain callsign for
-        the overwhelmingly common `port=0` case, so tab labels stay exactly
-        what an operator expects; the port is only appended when it would
-        otherwise collide (two different ports genuinely can reach two
-        different stations sharing a displayed callsign+SSID)."""
-        return str(peer) if port == 0 else f"{peer}:{port}"
+        """The identity a Terminal-pane tab is keyed on (`core.connect.session_key`)."""
+        return _session_key_of(peer, port)
 
     def _active_key(self) -> str:
         for pane in self._base_query(TerminalPane):
@@ -3104,38 +2893,10 @@ class KissTermApp(App):
         self._refresh_status()
 
     def _arm_for(self, what: str, toast: bool = True) -> bool:
-        """Open the transmit gate because the operator just asked for
-        something that cannot happen without transmitting.
-
-        **The rule this implements.** The gate exists to stop transmissions
-        the operator did not initiate -- the timed beacon, auto-answer,
-        anything on a timer. It was never meant to veto a transmission they
-        just asked for by name. `Ctrl+N` names a station and confirms it in a
-        dialog; that IS the request to key the radio, and answering it with
-        "transmit is disabled" is a dead end, because the one thing the
-        operator wanted is the one thing the message will not do.
-
-        So arming needs a CONFIRMED, TARGETED action -- a destination the
-        operator typed and accepted. A single keystroke with no confirmation
-        step (the manual text beacon) still does not arm: that is
-        exactly the shape of an accidental transmission, and there is no
-        target to make the intent unambiguous.
-
-        Arming is never silent. It is a notification, a line in the terminal
-        log and a status-bar change, because "did this thing start
-        transmitting behind my back?" must stay answerable from the screen.
-        `toast=False` is only for a caller that says it in its own toast
-        (`action_connect`'s `announce`), so the operator gets one notice,
-        not two. True if it armed now.
-        """
-        if self.gate.enabled:
-            return False
-        self.gate.set(True)
-        self._record(self._active_key(), f"Transmit enabled automatically for: {what}")
-        if toast:
-            self.notify(f"Transmit ENABLED for {what}. Ctrl+T turns it back off.")
-        self._refresh_status()
-        return True
+        """`Connector.arm_for` (kissterm/core/connect.py), recorded on the
+        Terminal tab on screen. The flows that still call this from the app
+        (APRS send, file transfer) move into the core in later milestones."""
+        return self.core.connector.arm_for(what, toast=toast)
 
     def _connect_problem(self, report, text: str, severity: str = "error") -> None:
         """Why a connect did not happen: a toast, or handed to `report` when
@@ -3703,591 +3464,32 @@ class KissTermApp(App):
                 self._save_config()
                 if not await self._switch_frame_transport(request.transport_name):
                     return
-        # A frequency or connection type on file is worth nothing if the
-        # operator only sees it after the SABMs already went out -- ask
-        # before arming anything. `find` is a read-only lookup (see its
-        # docstring); `prefill` already IS the entry when dialing, so this
-        # only does the lookup for the Ctrl+N path.
-        reminder = prefill or self.addressbook.find(request.target)
-        if reminder is not None and (
-            reminder.frequency or reminder.connection_type or reminder.note
-        ):
-            proceed = await self.push_screen_wait(
-                RadioReminderScreen(
-                    reminder.frequency, reminder.connection_type, reminder.note
-                )
-            )
-            if not proceed:
-                return
-            # Screen.dismiss() resolves push_screen_wait before Textual's
-            # queued screen replacement paints. Yield once before beginning
-            # the connect work: a fast local/nearby node could otherwise
-            # complete the whole attempt while the just-dismissed "Before
-            # connecting" modal was still the visible screen.
-            await asyncio.sleep(0)
-        target = request.target
-        # Node hops replace the "via DIGI" path entirely rather than
-        # combining with it -- see `ConnectScreen._submit`, which already
-        # refuses that combination, so `parse_path(target)` here is always
-        # either a plain callsign (hops in use) or a full digipeater path
-        # (hops empty). Either way the actual AX.25 SABM goes to the first
-        # node of the chain, which is `path.destination` in both cases: the
-        # chain's first hop when hops are given, the final target otherwise.
-        hop_names = [h.strip() for h in request.hops.split(",") if h.strip()]
-        chain = hop_names + [target] if hop_names else [target]
-        path = parse_path(chain[0])
-        # Computed before anything else here: the tab this whole attempt
-        # belongs to, whether it comes up or not. An existing tab for this
-        # exact peer (a reconnect) always counts as room, no matter how
-        # many OTHER tabs are open -- see `TerminalPane.has_room_for`.
-        port = request.port
-        if port < 0 or port >= self.station.transport.ports:
-            self._connect_problem(report, f"Radio port {port} is not available on this transport.")
-            return
-        key = self._session_key(path.destination, port)
-        pane = self.query_one(TerminalPane)
-        if key in self._connecting:
-            # A second request while the first is still calling (a double
-            # click on the dial and on the reminder's Connect, 2026-09-24).
-            # Two SABM streams key the radio over the peer's UA, and a join
-            # would run the login script twice; say so and drop this one.
-            self._connect_problem(report, f"Already connecting to {path.destination}.", "warning")
-            return
-        self._last_connect[key] = request
-        self._last_connect_key = key
-        if not pane.has_room_for(key):
-            self._connect_problem(
-                report,
-                f"Close a session first -- {MAX_TERMINAL_TABS} connections are "
-                "already open.",
-                "warning",
-            )
-            return
-        # The Address Book and passive NET/ROM claims deliberately share one
-        # slide-out. A dial has just become a live session to watch, so close
-        # either view before shrinking the terminal column and opening its
-        # connection tab. This is after every validation/reminder above: a
-        # cancelled dialog must not change the operator's layout.
-        pane.close_addressbook_for_connection()
-        # A dial from a mail tab's Address Book: the slide-out has done its
-        # job, and the connect is watched on Terminal, as from Terminal's own
-        # (Send/Receive's `focus_session=False` stays on the Mail tab).
-        dialed_from_mail = False
-        for browser in self.query(MessageBrowser):
-            dialed_from_mail |= browser.close_addressbook(refocus=False)
-        if dialed_from_mail and focus_session:
-            self.action_show_tab("terminal")
-        # This session's own tab, opened and put on screen before anything
-        # below writes to it, including the TNC-link check right after --
-        # a reconnect to a peer whose tab is still open reuses it (and its
-        # history) rather than wiping it, which is what the old
-        # single-session version had to do instead.
-        pane.open_tab(key, activate=True)
-        # The TNC link, before the RF link. Sending six SABMs into a socket
-        # that is down produces "no answer from WS1EC-15" -- a diagnosis
-        # pointing at the antenna when the fault is in the room. Unlike a
-        # closed transmit gate this is not something a keystroke can fix, so
-        # it is worth saying before spending the attempt.
-        state = self.station.transport.state
-        if state is not TransportState.OPEN:
-            where = self.station.transport.info.detail
-            self._connect_problem(
-                report, f"Not connecting: the link to the TNC at {where} is {state.value}, "
-                "so nothing would reach the air. This is not an RF problem -- check the "
-                "TNC, then Settings (F9) > Radio > Test.")
-            return
-        # A confirmed connect request ARMS the gate rather than being refused
-        # by it. See `_arm_for` -- naming a station and confirming the dialog
-        # is the operator asking to transmit, and refusing it here left them
-        # with a dead end that only reads as "the far station is not there".
-        armed = self._arm_for(f"connect to {path.destination}", toast=not announce)
-        if announce:
-            self.notify(announce + (" Transmit ENABLED; Ctrl+T turns it back off."
-                                    if armed else ""))
-        self._record(key, f"Connecting to {path.destination} on port {port}")
-        # Set before the await, not after: `AX25Station.connect` registers the
-        # link synchronously before it awaits anything, so by the time this
-        # coroutine yields control the link is already reachable by peer
-        # address -- which is what lets Ctrl+D find and cancel it mid-attempt.
-        self._connecting[key] = (path.destination, port)
-        self._refresh_context_footer()
-        try:
-            link = await self.station.connect(
-                path,
-                port=port,
-                paclen=_entry_link_override(reminder.paclen) if reminder else None,
-                window=_entry_link_override(reminder.window) if reminder else None,
-            )
-        except TransportError as exc:
-            self._connect_problem(report, str(exc))
-            return
-        finally:
-            self._connecting.pop(key, None)
-            self._refresh_context_footer()
-        if link is None:
-            failed = self.station.link_to(path.destination, port)
-            reason = getattr(failed, "last_error", "") if failed else ""
-            if reason == CANCELLED_REASON:
-                self._record(key, f"Connect to {path.destination} cancelled")
-                return
-            # Say WHY. "No connection" alone cannot be acted on: a DM means
-            # the node heard us and refused, which is a configuration problem
-            # at one end or the other; silence after N2 tries means the path
-            # did not carry, which is an antenna, power or propagation
-            # problem. On a marginal path that distinction is the whole
-            # diagnosis, and it is already known here.
-            attempts = getattr(failed, "rc", 0) if failed else 0
-            detail = f" -- {reason}" if reason else ""
-            why = f"Could not connect to {path.destination}{detail}."
-            if attempts:
-                why += (f" {attempts} attempt(s) sent; the Monitor tab (F8) shows "
-                        "what went out and what came back.")
-            # It was up when we started or we would not be here, so a
-            # transport that is down NOW dropped during the attempt -- and
-            # some of those SABMs never left the process. Say so, or the
-            # operator spends the evening on an antenna that is fine.
-            if self.station.transport.state is not TransportState.OPEN:
-                why += (" The link to the TNC dropped during this attempt, so some "
-                        "of those frames never reached the radio. Fix that first -- "
-                        "this is not an RF failure.")
-            self._record(key, why)
-            self._connect_problem(report, why.rstrip("."), "warning")
-            return
-        self._bind_link(link, key)
-        if on_link is not None:
-            on_link(link, key)
-        # Explicit, not left to the `on_state` callback `_bind_link` just
-        # registered: `AX25Station.connect` already ran the SABM/UA exchange
-        # to completion before returning this link, so the transition INTO
-        # `connected` fired to whatever was listening at the time -- which
-        # was nobody, since nothing could subscribe before the link existed.
-        # Every later transition (disconnecting, timer recovery, ...) is
-        # caught fine; only this first one is structurally too late for that
-        # mechanism to catch, and it is the one an operator most needs to
-        # see. From a real report: connecting to WS1EC-15 directly never
-        # printed anything resembling EasyTerm's "*** Connected to station
-        # WS1EC-15" -- with a node that has nothing to say until you type a
-        # command, that silence was the only feedback there was at all.
-        #
-        # `_note`, not a bare `_to_terminal` call: a real transcript pulled
-        # from this exact gap showed the file's own "* connected" line
-        # arriving eleven seconds late, timed to the NEXT state transition
-        # (a T1 timer-recovery retry) rather than the actual connect --
-        # `_bind_link` wires `_on_link_state` (which calls `_note`) in too
-        # late to see this first transition either, so writing straight to
-        # the terminal pane fixed what the operator watched live but left
-        # the durable transcript with the same hole.
-        self._note(key, f"Connected to {link.peer}")
-        if focus_session and pane.active_session_key == key:
-            # Only if the operator is still looking at this tab -- a long
-            # SABM retry (or an HF hop chain below) can outlast several
-            # tab switches, and stealing focus back would be exactly the
-            # "steal the view" rule the module docstring forbids.
-            pane.focus_input()
-        reached_target = True
-        if len(chain) > 1:
-            # The AX.25 link is only to the FIRST node -- everything past
-            # it is that node's own onward routing, invisible to kissterm's
-            # state machine and driven purely by watching what comes back
-            # over this one link. See `_hop_through`.
-            reached_target = await self._hop_through(link, key, chain[1:], report)
-        if not reached_target:
-            # Left connected to whichever node was last reached -- the
-            # operator can continue by hand from there, or Ctrl+D. Neither
-            # the address book nor a login script should treat a chain that
-            # stalled partway as having reached `target`.
-            if on_reached is not None:
-                on_reached(False)
-            return
-        # Separate from the attempt the dialog already recorded: "tried ten
-        # times, never got in" is a different fact from "this one works", and
-        # flattening them would hide exactly the pattern an operator wants to
-        # see next to a callsign on a marginal path.
-        self.addressbook.record_connect(target)
-        login_text = self._resolve_login(
-            request.credential, request.script_name, request.script
+        # Everything from here -- the radio reminder, the gate, the SABMs,
+        # the failure diagnosis, the hop chain and the login -- is the
+        # core's (`Connector.connect`), the same for every front end.
+        await self.core.connector.connect(
+            request, entry=prefill, on_link=on_link, on_reached=on_reached,
+            focus=focus_session, announce=announce, report=report,
         )
-        if login_text.strip():
-            self._run_connect_script(link, key, login_text)
-        if on_reached is not None:
-            on_reached(True)
 
     async def _session_connect(self, transport):
-        """`transport.connect()`, asking the operator to trust an SSH server
-        seen for the first time (kissterm/transport/ssh.py). Not trusting
-        it is a `TransportError` like any other failed connect."""
-        from ..transport.ssh import UnknownHostKey, trust_host_key
-
-        try:
-            return await transport.connect()
-        except UnknownHostKey as unknown:
-            answer = asyncio.get_running_loop().create_future()
-            screen = TrustHostKeyScreen(unknown)
-            self.push_screen(
-                screen, lambda ok: answer.done() or answer.set_result(bool(ok)))
-            try:
-                trusted = await answer
-            except asyncio.CancelledError:
-                # Ctrl+D while the question is up: take it down too.
-                if self.screen is screen:
-                    screen.dismiss(False)
-                raise
-            if not trusted:
-                raise TransportError(
-                    f"{unknown.host}:{unknown.port}: host key not trusted; "
-                    "nothing was sent.") from None
-            try:
-                trust_host_key(unknown.path, unknown.line)
-            except OSError as exc:
-                raise TransportError(
-                    f"could not save the host key to {unknown.path}: {exc}") from exc
-            return await transport.connect()
+        """`Connector.session_connect`: connect, asking to trust a new SSH server."""
+        return await self.core.connector.session_connect(transport)
 
     async def _dial_internet(self, entry, *, on_link=None, on_reached=None,
                              focus_session: bool = True, report=None) -> None:
-        """Dial an Internet contact (`Entry.connect_by` "telnet" or "ssh")
-        into its own Terminal tab, beside any radio session (operator,
-        2026-09-26: every contact in the Address Book, whatever the
-        connection). Its own transport, built the one way every transport
-        is (`build_transport`), opened now and closed with the session.
-
-        The transmit gate is neither checked nor armed: nothing here can
-        key a radio, and arming would open RF for everything else too. The
-        rest is the Address Book dial as for radio: an attempt recorded,
-        the tab opened with "Connecting...", Ctrl+D cancels, the login
-        script runs once it is up, Ctrl+R dials it again.
-        """
-        from ..transport import build_transport
-
-        key = entry.target
-
-        def reached(ok: bool) -> None:
-            if on_reached is not None:
-                on_reached(ok)
-
-        if self.session_is_live(key):
-            self._connect_problem(report, f"Already connected to {key}.", "information")
-            reached(False)
-            return
-        try:
-            transport = build_transport(entry.transport_config(
-                lambda name: find_credential(self.config, name),
-                lambda name: credential_username(self.config, name)))
-        except (TransportError, TypeError, ValueError) as exc:
-            self._connect_problem(report, f"{key}: {exc}")
-            reached(False)
-            return
-        self.addressbook.record_attempt(entry.target, entry.script, "", entry.credential,
-                                        entry.script_name)
-        self._last_connect[key] = ConnectRequest(entry.target)
-        self._last_connect_key = key
-        pane = self.query_one(TerminalPane)
-        if focus_session:
-            pane.close_addressbook_for_connection()
-            for browser in self.query(MessageBrowser):
-                if browser.close_addressbook(refocus=False):
-                    self.action_show_tab("terminal")
-        pane.open_tab(key, activate=focus_session)
-        where = entry.host + (f":{entry.port}" if entry.port else "")
-        self._record(key, f"Connecting to {key} by {entry.connect_by.upper()} ({where}), "
-                          "over the Internet")
-        task = asyncio.current_task()
-        assert task is not None
-        self._internet_connecting[key] = task
-        self._refresh_context_footer()
-        try:
-            await transport.open()
-            session = await self._session_connect(transport)
-        except asyncio.CancelledError:
-            self._record(key, "Connect cancelled by operator")
-            with contextlib.suppress(Exception):
-                await transport.close()
-            reached(False)
-            return
-        except (TransportError, OSError) as exc:
-            self._record(key, f"Could not connect: {exc}")
-            self._connect_problem(report, f"{key}: {exc}")
-            with contextlib.suppress(Exception):
-                await transport.close()
-            reached(False)
-            return
-        finally:
-            self._internet_connecting.pop(key, None)
-            self._refresh_context_footer()
-        link = _SessionLinkAdapter(session, transport)
-        if on_link is not None:
-            on_link(link, key)
-        self._bind_link(link, key, activate=focus_session)
-        self._note(key, f"Connected to {key}")
-        self.addressbook.record_connect(entry.target)
-        if focus_session:
-            pane.focus_input()
-        login_text = self._resolve_login(entry.credential, entry.script_name, entry.script)
-        if login_text.strip():
-            self._run_connect_script(link, key, login_text)
-        reached(True)
+        """`Connector.dial_internet`: an Internet contact in its own tab."""
+        await self.core.connector.dial_internet(
+            entry, on_link=on_link, on_reached=on_reached, focus=focus_session, report=report)
 
     async def _connect_session_transport(self) -> None:
-        """Connect through a session-tier transport (Telnet, SSH, VARA,
-        Mercury, kernel AX.25) -- no target dialog, no hop chain, no
-        address book.
+        """`Connector.connect_session_transport`: the session tier's one far end."""
+        await self.core.connector.connect_session_transport()
 
-        There is exactly one destination a session transport can reach:
-        whatever host and port (or callsign, for VARA/kernel AX.25) it was
-        configured with at startup, in Settings > Radio. Routing that
-        through the FrameTransport flow above would force AX.25-shaped
-        concepts -- a target to parse, a digipeater path, per-station
-        hops -- onto an addressing model that genuinely has none of them;
-        see `SessionTransport.connect`'s docstring. An operator who needs
-        to reach a further node once this session is up can still type
-        "C <node>" by hand -- that has always worked and needs nothing
-        from this method.
-
-        An auto-login still runs after connecting, same as the address-book
-        flow -- it just comes from `transport.script`/`transport.credential`
-        (this transport's own config entry, see `Transport.script`'s
-        docstring) rather than a per-attempt dialog, since there is no dialog
-        on this path. This is the WS1EC case: the script's last line can be
-        "C <node>" exactly like a hand-typed hop, so one saved script both
-        logs in and reaches the actual node from the shell SSH lands in.
-
-        Always binds into the permanent `""` session key rather than one
-        derived from the peer, unlike the frame-tier path -- this tier
-        never has more than one session (out of scope for the tabbed
-        terminal; see `terminal_pane.py`'s module docstring), so there is
-        never a second tab to distinguish it from.
-        """
-        transport = self.session_transport
-        if self.link is not None and self.link.connected:
-            self.notify("Already connected.", severity="warning")
-            return
-        self.query_one(TerminalPane).close_addressbook_for_connection()
-        for browser in self.query(MessageBrowser):
-            if browser.close_addressbook(refocus=False):
-                self.action_show_tab("terminal")
-        self._arm_for(f"connect via {transport.info.detail}")
-        self.query_one(TerminalPane).clear("")
-        self._record("", f"Connecting to {transport.info.detail}")
-        connect_task = asyncio.current_task()
-        assert connect_task is not None
-        self._session_connect_task = connect_task
-        self._refresh_context_footer()
-        try:
-            session = await self._session_connect(transport)
-        except asyncio.CancelledError:
-            # Ctrl+D is an operator decision, not a failed connection.
-            # SessionTransport implementations clean up their partly-open
-            # connection before propagating this cancellation.
-            self._record("", "Connect cancelled by operator")
-            return
-        except TransportError as exc:
-            self._record("", f"Could not connect: {exc}")
-            self.notify(str(exc), severity="error")
-            return
-        finally:
-            if self._session_connect_task is connect_task:
-                self._session_connect_task = None
-                self._refresh_context_footer()
-        link = _SessionLinkAdapter(session)
-        self._bind_link(link, "")
-        # Same gap as the frame-tier connect above (`action_connect`) and
-        # the same fix -- see the comment there.
-        self._note("", f"Connected to {link.peer}")
-        self.query_one(TerminalPane).focus_input()
-        # Same auto-login as the address-book flow above (`request.script`/
-        # `request.credential`/`request.script_name`), just sourced from the
-        # transport's own config entry instead of a per-attempt dialog --
-        # there is no target dialog on this path to carry one. See
-        # `Transport.script`'s docstring.
-        login_text = self._resolve_login(
-            transport.credential, transport.script_name, transport.script
-        )
-        if login_text.strip():
-            self._run_connect_script(link, "", login_text)
-
-    async def _hop_through(self, link, session_key: str, nodes: list[str],
-                           report=None) -> bool:
-        """Walk a chain of node-to-node hops over an already-open link.
-
-        For a station reached only by connecting through intermediate
-        BPQ/NET-ROM nodes in turn -- no digipeater path exists, so this is
-        done at the application level: send "C <node>", wait for that
-        node's own CONNECTED reply, then the next, in order. Modelled on
-        the send/wait-for-CONNECTED-or-BUSY/FAILED loop the sibling
-        `bpq-apps` project's node-map crawler uses against real BPQ nodes,
-        simplified to a flat per-hop timeout (`HOP_TIMEOUT`) since this
-        walks a short chain the operator typed by hand, not an open-ended
-        auto-discovery crawl.
-
-        `session_key` is passed explicitly rather than derived from `link`
-        -- this can run for several seconds to minutes across several hops,
-        and the operator is free to switch to (or open) another tab while it
-        runs. Every note here must keep landing on the ORIGINAL tab, not on
-        whatever happens to be on screen when a given hop's reply arrives.
-
-        Stops and reports on the first hop that does not come up, leaving
-        the link connected to whichever node was last reached rather than
-        tearing anything down -- the operator can continue by hand from
-        there. Never sends the next hop's command after a failure: that
-        would be transmitting into a link nothing has confirmed is ready
-        for it.
-        """
-        for node in nodes:
-            if not link.connected:
-                self._record(session_key, "Hop chain stopped: no longer connected")
-                self._connect_problem(report, "The hop chain stopped: no longer connected",
-                                      "warning")
-                return False
-            if not self.gate.enabled:
-                self._record(session_key, "Hop chain stopped: transmit is off")
-                self._connect_problem(report, "The hop chain stopped: transmit is off",
-                                      "warning")
-                return False
-            ok, detail = await self._hop_to(link, session_key, node)
-            if not ok:
-                extra = f" -- {detail}" if detail else ""
-                self._record(session_key, f"No connection to {node}{extra}")
-                self._connect_problem(report, f"Hop to {node} did not connect{extra}", "warning")
-                return False
-        return True
-
-    async def _await_hop_confirmation(
-        self,
-        link,
-        node: str,
-        timeout: float | None = None,
-        watch: "_HopConfirmation | None" = None,
-    ) -> tuple[bool, str]:
-        """Wait for `node`'s own CONNECTED reply after a "C <node>" (or
-        JNOS "connect <node>") has just been sent on `link`.
-
-        Returns ``(True, "")`` on a CONNECTED reply, or ``(False, detail)``
-        on an explicit BUSY/FAILED/DISCONNECTED/TIMEOUT reply (a refusal --
-        `detail` names which word) or on plain silence past `timeout`
-        (`detail` says so) -- two different diagnoses that must not be
-        reported with the same words, same reasoning as a DM versus an N2
-        timeout one layer down in `AX25Station.connect`.
-
-        Shared by `_hop_to` (the scripted hop chain) and `log_sent`'s
-        hand-typed-hop watch, so there is exactly one place that knows what
-        "the hop worked" means rather than two copies free to drift apart.
-
-        `watch` lets a caller that already subscribed hand its listening
-        `_HopConfirmation` over; either way this method owns stopping it.
-        Both callers do subscribe first, for the same reason spelled out in
-        that class's docstring -- `log_sent` because it is synchronous and
-        cannot await, `_hop_to` because its own "C <node>" send is an await
-        during which a reply could in principle already come back. Making
-        one here is the fallback for a caller with nothing to race.
-
-        `timeout=None` means `HOP_TIMEOUT`, resolved HERE rather than as a
-        default argument value: a default is bound once at import, and
-        `tests/pilot/test_connect_scripts.py` turns the real timeout down by
-        monkeypatching the module constant, which a bound default would
-        silently ignore.
-        """
-        if timeout is None:
-            timeout = HOP_TIMEOUT
-        if watch is None:
-            watch = _HopConfirmation(link, node)
-        try:
-            return await asyncio.wait_for(watch.result, timeout=timeout)
-        except asyncio.TimeoutError:
-            return False, f"no response within {timeout:.0f}s"
-        finally:
-            watch.stop()
-
-    async def _hop_to(self, link, session_key: str, node: str) -> tuple[bool, str]:
-        """Send ``C <node>`` and wait for that node's own CONNECTED reply,
-        applying the hop only if it actually comes up.
-
-        `log_sent` is called with `watch_hop=False` because this method owns
-        confirming its own hop: letting `log_sent` start a second watcher
-        for the same command would put two subscribers on the same
-        `link.on_data` bytes, both able to reach `_commit_hop`.
-
-        Returns whatever `_await_hop_confirmation` decided, unchanged, so
-        `_hop_through` can tell a refusal from silence. A failure leaves the
-        session's node identification and logical peer completely untouched
-        -- the operator is still talking to the node they were already
-        connected to, and blanking a correct identification for a hop that
-        never happened is a regression this shipped once already.
-        """
-        # Subscribed before the command goes out, not after: `link.send` is
-        # an await, and a watcher that starts listening only once it returns
-        # has a window -- however small -- in which the node's answer has
-        # already been fanned out to everyone else. Same argument as
-        # `_HopConfirmation`'s docstring makes for `log_sent`.
-        watch = _HopConfirmation(link, node)
-        try:
-            cmd = f"C {node}"
-            await link.send(cmd.encode("latin-1", "replace") + b"\r")
-            self._to_terminal(session_key, "write_note", cmd + "\n")
-            self.log_sent(session_key, cmd, watch_hop=False)
-            ok, detail = await self._await_hop_confirmation(link, node, watch=watch)
-        finally:
-            # Belt and braces: `_await_hop_confirmation` stops it on every
-            # path it reaches, but a send that raises (a closed transport)
-            # never gets there, and a watcher left on the fan-out would go
-            # on matching a later hop's traffic. `stop()` is idempotent.
-            watch.stop()
-        if ok:
-            self._commit_hop(session_key, node)
-        return ok, detail
-
-    def _resolve_login(self, credential: str, script_name: str, script: str) -> str:
-        """The text to actually send, from the three sources every auto-
-        login carries -- `credential` (a name in `Config.credentials`),
-        `script_name` (a name in `Config.scripts`), and `script` (literal
-        text) -- checked in that order. `Config.credentials`'s docstring
-        has the full reasoning for why a login and a script are kept as
-        two separate saved lists rather than one.
-        """
-        if credential:
-            return saved_login_text(self.config, credential)
-        if script_name:
-            return find_script(self.config, script_name)
-        return script
-
-    @work
-    async def _run_connect_script(self, link, session_key: str, script: str) -> None:
-        """Send a station's saved auto-login script, one line at a time.
-
-        Runs only right after a connect the operator just named and
-        confirmed in the Connect dialog -- see `_arm_for` above, which is
-        what actually armed transmit for this attempt. This does not arm or
-        re-confirm anything itself; it rides the one the connect already
-        got, the same way answering a poll rides an established link's own
-        authorization rather than asking again per frame.
-
-        `session_key` is explicit for the same reason `_hop_through` takes
-        one -- this runs across several awaited sends and the operator may
-        have switched tabs by the time a later line goes out.
-
-        Every line is echoed into the terminal log and the session
-        transcript exactly the way `TerminalPane.send_line` echoes a typed
-        one -- automation the operator cannot see on screen is exactly what
-        the transmit-gate rules exist to prevent. A closed gate or a link
-        that has dropped stops the script rather than losing lines
-        silently: reporting a suppressed line as sent would be the one lie
-        a transmit indicator must not tell.
-        """
-        lines = [ln for ln in script.splitlines() if ln.strip()]
-        if not lines:
-            return
-        self._record(session_key, f"Auto-login: sending {len(lines)} line(s)")
-        for line in lines:
-            if not link.connected:
-                self._record(session_key, "Auto-login stopped: no longer connected")
-                return
-            if not self.gate.enabled and not getattr(link, "internet", False):
-                self._record(session_key, "Auto-login stopped: transmit is off")
-                self.notify("Auto-login stopped: transmit is off.", severity="warning")
-                return
-            await link.send(line.encode("latin-1", "replace") + b"\r")
-            self._to_terminal(session_key, "write_note", self._masked(line) + "\n")
-            self.log_sent(session_key, line)
-            await asyncio.sleep(CONNECT_SCRIPT_LINE_DELAY)
+    async def _await_hop_confirmation(self, link, node: str, timeout: float | None = None,
+                                      watch: _HopConfirmation | None = None) -> tuple[bool, str]:
+        """`Connector.await_hop_confirmation`, for a hand-typed hop (`log_sent`)."""
+        return await self.core.connector.await_hop_confirmation(link, node, timeout, watch)
 
     @work(exclusive=False)
     async def action_compose_mail(self, reply: str = "", quoted: bool | None = False,
@@ -5306,21 +4508,9 @@ class KissTermApp(App):
             return "green"
 
     def _masked(self, text: str) -> str:
-        """`text`, or `********` when it is a saved login's password.
-
-        A saved login sends its username line and then its password line
-        (`config.login_text`), and the line-by-line echo used to put the
-        password in the Terminal and in plain text in the transcript
-        (operator's WS1EC SSH session, 2026-10-02). A sent line is masked
-        when it equals any saved password, wherever it came from: by the
-        time a script runs it no longer knows which line was the secret."""
-        if not text.strip():
-            return text
-        for entry in getattr(self.config, "credentials", ()):
-            name = entry.get("name", "")
-            if name and find_credential(self.config, name) == text:
-                return "********"
-        return text
+        """`text`, or `********` when it is a saved login's password
+        (`Connector.masked`)."""
+        return self.core.connector.masked(text)
 
     def _mail_sent(self, key: str, text: str) -> None:
         """Echo a line Send/Receive sent, as a typed line is echoed."""
@@ -5626,66 +4816,17 @@ class KissTermApp(App):
         await self._disconnect_session(self._active_key())
 
     async def _disconnect_session(self, session_key: str) -> None:
-        session = self._sessions.get(session_key)
-        if session is not None and session.link is not None and session.link.connected:
-            # Same reasoning as connect, and more so: a DISC is how a link is
-            # ended politely. Refusing to send it leaves the far station
-            # holding a session open until ITS timers give up, which is a
-            # worse outcome for the channel than the transmission we would
-            # be avoiding.
-            if not getattr(session.link, "internet", False):
-                self._arm_for(f"disconnect from {session.link.peer}")
-            self._record(session_key, "Disconnecting")
-            await session.link.disconnect()
-            return
-        # No established link -- but a connect attempt may still be working
-        # through its SABM retries. Without this, the only way off a stuck
-        # attempt was to wait out N2 in full: Ctrl+D said "Not connected"
-        # (true, but useless) while the radio kept keying up on its own.
-        pending = self._connecting.get(session_key)
-        if pending is not None and self.station is not None:
-            target, port = pending
-            connecting = self.station.link_to(target, port)
-            if connecting is not None and not connecting.connected:
-                self._record(session_key, f"Cancelling connect to {connecting.peer} -- no "
-                                          "further SABMs will be sent")
-                connecting.close(reason=CANCELLED_REASON)
-                return
-        internet = self._internet_connecting.get(session_key)
-        if internet is not None and not internet.done():
-            self._record(session_key, "Cancelling connect")
-            internet.cancel()
-            return
-        session_connect_task = self._session_connect_task
-        if (
-            session_key == ""
-            and session_connect_task is not None
-            and not session_connect_task.done()
-        ):
-            self._record(session_key, "Cancelling session transport connect")
-            session_connect_task.cancel()
-            return
-        self.notify("Not connected.", severity="warning")
+        """`Connector.disconnect`: DISC a live link, or cancel its connect."""
+        await self.core.connector.disconnect(session_key)
 
     def session_is_live(self, session_key: str) -> bool:
         """Connected or still connecting: closing it would disconnect first."""
-        session = self._sessions.get(session_key)
-        connected = session is not None and session.link is not None and session.link.connected
-        return (connected or session_key in self._connecting
-                or session_key in self._internet_connecting)
+        return self.core.connector.session_is_live(session_key)
 
     def _reconnect_request(self) -> ConnectRequest | None:
-        """What Ctrl+R would dial: the Terminal tab on screen's own last
-        request; for a tab that answered an incoming call, its peer; with no
-        tab on screen, the last thing dialed at all."""
-        key = self._active_key()
-        request = self._last_connect.get(key)
-        if request is None and key:
-            call, _, port = key.partition(":")
-            request = ConnectRequest(call, port=int(port) if port.isdigit() else 0)
-        if request is None:
-            request = self._last_connect.get(self._last_connect_key)
-        return request
+        """What Ctrl+R would dial for the Terminal tab on screen
+        (`Connector.reconnect_request`)."""
+        return self.core.connector.reconnect_request(self._active_key())
 
     def action_reconnect(self) -> None:
         """Ctrl+R: connect again to the station the Terminal tab on screen
