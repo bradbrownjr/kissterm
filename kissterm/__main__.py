@@ -573,10 +573,9 @@ async def _amain(args) -> int:
     transport = None
     transport_problem = None
     if entry is not None:
-        from .ax25 import AX25Address, AX25Station, LinkParams
+        from .core import build_station
         from .transport import build_transport
         from .transport.base import FrameTransport, TransportError
-        from .ui.terminal_pane import MAX_TERMINAL_TABS
 
         try:
             transport = build_transport(entry)
@@ -592,27 +591,9 @@ async def _amain(args) -> int:
             transport = None
 
         if isinstance(transport, FrameTransport):
-            station = AX25Station(
-                AX25Address.parse(config.mycall),
-                transport,
-                LinkParams(
-                    paclen=config.paclen,
-                    window=config.window,
-                    modulo=config.modulo,
-                    retries=config.retries,
-                    connect_retries=config.connect_retries,
-                    sabm_on_poll=config.sabm_on_poll,
-                    t1=config.t1,
-                    t2=config.t2,
-                    t3=config.t3,
-                ),
-                aliases=tuple(AX25Address.parse(a) for a in config.mycall_aliases),
-                accept_incoming=config.accept_incoming,
-                # Kept in lockstep with the Terminal pane's own tab cap -- see
-                # `terminal_pane.py`'s module docstring -- so the two never
-                # disagree about how many simultaneous connections are usable.
-                max_links=MAX_TERMINAL_TABS,
-            )
+            # One constructor with `Core.open_initial_transport`, so the
+            # link parameters cannot drift between launch and a later open.
+            station = build_station(config, transport)
 
     # A log that does not say what it is a log OF is guesswork later. This
     # one line is what makes a file the operator mails in reconstructible:

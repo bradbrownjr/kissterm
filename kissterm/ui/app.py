@@ -108,7 +108,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import contextvars
 import logging
 import re
 import time
@@ -133,7 +132,8 @@ from .. import aprs
 from ..aprs_is import AprsIsWatch
 from ..aprs_conversations import ConversationStore, MessageDeduplicator
 from ..aprs_notify import Cooldown, evaluate_packet
-from ..ax25 import AX25Station, LinkParams, parse_path
+from ..ax25 import AX25Station, parse_path
+from ..core import Core, GateChanged, TransportChanged
 from ..ax25.address import AX25Address, AX25AddressError
 from ..aprs_beacon import AprsBeaconer
 from ..beacon import Beaconer
@@ -212,6 +212,7 @@ from .settings_pane import SettingsPane
 from .help_pane import HelpPane
 from .mail_pane import MessageBrowser, MessageList, bulletins_browser, files_browser, mail_browser
 from .styles import APP_CSS
+from .operator import TextualOperator
 from .terminal_pane import MAX_TERMINAL_TABS, TerminalPane
 
 log = logging.getLogger(__name__)
@@ -815,11 +816,6 @@ class KissTermApp(App):
             # An unwritable data directory must not stop the terminal from
             # starting; the Mail tab just shows nothing.
             pass
-        #: Why the configured transport would not open at launch, when the
-        #: operator chose to start anyway (`kissterm/__main__.py`). On mount
-        #: the app lands on Settings > Radio with this in front of them,
-        #: because that is the page that fixes it -- see `_show_transport_problem`.
-        self._transport_problem = transport_problem
         if config.ascii_safe:
             # The stylesheet supplies ASCII alternatives only within this
             # application.  Do not mutate Textual's process-wide glyph tables:
@@ -831,36 +827,30 @@ class KissTermApp(App):
         for extra in themes.EXTRA_THEMES.values():
             self.register_theme(extra)
         self.apply_theme()
-        self.station = station
-        #: Set when the active transport is a `SessionTransport` (Telnet,
-        #: SSH, VARA, Mercury, kernel AX.25) instead of a `FrameTransport` --
-        #: `station` stays None in that case, since there is no AX.25 state
-        #: machine for one of these to run underneath. Exactly one of
-        #: `station`/`session_transport` is ever set; see `action_connect`
-        #: for how the two paths converge on the same terminal-pane binding
-        #: through `_SessionLinkAdapter`.
-        self.session_transport = session_transport
-        #: The master transmit switch, installed here rather than left to
-        #: whatever built the transport: a bare transport is a dumb pipe with
-        #: no operator, and the app is the thing that HAS an operator. Closed
-        #: unless `tx_armed_at_start` says otherwise, so a fresh launch cannot
-        #: key a radio until Ctrl+T. See kissterm/tx.py.
-        self.gate = TransmitGate(enabled=getattr(config, "tx_armed_at_start", False))
-        if station is not None:
-            station.transport.gate = self.gate
-        elif session_transport is not None:
-            session_transport.gate = self.gate
+        #: The station with no UI (`kissterm/core/`): transports, the
+        #: transmit gate, and the flows as they move out of this class
+        #: (ROADMAP P7a). It installs the operator's gate on the transport --
+        #: a bare transport is a dumb pipe whose own gate is open -- closed
+        #: unless `tx_armed_at_start`, so a fresh launch cannot key a radio
+        #: until Ctrl+T. `station`, `session_transport` and `gate` below are
+        #: read through to it. This app is its operator (`ui/operator.py`)
+        #: and its frame fan-out's subscribers, registered once here and
+        #: moved by the core when the transport changes.
+        self.core = Core(
+            config,
+            station,
+            session_transport=session_transport,
+            transport_problem=transport_problem,
+            operator=TextualOperator(self),
+        )
+        self.core.frame_subscribers += [self._on_received_frame, self._on_aprs_frame]
+        self.core.sent_subscribers.append(self._on_sent_frame)
+        self.core.incoming_subscribers.append(self._on_incoming_link)
+        self.core.stray_poll_subscribers.append(self._on_stray_poll)
+        self.core.events.subscribe(self._on_core_event)
         self.gate.on_change.append(self._on_transmit_change)
         self.heard = HeardTable()
         self.monitor_filter = MonitorFilter()
-        #: Drops the monitor's receive subscription on unmount. Set in
-        #: `on_mount`; a no-op until then so shutdown never has to ask
-        #: whether mount happened.
-        self._unsubscribe_monitor = lambda: None
-        #: Same reasoning as `_unsubscribe_monitor` -- a no-op until
-        #: `on_mount` replaces it, so shutdown never has to ask whether
-        #: mount happened.
-        self._unsubscribe_aprs = lambda: None
         #: Per-session state (link, node reference, transcript, reply-watch
         #: timer), keyed by `_session_key`. The permanent `""` entry is the
         #: pre-connection view -- see the module docstring and
@@ -898,10 +888,6 @@ class KissTermApp(App):
         #: the task itself is the cancellation handle. It is set only while
         #: awaiting connect(), not for an established session or login script.
         self._session_connect_task: asyncio.Task[object] | None = None
-        # Launching without a transport is intentional: Settings is where an
-        # operator adds or repairs one, and refusing to mount the TUI turns a
-        # missing entry into a command-line dead end.
-        self._status = "NO TRANSPORT - F9 Settings"
         #: Stations already tried, offered in the connect dialog. Owned here
         #: rather than by the dialog so a successful connect can be recorded
         #: after the dialog has closed, and so the file is read once at
@@ -983,6 +969,41 @@ class KissTermApp(App):
         #: the AX.25/KISS transport fan-out.
         self.gps_reader: GpsReader | None = None
         self._gps_had_fix = False
+
+    # ------------------------------------------------------------------
+    # Read through to the core (`kissterm/core/service.py`)
+    # ------------------------------------------------------------------
+    @property
+    def station(self) -> AX25Station | None:
+        """The AX.25 station on a frame transport; None on a session one
+        (Telnet, SSH, VARA, Mercury, kernel AX.25), where there is no AX.25
+        state machine to run underneath. At most one of `station` and
+        `session_transport` is set; `action_connect` brings the two paths
+        to the same terminal-pane binding through `_SessionLinkAdapter`."""
+        return self.core.station
+
+    @property
+    def session_transport(self):
+        return self.core.session_transport
+
+    @property
+    def gate(self) -> TransmitGate:
+        """The master transmit switch (kissterm/tx.py)."""
+        return self.core.gate
+
+    @property
+    def _transport_problem(self) -> str | None:
+        """Why the configured transport would not open at launch, when the
+        operator chose to start anyway (`kissterm/__main__.py`). On mount
+        the app lands on Settings > Radio with this in front of them,
+        because that is the page that fixes it -- see `_show_transport_problem`."""
+        return self.core.transport_problem
+
+    def _on_core_event(self, seq: int, event) -> None:
+        """The status bar follows the core's transport and gate changes at
+        once, not on the next one-second refresh."""
+        if isinstance(event, (TransportChanged, GateChanged)):
+            self._refresh_status()
 
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -1224,88 +1245,17 @@ class KissTermApp(App):
 
     def _attach_station(self) -> None:
         """Attach the one frame fan-out after a station becomes available."""
-        if self.station is None:
-            return
-        self._attach_transport(self.station.transport)
-        self.station.on_incoming.append(self._on_incoming_link)
-        self.station.on_stray_poll.append(self._on_stray_poll)
-
-    def _attach_transport(self, transport) -> None:
-        """Wire the app onto `transport`: gate, context and fan-out.
-
-        Called at startup and again after a live transport switch, which is
-        why the station's own `on_incoming` is not in here -- that belongs to
-        the station and survives a switch. Everything below belongs to the
-        transport and does not.
-        """
-        transport.gate = self.gate
-        # Runs on the app's own message loop, so this is a context in which
-        # Textual's `active_app` is this app. The transport was opened before
-        # the app existed; see `FrameTransport.callback_context` for what
-        # breaks if received frames are not handled in this context.
-        transport.callback_context = contextvars.copy_context()
-        self._unsubscribe_monitor = transport.subscribe(self._on_received_frame)
-        self._unsubscribe_aprs = transport.subscribe(self._on_aprs_frame)
-        transport.on_sent.append(self._on_sent_frame)
-        self._status = f"{transport.info.detail}"
-
-    def _detach_transport(self, transport) -> None:
-        """Undo `_attach_transport`, so a replaced transport feeds nothing."""
-        self._unsubscribe_monitor()
-        self._unsubscribe_aprs()
-        self._unsubscribe_monitor = lambda: None
-        self._unsubscribe_aprs = lambda: None
-        with contextlib.suppress(ValueError):
-            transport.on_sent.remove(self._on_sent_frame)
+        self.core.attach_station()
 
     async def _open_initial_transport(self, name: str) -> bool:
-        """Open the first saved transport in an already-mounted onboarding app.
-
-        Opening a transport does not transmit.  It merely makes the same
-        station/fan-out wiring that normal startup builds available now, so
-        the operator can proceed directly from onboarding to APRS or a
-        connection instead of having to understand why a restart is needed.
-        """
-        if self.station is not None or self.session_transport is not None:
-            return False
-        entry = next((item for item in self.config.transports if item.get("name") == name), None)
-        if entry is None:
-            return False
-        from .. import transport as transport_mod
-        from ..transport.base import FrameTransport
-
-        try:
-            transport = transport_mod.build_transport(entry)
-            await transport.open()
-        except Exception as exc:
-            log.exception("could not open initial transport %s", name)
-            self.notify(f"Saved {name}, but could not open it: {exc}", severity="error")
-            return False
-
-        transport.gate = self.gate
-        if isinstance(transport, FrameTransport):
-            self.station = AX25Station(
-                AX25Address.parse(self.config.mycall),
-                transport,
-                LinkParams(
-                    paclen=self.config.paclen, window=self.config.window,
-                    modulo=self.config.modulo, retries=self.config.retries,
-                    connect_retries=self.config.connect_retries,
-                    sabm_on_poll=self.config.sabm_on_poll, t1=self.config.t1,
-                    t2=self.config.t2, t3=self.config.t3,
-                ),
-                aliases=tuple(AX25Address.parse(item) for item in self.config.mycall_aliases),
-                accept_incoming=self.config.accept_incoming,
-                max_links=MAX_TERMINAL_TABS,
-            )
+        """Open the first saved transport in an already-mounted onboarding
+        app (`Core.open_initial_transport`), and point the beacons at the
+        station it built."""
+        opened = await self.core.open_initial_transport(name)
+        if opened and self.station is not None:
             self.beaconer.station = self.station
             self.aprs_beaconer.station = self.station
-            self._attach_station()
-        else:
-            self.session_transport = transport
-            self._status = transport.info.detail
-        self._refresh_status()
-        return True
+        return opened
 
     # ------------------------------------------------------------------
     # Settings that need something done, not just stored
@@ -1485,8 +1435,7 @@ class KissTermApp(App):
         self.aprs_is_watch.stop()
         if self.gps_reader is not None:
             self.gps_reader.cancel()
-        self._unsubscribe_monitor()
-        self._unsubscribe_aprs()
+        self.core.detach_transport()
         self._close_all_transcripts()
         self._cancel_all_reply_timers()
         self._cancel_all_hop_watches()
@@ -3628,141 +3577,24 @@ class KissTermApp(App):
         self.query_one(TerminalPane).open_find()
 
     def _frame_tier_transports(self) -> list[dict]:
-        """This app's own configured transports of the SAME tier it is
-        currently running on -- see `transport.FRAME_TIER_KINDS`'s
-        docstring for why switching tiers live is not offered here. Empty
-        when `self.station is None` (session-tier app)."""
-        from ..transport import FRAME_TIER_KINDS
-
-        if self.station is None:
-            return []
-        return [t for t in self.config.transports if t.get("kind") in FRAME_TIER_KINDS]
+        return self.core.frame_tier_transports()
 
     def _session_tier_transports(self) -> list[dict]:
-        """The session-tier counterpart of `_frame_tier_transports`. Empty
-        when `self.session_transport is None` (frame-tier app)."""
-        from ..transport import SESSION_TIER_KINDS
-
-        if self.session_transport is None:
-            return []
-        return [t for t in self.config.transports if t.get("kind") in SESSION_TIER_KINDS]
+        return self.core.session_tier_transports()
 
     async def _switch_frame_transport(self, name: str) -> bool:
-        """Open the transport named `name` and hand it to `self.station` in
-        place of whatever it is currently using, via `AX25Station.rebind_
-        transport`. Returns whether it worked; reports its own failure via
-        `notify`, so a caller only needs to act on the boolean.
-
-        Shared by `SettingsPane` (choosing a different Active transport and
-        hitting Save) and `KissTermApp.action_connect` (the Connect
-        dialog's own transport picker) -- one implementation of "actually
-        open the newly-selected transport", not two that could drift apart.
-        Frame-tier only: a session transport hands back an already-
-        connected byte stream, not frames this station's state machine can
-        run on, so swapping one in here would need a different app
-        entirely. Restarting kissterm with it selected is the supported
-        path for THAT case; this method refuses and says so rather than
-        guessing.
-        """
-        if self.station is None:
-            # Nothing is open yet -- a first run, or a launch whose transport
-            # would not open and the operator started anyway. There is no
-            # station to rebind, so open this one as the first.
-            if self.session_transport is None:
-                opened = await self._open_initial_transport(name)
-                if opened:
-                    self._transport_problem = None
-                return opened
-            return False
-        entry = next((t for t in self.config.transports if t.get("name") == name), None)
-        if entry is None:
-            return False
-
-        from .. import transport as transport_mod
-        from ..transport.base import FrameTransport
-
-        try:
-            new_transport = transport_mod.build_transport(entry)
-            # The operator's gate, before anything can send on it. A freshly
-            # built transport's own gate is OPEN (kissterm/tx.py), and left in
-            # place it would transmit while the status bar reads TX off.
-            new_transport.gate = self.gate
-            await new_transport.open()
-        except Exception as exc:
-            log.exception("could not open %s", name)
-            self.notify(f"Could not open {name}: {exc}", severity="error")
-            return False
-
-        if not isinstance(new_transport, FrameTransport):
-            self.notify(
-                f"{name} is a session transport; switching to it live is not "
-                "supported. Restart kissterm with it selected.",
-                severity="warning",
-            )
-            with contextlib.suppress(Exception):
-                await new_transport.close()
-            return False
-
-        try:
-            old_transport = self.station.rebind_transport(new_transport)
-        except RuntimeError as exc:
-            self.notify(str(exc), severity="warning")
-            with contextlib.suppress(Exception):
-                await new_transport.close()
-            return False
-
-        # `rebind_transport` moved only the station's own subscription; the
-        # monitor, heard list, APRS decoder and on_sent are the app's to move.
-        self._detach_transport(old_transport)
-        self._attach_transport(new_transport)
-        with contextlib.suppress(Exception):
-            await old_transport.close()
-
-        self._refresh_status()
-        return True
+        """`Core.switch_frame_transport`, then the beacons follow. Shared by
+        `SettingsPane` (Save with a different Active transport) and
+        `action_connect`'s transport picker, so "open the newly selected
+        transport" has one implementation."""
+        opened = await self.core.switch_frame_transport(name)
+        if opened and self.station is not None:
+            self.beaconer.station = self.station
+            self.aprs_beaconer.station = self.station
+        return opened
 
     async def _switch_session_transport(self, name: str) -> bool:
-        """The session-tier counterpart of `_switch_frame_transport`.
-
-        Simpler in one way: a session transport has no state machine
-        anything else is bound to, so this is just building the new one and
-        replacing `self.session_transport` -- there is no `AX25Station.
-        rebind_transport` equivalent because there is no station. Still
-        calls `.open()` before handing it over, same as the frame-tier
-        version and `__main__.py`'s own launch-time construction: for
-        Telnet/SSH `.open()` is a no-op (the real work happens in
-        `.connect()`), but for VARA/Mercury/kernel AX.25 it does the actual
-        setup -- VARA's `.open()` connects to the local modem's own command
-        and data TCP ports, entirely separate from the later AX.25-level
-        `.connect()` to a remote station. Skipping it here would work by
-        accident for Telnet/SSH and fail for the other three.
-        """
-        entry = next((t for t in self.config.transports if t.get("name") == name), None)
-        if entry is None:
-            return False
-
-        from .. import transport as transport_mod
-
-        try:
-            new_transport = transport_mod.build_transport(entry)
-            # The operator's gate, before anything can send on it. A freshly
-            # built transport's own gate is OPEN (kissterm/tx.py), and left in
-            # place it would transmit while the status bar reads TX off.
-            new_transport.gate = self.gate
-            await new_transport.open()
-        except Exception as exc:
-            log.exception("could not open %s", name)
-            self.notify(f"Could not open {name}: {exc}", severity="error")
-            return False
-
-        old_transport = self.session_transport
-        self.session_transport = new_transport
-        if old_transport is not None:
-            with contextlib.suppress(Exception):
-                await old_transport.close()
-
-        self._refresh_status()
-        return True
+        return await self.core.switch_session_transport(name)
 
     @work
     async def action_connect(
@@ -5937,9 +5769,12 @@ class KissTermApp(App):
         dead TCP socket. A transport that is not carrying frames has to say
         so where the operator is already looking.
         """
-        transport = self.station.transport if self.station is not None else self.session_transport
+        transport = self.core.transport
         if transport is None:
-            return self._status
+            # Launching without a transport is intentional: Settings is where
+            # an operator adds or repairs one, and refusing to mount the TUI
+            # turns a missing entry into a command-line dead end.
+            return "NO TRANSPORT - F9 Settings"
         state = transport.state
         detail = _without_port(transport.info.detail)
         if state is TransportState.OPEN:

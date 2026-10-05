@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — The core begins: transports and the gate leave the Textual app
+
+### Improvements
+
+- **`kissterm/core/`**, the station with no user interface (ROADMAP P7a,
+  first step). `Core` now owns the station, the transmit gate and the
+  transport lifecycle (opening the first transport, switching live, moving
+  every frame subscriber across). It speaks to a front end only through
+  an `Operator` port (notices, typed questions) and a sequence-numbered
+  event bus, so a WebSocket client can drive it later. Nothing changes on
+  screen; a test fails if the core ever imports Textual.
+
+**Files:** `kissterm/core/` (new), `kissterm/ui/operator.py` (new),
+`kissterm/ui/app.py`, `kissterm/ui/terminal_pane.py`, `kissterm/__main__.py`,
+`tests/unit/test_core_boundary.py`, `tests/unit/test_core_service.py`,
+`AGENTS.md`, `kissterm/ui/AGENTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-04] — G on Files and Bulletins says what it is getting
 
 ### Bug Fixes

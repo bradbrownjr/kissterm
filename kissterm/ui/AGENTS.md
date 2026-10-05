@@ -14,7 +14,7 @@ Read this file plus the one pane you are changing.
 
 | File | What it owns |
 |---|---|
-| `app.py` | `KissTermApp`: bindings, `compose()`, tab actions, the frame fan-out, status bar. The **only** place that subscribes to the station. |
+| `app.py` | `KissTermApp`: bindings, `compose()`, tab actions, status bar; holds the `Core` (`kissterm/core/`) and registers the frame fan-out's subscribers with it. The **only** place that subscribes to the station. |
 | `styles.py` | All CSS, as `APP_CSS`. Appearance changes go here, not inline. |
 | `mail_pane.py` | `MessageBrowser`: folder tree, list and reader over `kissterm/mail/`, one widget for the Mail, Bulletins and Files tabs; its keys are bound on `MessageList` |
 | `terminal_pane.py` | Session scrollback + input line + sending |
@@ -29,6 +29,7 @@ Read this file plus the one pane you are changing.
 | `slideouts.py` | How wide a Ctrl+G column gets and whether it opens itself -- pure arithmetic plus one controller, shared by BOTH panes |
 | `wraplog.py` | `WrapLog`: a `RichLog` that wraps to the width it is actually shown at. Used by all three scrollbacks; read it before touching `min_width` anywhere |
 | `commands.py` | `COMMANDS`: THE command registry. Every key, label, menu entry, Footer chip and Ctrl+P hit is generated from it |
+| `operator.py` | `TextualOperator`: the core's `Operator` port as toasts and modal screens (`SCREENS` maps a `Question` type to its screen) |
 | `menu.py` | The F10 menu bar and the F1 help screen, both built from that registry |
 
 `kissterm/app.py` one level up is a thin shim re-exporting `KissTermApp`, so

@@ -130,6 +130,7 @@ from textual.widgets import Button, DataTable, Input, RichLog, Static, Tab, Tabs
 
 from ..nodes.reference import UNPUBLISHED
 from ..ansi import to_text
+from ..core import MAX_LINKS
 from . import slideouts
 from ..monitor import sanitize
 from ..tx import DISABLED_MESSAGE
@@ -177,13 +178,12 @@ _MAX_PASTE_CHARS = 512
 _PASTE_CONTROL_RE = re.compile("[\x00-\x1f\x7f-\x9f]")
 
 #: Concurrent session tabs, not counting the pre-connection default view.
-#: Kept in lockstep with `AX25Station.max_links` (wired in `__main__.py`) so
-#: the two caps never disagree about how many connections are usable at
-#: once. Unlike `AprsPane`'s `_MAX_CONVO_TABS`, a session tab is never
+#: It IS the core's `MAX_LINKS`, the station's `max_links`, so the two caps
+#: never disagree about how many connections are usable at once. Unlike `AprsPane`'s `_MAX_CONVO_TABS`, a session tab is never
 #: evicted to make room for a new one -- it holds a LIVE link with real
 #: resources (timers, a transcript file), and silently disconnecting one to
 #: free a slot would be worse than refusing the new connection.
-MAX_TERMINAL_TABS = 8
+MAX_TERMINAL_TABS = MAX_LINKS
 
 #: Replay-buffer lines kept per session, matching `WrapLog`'s own
 #: `max_lines` -- a session left running in the background for hours must

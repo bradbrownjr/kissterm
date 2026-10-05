@@ -16,7 +16,7 @@ Companion files: `README.md` (users, a newcomer's front page),
 either)**, `docs/ROADMAP.md` (what is open), `docs/CHANGELOG.md` (what
 changed), `docs/SOURCES.md` (the far-end software's source,
 documentation and captures each reference rests on). Each package has its own short `AGENTS.md` (`kissterm/ax25/`,
-`transport/`, `aprs/`, `ui/`, `mail/`).
+`transport/`, `aprs/`, `ui/`, `mail/`, `core/`).
 
 ---
 
@@ -76,14 +76,24 @@ reshaping `Session`** (that ripples into vara/mercury/kernel_ax25 and
 ### 2b. One shared frame fan-out
 
 `FrameTransport.subscribe()` fans each frame out once to the station, monitor,
-heard table and APRS decoder. **A new consumer is a subscriber, never a second
-decode path.** `AX25Station` (`ax25/station.py`) demultiplexes: existing link,
+heard table and APRS decoder. **A new consumer is a subscriber (registered in
+`Core.frame_subscribers`), never a second decode path.** `AX25Station` (`ax25/station.py`) demultiplexes: existing link,
 new incoming link, or `on_unhandled` (the APRS input). The monitor subscribes
 to the transport, not to `on_unhandled`, or it goes quiet during a live
 conversation. `FrameTransport.on_sent` is the transmit-side fan-out.
 
 Nothing in `ax25/` does I/O; every byte goes through a transport object, which
 is what makes the stack testable on a loopback (section 6).
+
+### 2c. The core and its front ends
+
+`kissterm/core/` is the station with no UI (ROADMAP P7a): `Core` owns the
+transports and the transmit gate, and flows move into it from `ui/app.py`
+milestone by milestone. It reaches a front end only through the
+`Operator` port (`notice`, `await ask(Question)`) and its event bus.
+**Never import Textual or `kissterm.ui` there**
+(`tests/unit/test_core_boundary.py`); `kissterm/core/AGENTS.md` has the
+rules.
 
 ## 3. The AX.25 stack
 
@@ -128,7 +138,8 @@ kissterm/
   session_log.py  transcripts.py  heard.py  locator.py
   addressbook.py  harvested.py  bbs.py  glossary.py  guides.py
   nodes/ aprs_services/   SHIPPED references (data/*.toml)
-  ax25/  aprs/  transport/  ui/  mail/   each with its own AGENTS.md
+  core/  UI-free station: transports, gate, flows; Operator port + events
+  ax25/  aprs/  transport/  ui/  mail/  core/   each with its own AGENTS.md
          ui/commands.py is the key table; ui/settings_schema.py drives Settings
 tests/  loopback.py  unit/ (test_ax25_link.py matters most)  pilot/ (_wait.py)
 ```
