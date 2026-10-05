@@ -15,6 +15,7 @@ import asyncio  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 import pytest  # noqa: E402
+from datetime import datetime  # noqa: E402
 from textual.widgets import SelectionList  # noqa: E402
 
 from kissterm.ax25 import AX25Station  # noqa: E402
@@ -69,7 +70,18 @@ def _bpqmail(bbs: AX25Station, heard: list[str]) -> None:
 
 
 @pytest.mark.asyncio
-async def test_g_offers_the_categories_then_files_the_chosen(tmp_path):
+async def test_g_offers_the_categories_then_files_the_chosen(tmp_path, monkeypatch):
+    # The listing is from 2026-10-02 and the window is two days, so "today"
+    # is pinned to the day after the capture; on the real clock this test
+    # started failing on its own on 2026-10-05.
+    import kissterm.mail.collect as collect_module
+
+    class _Day(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 3, 12, 0, tzinfo=tz)
+
+    monkeypatch.setattr(collect_module, "datetime", _Day)
     app, station, tb = await _app(tmp_path)
     app.bulletin_subscriptions = SubscriptionBook(tmp_path / "subs.json")
     app.config.home_bbs.bulletin_days = 2

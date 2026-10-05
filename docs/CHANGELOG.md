@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — A bulletin test no longer fails by the calendar
+
+### Bug Fixes
+
+- **`test_g_offers_the_categories_then_files_the_chosen` failed from
+  2026-10-05 on its own**: its listing (2026-10-02) fell outside the
+  two-day window on the real clock. "Today" is now pinned to 2026-10-03
+  in that test; kissterm itself was right. The other suite failure found
+  with it, a tab key at launch being undone, is filed in ROADMAP P0.
+
+**Files:** `tests/pilot/test_get_bulletins.py`, `docs/ROADMAP.md`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-05] — The connect flow moves into the core
 
 ### Improvements
