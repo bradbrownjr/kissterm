@@ -116,18 +116,26 @@ class Core:
         #: builds the core; the connect flow reads reminders from it and
         #: records attempts in it. None means none (a bare test core).
         self.addressbook = None
-        #: The connect flow (`connect.Connector`), set once the front end
-        #: that keeps the sessions is attached (`use_session_host`).
+        #: Every session (`sessions.Sessions`) and the connect flow
+        #: (`connect.Connector`), built once a client's view is attached
+        #: (`attach_view`).
+        self.sessions = None
         self.connector = None
         self._unsubscribes: list[Callable[[], None]] = []
         self._attached_sent: list[Callable] = []
 
-    def use_session_host(self, host):
-        """Build the connect flow over `host`, which keeps the sessions
-        until they move into the core (ROADMAP P7a milestone 3)."""
+    def attach_view(self, view):
+        """Build the sessions and the connect flow, with `view` (a client's
+        `connect.SessionView`) showing them. Registers the sessions as the
+        station's incoming-call and stray-poll subscribers, so call it
+        before `attach_station`."""
         from .connect import Connector
+        from .sessions import Sessions
 
-        self.connector = Connector(self, host)
+        self.sessions = Sessions(self)
+        self.connector = Connector(self, view)
+        self.incoming_subscribers.append(self.sessions.on_incoming_link)
+        self.stray_poll_subscribers.append(self.sessions.on_stray_poll)
         return self.connector
 
     # ------------------------------------------------------------------

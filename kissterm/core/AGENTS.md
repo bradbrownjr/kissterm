@@ -17,7 +17,8 @@ same tests passing unchanged.
 | `service.py` | `Core`: station, session transport, transmit gate, transport lifecycle (open, switch, rebind, subscriber wiring). `build_station`, `MAX_LINKS`. |
 | `operator.py` | The `Operator` port: `notice(Notice)` and `await ask(Question)`. `NullOperator` declines everything. |
 | `events.py` | Domain events and the `EventBus` (sequence-numbered, synchronous). |
-| `connect.py` | `Connector` (`core.connector`): gate arming, the radio reminder, the dial and its failure wording, Internet contacts, the session tier, hop chain, auto-login, disconnect/cancel, reconnect. `ConnectRequest`, `session_key`. `SessionHost` is the temporary seam to the UI's session tabs (milestone 3 absorbs it). |
+| `connect.py` | `Connector` (`core.connector`): gate arming, the radio reminder, the dial and its failure wording, Internet contacts, the session tier, hop chain, auto-login, disconnect/cancel, reconnect. `ConnectRequest`, `session_key`. `SessionView` is what a client provides: which session is on screen, room for another, putting one in front of the operator. |
+| `sessions.py` | `Sessions` (`core.sessions`): every live session (`LiveSession`) -- binding, transcripts and records, `send_line` (the one path for a typed line), passive node identification and application tracking, the hop watch, harvest (opt-in `?`, cached), the reply watch, incoming calls and stray polls. `data_interceptors`/`sent_hooks` let the terminal UI's file transfers read session bytes until they move here. |
 | `questions.py` | The typed questions: `RadioReminder`, `TrustHostKey`. |
 | `hops.py` | `HopConfirmation` and `HOP_TIMEOUT`: the one definition of "the hop came up". |
 | `links.py` | `SessionLinkAdapter`: a session-tier `Session` in `AX25Link`'s shape. |
@@ -30,7 +31,8 @@ same tests passing unchanged.
    never a toast, never screen wording such as a key name. **Known gap:**
    notices moved from the terminal UI kept their words so nothing changed
    on screen ("Ctrl+T turns it back off", "the Monitor tab (F8)",
-   "Settings (F9) > Radio > Test" in `connect.py`). They become
+   "Settings (F9) > Radio > Test" in `connect.py`; "(Ctrl+T)", "the
+   Monitor tab (F8)" and `tx.DISABLED_MESSAGE` in `sessions.py`). They become
    client-neutral before any other client exists (the WebSocket server);
    do not add more.
 2. **A question is data**: a frozen dataclass subclassing `Question`, with
@@ -43,9 +45,14 @@ same tests passing unchanged.
    gate").
 5. **Events say what happened, not how it looks.** No colours, no
    status-bar text. A client formats.
-6. **Register subscribers before `attach_station()`**, and never subscribe
+6. **A session is the core's; a tab is the client's.** Bind, record and
+   send through `core.sessions`; a client learns of it from events
+   (`SessionOpened`, `SessionData` -- raw bytes, the client filters them --
+   `LineSent`, `SessionStateChanged`, `SessionUpdated`) and never keeps
+   its own copy of session state.
+7. **Register subscribers before `attach_station()`**, and never subscribe
    to a transport directly: the core moves `frame_subscribers`,
    `sent_subscribers`, `incoming_subscribers` and `stray_poll_subscribers`
    when the transport changes.
-7. **One loop, no threads.** Call `attach_station()` from the loop the
+8. **One loop, no threads.** Call `attach_station()` from the loop the
    station runs on; it captures that context for frame callbacks.

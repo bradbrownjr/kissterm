@@ -14,7 +14,7 @@ Read this file plus the one pane you are changing.
 
 | File | What it owns |
 |---|---|
-| `app.py` | `KissTermApp`: bindings, `compose()`, tab actions, status bar; holds the `Core` (`kissterm/core/`) and registers the frame fan-out's subscribers with it. The **only** place that subscribes to the station. |
+| `app.py` | `KissTermApp`: bindings, `compose()`, tab actions, status bar; holds the `Core` (`kissterm/core/`), registers the frame fan-out's subscribers with it, and turns its events into pane updates (`_on_core_event`). Sessions, transcripts and connecting are the core's; the app's `_bind_link`, `_record`, `log_sent`... read through to it. |
 | `styles.py` | All CSS, as `APP_CSS`. Appearance changes go here, not inline. |
 | `mail_pane.py` | `MessageBrowser`: folder tree, list and reader over `kissterm/mail/`, one widget for the Mail, Bulletins and Files tabs; its keys are bound on `MessageList` |
 | `terminal_pane.py` | Session scrollback + input line + sending |
@@ -86,9 +86,11 @@ Read this file plus the one pane you are changing.
     restart). Link parameters must not change under an *established* link —
     they were negotiated when it came up.
 14. **`TerminalPane.send_line` is the only transmit path.** Enter and the
-    Send button both route through it. Suggestions use `suggest()`, which
-    fills the input and cannot send. A test asserts there is exactly one
-    `link.send(` in that module -- keep it that way.
+    Send button both route through it, and it hands the line to the core
+    (`Sessions.send_line`), which arms, sends, echoes (`LineSent`) and
+    records. Suggestions use `suggest()`, which fills the input and cannot
+    send. A test asserts there is no `link.send(` in that module -- keep it
+    that way.
 15. **Never spend airtime to populate the UI.** Command references ship as
     data (`kissterm/nodes/data/`); asking a node costs ~19 s per 2 KB at 1200
     baud. Node detection is passive -- read the banner, ask nothing.

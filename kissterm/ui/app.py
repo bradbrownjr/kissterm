@@ -111,7 +111,6 @@ import contextlib
 import logging
 import re
 import time
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -121,7 +120,6 @@ from textual import events, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
-from textual.timer import Timer
 from textual.widgets import Footer, Static, TabbedContent, TabPane, Tabs
 from textual.widgets._footer import FooterKey
 
@@ -134,9 +132,17 @@ from ..aprs_conversations import ConversationStore, MessageDeduplicator
 from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import AX25Station, parse_path
 from ..core import Core, GateChanged, TransportChanged
+from ..core.events import (
+    ActivityChanged,
+    ConnectingChanged,
+    LineSent,
+    SessionData,
+    SessionOpened,
+    SessionStateChanged,
+    SessionUpdated,
+)
 from ..core.connect import ConnectRequest
 from ..core.connect import session_key as _session_key_of
-from ..core.hops import HOP_COMMAND_WORDS
 from ..core.hops import HopConfirmation as _HopConfirmation
 from ..core.links import SessionLinkAdapter as _SessionLinkAdapter
 from ..ax25.address import AX25Address, AX25AddressError
@@ -178,14 +184,7 @@ from .clock import KissTermHeader
 from . import commands as cmdreg
 from .commands import TAB_ORDER, KeyBindingsProvider
 from .menu import MenuScreen
-from ..harvested import HarvestedCommands
 from ..nodes import Command, CommandReference
-from ..nodes.reference import (
-    application_named,
-    applications_of,
-    identify_family,
-    parse_harvested,
-)
 from .dialogs import (
     CallsignScreen,
     CommandReferenceScreen,
@@ -217,73 +216,6 @@ from .operator import TextualOperator
 from .terminal_pane import TerminalPane
 
 log = logging.getLogger(__name__)
-
-
-@dataclass
-class _TerminalSession:
-    """Everything `KissTermApp` tracks for one Terminal-pane tab.
-
-    Keyed in `KissTermApp._sessions` by `_session_key` (a peer's callsign,
-    plus port if not 0). `link` is `None` only for the permanent `""` entry
-    -- the pre-connection view, which has no link at all. A fresh instance
-    IS the reset a reconnect to the same peer needs (a new node's banner
-    must not be read against the last one's command reference) -- see
-    `KissTermApp._bind_link`, which replaces rather than mutates.
-    """
-
-    link: object = None
-    reference: "CommandReference" = field(default_factory=CommandReference)
-    detect_buffer: str = ""
-    transcript: SessionLog | None = None
-    reply_timer: Timer | None = None
-    #: Who the operator is currently, logically, talking to -- starts as
-    #: `str(link.peer)` (the real AX.25 remote station, set in `_bind_link`
-    #: since a dataclass default cannot read another field) and only changes
-    #: once a hop to a different node is CONFIRMED to have succeeded (see
-    #: `KissTermApp._commit_hop`). Distinct from `link.peer`, which never
-    #: changes for the life of a connection even when the operator hops
-    #: through intermediate nodes at the far node's application layer --
-    #: conflating the two is what made `harvest_commands` cache a hopped-to
-    #: node's command list under the FIRST node's callsign, silently
-    #: corrupting that node's real entry in `harvested.py`'s store.
-    current_node: str = ""
-    #: The background watch started by `log_sent` for a hand-typed hop, so
-    #: it can be cancelled -- a second hop sent before the first resolves
-    #: must not leave two watchers racing on the same `link.on_data`. Kept
-    #: as a plain `asyncio.Task` with a manual stop/clear, mirroring
-    #: `reply_timer` above rather than introducing a worker-group pattern
-    #: this file uses nowhere else.
-    hop_watch_task: "asyncio.Task | None" = None
-    #: `None` means "not harvesting right now" -- the common case. Set to an
-    #: (initially empty) string by `KissTermApp.harvest_commands` for the
-    #: duration of its capture window; `_capture_harvest` appends into it.
-    #: See `HARVEST_CAPTURE_LIMIT` for why it cannot grow without bound.
-    harvest_buffer: str | None = None
-    #: Sanitized text from the most recent completed harvest on this live
-    #: session. The Node commands screen shows it after parsing so the operator can
-    #: judge what the node actually said, rather than trusting a terse list
-    #: of names extracted from an opaque exchange. It is deliberately
-    #: per-session and in-memory: it is diagnostic context, not a second
-    #: command cache or a new persistence promise.
-    last_harvest_text: str = ""
-    #: The last state `_on_link_state` was actually called with -- set on
-    #: EVERY call, including a suppressed TIMER_RECOVERY one, never only on
-    #: a call that wrote a note. See that method's docstring for why a
-    #: "last state we wrote a note for" version of this field does not work.
-    last_state: "SessionState | None" = None
-    #: The application the node said it handed this session to ("BBS",
-    #: "CHAT", a sysop's "CALENDAR"), upper-cased; "" while at the node.
-    #: See `KissTermApp._track_application`.
-    application: str = ""
-    #: The node's own command set, put aside while an application's is in
-    #: effect and restored when the node says the session came back.
-    node_reference: "CommandReference | None" = None
-    #: The unterminated tail of the last chunk received, so a line split
-    #: across two frames is still matched whole.
-    line_buffer: str = ""
-    #: Until when (`time.monotonic()`) a YAPP send init on this session is
-    #: the download the operator asked for; 0 when none was asked.
-    download_until: float = 0.0
 
 
 _HOST_PORT = re.compile(r"^(\[[^\]]+\]|[^:\s]+):\d+(?:/\d+)?$")
@@ -349,16 +281,6 @@ def _status_row(parts: list[str | Text]) -> Table:
 
 
 
-#: How long after sending a line, with nothing back, before saying so
-#: (`KissTermApp._note_if_no_reply`). From a real report: WS1EC-15
-#: acknowledged a line at the AX.25 layer (an RR came back within 3
-#: seconds) and then said nothing for 22 seconds before the operator gave
-#: up and disconnected, having no way to tell "they got it, they are just
-#: slow" from "this went nowhere" without reading the Monitor tab and
-#: knowing to look for a hidden-by-default supervisory frame. Long enough
-#: that an ordinary node's response time does not trip it on every line.
-REPLY_WAIT_SECONDS = 15.0
-
 #: How long after the operator sends `YAPP <name>` a YAPP send init is
 #: taken as the file they asked for (`KissTermApp._watch_for_download`).
 #: WS1EC-2 answered in 3 s over the air (2026-10-03); a minute covers a
@@ -369,49 +291,11 @@ DOWNLOAD_WAIT_SECONDS = 60.0
 #: matches its first four letters, any case).
 _YAPP_REQUEST = re.compile(r"^\s*YAPP\s+\S", re.IGNORECASE)
 
-#: `KissTermApp.harvest_commands` NEVER waits longer than this, no matter
-#: what. From a real report: a fixed 5-second window (this constant's first
-#: value) closed a harvest 12 seconds before WS1EC-15/CCEMA's reply even
-#: started arriving -- its "?" needed three T1 retry/REJ recovery cycles
-#: before the actual text came through, ~18.8 seconds after the request went
-#: out, for a reply of all of two lines. That delay is real AX.25 behaviour
-#: on a lossy link (AGENTS.md: "TIMER_RECOVERY is not an error state"), not
-#: a hang, so the ceiling has to tolerate it -- 90s roughly matches
-#: `describe_airtime(8192)`'s documented worst case plus headroom for
-#: exactly this kind of retry overhead, which `describe_airtime` does not
-#: model at all (it only prices wire time, not link-layer recovery).
-HARVEST_MAX_WAIT_SECONDS = 90.0
-
-#: Once a harvest has received AT LEAST ONE byte, this much silence after
-#: the last one is treated as "the node is done sending" and the capture
-#: ends early -- most replies are short, and nobody should have to wait out
-#: the full 90-second ceiling for a two-line answer. This is deliberately
-#: NOT the same heuristic AGENTS.md's testing section warns against ("do not
-#: drain a lossy link with a went-quiet heuristic"): that warning is about
-#: mistaking a mid-transfer T1 recovery gap for the end of an ongoing,
-#: segmented transfer with no ceiling at all. This is a one-shot
-#: request/reply exchange with a hard ceiling as the backstop, so a quiet
-#: gap AFTER real content has already started arriving is a reasonable
-#: signal, not a guess with no fallback.
-HARVEST_QUIET_SECONDS = 3.0
-
-#: How often `harvest_commands` checks the buffer while waiting. Small
-#: enough that the quiet-exit above doesn't overshoot by much, cheap enough
-#: that polling for up to 90 seconds costs nothing measurable.
-HARVEST_POLL_INTERVAL = 0.5
-
-#: Hard cap on how much text one harvest capture keeps, regardless of how
-#: much the node actually sends. A chatty or verbose node must not turn one
-#: opt-in harvest into unbounded memory growth for a session that stays open
-#: for hours.
-HARVEST_CAPTURE_LIMIT = 4096
-
-
-class _TerminalSessionHost:
-    """The connect flow's `SessionHost` (kissterm/core/connect.py): the
-    Terminal tabs, transcripts and node identification it still reaches
-    in this app, until sessions move into the core (ROADMAP P7a M3). Each
-    method is what `action_connect` and its helpers did here before."""
+class _TerminalSessionView:
+    """The connect flow's `SessionView` (kissterm/core/connect.py): which
+    Terminal tab is on screen, whether there is room for another, and
+    putting one in front of the operator. Sessions themselves are the
+    core's; this is only how this app shows them."""
 
     def __init__(self, app: "KissTermApp") -> None:
         self._app = app
@@ -421,10 +305,6 @@ class _TerminalSessionHost:
 
     def active_key(self) -> str:
         return self._app._active_key()
-
-    def link(self, key: str):
-        session = self._app._sessions.get(key)
-        return session.link if session is not None else None
 
     def has_room_for(self, key: str) -> bool:
         return self._pane().has_room_for(key)
@@ -451,30 +331,11 @@ class _TerminalSessionHost:
         else:
             pane.open_tab(key, activate=True)
 
-    def bind(self, link, key: str, *, activate: bool = True) -> None:
-        self._app._bind_link(link, key, activate=activate)
-
-    def record(self, key: str, text: str) -> None:
-        self._app._record(key, text)
-
-    def note(self, key: str, text: str) -> None:
-        self._app._note(key, text)
-
     def is_active(self, key: str) -> bool:
         return self._pane().active_session_key == key
 
     def focus_input(self) -> None:
         self._pane().focus_input()
-
-    def echo_sent(self, key: str, shown: str, sent: str, *, watch_hop: bool = True) -> None:
-        self._app._to_terminal(key, "write_note", shown + "\n")
-        self._app.log_sent(key, sent, watch_hop=watch_hop)
-
-    def commit_hop(self, key: str, node: str) -> None:
-        self._app._commit_hop(key, node)
-
-    def connecting_changed(self) -> None:
-        self._app._refresh_context_footer()
 
 
 class KissTermFooter(Footer):
@@ -627,23 +488,16 @@ class KissTermApp(App):
         )
         self.core.frame_subscribers += [self._on_received_frame, self._on_aprs_frame]
         self.core.sent_subscribers.append(self._on_sent_frame)
-        self.core.incoming_subscribers.append(self._on_incoming_link)
-        self.core.stray_poll_subscribers.append(self._on_stray_poll)
         self.core.events.subscribe(self._on_core_event)
-        #: The connect flow (`kissterm/core/connect.py`), over this app's
-        #: Terminal tabs until sessions move into the core.
-        self.core.use_session_host(_TerminalSessionHost(self))
+        #: The sessions (`kissterm/core/sessions.py`) and the connect flow
+        #: (`connect.py`), shown in this app's Terminal tabs. A file transfer
+        #: still reads session bytes here until it moves into the core.
+        self.core.attach_view(_TerminalSessionView(self))
+        self.core.sessions.data_interceptors.append(self._intercept_link_data)
+        self.core.sessions.sent_hooks.append(self._yapp_requested)
         self.gate.on_change.append(self._on_transmit_change)
         self.heard = HeardTable()
         self.monitor_filter = MonitorFilter()
-        #: Per-session state (link, node reference, transcript, reply-watch
-        #: timer), keyed by `_session_key`. The permanent `""` entry is the
-        #: pre-connection view -- see the module docstring and
-        #: `_TerminalSession`'s. `self.link`/`self.reference`/`self.transcript`
-        #: below are read-only properties over whichever entry is active.
-        self._sessions: dict[str, _TerminalSession] = {"": _TerminalSession()}
-        #: Callsigns already explained by `_on_stray_poll` this launch.
-        self._stray_noted: set[str] = set()
         #: True while Send/Receive runs (`action_get_mail`); one at a time.
         self._collecting = False
         #: While G or I on All Inboxes prepares its runs: (key, service
@@ -659,11 +513,6 @@ class KissTermApp(App):
         self.addressbook = AddressBook()
         self.addressbook.load()
         self.known_nodes = KnownNodes()
-        #: Command names harvested from a node's own `?`, cached forever per
-        #: callsign so the opt-in airtime is never spent twice for the same
-        #: node -- see `kissterm/harvested.py` and `harvest_commands` below.
-        self._harvested = HarvestedCommands()
-        self._harvested.load()
         from ..mail.bulletins import SubscriptionBook
 
         #: Bulletin categories chosen per BBS (`mail/bulletins.py`).
@@ -792,10 +641,42 @@ class KissTermApp(App):
         return self.core.connector.last_connect
 
     def _on_core_event(self, seq: int, event) -> None:
-        """The status bar follows the core's transport and gate changes at
-        once, not on the next one-second refresh."""
+        """Show what the core says happened. The status bar follows
+        transport, gate and session changes at once, not on the next
+        one-second refresh; session events reach the Terminal tabs."""
         if isinstance(event, (TransportChanged, GateChanged)):
             self._refresh_status()
+        elif isinstance(event, SessionData):
+            self._to_terminal(event.key, "write_incoming", event.data)
+        elif isinstance(event, LineSent):
+            self._to_terminal(event.key, "write_note", event.text + "\n")
+        elif isinstance(event, SessionOpened):
+            self._show_session(event)
+        elif isinstance(event, SessionUpdated):
+            self._refresh_status()
+            self._refresh_context_footer()
+        elif isinstance(event, SessionStateChanged):
+            if event.state == SessionState.DISCONNECTED.value:
+                self._to_terminal(event.key, "set_placeholder", "not connected -- Ctrl+N")
+            self._refresh_context_footer()
+        elif isinstance(event, ConnectingChanged):
+            self._refresh_context_footer()
+        elif isinstance(event, ActivityChanged):
+            self._set_activity(event.text)
+
+    def _show_session(self, event: SessionOpened) -> None:
+        """A tab for a session the core just bound. A call that came in
+        while another session is on screen opens a tab without stealing
+        the view, and is marked unread instead."""
+        for pane in self._base_query(TerminalPane):
+            activate = event.activate
+            if event.incoming:
+                activate = pane.session_count == 0
+            pane.open_tab(event.key, activate=activate)
+            if event.incoming and not activate:
+                pane.mark_unread(event.key)
+            pane.set_placeholder(event.key, f"connected to {event.peer}")
+        self._refresh_context_footer()
 
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
@@ -1229,9 +1110,7 @@ class KissTermApp(App):
             self.gps_reader.cancel()
         self.core.detach_transport()
         self.core.connector.cancel_tasks()
-        self._close_all_transcripts()
-        self._cancel_all_reply_timers()
-        self._cancel_all_hop_watches()
+        self.core.sessions.shutdown()
         # An Internet contact's connection is the app's own to close: the
         # radio's transport is closed by whoever built it, these by nobody.
         for session in self._sessions.values():
@@ -1865,7 +1744,7 @@ class KissTermApp(App):
         until a hop through it is confirmed, that node afterwards. Same
         "whichever tab is on screen" scoping as `link` and `reference`
         above, and the same warning applies: a callback bound to a specific
-        session must read `_TerminalSession.current_node` through its own
+        session must read `LiveSession.current_node` through its own
         key instead.
         """
         session = self._sessions.get(self._active_key())
@@ -1884,47 +1763,12 @@ class KissTermApp(App):
             session.transcript = value
 
     def _on_incoming_link(self, link) -> None:
-        pane = self.query_one(TerminalPane)
-        had_none = pane.session_count == 0
-        key = self._bind_link(link, activate=had_none)
-        if not had_none:
-            # Opened a tab, did not steal the view -- see the module and
-            # terminal_pane.py docstrings' "never steal the view" rule.
-            pane.mark_unread(key)
-        self._record(key, f"Incoming connection from {link.peer}")
-        if not self.gate.enabled:
-            # The UA never went out, so the caller is talking to nobody. Say
-            # so: "somebody called and you could not answer" is exactly the
-            # thing an operator wants to find in the scrollback later.
-            self._record(key, f"Could not answer {link.peer} -- transmit is disabled (Ctrl+T)")
-            self.notify(
-                f"{link.peer} called, but transmit is disabled.", severity="warning"
-            )
-        self._send_banner(link)
-        self.notify(f"Connection from {link.peer}", severity="information")
+        """`Sessions.on_incoming_link`: a station called and was answered."""
+        self.core.sessions.on_incoming_link(link)
 
     def _on_stray_poll(self, peer, port: int) -> None:
-        """A station polled a link we do not hold; the station answered DM.
-
-        Typical after a relaunch or a crash mid-connection: the node still
-        thinks it is connected and polls until its N2 runs out. Said once per
-        peer per launch (a node polls about every 7 s; a line each would bury
-        the terminal), and it says what the DM means, so a caller with no
-        matching tab is not a mystery. Not an incoming call, and Ctrl+D has
-        nothing to end.
-        """
-        call = str(peer)
-        if call in self._stray_noted:
-            return
-        self._stray_noted.add(call)
-        if self.gate.enabled:
-            what = "answered DM (no connection here) so it stops polling"
-        else:
-            what = "would answer DM, but transmit is disabled (Ctrl+T)"
-        self.notify(
-            f"{call} is polling a connection kissterm does not have "
-            f"(left open when it last closed?); {what}."
-        )
+        """`Sessions.on_stray_poll`: a node polls a link kissterm does not hold."""
+        self.core.sessions.on_stray_poll(peer, port)
 
     # ------------------------------------------------------------------
     # Updates (Internet only; see kissterm/updater.py)
@@ -2030,351 +1874,102 @@ class KissTermApp(App):
                 timeout=30,
             )
 
-    @work
+    # ------------------------------------------------------------------
+    # Sessions: `kissterm/core/sessions.py`. These read through to it, under
+    # the names the panes and the mail flows have always used.
+    # ------------------------------------------------------------------
+    @property
+    def _sessions(self) -> dict:
+        """Per-session state (`sessions.LiveSession`) by session key; the
+        permanent `""` entry is the pre-connection view."""
+        return self.core.sessions.by_key
+
+    @property
+    def _harvested(self):
+        return self.core.sessions.harvested
+
+    @_harvested.setter
+    def _harvested(self, store) -> None:
+        self.core.sessions.harvested = store
+
     async def _send_banner(self, link) -> None:
-        """Greet a caller, so the link does not open into silence.
-
-        Without this a station that connects gets a UA and then nothing, and
-        has no way to tell a working link from a broken one -- worse than a
-        clean refusal. BPQ32 calls this CTEXT; the default is deliberately
-        short, because every byte is airtime.
-
-        Guarded on `accept_incoming` even though we only reach here after
-        accepting: this is a transmission, and anything that transmits gets
-        checked against the operator's explicit opt-in at the moment it
-        happens, not only where the connection was accepted.
-        """
-        banner = (getattr(self.config, "connect_banner", "") or "").strip()
-        if not banner or not getattr(self.config, "accept_incoming", False):
-            return
-        try:
-            await link.send(banner.encode("latin-1", "replace") + b"\r")
-        except Exception:
-            log.exception("could not send connect banner to %s", link.peer)
+        await self.core.sessions.send_banner(link)
 
     def _bind_link(self, link, session_key: str | None = None, *, activate: bool = True) -> str:
-        """Wire a connected link into its `_TerminalSession` bookkeeping
-        (transcript, node reference, reply-watch) and its Terminal-pane tab.
-
-        `session_key` is computed from `link.peer`/`link.port` when not
-        given -- every caller except `action_connect` needs exactly that,
-        since that one must know the key before the link exists (to open
-        the tab and show "Connecting..." first, and to let Ctrl+D find a
-        still-connecting attempt). `activate` lets `_on_incoming_link` open
-        a tab WITHOUT stealing the view when another session is already on
-        screen -- see the module and terminal_pane.py docstrings.
-
-        A fresh `_TerminalSession()` is what resets the node reference and
-        detect buffer for a new conversation -- no separate reset needed,
-        unlike the single-session version this replaced. Any reply timer or
-        transcript left over from a PRIOR binding of this same key (a
-        reconnect to a peer whose tab is still open) is torn down first, so
-        neither leaks past the object that owned it.
-
-        The one thing NOT reset from scratch: `harvest_commands` cached
-        commands for this exact peer are re-applied immediately, so a
-        reconnect to a node harvested before never re-asks and never
-        re-spends the airtime -- see `HarvestedCommands.for_callsign`.
-        """
-        key = session_key if session_key is not None else self._session_key(link.peer, link.port)
-        self._cancel_reply_timer(key)
-        self._cancel_hop_watch(key)
-        self._close_transcript(key)
-        session = _TerminalSession(link=link)
-        # A fresh connection is, by definition, talking to the link's own
-        # peer -- any logical peer a previous hop chain established on this
-        # key belonged to the session that just ended. See
-        # `_TerminalSession.current_node` and `_commit_hop`.
-        session.current_node = str(link.peer)
-        # Apply anything harvested from THIS peer on a past connect --
-        # cached forever, per AGENTS.md's opt-in-harvesting rule, so a
-        # reconnect never re-asks and never re-spends the airtime.
-        session.reference = CommandReference(learned=self._learned(str(link.peer), "node"))
-        self._sessions[key] = session
-        self.query_one(TerminalPane).open_tab(key, activate=activate)
-        self._start_transcript(key, link)
-        link.on_data.append(lambda data: self._on_link_data(key, data))
-        link.on_state.append(lambda state: self._on_link_state(key, state))
-        link.on_error.append(lambda why: self._link_error(key, why))
-        self._to_terminal(key, "set_placeholder", f"connected to {link.peer}")
-        self._refresh_context_footer()
-        return key
+        """`Sessions.bind`: a connected link becomes a session and a tab."""
+        return self.core.sessions.bind(link, session_key, activate=activate)
 
     def _transcript_directory(self) -> Path:
-        """Where transcripts are read from AND written to.
-
-        One method so `_start_transcript` (writing) and
-        `action_show_transcripts` (reading them back later) can never drift
-        onto two different ideas of "the log directory".
-        """
-        from ..config import log_path
-
-        return Path(self.config.log_dir) if self.config.log_dir else log_path()
-
-    # ------------------------------------------------------------------
-    # Transcript
-    # ------------------------------------------------------------------
-    def _start_transcript(self, session_key: str, link) -> None:
-        """Open a transcript for `session_key`, if recording is enabled.
-
-        The status bar carries the compact recording indicator; a full path
-        is available from the menu (Session > Transcripts) without consuming live terminal rows.
-        """
-        self._close_transcript(session_key)
-        if not getattr(self.config, "log_sessions", True):
-            return
-        directory = self._transcript_directory()
-        # `self.station` is None on the session-transport tier (Telnet, SSH,
-        # VARA, Mercury, kernel AX.25) -- there is no AX25Station to read an
-        # operating callsign off, but the operator's own callsign is still
-        # `config.mycall` regardless of which tier is active.
-        mycall = str(self.station.mycall) if self.station is not None else str(
-            getattr(self.config, "mycall", "") or ""
-        )
-        transcript = SessionLog(directory, mycall, str(link.peer))
-        if not transcript.open():
-            self.notify(f"No transcript for {link.peer}: {transcript.failed}", severity="warning")
-            return
-        session = self._sessions.get(session_key)
-        if session is not None:
-            session.transcript = transcript
-        self._refresh_status()
+        return self.core.sessions.transcript_directory()
 
     def _close_transcript(self, session_key: str) -> None:
-        session = self._sessions.get(session_key)
-        if session is not None and session.transcript is not None:
-            session.transcript.close()
-            session.transcript = None
-            self._refresh_status()
-
-    def _close_all_transcripts(self) -> None:
-        """Every session's, on shutdown -- see `on_unmount`."""
-        for key in list(self._sessions):
-            self._close_transcript(key)
+        self.core.sessions.close_transcript(session_key)
 
     def _note(self, session_key: str, text: str) -> None:
-        """A note about one session: to its transcript, never its tab."""
-        self._record(session_key, text)
-
-    def _link_error(self, session_key: str, why: str) -> None:
-        """A link failed under a session: recorded, and one toast, since
-        the Terminal no longer says so (`_record`)."""
-        self._record(session_key, why)
-        self.notify(f"{session_key or 'Session'}: {why}", severity="warning")
+        self.core.sessions.note(session_key, text)
 
     def _record(self, session_key: str, text: str) -> None:
-        """Something kissterm did or saw about a session, for the record:
-        to that session's transcript, or to kissterm.log when it has none
-        (a connect that never came up has no transcript). Never to the
-        Terminal, which holds only what the far end sent and what was sent
-        to it (operator, 2026-10-02: "I again don't want anything in there
-        that didn't come from the node"); the status bar shows states and
-        a toast reports events (DESIGN.md section 6).
-        """
-        text = text.strip().lstrip("* ")
-        session = self._sessions.get(session_key)
-        if session is not None and session.transcript is not None:
-            session.transcript.note(text)
-        else:
-            log.info("%s: %s", session_key or "session", text)
+        """`Sessions.record`: to the transcript or kissterm.log, never the Terminal."""
+        self.core.sessions.record(session_key, text)
 
     def log_sent(self, session_key: str, text: str, *, watch_hop: bool = True) -> None:
-        """Record a line the operator transmitted on `session_key`. Called
-        from `TerminalPane.send_line` with `active_session_key` -- the
-        operator can only ever type into whichever tab is on screen -- and
-        from `_hop_to`, which sends its "C <node>" the same way.
-
-        The pane echoes it to the scrollback itself; this is the durable
-        half -- and this also (re)arms that session's reply-watch timer
-        (`_note_if_no_reply`), cancelling any previous one so it is the
-        LAST line typed that starts the clock, not the first.
-
-        Also where a HAND-TYPED hop to another node gets noticed.
-        `_sniff_node` locks onto the first family it identifies and never
-        looks again -- deliberately, so ordinary mid-conversation text
-        cannot trigger a false match (AGENTS.md: "a wrong family shown
-        confidently is worse than 'unknown node'"). But a real report found
-        the gap that leaves: connect to a BPQ32 node, harvest it, then type
-        "C <other-node>" to hop onward through it -- kissterm's own AX.25
-        link never changes (it is still connected to the SAME peer; the hop
-        happens entirely at the far node's application layer), so nothing
-        else ever tells this session it might now be talking to a different
-        kind of system.
-
-        **The reset waits for the hop to be CONFIRMED, and that ordering is
-        the whole point.** The first version of this reset detection the
-        instant the command went out, which is wrong in the case that
-        actually matters on a marginal path: a hop that answers BUSY, or
-        that nothing answers at all, leaves the operator still talking to
-        the SAME node they were already correctly identified against -- and
-        blanking the identification there turns a working command reference
-        and working autocomplete into "unknown node" for a node that never
-        went anywhere. Caught in live testing against a real BPQ32 node.
-        So a hop command starts a background watch
-        (`_await_hop_confirmation`) and only a genuine CONNECTED reply
-        reaches `_commit_hop`; a refusal or a timeout touches nothing at
-        all. No note is written for a failed hop -- the node's own
-        BUSY/FAILED text is already in the scrollback, and saying it again
-        in kissterm's voice is the duplication AGENTS.md's "one place for
-        each fact" rule argues against.
-
-        This stays keyed on an OPERATOR-INITIATED command, the same trust
-        model `_arm_for` uses for "confirmed and targeted" actions -- not on
-        watching every byte forever, which would reopen the false-match risk
-        `_sniff_node`'s lock exists to close.
-
-        `watch_hop=False` is for `_hop_to` alone: the scripted hop chain
-        already awaits `_await_hop_confirmation` itself and calls
-        `_commit_hop` from there, so a second watcher started here would be
-        two subscribers racing on the same `link.on_data` bytes for the same
-        hop -- able to commit twice, and able to disagree.
-        """
-        session = self._sessions.get(session_key)
-        if session is None:
-            return
-        # A node's prompt has no line end ("CCEMA:WS1EC-15} "); the line the
-        # operator typed ends it. Without this the node's reply is read as a
-        # continuation of the prompt and "Connected to BBS" never matches.
-        session.line_buffer = ""
-        if session.transcript is not None:
-            session.transcript.sent(self._masked(text))
-        if watch_hop:
-            self._watch_typed_hop(session_key, text)
-        if _YAPP_REQUEST.match(text) and session_key not in self._transfer_active:
-            # Not while G on the Files tab is fetching it: that run reads
-            # the download itself (`collect.BbsCollector._get_file`).
-            session.download_until = time.monotonic() + DOWNLOAD_WAIT_SECONDS
-        self._cancel_reply_timer(session_key)
-        # Not for a blank line: that is a nudge, and a node owes it no reply.
-        # From a real report (CCEMA, 2026-09-22): with the prompt hidden, the
-        # operator pressed Enter on an empty line, the node rightly said
-        # nothing, and this note then blamed the far end while the node was
-        # waiting on the operator.
-        if text.strip() and session.link is not None and session.link.connected:
-            session.reply_timer = self.set_timer(
-                REPLY_WAIT_SECONDS, lambda: self._note_if_no_reply(session_key)
-            )
-
-    # ------------------------------------------------------------------
-    # Hopping onward through a node, at the far end's application layer
-    # ------------------------------------------------------------------
-    def _watch_typed_hop(self, session_key: str, text: str) -> None:
-        """If `text` is a connect-onward command with a target, start (or
-        restart) the background watch that will commit the hop if it comes
-        up. Called from `log_sent`; see its docstring for the ordering
-        argument this exists to enforce.
-
-        A bare "C" with nothing after it names no node to hop to, so there
-        is nothing to confirm and nothing to reset -- it is left alone
-        rather than being treated as a hop to the empty string.
-
-        The target is the LAST word, not the first after the command:
-        bpq32.toml documents two forms, "C <call>" and "C <port> <call>",
-        and taking the first word after "C" would read a port-qualified hop
-        like "C 2 JNOSNODE" as a hop to a node literally named "2" -- wrong
-        in a way that would then confirm against the wrong node's traffic
-        and cache a real harvest under a callsign that does not exist.
-        """
-        parts = text.strip().split(None, 1)
-        if len(parts) < 2 or parts[0].upper() not in HOP_COMMAND_WORDS:
-            return
-        args = parts[1].strip().split()
-        target = args[-1] if args else ""
-        if not target:
-            return
-        session = self._sessions.get(session_key)
-        if session is None or session.link is None:
-            return
-        # A second hop typed before the first resolved replaces it. Leaving
-        # the old watcher subscribed would let it match the NEW hop's
-        # traffic -- an unrelated node's CONNECTED committing the previous
-        # target -- which is exactly the mislabelling this whole change is
-        # about.
-        self._cancel_hop_watch(session_key)
-        # Subscribed HERE, synchronously, not inside the task: a task does
-        # not start running until the event loop next gets a turn, and the
-        # node's reply is fanned out to `link.on_data` the moment it
-        # arrives. Anything received in that window would be invisible to a
-        # watcher that had not subscribed yet, and the hop would never be
-        # confirmed at all. See `_HopConfirmation`.
-        # The link is captured now, not read back off the session later: a
-        # reconnect on this key installs a whole new `_TerminalSession`, and
-        # this watch must stay attached to the link it was started on (that
-        # `_bind_link` cancels it first is belt and braces, not the reason).
-        link = session.link
-        watch = _HopConfirmation(link, target)
-
-        async def _run() -> None:
-            try:
-                ok, _detail = await self._await_hop_confirmation(
-                    link, target, watch=watch
-                )
-                if ok:
-                    self._commit_hop(session_key, target)
-            finally:
-                current = self._sessions.get(session_key)
-                if current is not None and current.hop_watch_task is task:
-                    current.hop_watch_task = None
-
-        task = asyncio.get_event_loop().create_task(
-            _run(), name=f"hop-watch:{session_key}:{target}"
-        )
-        # Unsubscribe on EVERY ending, including a task cancelled before it
-        # ever ran -- that one never enters `_run`'s body, so its `finally`
-        # never fires and the subscriber would be left on the fan-out
-        # matching unrelated traffic for the rest of the session. A done
-        # callback runs in both cases; `_HopConfirmation.stop` is idempotent.
-        task.add_done_callback(lambda _task: watch.stop())
-        session.hop_watch_task = task
+        """`Sessions.log_sent`: the record of a line sent, and the reply watch."""
+        self.core.sessions.log_sent(session_key, text, watch_hop=watch_hop)
 
     def _cancel_hop_watch(self, session_key: str) -> None:
-        session = self._sessions.get(session_key)
-        if session is not None and session.hop_watch_task is not None:
-            session.hop_watch_task.cancel()
-            session.hop_watch_task = None
-
-    def _cancel_all_hop_watches(self) -> None:
-        """Every session's, on shutdown -- see `on_unmount`. A watcher left
-        running past the UI would be a task holding a reference to a link
-        and a session that are both on their way out."""
-        for key in list(self._sessions):
-            self._cancel_hop_watch(key)
+        self.core.sessions.cancel_hop_watch(session_key)
 
     def _commit_hop(self, session_key: str, node: str) -> None:
-        """Apply a CONFIRMED successful hop to `node`: from here on this
-        session is logically talking to a different station than its AX.25
-        link's fixed peer.
+        self.core.sessions.commit_hop(session_key, node)
 
-        The ONLY place a hop's success is applied, for both the scripted
-        chain (`_hop_to`) and a hand-typed one (`log_sent`'s watch), so
-        there is one answer to "what changes when a hop works" rather than
-        two copies free to drift apart.
+    def _on_link_data(self, session_key: str, data: bytes) -> None:
+        self.core.sessions.on_link_data(session_key, data)
 
-        Re-arms node detection (a fresh `CommandReference` and an empty
-        detect buffer) so the new node's banner gets a clean, un-mixed read
-        instead of the previous node's family and learned commands sticking
-        around -- and re-applies anything already harvested from `node`,
-        mirroring `_bind_link`'s own cache-reapply-on-connect for exactly
-        the same reason: a hop BACK to a node harvested before must not
-        re-spend the airtime AGENTS.md's opt-in-harvesting rule says is
-        paid once and cached forever.
+    def _on_link_state(self, session_key: str, state: SessionState) -> None:
+        self.core.sessions.on_link_state(session_key, state)
 
-        Never call this for a hop that refused or timed out. The operator is
-        still talking to whatever they were talking to before the attempt,
-        and blanking a correct identification for a hop that never happened
-        is the regression this method's ordering exists to prevent.
-        """
-        session = self._sessions.get(session_key)
-        if session is None:
-            return
-        session.current_node = node
-        session.reference = CommandReference(learned=self._learned(node, "node"))
-        session.detect_buffer = ""
-        session.application = ""
-        session.node_reference = None
-        session.line_buffer = ""
-        self._refresh_status()
-        self.query_one(KissTermFooter).refresh_bindings()
+    def _cancel_reply_timer(self, session_key: str) -> None:
+        self.core.sessions.cancel_reply_timer(session_key)
+
+    def _note_if_no_reply(self, session_key: str) -> None:
+        self.core.sessions.note_if_no_reply(session_key)
+
+    def _learned(self, node: str, context: str) -> tuple[Command, ...]:
+        return self.core.sessions.learned(node, context)
+
+    def learned_node(self, session_key: str) -> tuple[str, int]:
+        return self.core.sessions.learned_node(session_key)
+
+    def forget_learned(self, session_key: str) -> int:
+        return self.core.sessions.forget_learned(session_key)
+
+    def reference_sections(self, session_key: str) -> tuple[CommandReference, ...]:
+        return self.core.sessions.reference_sections(session_key)
+
+    def harvest_context(self, session_key: str) -> str:
+        return self.core.sessions.harvest_context(session_key)
+
+    async def harvest_commands(self, session_key: str, *, context: str = "node") -> tuple[str, ...]:
+        """`Sessions.harvest_commands`: the opt-in `?`, once, cached forever."""
+        return await self.core.sessions.harvest_commands(session_key, context=context)
+
+    def last_harvest_text(self, session_key: str) -> str:
+        return self.core.sessions.last_harvest_text(session_key)
+
+    def _intercept_link_data(self, session_key: str, data: bytes) -> bool:
+        """A file transfer's bytes are its own, not the session's: a run
+        reading them (`_transfer_active`) or a YAPP download the operator
+        asked for (`_watch_for_download`)."""
+        if session_key in self._transfer_active:
+            return True
+        return self._watch_for_download(session_key, data)
+
+    def _yapp_requested(self, session_key: str, text: str, session) -> None:
+        """`YAPP <name>` sent: a YAPP send init in the next minute is that
+        download -- not while G on the Files tab fetches it itself
+        (`collect.BbsCollector._get_file`)."""
+        if _YAPP_REQUEST.match(text) and session_key not in self._transfer_active:
+            session.download_until = time.monotonic() + DOWNLOAD_WAIT_SECONDS
 
     def _base_query(self, selector):
         """Query the app's own screen, not whatever modal is on top of it.
@@ -2420,438 +2015,6 @@ class KissTermApp(App):
         for pane in self._base_query(TerminalPane):
             getattr(pane, method)(session_key, *args)
             return
-
-    def _on_link_data(self, session_key: str, data: bytes) -> None:
-        if session_key in self._transfer_active:
-            return
-        if self._watch_for_download(session_key, data):
-            return
-        # Any data back answers the "did they get it" question the reply
-        # timer exists for -- see `_note_if_no_reply`.
-        self._cancel_reply_timer(session_key)
-        self._to_terminal(session_key, "write_incoming", data)
-        session = self._sessions.get(session_key)
-        if session is not None and session.transcript is not None:
-            # Sanitized, never raw. A transcript is read later by a person in
-            # a terminal, so wire bytes with escape sequences in them would
-            # reintroduce exactly the problem the pane's filter solves --
-            # `cat` on the file would run them.
-            session.transcript.received_stream(data, sanitize)
-        self._sniff_node(session_key, data)
-        self._capture_harvest(session_key, data)
-
-    def _sniff_node(self, session_key: str, data: bytes) -> None:
-        """Identify the node family from what it already sent us, on
-        `session_key`'s own reference -- never `self.reference`, which
-        means "whichever tab is active" and this callback does not know
-        that it is.
-
-        Passive on purpose. Asking a node for its command list with `?` costs
-        roughly twenty seconds of a 1200-baud channel for a couple of
-        kilobytes, and over a minute for a verbose one -- airtime nobody else
-        can use. The banner and prompt arrive anyway, so they are free.
-
-        Only the first couple of kilobytes are examined; a node identifies
-        itself in its greeting or not at all, and scanning the whole session
-        forever would let ordinary message text trigger a false match. Once
-        the family is known, `_track_application` watches for the family's
-        own, specific enter/return lines for the rest of the session.
-        """
-        session = self._sessions.get(session_key)
-        if session is None:
-            return
-        text = sanitize(data)
-        if (
-            session.reference.family is None
-            and not session.application
-            and len(session.detect_buffer) <= 2048
-        ):
-            session.detect_buffer += text
-            family = identify_family(session.detect_buffer)
-            if family is not None:
-                # Set the `family` field in place rather than replacing the
-                # whole `CommandReference` -- a wholesale replacement here
-                # would silently drop `learned` commands `_bind_link` already
-                # pre-populated from a past harvest of this same peer.
-                #
-                # No inline terminal note here -- the family name is shown in
-                # the status bar instead (`_refresh_status`). Announcing it a
-                # second time in the scrollback is the duplication AGENTS.md's
-                # "one place for each fact" rule covers.
-                session.reference.family = family
-                if family.kind == "application":
-                    # Connected straight to a BBS: its harvested names, not
-                    # the node-context ones `_bind_link` assumed.
-                    session.reference.learned = self._learned(
-                        session.current_node, family.harvest_context
-                    )
-                self._refresh_status()
-        self._track_application(session, text)
-
-    def _learned(self, node: str, context: str) -> tuple[Command, ...]:
-        """Names harvested from `node` in one context, as `Command`s.
-
-        Filtered by context because "L" harvested inside the BBS and "L"
-        harvested at the node prompt are different commands; offering the
-        BBS's at the node is the mix-up the command catalog (docs/CHANGELOG.md, 2026-09-23) ended.
-        """
-        return tuple(
-            Command(name=command.name, confidence="learned", context=command.context)
-            for command in self._harvested.records_for_callsign(node)
-            if command.context == context
-        )
-
-    @staticmethod
-    def _context_of(session: _TerminalSession) -> str:
-        """The harvest context (node / bbs / application) in effect."""
-        family = session.reference.family
-        if family is not None and family.kind == "application":
-            return family.harvest_context
-        return "application" if session.application else "node"
-
-    def learned_node(self, session_key: str) -> tuple[str, int]:
-        """The node this session's learned commands are filed under, and how
-        many there are -- for the reference screen's "Forget learned"."""
-        session = self._sessions.get(session_key)
-        if session is None or session.link is None:
-            return ("", 0)
-        node = session.current_node or str(session.link.peer)
-        return (node, len(self._harvested.records_for_callsign(node)))
-
-    def forget_learned(self, session_key: str) -> int:
-        """Drop everything learned from this session's node, from the cache
-        and from the live references. Sends nothing."""
-        node, _count = self.learned_node(session_key)
-        if not node:
-            return 0
-        dropped = self._harvested.forget(node)
-        session = self._sessions[session_key]
-        session.reference.learned = ()
-        if session.node_reference is not None:
-            session.node_reference.learned = ()
-        self.notify(f"Forgot {dropped} learned command(s) for {node}.")
-        return dropped
-
-    def reference_sections(self, session_key: str) -> tuple[CommandReference, ...]:
-        """The command sets reachable from where this session is, other than
-        the one in effect: the node's while inside its BBS, and the node's
-        applications (BPQMail, BPQChat) either way.
-
-        The Node commands screen lists these after the current context's commands,
-        so an operator at a node prompt can look up a BBS command before
-        spending the airtime to enter the BBS.
-        """
-        session = self._sessions.get(session_key)
-        if session is None:
-            return ()
-        current = session.reference
-        node_reference = session.node_reference if session.application else current
-        sections: list[CommandReference] = []
-        if session.application and node_reference is not None:
-            sections.append(node_reference)
-        node_family = node_reference.family if node_reference is not None else None
-        if node_family is not None and node_family.kind == "node":
-            for family in applications_of(node_family):
-                if family is current.family:
-                    continue
-                sections.append(
-                    CommandReference(
-                        family=family,
-                        learned=self._learned(session.current_node, family.harvest_context),
-                    )
-                )
-        return tuple(sections)
-
-    def harvest_context(self, session_key: str) -> str:
-        """What a `?` asked now would be answered by, for the confirm
-        screen's default -- the operator can still change it."""
-        session = self._sessions.get(session_key)
-        return self._context_of(session) if session is not None else "node"
-
-    def _track_application(self, session: _TerminalSession, text: str) -> None:
-        """Follow the session into and out of a node's applications.
-
-        A BPQ32 node says "CCEMA:WS1EC-15} Connected to BBS" when it hands
-        the session to its BBS, and "Returned to Node" when one hands it
-        back. Between the two, BPQMail's commands are in effect and the
-        node's are not -- "L" lists mail there and links at the node, so a
-        suggestion from the wrong one is a wrong command. Both lines come
-        from the identified node family's data (`enter_pattern`,
-        `return_pattern`), so nothing here is BPQ-specific, and a node with
-        neither is simply never tracked.
-
-        An application kissterm ships no reference for (a sysop's own
-        CALENDAR) gets an empty command set: suggesting the node's commands
-        there would be a guess. The node uses the same "Connected to" words
-        for a STAY hop to another node (G8BPQ's example: "Connected to
-        GB7YDX"), so while a typed hop is being watched an unknown name is
-        left to `_commit_hop`; only a shipped application's name is taken.
-        """
-        node = (
-            session.node_reference.family
-            if session.node_reference is not None
-            else session.reference.family
-        )
-        if node is None or node.kind != "node" or not (node.enter_pattern or node.return_pattern):
-            return
-        pending = session.line_buffer + text
-        *lines, tail = re.split(r"\r\n|\r|\n", pending)
-        session.line_buffer = tail[-512:]
-        try:
-            if session.application:
-                # The return line is followed by the node's prompt with no
-                # line end, so the unterminated tail counts too.
-                if node.return_pattern and any(
-                    re.search(node.return_pattern, line) for line in (*lines, tail)
-                ):
-                    session.reference = session.node_reference or CommandReference()
-                    session.node_reference = None
-                    session.application = ""
-                    session.line_buffer = ""
-                    self._refresh_status()
-                return
-            if not node.enter_pattern:
-                return
-            for line in lines:
-                match = re.search(node.enter_pattern, line)
-                if match is None:
-                    continue
-                name = match.group(1).upper()
-                family = application_named(name)
-                if family is None and session.hop_watch_task is not None:
-                    continue
-                session.node_reference = session.reference
-                session.application = name
-                context = family.harvest_context if family is not None else "application"
-                session.reference = CommandReference(
-                    family=family, learned=self._learned(session.current_node, context)
-                )
-                self._refresh_status()
-                return
-        except re.error:
-            log.warning("bad enter/return pattern in family %s", node.id)
-
-    def _capture_harvest(self, session_key: str, data: bytes) -> None:
-        """Feed one session's harvest capture window, when one is open.
-
-        A no-op the rest of the time (`harvest_buffer is None` is the
-        overwhelming common case -- harvesting is opt-in and rare), so this
-        adds no cost to ordinary traffic. Bounded by `HARVEST_CAPTURE_LIMIT`
-        regardless of how much the node actually sends back.
-        """
-        session = self._sessions.get(session_key)
-        if session is None or session.harvest_buffer is None:
-            return
-        session.harvest_buffer += sanitize(data)
-        if len(session.harvest_buffer) > HARVEST_CAPTURE_LIMIT:
-            session.harvest_buffer = session.harvest_buffer[:HARVEST_CAPTURE_LIMIT]
-
-    async def harvest_commands(
-        self, session_key: str, *, context: str = "node"
-    ) -> tuple[str, ...]:
-        """Ask the node's own `?` for its command list, once, and cache
-        whatever comes back forever under its callsign.
-
-        AGENTS.md's opt-in-harvesting rule in full: ask before spending the
-        airtime (that confirm step is `HarvestConfirmScreen`, already done
-        by the time this runs), then cache per node callsign forever so it
-        is never paid twice -- `_bind_link` is the other half of that,
-        re-applying the cache on every later connect to the same peer with
-        no prompt and no airtime spent.
-
-        Reuses `link.send` -- the same tx-gated path every other
-        transmission in this app goes through -- rather than a second one;
-        AGENTS.md is explicit that a new send path around the transmit gate
-        is the one thing a backend or feature must never do. Returns the
-        NEWLY learned names (empty if there is no connected link, the gate
-        is closed, or nothing recognisable came back).
-
-        The wait is `HARVEST_MAX_WAIT_SECONDS` at most, but exits early
-        after `HARVEST_QUIET_SECONDS` of silence once something has actually
-        arrived -- see that constant's docstring for why a fixed short sleep
-        (this method's original implementation) is a real bug, not just
-        overcautious, on anything but a fast, lossless link.
-        """
-        session = self._sessions.get(session_key)
-        if session is None or session.link is None or not session.link.connected:
-            return ()
-        if not self.gate.enabled:
-            self.notify(DISABLED_MESSAGE, severity="warning")
-            return ()
-        link = session.link
-        # Do not let a second, unanswered harvest make the Node commands screen
-        # present the previous request's reply as though it were current.
-        session.last_harvest_text = ""
-        session.harvest_buffer = ""
-        try:
-            await link.send(b"?\r")
-        except Exception:
-            log.exception("could not send harvest request to %s", link.peer)
-            session.harvest_buffer = None
-            return ()
-        # Recorded exactly like any other automated send (`_run_connect_
-        # script`'s pattern) -- the operator sees it in the terminal and it
-        # lands in the transcript, rather than harvesting being the one send
-        # path in this app that leaves no record of what went out.
-        self._to_terminal(session_key, "write_note", "?\n")
-        self.log_sent(session_key, "?")
-        self._record(session_key, "Asked the node for its command list")
-        self._set_activity("Reading the command list")
-        waited = 0.0
-        quiet = 0.0
-        last_length = 0
-        while waited < HARVEST_MAX_WAIT_SECONDS:
-            await asyncio.sleep(HARVEST_POLL_INTERVAL)
-            waited += HARVEST_POLL_INTERVAL
-            buffer = session.harvest_buffer or ""
-            if len(buffer) > last_length:
-                # Still arriving -- reset the quiet clock. Only a buffer
-                # that has stopped GROWING counts toward the quiet exit;
-                # counting mere non-emptiness would end the capture after
-                # exactly `HARVEST_QUIET_SECONDS` regardless of whether the
-                # node was still actively sending more.
-                last_length = len(buffer)
-                quiet = 0.0
-            elif buffer:
-                quiet += HARVEST_POLL_INTERVAL
-                if quiet >= HARVEST_QUIET_SECONDS:
-                    break
-        text = session.harvest_buffer or ""
-        session.harvest_buffer = None
-        session.last_harvest_text = text
-        names = parse_harvested(text)
-        if not names:
-            self._set_activity("")
-            self.notify("No commands recognised in the node's reply.", severity="warning")
-            return ()
-        # Keyed on the LOGICAL peer, not `link.peer`. After a confirmed hop
-        # the AX.25 link is still to the first node while the `?` was
-        # answered by whatever node the operator hopped to -- keying on the
-        # link's peer wrote the second node's commands into the first one's
-        # cache entry, corrupting a node's real reference with another
-        # node's commands. See `_TerminalSession.current_node`.
-        node = session.current_node or str(link.peer)
-        self._harvested.add(node, names, context=context)
-        session.reference.learned = self._learned(node, self._context_of(session))
-        self._set_activity("")
-        self._record(session_key, f"Learned {len(names)} command(s) from {node}: {', '.join(names)}")
-        self.notify(f"Learned {len(names)} command(s) from {node}.")
-        return names
-
-    def last_harvest_text(self, session_key: str) -> str:
-        """The sanitized reply captured by this session's latest harvest.
-
-        Kept behind the app boundary rather than having `CommandReferenceScreen`
-        reach into `_sessions`: the dialog owns presentation, while this app
-        owns link-scoped state and its lifetime.
-        """
-        session = self._sessions.get(session_key)
-        return session.last_harvest_text if session is not None else ""
-
-    def _on_link_state(self, session_key: str, state: SessionState) -> None:
-        """Note a state change inline in the terminal -- except a
-        TIMER_RECOVERY excursion and its own resolution back to CONNECTED.
-
-        From a real report: WS1EC-15/CCEMA's link flapped timer-recovery /
-        connected three times waiting out T1 retry and REJ recovery for one
-        reply, writing six `***` lines into the scrollback in between actual
-        node text. `TIMER_RECOVERY` is not an error (AGENTS.md is explicit:
-        "a busy 1200-baud channel or a marginal HF path spends real time
-        there and recovers fine") and the status bar already shows live
-        link state at 1Hz -- announcing it inline too is the same fact told
-        twice, which DESIGN.md's "say what is true, in the place the
-        operator is already looking" argues against, once is enough. The
-        INITIAL connect still gets its own distinct "Connected to X" note
-        from a different call site (`action_connect`/`_hop_to`), so this
-        skip never hides that a session started.
-
-        Checking the previous state (`last_state`), not just "is this
-        TIMER_RECOVERY", is what makes the *return* to CONNECTED skip too --
-        recovering silently and then announcing the recovery's end would
-        still be noise, just delayed by one transition. `last_state` MUST be
-        recorded on every call, including a suppressed one: an earlier
-        version of this method only set it inside the `if not recovering`
-        branch, which means it was never actually set to TIMER_RECOVERY
-        (that write is the one being skipped) -- so the "did we just recover"
-        check could never see it, and every return to CONNECTED after a real
-        flap was announced anyway. That shipped once already, caught only by
-        watching a live CCEMA session repeat "*** connected" on every T1
-        retry cycle, not by the test that was supposed to guard this exact
-        thing (its assertion checked "timer-recovery" was absent, not that
-        "connected" stopped repeating).
-        """
-        session = self._sessions.get(session_key)
-        previous = session.last_state if session is not None else None
-        recovering = state is SessionState.TIMER_RECOVERY
-        recovered = state is SessionState.CONNECTED and previous is SessionState.TIMER_RECOVERY
-        if not recovering and not recovered:
-            self._note(session_key, state.value)
-        if session is not None:
-            session.last_state = state
-        if state is not SessionState.CONNECTED:
-            # Anything other than a plain, steady CONNECTED -- disconnecting,
-            # failed, timer recovery -- means there is nothing to ask "did
-            # they get it and just not answer yet" about; the "acknowledged
-            # but silent" note below would only repeat that with less
-            # information, or fire after the link is no longer there.
-            self._cancel_reply_timer(session_key)
-        if state is SessionState.DISCONNECTED:
-            # Only here, never on TIMER_RECOVERY: a hop over a marginal path
-            # spends real time in recovery and comes back (AGENTS.md), and
-            # cancelling its watch there would lose a hop that was about to
-            # succeed. A link that is genuinely gone has no hop left to
-            # confirm.
-            self._cancel_hop_watch(session_key)
-            self._to_terminal(session_key, "set_placeholder", "not connected -- Ctrl+N")
-            self._close_transcript(session_key)
-        self._refresh_context_footer()
-
-    # ------------------------------------------------------------------
-    # Reply watch -- "they got it, are they just not answering?"
-    # ------------------------------------------------------------------
-    def _cancel_reply_timer(self, session_key: str) -> None:
-        session = self._sessions.get(session_key)
-        if session is not None and session.reply_timer is not None:
-            session.reply_timer.stop()
-            session.reply_timer = None
-
-    def _cancel_all_reply_timers(self) -> None:
-        """Every session's, on shutdown -- see `on_unmount`."""
-        for key in list(self._sessions):
-            self._cancel_reply_timer(key)
-
-    def _note_if_no_reply(self, session_key: str) -> None:
-        """Fired `REPLY_WAIT_SECONDS` after a send with nothing back since,
-        on `session_key` -- bound with that key at the moment `log_sent`
-        armed this timer, so switching tabs in the meantime cannot make it
-        report on the wrong session.
-
-        Only says anything when the AX.25 layer has nothing outstanding
-        (`link.va == link.vs`) -- i.e. the far end already acknowledged the
-        line. If it has NOT been acknowledged, T1/timer recovery is already
-        retrying it and already wrote its own note to the terminal; this
-        would only be a vaguer echo of that. This is exactly the gap a real
-        report exposed: WS1EC-15 ACKed a line within 3 seconds and then said
-        nothing for 22 more, and the only place that ACK showed up was an RR
-        frame the Monitor tab hides by default.
-        """
-        session = self._sessions.get(session_key)
-        if session is None:
-            return
-        session.reply_timer = None
-        link = session.link
-        # A session-tier link (Telnet, SSH, VARA) has no V(A)/V(S): its
-        # transport acknowledges nothing kissterm can see, so there is no
-        # "acknowledged, no reply" to report (operator, 2026-10-03: this
-        # timer crashed the app 25 s after a line typed over SSH).
-        if link is None or not link.connected or isinstance(link, _SessionLinkAdapter):
-            return
-        if link.va != link.vs:
-            return
-        self.notify(
-            f"{link.peer} acknowledged that -- no reply yet. The Monitor tab (F8) "
-            "shows what has come back since."
-        )
 
     # ------------------------------------------------------------------
     # Actions
@@ -4886,12 +4049,7 @@ class KissTermApp(App):
         if session_key in self._connecting:
             self.action_disconnect()
             return
-        # Cancel BEFORE the session goes: `_cancel_hop_watch` finds the task
-        # through `_sessions`, so popping first would strand a watcher on a
-        # session that no longer exists.
-        self._cancel_reply_timer(session_key)
-        self._cancel_hop_watch(session_key)
-        self._sessions.pop(session_key, None)
+        self.core.sessions.close(session_key)
         self.query_one(TerminalPane).close_tab(session_key)
         self.call_after_refresh(self._refresh_context_footer)
 

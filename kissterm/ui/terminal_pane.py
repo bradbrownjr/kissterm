@@ -133,7 +133,6 @@ from ..ansi import to_text
 from ..core import MAX_LINKS
 from . import slideouts
 from ..monitor import sanitize
-from ..tx import DISABLED_MESSAGE
 from .addressbook_pane import AddressBookPane
 from .inputs import WordInput
 from .tabclose import CloseTabX
@@ -1296,7 +1295,8 @@ class TerminalPane(Container):
         await self.send_line(self.query_one("#session-input", Input).value)
 
     async def send_line(self, text: str) -> None:
-        """The one and only path from this pane to the air.
+        """The one and only path from this pane to the air, by way of the
+        core's `Sessions.send_line` (the pane itself sends nothing).
 
         Every transmit route -- Enter, the Send button, and anything added
         later -- comes through here, so the answer to "what can key the
@@ -1315,40 +1315,16 @@ class TerminalPane(Container):
         # pressing Enter once: the field is ready for the next line
         # immediately, mouse or keyboard.
         field.focus()
-        link = getattr(self.app, "link", None)
-        if link is None or not link.connected:
-            self.app.notify("Not connected.", severity="warning")
-            return
-        # A line the link cannot carry through is kept in the field, with
-        # the app's reason, and nothing is sent (`KissTermApp.refuse_line`).
-        refuse = getattr(self.app, "refuse_line", None)
-        if refuse is not None and refuse(text):
-            return
-        gate = getattr(self.app, "gate", None)
-        # An Internet contact's session cannot key a radio: no gate to arm.
-        if gate is not None and not gate.enabled and not getattr(link, "internet", False):
-            # A line the operator just typed and committed with Enter or
-            # Send, to a station they are already connected to, is exactly
-            # the "confirmed, targeted" shape `KissTermApp._arm_for` exists
-            # for -- refusing it with DISABLED_MESSAGE would be the same
-            # dead end AGENTS.md calls out for Connect: the one thing the
-            # operator asked for is the one thing the refusal would not do.
-            # Checked only after `link.connected` above, so a closed gate on
-            # a session with nothing to send to never arms anything.
-            arm_for = getattr(self.app, "_arm_for", None)
-            if arm_for is not None:
-                arm_for(f"sending to {self.active_session_key}")
-            else:
-                self.app.notify(DISABLED_MESSAGE, severity="warning")
-                return
-        field.value = ""
-        # latin-1, not UTF-8: packet is byte-oriented, and a character the
-        # operator pasted must not fail to encode mid-session. CR, not LF --
-        # see the module docstring.
-        await link.send(text.encode("latin-1", "replace") + b"\r")
-        self.write_note(self.active_session_key, text + "\n")
-        # The durable half of the same echo. Still one `link.send` in this
-        # module: recording what went out is not another way to transmit.
-        recorder = getattr(self.app, "log_sent", None)
-        if recorder is not None:
-            recorder(self.active_session_key, text)
+
+        def _clear() -> None:
+            field.value = ""
+
+        # The core sends it (`Sessions.send_line`): the connected check, the
+        # gate's arming for a line typed to a connected station, the send,
+        # the echo (back here as `LineSent`) and the record. A line the link
+        # cannot carry is kept in the field with the app's reason
+        # (`KissTermApp.refuse_line`); the field clears only once it goes.
+        await self.app.core.sessions.send_line(  # type: ignore[attr-defined]
+            self.active_session_key, text,
+            refuse=getattr(self.app, "refuse_line", None), before_send=_clear,
+        )

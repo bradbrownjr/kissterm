@@ -226,13 +226,13 @@ async def test_a_note_appears_once_a_sent_line_goes_unanswered(tmp_path, monkeyp
     operator had no on-screen way to tell "they got it, they are just
     slow" from "this went nowhere" -- the ACK is a supervisory frame the
     Monitor tab used to hide by default, and nothing else marked it."""
-    from kissterm.ui import app as app_module
+    from kissterm.core import sessions as sessions_module  # the reply watch lives in the core
 
     # 1 s, not 0.2: the note is written only if the far end has already
     # ACKed by then, and under parallel load the loopback's ACK sometimes
     # took longer than 0.2 s -- the note was then correctly skipped and the
     # test failed with nothing wrong in the app (P0.4).
-    monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 1.0)
+    monkeypatch.setattr(sessions_module, "REPLY_WAIT_SECONDS", 1.0)
     app, a, b, incoming = await _app(_config(tmp_path))
     toasts: list[str] = []
     real_notify = app.notify
@@ -263,9 +263,9 @@ async def test_a_note_appears_once_a_sent_line_goes_unanswered(tmp_path, monkeyp
 async def test_no_note_when_a_reply_actually_arrives(tmp_path, monkeypatch):
     """The note exists to fill a real silence, not to shadow every send --
     an actual reply must cancel it."""
-    from kissterm.ui import app as app_module
+    from kissterm.core import sessions as sessions_module  # the reply watch lives in the core
 
-    monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(sessions_module, "REPLY_WAIT_SECONDS", 0.2)
     app, a, b, incoming = await _app(_config(tmp_path))
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
@@ -290,9 +290,9 @@ async def test_no_note_while_the_line_is_still_unacknowledged(tmp_path, monkeypa
     this one would only repeat that with less information. Simulated with
     100% loss on the sending transport, so the I-frame never reaches the
     peer at all and V(A) never advances past what it was before the send."""
-    from kissterm.ui import app as app_module
+    from kissterm.core import sessions as sessions_module  # the reply watch lives in the core
 
-    monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(sessions_module, "REPLY_WAIT_SECONDS", 0.2)
     app, a, b, incoming = await _app(_config(tmp_path))
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
@@ -317,9 +317,9 @@ async def test_no_note_after_an_empty_line(tmp_path, monkeypatch):
     ACKed at the AX.25 layer and, reasonably, said nothing -- and 15 seconds
     later the note blamed the silence on the far end while the node was
     waiting on the operator. A blank line is a nudge, not a question."""
-    from kissterm.ui import app as app_module
+    from kissterm.core import sessions as sessions_module  # the reply watch lives in the core
 
-    monkeypatch.setattr(app_module, "REPLY_WAIT_SECONDS", 0.2)
+    monkeypatch.setattr(sessions_module, "REPLY_WAIT_SECONDS", 0.2)
     app, a, b, incoming = await _app(_config(tmp_path))
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()

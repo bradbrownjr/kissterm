@@ -43,20 +43,14 @@ class _Operator:
         return self.answer
 
 
-class _Host:
-    """Records what the flow asked of the session bookkeeping."""
+class _View:
+    """A client showing the sessions; records which ones it was asked to show."""
 
     def __init__(self) -> None:
-        self.records: list[tuple[str, str]] = []
-        self.bound: list[str] = []
         self.opened: list[str] = []
-        self.links: dict = {}
 
     def active_key(self) -> str:
         return ""
-
-    def link(self, key):
-        return self.links.get(key)
 
     def has_room_for(self, key) -> bool:
         return True
@@ -64,29 +58,37 @@ class _Host:
     def open_session(self, key, *, kind, focus) -> None:
         self.opened.append(key)
 
-    def bind(self, link, key, *, activate=True) -> None:
-        self.links[key] = link
-        self.bound.append(key)
-
-    def record(self, key, text) -> None:
-        self.records.append((key, text))
-
-    note = record
-
     def is_active(self, key) -> bool:
         return True
 
     def focus_input(self) -> None:
         pass
 
-    def echo_sent(self, key, shown, sent, *, watch_hop=True) -> None:
-        pass
 
-    def commit_hop(self, key, node) -> None:
-        pass
+class _Host:
+    """What the tests read back: the view, the sessions' records, the
+    sessions bound."""
 
-    def connecting_changed(self) -> None:
-        pass
+    def __init__(self, core, view) -> None:
+        self.view = view
+        self.records: list[tuple[str, str]] = []
+        self.bound: list[str] = []
+        sessions = core.sessions
+        real_record = sessions.record
+
+        def record(key, text):
+            self.records.append((key, text))
+            real_record(key, text)
+
+        sessions.record = record
+        core.events.subscribe(
+            lambda seq, event: self.bound.append(event.key)
+            if type(event).__name__ == "SessionOpened" else None)
+        self.links = sessions
+
+    @property
+    def opened(self):
+        return self.view.opened
 
 
 def _params() -> LinkParams:
@@ -100,8 +102,9 @@ async def _core(operator, *, peer_answers: bool = True):
     station = AX25Station(MYCALL, ta, _params())
     peer = AX25Station(PEER, tb, _params(), accept_incoming=peer_answers)
     core = Core(Config(mycall=str(MYCALL)), station, operator=operator)
-    host = _Host()
-    core.use_session_host(host)
+    view = _View()
+    core.attach_view(view)
+    host = _Host(core, view)
     core.attach_station()
     return core, host, station, peer, ta
 
@@ -135,7 +138,7 @@ async def test_a_confirmed_connect_arms_visibly_and_comes_up():
     assert ("WS1EC-7", "Transmit enabled automatically for: connect to WS1EC-7") in host.records
     assert any("Transmit ENABLED" in n.text for n in operator.notices)
     assert host.bound == ["WS1EC-7"] and reached == [True]
-    assert host.links["WS1EC-7"].connected
+    assert host.links.link("WS1EC-7").connected
     station.close()
     peer.close()
 

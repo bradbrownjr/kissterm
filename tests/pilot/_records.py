@@ -11,13 +11,17 @@ from __future__ import annotations
 def spy_records(app) -> list[str]:
     """Every note `app` records from now on, as written (no `***`)."""
     seen: list[str] = []
-    real = app._record
+    # The record is the core's (`kissterm/core/sessions.py`); the app's
+    # `_record` only reads through to it, and the core's flows call it
+    # directly.
+    sessions = app.core.sessions
+    real = sessions.record
 
     def spy(session_key: str, text: str) -> None:
         seen.append(text.strip().lstrip("* "))
         real(session_key, text)
 
-    app._record = spy
+    sessions.record = spy
     return seen
 
 

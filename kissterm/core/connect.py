@@ -21,11 +21,10 @@ nothing if the operator sees it after the SABMs went out
 reached the air at all. Each is said differently (AGENTS.md "A failure the
 operator cannot diagnose is a bug").
 
-**`SessionHost` is a seam, not the design.** The session tabs, transcripts
-and node identification still live in the terminal UI until milestone 3;
-this module reaches them only through that protocol, which the terminal UI
-implements. When sessions move into the core, the host's methods become
-the core's own and the flow here does not change.
+**Sessions are the core's** (`sessions.py`): binding a link, the record
+and the echo of each line sent. What stays with a client is presentation
+-- which session is on screen, whether there is room for another, putting
+one in front of the operator -- through `SessionView`.
 """
 
 from __future__ import annotations
@@ -44,6 +43,7 @@ from ..transport.base import TransportError, TransportState
 from . import hops
 from .hops import HopConfirmation
 from .links import SessionLinkAdapter
+from .events import ConnectingChanged
 from .operator import Notice, Severity
 from .questions import RadioReminder, TrustHostKey
 from .service import MAX_LINKS
@@ -123,38 +123,27 @@ def entry_link_override(text: str) -> int | None:
     return value if value >= 1 else None
 
 
-class SessionHost(Protocol):
-    """What the connect flow needs from session bookkeeping that has not
-    moved into the core yet (milestone 3). The terminal UI implements it."""
+class SessionView(Protocol):
+    """What the connect flow asks of the client showing the sessions: the
+    presentation half that stays in a client. The terminal UI implements
+    it; a remote client's version arrives with the WebSocket server."""
 
-    def active_key(self) -> str: ...
-    def link(self, key: str): ...
+    def active_key(self) -> str:
+        """The session the operator is looking at."""
     def has_room_for(self, key: str) -> bool: ...
     def open_session(self, key: str, *, kind: str, focus: bool) -> None:
         """Show the session `key` about to be dialed. `kind` is "radio",
         "internet" or "session" (the session-tier transport's one tab)."""
-    def bind(self, link, key: str, *, activate: bool = True) -> None: ...
-    def record(self, key: str, text: str) -> None:
-        """Something kissterm did or saw about a session, for the record:
-        its transcript, or kissterm.log without one. Never the Terminal,
-        which holds only what the far end sent and what was sent to it."""
-    def note(self, key: str, text: str) -> None:
-        """A state line ("Connected to ...") for the same record."""
     def is_active(self, key: str) -> bool: ...
     def focus_input(self) -> None: ...
-    def echo_sent(self, key: str, shown: str, sent: str, *, watch_hop: bool = True) -> None:
-        """Show `shown` as sent on `key` and log `sent` as the line that went."""
-    def commit_hop(self, key: str, node: str) -> None: ...
-    def connecting_changed(self) -> None:
-        """A connect attempt started or ended (what Ctrl+D can cancel)."""
 
 
 class Connector:
     """The connect flow. Owned by `Core` as `core.connector`."""
 
-    def __init__(self, core, host: SessionHost) -> None:
+    def __init__(self, core, view: SessionView) -> None:
         self.core = core
-        self.host = host
+        self.view = view
         #: Targets of connect attempts still in the SABM/retry phase,
         #: session key -> (peer address, port). A session does not exist
         #: until the attempt SUCCEEDS, so without this a disconnect during
@@ -221,7 +210,7 @@ class Connector:
         if self.gate.enabled:
             return False
         self.gate.set(True)
-        self.host.record(self.host.active_key() if key is None else key,
+        self.core.sessions.record(self.view.active_key() if key is None else key,
                          f"Transmit enabled automatically for: {what}")
         if toast:
             self.core.operator.notice(
@@ -285,7 +274,7 @@ class Connector:
             return
         self.last_connect[key] = request
         self.last_connect_key = key
-        if not self.host.has_room_for(key):
+        if not self.view.has_room_for(key):
             self._problem(
                 report,
                 f"Close a session first -- {MAX_LINKS} connections are already open.",
@@ -294,7 +283,7 @@ class Connector:
             return
         # After every validation and the reminder: a cancelled dialog must
         # not change what the operator is looking at.
-        self.host.open_session(key, kind="radio", focus=focus)
+        self.view.open_session(key, kind="radio", focus=focus)
         # The TNC link, before the RF link. Sending six SABMs into a socket
         # that is down produces "no answer from WS1EC-15" -- a diagnosis
         # pointing at the antenna when the fault is in the room. Unlike a
@@ -312,12 +301,12 @@ class Connector:
         if announce:
             self.core.operator.notice(Notice(
                 announce + (" Transmit ENABLED; Ctrl+T turns it back off." if armed else "")))
-        self.host.record(key, f"Connecting to {path.destination} on port {port}")
+        self.core.sessions.record(key, f"Connecting to {path.destination} on port {port}")
         # Set before the await: `AX25Station.connect` registers the link
         # synchronously before it awaits anything, so a disconnect can find
         # and cancel it mid-attempt.
         self.connecting[key] = (path.destination, port)
-        self.host.connecting_changed()
+        self.core.events.publish(ConnectingChanged())
         try:
             link = await station.connect(
                 path,
@@ -330,12 +319,12 @@ class Connector:
             return
         finally:
             self.connecting.pop(key, None)
-            self.host.connecting_changed()
+            self.core.events.publish(ConnectingChanged())
         if link is None:
             failed = station.link_to(path.destination, port)
             reason = getattr(failed, "last_error", "") if failed else ""
             if reason == CANCELLED_REASON:
-                self.host.record(key, f"Connect to {path.destination} cancelled")
+                self.core.sessions.record(key, f"Connect to {path.destination} cancelled")
                 return
             # Say WHY: a DM is a refusal (configuration), silence after N2
             # is the path (antenna, power, propagation).
@@ -353,10 +342,10 @@ class Connector:
                 why += (" The link to the TNC dropped during this attempt, so some "
                         "of those frames never reached the radio. Fix that first -- "
                         "this is not an RF failure.")
-            self.host.record(key, why)
+            self.core.sessions.record(key, why)
             self._problem(report, why.rstrip("."), Severity.WARNING)
             return
-        self.host.bind(link, key)
+        self.core.sessions.bind(link, key)
         if on_link is not None:
             on_link(link, key)
         # Explicit: `AX25Station.connect` ran the SABM/UA exchange before
@@ -364,11 +353,11 @@ class Connector:
         # nobody. It is the one an operator most needs to see, and the
         # transcript needs it at the time it happened, not at the next
         # transition.
-        self.host.note(key, f"Connected to {link.peer}")
-        if focus and self.host.is_active(key):
+        self.core.sessions.note(key, f"Connected to {link.peer}")
+        if focus and self.view.is_active(key):
             # Only if the operator is still looking at this session -- a
             # long SABM retry or hop chain can outlast several tab switches.
-            self.host.focus_input()
+            self.view.focus_input()
         if len(chain) > 1:
             # The AX.25 link is only to the FIRST node; the rest is that
             # node's own onward routing, driven by watching its replies.
@@ -450,25 +439,25 @@ class Connector:
                 entry.target, entry.script, "", entry.credential, entry.script_name)
         self.last_connect[key] = ConnectRequest(entry.target)
         self.last_connect_key = key
-        self.host.open_session(key, kind="internet", focus=focus)
+        self.view.open_session(key, kind="internet", focus=focus)
         where = entry.host + (f":{entry.port}" if entry.port else "")
-        self.host.record(key, f"Connecting to {key} by {entry.connect_by.upper()} ({where}), "
+        self.core.sessions.record(key, f"Connecting to {key} by {entry.connect_by.upper()} ({where}), "
                               "over the Internet")
         task = asyncio.current_task()
         assert task is not None
         self.internet_connecting[key] = task
-        self.host.connecting_changed()
+        self.core.events.publish(ConnectingChanged())
         try:
             await transport.open()
             session = await self.session_connect(transport)
         except asyncio.CancelledError:
-            self.host.record(key, "Connect cancelled by operator")
+            self.core.sessions.record(key, "Connect cancelled by operator")
             with contextlib.suppress(Exception):
                 await transport.close()
             reached(False)
             return
         except (TransportError, OSError) as exc:
-            self.host.record(key, f"Could not connect: {exc}")
+            self.core.sessions.record(key, f"Could not connect: {exc}")
             self._problem(report, f"{key}: {exc}")
             with contextlib.suppress(Exception):
                 await transport.close()
@@ -476,16 +465,16 @@ class Connector:
             return
         finally:
             self.internet_connecting.pop(key, None)
-            self.host.connecting_changed()
+            self.core.events.publish(ConnectingChanged())
         link = SessionLinkAdapter(session, transport)
         if on_link is not None:
             on_link(link, key)
-        self.host.bind(link, key, activate=focus)
-        self.host.note(key, f"Connected to {key}")
+        self.core.sessions.bind(link, key, activate=focus)
+        self.core.sessions.note(key, f"Connected to {key}")
         if self.core.addressbook is not None:
             self.core.addressbook.record_connect(entry.target)
         if focus:
-            self.host.focus_input()
+            self.view.focus_input()
         login = self.resolve_login(entry.credential, entry.script_name, entry.script)
         if login.strip():
             self.run_connect_script(link, key, login)
@@ -500,38 +489,38 @@ class Connector:
         `""` session: this tier never has more than one.
         """
         transport = self.core.session_transport
-        current = self.host.link(self.host.active_key())
+        current = self.core.sessions.link(self.view.active_key())
         if current is not None and current.connected:
             self.core.operator.notice(Notice("Already connected.", Severity.WARNING))
             return
-        key_before = self.host.active_key()
-        self.host.open_session("", kind="session", focus=True)
+        key_before = self.view.active_key()
+        self.view.open_session("", kind="session", focus=True)
         self.arm_for(f"connect via {transport.info.detail}", key_before)
-        self.host.record("", f"Connecting to {transport.info.detail}")
+        self.core.sessions.record("", f"Connecting to {transport.info.detail}")
         connect_task = asyncio.current_task()
         assert connect_task is not None
         self.session_connect_task = connect_task
-        self.host.connecting_changed()
+        self.core.events.publish(ConnectingChanged())
         try:
             session = await self.session_connect(transport)
         except asyncio.CancelledError:
             # A disconnect is an operator decision, not a failed connection.
             # SessionTransport implementations clean up their partly-open
             # connection before propagating this cancellation.
-            self.host.record("", "Connect cancelled by operator")
+            self.core.sessions.record("", "Connect cancelled by operator")
             return
         except TransportError as exc:
-            self.host.record("", f"Could not connect: {exc}")
+            self.core.sessions.record("", f"Could not connect: {exc}")
             self.core.operator.notice(Notice(str(exc), Severity.ERROR))
             return
         finally:
             if self.session_connect_task is connect_task:
                 self.session_connect_task = None
-                self.host.connecting_changed()
+                self.core.events.publish(ConnectingChanged())
         link = SessionLinkAdapter(session)
-        self.host.bind(link, "")
-        self.host.note("", f"Connected to {link.peer}")
-        self.host.focus_input()
+        self.core.sessions.bind(link, "")
+        self.core.sessions.note("", f"Connected to {link.peer}")
+        self.view.focus_input()
         login = self.resolve_login(transport.credential, transport.script_name, transport.script)
         if login.strip():
             self.run_connect_script(link, "", login)
@@ -552,19 +541,19 @@ class Connector:
         """
         for node in nodes:
             if not link.connected:
-                self.host.record(key, "Hop chain stopped: no longer connected")
+                self.core.sessions.record(key, "Hop chain stopped: no longer connected")
                 self._problem(report, "The hop chain stopped: no longer connected",
                               Severity.WARNING)
                 return False
             if not self.gate.enabled:
-                self.host.record(key, "Hop chain stopped: transmit is off")
+                self.core.sessions.record(key, "Hop chain stopped: transmit is off")
                 self._problem(report, "The hop chain stopped: transmit is off",
                               Severity.WARNING)
                 return False
             ok, detail = await self.hop_to(link, key, node)
             if not ok:
                 extra = f" -- {detail}" if detail else ""
-                self.host.record(key, f"No connection to {node}{extra}")
+                self.core.sessions.record(key, f"No connection to {node}{extra}")
                 self._problem(report, f"Hop to {node} did not connect{extra}", Severity.WARNING)
                 return False
         return True
@@ -606,14 +595,14 @@ class Connector:
             await link.send(cmd.encode("latin-1", "replace") + b"\r")
             # This flow confirms its own hop; a second watcher on the same
             # bytes could also reach `commit_hop`.
-            self.host.echo_sent(key, cmd, cmd, watch_hop=False)
+            self.core.sessions.echo_sent(key, cmd, cmd, watch_hop=False)
             ok, detail = await self.await_hop_confirmation(link, node, watch=watch)
         finally:
             # A send that raises never reaches the wait, and a watcher left
             # on the fan-out would match a later hop's traffic.
             watch.stop()
         if ok:
-            self.host.commit_hop(key, node)
+            self.core.sessions.commit_hop(key, node)
         return ok, detail
 
     def resolve_login(self, credential: str, script_name: str, script: str) -> str:
@@ -651,18 +640,18 @@ class Connector:
         lines = [ln for ln in script.splitlines() if ln.strip()]
         if not lines:
             return
-        self.host.record(key, f"Auto-login: sending {len(lines)} line(s)")
+        self.core.sessions.record(key, f"Auto-login: sending {len(lines)} line(s)")
         for line in lines:
             if not link.connected:
-                self.host.record(key, "Auto-login stopped: no longer connected")
+                self.core.sessions.record(key, "Auto-login stopped: no longer connected")
                 return
             if not self.gate.enabled and not getattr(link, "internet", False):
-                self.host.record(key, "Auto-login stopped: transmit is off")
+                self.core.sessions.record(key, "Auto-login stopped: transmit is off")
                 self.core.operator.notice(
                     Notice("Auto-login stopped: transmit is off.", Severity.WARNING))
                 return
             await link.send(line.encode("latin-1", "replace") + b"\r")
-            self.host.echo_sent(key, self.masked(line), line)
+            self.core.sessions.echo_sent(key, self.masked(line), line)
             await asyncio.sleep(CONNECT_SCRIPT_LINE_DELAY)
 
     # ------------------------------------------------------------------
@@ -670,20 +659,20 @@ class Connector:
     # ------------------------------------------------------------------
     def session_is_live(self, key: str) -> bool:
         """Connected or still connecting: closing it would disconnect first."""
-        link = self.host.link(key)
+        link = self.core.sessions.link(key)
         connected = link is not None and link.connected
         return connected or key in self.connecting or key in self.internet_connecting
 
     async def disconnect(self, key: str) -> None:
         """End session `key`, or cancel its connect still in progress."""
-        link = self.host.link(key)
+        link = self.core.sessions.link(key)
         if link is not None and link.connected:
             # A DISC is how a link is ended politely; refusing to send it
             # leaves the far station holding a session open until ITS timers
             # give up, worse for the channel than the transmission avoided.
             if not getattr(link, "internet", False):
                 self.arm_for(f"disconnect from {link.peer}")
-            self.host.record(key, "Disconnecting")
+            self.core.sessions.record(key, "Disconnecting")
             await link.disconnect()
             return
         # No established link -- but a connect may still be working through
@@ -695,18 +684,18 @@ class Connector:
             target, port = pending
             attempt = station.link_to(target, port)
             if attempt is not None and not attempt.connected:
-                self.host.record(key, f"Cancelling connect to {attempt.peer} -- no "
+                self.core.sessions.record(key, f"Cancelling connect to {attempt.peer} -- no "
                                       "further SABMs will be sent")
                 attempt.close(reason=CANCELLED_REASON)
                 return
         internet = self.internet_connecting.get(key)
         if internet is not None and not internet.done():
-            self.host.record(key, "Cancelling connect")
+            self.core.sessions.record(key, "Cancelling connect")
             internet.cancel()
             return
         task = self.session_connect_task
         if key == "" and task is not None and not task.done():
-            self.host.record(key, "Cancelling session transport connect")
+            self.core.sessions.record(key, "Cancelling session transport connect")
             task.cancel()
             return
         self.core.operator.notice(Notice("Not connected.", Severity.WARNING))

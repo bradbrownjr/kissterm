@@ -287,7 +287,9 @@ changes.
 
 ### The terminal transmits only on a deliberate commit
 - **`TerminalPane.send_line` is the single transmit path** out of the terminal
-  pane (`tests/pilot/test_terminal_ux.py` counts `link.send(` in the source).
+  pane, and it sends through the core's `Sessions.send_line`; the pane has no
+  `link.send(` at all, and in `core/sessions.py` only `send_line`,
+  `send_banner` and `harvest_commands` send (`tests/pilot/test_terminal_ux.py`).
 - **Suggestions and completions fill the input; they never send.** Use
   `TerminalPane.suggest`; never complete-on-enter.
 - **The APRS template picker never transmits on selection**

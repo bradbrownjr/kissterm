@@ -774,14 +774,31 @@ def test_send_line_is_the_only_transmit_path_in_the_pane():
 
     Asserted against the source because the failure guarded against is someone
     adding a second `link.send` call later, which would look ordinary in a diff.
+    The pane sends nothing itself: `TerminalPane.send_line` hands the line to
+    the core's `Sessions.send_line`, and in the core's sessions module only
+    that, the caller's banner and the opt-in harvest send at all.
     """
+    import ast
+
+    from kissterm.core import sessions as sessions_module
+
     source = inspect.getsource(tp)
     senders = [
         line.strip()
         for line in source.splitlines()
         if "link.send(" in line and not line.strip().startswith("#")
     ]
-    assert len(senders) == 1, f"more than one transmit path in the pane: {senders}"
+    assert senders == [], f"the pane transmits by itself: {senders}"
+    assert "core.sessions.send_line(" in inspect.getsource(tp.TerminalPane.send_line)
+
+    tree = ast.parse(inspect.getsource(sessions_module))
+    sending = sorted(
+        func.name
+        for func in ast.walk(tree)
+        if isinstance(func, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and "link.send(" in ast.get_source_segment(inspect.getsource(sessions_module), func)
+    )
+    assert sending == ["harvest_commands", "send_banner", "send_line"], sending
 
 
 # ---------------------------------------------------------------------------
@@ -998,7 +1015,7 @@ async def test_harvesting_learns_commands_and_caches_them_per_callsign():
     out through the ordinary tx-gated send path, the node's reply is parsed
     into learned commands visible in the SAME table, and the result is
     cached under the peer's callsign so a reconnect gets it back for free."""
-    from kissterm.ui import app as app_module
+    from kissterm.core import sessions as sessions_module  # HARVEST_* live in the core
     from kissterm.ui.dialogs import HarvestConfirmScreen
 
     # `pilot.pause()` costs roughly 100ms of real wall time in this harness
@@ -1010,12 +1027,12 @@ async def test_harvesting_learns_commands_and_caches_them_per_callsign():
     # asyncio, not gated on Textual's message pump, and `DataTable.row_count`
     # reflects `add_row` immediately, before the next render. `pilot.pause()`
     # is used only once, before anything is asserted about a widget.
-    original_ceiling = app_module.HARVEST_MAX_WAIT_SECONDS
-    original_quiet = app_module.HARVEST_QUIET_SECONDS
-    original_poll = app_module.HARVEST_POLL_INTERVAL
-    app_module.HARVEST_MAX_WAIT_SECONDS = 3.0
-    app_module.HARVEST_QUIET_SECONDS = 0.2
-    app_module.HARVEST_POLL_INTERVAL = 0.05
+    original_ceiling = sessions_module.HARVEST_MAX_WAIT_SECONDS
+    original_quiet = sessions_module.HARVEST_QUIET_SECONDS
+    original_poll = sessions_module.HARVEST_POLL_INTERVAL
+    sessions_module.HARVEST_MAX_WAIT_SECONDS = 3.0
+    sessions_module.HARVEST_QUIET_SECONDS = 0.2
+    sessions_module.HARVEST_POLL_INTERVAL = 0.05
     app, a, b, incoming = await _connected_app()
     try:
         async with app.run_test(size=(120, 40)) as pilot:
@@ -1084,9 +1101,9 @@ async def test_harvesting_learns_commands_and_caches_them_per_callsign():
             assert "CALENDAR FORMS WALL" in "\n".join(str(line) for line in output.lines)
             await screen.dismiss(None)
     finally:
-        app_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
-        app_module.HARVEST_QUIET_SECONDS = original_quiet
-        app_module.HARVEST_POLL_INTERVAL = original_poll
+        sessions_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
+        sessions_module.HARVEST_QUIET_SECONDS = original_quiet
+        sessions_module.HARVEST_POLL_INTERVAL = original_poll
         a.close()
         b.close()
 
@@ -1098,14 +1115,14 @@ async def test_a_delayed_reply_is_still_captured_within_the_ceiling():
     be captured as long as it lands before the hard ceiling -- a fixed
     5-second window (the original, buggy implementation) would have missed
     this one."""
-    from kissterm.ui import app as app_module
+    from kissterm.core import sessions as sessions_module  # HARVEST_* live in the core
 
-    original_ceiling = app_module.HARVEST_MAX_WAIT_SECONDS
-    original_quiet = app_module.HARVEST_QUIET_SECONDS
-    original_poll = app_module.HARVEST_POLL_INTERVAL
-    app_module.HARVEST_MAX_WAIT_SECONDS = 1.5
-    app_module.HARVEST_QUIET_SECONDS = 0.1
-    app_module.HARVEST_POLL_INTERVAL = 0.02
+    original_ceiling = sessions_module.HARVEST_MAX_WAIT_SECONDS
+    original_quiet = sessions_module.HARVEST_QUIET_SECONDS
+    original_poll = sessions_module.HARVEST_POLL_INTERVAL
+    sessions_module.HARVEST_MAX_WAIT_SECONDS = 1.5
+    sessions_module.HARVEST_QUIET_SECONDS = 0.1
+    sessions_module.HARVEST_POLL_INTERVAL = 0.02
     app, a, b, incoming = await _connected_app()
     try:
         async with app.run_test(size=(120, 40)):
@@ -1129,9 +1146,9 @@ async def test_a_delayed_reply_is_still_captured_within_the_ceiling():
 
             assert set(names) == {"CALENDAR", "FORMS", "WALL"}, names
     finally:
-        app_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
-        app_module.HARVEST_QUIET_SECONDS = original_quiet
-        app_module.HARVEST_POLL_INTERVAL = original_poll
+        sessions_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
+        sessions_module.HARVEST_QUIET_SECONDS = original_quiet
+        sessions_module.HARVEST_POLL_INTERVAL = original_poll
         a.close()
         b.close()
 
@@ -1140,14 +1157,14 @@ async def test_a_delayed_reply_is_still_captured_within_the_ceiling():
 async def test_a_fast_reply_does_not_wait_out_the_full_ceiling():
     """The quiet-exit exists so a two-line answer doesn't force the operator
     to sit through the full worst-case ceiling."""
-    from kissterm.ui import app as app_module
+    from kissterm.core import sessions as sessions_module  # HARVEST_* live in the core
 
-    original_ceiling = app_module.HARVEST_MAX_WAIT_SECONDS
-    original_quiet = app_module.HARVEST_QUIET_SECONDS
-    original_poll = app_module.HARVEST_POLL_INTERVAL
-    app_module.HARVEST_MAX_WAIT_SECONDS = 10.0
-    app_module.HARVEST_QUIET_SECONDS = 0.2
-    app_module.HARVEST_POLL_INTERVAL = 0.02
+    original_ceiling = sessions_module.HARVEST_MAX_WAIT_SECONDS
+    original_quiet = sessions_module.HARVEST_QUIET_SECONDS
+    original_poll = sessions_module.HARVEST_POLL_INTERVAL
+    sessions_module.HARVEST_MAX_WAIT_SECONDS = 10.0
+    sessions_module.HARVEST_QUIET_SECONDS = 0.2
+    sessions_module.HARVEST_POLL_INTERVAL = 0.02
     app, a, b, incoming = await _connected_app()
     try:
         async with app.run_test(size=(120, 40)):
@@ -1173,14 +1190,14 @@ async def test_a_fast_reply_does_not_wait_out_the_full_ceiling():
             # early, so running to the ceiling cannot take less than the
             # ceiling in real time. Anything well under it was the quiet
             # exit. A fixed 2 s budget here failed under parallel load (3.14s).
-            assert elapsed < 0.8 * app_module.HARVEST_MAX_WAIT_SECONDS, (
+            assert elapsed < 0.8 * sessions_module.HARVEST_MAX_WAIT_SECONDS, (
                 f"took {elapsed:.2f}s -- quiet-exit did not shortcut the "
                 f"10s ceiling for a reply that arrived almost immediately"
             )
     finally:
-        app_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
-        app_module.HARVEST_QUIET_SECONDS = original_quiet
-        app_module.HARVEST_POLL_INTERVAL = original_poll
+        sessions_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
+        sessions_module.HARVEST_QUIET_SECONDS = original_quiet
+        sessions_module.HARVEST_POLL_INTERVAL = original_poll
         a.close()
         b.close()
 
@@ -1590,14 +1607,14 @@ async def test_harvesting_after_a_hop_caches_under_the_node_that_answered():
     a different node's entry, corrupting a real reference with another
     node's syntax."""
     from kissterm.harvested import HarvestedCommands
-    from kissterm.ui import app as app_module
+    from kissterm.core import sessions as sessions_module  # HARVEST_* live in the core
 
-    original_ceiling = app_module.HARVEST_MAX_WAIT_SECONDS
-    original_quiet = app_module.HARVEST_QUIET_SECONDS
-    original_poll = app_module.HARVEST_POLL_INTERVAL
-    app_module.HARVEST_MAX_WAIT_SECONDS = 2.0
-    app_module.HARVEST_QUIET_SECONDS = 0.1
-    app_module.HARVEST_POLL_INTERVAL = 0.02
+    original_ceiling = sessions_module.HARVEST_MAX_WAIT_SECONDS
+    original_quiet = sessions_module.HARVEST_QUIET_SECONDS
+    original_poll = sessions_module.HARVEST_POLL_INTERVAL
+    sessions_module.HARVEST_MAX_WAIT_SECONDS = 2.0
+    sessions_module.HARVEST_QUIET_SECONDS = 0.1
+    sessions_module.HARVEST_POLL_INTERVAL = 0.02
     app, a, b, _ = await _connected_app()
     try:
         async with app.run_test(size=(110, 32)) as pilot:
@@ -1627,9 +1644,9 @@ async def test_harvesting_after_a_hop_caches_under_the_node_that_answered():
                 "harvest was filed under the AX.25 peer we merely hopped through"
             )
     finally:
-        app_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
-        app_module.HARVEST_QUIET_SECONDS = original_quiet
-        app_module.HARVEST_POLL_INTERVAL = original_poll
+        sessions_module.HARVEST_MAX_WAIT_SECONDS = original_ceiling
+        sessions_module.HARVEST_QUIET_SECONDS = original_quiet
+        sessions_module.HARVEST_POLL_INTERVAL = original_poll
         a.close()
         b.close()
 

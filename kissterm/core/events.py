@@ -85,3 +85,76 @@ class EventBus:
             except Exception:  # noqa: BLE001 - one client must not stop the rest
                 log.exception("event subscriber failed on %r", event)
         return seq
+
+
+# ----------------------------------------------------------------------
+# Sessions (`sessions.py`). `key` names the session (`connect.session_key`);
+# "" is the session tier's one session and the pre-connection view.
+# ----------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class SessionOpened(Event):
+    """A link was bound to session `key`. `activate` asks a client to show
+    it; `incoming` means the far station called, and a client that already
+    shows another session decides itself whether to switch (never steal
+    the view) -- `activate` is then a suggestion it may ignore."""
+
+    key: str
+    peer: str
+    activate: bool = True
+    incoming: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class SessionData(Event):
+    """Bytes the far end sent on `key`, raw. A client filters them before
+    showing them (AGENTS.md "Untrusted input"); never display them as-is."""
+
+    key: str
+    data: bytes
+
+
+@dataclass(frozen=True, slots=True)
+class LineSent(Event):
+    """A line went out on `key`, as it should be shown (a password already
+    masked). Typed lines, auto-login lines, hop and harvest commands."""
+
+    key: str
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class SessionStateChanged(Event):
+    """The link under `key` changed state (`transport.base.SessionState`
+    value: "connected", "disconnected", ...)."""
+
+    key: str
+    state: str
+
+
+@dataclass(frozen=True, slots=True)
+class SessionUpdated(Event):
+    """What is known about `key` changed: the node family identified, an
+    application entered or left, a hop committed, a transcript opened or
+    closed. A client re-reads the session."""
+
+    key: str
+
+
+@dataclass(frozen=True, slots=True)
+class SessionClosed(Event):
+    """Session `key` was closed and forgotten."""
+
+    key: str
+
+
+@dataclass(frozen=True, slots=True)
+class ConnectingChanged(Event):
+    """A connect attempt started or ended (what a disconnect can cancel)."""
+
+
+@dataclass(frozen=True, slots=True)
+class ActivityChanged(Event):
+    """A job the operator started says how far it has got ("Reading the
+    command list"); "" when it is over."""
+
+    text: str

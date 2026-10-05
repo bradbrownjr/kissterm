@@ -10,10 +10,23 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
-## Connecting, after the core rework (0.1.399, 2026-10-05)
+## Connecting and sessions, after the core rework (0.1.399 and 0.1.401, 2026-10-05)
 
-The connect flow moved out of the terminal UI into kissterm's core, with
-nothing meant to change on screen. Worth one session on the air to confirm.
+The connect flow (0.1.399) and then the sessions themselves (0.1.401:
+sending, receiving, transcripts, node identification, incoming calls)
+moved out of the terminal UI into kissterm's core, with nothing meant to
+change on screen. Worth one session on the air to confirm.
+
+- [ ] **Typing to a node with TX off.** Connect, press Ctrl+T to turn TX
+  off, type `I` and Enter. Expected: "Transmit ENABLED" toast, the line in
+  the Terminal, the node's answer below it, and both in the transcript
+  (Session > Transcripts).
+- [ ] **The node is named in the status bar.** Connected to WS1EC-15: the
+  status bar shows `BPQ32` after its prompt arrives; `BBS` there shows
+  `BPQ32 > BPQMAIL`, and `B` back at the node drops the `> BPQMAIL`.
+- [ ] **Someone calls you.** With Answering on (Settings), have another
+  station connect to you while a session is open. Expected: a new tab,
+  not switched to, marked unread; a "Connection from" toast.
 
 - [ ] **A dial from the Address Book with a frequency on file.** Give a
   node a frequency (E in the Address Book), then dial it. Expected: the

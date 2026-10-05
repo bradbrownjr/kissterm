@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — Sessions move into the core
+
+### Improvements
+
+- **Every session is the core's** (`kissterm/core/sessions.py`, ROADMAP
+  P7a third step): binding a link, transcripts and records, the typed-line
+  send path, passive node identification and application tracking, the
+  hop watch, the opt-in command harvest, the reply watch, incoming calls
+  and stray polls. The Terminal follows it through events (bytes received,
+  line sent, state changed); the pane itself no longer sends anything.
+  Nothing changes on screen; checks on the air are in
+  docs/ON-AIR-TESTS.md.
+
+**Files:** `kissterm/core/sessions.py` (new), `kissterm/core/events.py`,
+`connect.py`, `service.py`, `AGENTS.md`, `kissterm/ui/app.py`,
+`terminal_pane.py`, `AGENTS.md`, `tests/unit/test_core_sessions.py` (new),
+`tests/unit/test_core_connect.py`, `tests/pilot/_records.py`,
+`tests/pilot/test_terminal_ux.py`, `tests/pilot/test_transcript_and_color.py`,
+`AGENTS.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-05] — A bulletin test no longer fails by the calendar
 
 ### Bug Fixes
