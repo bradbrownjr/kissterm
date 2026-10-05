@@ -49,7 +49,7 @@ the same transmit-gate rules as the terminal.
 ```json
 {"type": "welcome", "version": 1, "seq": 1234,
  "station": {"callsign": "KC1JMH-1", "kissterm": "0.1.405"},
- "snapshot": {"gate": false, "transport": {}, "sessions": [], "activity": ""}}
+ "snapshot": {"gate": false, "transport": {}, "sessions": [], "activity": ""} }
 ```
 
 `seq` is the last event sequence number included in `snapshot`. Events
@@ -59,7 +59,7 @@ after it follow.
 
 ```json
 {"type": "event", "seq": 1235, "name": "SessionOpened",
- "data": {"key": "WS1EC-15", "peer": "WS1EC-15", "activate": true, "incoming": false}}
+ "data": {"key": "WS1EC-15", "peer": "WS1EC-15", "activate": true, "incoming": false} }
 ```
 
 `name` is the core event's class name (`kissterm/core/events.py`);
@@ -82,7 +82,7 @@ client's default. Sent to every connected client.
 
 ```json
 {"type": "question", "id": "q17", "name": "RadioReminder",
- "data": {"frequency": "145.090", "connection_type": "", "note": ""}}
+ "data": {"frequency": "145.090", "connection_type": "", "note": ""} }
 ```
 
 `name` is the `Question` class (`kissterm/core/questions.py`), `data` its
@@ -107,7 +107,7 @@ false, "error": "Not connected."}`.
 ### 4.2 command
 
 `{"type": "command", "id": "c5", "name": "send_line", "args": {"key":
-"WS1EC-15", "text": "BBS"}}`. Each command is one core method; none is a
+"WS1EC-15", "text": "BBS"} }`. Each command is one core method; none is a
 lighter path around a rule the terminal follows.
 
 | Command | Core method | Arms the gate? |
