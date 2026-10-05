@@ -107,6 +107,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="do not look on GitHub for a newer kissterm this launch",
     )
     parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="run the station with no screen, for remote clients (needs kissterm[serve])",
+    )
+    parser.add_argument(
+        "--rotate-token",
+        action="store_true",
+        help="replace the remote pairing token (the old link stops working), print the new link",
+    )
+    parser.add_argument(
         "--log-level",
         default="warning",
         choices=["debug", "info", "warning", "error"],
@@ -566,9 +576,26 @@ async def _amain(args) -> int:
             return 1
         config = load_config(profile=profile)
 
+    if args.serve or args.rotate_token:
+        try:
+            import segno  # noqa: F401
+            import websockets  # noqa: F401
+        except ImportError:
+            print("The remote server needs its extra: pip install 'kissterm[serve]'",
+                  file=sys.stderr)
+            return 2
+        from .serve import pairing
+        from .serve.headless import pairing_text
+
+        if args.rotate_token:
+            token = pairing.rotate_token()
+            if not args.serve:
+                print("The old link no longer works.\n")
+                print(pairing_text(config.serve, token))
+                return 0
+
     _move_internet_transports(config)
     entry = _select_transport_entry(config, args.transport)
-    from .app import KissTermApp
     station = None
     transport = None
     transport_problem = None
@@ -584,7 +611,9 @@ async def _amain(args) -> int:
             print(f"Could not open transport {entry.get('name')!r}: {exc}", file=sys.stderr)
             if entry.get("kind") in _OPEN_HINTS:
                 print(_OPEN_HINTS[entry["kind"]], file=sys.stderr)
-            if not _offer_start_anyway():
+            # Headless, a client fixes it in Settings; there is no prompt
+            # to answer.
+            if not (args.serve or _offer_start_anyway()):
                 print("Run 'kissterm --doctor' for a full check.", file=sys.stderr)
                 return 3
             transport_problem = str(exc) or type(exc).__name__
@@ -610,14 +639,21 @@ async def _amain(args) -> int:
     # kernel AX.25) -- there is no AX.25 state machine to run underneath it,
     # but the app still needs a way to reach it: `action_connect` opens it
     # directly, with no AX25Station involved. See KissTermApp.__init__.
-    app = KissTermApp(
-        config,
-        station,
-        session_transport=None if station is not None else transport,
-        transport_problem=transport_problem,
-        check_updates=not args.no_update_check,
-    )
+    session_transport = None if station is not None else transport
     try:
+        if args.serve:
+            from .serve.headless import run
+
+            return await run(config, station, session_transport, transport_problem)
+        from .app import KissTermApp
+
+        app = KissTermApp(
+            config,
+            station,
+            session_transport=session_transport,
+            transport_problem=transport_problem,
+            check_updates=not args.no_update_check,
+        )
         await app.run_async()
     finally:
         if station is not None:

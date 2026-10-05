@@ -96,6 +96,7 @@ NOT_IN_SCHEMA = {
     "winlink",
     "custom_theme",
     "watched_callsigns",
+    "serve",
 }
 
 
@@ -170,6 +171,18 @@ def test_every_nested_watched_callsign_field_is_editable():
         assert f"watched_callsigns.{f.name}" in paths, (
             f"watched_callsigns.{f.name} has no Settings UI"
         )
+
+
+def test_every_nested_serve_field_is_editable():
+    from kissterm.config import ServeConfig
+
+    paths = {f.path for s in SETTINGS_SCHEMA for f in s.fields}
+    # `enabled` (the server inside the terminal UI) gets its switch when it
+    # does something: until then only `kissterm --serve` serves.
+    for f in dataclasses.fields(ServeConfig):
+        if f.name == "enabled":
+            continue
+        assert f"serve.{f.name}" in paths, f"serve.{f.name} has no Settings UI"
 
 
 def test_every_nested_custom_theme_field_is_editable():

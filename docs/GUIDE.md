@@ -543,6 +543,33 @@ fully stripped text.
 password never goes on the air or into a log: only the answer to the
 gateway's challenge is sent.
 
+## Remote control (experimental)
+
+kissterm can be driven from another machine: the station keeps the radio
+and the TNC, and a phone, laptop or browser is a remote control for it.
+**No client ships yet** (ROADMAP P7a); what exists is the server and its
+protocol (`docs/PROTOCOL.md`), for testing and for anyone writing one.
+
+- **Start it** with `kissterm --serve` (no screen; needs the `serve`
+  extra, SETUP.md section 11). It prints a pairing link and the same link
+  as a QR code.
+- **The link is the key.** Whoever holds it can key your radio under
+  your callsign, as you can at the keyboard. It is the same every launch,
+  so a bookmark keeps working, and different on every machine.
+  `kissterm --rotate-token` replaces it: the old link stops working and
+  every connected client is dropped.
+- **The same rules as the keyboard.** A remote connect still shows the
+  radio reminder and arms the transmit switch visibly; a beacon still
+  refuses while transmit is off; nothing transmits at startup. Every
+  notice goes to every client. A question (the radio reminder, a missing
+  login) goes to every client and the first answer wins; with no client
+  connected it is cancelled, and a cancelled request sends nothing.
+- **Settings > Remote** sets the port (7425), whether it listens on the
+  LAN or on this machine only, and, under advanced, a **Public URL** for
+  a reverse proxy that adds HTTPS, or a certificate and key for kissterm
+  to serve `wss://` itself. Plain `ws://` is for a LAN you trust or a VPN
+  such as Tailscale: without TLS the link crosses the network readable.
+
 ## Command line
 
 ```
@@ -555,6 +582,8 @@ kissterm --transport NAME    open a specific configured transport
 kissterm --connect WS1EC-7   connect once the app is up
 kissterm --log-level debug   record every frame, both directions, to a file
 kissterm --no-update-check   do not look on GitHub for a newer version
+kissterm --serve             run with no screen, for remote clients (experimental)
+kissterm --rotate-token      replace the remote pairing link and print the new one
 ```
 
 **Updates.** Once a day kissterm asks GitHub, over the Internet, whether a

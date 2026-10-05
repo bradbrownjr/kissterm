@@ -10,6 +10,27 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## Remote control server (0.1.408, 2026-10-05)
+
+`kissterm --serve` (SETUP.md section 11). No client ships yet, so these
+need a WebSocket test client (for example `python -m websockets
+ws://HOST:7425/v1`, then paste
+`{"type":"hello","token":"<the part after #t=>"}`).
+
+- [ ] **Behind Caddy.** Set Settings > Remote > Public URL to the proxy's
+  address and start `kissterm --serve`. Expected: the printed link and QR
+  code use the `https://` address; a client reaches `wss://.../v1` through
+  the proxy and gets a `welcome`; kissterm.log names the client's own
+  address (from `X-Forwarded-For`), not the proxy's.
+- [ ] **A remote connect.** With the client, send
+  `{"type":"command","id":"1","name":"connect","args":{"target":"<node>"}}`
+  with TX off. Expected: a "Transmit ENABLED" notice, the SABM on the
+  air, `SessionOpened` and the node's banner as `SessionData` events.
+  Then `send_line` a command and `disconnect`.
+- [ ] **A reminder with no client.** Give a contact a frequency reminder,
+  close the client, and trigger a connect to it from another client that
+  then disconnects at once. Expected: nothing transmitted.
+
 ## The channel and Settings, after the core rework (0.1.404, 2026-10-05)
 
 What kissterm hears (the heard list, the Monitor, NET/ROM nodes, "mail

@@ -1,9 +1,9 @@
-# kissterm remote protocol (DRAFT for review)
+# kissterm remote protocol, version 1
 
-**Status: draft, 2026-10-05. Nothing here is built yet.** This is how a
-phone, desktop or browser client will talk to a station running
-`kissterm --serve` (ROADMAP P7a M7). It becomes the reference once
-approved; until then every part is open to change.
+**Status: built (`kissterm/serve/`, 2026-10-05); no client ships yet.**
+This is how a phone, desktop or browser client talks to a station running
+`kissterm --serve` (ROADMAP P7a M7). The server's code and
+`tests/unit/test_serve.py` are the reference where this page is unclear.
 
 The station keeps the radio, the TNC and the core
 (`kissterm/core/`). A client is a remote control: it shows what the core
@@ -13,8 +13,9 @@ the same transmit-gate rules as the terminal.
 
 ## 1. Connection
 
-- **WebSocket**, one per client, at `ws://<station>:<port>/v1`.
-  Default port **7425** (unassigned; to confirm).
+- **WebSocket**, one per client, at `ws://<station>:<port>/v1`, or
+  `wss://` natively or through a reverse proxy (section 7).
+  Default port **7425** (Settings > Remote).
 - **Every message is one JSON object** with a `type`. Text frames only.
 - **Version** is in the path (`/v1`). A breaking change gets `/v2`; a
   client that sees fields it does not know ignores them.
@@ -65,7 +66,8 @@ after it follow.
 `name` is the core event's class name (`kissterm/core/events.py`);
 `data` is its fields. Each event's wire form is listed in section 6.
 Sequence numbers rise by one; a gap means the client missed events and
-should reconnect with `since`.
+should reconnect with `since`. A replayed event (section 5) also carries
+`"replay": true`.
 
 ### 3.3 notice
 
@@ -87,16 +89,38 @@ client's default. Sent to every connected client.
 
 `name` is the `Question` class (`kissterm/core/questions.py`), `data` its
 fields; the answer type is in each class's docstring. Sent to every
-connected client. **The first answer wins**; the others get
-`{"type": "question_closed", "id": "q17"}`. A question nobody answers
-waits; closing the last client cancels it (an answer of null), and a
-cancelled flow transmits nothing.
+connected client. **The first answer wins**; every client then gets
+`{"type": "question_closed", "id": "q17"}`. Headless, a question asked
+with no client connected is cancelled at once, and the last client
+leaving cancels any still open (an answer of null); a cancelled flow
+transmits nothing. Inside the terminal UI the station's own screen asks
+too, and whichever answers first wins. A client that connects while a
+question is open is sent it after the welcome.
+
+The answer forms: `RadioReminder`, `TrustHostKey`: true or false.
+`HomeBbsRoute`, `CallsignAsk`, `ChooseSessionTransport`: a string.
+`WinlinkGateway`: `{target, remember}`. `InternetLoginAsk`: `{target,
+username, password}`. `LoginAsk`: the password, or with `username` set
+`{username, password}`. `ChooseCategories`: `{categories, all}`.
+`PickFiles`: a list of names. A setup question also takes `"skip"`
+(leave this service out) and `"go"` (cancel; `SetupRequested` follows).
 
 ### 3.5 result
 
 The reply to a command (section 4): `{"type": "result", "id": "c5",
 "ok": true, "value": ...}` or `{"type": "result", "id": "c5", "ok":
-false, "error": "Not connected."}`.
+false, "error": "..."}`. A command's notices (why nothing was sent, say)
+arrive before its result.
+
+### 3.6 error
+
+`{"type": "error", "error": "..."}`, with `id` when it was an answer
+that did not fit its question (the question stays open).
+
+### 3.7 close codes
+
+4401: wrong or missing token, or the token was rotated. 4408: the client
+fell too far behind (5,000 messages); reconnect with `since`.
 
 ## 4. Client to server
 
@@ -121,11 +145,11 @@ lighter path around a rule the terminal follows.
 | `beacon_now` | `Aprs.beacon_now` | no (refused while closed) |
 | `send_receive` `{folder, internet}` | `Mail.send_receive` | through its connect |
 | `get_bulletins` `{internet}` / `get_files` | `Mail` | through its connect |
-| `settings_schema` | `settings_schema.SETTINGS_SCHEMA` | no |
-| `settings_save` `{draft, active_transport}` | `Settings.save` | no |
+| `settings_schema` | `SETTINGS_SCHEMA`, each field with its `value` (a secret's is null) | no |
+| `settings_save` `{draft, active_transport}` | `Settings.save`; a new transport is opened | no |
 | `addressbook` / `addressbook_save` `{entry}` | `Core.addressbook` | no |
 | `heard` | `Core.heard.entries` | no |
-| `mail_list` `{folder}` / `mail_read` `{ref}` | `Mail.store` | no |
+| `mail_folders` / `mail_list` `{folder}` / `mail_read` `{ref}` | `Mail.store` | no |
 
 File transfers (upload from a phone) and compose-with-attachments are
 not in v1.
@@ -134,11 +158,11 @@ not in v1.
 
 The core keeps no scrollback; a terminal tab does. So that a phone that
 sleeps, or a laptop that joins late, sees a session's recent text, the
-server keeps a **ring buffer of recent events** (proposed: the last
-2,000, plus the last 64 KB of `SessionData` per session). `hello` with
-`since: N` replays every buffered event after N, then live ones. If N is
-older than the buffer, the server sends a fresh `welcome` snapshot
-instead.
+server keeps a **ring buffer of the last 2,000 events**. Every connection
+gets a `welcome` (the state now, and the current `seq`), then every
+buffered event after the hello's `since`, marked `"replay": true` --
+history to draw, not state to apply over the snapshot -- then live
+events, with no gap between the two. `since: 0` replays the whole buffer.
 
 ## 6. Events on the wire
 
@@ -167,12 +191,21 @@ escape codes, so a browser never parses ANSI or control bytes from the
 air. `raw` is there for a client that wants to do its own, and is never
 rendered as-is.
 
-## 7. Open questions for the operator
+## 7. Decided (operator, 2026-10-05)
 
-1. Run the server **inside the terminal UI** too (one core, the station's
-   screen and a phone together), or only headless (`--serve`)?
-2. **Where it listens** by default: this machine only (127.0.0.1; reach
-   it from elsewhere by Tailscale or an SSH tunnel), or the LAN?
-3. **TLS**: plain `ws://` on the LAN, or self-signed `wss://`?
-4. **Libraries**: `websockets` (server) and `segno` (QR in the terminal),
-   both pure Python, as an optional `[serve]` extra.
+1. **The server runs headless (`kissterm --serve`) and inside the
+   terminal UI**, so the station's screen and a phone share one core.
+   Questions go to every screen; the first answer wins.
+2. **It listens on the LAN by default** (all interfaces); the pairing URL
+   shows this machine's LAN address. The token is what admits a client.
+3. **TLS by a reverse proxy, or natively** (operator, 2026-10-05: Caddy
+   on the firewall with a shared `*.lynwood.us` certificate, for the LAN
+   and Tailscale). kissterm serves plain `ws://` behind the proxy; Settings
+   > Remote's **Public URL** (`https://kissterm.example.org`) is what the
+   pairing URL and QR show, so clients connect with `wss://` through the
+   proxy, and the client address in the log is the proxy's
+   `X-Forwarded-For`. Or give kissterm the certificate and key files and
+   it serves `wss://` itself. Plain `ws://` with neither is for a trusted
+   LAN or Tailscale only.
+4. **`websockets` and `segno`**, pure Python, in an optional `[serve]`
+   extra (`pip install kissterm[serve]`).

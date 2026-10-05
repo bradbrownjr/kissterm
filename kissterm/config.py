@@ -325,6 +325,32 @@ class WatchedCallsignConfig:
     active_suppression_seconds: int = 60
 
 
+#: The remote server's default port (`kissterm/serve/`; docs/PROTOCOL.md).
+DEFAULT_SERVE_PORT = 7425
+
+
+@dataclass
+class ServeConfig:
+    """The remote server (`kissterm --serve`, or inside the terminal UI):
+    phones, desktops and browsers as remote controls of this station
+    (ROADMAP P7a; docs/PROTOCOL.md). The token that admits a client is not
+    here: it is per machine, in the state folder (`serve/pairing.py`)."""
+
+    #: Run the server inside the terminal UI too. `--serve` always does.
+    enabled: bool = False
+    port: int = DEFAULT_SERVE_PORT
+    #: "0.0.0.0" listens on the LAN (operator, 2026-10-05); "127.0.0.1"
+    #: this machine only.
+    listen: str = "0.0.0.0"
+    #: What the pairing URL and QR show when a reverse proxy (Caddy) serves
+    #: this with TLS: "https://kissterm.example.org". "" means this machine's
+    #: own address.
+    public_url: str = ""
+    #: A certificate and key (PEM) to serve wss:// directly, without a proxy.
+    tls_cert: str = ""
+    tls_key: str = ""
+
+
 @dataclass
 class CustomThemeConfig:
     """Exact hex colors for the `"custom"` theme (`kissterm.ui.themes`).
@@ -607,6 +633,7 @@ class Config:
     home_bbs: HomeBbsConfig = field(default_factory=HomeBbsConfig)
     winlink: WinlinkConfig = field(default_factory=WinlinkConfig)
     watched_callsigns: WatchedCallsignConfig = field(default_factory=WatchedCallsignConfig)
+    serve: ServeConfig = field(default_factory=ServeConfig)
     #: Saved connect targets: dicts with at least a "target" callsign and
     #: optionally a "path" (digipeater route) and a "transport" name.
     autoconnect: list[dict[str, Any]] = field(default_factory=list)
@@ -1004,6 +1031,7 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
     cfg.home_bbs = _load_home_bbs(raw.get("home_bbs", {}), warnings)
     cfg.winlink = _load_winlink(raw.get("winlink", {}), warnings)
     cfg.watched_callsigns = _load_watched_callsigns(raw.get("watched_callsigns", {}), warnings)
+    cfg.serve = _load_serve(raw.get("serve", {}), warnings)
     cfg.autoconnect = _load_dict_list(raw.get("autoconnect", []), "autoconnect", warnings)
 
     cfg.warnings = warnings
@@ -1377,6 +1405,27 @@ def _load_winlink(value: Any, warnings: list[str]) -> WinlinkConfig:
 def winlink_account(config: Config) -> str:
     """The Winlink account: as set, else the station callsign without SSID."""
     return config.winlink.account or str(config.mycall or "").split("-")[0].upper()
+
+
+def _load_serve(value: Any, warnings: list[str]) -> ServeConfig:
+    """Load the remote server's settings; a bad port falls back to the default."""
+    default = ServeConfig()
+    if not isinstance(value, dict):
+        if value not in ({}, None):
+            warnings.append(f"'serve' should be a table, got {value!r}; using defaults")
+        return default
+    serve = ServeConfig()
+    serve.enabled = _load_bool(value, "enabled", default.enabled, warnings)
+    serve.port = _load_int(value, "port", default.port, warnings)
+    if not 1 <= serve.port <= 65535:
+        warnings.append(f"serve.port must be 1-65535, got {serve.port}; using {default.port}")
+        serve.port = default.port
+    for attr in ("listen", "public_url", "tls_cert", "tls_key"):
+        setattr(serve, attr, _load_str(value, attr, getattr(default, attr), warnings).strip())
+    if bool(serve.tls_cert) != bool(serve.tls_key):
+        warnings.append("serve.tls_cert and serve.tls_key go together; serving without TLS")
+        serve.tls_cert = serve.tls_key = ""
+    return serve
 
 
 def _load_watched_callsigns(value: Any, warnings: list[str]) -> WatchedCallsignConfig:

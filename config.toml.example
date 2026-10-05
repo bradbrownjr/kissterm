@@ -441,6 +441,24 @@ comment = "kissterm packet station"
 # path) to change it.
 path = "WIDE1-1,WIDE2-1"
 
+# --- Remote control (phone, desktop, browser) ------------------------------
+# `kissterm --serve` runs the station with no screen and lets clients
+# connect; `enabled` (not yet used) will run the same server inside the
+# terminal UI too. The token that admits a client is made once per machine
+# and kept in the state folder, not here: the pairing URL and QR code show
+# it. See docs/PROTOCOL.md.
+[serve]
+enabled = false
+port = 7425
+# "0.0.0.0": the LAN; "127.0.0.1": this machine only.
+listen = "0.0.0.0"
+# Behind a reverse proxy that adds TLS (Caddy, nginx): the address clients
+# use, shown in the pairing URL. Leave empty otherwise.
+public_url = ""
+# Or serve wss:// directly with a certificate and key (PEM files).
+tls_cert = ""
+tls_key = ""
+
 # --- Transports ------------------------------------------------------------
 # Each [[transports]] entry is one way kissterm can reach a TNC or modem.
 # `name` is how you refer to it (see active_transport and autoconnect

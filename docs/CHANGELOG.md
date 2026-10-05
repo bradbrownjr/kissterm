@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — Remote control server (experimental)
+
+### New Features
+
+- **`kissterm --serve`** runs the station with no screen for remote
+  clients over a WebSocket (ROADMAP P7a M7; `docs/PROTOCOL.md`, now
+  version 1). Paired by a link and QR code whose token is the same every
+  launch and different on every machine; `--rotate-token` replaces it.
+  Every command is the core's own method, so the transmit gate holds as
+  at the keyboard. Settings > Remote: port, LAN or this machine only, a
+  Public URL for a reverse proxy, or a certificate for native `wss://`.
+  Needs the new `serve` extra. No client ships yet.
+
+**Files:** `kissterm/serve/` (new: `pairing.py`, `wire.py`, `operator.py`,
+`server.py`, `headless.py`, `AGENTS.md`), `kissterm/__main__.py`,
+`config.py`, `core/settings_schema.py`, `config.toml.example`,
+`pyproject.toml`, `tests/unit/test_serve.py` (new),
+`tests/pilot/test_settings.py`, `docs/PROTOCOL.md`, `docs/GUIDE.md`,
+`SETUP.md`, `AGENTS.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-05] — The core's messages name no keys
 
 ### Improvements

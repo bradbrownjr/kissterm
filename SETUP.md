@@ -500,3 +500,37 @@ Run the test suite with:
 pip install -e ".[dev]"
 pytest
 ```
+
+## 11. Remote control: kissterm --serve (experimental)
+
+`kissterm --serve` runs the station with no screen, for remote clients
+(docs/GUIDE.md, "Remote control"; no client ships yet). It needs the
+`serve` extra (`websockets` and `segno`, both pure Python):
+
+```
+uv tool install "kissterm[serve] @ git+https://github.com/bradbrownjr/kissterm"
+pipx install "kissterm[serve] @ git+https://github.com/bradbrownjr/kissterm"
+pip install -e ".[serve]"                   # from-source
+```
+
+It listens on port 7425 on every interface (Settings > Remote changes
+both) and prints a pairing link with its QR code. Run it under systemd or
+`tmux` like any other service; it stops on Ctrl+C or SIGTERM.
+
+**HTTPS.** The link carries the key to your transmitter, so off a trusted
+LAN or VPN, put TLS in front of it. Either give kissterm a certificate
+and key (Settings > Remote > TLS certificate / key) and it serves
+`wss://` itself, or put it behind a reverse proxy and set Settings >
+Remote > Public URL to the address clients use, so the pairing link and
+QR code point there. With Caddy, which passes WebSockets through and adds
+`X-Forwarded-For` (kissterm logs that address for a client) on its own:
+
+```
+kissterm.example.org {
+    reverse_proxy 192.168.1.20:7425
+}
+```
+
+Set Settings > Remote > Listen to "This machine only" when the proxy runs
+on the same machine, so nothing reaches kissterm around it.
+

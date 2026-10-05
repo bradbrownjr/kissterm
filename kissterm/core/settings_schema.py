@@ -803,6 +803,30 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
         ),
     ),
     Section(
+        "Remote",
+        (
+            Field("serve.port", "Port", "int",
+                  "The TCP port remote clients connect to (kissterm --serve; "
+                  "docs/GUIDE.md, Remote control).", minimum=1, maximum=65535,
+                  apply="live"),
+            Field("serve.listen", "Listen on", "choice",
+                  "The LAN lets other devices on your network connect; this machine "
+                  "only needs Tailscale or an SSH tunnel to reach it from elsewhere. "
+                  "Either way a client needs the pairing token.",
+                  apply="live",
+                  choices=(("The LAN", "0.0.0.0"), ("This machine only", "127.0.0.1"))),
+            Field("serve.public_url", "Public URL", "text",
+                  "Only behind a reverse proxy that adds TLS (Caddy, nginx): the address "
+                  "clients use, which the pairing link then shows. Leave empty otherwise.",
+                  apply="live", placeholder="https://kissterm.example.org", advanced=True),
+            Field("serve.tls_cert", "TLS certificate", "text",
+                  "A certificate file (PEM) to serve wss:// directly, without a proxy. "
+                  "Needs the key below too.", apply="live", advanced=True),
+            Field("serve.tls_key", "TLS key", "text",
+                  "The certificate's private key file (PEM).", apply="live", advanced=True),
+        ),
+    ),
+    Section(
         'Appearance',
         (
             Field(
