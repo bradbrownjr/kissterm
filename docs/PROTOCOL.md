@@ -207,5 +207,7 @@ rendered as-is.
    `X-Forwarded-For`. Or give kissterm the certificate and key files and
    it serves `wss://` itself. Plain `ws://` with neither is for a trusted
    LAN or Tailscale only.
-4. **`websockets` and `segno`**, pure Python, in an optional `[serve]`
-   extra (`pip install kissterm[serve]`).
+4. **An optional `[serve]` extra** (`pip install kissterm[serve]`):
+   first `websockets` and `segno`; since M8, uvicorn and Starlette too,
+   so the same port serves the web client at `/` beside `/v1` (operator,
+   2026-10-05: the station serves the client).

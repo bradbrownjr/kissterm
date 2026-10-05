@@ -22,5 +22,7 @@ its word.
 5. **The event bus is synchronous**: never await in `_on_event` or
    between building a welcome and registering the client (the replay
    would have a gap). Each client has its own queue and writer.
-6. Optional dependencies (`websockets`, `segno`) are imported only here,
-   and only when serving is asked for.
+6. Optional dependencies (the `serve` extra: uvicorn, Starlette,
+   `websockets`, `segno`) are imported only here, and only when serving
+   is asked for. uvicorn runs in kissterm's loop and never takes the
+   signals (`http.Listener`).

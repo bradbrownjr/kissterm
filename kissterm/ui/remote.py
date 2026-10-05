@@ -26,12 +26,9 @@ EXTRA_HINT = "Remote control needs the serve extra: pip install 'kissterm[serve]
 
 
 def serve_available() -> bool:
-    try:
-        import segno  # noqa: F401
-        import websockets  # noqa: F401
-    except ImportError:
-        return False
-    return True
+    from ..serve import available
+
+    return available()
 
 
 class RemoteControl:

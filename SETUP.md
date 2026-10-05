@@ -505,7 +505,7 @@ pytest
 
 `kissterm --serve` runs the station with no screen, for remote clients
 (docs/GUIDE.md, "Remote control"; no client ships yet). It needs the
-`serve` extra (`websockets` and `segno`, both pure Python):
+`serve` extra (uvicorn, Starlette, `websockets` and `segno`):
 
 ```
 uv tool install "kissterm[serve] @ git+https://github.com/bradbrownjr/kissterm"

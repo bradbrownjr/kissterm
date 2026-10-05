@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — The remote server moves onto uvicorn, ready to serve a web client
+
+### Improvements
+
+- **The remote server runs on uvicorn and Starlette** (`kissterm/serve/
+  http.py`, ROADMAP P7a M8's first step), inside kissterm's own loop, so
+  the pairing port can serve the web client at `/` beside `/v1`. The
+  protocol is unchanged and its tests pass as they were. The `serve`
+  extra now installs uvicorn and Starlette too.
+
+**Files:** `kissterm/serve/http.py` (new), `server.py`, `__init__.py`,
+`AGENTS.md`, `kissterm/__main__.py`, `kissterm/ui/remote.py`,
+`pyproject.toml`, `SETUP.md`, `docs/PROTOCOL.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-05] — Remote control inside the terminal, and Remote pairing
 
 ### New Features

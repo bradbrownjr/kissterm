@@ -577,10 +577,9 @@ async def _amain(args) -> int:
         config = load_config(profile=profile)
 
     if args.serve or args.rotate_token:
-        try:
-            import segno  # noqa: F401
-            import websockets  # noqa: F401
-        except ImportError:
+        from . import serve as serve_pkg
+
+        if not serve_pkg.available():
             print("The remote server needs its extra: pip install 'kissterm[serve]'",
                   file=sys.stderr)
             return 2

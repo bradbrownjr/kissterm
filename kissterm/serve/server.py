@@ -34,8 +34,6 @@ import dataclasses
 import hmac
 import json
 import logging
-import ssl
-from http import HTTPStatus
 from typing import Any
 
 from .. import __version__
@@ -95,22 +93,18 @@ def client_address(ws) -> str:
     return str(peer[0]) if peer else "?"
 
 
-def ssl_context(serve) -> ssl.SSLContext | None:
-    """TLS from `serve.tls_cert`/`tls_key`, or None (plain ws://)."""
-    if not serve.tls_cert:
-        return None
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.load_cert_chain(serve.tls_cert, serve.tls_key)
-    return context
-
-
 class RemoteServer:
     """The WebSocket server for `core`. `operator` is set on the core by
     the caller: this server's `operator` alone (headless) or fanned out
-    with the terminal's (`operator.FanOutOperator`)."""
+    with the terminal's (`operator.FanOutOperator`). `web_app`: the web
+    client's ASGI app, mounted at `/` (`http.build_app`)."""
 
-    def __init__(self, core, *, token: str | None = None, standalone: bool = True) -> None:
+    PATH = PATH
+
+    def __init__(self, core, *, token: str | None = None, standalone: bool = True,
+                 web_app=None) -> None:
         self.core = core
+        self.web_app = web_app
         self.token = token if token is not None else pairing.load_token()
         self.operator = RemoteOperator(self, standalone=standalone)
         self.clients: set[_Client] = set()
@@ -126,21 +120,26 @@ class RemoteServer:
     # Lifecycle
     # ------------------------------------------------------------------
     async def start(self) -> None:
-        from websockets.asyncio.server import serve
+        """Listen (`http.py`). A port in use or a bad certificate raises."""
+        from . import http
 
         serve_config = self.core.config.serve
-        self._server = await serve(
-            self._handle, serve_config.listen, serve_config.port,
-            process_request=self._process_request,
-            ssl=ssl_context(serve_config),
-            max_size=2**20,
-        )
-        log.info("remote server listening on %s:%s", serve_config.listen, serve_config.port)
+        app = http.build_app(self, __version__, self.web_app)
+        sock = http.bind(serve_config.listen, serve_config.port)
+        listener = http.Listener(app, sock, tls_cert=serve_config.tls_cert,
+                                 tls_key=serve_config.tls_key)
+        try:
+            await listener.start()
+        except BaseException:
+            await listener.stop()
+            raise
+        self._server = listener
+        log.info("remote server listening on %s:%s", serve_config.listen, listener.port)
 
     @property
     def port(self) -> int:
         """The port actually bound (a test asks for port 0)."""
-        return self._server.sockets[0].getsockname()[1]
+        return self._server.port
 
     def close(self) -> None:
         """Stop at once, without waiting (the terminal UI's unmount): no
@@ -155,8 +154,7 @@ class RemoteServer:
     async def stop(self) -> None:
         self.close()
         if self._server is not None:
-            with contextlib.suppress(Exception):
-                await self._server.wait_closed()
+            await self._server.stop()
             self._server = None
 
     def has_clients(self) -> bool:
@@ -225,14 +223,8 @@ class RemoteServer:
     # ------------------------------------------------------------------
     # A connection
     # ------------------------------------------------------------------
-    def _process_request(self, connection, request):
-        """Anything but `/v1` gets a short page, not a handshake error."""
-        if request.path.split("?")[0] != PATH:
-            return connection.respond(
-                HTTPStatus.OK, f"kissterm {__version__}: remote clients connect to {PATH}.\n")
-        return None
-
-    async def _handle(self, ws) -> None:
+    async def handle(self, ws) -> None:
+        """One connection on `/v1`, from hello to close (`http.Socket`)."""
         address = client_address(ws)
         try:
             hello = json.loads(await asyncio.wait_for(ws.recv(), HELLO_SECONDS))
