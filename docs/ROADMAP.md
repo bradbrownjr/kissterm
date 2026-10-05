@@ -496,10 +496,11 @@ laptop, a tablet or a station run from another room. All three drive one
 back end, so a protocol fix or a new transport lands everywhere at once.
 
 - [ ] **Web front end.** Cheapest first step: `textual serve` (P6) runs
-  the existing UI in a browser unchanged. A real web client later talks
-  to the core over a local WebSocket API. **Bound to localhost by
-  default**; anything reachable from another machine needs
-  authentication first, because it can key a transmitter.
+  the existing UI in a browser unchanged. A real web client talks to
+  the core over the WebSocket API (`kissterm --serve`,
+  `docs/PROTOCOL.md`), which **listens on the LAN by default and admits
+  only a client holding the pairing token** (operator, 2026-10-05),
+  because it can key a transmitter.
 - [ ] **Desktop GUI** for Windows, macOS and Linux, on the same core.
   Toolkit to be chosen when this starts (for example Qt, or the web
   client in a native window so the two share one UI).
