@@ -111,7 +111,6 @@ import contextlib
 import logging
 import re
 import time
-from datetime import datetime
 from pathlib import Path
 
 from rich.table import Table
@@ -124,12 +123,13 @@ from textual.widgets import Footer, Static, TabbedContent, TabPane, Tabs
 from textual.widgets._footer import FooterKey
 
 from .. import __version__
-from ..addressbook import AddressBook, adopt_internet_transports
-from ..netrom import KnownNodes
+from ..addressbook import adopt_internet_transports
 from ..ax25 import AX25Station
 from ..core import Core, GateChanged, TransportChanged
 from ..core.events import (
     ActivityChanged,
+    FrameSeen,
+    KnownNodesChanged,
     AddressBookChanged,
     Alert,
     AprsAcked,
@@ -162,13 +162,12 @@ from ..mail.store import INBOX, MAIL, SENT
 from ..mail.winlink_collect import WINLINK_FOLDER
 from .. import desktop_notify
 from .. import updater
-from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
+from ..ax25.frame import AX25Frame
 from ..hotplug import PortEvent, SerialPortWatcher
-from ..monitor import MonitorFilter, format_frame, mail_waiting_for, sanitize
+from ..monitor import MonitorFilter, format_frame, sanitize
 from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportState
 from ..tx import TransmitGate
-from ..watched_notify import WatchNotifier, claimed_callsigns, normalize_callsigns
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
@@ -439,8 +438,8 @@ class KissTermApp(App):
         #: unless `tx_armed_at_start`, so a fresh launch cannot key a radio
         #: until Ctrl+T. `station`, `session_transport` and `gate` below are
         #: read through to it. This app is its operator (`ui/operator.py`)
-        #: and its frame fan-out's subscribers, registered once here and
-        #: moved by the core when the transport changes.
+        #: and follows its events (`_on_core_event`); the frame fan-out's
+        #: subscribers are the core's own (`channel.py`, `aprs.py`).
         self.core = Core(
             config,
             station,
@@ -448,36 +447,17 @@ class KissTermApp(App):
             transport_problem=transport_problem,
             operator=TextualOperator(self),
         )
-        self.core.frame_subscribers += [self._on_received_frame, self._on_aprs_frame]
-        self.core.sent_subscribers.append(self._on_sent_frame)
         self.core.events.subscribe(self._on_core_event)
         #: The sessions (`kissterm/core/sessions.py`) and the connect flow
-        #: (`connect.py`), shown in this app's Terminal tabs. A file transfer
-        #: still reads session bytes here until it moves into the core.
+        #: (`connect.py`), shown in this app's Terminal tabs.
         self.core.attach_view(_TerminalSessionView(self))
         self.gate.on_change.append(self._on_transmit_change)
         self.monitor_filter = MonitorFilter()
         #: A background job's status-bar field ("Receiving 1 of 3"), shown green.
         self._activity = ""
-        #: Stations already tried, offered in the connect dialog. Owned here
-        #: rather than by the dialog so a successful connect can be recorded
-        #: after the dialog has closed, and so the file is read once at
-        #: startup instead of on every Ctrl+N.
-        self.addressbook = AddressBook()
-        self.addressbook.load()
-        self.known_nodes = KnownNodes()
         #: Watches local serial ports only. The network is never scanned on a
         #: timer -- see kissterm/hotplug.py for the cost argument.
         self.port_watcher = SerialPortWatcher()
-        #: (source callsign, matched callsign) pairs already surfaced by
-        #: `_check_mail_for`, so a beacon repeating on its own interval does
-        #: not re-notify the operator every time it is heard again -- the
-        #: point is "you have not seen this yet", not a running tally.
-        self._mail_notified: set[tuple[str, str]] = set()
-        #: Monotonic time of local interaction.  This intentionally means
-        #: active use, not merely an app window that happens to be open.
-        self._last_operator_activity = time.monotonic()
-        self._watch_notifier = self._make_watch_notifier()
 
     # ------------------------------------------------------------------
     # Read through to the core (`kissterm/core/service.py`)
@@ -598,6 +578,15 @@ class KissTermApp(App):
     def addressbook(self, book) -> None:
         self.core.addressbook = book
 
+    # The channel as heard (`kissterm/core/channel.py`)
+    @property
+    def known_nodes(self):
+        return self.core.channel.known_nodes
+
+    @property
+    def _mail_notified(self) -> set[tuple[str, str]]:
+        return self.core.channel.mail_notified
+
     # The connect flow's state, held by `core.connector`: attempts still
     # calling (Ctrl+D cancels them), what each tab last dialed (Ctrl+R).
     @property
@@ -649,8 +638,18 @@ class KissTermApp(App):
         elif isinstance(event, AprsBulletinHeard):
             for pane in self._base_query(AprsPane):
                 pane.note_bulletin(event.source, event.addressee, event.text, event.at)
+        elif isinstance(event, FrameSeen):
+            self._monitor(event.frame, event.port, event.outgoing)
+        elif isinstance(event, KnownNodesChanged):
+            for pane in self._base_query(TerminalPane):
+                pane.refresh_known_nodes()
         elif isinstance(event, Alert):
-            self._notify_aprs_desktop(event.title, event.body, urgent=event.urgent)
+            if event.topic == "watched":
+                self._notify_watched_desktop(event.title, event.body)
+            elif event.topic == "mail":
+                self._notify_mail_desktop(event.title, event.body)
+            else:
+                self._notify_aprs_desktop(event.title, event.body, urgent=event.urgent)
         elif isinstance(event, MailChanged):
             self._reload_mail_tabs()
         elif isinstance(event, SetupRequested):
@@ -933,17 +932,14 @@ class KissTermApp(App):
     def apply_runtime_settings(self) -> None:
         """Reconcile the running app with `self.config` after a change.
 
-        Called on mount and after every Settings save. Everything here is
-        idempotent, because "save" gets pressed repeatedly and the second
-        press must not, for instance, leave two beacon timers running.
+        Called on mount and after every Settings save. What runs on its own
+        -- beacons, GPS, the APRS-IS watch, watched-callsign limits -- is
+        the core's (`Settings.apply_runtime`); what only this client draws
+        is here. Idempotent: "save" gets pressed repeatedly.
         """
         for pane in self._base_query(TerminalPane):
             pane.remote_color = getattr(self.config, "remote_color", True)
-        self._restart_beacon()
-        self._restart_gps()
-        self._restart_aprs_beacon()
-        self._reconcile_aprs_is_debug_watch()
-        self._watch_notifier = self._make_watch_notifier()
+        self.core.settings.apply_runtime()
 
     def _reconcile_aprs_is_debug_watch(self) -> None:
         """`Aprs.reconcile_is_debug_watch` (kissterm/core/aprs.py)."""
@@ -952,18 +948,9 @@ class KissTermApp(App):
     def _aprs_is_background_requested(self) -> bool:
         return self.core.aprs.is_background_requested()
 
-    def _make_watch_notifier(self) -> WatchNotifier:
-        watched = self.config.watched_callsigns
-        return WatchNotifier(
-            cooldown_seconds=watched.cooldown_minutes * 60,
-            hourly_cap=watched.hourly_cap,
-            quiet_start_hour=watched.quiet_start_hour if watched.quiet_start_hour >= 0 else None,
-            quiet_end_hour=watched.quiet_end_hour if watched.quiet_end_hour >= 0 else None,
-        )
-
     def on_key(self, event: events.Key) -> None:
         """Mark deliberate local use so a visible frame does not raise a toast."""
-        self._last_operator_activity = time.monotonic()
+        self.core.channel.operator_active()
 
     @work
     async def _restart_beacon(self) -> None:
@@ -1071,48 +1058,16 @@ class KissTermApp(App):
     # Frame fan-out
     # ------------------------------------------------------------------
     def _on_received_frame(self, frame: AX25Frame, port: int = 0) -> None:
-        """Every frame off the air, link-owned or not.
-
-        Feeds the heard list and the monitor pane. Deliberately every frame:
-        the peer we are linked to is a station we have heard, and its UA is
-        the single most interesting frame of a connection attempt.
-        """
-        self.heard.record(frame, port)
-        self._monitor(frame, port, outgoing=False)
-        self._check_mail_for(frame)
-        self._check_watched_callsigns(frame)
-        if self.known_nodes.observe(frame):
-            for pane in self._base_query(TerminalPane):
-                pane.refresh_known_nodes()
-
-    def _check_watched_callsigns(self, frame: AX25Frame) -> None:
-        """Surface configured source/repeater *claims* from the existing fan-out."""
-        watched = self.config.watched_callsigns
-        if not watched.enabled or not watched.callsigns:
-            return
-        claimed = claimed_callsigns(frame.path)
-        wanted = normalize_callsigns(watched.callsigns)
-        active = time.monotonic() - self._last_operator_activity < watched.active_suppression_seconds
-        now_local = datetime.now().astimezone()
-        for callsign in sorted(claimed & wanted):
-            if not self._watch_notifier.allow(
-                callsign, now_monotonic=time.monotonic(), now_local=now_local, app_active=active
-            ):
-                continue
-            title = f"Watched callsign claim: {callsign}"
-            body = "Claim carried in a received AX.25 frame; not authenticated identity."
-            self.notify(f"{title}. {body}", severity="information")
-            self._notify_watched_desktop(title, body)
+        """`Channel.on_received`: the heard list, the monitor, passive notices."""
+        self.core.channel.on_received(frame, port)
 
     @work
     async def _notify_watched_desktop(self, title: str, body: str) -> None:
         await desktop_notify.notify_any(title, body)
 
     def _on_sent_frame(self, frame: AX25Frame, port: int = 0) -> None:
-        """Every frame that got past the transmit gate. Monitor only --
-        hearing ourselves is not the same as hearing another station, and
-        putting our own callsign in the heard list would be a lie."""
-        self._monitor(frame, port, outgoing=True)
+        """`Channel.on_sent`: the monitor only, never the heard list."""
+        self.core.channel.on_sent(frame, port)
 
     def _monitor(self, frame: AX25Frame, port: int, outgoing: bool) -> None:
         if not self.monitor_filter.allows(frame, port):
@@ -1121,42 +1076,11 @@ class KissTermApp(App):
         for pane in self._base_query(MonitorPane):
             pane.write_line(line.as_text())
 
-    def _check_mail_for(self, frame: AX25Frame) -> None:
-        """Notice someone else's node beaconing mail for us -- see
-        docs/ROADMAP.md P9, "Passive mail waiting notification".
-
-        Passive, like `_sniff_node`: reads a beacon kissterm already decoded
-        off the shared frame fan-out (AGENTS.md sec. 2b), asks no question,
-        and needs no connection -- the modem being on frequency is enough to
-        hear it. Restricted to UI frames because that is what a beacon
-        actually is; a connected-mode chat line that happens to contain the
-        words "mail for" is not a node advertising a mailbox.
-        """
-        if frame.kind != "U" or frame.utype is not UType.UI:
-            return
-        if not frame.info or frame.pid not in (PID_NO_LAYER3, None):
-            return
-        calls = [self.config.mycall, *self.config.mycall_aliases]
-        matched = mail_waiting_for(sanitize(frame.info, keep_newlines=False), calls)
-        if matched is None:
-            return
-        source = str(frame.path.source)
-        key = (source, matched)
-        if key in self._mail_notified:
-            return
-        self._mail_notified.add(key)
-        self.notify(f"{source} has mail waiting for {matched}.", severity="information")
-        self._notify_mail_desktop(source, matched)
-
     @work
-    async def _notify_mail_desktop(self, source: str, matched: str) -> None:
+    async def _notify_mail_desktop(self, title: str, body: str) -> None:
         # Best-effort only -- see kissterm/desktop_notify.py for why a
         # subprocess call here has to be async and never allowed to raise.
-        await desktop_notify.notify_any(
-            f"Mail waiting at {source}",
-            f'Heard "MAIL FOR {matched}" on the channel.',
-            sound="request",
-        )
+        await desktop_notify.notify_any(title, body, sound="request")
 
     # ------------------------------------------------------------------
     # APRS: message history, auto-ack, and Emergency/message notification

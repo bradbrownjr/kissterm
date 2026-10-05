@@ -5,6 +5,28 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — The channel and Settings move into the core
+
+### Improvements
+
+- **What the station hears is the core's** (`kissterm/core/channel.py`,
+  ROADMAP P7a sixth step): the heard list, NET/ROM node claims, "mail
+  for" beacons and watched callsigns, with every frame each way handed
+  to clients for their monitor. The Address Book is loaded by the core.
+- **Settings are saved and applied by the core** (`core/settings.py`,
+  with the schema moved to `core/settings_schema.py`), so a phone or
+  browser can edit the same settings with the same rules. Nothing changes
+  on screen; checks on the air are in docs/ON-AIR-TESTS.md.
+
+**Files:** `kissterm/core/channel.py` (new), `settings.py` (new),
+`settings_schema.py` (moved from `kissterm/ui/`), `events.py`, `aprs.py`,
+`service.py`, `AGENTS.md`, `kissterm/ui/app.py`, `settings_pane.py`,
+`settings_schema.py` (now the core's with the theme list), `AGENTS.md`,
+`kissterm/config.py`, `__main__.py`, `nodes/__init__.py`,
+`tests/unit/test_core_channel_settings.py` (new),
+`tests/unit/test_core_service.py`, `AGENTS.md`, `docs/ON-AIR-TESTS.md`,
+`docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-05] — Mail, bulletins and files move into the core
 
 ### Improvements

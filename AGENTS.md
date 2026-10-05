@@ -77,7 +77,9 @@ reshaping `Session`** (that ripples into vara/mercury/kernel_ax25 and
 
 `FrameTransport.subscribe()` fans each frame out once to the station, monitor,
 heard table and APRS decoder. **A new consumer is a subscriber (registered in
-`Core.frame_subscribers`), never a second decode path.** `AX25Station` (`ax25/station.py`) demultiplexes: existing link,
+`Core.frame_subscribers`; the core's own are `Channel.on_received` then
+`Aprs.on_frame`), never a second decode path.** A client's monitor reads
+`FrameSeen` events. `AX25Station` (`ax25/station.py`) demultiplexes: existing link,
 new incoming link, or `on_unhandled` (the APRS input). The monitor subscribes
 to the transport, not to `on_unhandled`, or it goes quiet during a live
 conversation. `FrameTransport.on_sent` is the transmit-side fan-out.
@@ -140,7 +142,7 @@ kissterm/
   nodes/ aprs_services/   SHIPPED references (data/*.toml)
   core/  UI-free station: transports, gate, flows; Operator port + events
   ax25/  aprs/  transport/  ui/  mail/  core/   each with its own AGENTS.md
-         ui/commands.py is the key table; ui/settings_schema.py drives Settings
+         ui/commands.py is the key table; core/settings_schema.py drives Settings
 tests/  loopback.py  unit/ (test_ax25_link.py matters most)  pilot/ (_wait.py)
 ```
 

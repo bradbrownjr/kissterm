@@ -24,7 +24,7 @@ band. So:
   to a stock BPQ32 via `APPLICATION` lines.
 
 References are TOML data in `data/`, one file per family. Adding a family is a
-data file, not code -- the same principle as `ui/settings_schema.py`.
+data file, not code -- the same principle as `core/settings_schema.py`.
 
 Provenance is recorded per family and per command (`confidence`), because a
 command reference that quietly mixes documented fact with half-remembered

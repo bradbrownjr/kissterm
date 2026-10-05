@@ -211,11 +211,14 @@ class AprsRetried(Event):
 @dataclass(frozen=True, slots=True)
 class Alert(Event):
     """Something worth an unattended alert beyond a notice (a desktop
-    notification, a phone push): an APRS emergency, a message to me."""
+    notification, a phone push): an APRS emergency or message, mail
+    waiting, a watched callsign. `topic` says which ("aprs", "mail",
+    "watched"), for a client that alerts each its own way."""
 
     title: str
     body: str
     urgent: bool
+    topic: str = "aprs"
 
 
 # ----------------------------------------------------------------------
@@ -246,3 +249,22 @@ class ConfigChanged(Event):
 @dataclass(frozen=True, slots=True)
 class AddressBookChanged(Event):
     """The core added to or changed the Address Book."""
+
+
+# ----------------------------------------------------------------------
+# The channel (`kissterm/core/channel.py`) and settings (`settings.py`)
+# ----------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class FrameSeen(Event):
+    """A frame heard (`outgoing` False) or accepted for sending (True) on
+    `port`, raw (`ax25.frame.AX25Frame`): a client filters and formats it
+    for its monitor."""
+
+    frame: object = field(compare=False)
+    port: int = 0
+    outgoing: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class KnownNodesChanged(Event):
+    """A NET/ROM broadcast added or changed a known node."""

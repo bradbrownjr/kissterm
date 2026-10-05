@@ -10,6 +10,21 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## The channel and Settings, after the core rework (0.1.404, 2026-10-05)
+
+What kissterm hears (the heard list, the Monitor, NET/ROM nodes, "mail
+for" beacons, watched callsigns) and saving Settings moved into kissterm's
+core, with nothing meant to change on screen.
+
+- [ ] **Monitor and Heard.** Listen a few minutes. Expected: the Monitor
+  (F8) shows frames both ways; Heard (F7) lists the stations, with
+  distance and bearing for APRS stations and nodes that beacon a grid.
+- [ ] **A "mail for" beacon.** When your node beacons mail for your call:
+  one toast "... has mail waiting for ...", not one per beacon.
+- [ ] **Settings save on the air.** Change Paclen in Settings and Save,
+  then connect. Expected: the new paclen used on the new link (Monitor,
+  frame lengths), and a bad value in any field saves nothing.
+
 ## Mail, bulletins and files, after the core rework (0.1.403, 2026-10-05)
 
 Send/Receive, Get bulletins, Get files and YAPP/AutoBIN transfers moved

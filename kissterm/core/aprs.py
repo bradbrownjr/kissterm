@@ -130,7 +130,7 @@ class Aprs:
                 timeout: float | None = None) -> None:
         self.core.operator.notice(Notice(text, severity, timeout=timeout))
 
-    def _spawn(self, coro) -> asyncio.Task:
+    def spawn(self, coro) -> asyncio.Task:
         task = asyncio.get_running_loop().create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._task_done)
@@ -144,7 +144,7 @@ class Aprs:
     def start(self) -> None:
         """Start the retry loop. Call from the loop the station runs on."""
         if self._retry_task is None or self._retry_task.done():
-            self._retry_task = self._spawn(self._retry_loop())
+            self._retry_task = self.spawn(self._retry_loop())
 
     def shutdown(self) -> None:
         """Disarm everything that could transmit or listen on its own.
@@ -566,7 +566,7 @@ class Aprs:
         arms TX; the beaconer's send path rechecks the gate."""
         had_fix, self._gps_had_fix = self._gps_had_fix, fix is not None
         if fix is not None and not had_fix:
-            self._spawn(self.restart_aprs_beacon())
+            self.spawn(self.restart_aprs_beacon())
         self.aprs_beaconer.note_fix(fix)
 
     @staticmethod

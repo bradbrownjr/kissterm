@@ -216,7 +216,7 @@ def _wizard_pick_theme(config) -> None:
     has -- `Config.theme`'s own default (Tokyo Night) on a fresh install, or
     an existing choice if the wizard is being re-run with `--setup`.
 
-    This mirrors the Settings tab's dropdown (`kissterm.ui.settings_schema`)
+    This mirrors the Settings tab's dropdown (`kissterm.core.settings_schema`)
     exactly, from the same catalog (`kissterm.ui.themes`), so there is one
     list of themes in the whole app, not a wizard-specific copy that could
     drift out of sync with what Settings actually offers.

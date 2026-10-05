@@ -14,13 +14,16 @@ same tests passing unchanged.
 
 | File | What it owns |
 |---|---|
-| `service.py` | `Core`: station, session transport, transmit gate, transport lifecycle (open, switch, rebind, subscriber wiring). `build_station`, `MAX_LINKS`. |
+| `service.py` | `Core`: station, session transport, transmit gate, transport lifecycle (open, switch, rebind, subscriber wiring), the Address Book and heard list, `save_config`, `set_activity`, `ask_callsign`. `build_station`, `MAX_LINKS`. |
 | `operator.py` | The `Operator` port: `notice(Notice)` and `await ask(Question)`. `NullOperator` declines everything. |
 | `events.py` | Domain events and the `EventBus` (sequence-numbered, synchronous). |
 | `connect.py` | `Connector` (`core.connector`): gate arming, the radio reminder, the dial and its failure wording, Internet contacts, the session tier, hop chain, auto-login, disconnect/cancel, reconnect. `ConnectRequest`, `session_key`. `SessionView` is what a client provides: which session is on screen, room for another, putting one in front of the operator. |
 | `sessions.py` | `Sessions` (`core.sessions`): every live session (`LiveSession`) -- binding, transcripts and records, `send_line` (the one path for a typed line), passive node identification and application tracking, the hop watch, harvest (opt-in `?`, cached), the reply watch, incoming calls and stray polls. `data_interceptors`/`sent_hooks` let the terminal UI's file transfers read session bytes until they move here. |
 | `aprs.py` | `Aprs` (`core.aprs`): the APRS decode on the frame fan-out (`on_frame`, registered after the heard list's own subscriber), the conversation store, auto-ack, `compose` (a typed message: arms, sends, tracks), the ack-and-retry queue and its loop, objects, position-now, both beacons (BTEXT and APRS, never conflated), GPS, the receive-only APRS-IS debug watch. Events: `AprsMessage`, `AprsAcked`, `AprsPacketHeard`, `AprsBulletinHeard`, `AprsRetried`, `Alert`. |
 | `mail.py` | `Mail` (`core.mail`): the message store and bulletin subscriptions, Send/Receive (G and I) for the Home BBS and Winlink, bulletins, files; every setup question asked before the first dial; outcome notices; `MailChanged`. |
+| `channel.py` | `Channel` (`core.channel`): first on the frame fan-out -- the heard list, NET/ROM claims (`known_nodes`), mail-for beacons, watched callsigns; every frame each way as `FrameSeen` for a client's monitor. |
+| `settings_schema.py` | Every editable setting, declaratively (moved from `ui/`); `register_choices` lets a client supply a list that is its own (the theme). |
+| `settings.py` | `Settings` (`core.settings`): `save(draft)` -- all or nothing -- and applying it to the station and what runs on its own. |
 | `transfers.py` | `Transfers` (`core.transfers`): YAPP/AutoBIN on a session -- the requested-download window, the byte interceptor, explicit transfers (which arm). |
 | `questions.py` | The typed questions: `RadioReminder`, `TrustHostKey`, `ChooseSessionTransport`, `CallsignAsk`; Send/Receive's `HomeBbsRoute`, `WinlinkGateway`, `LoginAsk`, `InternetLoginAsk`, `ChooseCategories`, `PickFiles`; their answer types (`Credential`, `GatewayChoice`, `InternetLogin`, `SETUP_SKIP`, `SETUP_GO`). |
 | `hops.py` | `HopConfirmation` and `HOP_TIMEOUT`: the one definition of "the hop came up". |

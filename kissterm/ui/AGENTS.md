@@ -22,7 +22,7 @@ Read this file plus the one pane you are changing.
 | `heard_pane.py` | Heard `DataTable` |
 | `aprs_pane.py` | Tabbed conversation view (one `Tabs` strip, one `RichLog`, plus "All") + a Ctrl+G contacts slide-out; station list/map and beaconing are still roadmap P4 |
 | `themes.py` | Theme catalog: curated ids, custom-hex builder |
-| `settings_schema.py` | **Declarative** list of every editable setting |
+| `settings_schema.py` | The core's settings schema (`kissterm/core/settings_schema.py`) with the theme list registered |
 | `settings_pane.py` | The settings form, generated from that schema |
 | `dialogs.py` | `ConnectScreen` and future modals |
 | `addressbook_pane.py` | The Address Book table + CRUD, mounted as the Terminal pane's Ctrl+G slide-out (`DESIGN.md`'s "Slide-out panels") |
@@ -77,10 +77,10 @@ Read this file plus the one pane you are changing.
     When it shows something the assertions did not, add a geometry test.
 11. **Never hand-write a settings widget.** `settings_pane.py` is generated
     from `SETTINGS_SCHEMA`. Adding a setting is one entry in
-    `settings_schema.py` — label, kind, help, bounds, when it takes
+    `core/settings_schema.py` — label, kind, help, bounds, when it takes
     effect, and whether it is `advanced` (folded shut) for a new operator. A hand-built form goes stale the first time someone adds a config
     option and forgets the UI, which already happened once here.
-12. **Validate everything, then save; never save partially.** A half-applied
+12. **Validate everything, then save; never save partially** (`core.settings.save`). A half-applied
     save leaves the operator unable to tell which values took.
 13. **Say when a change takes effect** (`Field.apply`: live / connect /
     restart). Link parameters must not change under an *established* link —
@@ -155,10 +155,11 @@ Read this file plus the one pane you are changing.
     remote markup; OSC 8, the terminal hyperlink sequence, is exactly the
     "display one address, open another" attack and is stripped with the rest
     of OSC.
-26. **`app.apply_runtime_settings()` is the one hook the Settings pane calls
-    after a save.** Anything that needs *doing* rather than storing --
-    restarting the beacon, pushing `remote_color` to the pane -- goes behind
-    it. Do not add a second feature-specific call in `settings_pane.py`; that
+26. **The Settings pane saves through `core.settings.save`** (validation,
+    secrets, the file) **and `app.apply_runtime_settings()` is the one hook it
+    calls after.** What runs on its own (beacons, GPS) is the core's
+    `Settings.apply_runtime`, behind that hook; what only this client draws
+    (`remote_color`, the theme) is the app's. Do not add a second feature-specific call in `settings_pane.py`; that
     is how the pane starts knowing what the settings mean.
 27. **Restart the beacon, never mutate a running one.** A live edit leaves a
     window where the interval and the text disagree about what goes out, and

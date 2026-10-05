@@ -50,7 +50,6 @@ from textual.widgets import (
 from textual.widgets.option_list import Option, OptionDoesNotExist
 
 from ..config import (
-    SECRET_LOGINS,
     credential_store,
     credential_username,
     find_credential,
@@ -64,9 +63,6 @@ from .settings_schema import (
     SETTINGS_SCHEMA,
     Field,
     Section,
-    ValidationError,
-    coerce,
-    cross_check,
     format_value,
     get_value,
     set_value,
@@ -1135,53 +1131,26 @@ class SettingsPane(Vertical):
     # ------------------------------------------------------------------
     @on(Button.Pressed, "#settings-save")
     def _save(self) -> None:
+        """Hand the draft to the core (`Settings.save`): all or nothing,
+        then show what happened. The core sets, saves and validates; this
+        pane only draws the outcome and applies what it alone draws."""
         config = self.app.config  # type: ignore[attr-defined]
         previous_active = config.active_transport
-        pending: dict[str, object] = {}
-        failed = False
-        #: Passwords typed into "secret" fields: (field path, text).
-        secrets: list[tuple[str, str]] = []
-        #: Fields that failed, in schema order: the first is opened.
-        failures: list[Field] = []
-
+        selected = self.query_one("#set-active-transport", Select).value
+        active = str(selected) if selected and selected != Select.NULL else ""
+        result = self.app.core.settings.save(  # type: ignore[attr-defined]
+            dict(self._draft), active, apply=False)
         for section in SETTINGS_SCHEMA:
             for spec in section.fields:
-                if spec.path not in self._draft:
-                    continue
-                raw = self._draft[spec.path]
-                if spec.kind == "secret":
-                    if raw:
-                        secrets.append((spec.path, str(raw)))
-                    continue
-                try:
-                    pending[spec.path] = coerce(spec, raw)
-                    self._set_error(spec.path, "")
-                except ValidationError as exc:
-                    self._set_error(spec.path, str(exc))
-                    failed = True
-                    failures.append(spec)
+                if spec.path in self._draft and spec.kind != "secret":
+                    self._set_error(spec.path, result.errors.get(spec.path, ""))
 
-        # These two values have a relationship no one Field can express. Do
-        # it before mutating Config so an invalid pair gets the same all-or-
-        # nothing save behavior as every individual field.
-        slow_speed = pending.get("aprs.smart_slow_speed_knots")
-        fast_speed = pending.get("aprs.smart_fast_speed_knots")
-        if (
-            isinstance(slow_speed, int)
-            and isinstance(fast_speed, int)
-            and slow_speed >= fast_speed
-        ):
-            message = "Must be below Smart fast speed."
-            for path in ("aprs.smart_slow_speed_knots", "aprs.smart_fast_speed_knots"):
-                self._set_error(path, message)
-                failures.append(_SPECS[path])
-            failed = True
-
-        if failed:
+        if result.errors:
             # Nothing is written. A partial save leaves the operator unable to
             # tell which values took -- worse than refusing outright. A bad
             # field is not necessarily in the open section, so open the first
             # one and put the cursor on it: its error is then in the help line.
+            failures = [_SPECS[path] for path in result.errors]
             self.open_field(failures[0].path)
             self._show_help(failures[0].path)
             names = ", ".join(dict.fromkeys(f"{spec.label} ({_SECTION_OF[spec.path]})" for spec in failures))
@@ -1189,23 +1158,11 @@ class SettingsPane(Vertical):
             self.app.notify("Settings not saved: some values are invalid.", severity="error")
             return
 
-        for path, value in pending.items():
-            set_value(config, path, value)
-        names = dict(SECRET_LOGINS)
-        for path, text in secrets:
-            set_credential(config, names[path], text)
-            set_value(config, path, names[path])
-
-        selected = self.query_one("#set-active-transport", Select).value
-        if selected and selected != Select.NULL:
-            config.active_transport = str(selected)
-
-        notes = cross_check(config)
-        saved = self.app._save_config()  # type: ignore[attr-defined]
-        for path, _text in secrets:
+        notes, saved = result.notes, result.saved
+        for path, where in result.secrets.items():
             # Out of the draft once saved; the row says where it went.
             self._secret_where[path] = {"keyring": "saved in the system keyring"}.get(
-                credential_store(config, names[path]), "saved in config.toml")
+                where, "saved in config.toml")
             self._draft[path] = ""
             self._refresh_row(path)
             if path == self._editing:
@@ -1272,27 +1229,11 @@ class SettingsPane(Vertical):
             # knowing nothing about what the settings mean.
             app.apply_runtime_settings()  # type: ignore[attr-defined]
 
-        station = getattr(app, "station", None)
-        if station is None:
-            return
-        from ..ax25.address import AX25Address
-
-        try:
-            station.mycall = AX25Address.parse(config.mycall)
-            station.aliases = tuple(
-                AX25Address.parse(a) for a in config.mycall_aliases
-            )
-        except Exception:
-            log.exception("could not apply callsign settings")
-
-        params = station.params
-        params.paclen = config.paclen
-        params.window = config.window
-        params.modulo = config.modulo
-        params.retries = config.retries
-        params.t1 = config.t1
-        params.t2 = config.t2
-        params.t3 = config.t3
+        core = getattr(app, "core", None)
+        if core is not None:
+            # The callsign and link parameters on the live station: the
+            # core's (`Settings.apply_to_station`).
+            core.settings.apply_to_station()
 
         monitor_filter = getattr(app, "monitor_filter", None)
         if monitor_filter is not None:

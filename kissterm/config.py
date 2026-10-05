@@ -1413,7 +1413,7 @@ def _load_watched_callsigns(value: Any, warnings: list[str]) -> WatchedCallsignC
 
 
 #: A Textual-acceptable hex color: 6 or 3 hex digits, always `#`-prefixed.
-#: Public (not `_`-prefixed) because `kissterm.ui.settings_schema` validates
+#: Public (not `_`-prefixed) because `kissterm.core.settings_schema` validates
 #: a Settings-pane color field against this exact pattern -- one regex, so a
 #: value the Settings pane accepts is guaranteed to also survive
 #: `load_config()` on the next launch.

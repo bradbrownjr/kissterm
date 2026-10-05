@@ -18,6 +18,7 @@ import kissterm.transport as transport_mod  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
 from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
+from kissterm.core.events import FrameSeen  # noqa: E402
 from kissterm.core import (  # noqa: E402
     Core,
     EventBus,
@@ -95,7 +96,10 @@ async def test_a_switch_moves_every_subscriber_and_keeps_the_gate(monkeypatch):
     await second.dispatch(_beacon(HEARD))
     assert len(received) == 1
     assert not first._handlers and not first.on_sent
-    assert events == [TransportChanged("second", "frame", second.info.detail)]
+    assert [e for e in events if isinstance(e, TransportChanged)] == [
+        TransportChanged("second", "frame", second.info.detail)]
+    # The core's own channel heard it once, on the new transport.
+    assert [e.frame for e in events if isinstance(e, FrameSeen)] == received
     station.close()
 
 

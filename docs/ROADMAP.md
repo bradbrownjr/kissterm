@@ -151,6 +151,9 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filters`
   reads a screenshot after one `pilot.pause()`; passes alone and 3 of 3
   reruns.
+  Likewise once (2026-10-05): `tests/pilot/test_text_selection.py::
+  test_drag_in_the_terminal_scrollback_selects_and_ctrl_c_copies`, a mouse
+  drag between single pauses; 3 of 3 alone.
 
 - **Relaunch after closing mid-connection: stray polls, no way to see or
   end them** (2026-09-29, `awaiting confirmation`): "I closed the application and must've

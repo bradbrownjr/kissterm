@@ -112,10 +112,13 @@ class Core:
         #: The station's `on_incoming` and `on_stray_poll` callbacks.
         self.incoming_subscribers: list[Callable] = []
         self.stray_poll_subscribers: list[Callable] = []
-        #: The Address Book (`kissterm/addressbook.py`), loaded by whoever
-        #: builds the core; the connect flow reads reminders from it and
-        #: records attempts in it. None means none (a bare test core).
-        self.addressbook = None
+        from ..addressbook import AddressBook
+
+        #: The Address Book (`kissterm/addressbook.py`): the connect flow
+        #: reads reminders from it and records attempts in it; Send/Receive
+        #: finds its routes in it. Read once, here, not on every dial.
+        self.addressbook = AddressBook()
+        self.addressbook.load()
         #: Every session (`sessions.Sessions`) and the connect flow
         #: (`connect.Connector`), built once a client's view is attached
         #: (`attach_view`).
@@ -140,6 +143,18 @@ class Core:
         #: which read session bytes once the sessions exist (`attach_view`).
         self.mail = Mail(self)
         self.transfers = Transfers(self)
+        from .channel import Channel
+        from .settings import Settings
+
+        #: Saving and applying settings (`settings.py`).
+        self.settings = Settings(self)
+
+        #: The heard list, NET/ROM claims, mail-for beacons and watched
+        #: callsigns (`channel.py`). First on the fan-out, so the heard list
+        #: has an entry before the APRS decode adds a position to it.
+        self.channel = Channel(self)
+        self.frame_subscribers += [self.channel.on_received, self.aprs.on_frame]
+        self.sent_subscribers.append(self.channel.on_sent)
 
     def attach_view(self, view):
         """Build the sessions and the connect flow, with `view` (a client's
