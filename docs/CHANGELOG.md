@@ -5,6 +5,34 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — APRS moves into the core
+
+### Improvements
+
+- **APRS is the core's** (`kissterm/core/aprs.py`, ROADMAP P7a fourth
+  step): the decode on the frame fan-out, conversations and auto-ack,
+  sending a typed message (which arms the gate), the ack-and-retry queue
+  (now on the core's own timer, so it runs with the APRS tab never
+  opened), objects, Send position, both beacons, GPS and the APRS-IS debug
+  watch. The heard list moves with it. The APRS tab follows through
+  events. Nothing changes on screen; checks on the air are in
+  docs/ON-AIR-TESTS.md.
+
+### Bug Fixes
+
+- **A Settings save left the core on the old configuration** (since the
+  connect flow moved, 0.1.399): Save replaces the app's configuration, and
+  the core kept its own reference. `app.config` now reads through to the
+  core's, so one configuration is in use.
+
+**Files:** `kissterm/core/aprs.py` (new), `kissterm/core/events.py`,
+`service.py`, `AGENTS.md`, `kissterm/ui/app.py`, `aprs_pane.py`,
+`dialogs.py`, `AGENTS.md`, `kissterm/aprs_beacon.py`, `config.py`,
+`heard.py`, `locator.py`, `kissterm/aprs/messages.py`,
+`tests/unit/test_core_aprs.py` (new), `tests/pilot/test_app_mounts.py`,
+`test_aprs_object_send.py`, `test_aprs_send.py`, `test_aprs_templates.py`,
+`AGENTS.md`, `docs/ON-AIR-TESTS.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-05] — Sessions move into the core
 
 ### Improvements

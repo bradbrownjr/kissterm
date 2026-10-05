@@ -23,7 +23,7 @@ A telemetry-equipped station labelling its own channels (``PARM.``/``UNIT.``/
 situation as ack/rej for exactly the same reason: real APRS traffic riding
 the message data type without being a message a human wrote to another
 human. `is_telemetry_definition` flags it so a caller doing two-way
-messaging -- `KissTermApp._on_aprs_frame`, which files ordinary messages
+messaging -- `Aprs.on_frame` (`kissterm/core/aprs.py`), which files ordinary messages
 into a conversation log -- does not have to also know the APRS telemetry
 spec to keep four lines of channel-scaling coefficients out of a chat view.
 

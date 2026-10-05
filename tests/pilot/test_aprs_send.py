@@ -342,7 +342,7 @@ async def test_sending_to_an_sms_contact_transmits_the_templated_body(tmp_path, 
     app = KissTermApp(config, mine)
     app.aprs_conversations = ConversationStore(tmp_path / "aprs_messages.json")
     started: list[bool] = []
-    monkeypatch.setattr(app, "start_aprs_is_watch_for_debug", lambda: started.append(True))
+    monkeypatch.setattr(app.core.aprs, "start_is_watch_for_debug", lambda: started.append(True))
 
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)
@@ -396,7 +396,7 @@ async def test_a_configured_sms_template_changes_the_wire_body(tmp_path, monkeyp
     theirs = AX25Station(PEER, tb, params)
     app = KissTermApp(config, mine)
     app.aprs_conversations = ConversationStore(tmp_path / "aprs_messages.json")
-    monkeypatch.setattr(app, "start_aprs_is_watch_for_debug", lambda: None)
+    monkeypatch.setattr(app.core.aprs, "start_is_watch_for_debug", lambda: None)
 
     async with app.run_test(size=(120, 40)) as pilot:
         await _aprs_tab(app, pilot)

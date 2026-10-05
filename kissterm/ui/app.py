@@ -111,7 +111,7 @@ import contextlib
 import logging
 import re
 import time
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 
 from rich.table import Table
@@ -126,14 +126,16 @@ from textual.widgets._footer import FooterKey
 from .. import __version__
 from ..addressbook import AddressBook, adopt_internet_transports
 from ..netrom import KnownNodes
-from .. import aprs
-from ..aprs_is import AprsIsWatch
-from ..aprs_conversations import ConversationStore, MessageDeduplicator
-from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import AX25Station, parse_path
 from ..core import Core, GateChanged, TransportChanged
 from ..core.events import (
     ActivityChanged,
+    Alert,
+    AprsAcked,
+    AprsBulletinHeard,
+    AprsMessage,
+    AprsPacketHeard,
+    AprsRetried,
     ConnectingChanged,
     LineSent,
     SessionData,
@@ -145,12 +147,8 @@ from ..core.connect import ConnectRequest
 from ..core.connect import session_key as _session_key_of
 from ..core.hops import HopConfirmation as _HopConfirmation
 from ..core.links import SessionLinkAdapter as _SessionLinkAdapter
-from ..ax25.address import AX25Address, AX25AddressError
-from ..aprs_beacon import AprsBeaconer
-from ..beacon import Beaconer
+from ..ax25.address import AX25Address
 from ..config import (
-    AprsConfig,
-    BeaconConfig,
     credential_store,
     credential_username,
     find_credential,
@@ -167,14 +165,11 @@ from ..mail.winlink_collect import WINLINK_FOLDER
 from .. import desktop_notify
 from .. import updater
 from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
-from ..heard import HeardTable
-from ..gps import GpsReader
 from ..hotplug import PortEvent, SerialPortWatcher
-from ..locator import find_grid_in_text
-from ..monitor import MonitorFilter, aprs_message_matches, format_frame, mail_waiting_for, sanitize
+from ..monitor import MonitorFilter, format_frame, mail_waiting_for, sanitize
 from ..session_log import SessionLog
 from ..transport.base import SessionState, TransportError, TransportState
-from ..tx import DISABLED_MESSAGE, TransmitGate
+from ..tx import TransmitGate
 from ..watched_notify import WatchNotifier, claimed_callsigns, normalize_callsigns
 from ..autobin import AutoBinError, receive_file as receive_autobin, send_file as send_autobin
 from ..yapp import YappError, receive_file, send_file, starts_download
@@ -496,7 +491,6 @@ class KissTermApp(App):
         self.core.sessions.data_interceptors.append(self._intercept_link_data)
         self.core.sessions.sent_hooks.append(self._yapp_requested)
         self.gate.on_change.append(self._on_transmit_change)
-        self.heard = HeardTable()
         self.monitor_filter = MonitorFilter()
         #: True while Send/Receive runs (`action_get_mail`); one at a time.
         self._collecting = False
@@ -518,35 +512,6 @@ class KissTermApp(App):
         #: Bulletin categories chosen per BBS (`mail/bulletins.py`).
         self.bulletin_subscriptions = SubscriptionBook()
         self.bulletin_subscriptions.load()
-        #: APRS message history, keyed by correspondent -- see
-        #: kissterm/aprs_conversations.py. Loaded here rather than by the
-        #: APRS pane so a message that arrives before the operator ever
-        #: visits F2 is still recorded, the same reasoning `self.heard`
-        #: is built and loaded before any pane asks for it.
-        self.aprs_conversations = ConversationStore()
-        self.aprs_conversations.load()
-        self._purge_stale_synthetic_messages()
-        #: Keeps an RF retry or a second copy from another relay path out of
-        #: the conversation twice. It is deliberately in-memory-only: APRS
-        #: message numbers may be reused, so a restart starts a new reception
-        #: window instead of suppressing a later real message from history.
-        self._aprs_message_deduplicator = MessageDeduplicator()
-        #: Suppresses a repeat desktop notification for the same (source,
-        #: reason) pair within its window -- see kissterm/aprs_notify.py.
-        #: An Emergency Mic-E flag always bypasses it.
-        self._aprs_notify_cooldown = Cooldown()
-        #: Suppresses a repeat "could not ack -- transmit is off" toast for
-        #: the same (addressee, number) pair -- a sender that retries an
-        #: unacked message every 30-90 seconds must not repaint the same
-        #: warning on top of itself each time. Separate instance from
-        #: `_aprs_notify_cooldown` above: this is "did the ack go out",
-        #: not "should a desktop notification fire", and the two must not
-        #: consume each other's window.
-        self._aprs_ack_blocked_cooldown = Cooldown()
-        #: APRS-IS diagnostics are separate from the RF transport fan-out.
-        #: The current UI opens this object only with a ``pass -1`` login.
-        self.aprs_is_watch = AprsIsWatch()
-        self._aprs_is_background_started = False
         #: Watches local serial ports only. The network is never scanned on a
         #: timer -- see kissterm/hotplug.py for the cost argument.
         self.port_watcher = SerialPortWatcher()
@@ -560,28 +525,6 @@ class KissTermApp(App):
         #: active use, not merely an app window that happens to be open.
         self._last_operator_activity = time.monotonic()
         self._watch_notifier = self._make_watch_notifier()
-        #: Plain-text beacon. Constructed unconditionally so there is one
-        #: object to ask "is this station transmitting on a timer?"; it does
-        #: nothing at all until `start()` succeeds, and `start()` refuses
-        #: unless the operator opted in AND set some text.
-        self.beaconer = Beaconer(
-            station, getattr(config, "beacon", None) or BeaconConfig(),
-            on_sent=self._on_beacon_sent,
-        )
-        #: APRS position beacon -- same shape as `beaconer` above, separate
-        #: timer, separate config table, separate destination. See
-        #: `kissterm/aprs_beacon.py`'s module docstring for why the two must
-        #: never be conflated.
-        self.aprs_beaconer = AprsBeaconer(
-            station, getattr(config, "aprs", None) or AprsConfig(),
-            on_sent=self._on_aprs_beacon_sent,
-            position_source=self._gps_position if config.aprs.gps_device.strip() else None,
-            motion_source=self._gps_fix if config.aprs.gps_device.strip() else None,
-        )
-        #: A GPS reader is optional and wholly local; it never participates in
-        #: the AX.25/KISS transport fan-out.
-        self.gps_reader: GpsReader | None = None
-        self._gps_had_fix = False
 
     # ------------------------------------------------------------------
     # Read through to the core (`kissterm/core/service.py`)
@@ -598,6 +541,59 @@ class KissTermApp(App):
     @property
     def session_transport(self):
         return self.core.session_transport
+
+    @property
+    def config(self):
+        """The one configuration, the core's. Settings saves by replacing
+        it (`SettingsPane`), so the core must see the replacement too: a
+        copy here would leave the connect flow and the beacons on the old
+        one."""
+        core = self.__dict__.get("core")
+        return core.config if core is not None else self.__dict__["_config"]
+
+    @config.setter
+    def config(self, config) -> None:
+        self.__dict__["_config"] = config
+        core = self.__dict__.get("core")
+        if core is not None:
+            core.config = config
+
+    # APRS, the heard list, both beacons and GPS (`kissterm/core/aprs.py`)
+    @property
+    def heard(self):
+        return self.core.heard
+
+    @property
+    def aprs_conversations(self):
+        return self.core.aprs.conversations
+
+    @aprs_conversations.setter
+    def aprs_conversations(self, store) -> None:
+        self.core.aprs.conversations = store
+
+    @property
+    def beaconer(self):
+        return self.core.aprs.beaconer
+
+    @property
+    def aprs_beaconer(self):
+        return self.core.aprs.aprs_beaconer
+
+    @property
+    def aprs_is_watch(self):
+        return self.core.aprs.is_watch
+
+    @property
+    def gps_reader(self):
+        return self.core.aprs.gps_reader
+
+    @property
+    def _aprs_notify_cooldown(self):
+        return self.core.aprs.notify_cooldown
+
+    @_aprs_notify_cooldown.setter
+    def _aprs_notify_cooldown(self, cooldown) -> None:
+        self.core.aprs.notify_cooldown = cooldown
 
     @property
     def gate(self) -> TransmitGate:
@@ -663,6 +659,18 @@ class KissTermApp(App):
             self._refresh_context_footer()
         elif isinstance(event, ActivityChanged):
             self._set_activity(event.text)
+        elif isinstance(event, AprsMessage):
+            self._note_aprs_incoming(event.correspondent, to_me=event.to_me)
+        elif isinstance(event, (AprsAcked, AprsRetried)):
+            self._repaint_aprs_conversation()
+        elif isinstance(event, AprsPacketHeard):
+            for pane in self._base_query(AprsPane):
+                pane.note_packet(event.line, event.at, event.packet)
+        elif isinstance(event, AprsBulletinHeard):
+            for pane in self._base_query(AprsPane):
+                pane.note_bulletin(event.source, event.addressee, event.text, event.at)
+        elif isinstance(event, Alert):
+            self._notify_aprs_desktop(event.title, event.body, urgent=event.urgent)
 
     def _show_session(self, event: SessionOpened) -> None:
         """A tab for a session the core just bound. A call that came in
@@ -798,6 +806,7 @@ class KissTermApp(App):
         self.set_interval(1.0, self._refresh_status)
         self.set_interval(2.0, self._refresh_heard)
         self._attach_station()
+        self.core.aprs.start()
         if self._check_updates and getattr(self.config, "update_check", True):
             # After the first screen, so the check never competes with it.
             self.set_timer(3.0, lambda: self._update_check_worker(False))
@@ -924,11 +933,7 @@ class KissTermApp(App):
         """Open the first saved transport in an already-mounted onboarding
         app (`Core.open_initial_transport`), and point the beacons at the
         station it built."""
-        opened = await self.core.open_initial_transport(name)
-        if opened and self.station is not None:
-            self.beaconer.station = self.station
-            self.aprs_beaconer.station = self.station
-        return opened
+        return await self.core.open_initial_transport(name)
 
     # ------------------------------------------------------------------
     # Settings that need something done, not just stored
@@ -949,32 +954,11 @@ class KissTermApp(App):
         self._watch_notifier = self._make_watch_notifier()
 
     def _reconcile_aprs_is_debug_watch(self) -> None:
-        """Apply the opt-in background APRS-IS diagnostic setting.
-
-        It is deliberately tied to actual debug logging: a background TCP
-        stream is useful only when its correlation evidence is being kept.
-        A manually opened or SMS-triggered watcher is never stopped here.
-        """
-        enabled = self._aprs_is_background_requested()
-        debug_logging = log.isEnabledFor(logging.DEBUG)
-        if enabled and debug_logging and not self.aprs_is_watch.running:
-            try:
-                self.aprs_is_watch.start(callsign=self._active_aprs_identity())
-            except ValueError as exc:
-                log.debug("APRS-IS background watch not started: %s", exc)
-            else:
-                self._aprs_is_background_started = True
-                log.debug("APRS-IS background watch enabled")
-        elif self._aprs_is_background_started and (not enabled or not debug_logging):
-            self.aprs_is_watch.stop()
-            self._aprs_is_background_started = False
+        """`Aprs.reconcile_is_debug_watch` (kissterm/core/aprs.py)."""
+        self.core.aprs.reconcile_is_debug_watch()
 
     def _aprs_is_background_requested(self) -> bool:
-        """Whether the configured debug monitor owns the APRS-IS client."""
-        return bool(
-            getattr(self.config, "aprs_is_watch_debug", False)
-            and log.isEnabledFor(logging.DEBUG)
-        )
+        return self.core.aprs.is_background_requested()
 
     def _make_watch_notifier(self) -> WatchNotifier:
         watched = self.config.watched_callsigns
@@ -991,90 +975,18 @@ class KissTermApp(App):
 
     @work
     async def _restart_beacon(self) -> None:
-        """Stop then start, rather than mutating a running beaconer.
-
-        A live edit would leave a window where the interval and the text
-        disagree about what is going out -- and what goes out is transmitted
-        under the operator's callsign, so "probably fine" is not the standard.
-        """
-        await self.beaconer.stop()
-        self.beaconer.station = self.station
-        self.beaconer.config = getattr(self.config, "beacon", None) or BeaconConfig()
-        why = self.beaconer.start()
-        # Only worth saying when the operator asked for a beacon and did not
-        # get one. "beaconing is off" is not news, and "transmit is disabled"
-        # is already the loudest thing in the status bar -- repeating it as a
-        # toast on every launch and every Settings save is noise.
-        if why and self.beaconer.config.enabled and why != "transmit is disabled":
-            self.notify(f"Beacon not started: {why}", severity="warning")
-
-    def _on_beacon_sent(self, frame: AX25Frame) -> None:
-        """Every beacon is visible, without exception: the Monitor tab shows
-        the frame (`_on_sent_frame`), the status bar shows BEACON while it is
-        armed, and kissterm.log keeps the record. Not the Terminal, which
-        holds only sessions (DESIGN.md section 6).
-
-        A station that transmits without the operator being able to see that
-        it did is exactly what the opt-in exists to prevent.
-        """
-        log.info("beacon sent to %s", frame.path.destination)
-
-    def _gps_position(self) -> tuple[float, float] | None:
-        """The receiver's live position, never copied into configuration."""
-        fix = self.gps_reader.fix if self.gps_reader is not None else None
-        return (fix.latitude, fix.longitude) if fix is not None else None
-
-    def _gps_fix(self):
-        """The live GPS motion record, never persisted or transmitted alone."""
-        return self.gps_reader.fix if self.gps_reader is not None else None
-
-    def _on_gps_fix(self, fix) -> None:
-        """Start a waiting periodic beacon when a receiver first fixes."""
-        had_fix, self._gps_had_fix = self._gps_had_fix, fix is not None
-        # A GPS-configured beacon correctly refuses to start without a fix.
-        # Starting it on the false->true edge retains its normal sleep-first
-        # behavior while avoiding a stale-coordinate fallback or a polling
-        # timer that would only keep discovering it has no position.
-        if fix is not None and not had_fix:
-            self._restart_aprs_beacon()
-        # This only changes the existing beaconer's next deadline or queues
-        # a corner peg. It never arms TX; its send path rechecks the gate.
-        self.aprs_beaconer.note_fix(fix)
+        """`Aprs.restart_beacon`: stop then start, never a live mutation."""
+        await self.core.aprs.restart_beacon()
 
     @work
     async def _restart_gps(self) -> None:
-        """Replace the local NMEA reader after a Settings save."""
-        if self.gps_reader is not None:
-            await self.gps_reader.stop()
-        device = self.config.aprs.gps_device.strip()
-        self.gps_reader = GpsReader(device) if device else None
-        self._gps_had_fix = False
-        if self.gps_reader is not None:
-            self.gps_reader.subscribe(self._on_gps_fix)
-            self.gps_reader.start()
+        """`Aprs.restart_gps`: replace the local NMEA reader."""
+        await self.core.aprs.restart_gps()
 
     @work
     async def _restart_aprs_beacon(self) -> None:
-        """Stop then start the APRS position beacon -- see `_restart_beacon`
-        for why a live mutation is wrong here too: a half-changed config
-        transmitting under the operator's callsign is never acceptable.
-        """
-        await self.aprs_beaconer.stop()
-        self.aprs_beaconer.station = self.station
-        self.aprs_beaconer.config = getattr(self.config, "aprs", None) or AprsConfig()
-        self.aprs_beaconer.position_source = (
-            self._gps_position if self.aprs_beaconer.config.gps_device.strip() else None
-        )
-        self.aprs_beaconer.motion_source = (
-            self._gps_fix if self.aprs_beaconer.config.gps_device.strip() else None
-        )
-        why = self.aprs_beaconer.start()
-        if why and self.aprs_beaconer.config.enabled and why != "transmit is disabled":
-            self.notify(f"APRS beacon not started: {why}", severity="warning")
-
-    def _on_aprs_beacon_sent(self, frame: AX25Frame) -> None:
-        """Same rule as `_on_beacon_sent`: every transmission is visible."""
-        log.info("APRS position beacon sent")
+        """`Aprs.restart_aprs_beacon`: stop then start the position beacon."""
+        await self.core.aprs.restart_aprs_beacon()
 
     def _fatal_error(self) -> None:
         """Textual's crash report, without local variables. Textual prints
@@ -1103,11 +1015,7 @@ class KissTermApp(App):
         down would transmit under the operator's callsign with nothing on
         screen to show it -- and nowhere to show it.
         """
-        self.beaconer.cancel()
-        self.aprs_beaconer.cancel()
-        self.aprs_is_watch.stop()
-        if self.gps_reader is not None:
-            self.gps_reader.cancel()
+        self.core.aprs.shutdown()
         self.core.detach_transport()
         self.core.connector.cancel_tasks()
         self.core.sessions.shutdown()
@@ -1261,154 +1169,13 @@ class KissTermApp(App):
     # APRS: message history, auto-ack, and Emergency/message notification
     # ------------------------------------------------------------------
     def _active_aprs_identity(self) -> str:
-        """This station's real, currently-transmitted APRS identity
-        (`Config.aprs.source_for`, stringified) -- what `aprs_message_matches`
-        requires an exact match against when `Config.aprs.filter_by_ssid`
-        is on. Falls back to the bare configured callsign on a parse
-        failure rather than raising: this runs from the frame fan-out,
-        and a malformed `mycall` must not take the whole handler down
-        with it (AGENTS.md's "never let a decode error raise out of a
-        background task" rule).
-        """
-        mycall = str(self.station.mycall) if self.station is not None else self.config.mycall
-        try:
-            return str(self.config.aprs.source_for(mycall))
-        except AX25AddressError:
-            return mycall
+        """`Aprs.active_identity` (kissterm/core/aprs.py)."""
+        return self.core.aprs.active_identity()
 
     async def _on_aprs_frame(self, frame: AX25Frame, port: int = 0) -> None:
-        """Decode one frame as APRS, if it is APRS at all.
-
-        A second subscriber on the same fan-out `_on_received_frame` uses --
-        never a second decode path for the same bytes (AGENTS.md sec. 2b).
-        `aprs.parse_packet` itself never raises (see its module docstring);
-        everything past that point here is app-level routing: record a
-        message into `self.aprs_conversations`, auto-ack it if addressed to
-        us, and decide whether it is worth an unattended notification via
-        `kissterm.aprs_notify.evaluate_packet`.
-        """
-        packet = aprs.parse_packet(frame)
-        if packet is None:
-            return
-
-        if packet.kind in ("position", "mic-e") and isinstance(packet.data, aprs.Position):
-            # Enriches the MHEARD entry this frame already produced via
-            # `_on_received_frame` -> `heard.record` -- `HeardTable` never
-            # decodes APRS itself (see its module docstring), so this is the
-            # one place that feeds it a position. Feeds the Heard pane's
-            # bearing/distance columns.
-            self.heard.set_position(str(packet.source), packet.data.latitude, packet.data.longitude)
-        elif packet.kind == "unparsed":
-            # A UI/PID-0xF0 frame that is not APRS at all -- most often an
-            # ordinary packet-node or BBS beacon, which by long-standing
-            # convention (predating APRS, and still common alongside it)
-            # often signs off with its own grid square in plain text ("de
-            # W1AW FN31pr"). `find_grid_in_text` is a deliberately
-            # conservative heuristic (see its own docstring); a real APRS
-            # position above is never second-guessed by it. This is what
-            # lets the Heard pane's Distance/Bearing columns work for a
-            # plain packet node too, not just APRS stations.
-            found = find_grid_in_text(sanitize(packet.info, keep_newlines=False))
-            if found is not None:
-                _grid, lat, lon = found
-                self.heard.set_position(str(packet.source), lat, lon)
-
-        # A message-relay service (WHO-IS, WXBOT, and message traffic
-        # generally crossing between RF and APRS-IS) commonly has no RF
-        # presence of its own: its ack and its reply reach us only as a
-        # third-party relay wrapping the real message, with the relay
-        # station (an igate) as the *outer* frame's source. Unwrapping it
-        # here is what `AprsPane.note_incoming`'s own docstring already
-        # promises -- "every message packet on the channel is recorded,
-        # third-party traffic included" -- but nothing before this actually
-        # did it: treating a wrapped ack/reply as "not a message" left an
-        # answered query stuck retrying forever, even though it decoded
-        # fine for the "All" tab's raw display below. `tp.source` (plain
-        # text, not `tp.inner.source`) is used as the correspondent identity
-        # for the same reason `format_packet` uses it for display -- the
-        # inner `AprsPacket.source` a third-party header without a valid
-        # AX.25 callsign (e.g. "WHO-IS") coerces to is the `NOCALL`
-        # placeholder, which would file the reply under the wrong contact.
-        message_packet, message_source = packet, str(packet.source)
-        if (
-            packet.kind == "third-party"
-            and isinstance(packet.data, aprs.ThirdParty)
-            and packet.data.inner.kind == "message"
-            and isinstance(packet.data.inner.data, aprs.Message)
-        ):
-            message_packet, message_source = packet.data.inner, packet.data.source
-
-        if message_packet.kind == "message" and isinstance(message_packet.data, aprs.Message):
-            msg = message_packet.data
-            source = message_source
-            if aprs.is_bulletin_addressee(msg.addressee):
-                self._note_aprs_bulletin(source, msg.addressee, msg.text)
-                return
-            if not (msg.is_ack or msg.is_rej or msg.is_telemetry_definition):
-                to_me = aprs_message_matches(
-                    msg.addressee,
-                    self.config.mycall,
-                    self.config.mycall_aliases,
-                    filter_by_ssid=self.config.aprs.filter_by_ssid,
-                    active_identity=self._active_aprs_identity(),
-                )
-                duplicate = self._aprs_message_deduplicator.is_duplicate(
-                    source, msg.addressee, msg.text, msg.number
-                )
-                if to_me:
-                    if getattr(self.config, "aprs_auto_ack", True) and msg.number:
-                        # A sender may be retrying precisely because our first
-                        # ack was lost. A duplicate belongs only once in the
-                        # transcript, but it still deserves another ack.
-                        await self._send_aprs_ack(source, msg.number, port)
-                if duplicate:
-                    return
-                self.aprs_conversations.record_incoming(source, msg.text, number=msg.number)
-                # `to_me` decides whether this opens a tab and raises an
-                # unread marker, or is only recorded. Every message packet is
-                # recorded either way -- see `AprsPane.note_incoming`.
-                self._note_aprs_incoming(source, to_me=to_me)
-            elif msg.is_ack and msg.number:
-                # Flips `MessageEntry.acked` in the persisted log, which the
-                # pane's retry loop also reads off its own timer.
-                self.aprs_conversations.mark_acked(source, msg.number)
-                # Repaint now rather than waiting up to a retry interval for
-                # the pane's timer: an ack is the answer to "did that get
-                # through?", and an operator watching the screen for it
-                # should not see a stale "sent" for another ten seconds.
-                self._repaint_aprs_conversation()
-        elif packet.kind != "unparsed":
-            # Everything that is not a person-to-person message (or an
-            # undecodable frame the Monitor pane already shows raw) --
-            # position, weather, status, telemetry readings, objects/items,
-            # third-party relays. `ConversationStore` is chat history with a
-            # correspondent and stays that way; these have no correspondent,
-            # so they are shown in the "All" tab only, in memory only, via
-            # `AprsPane.note_packet` -- never written to
-            # `kissterm/aprs_conversations.py`'s persisted JSON. One decode
-            # (`aprs.parse_packet`, already run above) feeds both this and
-            # the heard-table enrichment above; `format_packet` is the one
-            # place that turns any `AprsPacket` into a line, so a new packet
-            # kind only ever needs a case added there (AGENTS.md sec. 2b).
-            self._note_aprs_packet(packet)
-
-        decision = evaluate_packet(
-            packet,
-            self.config.mycall,
-            self.config.mycall_aliases,
-            filter_by_ssid=self.config.aprs.filter_by_ssid,
-            active_identity=self._active_aprs_identity(),
-        )
-        if decision is None:
-            return
-        if not self._aprs_notify_cooldown.allow(decision.key, urgent=decision.urgent):
-            return
-        self.notify(
-            f"{decision.title}: {decision.body}" if decision.body else decision.title,
-            severity="warning" if decision.urgent else "information",
-            timeout=15 if decision.urgent else 10,
-        )
-        self._notify_aprs_desktop(decision.title, decision.body, urgent=decision.urgent)
+        """`Aprs.on_frame`, a subscriber on the one fan-out after the heard
+        list's own, so a decoded position lands on an entry that exists."""
+        await self.core.aprs.on_frame(frame, port)
 
     @work
     async def _notify_aprs_desktop(self, title: str, body: str, *, urgent: bool) -> None:
@@ -1434,199 +1201,20 @@ class KissTermApp(App):
             pane.note_incoming(callsign, to_me=to_me)
             return
 
-    def _note_aprs_packet(self, packet: aprs.AprsPacket) -> None:
-        """Forward one formatted non-message APRS line (a position, weather
-        report, telemetry reading, status, or object/item) to the APRS
-        pane's "All" tab. Tolerates the pane not being mounted, for the same
-        reason `_note_aprs_incoming` does.
-        """
-        for pane in self._base_query(AprsPane):
-            pane.note_packet(aprs.format_packet(packet), time.time(), packet)
-            return
-
-    def _note_aprs_bulletin(self, source: str, addressee: str, text: str) -> None:
-        """Forward one BLNn/ANn channel announcement to the APRS pane."""
-        for pane in self._base_query(AprsPane):
-            pane.note_bulletin(source, addressee, text, time.time())
-            return
-
     def _purge_stale_synthetic_messages(self) -> None:
-        """One-time cleanup for `self.aprs_conversations` right after
-        loading it: drop already-persisted lines that were never something
-        a human (or a correspondent) typed, from a build that recorded them
-        before the check that now excludes them existed.
-
-        Two shapes, both fixed by a real-world report rather than found in
-        review, so a history file written before either fix still carries
-        them forever otherwise:
-
-        * An incoming **telemetry-definition** line (`PARM.`/`UNIT.`/
-          `EQNS.`/`BITS.`) -- excluded since 2026-09-10
-          (`aprs.is_telemetry_definition_text`).
-        * An outgoing **auto-ack recorded as a chat line** (`"ack407"`,
-          with `number=None`) -- excluded since 2026-09-11; an incoming ack
-          was never filed as a message either (`_on_aprs_frame` routes
-          `msg.is_ack` to `mark_acked`, not `record_incoming`), so this
-          brought the outgoing side in line with that rule.
-
-        Runs on every launch; once purged there is nothing left to find, so
-        this is cheap after the first run.
-        """
-        ack_number_re = re.compile(r"^ack[A-Za-z0-9]{1,5}$")
-        changed = False
-        for convo in self.aprs_conversations.conversations.values():
-            kept = [
-                m
-                for m in convo.messages
-                if not (m.direction == "in" and aprs.is_telemetry_definition_text(m.text))
-                and not (
-                    m.direction == "out" and m.number is None and ack_number_re.match(m.text)
-                )
-            ]
-            if len(kept) != len(convo.messages):
-                convo.messages = kept
-                changed = True
-        if changed:
-            self.aprs_conversations.save()
+        self.core.aprs.purge_stale_synthetic_messages()
 
     async def _send_aprs_ack(self, addressee: str, number: str, port: int) -> None:
-        """Auto-ack an APRS message addressed to us -- see
-        `Config.aprs_auto_ack`'s docstring for why this defaults on and is
-        still just as gated by the transmit switch as everything else this
-        app sends. Every auto-ack is written to the terminal pane, the same
-        rule a beacon or a connect-script line follows: a station that
-        transmits without the operator being able to see that it did is
-        exactly what that rule exists to prevent.
-
-        Transmits from `Config.aprs.source_for` -- the SAME identity every
-        other piece of APRS traffic this station originates uses -- and
-        deliberately NOT from whatever text the sender happened to put in
-        the addressee field. A station has one consistent on-air identity;
-        whether a message not addressed to that exact identity still
-        counts as "for me" at all is `aprs_message_matches`'s decision
-        (`_on_aprs_frame` above, gated on `Config.aprs.filter_by_ssid`) --
-        that is the one place any SSID forgiveness belongs, and by
-        default (as of `filter_by_ssid`'s introduction) there is none: an
-        exact match is required, matching how a real APRS client's own
-        message-tracking behaves. An earlier version of this method
-        instead transmitted the ack under `Message.addressee` verbatim,
-        reasoning that a peer's own message-tracking must be matching the ack's
-        source callsign+SSID against exactly what it addressed. That
-        reasoning does not hold: it made kissterm transmit under an
-        identity (an arbitrary SSID, or none) that is not actually this
-        station's configured identity, which is the exact "callsign is a
-        claim" hazard AGENTS.md warns about elsewhere, and it made the ack
-        path the only outgoing APRS traffic on a different identity than
-        everything else this station sends. Do not reintroduce that.
-
-        A closed gate is reported, not just silently obeyed. Found live: a
-        station whose transmit gate had not been re-armed since its last
-        launch (closed by default -- see the transmit-gate rules) received
-        four retries of the same message over several minutes with no
-        visible sign anything was wrong; the sender's own delivery tracker
-        eventually gave up, and the only way to have known why was to read
-        this app's debug log after the fact. "A failure the operator
-        cannot diagnose is a bug" applies here exactly as much as it does
-        to a dropped frame -- the difference from a beacon's version of the
-        same check is that nobody just pressed a key to trigger this, so
-        there is no natural moment for the warning except the message
-        itself arriving. `_aprs_ack_blocked_cooldown` keeps a sender's own
-        retries (every 30-90 seconds, typically) from repainting the same
-        toast on top of itself.
-        """
-        if self.station is None:
-            return
-        # `send_frame` drops a gated frame silently and does not say so --
-        # that is the whole point of TX BLOCKED not being an exception (see
-        # its docstring). Checked here, the same way `Beaconer.problem()`
-        # checks it, so a closed gate cannot make this method log or record
-        # an ack as sent when nothing went out. Never report a suppressed
-        # transmission as a sent one.
-        gate = getattr(self.station.transport, "gate", None)
-        if gate is not None and not gate.enabled:
-            if self._aprs_ack_blocked_cooldown.allow((addressee, number)):
-                self.notify(
-                    f"{addressee} sent a message that needs an acknowledgment, but "
-                    "Transmit is OFF, so nothing was sent back. Press Ctrl+T to turn "
-                    "Transmit on.",
-                    severity="warning",
-                    timeout=10,
-                )
-            return
-        source = self.config.aprs.source_for(str(self.station.mycall))
-        try:
-            payload = aprs.ack(addressee, number)
-            dest = AX25Address.parse("APRS")
-            outframe = aprs.beacon_frame(source, dest, (), payload)
-            await self.station.transport.send_frame(outframe, port)
-        except Exception as exc:  # never let an ack failure disturb the link
-            log.debug("APRS auto-ack to %s not sent: %s", addressee, exc)
-            return
-        # Deliberately NOT `self.aprs_conversations.record_outgoing(...)`.
-        # An incoming ack is never filed as a chat line either (`_on_
-        # aprs_frame` routes `msg.is_ack` to `mark_acked`, not `record_
-        # incoming`) -- a protocol ack is not conversation content, and
-        # showing "ack407" as if it were a message someone typed answered
-        # nothing an operator asked and only invited "what does this mean?"
-        # The Monitor tab shows the frame and kissterm.log records it; the
-        # gate rule above (never claim a suppressed send went out) covers it
-        # the same way a real message would be covered.
-        log.info("APRS auto-ack sent to %s (msg %s)", addressee, number)
+        await self.core.aprs.send_ack(addressee, number, port)
 
     async def _send_aprs_message(
         self, addressee: str, text: str, number: str | None, *, port: int = 0, retry: bool = False
     ) -> bool:
-        """Encode and transmit one APRS message frame -- the shared send
-        primitive for both a fresh send from the APRS pane and a retry of
-        one still awaiting an ack. Returns whether it actually went out.
-
-        Deliberately does NOT touch `self.aprs_conversations` or any
-        pending-ack tracking itself: a retry resending the exact same
-        message must not create a second history entry, so whether this
-        call is "the first send" (record it, start tracking) or "a retry"
-        (already recorded, already tracked) is a decision only the caller
-        (`kissterm.ui.aprs_pane.AprsPane`) has enough context to make.
-        """
-        if self.station is None:
-            return False
-        gate = getattr(self.station.transport, "gate", None)
-        if gate is not None and not gate.enabled:
-            # Same rule as `_send_aprs_ack`: never log or claim a send that
-            # the gate silently dropped.
-            return False
-        try:
-            payload = aprs.message(addressee, text, number=number)
-            dest = AX25Address.parse("APRS")
-            # Same APRS-only SSID override the position beacon uses, so a
-            # message and a beacon go out under one identity rather than two.
-            outframe = aprs.beacon_frame(
-                self.config.aprs.source_for(str(self.station.mycall)), dest, (), payload
-            )
-            await self.station.transport.send_frame(outframe, port)
-        except Exception as exc:
-            log.debug("APRS message to %s not sent: %s", addressee, exc)
-            return False
-        verb = "Resent" if retry else "Sent"
-        kind = "bulletin" if number is None else f"message {number}"
-        log.info("%s APRS %s to %s", verb, kind, addressee)
-        return True
+        """`Aprs.send_message`: one message frame; never arms the gate."""
+        return await self.core.aprs.send_message(addressee, text, number, port=port, retry=retry)
 
     def start_aprs_is_watch_for_debug(self) -> None:
-        """Begin a receive-only observation before a deliberate SMS request.
-
-        This starts no RF activity and does not wait for the Internet before
-        sending: delaying a requested RF message for a diagnostic connection
-        would be the wrong priority. The debug log records whether APRS-IS
-        later saw the packet and any reply addressed back to this identity.
-        """
-        if not log.isEnabledFor(logging.DEBUG) or self.aprs_is_watch.running:
-            return
-        try:
-            callsign = self._active_aprs_identity()
-            self.aprs_is_watch.start(callsign=callsign)
-            log.debug("APRS-IS watch auto-started for SMS diagnostic: %s", callsign)
-        except ValueError as exc:
-            log.debug("APRS-IS watch not started for SMS diagnostic: %s", exc)
+        self.core.aprs.start_is_watch_for_debug()
 
     def action_aprs_gateway_form(self) -> None:
         """Open the APRS gateway form only in its relevant pane."""
@@ -1637,46 +1225,7 @@ class KissTermApp(App):
         self.query_one(AprsPane).action_compose_bulletin()
 
     async def _send_aprs_object(self, request: AprsObjectRequest) -> bool:
-        """Encode and transmit one deliberately composed APRS object report."""
-        if self.station is None:
-            return False
-        gate = getattr(self.station.transport, "gate", None)
-        if gate is not None and not gate.enabled:
-            return False
-        try:
-            target = parse_path(f"APRS {self.config.aprs.path}".strip())
-            via = target.repeaters
-            if request.scope == "rf_only":
-                # APRS reserves RFONLY in the digi field as the originating
-                # operator's instruction not to gate RF traffic to APRS-IS.
-                # Keep the configured RF path so an EOC beyond direct range
-                # can still receive the exercise object over radio.
-                if not any(str(digi) == "RFONLY" for digi in via):
-                    via = (*via, AX25Address.parse("RFONLY"))
-            elif request.scope == "direct":
-                via = ()
-            timestamp = datetime.now(UTC).strftime("%d%H%Mz")
-            payload = aprs.object_report(
-                request.name, request.alive, timestamp, request.latitude,
-                request.longitude, request.symbol[0], request.symbol[1], request.comment,
-            )
-            outframe = aprs.beacon_frame(
-                self.config.aprs.source_for(str(self.station.mycall)),
-                target.destination, via, payload,
-            )
-            await self.station.transport.send_frame(outframe, 0)
-        except Exception as exc:
-            log.debug("APRS object %s not sent: %s", request.name, exc)
-            return False
-        # This is deliberately after ``send_frame``: the transport only
-        # returns once its backend accepted the frame. The object payload is
-        # strict printable ASCII, so retaining it verbatim gives an
-        # independently inspectable on-air record without logging arbitrary
-        # received bytes.
-        log.debug("APRS object transmission accepted: %s:%s", outframe.path, payload.decode("ascii"))
-        state = "live" if request.alive else "killed"
-        log.info("sent %s APRS object %s", state, request.name.strip())
-        return True
+        return await self.core.aprs.send_object(request)
 
     def _session_key(self, peer, port: int = 0) -> str:
         """The identity a Terminal-pane tab is keyed on (`core.connect.session_key`)."""
@@ -2074,47 +1623,17 @@ class KissTermApp(App):
     async def action_beacon_now(self) -> None:
         """Send one BTEXT beacon now (menu: Session > Send beacon).
 
-        The timed beacon waits a full interval before its first
-        transmission, because launching the app is not a request to key the
-        radio. This is how an operator says "yes it is, right now" -- the
-        role JS8Call's heartbeat button plays. It does not enable the timer
-        and does not need it on. It does not arm the gate: a closed gate is
-        reported and nothing is sent.
+        The timed beacon waits a full interval, because launching is not a
+        request to key the radio; this is how an operator says "right now".
+        It neither enables the timer nor arms the gate (`Aprs.beacon_now`).
         """
-        if not self.gate.enabled:
-            self.notify(DISABLED_MESSAGE, severity="warning")
-            return
-        why = self.beaconer.problem()
-        # "beaconing is off" is about the TIMER, and a manual beacon is not
-        # the timer -- so it is not a reason to refuse one. Anything else is.
-        if why and why != "beaconing is off":
-            self.notify(f"No beacon sent: {why}", severity="warning")
-            return
-        if await self.beaconer.send_once(force=True):
-            self.notify("Beacon sent.")
-        else:
-            self.notify("Beacon not sent.", severity="warning")
+        await self.core.aprs.beacon_now()
 
     @work
     async def action_aprs_beacon_now(self) -> None:
-        """Menu: APRS > Send position -- transmit one position report now.
-
-        This is an operator-committed transmission to the well-defined APRS
-        destination, not an unattended timer action.  It therefore arms the
-        transmit gate when necessary, just as a committed APRS message does.
-        It deliberately does *not* enable, restart, or otherwise alter the
-        periodic APRS beacon setting: ``force=True`` waives only that timer
-        setting inside :meth:`AprsBeaconer.send_once`.
-        """
-        self._arm_for("APRS position beacon")
-        why = self.aprs_beaconer.problem()
-        if why and why != "APRS beaconing is off":
-            self.notify(f"APRS position beacon not sent: {why}", severity="warning")
-            return
-        if await self.aprs_beaconer.send_once(force=True):
-            self.notify("APRS position beacon sent.")
-        else:
-            self.notify("APRS position beacon not sent.", severity="warning")
+        """Menu: APRS > Send position -- one position report now, which
+        arms the gate as a committed send (`Aprs.send_position_now`)."""
+        await self.core.aprs.send_position_now()
 
     @work
     async def action_aprs_object(self) -> None:
@@ -2135,12 +1654,7 @@ class KissTermApp(App):
         )
         if request is None:
             return
-        if self.station is not None:
-            self._arm_for(f"APRS object {request.name.strip()}")
-        if await self._send_aprs_object(request):
-            self.notify(f"APRS object {request.name.strip()} sent.")
-        else:
-            self.notify("APRS object not sent. Check its fields and APRS path.", severity="warning")
+        await self.core.aprs.send_object_now(request)
 
     @work
     async def action_aprs_is_watch(self) -> None:
@@ -2513,8 +2027,7 @@ class KissTermApp(App):
         transport" has one implementation."""
         opened = await self.core.switch_frame_transport(name)
         if opened and self.station is not None:
-            self.beaconer.station = self.station
-            self.aprs_beaconer.station = self.station
+            self.core.aprs.follow_station()
         return opened
 
     async def _switch_session_transport(self, name: str) -> bool:

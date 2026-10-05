@@ -10,6 +10,26 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## APRS, after the core rework (0.1.402, 2026-10-05)
+
+APRS decoding, messages, the ack-and-retry queue, both beacons and GPS
+moved out of the terminal UI into kissterm's core, with nothing meant to
+change on screen. One APRS session confirms it.
+
+- [ ] **A message to you, TX on.** Have a station (or APRS-IS through an
+  igate) send you a numbered message. Expected: its tab opens and is
+  marked unread, and the Monitor (F8) shows your ack go out under your
+  APRS identity.
+- [ ] **The same with TX off.** Expected: one "needs an acknowledgment,
+  but Transmit is OFF" toast, not one per retry, and no ack on the Monitor.
+- [ ] **Sending with TX off.** Type a message to a station and Send.
+  Expected: "Transmit ENABLED" toast, the message on the Monitor, "sent"
+  then "ack" in the conversation once it answers; with no answer, a retry
+  about every 30 s or more on the Monitor, never with TX off.
+- [ ] **Beacons after a Settings save.** Change the BTEXT or APRS beacon
+  text in Settings and Save, then Send beacon / Send position. Expected:
+  the new text on the Monitor, not the old one.
+
 ## Connecting and sessions, after the core rework (0.1.399 and 0.1.401, 2026-10-05)
 
 The connect flow (0.1.399) and then the sessions themselves (0.1.401:

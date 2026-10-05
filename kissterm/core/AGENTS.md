@@ -19,6 +19,7 @@ same tests passing unchanged.
 | `events.py` | Domain events and the `EventBus` (sequence-numbered, synchronous). |
 | `connect.py` | `Connector` (`core.connector`): gate arming, the radio reminder, the dial and its failure wording, Internet contacts, the session tier, hop chain, auto-login, disconnect/cancel, reconnect. `ConnectRequest`, `session_key`. `SessionView` is what a client provides: which session is on screen, room for another, putting one in front of the operator. |
 | `sessions.py` | `Sessions` (`core.sessions`): every live session (`LiveSession`) -- binding, transcripts and records, `send_line` (the one path for a typed line), passive node identification and application tracking, the hop watch, harvest (opt-in `?`, cached), the reply watch, incoming calls and stray polls. `data_interceptors`/`sent_hooks` let the terminal UI's file transfers read session bytes until they move here. |
+| `aprs.py` | `Aprs` (`core.aprs`): the APRS decode on the frame fan-out (`on_frame`, registered after the heard list's own subscriber), the conversation store, auto-ack, `compose` (a typed message: arms, sends, tracks), the ack-and-retry queue and its loop, objects, position-now, both beacons (BTEXT and APRS, never conflated), GPS, the receive-only APRS-IS debug watch. Events: `AprsMessage`, `AprsAcked`, `AprsPacketHeard`, `AprsBulletinHeard`, `AprsRetried`, `Alert`. |
 | `questions.py` | The typed questions: `RadioReminder`, `TrustHostKey`. |
 | `hops.py` | `HopConfirmation` and `HOP_TIMEOUT`: the one definition of "the hop came up". |
 | `links.py` | `SessionLinkAdapter`: a session-tier `Session` in `AX25Link`'s shape. |
@@ -32,7 +33,8 @@ same tests passing unchanged.
    notices moved from the terminal UI kept their words so nothing changed
    on screen ("Ctrl+T turns it back off", "the Monitor tab (F8)",
    "Settings (F9) > Radio > Test" in `connect.py`; "(Ctrl+T)", "the
-   Monitor tab (F8)" and `tx.DISABLED_MESSAGE` in `sessions.py`). They become
+   Monitor tab (F8)" and `tx.DISABLED_MESSAGE` in `sessions.py`; "Ctrl+T"
+   in `aprs.py`). They become
    client-neutral before any other client exists (the WebSocket server);
    do not add more.
 2. **A question is data**: a frozen dataclass subclassing `Question`, with
@@ -54,5 +56,12 @@ same tests passing unchanged.
    to a transport directly: the core moves `frame_subscribers`,
    `sent_subscribers`, `incoming_subscribers` and `stray_poll_subscribers`
    when the transport changes.
-8. **One loop, no threads.** Call `attach_station()` from the loop the
+8. **One configuration: `core.config`.** A client that replaces its
+   config (Settings save) replaces the core's; the terminal UI's
+   `app.config` is a read-through property for exactly that reason.
+9. **Unattended APRS never arms.** An auto-ack, a retry and a beacon tick
+   go out only through an open gate; `compose`, `send_position_now` and
+   `send_object_now` are operator-committed and arm it.
+10. **One loop, no threads.** Call `attach_station()` from the loop the
    station runs on; it captures that context for frame callbacks.
+   `core.aprs.start()` (the retry loop) likewise.

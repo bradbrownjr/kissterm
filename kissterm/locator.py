@@ -200,8 +200,8 @@ def find_grid_in_text(text: str) -> tuple[str, float, float] | None:
     APRS stations transmit lat/lon directly, but a great many ordinary
     node/BBS beacons that predate APRS (and plenty that do not) just say
     their grid square in the free-text banner instead, by long-standing
-    convention rather than any protocol. `kissterm.ui.app.KissTermApp.
-    _on_aprs_frame` calls this only when a UI frame did NOT decode as APRS
+    convention rather than any protocol. `kissterm.core.aprs.Aprs.
+    on_frame` calls this only when a UI frame did NOT decode as APRS
     (`AprsPacket.kind == "unparsed"`) so a genuine APRS position is always
     read from its own precise field and never second-guessed by a text scan.
 

@@ -6,21 +6,18 @@ APRS messaging contact is a person or gateway you message, not a node you
 connect to -- see `kissterm/aprs_contacts.py`) and a conversation view per
 contact.
 
-APRS decoding itself does not live here -- it is wired into the shared frame
-fan-out in `ui/app.py`'s `_on_aprs_frame`, the same way the monitor pane and
-heard list are (AGENTS.md sec. 2b: never a second decode path). This module
-only ever reads `self.app.config.aprs_contacts` and
-`self.app.aprs_conversations`; the actual encode-and-transmit step is
-`KissTermApp._send_aprs_message` -- the shared primitive a fresh send and a
-retry both call, so "what does it mean to send an APRS message" has exactly
-one answer, gated by the same transmit switch as everything else in this app.
+APRS decoding, sending, the ack-and-retry queue and the conversation store
+live in the core (`kissterm/core/aprs.py`, `app.core.aprs`), so they work
+the same for every front end and with none attached. This pane shows them:
+it reads `self.app.config.aprs_contacts` and `self.app.aprs_conversations`,
+hands a typed message to `Aprs.compose`, and repaints on the core's APRS
+events (`KissTermApp._on_core_event`).
 
-**Sending, ack, and retry.** `self._pending` (`aprs_conversations.
-PendingAcks`) tracks outgoing messages awaiting an ack, in memory only --
-see that module's docstring for why. A periodic timer
-(`_check_retries`) reconciles it against `self.app.aprs_conversations`
-(an ack arriving is `_on_aprs_frame`'s job, over on the frame fan-out; this
-pane only notices the flag it leaves behind) and resends anything still due.
+**Sending, ack, and retry.** `Aprs.pending` (`aprs_conversations.
+PendingAcks`, shown here as `self._pending`) tracks outgoing messages
+awaiting an ack, in memory only -- see that module's docstring for why.
+The core's retry loop resends anything still due; this pane only paints
+the status it leaves behind.
 The "To:" field is independent of the contacts table on purpose: typing a
 bare callsign there sends to someone not in the contact list at all, the
 same way the Connect dialog and the Address Book coexist -- a contact is a
@@ -67,8 +64,8 @@ from textual.css.query import NoMatches
 from textual.widgets import Button, DataTable, Input, RichLog, Static, Tab, Tabs
 
 from .. import aprs_services
-from ..aprs import AprsPacket, Telemetry, WeatherReport, is_bulletin_addressee
-from ..aprs_contacts import Contact, build_message_body, canned_messages_for
+from ..aprs import AprsPacket, Telemetry, WeatherReport
+from ..aprs_contacts import Contact, canned_messages_for
 from ..aprs_conversations import PendingAcks
 from . import slideouts
 from .button_row import ButtonRow
@@ -76,10 +73,6 @@ from .inputs import WordInput
 from .tabclose import CloseTabX
 from .wraplog import WrapLog
 
-#: How often the retry timer checks for a due, un-acked message. Independent
-#: of `PendingAcks.retry_seconds` (how long a single message waits before
-#: its own first/next retry) -- this is just the polling granularity.
-_RETRY_CHECK_INTERVAL = 10.0
 
 
 #: Cells of padding a `DataTable` adds around every column's content: one
@@ -303,10 +296,6 @@ class AprsPane(Horizontal):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self._pending = PendingAcks()
-        #: Wraps well inside the spec's 1-5 alphanumeric characters; a
-        #: fresh number each send, reused by nothing until it wraps.
-        self._next_msg_number = 1
         #: Whose conversation is currently rendered, so an ack arriving or a
         #: retry going out can repaint it in place. Empty while the merged
         #: "All" view is the one on screen.
@@ -389,7 +378,6 @@ class AprsPane(Horizontal):
             self.query_one("#aprs-conversation-column"),
         )
         self.query_one("#aprs-contacts-column").display = False
-        self.set_interval(_RETRY_CHECK_INTERVAL, self._check_retries)
         self._restore_tabs()
         self._refresh_sensor_summary()
 
@@ -519,7 +507,7 @@ class AprsPane(Horizontal):
         (`_show_conversation_for`/`_show_all`), including the retry timer's
         own periodic one, so anything less than actually deleting the
         underlying data would silently reappear within
-        `_RETRY_CHECK_INTERVAL` seconds and look like Ctrl+L did nothing at
+        one retry check and look like Ctrl+L did nothing at
         all -- **there is no confirmation step before "All" wipes every
         correspondent's history; the operator asked for exactly that.**
         """
@@ -1389,11 +1377,6 @@ class AprsPane(Horizontal):
         field.action_end()
 
     # -- sending, ack, retry -------------------------------------------------
-    def _next_number(self) -> str:
-        number = str(self._next_msg_number)
-        self._next_msg_number = self._next_msg_number % 99999 + 1
-        return number
-
     def _contact_for(self, callsign: str) -> Contact | None:
         """The saved contact whose `callsign` matches, or `None` for a bare
         "To:" target that matches no saved contact at all -- messaging
@@ -1428,6 +1411,8 @@ class AprsPane(Horizontal):
         self.app.action_aprs_object()  # type: ignore[attr-defined]
 
     async def _send_compose(self, text: str) -> None:
+        """Send what the operator typed (`Aprs.compose`, which arms the gate
+        for it as a committed send). The field clears only once it went."""
         addressee = self.query_one("#aprs-to-input", Input).value.strip()
         text_field = self.query_one("#aprs-compose-input", Input)
         text = text.strip()
@@ -1436,75 +1421,30 @@ class AprsPane(Horizontal):
             return
         if not text:
             return
-        contact = self._contact_for(addressee)
-        service = contact.service if contact else "station"
-        detail = contact.detail if contact else ""
-        config = self.app.config  # type: ignore[attr-defined]
-        wire_text = build_message_body(
-            service,
-            detail,
-            text,
-            sms_template=getattr(config, "aprs_sms_template", ""),
-            email_template=getattr(config, "aprs_email_template", ""),
-        )
-        bulletin = is_bulletin_addressee(addressee)
-        number = None if bulletin else self._next_number()
-        # A confirmed connect arms the gate rather than being refused by it
-        # (`KissTermApp._arm_for`); typing a message, naming a "To:", and
-        # pressing Enter or Send is the same shape of request -- refusing it
-        # with "transmit is disabled" would be the identical dead end.
-        # **Never called from `_retry_worker`**: an automatic retry is
-        # unattended, exactly what the gate exists to hold back, so it goes
-        # straight to `_send_aprs_message` and stays silently dropped while
-        # the gate is closed. Guarded on `self.app.station` the same way
-        # `TerminalPane.send_line` guards on `link.connected` -- arming for a
-        # send that has nothing to go out on would open the gate for nothing.
-        if service == "sms" or addressee.strip().upper() in {"SMS", "SMSGTE"}:
-            # The watcher is receive-only and is deliberately started before
-            # the RF request, so debug logging has the best chance to observe
-            # both the packet's APRS-IS arrival and the gateway's reply.
-            self.app.start_aprs_is_watch_for_debug()  # type: ignore[attr-defined]
-        if self.app.station is not None:  # type: ignore[attr-defined]
-            self.app._arm_for(f"sending to {addressee}")  # type: ignore[attr-defined]
-        ok = await self.app._send_aprs_message(addressee, wire_text, number)  # type: ignore[attr-defined]
-        if not ok:
-            self.app.notify(  # type: ignore[attr-defined]
-                "Message not sent -- transmit is disabled (Ctrl+T).", severity="warning"
-            )
+        outcome = await self.app.core.aprs.compose(addressee, text)  # type: ignore[attr-defined]
+        if not outcome:
             return
-        if bulletin:
-            # APRS bulletins are unacknowledged channel announcements, not
-            # personal correspondence. A retry would be unattended traffic
-            # with no peer acknowledgment to stop it.
-            text_field.value = ""
-            return
-        # The conversation log keeps what the operator actually typed, not
-        # the templated wire body -- readable history, not a wire dump.
-        # A retry, though, must resend the exact bytes that went out the
-        # first time, so `_pending` tracks `wire_text`, not `text`.
-        self.app.aprs_conversations.record_outgoing(  # type: ignore[attr-defined]
-            addressee, text, number=number, service=service
-        )
-        self._pending.add(addressee, number, wire_text)
         text_field.value = ""
+        if outcome == "bulletin":
+            return
         # Sending to someone opens their tab if they did not have one -- the
         # conversation you just started is one you are in.
         key = addressee.strip().upper()
         self.select_conversation(addressee, self._tab_titles.get(key, key))
 
+    @property
+    def _pending(self) -> PendingAcks:
+        """The core's queue of messages awaiting an ack (`Aprs.pending`)."""
+        return self.app.core.aprs.pending  # type: ignore[attr-defined]
+
+    @_pending.setter
+    def _pending(self, pending: PendingAcks) -> None:
+        self.app.core.aprs.pending = pending  # type: ignore[attr-defined]
+
     def _check_retries(self) -> None:
+        """Run the core's retry check now (it also runs on its own timer)."""
         self._retry_worker()
 
     @work
     async def _retry_worker(self) -> None:
-        store = self.app.aprs_conversations  # type: ignore[attr-defined]
-        self._pending.discard_acked(store)
-        for callsign, number, text in self._pending.due():
-            await self.app._send_aprs_message(  # type: ignore[attr-defined]
-                callsign, text, number, retry=True
-            )
-        # An ack may have landed and a retry may have gone out since the last
-        # paint; both change what the status column should say. Repainting
-        # here is what makes "sent" become "ack" on screen without the
-        # operator having to click away and back.
-        self.refresh_conversation()
+        await self.app.core.aprs.check_retries()  # type: ignore[attr-defined]

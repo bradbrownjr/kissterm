@@ -446,7 +446,7 @@ class Config:
     #: covered by the master transmit gate (`tx_armed_at_start`/Ctrl+T) like
     #: every other transmission in this app, and every auto-ack is written
     #: to the terminal pane exactly like a beacon or a connect-script line --
-    #: see `KissTermApp._on_aprs_frame`. Set False for manual-ack-only.
+    #: see `Aprs.on_frame` (`kissterm/core/aprs.py`). Set False for manual-ack-only.
     aprs_auto_ack: bool = True
     #: SMS/email-over-APRS gateway defaults, pre-filled into a new contact's
     #: `callsign` when its service is set to sms/email in the APRS pane's

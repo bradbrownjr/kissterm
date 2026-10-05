@@ -57,8 +57,8 @@ MIN_SMART_INTERVAL_SECONDS = 15
 #: The conventional APRS destination callsign. Not configurable -- unlike the
 #: plain-text beacon's `destination` (BEACON/ID/CQ are all legitimate
 #: choices), every APRS decoder in the world expects position/status/message
-#: traffic addressed to APRS specifically, matching `_send_aprs_ack`/
-#: `_send_aprs_message` in `kissterm/ui/app.py`.
+#: traffic addressed to APRS specifically, matching `Aprs.send_ack`/
+#: `Aprs.send_message` in `kissterm/core/aprs.py`.
 APRS_DESTINATION = "APRS"
 
 

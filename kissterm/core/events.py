@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 log = logging.getLogger(__name__)
 
@@ -158,3 +158,61 @@ class ActivityChanged(Event):
     command list"); "" when it is over."""
 
     text: str
+
+
+# ----------------------------------------------------------------------
+# APRS (`kissterm/core/aprs.py`)
+# ----------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class AprsMessage(Event):
+    """A person-to-person message from `correspondent` was recorded in the
+    conversation store. `to_me` decides whether a client opens it and marks
+    it unread; one not to me is only recorded."""
+
+    correspondent: str
+    to_me: bool
+
+
+@dataclass(frozen=True, slots=True)
+class AprsAcked(Event):
+    """`correspondent` acknowledged our message `number`."""
+
+    correspondent: str
+    number: str
+
+
+@dataclass(frozen=True, slots=True)
+class AprsPacketHeard(Event):
+    """A decoded APRS packet that is not a message (position, weather,
+    status, telemetry, object): `line` is `aprs.format_packet`'s text, `at`
+    the epoch time, `packet` the decoded `aprs.AprsPacket`."""
+
+    line: str
+    at: float
+    packet: object = field(compare=False)
+
+
+@dataclass(frozen=True, slots=True)
+class AprsBulletinHeard(Event):
+    """A BLNn/ANn channel announcement from `source`."""
+
+    source: str
+    addressee: str
+    text: str
+    at: float
+
+
+@dataclass(frozen=True, slots=True)
+class AprsRetried(Event):
+    """The retry check ran: an ack may have landed or a retry gone out, so
+    the outgoing status of a conversation may have changed."""
+
+
+@dataclass(frozen=True, slots=True)
+class Alert(Event):
+    """Something worth an unattended alert beyond a notice (a desktop
+    notification, a phone push): an APRS emergency, a message to me."""
+
+    title: str
+    body: str
+    urgent: bool

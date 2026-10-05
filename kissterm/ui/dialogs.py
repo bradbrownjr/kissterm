@@ -2851,7 +2851,7 @@ class AprsServiceScreen(ModalScreen[str | None]):
     completion that transmits on its own is a defect on a shared channel" --
     and it is what makes a seventeen-service template library safe rather
     than alarming. `AprsPane` still routes the actual transmission through
-    `KissTermApp._send_aprs_message` and the master transmit gate, exactly as
+    `Aprs.compose` (`kissterm/core/aprs.py`) and the master transmit gate, exactly as
     it does for a hand-typed message.
 
     The screen shows the service's own description and source URL, not just

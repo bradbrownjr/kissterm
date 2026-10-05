@@ -21,6 +21,7 @@ import pytest  # noqa: E402
 
 from kissterm.app import KissTermApp  # noqa: E402
 import kissterm.ui.app as ui_app  # noqa: E402
+import kissterm.core.aprs as core_aprs  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
 from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config  # noqa: E402
@@ -156,7 +157,7 @@ async def test_closing_watch_does_not_stop_the_configured_background_monitor(mon
     app, ta, tb, station = await _app()
     stopped: list[bool] = []
     app.config.aprs_is_watch_debug = True
-    monkeypatch.setattr(ui_app.log, "isEnabledFor", lambda level: True)
+    monkeypatch.setattr(core_aprs.log, "isEnabledFor", lambda level: True)
     monkeypatch.setattr(app.aprs_is_watch, "stop", lambda: stopped.append(True))
     async with app.run_test(size=(120, 40)) as pilot:
         app.action_show_tab("aprs")
@@ -257,7 +258,7 @@ async def test_debug_setting_starts_and_stops_the_background_aprs_is_watch(monke
     app, ta, tb, station = await _app()
     started: list[str] = []
     stopped: list[bool] = []
-    monkeypatch.setattr(ui_app.log, "isEnabledFor", lambda level: True)
+    monkeypatch.setattr(core_aprs.log, "isEnabledFor", lambda level: True)
     monkeypatch.setattr(app.aprs_is_watch, "start", lambda *, callsign: started.append(callsign))
     monkeypatch.setattr(app.aprs_is_watch, "stop", lambda: stopped.append(True))
     async with app.run_test(size=(120, 40)):

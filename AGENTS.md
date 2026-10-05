@@ -303,8 +303,8 @@ changes.
 - **A confirmed, operator-named request arms the gate** through
   `Connector.arm_for` (`core/connect.py`) only: connect (Ctrl+N dialog, Address Book dial,
   Ctrl+R Reconnect), disconnect, `TerminalPane.send_line` while connected,
-  `AprsPane._send_compose`, APRS > Send position. **An unattended resend never
-  arms** (`AprsPane._retry_worker`, beacon timers).
+  `Aprs.compose` (`core/aprs.py`), APRS > Send position. **An unattended
+  resend never arms** (`Aprs.check_retries`, beacon timers).
 - **Arming is never silent**: `arm_for` raises a notice, changes the status
   bar and records it in the session's transcript (never the Terminal,
   DESIGN.md section 6).
@@ -450,7 +450,7 @@ theme from `Config.custom_theme`; `KissTermApp.apply_theme()` applies it.
   note first).
 - APRS: a station list/map view is still open (P4). The Monitor pane shows raw
   frames by design.
-- **APRS specifics, each documented in `ui/app.py`'s `_on_aprs_frame` and
+- **APRS specifics, each documented in `core/aprs.py`'s `Aprs.on_frame` and
   `aprs_*` modules:** third-party-wrapped messages are unwrapped for
   ack-matching; conversation tabs are restored at launch but the retry queue
   never is; Ctrl+L on "All" deletes every conversation, and a new pane in

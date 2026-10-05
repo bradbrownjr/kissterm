@@ -152,14 +152,14 @@ def test_the_picker_has_no_transmit_path_at_all():
         return ast.unparse(tree)
 
     screen = code_only(dialogs.AprsServiceScreen)
-    for forbidden in ("_send_aprs_message", "send_frame", "send_line", "link.send"):
+    for forbidden in ("_send_aprs_message", "aprs.compose(", "send_frame", "send_line", "link.send"):
         assert forbidden not in screen, (
             f"AprsServiceScreen calls {forbidden!r} -- the picker must fill "
             f"the compose input and nothing else"
         )
 
     handler = code_only(AprsPane.show_templates)
-    assert "_send_aprs_message" not in handler
+    assert "_send_aprs_message" not in handler and "aprs.compose(" not in handler
     assert "field.value = chosen" in handler
 
 

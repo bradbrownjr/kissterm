@@ -45,7 +45,7 @@ async def _app():
 @pytest.mark.asyncio
 async def test_object_composer_sends_its_own_position_and_arms_tx(caplog):
     app, station, transport = await _app()
-    caplog.set_level(logging.DEBUG, logger="kissterm.ui.app")
+    caplog.set_level(logging.DEBUG, logger="kissterm.core.aprs")
     async with app.run_test(size=(120, 44)) as pilot:
         assert app.gate.enabled is False
         app.action_show_tab("aprs")
@@ -85,7 +85,7 @@ async def test_object_composer_sends_its_own_position_and_arms_tx(caplog):
         records = [
             record.message
             for record in caplog.records
-            if record.name == "kissterm.ui.app"
+            if record.name == "kissterm.core.aprs"
             and record.message.startswith("APRS object transmission accepted:")
         ]
         assert len(records) == 1

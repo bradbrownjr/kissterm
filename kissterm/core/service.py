@@ -123,6 +123,15 @@ class Core:
         self.connector = None
         self._unsubscribes: list[Callable[[], None]] = []
         self._attached_sent: list[Callable] = []
+        from ..heard import HeardTable
+        from .aprs import Aprs
+
+        #: Every station heard, with an APRS position when one was decoded.
+        self.heard = HeardTable()
+        #: APRS: conversations, sending with ack and retry, both beacons,
+        #: GPS (`aprs.py`). Its `on_frame` is a frame subscriber, registered
+        #: by whoever orders the fan-out after the heard list's own.
+        self.aprs = Aprs(self)
 
     def attach_view(self, view):
         """Build the sessions and the connect flow, with `view` (a client's
@@ -252,6 +261,7 @@ class Core:
         if isinstance(transport, FrameTransport):
             self.station = build_station(self.config, transport)
             self.attach_station()
+            self.aprs.follow_station()
         else:
             self.session_transport = transport
         self._publish_transport(name)

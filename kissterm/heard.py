@@ -7,7 +7,7 @@ overhearing -- names a source station, and "who has this radio heard, and
 when, and through what path" is useful long before anything above the frame
 layer gets involved. Keeping it here rather than folding it into the APRS
 decoder means a pure-AX.25 station that never sends a position report still
-shows up, and it means the APRS decode path (`KissTermApp._on_aprs_frame`)
+shows up, and it means the APRS decode path (`kissterm.core.aprs.Aprs.on_frame`)
 can enrich an entry (via `set_position`) without this module owning APRS
 decoding, or the table owning the pane that renders bearing/distance from it
 (`kissterm/ui/heard_pane.py`).
@@ -151,7 +151,7 @@ class HeardTable:
 
     def set_position(self, callsign: str, lat: float, lon: float) -> None:
         """Attach a last-known position to an existing entry. Fed by
-        `KissTermApp._on_aprs_frame` after it decodes an APRS position
+        `kissterm.core.aprs.Aprs.on_frame` after it decodes an APRS position
         report, or finds a grid square in an otherwise-plain packet-node
         beacon (`kissterm.locator.find_grid_in_text`) -- `HeardTable` decodes
         neither itself, so it cannot derive this on its own either way.

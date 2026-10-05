@@ -140,6 +140,13 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   it works, so it needs a key within the first frame or so; whether an
   operator can hit it on a slow machine (a Pi) is unconfirmed. The test
   is the reproduction; it stays failing until this is fixed.
+- **A scan-coverage test fails under full-suite load** (2026-10-05,
+  `open`; found by the suite). `tests/unit/test_scan_coverage.py::test_a_
+  truncated_sweep_says_so_instead_of_looking_complete` gives the sweep a
+  0.5 s budget and then requires all 254 addresses on the first port to
+  have been probed; with every core busy (`-n auto`) fewer were. Passes
+  alone (3 of 3). A test timing assumption, not a kissterm fault as far as
+  seen; the fix is to wait on the first block's completion, not a clock.
 
 - **Relaunch after closing mid-connection: stray polls, no way to see or
   end them** (2026-09-29, `awaiting confirmation`): "I closed the application and must've
