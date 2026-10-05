@@ -39,7 +39,7 @@ from collections.abc import Callable
 from ..ax25 import AX25Station, LinkParams
 from ..ax25.address import AX25Address
 from ..tx import TransmitGate
-from .events import EventBus, GateChanged, TransportChanged
+from .events import ActivityChanged, ConfigChanged, EventBus, GateChanged, TransportChanged
 from .operator import NullOperator, Notice, Operator, Severity
 
 log = logging.getLogger(__name__)
@@ -132,6 +132,14 @@ class Core:
         #: GPS (`aprs.py`). Its `on_frame` is a frame subscriber, registered
         #: by whoever orders the fan-out after the heard list's own.
         self.aprs = Aprs(self)
+        from .mail import Mail
+        from .transfers import Transfers
+
+        #: Mail, bulletins and files Send/Receive and the message store
+        #: (`mail.py`); YAPP and AutoBIN file transfers (`transfers.py`),
+        #: which read session bytes once the sessions exist (`attach_view`).
+        self.mail = Mail(self)
+        self.transfers = Transfers(self)
 
     def attach_view(self, view):
         """Build the sessions and the connect flow, with `view` (a client's
@@ -145,6 +153,8 @@ class Core:
         self.connector = Connector(self, view)
         self.incoming_subscribers.append(self.sessions.on_incoming_link)
         self.stray_poll_subscribers.append(self.sessions.on_stray_poll)
+        self.sessions.data_interceptors.append(self.transfers.intercept)
+        self.sessions.sent_hooks.append(self.transfers.yapp_requested)
         return self.connector
 
     # ------------------------------------------------------------------
@@ -154,6 +164,52 @@ class Core:
         if self.station is not None:
             return self.station.transport
         return self.session_transport
+
+    def save_config(self) -> bool:
+        """Persist the configuration, reporting failure rather than raising:
+        a read-only or full config directory must not take the station off
+        the air; the in-memory value keeps working."""
+        try:
+            from ..config import save_config
+
+            save_config(self.config)
+            return True
+        except Exception:  # noqa: BLE001 - logged, and the caller says so
+            log.exception("could not save config")
+            return False
+
+    def set_activity(self, text: str) -> None:
+        """What a job the operator started is doing ("Sending 1 of 2"),
+        for a client's status line; "" when it is over."""
+        self.events.publish(ActivityChanged(text))
+
+    async def ask_callsign(self) -> None:
+        """Change the station callsign, live and saved, without a restart.
+
+        Refused while any session is up: the callsign is in the address
+        field of every frame of every established link, and changing it
+        mid-session would leave every peer answering the old call until
+        each link died by N2 timeout -- a failure nobody could diagnose.
+        """
+        from .questions import CallsignAsk
+
+        sessions = self.sessions.by_key.values() if self.sessions is not None else ()
+        if any(s.link is not None and s.link.connected for s in sessions):
+            self._notice("Disconnect every session before changing callsign.", Severity.WARNING)
+            return
+        current = getattr(self.config, "mycall", "") or ""
+        new_call = await self.operator.ask(CallsignAsk(current))
+        if not new_call or new_call == current:
+            return
+        self.config.mycall = new_call
+        if self.station is not None:
+            # The live station too, not just the file: otherwise the change
+            # silently waits for the next launch.
+            self.station.mycall = AX25Address.parse(new_call)
+        saved = self.save_config()
+        self.events.publish(ConfigChanged())
+        where = "saved" if saved else "applied for this session only (could not write config)"
+        self._notice(f"Callsign is now {new_call} -- {where}.")
 
     def _notice(self, text: str, severity: Severity = Severity.INFORMATION) -> None:
         self.operator.notice(Notice(text, severity))

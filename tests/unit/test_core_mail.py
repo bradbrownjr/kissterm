@@ -1,0 +1,127 @@
+"""Mail Send/Receive and file transfers in the core, with no UI.
+
+What a remote client relies on: a setup question's "go there" cancels the
+run and asks the client to go, Skip on All Inboxes moves on to the next
+service, nothing is dialed or transmitted while questions are answered,
+and a YAPP request opens the download window only for what was asked.
+"""
+
+from __future__ import annotations
+
+from kissterm._isolate import isolate
+
+isolate()
+
+import pytest  # noqa: E402
+
+from kissterm.addressbook import AddressBook  # noqa: E402
+from kissterm.ax25 import AX25Address, AX25Station, LinkParams  # noqa: E402
+from kissterm.config import Config  # noqa: E402
+from kissterm.core import Core, Notice  # noqa: E402
+from kissterm.core.events import SetupRequested  # noqa: E402
+from kissterm.core.questions import (  # noqa: E402
+    SETUP_GO,
+    SETUP_SKIP,
+    HomeBbsRoute,
+    WinlinkGateway,
+)
+from kissterm.mail.store import ALL_INBOXES  # noqa: E402
+from tests.loopback import loopback_pair  # noqa: E402
+
+MYCALL = AX25Address.parse("N1ABC-1")
+
+
+class _Operator:
+    """Answers each question type from `answers`; records what was asked."""
+
+    def __init__(self, answers: dict) -> None:
+        self.answers = answers
+        self.asked: list = []
+        self.notices: list[Notice] = []
+
+    def notice(self, notice: Notice) -> None:
+        self.notices.append(notice)
+
+    async def ask(self, question):
+        self.asked.append(question)
+        return self.answers.get(type(question))
+
+
+class _View:
+    def active_key(self) -> str:
+        return ""
+
+    def has_room_for(self, key) -> bool:
+        return True
+
+    def open_session(self, key, *, kind, focus) -> None:
+        pass
+
+    def is_active(self, key) -> bool:
+        return True
+
+    def focus_input(self) -> None:
+        pass
+
+
+async def _core(tmp_path, answers, **config):
+    ta, tb = loopback_pair()
+    await ta.open()
+    await tb.open()
+    operator = _Operator(answers)
+    station = AX25Station(MYCALL, ta, LinkParams())
+    core = Core(Config(mycall=str(MYCALL), log_sessions=False, **config), station,
+                operator=operator)
+    core.addressbook = AddressBook(tmp_path / "book.json")
+    core.attach_view(_View())
+    core.attach_station()
+    events: list = []
+    core.events.subscribe(lambda seq, event: events.append(event))
+    return core, operator, station, ta, events
+
+
+@pytest.mark.asyncio
+async def test_go_there_cancels_the_run_and_asks_the_client_to_go(tmp_path):
+    core, operator, station, ta, events = await _core(tmp_path, {HomeBbsRoute: SETUP_GO})
+    await core.mail.send_receive("")
+    assert [type(q) for q in operator.asked] == [HomeBbsRoute]
+    # An empty Address Book: "there" is a new connection.
+    assert SetupRequested("connect") in events
+    assert ta.sent == [] and core.gate.enabled is False
+    assert core.mail.collecting is False
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_skip_on_all_inboxes_moves_on_to_winlink(tmp_path):
+    core, operator, station, ta, events = await _core(
+        tmp_path, {HomeBbsRoute: SETUP_SKIP, WinlinkGateway: None})
+    core.config.home_bbs.route = "WS1EC-2"     # set, but not in the book
+    core.config.winlink.route = "W1GW-10"      # likewise
+    await core.mail.send_receive(ALL_INBOXES)
+    asked = [type(q) for q in operator.asked]
+    assert asked == [HomeBbsRoute, WinlinkGateway]
+    assert "All Inboxes" in operator.asked[0].all_note
+    assert operator.asked[0].skip == "Skip Home BBS"
+    assert any(n.text == "Skipping Home BBS this time." for n in operator.notices)
+    assert ta.sent == [], "a cancelled setup dialed anyway"
+    assert core.mail.collecting is False
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_second_run_is_refused_while_one_runs(tmp_path):
+    core, operator, station, ta, events = await _core(tmp_path, {})
+    core.mail.collecting = True
+    await core.mail.get_files()
+    assert [n.text for n in operator.notices] == ["Already sending and receiving."]
+    assert operator.asked == []
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_transfer_needs_a_connected_session(tmp_path):
+    core, operator, station, ta, events = await _core(tmp_path, {})
+    assert core.transfers.refusal("WS1EC-2") == "Connect before starting a file transfer."
+    assert core.transfers.can_send("WS1EC-2") is False
+    station.close()

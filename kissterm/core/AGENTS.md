@@ -20,7 +20,9 @@ same tests passing unchanged.
 | `connect.py` | `Connector` (`core.connector`): gate arming, the radio reminder, the dial and its failure wording, Internet contacts, the session tier, hop chain, auto-login, disconnect/cancel, reconnect. `ConnectRequest`, `session_key`. `SessionView` is what a client provides: which session is on screen, room for another, putting one in front of the operator. |
 | `sessions.py` | `Sessions` (`core.sessions`): every live session (`LiveSession`) -- binding, transcripts and records, `send_line` (the one path for a typed line), passive node identification and application tracking, the hop watch, harvest (opt-in `?`, cached), the reply watch, incoming calls and stray polls. `data_interceptors`/`sent_hooks` let the terminal UI's file transfers read session bytes until they move here. |
 | `aprs.py` | `Aprs` (`core.aprs`): the APRS decode on the frame fan-out (`on_frame`, registered after the heard list's own subscriber), the conversation store, auto-ack, `compose` (a typed message: arms, sends, tracks), the ack-and-retry queue and its loop, objects, position-now, both beacons (BTEXT and APRS, never conflated), GPS, the receive-only APRS-IS debug watch. Events: `AprsMessage`, `AprsAcked`, `AprsPacketHeard`, `AprsBulletinHeard`, `AprsRetried`, `Alert`. |
-| `questions.py` | The typed questions: `RadioReminder`, `TrustHostKey`. |
+| `mail.py` | `Mail` (`core.mail`): the message store and bulletin subscriptions, Send/Receive (G and I) for the Home BBS and Winlink, bulletins, files; every setup question asked before the first dial; outcome notices; `MailChanged`. |
+| `transfers.py` | `Transfers` (`core.transfers`): YAPP/AutoBIN on a session -- the requested-download window, the byte interceptor, explicit transfers (which arm). |
+| `questions.py` | The typed questions: `RadioReminder`, `TrustHostKey`, `ChooseSessionTransport`, `CallsignAsk`; Send/Receive's `HomeBbsRoute`, `WinlinkGateway`, `LoginAsk`, `InternetLoginAsk`, `ChooseCategories`, `PickFiles`; their answer types (`Credential`, `GatewayChoice`, `InternetLogin`, `SETUP_SKIP`, `SETUP_GO`). |
 | `hops.py` | `HopConfirmation` and `HOP_TIMEOUT`: the one definition of "the hop came up". |
 | `links.py` | `SessionLinkAdapter`: a session-tier `Session` in `AX25Link`'s shape. |
 
@@ -34,17 +36,19 @@ same tests passing unchanged.
    on screen ("Ctrl+T turns it back off", "the Monitor tab (F8)",
    "Settings (F9) > Radio > Test" in `connect.py`; "(Ctrl+T)", "the
    Monitor tab (F8)" and `tx.DISABLED_MESSAGE` in `sessions.py`; "Ctrl+T"
-   in `aprs.py`). They become
+   in `aprs.py`; "press G", "Files > Downloads (F4)" in `mail.py` and
+   `transfers.py`). They become
    client-neutral before any other client exists (the WebSocket server);
    do not add more.
 2. **A question is data**: a frozen dataclass subclassing `Question`, with
    its answer type in the docstring. Each client draws it its own way; the
    terminal UI maps it to a screen in `ui/operator.py`'s `SCREENS`.
 3. **`ask()` returning None is cancel**, and a cancelled flow transmits
-   nothing.
-4. **Only the core arms the transmit gate**, after a confirming answer to a
-   question it asked. No client command arms it (AGENTS.md "The transmit
-   gate").
+   nothing. A setup question's `SETUP_GO` cancels too, and publishes
+   `SetupRequested(place)`: where "there" is, is the client's to know.
+4. **Only the core arms the transmit gate** (`Connector.arm_for`), for a
+   confirmed, operator-named request. No client arms it directly
+   (AGENTS.md "The transmit gate").
 5. **Events say what happened, not how it looks.** No colours, no
    status-bar text. A client formats.
 6. **A session is the core's; a tab is the client's.** Bind, record and

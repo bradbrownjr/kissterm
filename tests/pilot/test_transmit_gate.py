@@ -136,7 +136,7 @@ async def test_arming_for_a_connect_is_never_silent():
     app.notify = lambda message, *a, **k: (toasts.append(str(message)), real_notify(message, *a, **k))[1]
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
-        app._arm_for("connect to WS1EC-7")
+        app.core.connector.arm_for("connect to WS1EC-7")
         await pilot.pause()
         # A toast and the transcript say so (DESIGN.md section 6).
         assert any("Transmit ENABLED" in t for t in toasts), toasts

@@ -45,7 +45,7 @@ from .hops import HopConfirmation
 from .links import SessionLinkAdapter
 from .events import ConnectingChanged
 from .operator import Notice, Severity
-from .questions import RadioReminder, TrustHostKey
+from .questions import ChooseSessionTransport, RadioReminder, TrustHostKey
 from .service import MAX_LINKS
 
 log = logging.getLogger(__name__)
@@ -220,6 +220,45 @@ class Connector:
     # ------------------------------------------------------------------
     # Frame tier: kissterm's own AX.25
     # ------------------------------------------------------------------
+    async def dial_entry(self, entry, *, on_link: Callable | None = None,
+                         on_reached: Callable[[bool], None] | None = None,
+                         focus: bool = True, announce: str = "",
+                         report: Callable[[str], None] | None = None) -> None:
+        """Dial Address Book contact `entry`: an Internet contact in its own
+        session (`dial_internet`), the session tier's far end, or the
+        station through `connect` -- the same flow as any connect (reminder,
+        gate, hops, login), never a lighter path. Recorded as an attempt
+        (`AddressBook.record_attempt`: on the attempt, not on success)."""
+        core = self.core
+        if entry.is_internet:
+            await self.dial_internet(entry, on_link=on_link, on_reached=on_reached,
+                                     focus=focus, report=report)
+            return
+        if core.station is None:
+            if core.session_transport is None:
+                self._problem(report, "No transport is open.")
+                return
+            candidates = core.session_tier_transports()
+            if len(candidates) > 1:
+                chosen = await core.operator.ask(
+                    ChooseSessionTransport(tuple(candidates), self.config.active_transport))
+                if chosen is None:
+                    return
+                if chosen != self.config.active_transport:
+                    self.config.active_transport = chosen
+                    core.save_config()
+                    if not await core.switch_session_transport(chosen):
+                        return
+            await self.connect_session_transport()
+            return
+        request = ConnectRequest(
+            entry.target, entry.script, entry.hops, entry.credential, entry.script_name)
+        if core.addressbook is not None:
+            core.addressbook.record_attempt(
+                entry.target, entry.script, entry.hops, entry.credential, entry.script_name)
+        await self.connect(request, entry=entry, on_link=on_link, on_reached=on_reached,
+                           focus=focus, announce=announce, report=report)
+
     async def connect(
         self,
         request: ConnectRequest,

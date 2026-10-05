@@ -5,6 +5,30 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — Mail, bulletins and files move into the core
+
+### Improvements
+
+- **Send/Receive is the core's** (`kissterm/core/mail.py`, ROADMAP P7a
+  fifth step): G and I for the Home BBS and Winlink, Get bulletins, Get
+  files, the message store and bulletin subscriptions, and every setup
+  question, now asked as typed questions any client can draw. YAPP and
+  AutoBIN transfers moved too (`core/transfers.py`), so only the core
+  ever turns transmit on. Nothing changes on screen; checks on the air
+  are in docs/ON-AIR-TESTS.md.
+
+### Bug Fixes
+
+- **Closing kissterm while a question was open could raise an error** on
+  the way out: taking the question down read a screen stack that was
+  already gone. It is now skipped at shutdown.
+
+**Files:** `kissterm/core/mail.py` (new), `transfers.py` (new),
+`questions.py`, `events.py`, `connect.py`, `service.py`, `AGENTS.md`,
+`kissterm/ui/app.py`, `operator.py`, `dialogs.py`, `AGENTS.md`,
+`tests/unit/test_core_mail.py` (new), `tests/pilot/test_transmit_gate.py`,
+`AGENTS.md`, `docs/ON-AIR-TESTS.md`, `docs/ROADMAP.md`, `docs/CHANGELOG.md`
+
 ## [2026-10-05] — APRS moves into the core
 
 ### Improvements

@@ -303,8 +303,10 @@ changes.
 - **A confirmed, operator-named request arms the gate** through
   `Connector.arm_for` (`core/connect.py`) only: connect (Ctrl+N dialog, Address Book dial,
   Ctrl+R Reconnect), disconnect, `TerminalPane.send_line` while connected,
-  `Aprs.compose` (`core/aprs.py`), APRS > Send position. **An unattended
-  resend never arms** (`Aprs.check_retries`, beacon timers).
+  `Aprs.compose` (`core/aprs.py`), APRS > Send position, an explicit file
+  transfer (`Transfers.start`). **An unattended resend never arms**
+  (`Aprs.check_retries`, beacon timers); Send/Receive arms only through
+  the connect it dials (`Connector.dial_entry`).
 - **Arming is never silent**: `arm_for` raises a notice, changes the status
   bar and records it in the session's transcript (never the Terminal,
   DESIGN.md section 6).

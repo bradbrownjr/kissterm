@@ -147,6 +147,10 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   have been probed; with every core busy (`-n auto`) fewer were. Passes
   alone (3 of 3). A test timing assumption, not a kissterm fault as far as
   seen; the fix is to wait on the first block's completion, not a clock.
+  Same shape, seen once (2026-10-05): `tests/pilot/test_app_mounts.py::
+  test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filters`
+  reads a screenshot after one `pilot.pause()`; passes alone and 3 of 3
+  reruns.
 
 - **Relaunch after closing mid-connection: stray polls, no way to see or
   end them** (2026-09-29, `awaiting confirmation`): "I closed the application and must've

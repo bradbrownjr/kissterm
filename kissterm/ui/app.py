@@ -126,41 +126,39 @@ from textual.widgets._footer import FooterKey
 from .. import __version__
 from ..addressbook import AddressBook, adopt_internet_transports
 from ..netrom import KnownNodes
-from ..ax25 import AX25Station, parse_path
+from ..ax25 import AX25Station
 from ..core import Core, GateChanged, TransportChanged
 from ..core.events import (
     ActivityChanged,
+    AddressBookChanged,
     Alert,
     AprsAcked,
     AprsBulletinHeard,
     AprsMessage,
     AprsPacketHeard,
     AprsRetried,
+    ConfigChanged,
     ConnectingChanged,
     LineSent,
+    MailChanged,
     SessionData,
     SessionOpened,
     SessionStateChanged,
     SessionUpdated,
+    SetupRequested,
 )
 from ..core.connect import ConnectRequest
 from ..core.connect import session_key as _session_key_of
 from ..core.hops import HopConfirmation as _HopConfirmation
 from ..core.links import SessionLinkAdapter as _SessionLinkAdapter
+from ..core.transfers import YAPP_REQUEST
 from ..ax25.address import AX25Address
 from ..config import (
-    credential_store,
-    credential_username,
-    find_credential,
     move_credentials_to_keyring,
     rescue_typed_secrets,
-    set_credential,
-    login_text as saved_login_text,
-    mail_path,
     state_path,
 )
-from ..mail import MessageStore
-from ..mail.store import ALL_INBOXES, INBOX, MAIL, SENT
+from ..mail.store import INBOX, MAIL, SENT
 from ..mail.winlink_collect import WINLINK_FOLDER
 from .. import desktop_notify
 from .. import updater
@@ -168,11 +166,9 @@ from ..ax25.frame import PID_NO_LAYER3, AX25Frame, UType
 from ..hotplug import PortEvent, SerialPortWatcher
 from ..monitor import MonitorFilter, format_frame, mail_waiting_for, sanitize
 from ..session_log import SessionLog
-from ..transport.base import SessionState, TransportError, TransportState
+from ..transport.base import SessionState, TransportState
 from ..tx import TransmitGate
 from ..watched_notify import WatchNotifier, claimed_callsigns, normalize_callsigns
-from ..autobin import AutoBinError, receive_file as receive_autobin, send_file as send_autobin
-from ..yapp import YappError, receive_file, send_file, starts_download
 from .aprs_pane import AprsPane
 from . import themes
 from .clock import KissTermHeader
@@ -181,22 +177,11 @@ from .commands import TAB_ORDER, KeyBindingsProvider
 from .menu import MenuScreen
 from ..nodes import Command, CommandReference
 from .dialogs import (
-    CallsignScreen,
     CommandReferenceScreen,
     ConnectScreen,
     AprsObjectScreen,
     AprsObjectRequest,
     AprsIsWatchScreen,
-    SETUP_GO,
-    SETUP_SKIP,
-    GatewayChoice,
-    HomeBbsSetupScreen,
-    Credential,
-    InternetLogin,
-    InternetLoginScreen,
-    login_where,
-    WinlinkGatewayScreen,
-    LoginAskScreen,
     TranscriptsScreen,
     FileTransferScreen,
     UpdateScreen,
@@ -276,15 +261,6 @@ def _status_row(parts: list[str | Text]) -> Table:
 
 
 
-#: How long after the operator sends `YAPP <name>` a YAPP send init is
-#: taken as the file they asked for (`KissTermApp._watch_for_download`).
-#: WS1EC-2 answered in 3 s over the air (2026-10-03); a minute covers a
-#: slow path without leaving a stale request armed.
-DOWNLOAD_WAIT_SECONDS = 60.0
-
-#: BPQMail's download command (`YAPP <name>`, LinBPQ `BBSUtilities.c`
-#: matches its first four letters, any case).
-_YAPP_REQUEST = re.compile(r"^\s*YAPP\s+\S", re.IGNORECASE)
 
 class _TerminalSessionView:
     """The connect flow's `SessionView` (kissterm/core/connect.py): which
@@ -445,15 +421,6 @@ class KissTermApp(App):
         self._update_available: str | None = None
         #: Replaced in tests; see kissterm/updater.py.
         self._fetch_latest = updater.fetch_latest
-        #: The message store behind Mail, Bulletins and Files. Under the
-        #: platformdirs data directory, so `_isolate` redirects it in tests.
-        self.mail_store = MessageStore(mail_path())
-        try:
-            self.mail_store.ensure_default_tree()
-        except OSError:
-            # An unwritable data directory must not stop the terminal from
-            # starting; the Mail tab just shows nothing.
-            pass
         if config.ascii_safe:
             # The stylesheet supplies ASCII alternatives only within this
             # application.  Do not mutate Textual's process-wide glyph tables:
@@ -488,16 +455,8 @@ class KissTermApp(App):
         #: (`connect.py`), shown in this app's Terminal tabs. A file transfer
         #: still reads session bytes here until it moves into the core.
         self.core.attach_view(_TerminalSessionView(self))
-        self.core.sessions.data_interceptors.append(self._intercept_link_data)
-        self.core.sessions.sent_hooks.append(self._yapp_requested)
         self.gate.on_change.append(self._on_transmit_change)
         self.monitor_filter = MonitorFilter()
-        #: True while Send/Receive runs (`action_get_mail`); one at a time.
-        self._collecting = False
-        #: While G or I on All Inboxes prepares its runs: (key, service
-        #: being asked about), so each question says why it is asked and
-        #: offers to skip that service (`_all_inboxes_ask`).
-        self._all_inboxes: tuple[str, str] | None = None
         #: A background job's status-bar field ("Receiving 1 of 3"), shown green.
         self._activity = ""
         #: Stations already tried, offered in the connect dialog. Owned here
@@ -507,11 +466,6 @@ class KissTermApp(App):
         self.addressbook = AddressBook()
         self.addressbook.load()
         self.known_nodes = KnownNodes()
-        from ..mail.bulletins import SubscriptionBook
-
-        #: Bulletin categories chosen per BBS (`mail/bulletins.py`).
-        self.bulletin_subscriptions = SubscriptionBook()
-        self.bulletin_subscriptions.load()
         #: Watches local serial ports only. The network is never scanned on a
         #: timer -- see kissterm/hotplug.py for the cost argument.
         self.port_watcher = SerialPortWatcher()
@@ -520,7 +474,6 @@ class KissTermApp(App):
         #: not re-notify the operator every time it is heard again -- the
         #: point is "you have not seen this yet", not a running tally.
         self._mail_notified: set[tuple[str, str]] = set()
-        self._transfer_active: set[str] = set()
         #: Monotonic time of local interaction.  This intentionally means
         #: active use, not merely an app window that happens to be open.
         self._last_operator_activity = time.monotonic()
@@ -557,6 +510,33 @@ class KissTermApp(App):
         core = self.__dict__.get("core")
         if core is not None:
             core.config = config
+
+    # Mail, bulletins, files and transfers (`kissterm/core/mail.py`,
+    # `transfers.py`)
+    @property
+    def mail_store(self):
+        return self.core.mail.store
+
+    @mail_store.setter
+    def mail_store(self, store) -> None:
+        self.core.mail.store = store
+
+    @property
+    def bulletin_subscriptions(self):
+        return self.core.mail.subscriptions
+
+    @bulletin_subscriptions.setter
+    def bulletin_subscriptions(self, book) -> None:
+        self.core.mail.subscriptions = book
+
+    @property
+    def _collecting(self) -> bool:
+        """True while Send/Receive runs (`Mail.collecting`); one at a time."""
+        return self.core.mail.collecting
+
+    @property
+    def _transfer_active(self) -> set[str]:
+        return self.core.transfers.active
 
     # APRS, the heard list, both beacons and GPS (`kissterm/core/aprs.py`)
     @property
@@ -671,6 +651,18 @@ class KissTermApp(App):
                 pane.note_bulletin(event.source, event.addressee, event.text, event.at)
         elif isinstance(event, Alert):
             self._notify_aprs_desktop(event.title, event.body, urgent=event.urgent)
+        elif isinstance(event, MailChanged):
+            self._reload_mail_tabs()
+        elif isinstance(event, SetupRequested):
+            self._go_to_setup(event.place)
+        elif isinstance(event, ConfigChanged):
+            for pane in self._base_query(SettingsPane):
+                pane.render_settings(self.config)
+        elif isinstance(event, AddressBookChanged):
+            from .addressbook_pane import AddressBookPane
+
+            for pane in self._base_query(AddressBookPane):
+                pane.refresh_from(self.addressbook)
 
     def _show_session(self, event: SessionOpened) -> None:
         """A tab for a session the core just bound. A call that came in
@@ -1016,6 +1008,7 @@ class KissTermApp(App):
         screen to show it -- and nowhere to show it.
         """
         self.core.aprs.shutdown()
+        self.core.transfers.shutdown()
         self.core.detach_transport()
         self.core.connector.cancel_tasks()
         self.core.sessions.shutdown()
@@ -1505,21 +1498,6 @@ class KissTermApp(App):
     def last_harvest_text(self, session_key: str) -> str:
         return self.core.sessions.last_harvest_text(session_key)
 
-    def _intercept_link_data(self, session_key: str, data: bytes) -> bool:
-        """A file transfer's bytes are its own, not the session's: a run
-        reading them (`_transfer_active`) or a YAPP download the operator
-        asked for (`_watch_for_download`)."""
-        if session_key in self._transfer_active:
-            return True
-        return self._watch_for_download(session_key, data)
-
-    def _yapp_requested(self, session_key: str, text: str, session) -> None:
-        """`YAPP <name>` sent: a YAPP send init in the next minute is that
-        download -- not while G on the Files tab fetches it itself
-        (`collect.BbsCollector._get_file`)."""
-        if _YAPP_REQUEST.match(text) and session_key not in self._transfer_active:
-            session.download_until = time.monotonic() + DOWNLOAD_WAIT_SECONDS
-
     def _base_query(self, selector):
         """Query the app's own screen, not whatever modal is on top of it.
 
@@ -1603,12 +1581,6 @@ class KissTermApp(App):
             )
             self._record(self._active_key(), "Transmit disabled")
         self._refresh_status()
-
-    def _arm_for(self, what: str, toast: bool = True) -> bool:
-        """`Connector.arm_for` (kissterm/core/connect.py), recorded on the
-        Terminal tab on screen. The flows that still call this from the app
-        (APRS send, file transfer) move into the core in later milestones."""
-        return self.core.connector.arm_for(what, toast=toast)
 
     def _connect_problem(self, report, text: str, severity: str = "error") -> None:
         """Why a connect did not happen: a toast, or handed to `report` when
@@ -2066,10 +2038,16 @@ class KissTermApp(App):
         `report(text)` receives a failure's reason instead of a toast here:
         Send/Receive says both in its own words, once each.
         """
+        if prefill is not None:
+            # A dial from the Address Book (or Send/Receive): the core's
+            # `Connector.dial_entry`, the same flow every client gets.
+            await self.core.connector.dial_entry(
+                prefill, on_link=on_link, on_reached=on_reached, focus=focus_session,
+                announce=announce, report=report)
+            return
         # An Internet contact dials its own connection, radio or no radio
         # (`_dial_internet`); a redial of one finds it by name.
-        contact = prefill if prefill is not None else (
-            self.addressbook.find(redial.target) if redial is not None else None)
+        contact = self.addressbook.find(redial.target) if redial is not None else None
         if contact is not None and contact.is_internet:
             await self._dial_internet(contact, on_link=on_link, on_reached=on_reached,
                                       focus_session=focus_session, report=report)
@@ -2098,24 +2076,6 @@ class KissTermApp(App):
             return
         if redial is not None:
             request = redial
-        elif prefill is not None:
-            request = ConnectRequest(
-                prefill.target,
-                prefill.script,
-                prefill.hops,
-                prefill.credential,
-                prefill.script_name,
-            )
-            # A dial is an attempt like any other -- see AddressBook.record_
-            # attempt's docstring for why this is recorded on the attempt,
-            # not on success.
-            self.addressbook.record_attempt(
-                prefill.target,
-                prefill.script,
-                prefill.hops,
-                prefill.credential,
-                prefill.script_name,
-            )
         else:
             request = await self.push_screen_wait(
                 ConnectScreen(
@@ -2144,7 +2104,7 @@ class KissTermApp(App):
         # the failure diagnosis, the hop chain and the login -- is the
         # core's (`Connector.connect`), the same for every front end.
         await self.core.connector.connect(
-            request, entry=prefill, on_link=on_link, on_reached=on_reached,
+            request, on_link=on_link, on_reached=on_reached,
             focus=focus_session, announce=announce, report=report,
         )
 
@@ -2307,89 +2267,11 @@ class KissTermApp(App):
 
     @work(exclusive=False)
     async def action_get_mail(self) -> None:
-        """Send/Receive (Mail tab, G). ROADMAP P2.
-
-        G follows the folder in front (operator, 2026-09-26,
-        `send_receive_kind`): a Winlink folder runs Winlink, a BBS folder
-        the Home BBS, and All Inboxes each one in use, the Home BBS first
-        (`send_receive_kind`). Missing logins are asked before the first dial
-        (`_bbs_prepare`, `_winlink_prepare`). Each run dials through
-        `_dial_for_mail`, so the
-        reminder, the transmit gate, the hop chain and the route's own
-        login all apply, and nothing here arms anything. The operator stays
-        where they are: a toast says it started, the status bar shows its
-        phase in green while it runs ("Sending 1 of 2", "Receiving 2 of
-        4"), and a toast gives the outcome (DESIGN.md section 6). Every
-        line sent is echoed in the session's Terminal tab and the
-        transcript. When it finishes, the link is disconnected; Ctrl+D
-        stops it.
-        """
-        if self._collecting:
-            self.notify("Already sending and receiving.", severity="warning")
-            return
-        self._collecting = True
-        try:
-            kind = self.send_receive_kind(self._mail_folder())
-            # Everything that has to be asked is asked before the first
-            # dial, so a run of both never stops in between for a question.
-            runs = await self._prepare_runs(kind, "G", (
-                ("Home BBS", self._bbs_prepare, self._bbs_run),
-                ("Winlink", self._winlink_prepare, self._winlink_run),
-            ))
-            for run, (entry, options) in runs or ():
-                await run(entry, options)
-        finally:
-            self._collecting = False
-            self._set_activity("")
-
-    async def _prepare_runs(self, kind: str, key: str, services) -> list | None:
-        """Ask everything each service in `kind` needs, in order; the runs
-        to make, or None if the operator cancelled. On All Inboxes each
-        question says why it is asked and can skip its service (operator,
-        2026-09-27: make it "clear why they're being prompted")."""
-        wanted = [s for s in services
-                  if kind == "all" or s[0] == ("Winlink" if kind == "winlink" else "Home BBS")]
-        runs = []
-        try:
-            for name, prepare, run in wanted:
-                self._all_inboxes = (key, name) if kind == "all" else None
-                try:
-                    prepared = await prepare()
-                except _SkipService:
-                    self.notify(f"Skipping {name} this time.")
-                    continue
-                if prepared is None:
-                    return None
-                runs.append((run, prepared))
-        finally:
-            self._all_inboxes = None
-        if not runs:
-            self.notify("Nothing to send or receive: every service was skipped.")
-        return runs
-
-    def _all_inboxes_ask(self) -> tuple[str, str]:
-        """(note, skip label) for a question asked on All Inboxes, else ("", "")."""
-        if self._all_inboxes is None:
-            return "", ""
-        key, name = self._all_inboxes
-        how = " over the Internet" if key == "I" else ""
-        # The operator's wording, 2026-09-27.
-        return (
-            f"You have All Inboxes selected, therefore kissterm will check mail "
-            f"for both BBS and Winlink{how}.",
-            f"Skip {name}",
-        )
-
-    def _setup_answer(self, answer, place: str):
-        """A setup question's answer: SETUP_SKIP raises `_SkipService`,
-        SETUP_GO opens `place` and returns None (the run is cancelled),
-        anything else is returned."""
-        if answer == SETUP_SKIP:
-            raise _SkipService
-        if answer == SETUP_GO:
-            self._go_to_setup(place)
-            return None
-        return answer
+        """Send/Receive (Mail tab, G; ROADMAP P2): `Mail.send_receive` for
+        the folder in front. The operator stays where they are: a toast
+        says it started, the status bar shows its phase, a toast gives the
+        outcome; the whole session is in its Terminal tab."""
+        await self.core.mail.send_receive(self._mail_folder())
 
     def _go_to_setup(self, place: str) -> None:
         """Where a setup question's go button leads."""
@@ -2405,28 +2287,8 @@ class KissTermApp(App):
         self.call_after_refresh(pane.open_field, path)
 
     def send_receive_kind(self, folder: str, internet: bool = False) -> str:
-        """What G does from `folder` (operator, 2026-09-26): "winlink" on a
-        Winlink folder; "bbs" anywhere else. On All Inboxes, "all" (the
-        Home BBS, then Winlink) when both are in use, else whichever is,
-        and "bbs" when neither is yet (the Home BBS's first-run question).
-
-        In use = set up for G or for I, whichever key was pressed: what the
-        key still needs is then asked for, with its Skip button (operator,
-        2026-09-28: I "didn't ask for BBS over internet settings" when the
-        Home BBS had a radio route but no Internet contact). A service set
-        up for neither is not asked about, so a BBS-only station is not
-        asked about Winlink at every G."""
-        if folder == WINLINK_FOLDER or folder.startswith(f"{WINLINK_FOLDER}/"):
-            return "winlink"
-        if folder == ALL_INBOXES:
-            home, winlink_config = self.config.home_bbs, self.config.winlink
-            bbs = bool(home.route.strip() or home.internet.strip())
-            winlink = bool(winlink_config.route.strip() or winlink_config.credential.strip())
-            if bbs and winlink:
-                return "all"
-            if winlink:
-                return "winlink"
-        return "bbs"
+        """What G does from `folder` (`Mail.send_receive_kind`)."""
+        return self.core.mail.send_receive_kind(folder, internet)
 
     def _mail_folder(self) -> str:
         from .mail_pane import MessageBrowser
@@ -2434,543 +2296,36 @@ class KissTermApp(App):
         browser = self.query("#mail-browser")
         return browser.first(MessageBrowser).folder if browser else ""
 
-    async def _winlink_gateway(self):
-        """The Address Book contact to reach Winlink through: the favourite
-        gateway (Settings > Mail > Gateway contact) when it is in the book,
-        else the one chosen now (`WinlinkGatewayScreen`), added to the book
-        and remembered as the favourite if asked. None if cancelled."""
-        from ..winlink import gateways
-
-        favourite = self.config.winlink.route.strip()
-        entry = self.addressbook.find(favourite) if favourite else None
-        if entry is not None:
-            return entry
-        note, skip = self._all_inboxes_ask()
-        has_list = bool(gateways.ACCESS_KEY) or gateways.load_cached(self._gateway_cache()) is not None
-        answer = self._setup_answer(await self.push_screen_wait(WinlinkGatewayScreen(
-            [e.target for e in self.addressbook.entries if not e.is_internet], favourite,
-            gateway_list=has_list, all_note=note, skip=skip)), "winlink")
-        if not isinstance(answer, GatewayChoice):
-            return None
-        entry = self.addressbook.find(answer.target)
-        if entry is None:
-            channel = answer.channel
-            details = {} if channel is None else {
-                "frequency": channel.frequency,
-                "note": f"Winlink RMS, {channel.modes}" + (f", {channel.grid}" if channel.grid else ""),
-            }
-            entry = self.addressbook.upsert(answer.target, **details)
-            from .addressbook_pane import AddressBookPane
-
-            for pane in self.query(AddressBookPane):
-                pane.refresh_from(self.addressbook)
-        if answer.remember and self.config.winlink.route != entry.target:
-            self.config.winlink.route = entry.target
-            self._save_config()
-            self.query_one(SettingsPane).render_settings(self.config)
-        return entry
-
-    async def _mail_route(self, route: str):
-        """The Address Book entry `route` names, asking for one (and saving
-        the answer) on first use or when the entry is gone; None if the
-        operator cancelled."""
-        entry = self.addressbook.find(route.strip()) if route.strip() else None
-        if entry is not None:
-            return entry
-        # First use, or the entry was forgotten: ask for the one thing
-        # Send/Receive cannot run without, then carry on.
-        note, skip = self._all_inboxes_ask()
-        targets = [e.target for e in self.addressbook.entries]
-        chosen = self._setup_answer(await self.push_screen_wait(
-            HomeBbsSetupScreen(targets, missing=route.strip(), all_note=note, skip=skip)
-        ), "connect" if not targets else "bbs")
-        entry = self.addressbook.find(chosen) if chosen else None
-        if entry is None:
-            return None
-        self.config.home_bbs.route = entry.target
-        self._save_config()
-        self.query_one(SettingsPane).render_settings(self.config)
-        return entry
-
-    async def _ask_login(self, current: str, default_name: str, title: str, detail: str,
-                         *, secret: bool = True,
-                         username: bool = False) -> tuple[str, str] | None:
-        """The saved login `current` names, as (name, password); if there
-        is none or it cannot be read, ask for it before dialing and save it
-        (`LoginAskScreen`; with `username`, its username too). None if the
-        operator cancelled."""
-        from ..config import set_credential
-
-        text = find_credential(self.config, current) if current else ""
-        if text:
-            return current, text
-        # A name that is no saved login may be a password typed in its place:
-        # never show it, save under the fixed name instead.
-        name = current if current and credential_store(self.config, current) else default_name
-        note, skip = self._all_inboxes_ask()
-        answer = self._setup_answer(await self.push_screen_wait(LoginAskScreen(
-            title, detail, name, secret=secret, all_note=note, skip=skip,
-            username=credential_username(self.config, name) if username else None,
-            where=login_where() if username else "")), "")
-        if not answer:
-            return None
-        text = answer.text if isinstance(answer, Credential) else answer
-        where = set_credential(self.config, name, text, username=(
-            answer.username if isinstance(answer, Credential) else None))
-        self._save_config()
-        self.notify(
-            f"Saved the login \"{name}\" in "
-            + ("the system keyring." if where == "keyring" else "config.toml (no system keyring here)."),
-        )
-        return name, text
-
     def _connected_to(self, peer: AX25Address) -> bool:
-        """Whether a Terminal session is already connected to `peer` over
-        AX.25. Only an AX.25 link has an address to compare: a session-tier
-        link's peer is a host or a modem's name, a string (operator,
-        2026-10-03: G on Mail with WS1EC's SSH login open crashed here)."""
-        return any(
-            s.link is not None and s.link.connected
-            and isinstance(s.link.peer, AX25Address)
-            and (s.link.peer.callsign, s.link.peer.ssid) == (peer.callsign, peer.ssid)
-            for s in self._sessions.values()
-        )
-
-    async def _dial_for_mail(self, entry, build, doing: str, label: str = "Send/Receive"):
-        """Dial `entry` for a Home BBS or Winlink run. `build(link, key)`
-        makes the runner the moment the link is up, before anything awaits,
-        so the far end's first bytes are not missed; it starts once the
-        chain has reached the target. Returns (runner, key), or None having
-        said why. `doing` ("get files") goes in the connect toast and
-        `label` ("Get files") leads a failure's, so each says what was
-        asked for (operator, 2026-10-04: G on Files said "to get mail").
-        """
-        first = [h.strip() for h in entry.hops.split(",") if h.strip()] or [entry.target]
-        peer = parse_path(first[0]).destination
-        if self._connected_to(peer):
-            self.notify(
-                f"Already connected to {peer}. Disconnect first, then press G.",
-                severity="warning",
-            )
-            return None
-        state: dict = {"runner": None, "key": "", "reached": False}
-
-        def on_link(link, key: str) -> None:
-            state["key"] = key
-            state["runner"] = build(link, key)
-
-        def on_reached(reached: bool) -> None:
-            state["reached"] = reached
-
-        # The operator stays on the Mail tab: one toast says a connect is
-        # under way (and that transmit was enabled, if it was), and the
-        # status bar follows it. The whole session is in the Terminal tab
-        # (F5) for anyone who wants to watch. A failure is one toast too: the
-        # connect hands its reason here (`report`) rather than raising its
-        # own beside this one (operator, 2026-10-02: two toasts per event).
-        reasons: list[str] = []
-        announce = f"Connecting to {entry.target} to {doing}..."
-        if entry.is_internet:
-            # No transmit gate on the Internet, so nothing to fold in.
-            self.notify(announce)
-            announce = ""
-        self._set_activity(f"Connecting to {entry.target}")
-        worker = self.action_connect(
-            prefill=entry, on_link=on_link, on_reached=on_reached, focus_session=False,
-            announce=announce, report=reasons.append,
-        )
-        await worker.wait()
-        runner = state["runner"]
-        why = reasons[-1].rstrip(".") if reasons else f"did not reach {entry.target}"
-        if runner is None:
-            # No reason means the operator cancelled (the reminder, Ctrl+D):
-            # nothing to tell them.
-            if reasons:
-                self.notify(f"{label}: {why}.",
-                            severity="error")
-            return None
-        if not state["reached"]:
-            runner.close()
-            self.notify(f"{label}: {why}.",
-                        severity="error")
-            return None
-        return runner, state["key"]
-
-    async def _bbs_prepare(self):
-        """Everything the Home BBS run needs before dialing, asking for
-        what is missing: (entry, options), or None if cancelled."""
-        from ..mail.collect import CollectOptions
-
-        home = self.config.home_bbs
-        entry = await self._mail_route(home.route)
-        if entry is None:
-            return None
-        login_text = ""
-        if home.login_prompt:
-            # Settings says the BBS asks for a login: have it before dialing.
-            login = await self._ask_login(
-                home.credential, "Home BBS", "Home BBS login", "", username=True)
-            if login is None:
-                return None
-            if home.credential != login[0]:
-                home.credential = login[0]
-                self._save_config()
-                self.query_one(SettingsPane).render_settings(self.config)
-            # The username line, then the password (a saved login's shape).
-            login_text = saved_login_text(self.config, login[0]) or login[1]
-        options = CollectOptions(
-            bbs_call=home.call,
-            software=home.software,
-            ready_text=home.ready_text,
-            login_prompt=home.login_prompt,
-            login_text=login_text,
-        )
-        return entry, options
-
-    async def _bbs_run(self, entry, options) -> None:
-        """The Home BBS: `kissterm/mail/collect.py` drives it."""
-        from ..mail.collect import BbsCollector
-
-        def build(link, key: str):
-            return BbsCollector(
-                link,
-                self.mail_store,
-                options,
-                note=lambda text: self._mail_note(key, text),
-                sent=lambda text: self._mail_sent(key, text),
-                gate_open=lambda: self.gate.enabled,
-                progress=self._set_activity,
-                subscriptions=self.bulletin_subscriptions,
-                choose=self._choose_categories,
-                pick_files=self._pick_bbs_files,
-                files_dir=self._downloads_dir() if options.files else None,
-                transferring=lambda on: self._transferring(key, on),
-            )
-
-        if options.files:
-            doing, label = "get files", "Get files"
-        elif options.bulletins:
-            doing, label = "get bulletins", "Get bulletins"
-        else:
-            doing, label = "send and receive mail", "Send/Receive"
-        dialed = await self._dial_for_mail(entry, build, doing, label)
-        if dialed is None:
-            return
-        collector, key = dialed
-        result = await collector.run()
-        self._bbs_report(result, bulletins=options.bulletins, files=options.files)
-        await self._disconnect_session(key)
-
-    def _transferring(self, key: str, on: bool) -> None:
-        """A files run's download starting or ending on session `key`: the
-        Terminal holds the YAPP bytes meanwhile, as for a typed request."""
-        if on:
-            self._transfer_active.add(key)
-        else:
-            self._transfer_active.discard(key)
+        return self.core.mail.connected_to(peer)
 
     def _bbs_report(self, result, bulletins: bool = False, files: bool = False) -> None:
-        """The outcome toast of a Home BBS run, over radio or the Internet."""
-        sent = f"{len(result.sent)} sent, " if result.sent else ""
-        if files:
-            got = len(result.downloaded)
-            if result.stopped:
-                self.notify(f"Getting files stopped: {result.stopped}. {got} downloaded.",
-                            severity="warning")
-            elif got:
-                self.notify(f"{got} file(s) downloaded into Files > Downloads.")
-            elif not result.listed:
-                self.notify("The Home BBS lists no files.")
-            self._reload_mail_tabs()
-            return
-        if bulletins:
-            if result.stopped:
-                self.notify(f"Getting bulletins stopped: {result.stopped}. "
-                            f"{len(result.filed)} received.", severity="warning")
-            elif result.filed:
-                self.notify(f"{len(result.filed)} new bulletin(s) from the Home BBS.")
-            else:
-                self.notify("No new bulletins on the Home BBS.")
-            self._reload_mail_tabs()
-            return
-        if "unknown client type" in result.stopped.lower():
-            # The CMS's own words (operator's first session, 2026-09-28):
-            # its production servers turn away a client program they do not
-            # know, by the name in the SID (ROADMAP, Blockers). The published
-            # B2F specification names no registry; how a program becomes
-            # known is still to be learned. Not the password, network or radio.
-            self.notify(
-                "Winlink refused kissterm itself, not your login: its production servers "
-                "accept only client programs they know, and kissterm is not one of them yet. "
-                "Nothing was sent. Settings > Mail > Internet server can use Winlink's test "
-                "server instead.",
-                severity="warning", timeout=15,
-            )
-        elif result.stopped:
-            self.notify(
-                f"Send/Receive stopped: {result.stopped}. "
-                f"{sent}{len(result.filed)} received.",
-                severity="warning",
-            )
-        elif result.filed:
-            self.notify(f"{sent}{len(result.filed)} new message(s) from the Home BBS.")
-        elif result.sent:
-            self.notify(f"{len(result.sent)} sent. No new mail on the Home BBS.")
-        else:
-            self.notify("No new mail on the Home BBS.")
-        self._reload_mail_tabs()
-
-    async def _winlink_prepare(self):
-        """Everything the Winlink run needs before dialing, asking for what
-        is missing: (entry, options), or None if cancelled."""
-        from ..mail.winlink_collect import WinlinkOptions
-
-        winlink = self.config.winlink
-        entry = await self._winlink_gateway() if await self._winlink_account() else None
-        if entry is None:
-            return None
-        login = await self._winlink_login()
-        if login is None:
-            return None
-        account, password = login
-        return entry, WinlinkOptions(
-            account,
-            password=password,
-            target=str(parse_path(entry.target).destination),
-            locator=winlink.locator or self.config.aprs.grid_square,
-        )
-
-    async def _winlink_account(self) -> str:
-        """The Winlink account, asking for the callsign it defaults to when
-        neither is set; "" if the operator cancelled."""
-        from ..config import winlink_account
-
-        if not winlink_account(self.config):
-            await self.action_set_callsign().wait()
-        return winlink_account(self.config)
-
-    async def _winlink_login(self) -> tuple[str, str] | None:
-        """(account, password), asking for the password if no saved login
-        holds it; None if cancelled."""
-        winlink = self.config.winlink
-        account = await self._winlink_account()
-        if not account:
-            return None
-        # Have the password before dialing, so a missing one never costs a
-        # connect. UNVERIFIED: that every gateway challenges (Winlink
-        # accounts have passwords; wl2k-go answers ;PQ whenever it comes).
-        login = await self._ask_login(
-            winlink.credential, "Winlink", f"Winlink password for {account}", "")
-        if login is None:
-            return None
-        if winlink.credential != login[0]:
-            winlink.credential = login[0]
-            self._save_config()
-            self.query_one(SettingsPane).render_settings(self.config)
-        return account, login[1]
-
-    async def _winlink_run(self, entry, options) -> None:
-        """Winlink over the route Settings > Mail names:
-        `kissterm/mail/winlink_collect.py` drives the B2F exchange.
-
-        While it runs, the session's Terminal tab shows the protocol lines
-        as text, not the link's raw bytes: a message travels compressed,
-        and its binary would only fill the pane with noise (the same
-        suppression a file transfer uses, `_transfer_active`). What arrived
-        before the exchange started (the node's banner, the hop chain) was
-        shown as usual."""
-        from ..mail.winlink_collect import WinlinkCollector
-
-        def build(link, key: str):
-            return WinlinkCollector(
-                link,
-                self.mail_store,
-                options,
-                note=lambda text: self._mail_note(key, text),
-                sent=lambda text: self._mail_sent(key, text),
-                received=lambda text: self._winlink_received(key, text),
-                gate_open=lambda: self.gate.enabled,
-                progress=self._set_activity,
-            )
-
-        dialed = await self._dial_for_mail(entry, build, "send and receive Winlink mail")
-        if dialed is None:
-            return
-        collector, key = dialed
-        self._transfer_active.add(key)
-        try:
-            result = await collector.run()
-        finally:
-            self._transfer_active.discard(key)
-        self._winlink_report(result)
-        await self._disconnect_session(key)
-        await self._winlink_password_refused(result)
-
-    async def _winlink_password_refused(self, result) -> None:
-        """The gateway refused the password: ask for it again here, rather
-        than say where to set it (operator, 2026-09-27: go there, don't
-        point). Saved for the next run; nothing is dialed now, so a retry
-        costs airtime only when the operator presses G again."""
-        from ..config import set_credential, winlink_account
-
-        if "password" not in (result.stopped or "").lower():
-            return
-        text = await self.push_screen_wait(LoginAskScreen(
-            "Winlink password refused",
-            f"The gateway said: {result.stopped}. Type the password for "
-            f"{winlink_account(self.config)} again.",
-            "Winlink", go_label="Save"))
-        if not text or text == SETUP_SKIP:
-            return
-        where = set_credential(self.config, "Winlink", text)
-        self.config.winlink.credential = "Winlink"
-        self._save_config()
-        self.query_one(SettingsPane).render_settings(self.config)
-        self.notify("Saved in " + ("the system keyring" if where == "keyring" else "config.toml")
-                    + ". Send/Receive again to use it.")
+        self.core.mail.bbs_report(result, bulletins=bulletins, files=files)
 
     def _winlink_report(self, result) -> None:
-        """The outcome toast of a Winlink run, over radio or the Internet."""
-        sent = f"{len(result.sent)} sent, " if result.sent else ""
-        if "unknown client type" in result.stopped.lower():
-            # The CMS's own words (operator's first session, 2026-09-28):
-            # its production servers turn away a client program they do not
-            # know, by the name in the SID (ROADMAP, Blockers). The published
-            # B2F specification names no registry; how a program becomes
-            # known is still to be learned. Not the password, network or radio.
-            self.notify(
-                "Winlink refused kissterm itself, not your login: its production servers "
-                "accept only client programs they know, and kissterm is not one of them yet. "
-                "Nothing was sent. Settings > Mail > Internet server can use Winlink's test "
-                "server instead.",
-                severity="warning", timeout=15,
-            )
-        elif result.stopped:
-            self.notify(
-                f"Winlink stopped: {result.stopped}. {sent}{len(result.filed)} received.",
-                severity="warning",
-            )
-        elif result.filed:
-            self.notify(f"{sent}{len(result.filed)} new Winlink message(s).")
-        elif result.sent:
-            self.notify(f"{len(result.sent)} sent. No new Winlink mail.")
-        else:
-            self.notify("No new Winlink mail.")
-        self._reload_mail_tabs()
+        self.core.mail.winlink_report(result)
 
     @work(exclusive=False)
     async def action_get_mail_internet(self) -> None:
-        """Send/Receive by Internet (Mail tab, I), parallel to G
-        (operator, 2026-09-26): the same folders decide what runs, the Home
-        BBS through its Telnet or SSH connection
-        (`home_bbs.internet`, e.g. WS1EC's SSH login into its node) and
-        Winlink through the CMS by Telnet. Anything missing is asked for
-        before the first connection.
-
-        The transmit gate is not involved: nothing here can key a radio,
-        and arming it would open RF for everything else too. Each run is
-        written to a transcript (Session > Transcripts) as protocol lines,
-        so a first session can become a test fixture."""
-        if self._collecting:
-            self.notify("Already sending and receiving.", severity="warning")
-            return
-        self._collecting = True
-        try:
-            kind = self.send_receive_kind(self._mail_folder(), internet=True)
-            runs = await self._prepare_runs(kind, "I", (
-                ("Home BBS", self._bbs_internet_prepare, self._bbs_internet_run),
-                ("Winlink", self._winlink_login, self._winlink_cms_run),
-            ))
-            for run, args in runs or ():
-                await run(*args)
-        finally:
-            self._collecting = False
-            self._set_activity("")
+        """Send/Receive by Internet (Mail tab, I): the same folders decide
+        what runs; the transmit gate is not involved."""
+        await self.core.mail.send_receive(self._mail_folder(), internet=True)
 
     @work(exclusive=False)
     async def action_get_bulletins(self, internet: bool = False) -> None:
-        """Get bulletins (Bulletins tab, G; I over the Internet). ROADMAP P2.
-
-        The Home BBS run with `CollectOptions.bulletins`: the same dial,
-        reminder, gate and logins as Send/Receive, then the categories
-        chosen (`mail/bulletins.py`), offered on the first run and when a
-        check finds a new one (`_choose_categories`)."""
-        if self._collecting:
-            self.notify("Already sending and receiving.", severity="warning")
-            return
-        self._collecting = True
-        try:
-            prepared = await (self._bbs_internet_prepare() if internet
-                              else self._bbs_prepare())
-            if prepared is None:
-                return
-            entry, options = prepared
-            home = self.config.home_bbs
-            options.bulletins = True
-            options.check_days = home.bulletin_check_days
-            options.first_days = home.bulletin_days
-            run = self._bbs_internet_run if internet else self._bbs_run
-            await run(entry, options)
-        except _SkipService:
-            pass
-        finally:
-            self._collecting = False
-            self._set_activity("")
+        """Get bulletins (Bulletins tab, G; I over the Internet)."""
+        await self.core.mail.get_bulletins(internet=internet)
 
     def action_get_bulletins_internet(self) -> None:
         self.action_get_bulletins(internet=True)
 
     @work(exclusive=False)
     async def action_get_files(self) -> None:
-        """Get files from the Home BBS (Files tab, G). ROADMAP P2, Files.
-
-        The Home BBS run with `CollectOptions.files`, by radio only: the
-        same dial, reminder, gate and login as Send/Receive, then `FILES`,
-        the operator's pick (`_pick_bbs_files`) and a YAPP download of each.
-        No Internet twin: YAPP does not survive a server's telnet (SSH
-        refuses transfers, `refuse_line`)."""
-        if self._collecting:
-            self.notify("Already sending and receiving.", severity="warning")
-            return
-        self._collecting = True
-        try:
-            prepared = await self._bbs_prepare()
-            if prepared is None:
-                return
-            entry, options = prepared
-            options.files = True
-            await self._bbs_run(entry, options)
-        except _SkipService:
-            pass
-        finally:
-            self._collecting = False
-            self._set_activity("")
-
-    async def _pick_bbs_files(self, files):
-        """The collector's question (`collect.PickFiles`), asked mid-run."""
-        from .bbs_files_screen import BbsFilesScreen
-
-        folder = self._downloads_dir()
-        have = {p.name: p.stat().st_size for p in folder.iterdir() if p.is_file()}
-        return await self.push_screen_wait(BbsFilesScreen(
-            self._bulletin_bbs() or "the BBS", files, have=have))
+        """Get files from the Home BBS (Files tab, G), by radio only."""
+        await self.core.mail.get_files()
 
     def _bulletin_bbs(self) -> str:
-        """The Home BBS's callsign as its choices are kept, or ""."""
-        home = self.config.home_bbs
-        if home.call:
-            return home.call
-        route = home.route or home.internet
-        return str(parse_path(route).destination.callsign) if route else ""
-
-    async def _choose_categories(self, offer: list[str], counts: dict[str, int],
-                                 first: bool):
-        """The collector's question (`collect.Choose`), asked mid-run."""
-        from .bulletin_screen import BulletinCategoriesScreen
-
-        bbs = self._bulletin_bbs() or "the BBS"
-        return await self.push_screen_wait(BulletinCategoriesScreen(
-            bbs, {c: counts.get(c, 0) for c in offer}, new_only=not first))
+        return self.core.mail.bulletin_bbs()
 
     @work
     async def action_bulletin_categories(self) -> None:
@@ -2994,178 +2349,6 @@ class KissTermApp(App):
         self.notify("Collecting " + ("every category." if subs.all
                                      else (", ".join(subs.chosen) or "no categories") + "."))
 
-    async def _internet_run(self, transport, peer: str, what: str, build,
-                            label: str = "Send/Receive"):
-        """Connect a session `transport` and run the collector
-        `build(link, note, sent, received)` makes over it, with a
-        transcript. Returns its result, or None having said why, led by
-        `label` (`_dial_for_mail`)."""
-        self.notify(f"Connecting to {what} over the Internet...")
-        self._set_activity(f"Connecting to {what}")
-        link = transcript = None
-        try:
-            await transport.open()
-            try:
-                session = await self._session_connect(transport)
-            except TransportError as exc:
-                self.notify(f"{label} by Internet: {exc}", severity="error")
-                return None
-            link = _SessionLinkAdapter(session)
-            mycall = str(self.config.mycall or "").upper()
-            transcript = SessionLog(self._transcript_directory(), mycall, peer)
-            if not transcript.open():
-                transcript = None
-            log = transcript
-
-            def note(text: str) -> None:
-                if log is not None:
-                    log.note(f"*** Mail: {text}")
-
-            collector = build(
-                link, note,
-                lambda text: log.sent(self._masked(text)) if log is not None else None,
-                lambda text: log.received(text) if log is not None else None,
-            )
-            return await collector.run()
-        finally:
-            if link is not None:
-                with contextlib.suppress(Exception):
-                    await link.disconnect()
-            with contextlib.suppress(Exception):
-                await transport.close()
-            if transcript is not None:
-                transcript.close()
-            self._set_activity("")
-
-    async def _winlink_cms_run(self, account: str, password: str) -> None:
-        """Winlink through the CMS by Telnet (`winlink_collect.CMS_*`,
-        from wl2k-go): its login, then the same exchange as over radio."""
-        from ..mail.winlink_collect import (
-            CMS_PORT, CMS_TARGET, WinlinkCollector, WinlinkOptions, cms_host,
-        )
-        from ..transport import build_transport
-
-        options = WinlinkOptions(
-            account, password=password, target=CMS_TARGET,
-            locator=self.config.winlink.locator or self.config.aprs.grid_square,
-            telnet_login=True,
-        )
-
-        def build(link, note, sent, received):
-            return WinlinkCollector(link, self.mail_store, options, note=note, sent=sent,
-                                    received=received, progress=self._set_activity,
-                                    early_lines_shown=False)
-
-        server = self.config.winlink.server
-        transport = build_transport({"kind": "telnet", "host": cms_host(server), "port": CMS_PORT})
-        what = "Winlink's test server" if server == "test" else "the Winlink CMS"
-        result = await self._internet_run(transport, CMS_TARGET, what, build)
-        if result is not None:
-            self._winlink_report(result)
-            await self._winlink_password_refused(result)
-
-    def _internet_contacts(self) -> list:
-        """The Address Book's Telnet and SSH contacts: what I reaches the
-        Home BBS through (ROADMAP P2, every contact in the Address Book)."""
-        return [e for e in self.addressbook.entries if e.is_internet]
-
-    async def _bbs_internet_prepare(self):
-        """Everything the Home BBS needs over the Internet, asking for what
-        is missing: (connection, options), or None if cancelled."""
-        from ..mail.collect import CollectOptions
-
-        home = self.config.home_bbs
-        contacts = self._internet_contacts()
-        wanted = home.internet.strip().upper()
-        entry = next((e for e in contacts if e.target.upper() == wanted), None)
-        # A name that is no saved login may be a password typed in its
-        # place: never shown, replaced by a login made here.
-        name = (home.internet_credential
-                if credential_store(self.config, home.internet_credential) else "")
-        password = find_credential(self.config, name) if name else ""
-        if not password and entry is not None and entry.credential:
-            # The contact's own Node login is the node's sign-in already;
-            # asking for it again here was a second copy (operator,
-            # 2026-10-02: "It includes the node credentials, yet I still
-            # have to enter the credentials").
-            node_password = find_credential(self.config, entry.credential)
-            if node_password:
-                name, password = entry.credential, node_password
-        user = (credential_username(self.config, name) or home.internet_user
-                or str(self.config.mycall or "").split("-")[0].upper())
-        if entry is None or not password:
-            # One question for all of it: the contact, the username and the
-            # password, saved as one login (operator, 2026-09-28).
-            note, skip = self._all_inboxes_ask()
-            answer = self._setup_answer(await self.push_screen_wait(InternetLoginScreen(
-                [e.target for e in contacts], entry.target if entry else "",
-                missing=home.internet.strip() if entry is None else "",
-                username=user, saved=bool(password), where=login_where(),
-                all_note=note, skip=skip)), "")
-            if not isinstance(answer, InternetLogin):
-                return None
-            entry = self.addressbook.find(answer.target)
-            if entry is None or not entry.is_internet:
-                return None
-            name = name or f"{entry.target} login"
-            password = answer.password or password
-            user = answer.username
-            where = set_credential(self.config, name, password, username=user)
-            home.internet, home.internet_credential, home.internet_user = entry.target, name, ""
-            self._save_config()
-            self.query_one(SettingsPane).render_settings(self.config)
-            self.notify(
-                f"Saved the login \"{name}\" for {entry.target}, its password in "
-                + ("the system keyring." if where == "keyring"
-                   else "config.toml (no system keyring here)."),
-            )
-        return entry, CollectOptions(
-            bbs_call=home.call,
-            software=home.software,
-            ready_text=home.ready_text,
-            telnet_user=user,
-            telnet_password=password,
-            after_login=home.internet_command.strip(),
-        )
-
-    async def _bbs_internet_run(self, entry, options) -> None:
-        """The Home BBS over its Telnet or SSH contact, built the one way
-        every connection is (`build_transport`)."""
-        from ..mail.collect import BbsCollector
-        from ..transport import build_transport
-
-        label = "Get bulletins" if options.bulletins else "Send/Receive"
-        try:
-            transport = build_transport(entry.transport_config(
-                lambda name: find_credential(self.config, name),
-                lambda name: credential_username(self.config, name)))
-        except (TransportError, TypeError, ValueError) as exc:
-            self.notify(f"{label} by Internet: {entry.target}: {exc}", severity="error")
-            return
-
-        def build(link, note, sent, received):
-            return BbsCollector(link, self.mail_store, options, note=note, sent=sent,
-                                progress=self._set_activity,
-                                subscriptions=self.bulletin_subscriptions,
-                                choose=self._choose_categories)
-
-        result = await self._internet_run(transport, entry.target, entry.target, build, label)
-        if result is not None:
-            self._bbs_report(result, bulletins=options.bulletins)
-
-    def _winlink_received(self, key: str, text: str) -> None:
-        """A line from the Winlink gateway, shown and kept in the
-        transcript as received text (the raw bytes are suppressed)."""
-        data = (text + "\r").encode("latin-1", errors="replace")
-        self._to_terminal(key, "write_incoming", data)
-        session = self._sessions.get(key)
-        if session is not None and session.transcript is not None:
-            session.transcript.received_stream(data, sanitize)
-
-    def _mail_note(self, key: str, text: str) -> None:
-        """A Send/Receive progress sentence, for the transcript only."""
-        self._record(key, f"Mail: {text}")
-
     def _set_activity(self, phase: str) -> None:
         """The status-bar field for a job the operator started, in green
         ("Sending 1 of 2", "YAPP send"); "" removes it.
@@ -3188,11 +2371,6 @@ class KissTermApp(App):
         (`Connector.masked`)."""
         return self.core.connector.masked(text)
 
-    def _mail_sent(self, key: str, text: str) -> None:
-        """Echo a line Send/Receive sent, as a typed line is echoed."""
-        self._to_terminal(key, "write_note", self._masked(text) + "\n")
-        self.log_sent(key, text, watch_hop=False)
-
     def _reload_mail_tabs(self) -> None:
         from .mail_pane import MessageBrowser
 
@@ -3201,56 +2379,14 @@ class KissTermApp(App):
 
     @work
     async def action_set_callsign(self) -> None:
-        """Change the station callsign and persist it, without a restart.
-
-        Refused while ANY session is up, not just the active tab: the
-        callsign is in the address field of every frame of every established
-        conversation, and swapping it mid-session would make our own traffic
-        unrecognisable to every one of those peers -- each would keep
-        answering the old call while we transmitted under the new one, and
-        every link would die by N2 timeout rather than by anything the
-        operator could diagnose. Disconnecting first is the honest
-        requirement.
-        """
-        if any(s.link is not None and s.link.connected for s in self._sessions.values()):
-            self.notify(
-                "Disconnect every session before changing callsign.", severity="warning"
-            )
-            return
-
-        current = getattr(self.config, "mycall", "") or ""
-        new_call = await self.push_screen_wait(CallsignScreen(current))
-        if not new_call or new_call == current:
-            return
-
-        self.config.mycall = new_call
-        if self.station is not None:
-            # Update the live station too, not just the file. Without this the
-            # change silently would not take effect until the next launch,
-            # which is exactly the confusion this feature exists to remove.
-            from ..ax25 import AX25Address
-
-            self.station.mycall = AX25Address.parse(new_call)
-
-        saved = self._save_config()
-        self.query_one(SettingsPane).render_settings(self.config)
-        where = "saved" if saved else "applied for this session only (could not write config)"
-        self.notify(f"Callsign is now {new_call} -- {where}.")
+        """Change the station callsign and persist it, without a restart
+        (`Core.ask_callsign`; refused while any session is up)."""
+        await self.core.ask_callsign()
 
     def _save_config(self) -> bool:
-        """Persist config, reporting failure rather than raising.
-
-        A read-only or full config directory must not take the app off the air;
-        the operator can keep working with the in-memory value.
-        """
-        try:
-            from ..config import save_config
-
-            save_config(self.config)
-            return True
-        except Exception:
-            log.exception("could not save config")
-            return False
+        """Persist config, reporting failure rather than raising
+        (`Core.save_config`)."""
+        return self.core.save_config()
 
     @work
     async def action_command_reference(self) -> None:
@@ -3305,10 +2441,7 @@ class KissTermApp(App):
         return None
 
     def _gateway_cache(self):
-        from ..config import state_path
-        from ..winlink import gateways
-
-        return gateways.cache_path(state_path())
+        return self.core.mail.gateway_cache()
 
     @work
     async def action_rms_gateways(self) -> None:
@@ -3349,14 +2482,8 @@ class KissTermApp(App):
         await self.push_screen_wait(TranscriptsScreen(self._transcript_directory()))
 
     def _downloads_dir(self) -> Path:
-        """Files > Downloads in the message store, where a YAPP or AutoBIN
-        download is saved, so the Files tab (F4) shows it. It went to the
-        state folder's `downloads` until 2026-10-03, out of sight."""
-        from ..mail.store import FILES
-
-        folder = self.mail_store.root / FILES / "Downloads"
-        folder.mkdir(parents=True, exist_ok=True)
-        return folder
+        """Files > Downloads in the message store (`Mail.downloads_dir`)."""
+        return self.core.mail.downloads_dir()
 
     def refuse_line(self, text: str) -> bool:
         """Whether `TerminalPane.send_line` should hold `text` back, having
@@ -3365,7 +2492,7 @@ class KissTermApp(App):
         BBS waiting on a transfer that cannot finish, reading the next lines
         typed as YAPP data."""
         link = self.link
-        if _YAPP_REQUEST.match(text) and not getattr(link, "carries_binary", True):
+        if YAPP_REQUEST.match(text) and not getattr(link, "carries_binary", True):
             self.notify(
                 "File transfers are not supported over SSH: the server's telnet holds "
                 "YAPP's replies. Connect by radio to download a file.",
@@ -3374,108 +2501,25 @@ class KissTermApp(App):
             return True
         return False
 
-    def _watch_for_download(self, session_key: str, data: bytes) -> bool:
-        """Start a YAPP download by itself when the file the operator asked
-        for arrives: True if `data` began one.
-
-        Only after the operator sent `YAPP <name>` (`log_sent`), and only
-        for `DOWNLOAD_WAIT_SECONDS`: a request they made, never a sender
-        that turns up unasked (that is the unattended mailbox, ROADMAP P9).
-        BPQ sends its `ENQ 1` alone and then waits for the answer
-        (`yapp.py`), so nothing can arrive before the receiver subscribes.
-        Until 2026-10-03 a download had to be armed first from F10 > File
-        transfer; the operator: "this is the only application that
-        requires me to start a file download session"."""
-        session = self._sessions.get(session_key)
-        if session is None or not session.download_until:
-            return False
-        if time.monotonic() > session.download_until:
-            session.download_until = 0.0
-            return False
-        if not starts_download(data):
-            return False
-        session.download_until = 0.0
-        self._transfer_active.add(session_key)
-        self._receive_requested(session_key, bytes(data))
-        return True
-
-    @work
-    async def _receive_requested(self, key: str, initial: bytes) -> None:
-        """The YAPP download `_watch_for_download` saw start, into Files >
-        Downloads, its progress in the status bar."""
-        session = self._sessions.get(key)
-        if session is None or session.link is None:
-            self._transfer_active.discard(key)
-            return
-
-        def progress(name: str, done: int, size: int) -> None:
-            self._set_activity(f"YAPP {name} {done}/{size}")
-
-        await self._run_transfer(key, "YAPP", "download", receive_file(
-            session.link, self._downloads_dir(), initial=initial, progress=progress,
-        ))
-
-    async def _run_transfer(self, key: str, protocol: str, mode: str, transfer) -> None:
-        """Await one transfer on session `key` (already in
-        `_transfer_active`, so the Terminal does not print its bytes), then
-        say how it went: a note in the transcript and one toast."""
-        self._note(key, f"{protocol} {mode} starting")
-        self._set_activity(f"{protocol} {mode}")
-        try:
-            result = await transfer
-        except (OSError, ValueError, YappError, AutoBinError) as exc:
-            self._note(key, f"{protocol} {mode} failed: {exc}")
-            self.notify(f"{protocol} {mode} failed: {exc}", severity="warning")
-        else:
-            self._note(key, f"{protocol} {mode} complete: {result.path.name} ({result.size} bytes)")
-            if mode == "upload":
-                self.notify(f"{protocol} upload complete: {result.path.name}")
-            else:
-                self.notify(f"{protocol} download complete: {result.path.name}, in Files > Downloads (F4).")
-                self._reload_mail_tabs()
-        finally:
-            self._transfer_active.discard(key)
-            self._set_activity("")
-
     def can_send_file(self) -> bool:
-        """Whether S on the Files tab can send: a connected session in the
-        Terminal and no transfer already running on it."""
-        key = self._active_key()
-        session = self._sessions.get(key)
-        return (session is not None and session.link is not None and session.link.connected
-                and getattr(session.link, "carries_binary", True)
-                and key not in self._transfer_active)
+        """Whether S on the Files tab can send (`Transfers.can_send`)."""
+        return self.core.transfers.can_send(self._active_key())
 
     @work
     async def action_file_transfer(self, path: Path | None = None) -> None:
-        """Start one explicit YAPP/AutoBIN upload or arm an explicit download.
-        `path` (S on the Files tab) fills in an upload of that file; the
-        operator still chooses the protocol and presses Start."""
+        """Start one explicit YAPP/AutoBIN upload or download
+        (`Transfers.start`). `path` (S on the Files tab) fills in an upload
+        of that file; the operator still chooses the protocol and presses
+        Start."""
         key = self._active_key()
-        session = self._sessions.get(key)
-        if session is None or session.link is None or not session.link.connected:
-            self.notify("Connect before starting a file transfer.", severity="warning")
-            return
-        if not getattr(session.link, "carries_binary", True):
-            self.notify("File transfers are not supported over SSH: the server's telnet "
-                        "holds YAPP's replies. Connect by radio to send a file.",
-                        severity="warning")
+        why = self.core.transfers.refusal(key)
+        if why:
+            self.notify(why, severity="warning")
             return
         request = await self.push_screen_wait(FileTransferScreen(path))
         if request is None:
             return
-        if self.gate is not None and not self.gate.enabled:
-            self._arm_for(f"{request.protocol.upper()} {request.mode}")
-        self._transfer_active.add(key)
-        if request.protocol == "yapp":
-            sender, receiver = send_file, receive_file
-        else:
-            sender, receiver = send_autobin, receive_autobin
-        if request.mode == "upload":
-            transfer = sender(session.link, request.path)
-        else:
-            transfer = receiver(session.link, self._downloads_dir())
-        await self._run_transfer(key, request.protocol.upper(), request.mode, transfer)
+        await self.core.transfers.start(key, request.protocol, request.mode, request.path)
 
     @work
     async def action_disconnect(self) -> None:
@@ -3511,7 +2555,7 @@ class KissTermApp(App):
 
         Replays the tab's own last request -- hops, login and port
         included -- through `action_connect`, so the radio reminder, the
-        transport check and `_arm_for`'s visible arming all happen exactly
+        transport check and `Connector.arm_for`'s visible arming all happen exactly
         as for a dial from the Address Book, which is the same kind of act:
         one key on a station already named. A tab that answered an incoming
         call has no request of its own, so its peer is dialed directly. A
@@ -3770,6 +2814,3 @@ class KissTermApp(App):
         # widget focus as the tab keys do (`_focus_tab_target`).
         self.call_after_refresh(self._focus_tab_target, event.pane.id)
 
-
-class _SkipService(Exception):
-    """The operator pressed Skip on an All Inboxes setup question."""

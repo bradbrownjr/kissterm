@@ -1,0 +1,889 @@
+"""Mail, bulletins and files Send/Receive, for every front end (ROADMAP
+P7a M5; the flows themselves are ROADMAP P2).
+
+What G and I do, from whichever folder the client says is in front
+(`send_receive_kind`, operator 2026-09-26): the Home BBS
+(`mail/collect.py` drives it), Winlink (`mail/winlink_collect.py`), or on
+All Inboxes each one in use, the Home BBS first. Bulletins and files are
+Home BBS runs with `CollectOptions.bulletins`/`files`.
+
+**Everything that has to be asked is asked before the first dial**
+(`_prepare_runs`), so a missing login never costs a connect's airtime and
+a run of both services never stops in between. Each question is a typed
+`Question` (`questions.py`); on All Inboxes it says why it is asked and
+can skip its service (operator, 2026-09-27). "Go there" cancels the run
+and publishes `SetupRequested`; the client knows where "there" is.
+
+**A radio run dials through `Connector.dial_entry`**, so the reminder,
+the transmit gate, the hop chain and the route's own login all apply and
+nothing here arms anything. An Internet run (I) never touches the gate:
+nothing in it can key a radio. Every line sent is echoed to the session
+(`LineSent`) and its transcript; when a radio run finishes, the link is
+disconnected. Progress goes to `core.set_activity`; the outcome is one
+notice (DESIGN.md section 6: one event, one notice).
+"""
+
+from __future__ import annotations
+
+import contextlib
+import logging
+from pathlib import Path
+
+from ..ax25 import parse_path
+from ..ax25.address import AX25Address
+from ..config import (
+    credential_store,
+    credential_username,
+    find_credential,
+    mail_path,
+    set_credential,
+    winlink_account,
+)
+from ..config import login_text as saved_login_text
+from ..mail import MessageStore
+from ..mail.bulletins import SubscriptionBook
+from ..mail.store import ALL_INBOXES, FILES
+from ..mail.winlink_collect import WINLINK_FOLDER
+from ..monitor import sanitize
+from ..session_log import SessionLog
+from ..transport.base import TransportError
+from .events import (
+    AddressBookChanged,
+    ConfigChanged,
+    LineSent,
+    MailChanged,
+    SessionData,
+    SetupRequested,
+)
+from .links import SessionLinkAdapter
+from .operator import Notice, Severity
+from .questions import (
+    SETUP_GO,
+    SETUP_SKIP,
+    ChooseCategories,
+    Credential,
+    GatewayChoice,
+    HomeBbsRoute,
+    InternetLogin,
+    InternetLoginAsk,
+    LoginAsk,
+    PickFiles,
+    WinlinkGateway,
+)
+
+log = logging.getLogger(__name__)
+
+#: The CMS's own words when its production servers turn away a client
+#: program they do not know (operator's first session, 2026-09-28; ROADMAP,
+#: Blockers). Not the password, network or radio.
+UNKNOWN_CLIENT = (
+    "Winlink refused kissterm itself, not your login: its production servers "
+    "accept only client programs they know, and kissterm is not one of them yet. "
+    "Nothing was sent. Settings > Mail > Internet server can use Winlink's test "
+    "server instead."
+)
+
+
+class SkipService(Exception):
+    """The operator pressed Skip on an All Inboxes setup question."""
+
+
+def login_where() -> str:
+    """Where a new login's password will be kept: "keyring" or "config"."""
+    from .. import keystore
+
+    return "keyring" if keystore.available() else "config"
+
+
+class Mail:
+    """Send/Receive and the message store. Owned by `Core` as `core.mail`."""
+
+    def __init__(self, core) -> None:
+        self.core = core
+        #: The message store behind Mail, Bulletins and Files. Under the
+        #: platformdirs data directory, so `_isolate` redirects it in tests.
+        self.store = MessageStore(mail_path())
+        try:
+            self.store.ensure_default_tree()
+        except OSError:
+            # An unwritable data directory must not stop the station from
+            # starting; the Mail tab just shows nothing.
+            pass
+        #: Bulletin categories chosen per BBS (`mail/bulletins.py`).
+        self.subscriptions = SubscriptionBook()
+        self.subscriptions.load()
+        #: True while a run is under way; one at a time.
+        self.collecting = False
+        #: While G or I on All Inboxes prepares its runs: (key, service
+        #: being asked about), so each question says why it is asked and
+        #: offers to skip that service (`_all_inboxes_ask`).
+        self._all_inboxes: tuple[str, str] | None = None
+
+    # ------------------------------------------------------------------
+    @property
+    def config(self):
+        return self.core.config
+
+    def _notice(self, text: str, severity: Severity = Severity.INFORMATION,
+                timeout: float | None = None) -> None:
+        self.core.operator.notice(Notice(text, severity, timeout=timeout))
+
+    def _publish(self, event) -> None:
+        self.core.events.publish(event)
+
+    def _config_saved(self) -> None:
+        self.core.save_config()
+        self._publish(ConfigChanged())
+
+    async def _ask(self, question):
+        return await self.core.operator.ask(question)
+
+    def downloads_dir(self) -> Path:
+        """Files > Downloads in the message store, where a YAPP or AutoBIN
+        download is saved, so the Files tab shows it."""
+        folder = self.store.root / FILES / "Downloads"
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder
+
+    def gateway_cache(self) -> Path:
+        from ..config import state_path
+        from ..winlink import gateways
+
+        return gateways.cache_path(state_path())
+
+    # ------------------------------------------------------------------
+    # The runs
+    # ------------------------------------------------------------------
+    def send_receive_kind(self, folder: str, internet: bool = False) -> str:
+        """What G does from `folder` (operator, 2026-09-26): "winlink" on a
+        Winlink folder; "bbs" anywhere else. On All Inboxes, "all" (the
+        Home BBS, then Winlink) when both are in use, else whichever is,
+        and "bbs" when neither is yet (the Home BBS's first-run question).
+
+        In use = set up for G or for I, whichever key was pressed: what the
+        key still needs is then asked for, with its Skip button (operator,
+        2026-09-28). A service set up for neither is not asked about, so a
+        BBS-only station is not asked about Winlink at every G."""
+        if folder == WINLINK_FOLDER or folder.startswith(f"{WINLINK_FOLDER}/"):
+            return "winlink"
+        if folder == ALL_INBOXES:
+            home, winlink_config = self.config.home_bbs, self.config.winlink
+            bbs = bool(home.route.strip() or home.internet.strip())
+            winlink = bool(winlink_config.route.strip() or winlink_config.credential.strip())
+            if bbs and winlink:
+                return "all"
+            if winlink:
+                return "winlink"
+        return "bbs"
+
+    def _busy(self) -> bool:
+        if self.collecting:
+            self._notice("Already sending and receiving.", Severity.WARNING)
+            return True
+        self.collecting = True
+        return False
+
+    def _done(self) -> None:
+        self.collecting = False
+        self.core.set_activity("")
+
+    async def send_receive(self, folder: str, *, internet: bool = False) -> None:
+        """Send/Receive (G; I with `internet`) for the folder in front."""
+        if self._busy():
+            return
+        try:
+            kind = self.send_receive_kind(folder, internet=internet)
+            if internet:
+                runs = await self._prepare_runs(kind, "I", (
+                    ("Home BBS", self._bbs_internet_prepare, self._bbs_internet_run),
+                    ("Winlink", self.winlink_login, self._winlink_cms_run),
+                ))
+                for run, args in runs or ():
+                    await run(*args)
+            else:
+                runs = await self._prepare_runs(kind, "G", (
+                    ("Home BBS", self._bbs_prepare, self._bbs_run),
+                    ("Winlink", self._winlink_prepare, self._winlink_run),
+                ))
+                for run, (entry, options) in runs or ():
+                    await run(entry, options)
+        finally:
+            self._done()
+
+    async def get_bulletins(self, *, internet: bool = False) -> None:
+        """Get bulletins: the Home BBS run with `CollectOptions.bulletins`,
+        the categories chosen (`mail/bulletins.py`) offered on the first run
+        and when a check finds a new one (`choose_categories`)."""
+        if self._busy():
+            return
+        try:
+            prepared = await (self._bbs_internet_prepare() if internet
+                              else self._bbs_prepare())
+            if prepared is None:
+                return
+            entry, options = prepared
+            home = self.config.home_bbs
+            options.bulletins = True
+            options.check_days = home.bulletin_check_days
+            options.first_days = home.bulletin_days
+            run = self._bbs_internet_run if internet else self._bbs_run
+            await run(entry, options)
+        except SkipService:
+            pass
+        finally:
+            self._done()
+
+    async def get_files(self) -> None:
+        """Get files from the Home BBS, by radio only: `FILES`, the
+        operator's pick (`pick_files`) and a YAPP download of each. No
+        Internet twin: YAPP does not survive a server's telnet."""
+        if self._busy():
+            return
+        try:
+            prepared = await self._bbs_prepare()
+            if prepared is None:
+                return
+            entry, options = prepared
+            options.files = True
+            await self._bbs_run(entry, options)
+        except SkipService:
+            pass
+        finally:
+            self._done()
+
+    async def _prepare_runs(self, kind: str, key: str, services) -> list | None:
+        """Ask everything each service in `kind` needs, in order; the runs
+        to make, or None if the operator cancelled. On All Inboxes each
+        question says why it is asked and can skip its service (operator,
+        2026-09-27: make it "clear why they're being prompted")."""
+        wanted = [s for s in services
+                  if kind == "all" or s[0] == ("Winlink" if kind == "winlink" else "Home BBS")]
+        runs = []
+        try:
+            for name, prepare, run in wanted:
+                self._all_inboxes = (key, name) if kind == "all" else None
+                try:
+                    prepared = await prepare()
+                except SkipService:
+                    self._notice(f"Skipping {name} this time.")
+                    continue
+                if prepared is None:
+                    return None
+                runs.append((run, prepared))
+        finally:
+            self._all_inboxes = None
+        if not runs:
+            self._notice("Nothing to send or receive: every service was skipped.")
+        return runs
+
+    def _all_inboxes_ask(self) -> tuple[str, str]:
+        """(note, skip label) for a question asked on All Inboxes, else ("", "")."""
+        if self._all_inboxes is None:
+            return "", ""
+        key, name = self._all_inboxes
+        how = " over the Internet" if key == "I" else ""
+        # The operator's wording, 2026-09-27.
+        return (
+            f"You have All Inboxes selected, therefore kissterm will check mail "
+            f"for both BBS and Winlink{how}.",
+            f"Skip {name}",
+        )
+
+    def _setup_answer(self, answer, place: str):
+        """A setup question's answer: SETUP_SKIP raises `SkipService`,
+        SETUP_GO asks the client to show `place` and returns None (the run
+        is cancelled), anything else is returned."""
+        if answer == SETUP_SKIP:
+            raise SkipService
+        if answer == SETUP_GO:
+            self._publish(SetupRequested(place))
+            return None
+        return answer
+
+    # ------------------------------------------------------------------
+    # Asking for what is missing
+    # ------------------------------------------------------------------
+    async def _winlink_gateway(self):
+        """The Address Book contact to reach Winlink through: the favourite
+        gateway (Settings > Mail > Gateway contact) when it is in the book,
+        else the one chosen now, added to the book and remembered as the
+        favourite if asked. None if cancelled."""
+        from ..winlink import gateways
+
+        addressbook = self.core.addressbook
+        favourite = self.config.winlink.route.strip()
+        entry = addressbook.find(favourite) if favourite else None
+        if entry is not None:
+            return entry
+        note, skip = self._all_inboxes_ask()
+        has_list = bool(gateways.ACCESS_KEY) or gateways.load_cached(self.gateway_cache()) is not None
+        answer = self._setup_answer(await self._ask(WinlinkGateway(
+            tuple(e.target for e in addressbook.entries if not e.is_internet), favourite,
+            gateway_list=has_list, all_note=note, skip=skip)), "winlink")
+        if not isinstance(answer, GatewayChoice):
+            return None
+        entry = addressbook.find(answer.target)
+        if entry is None:
+            channel = answer.channel
+            details = {} if channel is None else {
+                "frequency": channel.frequency,
+                "note": f"Winlink RMS, {channel.modes}" + (f", {channel.grid}" if channel.grid else ""),
+            }
+            entry = addressbook.upsert(answer.target, **details)
+            self._publish(AddressBookChanged())
+        if answer.remember and self.config.winlink.route != entry.target:
+            self.config.winlink.route = entry.target
+            self._config_saved()
+        return entry
+
+    async def _mail_route(self, route: str):
+        """The Address Book entry `route` names, asking for one (and saving
+        the answer) on first use or when the entry is gone; None if the
+        operator cancelled."""
+        addressbook = self.core.addressbook
+        entry = addressbook.find(route.strip()) if route.strip() else None
+        if entry is not None:
+            return entry
+        note, skip = self._all_inboxes_ask()
+        targets = tuple(e.target for e in addressbook.entries)
+        chosen = self._setup_answer(await self._ask(
+            HomeBbsRoute(targets, missing=route.strip(), all_note=note, skip=skip)
+        ), "connect" if not targets else "bbs")
+        entry = addressbook.find(chosen) if chosen else None
+        if entry is None:
+            return None
+        self.config.home_bbs.route = entry.target
+        self._config_saved()
+        return entry
+
+    async def _ask_login(self, current: str, default_name: str, title: str, detail: str,
+                         *, secret: bool = True,
+                         username: bool = False) -> tuple[str, str] | None:
+        """The saved login `current` names, as (name, password); if there
+        is none or it cannot be read, ask for it before dialing and save it
+        (with `username`, its username too). None if cancelled."""
+        text = find_credential(self.config, current) if current else ""
+        if text:
+            return current, text
+        # A name that is no saved login may be a password typed in its place:
+        # never show it, save under the fixed name instead.
+        name = current if current and credential_store(self.config, current) else default_name
+        note, skip = self._all_inboxes_ask()
+        answer = self._setup_answer(await self._ask(LoginAsk(
+            title, detail, name, secret=secret, all_note=note, skip=skip,
+            username=credential_username(self.config, name) if username else None,
+            where=login_where() if username else "")), "")
+        if not answer:
+            return None
+        text = answer.text if isinstance(answer, Credential) else answer
+        where = set_credential(self.config, name, text, username=(
+            answer.username if isinstance(answer, Credential) else None))
+        self.core.save_config()
+        self._notice(
+            f"Saved the login \"{name}\" in "
+            + ("the system keyring." if where == "keyring" else "config.toml (no system keyring here)."),
+        )
+        return name, text
+
+    # ------------------------------------------------------------------
+    # Dialing
+    # ------------------------------------------------------------------
+    def connected_to(self, peer: AX25Address) -> bool:
+        """Whether a session is already connected to `peer` over AX.25.
+        Only an AX.25 link has an address to compare: a session-tier link's
+        peer is a host or a modem's name (operator, 2026-10-03: G on Mail
+        with WS1EC's SSH login open crashed here)."""
+        return any(
+            s.link is not None and s.link.connected
+            and isinstance(s.link.peer, AX25Address)
+            and (s.link.peer.callsign, s.link.peer.ssid) == (peer.callsign, peer.ssid)
+            for s in self.core.sessions.by_key.values()
+        )
+
+    async def _dial(self, entry, build, doing: str, label: str = "Send/Receive"):
+        """Dial `entry` for a Home BBS or Winlink run. `build(link, key)`
+        makes the runner the moment the link is up, before anything awaits,
+        so the far end's first bytes are not missed; it starts once the
+        chain has reached the target. Returns (runner, key), or None having
+        said why. `doing` ("get files") goes in the connect notice and
+        `label` ("Get files") leads a failure's, so each says what was
+        asked for (operator, 2026-10-04)."""
+        first = [h.strip() for h in entry.hops.split(",") if h.strip()] or [entry.target]
+        peer = parse_path(first[0]).destination
+        if self.connected_to(peer):
+            self._notice(f"Already connected to {peer}. Disconnect first, then press G.",
+                         Severity.WARNING)
+            return None
+        state: dict = {"runner": None, "key": "", "reached": False}
+
+        def on_link(link, key: str) -> None:
+            state["key"] = key
+            state["runner"] = build(link, key)
+
+        def on_reached(reached: bool) -> None:
+            state["reached"] = reached
+
+        # One notice says a connect is under way (and that transmit was
+        # enabled, if it was); a failure is one notice too: the connect
+        # hands its reason here (`report`) rather than raising its own
+        # beside this one (operator, 2026-10-02: two toasts per event).
+        reasons: list[str] = []
+        announce = f"Connecting to {entry.target} to {doing}..."
+        if entry.is_internet:
+            # No transmit gate on the Internet, so nothing to fold in.
+            self._notice(announce)
+            announce = ""
+        self.core.set_activity(f"Connecting to {entry.target}")
+        await self.core.connector.dial_entry(
+            entry, on_link=on_link, on_reached=on_reached, focus=False,
+            announce=announce, report=reasons.append,
+        )
+        runner = state["runner"]
+        why = reasons[-1].rstrip(".") if reasons else f"did not reach {entry.target}"
+        if runner is None:
+            # No reason means the operator cancelled (the reminder, a
+            # disconnect): nothing to tell them.
+            if reasons:
+                self._notice(f"{label}: {why}.", Severity.ERROR)
+            return None
+        if not state["reached"]:
+            runner.close()
+            self._notice(f"{label}: {why}.", Severity.ERROR)
+            return None
+        return runner, state["key"]
+
+    def _note(self, key: str, text: str) -> None:
+        """A Send/Receive progress sentence, for the transcript only."""
+        self.core.sessions.record(key, f"Mail: {text}")
+
+    def _sent(self, key: str, text: str) -> None:
+        """Echo a line Send/Receive sent, as a typed line is echoed."""
+        self._publish(LineSent(key, self.core.connector.masked(text)))
+        self.core.sessions.log_sent(key, text, watch_hop=False)
+
+    def _received(self, key: str, text: str) -> None:
+        """A line from the Winlink gateway, shown and kept in the
+        transcript as received text (the raw bytes are suppressed)."""
+        data = (text + "\r").encode("latin-1", errors="replace")
+        self._publish(SessionData(key, data))
+        session = self.core.sessions.get(key)
+        if session is not None and session.transcript is not None:
+            session.transcript.received_stream(data, sanitize)
+
+    def _transferring(self, key: str, on: bool) -> None:
+        """A files run's download starting or ending on session `key`: the
+        session's bytes are the transfer's meanwhile."""
+        if on:
+            self.core.transfers.active.add(key)
+        else:
+            self.core.transfers.active.discard(key)
+
+    def _gate_open(self) -> bool:
+        return self.core.gate.enabled
+
+    # ------------------------------------------------------------------
+    # The Home BBS by radio
+    # ------------------------------------------------------------------
+    async def _bbs_prepare(self):
+        """Everything the Home BBS run needs before dialing, asking for
+        what is missing: (entry, options), or None if cancelled."""
+        from ..mail.collect import CollectOptions
+
+        home = self.config.home_bbs
+        entry = await self._mail_route(home.route)
+        if entry is None:
+            return None
+        login_text = ""
+        if home.login_prompt:
+            # Settings says the BBS asks for a login: have it before dialing.
+            login = await self._ask_login(
+                home.credential, "Home BBS", "Home BBS login", "", username=True)
+            if login is None:
+                return None
+            if home.credential != login[0]:
+                home.credential = login[0]
+                self._config_saved()
+            # The username line, then the password (a saved login's shape).
+            login_text = saved_login_text(self.config, login[0]) or login[1]
+        options = CollectOptions(
+            bbs_call=home.call,
+            software=home.software,
+            ready_text=home.ready_text,
+            login_prompt=home.login_prompt,
+            login_text=login_text,
+        )
+        return entry, options
+
+    async def _bbs_run(self, entry, options) -> None:
+        """The Home BBS: `kissterm/mail/collect.py` drives it."""
+        from ..mail.collect import BbsCollector
+
+        def build(link, key: str):
+            return BbsCollector(
+                link,
+                self.store,
+                options,
+                note=lambda text: self._note(key, text),
+                sent=lambda text: self._sent(key, text),
+                gate_open=self._gate_open,
+                progress=self.core.set_activity,
+                subscriptions=self.subscriptions,
+                choose=self.choose_categories,
+                pick_files=self.pick_files,
+                files_dir=self.downloads_dir() if options.files else None,
+                transferring=lambda on: self._transferring(key, on),
+            )
+
+        if options.files:
+            doing, label = "get files", "Get files"
+        elif options.bulletins:
+            doing, label = "get bulletins", "Get bulletins"
+        else:
+            doing, label = "send and receive mail", "Send/Receive"
+        dialed = await self._dial(entry, build, doing, label)
+        if dialed is None:
+            return
+        collector, key = dialed
+        result = await collector.run()
+        self.bbs_report(result, bulletins=options.bulletins, files=options.files)
+        await self.core.connector.disconnect(key)
+
+    def bbs_report(self, result, bulletins: bool = False, files: bool = False) -> None:
+        """The outcome notice of a Home BBS run, over radio or the Internet."""
+        sent = f"{len(result.sent)} sent, " if result.sent else ""
+        if files:
+            got = len(result.downloaded)
+            if result.stopped:
+                self._notice(f"Getting files stopped: {result.stopped}. {got} downloaded.",
+                             Severity.WARNING)
+            elif got:
+                self._notice(f"{got} file(s) downloaded into Files > Downloads.")
+            elif not result.listed:
+                self._notice("The Home BBS lists no files.")
+            self._publish(MailChanged())
+            return
+        if bulletins:
+            if result.stopped:
+                self._notice(f"Getting bulletins stopped: {result.stopped}. "
+                             f"{len(result.filed)} received.", Severity.WARNING)
+            elif result.filed:
+                self._notice(f"{len(result.filed)} new bulletin(s) from the Home BBS.")
+            else:
+                self._notice("No new bulletins on the Home BBS.")
+            self._publish(MailChanged())
+            return
+        if "unknown client type" in result.stopped.lower():
+            self._notice(UNKNOWN_CLIENT, Severity.WARNING, timeout=15)
+        elif result.stopped:
+            self._notice(f"Send/Receive stopped: {result.stopped}. "
+                         f"{sent}{len(result.filed)} received.", Severity.WARNING)
+        elif result.filed:
+            self._notice(f"{sent}{len(result.filed)} new message(s) from the Home BBS.")
+        elif result.sent:
+            self._notice(f"{len(result.sent)} sent. No new mail on the Home BBS.")
+        else:
+            self._notice("No new mail on the Home BBS.")
+        self._publish(MailChanged())
+
+    def bulletin_bbs(self) -> str:
+        """The Home BBS's callsign as its choices are kept, or ""."""
+        home = self.config.home_bbs
+        if home.call:
+            return home.call
+        route = home.route or home.internet
+        return str(parse_path(route).destination.callsign) if route else ""
+
+    async def choose_categories(self, offer: list[str], counts: dict[str, int], first: bool):
+        """The collector's question (`collect.Choose`), asked mid-run."""
+        return await self._ask(ChooseCategories(
+            self.bulletin_bbs() or "the BBS", {c: counts.get(c, 0) for c in offer},
+            new_only=not first))
+
+    async def pick_files(self, files):
+        """The collector's question (`collect.PickFiles`), asked mid-run."""
+        folder = self.downloads_dir()
+        have = {p.name: p.stat().st_size for p in folder.iterdir() if p.is_file()}
+        return await self._ask(PickFiles(self.bulletin_bbs() or "the BBS", tuple(files), have))
+
+    # ------------------------------------------------------------------
+    # Winlink by radio
+    # ------------------------------------------------------------------
+    async def _winlink_prepare(self):
+        """Everything the Winlink run needs before dialing, asking for what
+        is missing: (entry, options), or None if cancelled."""
+        from ..mail.winlink_collect import WinlinkOptions
+
+        winlink = self.config.winlink
+        entry = await self._winlink_gateway() if await self._winlink_account() else None
+        if entry is None:
+            return None
+        login = await self.winlink_login()
+        if login is None:
+            return None
+        account, password = login
+        return entry, WinlinkOptions(
+            account,
+            password=password,
+            target=str(parse_path(entry.target).destination),
+            locator=winlink.locator or self.config.aprs.grid_square,
+        )
+
+    async def _winlink_account(self) -> str:
+        """The Winlink account, asking for the callsign it defaults to when
+        neither is set; "" if the operator cancelled."""
+        if not winlink_account(self.config):
+            await self.core.ask_callsign()
+        return winlink_account(self.config)
+
+    async def winlink_login(self) -> tuple[str, str] | None:
+        """(account, password), asking for the password if no saved login
+        holds it; None if cancelled."""
+        winlink = self.config.winlink
+        account = await self._winlink_account()
+        if not account:
+            return None
+        # Have the password before dialing, so a missing one never costs a
+        # connect. UNVERIFIED: that every gateway challenges (Winlink
+        # accounts have passwords; wl2k-go answers ;PQ whenever it comes).
+        login = await self._ask_login(
+            winlink.credential, "Winlink", f"Winlink password for {account}", "")
+        if login is None:
+            return None
+        if winlink.credential != login[0]:
+            winlink.credential = login[0]
+            self._config_saved()
+        return account, login[1]
+
+    async def _winlink_run(self, entry, options) -> None:
+        """Winlink over the route Settings > Mail names:
+        `mail/winlink_collect.py` drives the B2F exchange.
+
+        While it runs, the session shows the protocol lines as text, not
+        the link's raw bytes: a message travels compressed, and its binary
+        would only fill a terminal with noise (the same suppression a file
+        transfer uses). What arrived before the exchange started (the
+        node's banner, the hop chain) was shown as usual."""
+        from ..mail.winlink_collect import WinlinkCollector
+
+        def build(link, key: str):
+            return WinlinkCollector(
+                link,
+                self.store,
+                options,
+                note=lambda text: self._note(key, text),
+                sent=lambda text: self._sent(key, text),
+                received=lambda text: self._received(key, text),
+                gate_open=self._gate_open,
+                progress=self.core.set_activity,
+            )
+
+        dialed = await self._dial(entry, build, "send and receive Winlink mail")
+        if dialed is None:
+            return
+        collector, key = dialed
+        active = self.core.transfers.active
+        active.add(key)
+        try:
+            result = await collector.run()
+        finally:
+            active.discard(key)
+        self.winlink_report(result)
+        await self.core.connector.disconnect(key)
+        await self._winlink_password_refused(result)
+
+    async def _winlink_password_refused(self, result) -> None:
+        """The gateway refused the password: ask for it again here, rather
+        than say where to set it (operator, 2026-09-27: go there, don't
+        point). Saved for the next run; nothing is dialed now, so a retry
+        costs airtime only when the operator presses G again."""
+        if "password" not in (result.stopped or "").lower():
+            return
+        text = await self._ask(LoginAsk(
+            "Winlink password refused",
+            f"The gateway said: {result.stopped}. Type the password for "
+            f"{winlink_account(self.config)} again.",
+            "Winlink", go_label="Save"))
+        if not text or text == SETUP_SKIP:
+            return
+        where = set_credential(self.config, "Winlink", text)
+        self.config.winlink.credential = "Winlink"
+        self._config_saved()
+        self._notice("Saved in " + ("the system keyring" if where == "keyring" else "config.toml")
+                     + ". Send/Receive again to use it.")
+
+    def winlink_report(self, result) -> None:
+        """The outcome notice of a Winlink run, over radio or the Internet."""
+        sent = f"{len(result.sent)} sent, " if result.sent else ""
+        if "unknown client type" in result.stopped.lower():
+            self._notice(UNKNOWN_CLIENT, Severity.WARNING, timeout=15)
+        elif result.stopped:
+            self._notice(f"Winlink stopped: {result.stopped}. {sent}{len(result.filed)} received.",
+                         Severity.WARNING)
+        elif result.filed:
+            self._notice(f"{sent}{len(result.filed)} new Winlink message(s).")
+        elif result.sent:
+            self._notice(f"{len(result.sent)} sent. No new Winlink mail.")
+        else:
+            self._notice("No new Winlink mail.")
+        self._publish(MailChanged())
+
+    # ------------------------------------------------------------------
+    # Over the Internet (I)
+    # ------------------------------------------------------------------
+    async def _internet_run(self, transport, peer: str, what: str, build,
+                            label: str = "Send/Receive"):
+        """Connect a session `transport` and run the collector
+        `build(link, note, sent, received)` makes over it, with a
+        transcript. Returns its result, or None having said why, led by
+        `label`."""
+        self._notice(f"Connecting to {what} over the Internet...")
+        self.core.set_activity(f"Connecting to {what}")
+        link = transcript = None
+        try:
+            await transport.open()
+            try:
+                session = await self.core.connector.session_connect(transport)
+            except TransportError as exc:
+                self._notice(f"{label} by Internet: {exc}", Severity.ERROR)
+                return None
+            link = SessionLinkAdapter(session)
+            mycall = str(self.config.mycall or "").upper()
+            transcript = SessionLog(self.core.sessions.transcript_directory(), mycall, peer)
+            if not transcript.open():
+                transcript = None
+            record = transcript
+            masked = self.core.connector.masked
+
+            def note(text: str) -> None:
+                if record is not None:
+                    record.note(f"*** Mail: {text}")
+
+            collector = build(
+                link, note,
+                lambda text: record.sent(masked(text)) if record is not None else None,
+                lambda text: record.received(text) if record is not None else None,
+            )
+            return await collector.run()
+        finally:
+            if link is not None:
+                with contextlib.suppress(Exception):
+                    await link.disconnect()
+            with contextlib.suppress(Exception):
+                await transport.close()
+            if transcript is not None:
+                transcript.close()
+            self.core.set_activity("")
+
+    async def _winlink_cms_run(self, account: str, password: str) -> None:
+        """Winlink through the CMS by Telnet (`winlink_collect.CMS_*`,
+        from wl2k-go): its login, then the same exchange as over radio."""
+        from ..mail.winlink_collect import (
+            CMS_PORT, CMS_TARGET, WinlinkCollector, WinlinkOptions, cms_host,
+        )
+        from ..transport import build_transport
+
+        options = WinlinkOptions(
+            account, password=password, target=CMS_TARGET,
+            locator=self.config.winlink.locator or self.config.aprs.grid_square,
+            telnet_login=True,
+        )
+
+        def build(link, note, sent, received):
+            return WinlinkCollector(link, self.store, options, note=note, sent=sent,
+                                    received=received, progress=self.core.set_activity,
+                                    early_lines_shown=False)
+
+        server = self.config.winlink.server
+        transport = build_transport({"kind": "telnet", "host": cms_host(server), "port": CMS_PORT})
+        what = "Winlink's test server" if server == "test" else "the Winlink CMS"
+        result = await self._internet_run(transport, CMS_TARGET, what, build)
+        if result is not None:
+            self.winlink_report(result)
+            await self._winlink_password_refused(result)
+
+    def internet_contacts(self) -> list:
+        """The Address Book's Telnet and SSH contacts: what I reaches the
+        Home BBS through."""
+        return [e for e in self.core.addressbook.entries if e.is_internet]
+
+    async def _bbs_internet_prepare(self):
+        """Everything the Home BBS needs over the Internet, asking for what
+        is missing: (connection, options), or None if cancelled."""
+        from ..mail.collect import CollectOptions
+
+        home = self.config.home_bbs
+        contacts = self.internet_contacts()
+        wanted = home.internet.strip().upper()
+        entry = next((e for e in contacts if e.target.upper() == wanted), None)
+        # A name that is no saved login may be a password typed in its
+        # place: never shown, replaced by a login made here.
+        name = (home.internet_credential
+                if credential_store(self.config, home.internet_credential) else "")
+        password = find_credential(self.config, name) if name else ""
+        if not password and entry is not None and entry.credential:
+            # The contact's own Node login is the node's sign-in already;
+            # asking for it again here was a second copy (operator,
+            # 2026-10-02).
+            node_password = find_credential(self.config, entry.credential)
+            if node_password:
+                name, password = entry.credential, node_password
+        user = (credential_username(self.config, name) or home.internet_user
+                or str(self.config.mycall or "").split("-")[0].upper())
+        if entry is None or not password:
+            # One question for all of it: the contact, the username and the
+            # password, saved as one login (operator, 2026-09-28).
+            note, skip = self._all_inboxes_ask()
+            answer = self._setup_answer(await self._ask(InternetLoginAsk(
+                tuple(e.target for e in contacts), entry.target if entry else "",
+                missing=home.internet.strip() if entry is None else "",
+                username=user, saved=bool(password), where=login_where(),
+                all_note=note, skip=skip)), "")
+            if not isinstance(answer, InternetLogin):
+                return None
+            entry = self.core.addressbook.find(answer.target)
+            if entry is None or not entry.is_internet:
+                return None
+            name = name or f"{entry.target} login"
+            password = answer.password or password
+            user = answer.username
+            where = set_credential(self.config, name, password, username=user)
+            home.internet, home.internet_credential, home.internet_user = entry.target, name, ""
+            self._config_saved()
+            self._notice(
+                f"Saved the login \"{name}\" for {entry.target}, its password in "
+                + ("the system keyring." if where == "keyring"
+                   else "config.toml (no system keyring here)."),
+            )
+        return entry, CollectOptions(
+            bbs_call=home.call,
+            software=home.software,
+            ready_text=home.ready_text,
+            telnet_user=user,
+            telnet_password=password,
+            after_login=home.internet_command.strip(),
+        )
+
+    async def _bbs_internet_run(self, entry, options) -> None:
+        """The Home BBS over its Telnet or SSH contact, built the one way
+        every connection is (`build_transport`)."""
+        from ..mail.collect import BbsCollector
+        from ..transport import build_transport
+
+        label = "Get bulletins" if options.bulletins else "Send/Receive"
+        try:
+            transport = build_transport(entry.transport_config(
+                lambda name: find_credential(self.config, name),
+                lambda name: credential_username(self.config, name)))
+        except (TransportError, TypeError, ValueError) as exc:
+            self._notice(f"{label} by Internet: {entry.target}: {exc}", Severity.ERROR)
+            return
+
+        def build(link, note, sent, received):
+            return BbsCollector(link, self.store, options, note=note, sent=sent,
+                                progress=self.core.set_activity,
+                                subscriptions=self.subscriptions,
+                                choose=self.choose_categories)
+
+        result = await self._internet_run(transport, entry.target, entry.target, build, label)
+        if result is not None:
+            self.bbs_report(result, bulletins=options.bulletins)

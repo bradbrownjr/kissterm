@@ -10,6 +10,25 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## Mail, bulletins and files, after the core rework (0.1.403, 2026-10-05)
+
+Send/Receive, Get bulletins, Get files and YAPP/AutoBIN transfers moved
+out of the terminal UI into kissterm's core, with nothing meant to change
+on screen. One session with the Home BBS confirms it.
+
+- [ ] **G on Mail.** Expected: "Connecting to ... to send and receive
+  mail" toast, the phase in green in the status bar, the session in its
+  Terminal tab (lines sent echoed, a password as `********`), one outcome
+  toast, and the link disconnected at the end.
+- [ ] **G on Bulletins and on Files.** Bulletins: the categories question
+  on a first run; Files: the file list, then the download into Files >
+  Downloads. Each ends with one outcome toast.
+- [ ] **A typed YAPP download.** Connected to the BBS in the Terminal, type
+  `YAPP <name>`. Expected: the download starts by itself, its progress in
+  the status bar, the file in Files > Downloads.
+- [ ] **S on Files with TX off.** Expected: "Transmit ENABLED" toast once
+  you press Start, then the upload.
+
 ## APRS, after the core rework (0.1.402, 2026-10-05)
 
 APRS decoding, messages, the ack-and-retry queue, both beacons and GPS

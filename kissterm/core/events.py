@@ -216,3 +216,33 @@ class Alert(Event):
     title: str
     body: str
     urgent: bool
+
+
+# ----------------------------------------------------------------------
+# Mail, bulletins, files (`kissterm/core/mail.py`, `transfers.py`) and
+# what the core changed on the operator's behalf
+# ----------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class MailChanged(Event):
+    """The message store changed (a run filed mail or bulletins, a file
+    was downloaded): a client re-reads it."""
+
+
+@dataclass(frozen=True, slots=True)
+class SetupRequested(Event):
+    """The operator chose "go there" on a setup question: show `place`
+    ("connect": a new connection; "winlink": Settings > Mail > Gateway
+    contact; "bbs": Settings > Mail > Home BBS route)."""
+
+    place: str
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigChanged(Event):
+    """The core changed and saved the configuration (a login, a route,
+    the callsign): a client showing settings redraws them."""
+
+
+@dataclass(frozen=True, slots=True)
+class AddressBookChanged(Event):
+    """The core added to or changed the Address Book."""

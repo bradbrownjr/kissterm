@@ -14,7 +14,7 @@ Read this file plus the one pane you are changing.
 
 | File | What it owns |
 |---|---|
-| `app.py` | `KissTermApp`: bindings, `compose()`, tab actions, status bar; holds the `Core` (`kissterm/core/`), registers the frame fan-out's subscribers with it, and turns its events into pane updates (`_on_core_event`). Sessions, transcripts, connecting, APRS, the beacons and GPS are the core's (`app.config`, `heard`, `aprs_conversations`, `beaconer`... read through to it); the app's `_bind_link`, `_record`, `log_sent`... read through to it. |
+| `app.py` | `KissTermApp`: bindings, `compose()`, tab actions, status bar; holds the `Core` (`kissterm/core/`), registers the frame fan-out's subscribers with it, and turns its events into pane updates (`_on_core_event`). Sessions, transcripts, connecting, APRS, the beacons, GPS, mail Send/Receive and file transfers are the core's (`app.config`, `heard`, `aprs_conversations`, `beaconer`... read through to it); the app's `_bind_link`, `_record`, `log_sent`... read through to it. |
 | `styles.py` | All CSS, as `APP_CSS`. Appearance changes go here, not inline. |
 | `mail_pane.py` | `MessageBrowser`: folder tree, list and reader over `kissterm/mail/`, one widget for the Mail, Bulletins and Files tabs; its keys are bound on `MessageList` |
 | `terminal_pane.py` | Session scrollback + input line + sending |

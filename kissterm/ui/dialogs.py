@@ -37,6 +37,13 @@ from ..ax25 import parse_path
 #: Defined in the core (`kissterm/core/connect.py`), re-exported for the
 #: screens and callers that build one.
 from ..core.connect import ConnectRequest  # noqa: F401
+from ..core.questions import (  # noqa: F401 - the answer types, defined by the core
+    SETUP_GO,
+    SETUP_SKIP,
+    Credential,
+    GatewayChoice,
+    InternetLogin,
+)
 from ..locator import LocatorError, from_grid, from_mgrs, from_utm
 from .symbol_picker import SymbolPicker
 from .wraplog import WrapLog
@@ -1463,7 +1470,7 @@ class RadioReminderScreen(ModalScreen[bool]):
     on -- so a saved frequency or connection type is worth nothing if the
     operator only sees it after the SABMs have already gone out on
     whatever the radio happened to be left on. This is a blocking Connect/
-    Cancel step, not a notification, for the same reason `_arm_for`
+    Cancel step, not a notification, for the same reason `Connector.arm_for`
     requires a confirmed, targeted action rather than firing on a bare
     keystroke: a reminder nobody has to look at is not a reminder. Shown
     only when the entry actually has something to remind about -- most
@@ -1514,15 +1521,6 @@ class RadioReminderScreen(ModalScreen[bool]):
     @on(Button.Pressed, "#connect-go")
     def _go(self) -> None:
         self.dismiss(True)
-
-
-#: Send/Receive's setup questions answer with one of these besides a value
-#: or None (cancel everything): leave this service out of an All Inboxes
-#: run, or take the operator to the place the dialog names (operator,
-#: 2026-09-27: "if it wants the user to go someplace, include a button to go
-#: directly there"). The caller knows where that is; the dialog only asks.
-SETUP_SKIP = "\x00skip"
-SETUP_GO = "\x00go"
 
 
 class HomeBbsSetupScreen(ModalScreen[str | None]):
@@ -1601,18 +1599,6 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
     def _go(self) -> None:
         value = self.query_one("#home-bbs-route", Select).value
         self.dismiss(value if isinstance(value, str) else None)
-
-
-@dataclass
-class GatewayChoice:
-    """`WinlinkGatewayScreen`'s answer: where to connect this time."""
-
-    target: str
-    #: Make it the favourite gateway (Settings > Mail > Gateway contact).
-    remember: bool
-    #: When it came from the RMS gateway list: its frequency and modes,
-    #: for the Address Book contact it becomes.
-    channel: object | None = None
 
 
 #: A setup question asked during a G/I on All Inboxes is titled for the
@@ -1834,16 +1820,6 @@ class LoginAskScreen(ModalScreen["str | Credential | None"]):
         self.dismiss(Credential(self._name, text, username))
 
 
-@dataclass
-class InternetLogin:
-    """`InternetLoginScreen`'s answer: the contact and the login for it."""
-
-    target: str
-    username: str
-    #: "" keeps the password already saved.
-    password: str
-
-
 #: "New Telnet/SSH contact..." in `InternetLoginScreen`'s contact list.
 _NEW_INTERNET_CONTACT = "\x00new-contact"
 
@@ -2032,17 +2008,6 @@ class SessionTransportPickerScreen(ModalScreen[str | None]):
     @on(Button.Pressed, "#connect-go")
     def _go(self) -> None:
         self.dismiss(str(self.query_one("#connect-transport", Select).value))
-
-
-@dataclass(frozen=True)
-class Credential:
-    """One saved login or script, as `CredentialScreen` hands it back.
-    For a login `text` is the password, "" to keep the saved one when
-    editing; for a script it is the script."""
-
-    name: str
-    text: str
-    username: str = ""
 
 
 class CredentialScreen(ModalScreen[Credential | None]):
