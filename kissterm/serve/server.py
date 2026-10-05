@@ -40,6 +40,7 @@ from typing import Any
 
 from .. import __version__
 from ..core import events as ev
+from ..core import wording
 from ..core.operator import Notice, Severity
 from . import pairing, wire
 from .operator import RemoteOperator
@@ -386,6 +387,7 @@ class RemoteServer:
             fields = []
             for spec in section.fields:
                 data = wire.jsonable(spec)
+                data["help"] = wording.neutral(spec.help)
                 try:
                     value = schema.get_value(self.core.config, spec.path)
                 except AttributeError:

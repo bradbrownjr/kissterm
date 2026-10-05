@@ -20,9 +20,6 @@ from kissterm.core import wording  # noqa: E402
 from kissterm.ui.operator import render  # noqa: E402
 
 CORE = Path(__file__).resolve().parents[2] / "kissterm" / "core"
-#: Help text the schema still carries for the terminal (core/AGENTS.md rule
-#: 1, known gap), until it is tokenized.
-_NOT_YET = {"settings_schema.py"}
 _KEY_NAME = re.compile(r"\bCtrl\+|\((?:F\d+)\)|\bF(?:[1-9]|1[0-2])\b")
 
 
@@ -44,7 +41,7 @@ def _strings(path: Path):
 def test_no_core_string_names_a_key_or_tab():
     found = [
         f"{path.name}:{line}: {text!r}"
-        for path in sorted(CORE.glob("*.py")) if path.name not in _NOT_YET
+        for path in sorted(CORE.glob("*.py"))
         for line, text in _strings(path) if _KEY_NAME.search(text)
     ]
     assert not found, "write a wording token instead:\n" + "\n".join(found)
@@ -72,3 +69,5 @@ def test_the_terminal_keeps_its_words():
     assert render("The {view:monitor} shows") == "The Monitor tab (F8) shows"
     assert wording.neutral("The {view:monitor} shows") == "The Monitor shows"
     assert render("{view:settings/Radio} > Test") == "Settings (F9) > Radio > Test"
+    assert render("{key:rms_gateways}") == "F10 > Session > RMS gateways"
+    assert wording.neutral("{key:rms_gateways}") == "RMS gateways"

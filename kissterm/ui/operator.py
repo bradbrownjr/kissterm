@@ -118,12 +118,18 @@ SCREENS: dict[type[Question], Callable[[Any], Screen]] = {
 
 
 def _key(action: str) -> str | None:
-    """The key bound to command `action` ("Ctrl+T"), or None."""
+    """The key bound to command `action` ("Ctrl+T"); for a menu-only
+    command, where it is in the F10 menu ("F10 > Session > RMS
+    gateways"); None for neither."""
     from .commands import commands_for, key_label
 
-    for command in commands_for(action):
+    commands = commands_for(action)
+    for command in commands:
         if command.key or command.list_key:
             return key_label(command.key or command.list_key, short=False)
+    for command in commands:
+        if command.group:
+            return f"{key_label('f10')} > {command.group} > {command.label}"
     return None
 
 

@@ -95,7 +95,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "mycall",
                 "Callsign",
                 "callsign",
-                "Your callsign with SSID. Also changeable any time from the F10 menu, under Session.",
+                "Your callsign with SSID. Also changeable any time with {key:set_callsign}.",
                 apply="connect",
                 placeholder="N1ABC-1",
             ),
@@ -114,8 +114,8 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "bool",
                 "Once a day, look on GitHub for a newer kissterm and say so "
                 "in a pop-up notice. Internet only, never the radio, and it "
-                "never installs anything by itself: F10 Help > Check for "
-                "updates does that when you ask.",
+                "never installs anything by itself: {key:check_updates} "
+                "does that when you ask.",
                 apply="restart",
             ),
         ),
@@ -322,7 +322,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "contact",
                 "The Address Book contact, connected by Telnet or SSH, that "
                 "reaches your BBS's node. Its host name and login are in the "
-                "contact itself (Ctrl+G, Edit); this chooses which contact.",
+                "contact itself (edit it in the Address Book); this chooses which contact.",
                 apply="live",
                 contacts="internet",
                 rule_before="Home BBS by Internet (I on the Mail tab)",
@@ -349,8 +349,8 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "contact",
                 "The Address Book contact that reaches a Winlink RMS gateway "
                 "by radio: its -10 SSID, a NET/ROM alias, a node whose login "
-                "script sends RMS, or hops to a gateway. F10 > Session > RMS "
-                "gateways adds one near you.",
+                "script sends RMS, or hops to a gateway. {key:rms_gateways} "
+                "adds one near you.",
                 apply="live",
                 contacts="radio",
                 rule_before="Winlink (G on a Winlink folder)",
@@ -522,8 +522,8 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "(someone else's mobile or handheld persona, say) is "
                 "ignored by this session rather than answered under an "
                 "identity it was never sent to. Turn off to answer a "
-                "message sent to ANY SSID of your callsign -- the F10 menu's APRS > SSID filter "
-                "toggles this without opening Settings.",
+                "message sent to ANY SSID of your callsign -- "
+                "{key:toggle_aprs_ssid_filter} toggles this without opening Settings.",
                 apply="live",
                 advanced=True,
             ),
@@ -736,7 +736,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "Transmit on at startup",
                 "bool",
                 "Off by default: kissterm starts unable to key the radio, "
-                "and Ctrl+T arms it -- the same way WSJT-X's Enable Tx "
+                "and {key:toggle_transmit} arms it -- the same way WSJT-X's Enable Tx "
                 "resets every launch. Turn this on only for a station meant "
                 "to run unattended, where a restart quietly taking it off "
                 "the air is the worse failure.",
@@ -1007,7 +1007,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "Let the Address Book and the APRS contact list open "
                 "themselves when the terminal is at least 80 columns wide -- "
                 "enough to keep the session or chat column at 40 beside them. "
-                "Ctrl+G still opens and closes either at any width, and doing "
+                "{key:toggle_contacts} still opens and closes either at any width, and doing "
                 "so takes the decision away from this setting until restart.",
                 apply="restart",
                 advanced=True,

@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — Settings help names no keys for remote clients
+
+### Improvements
+
+- **Settings help no longer names keys in the core's schema**: where it
+  said "Ctrl+T" or "F10 > Session > RMS gateways" it now carries a
+  wording token, so the terminal shows the same words as before and a
+  remote client shows "the Transmit switch" or "RMS gateways". A
+  menu-only command in a token is shown as its F10 menu path.
+
+**Files:** `kissterm/core/settings_schema.py`, `core/wording.py`,
+`kissterm/ui/operator.py`, `ui/settings_pane.py`, `kissterm/serve/server.py`,
+`tests/unit/test_core_wording.py`, `tests/unit/test_serve.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-05] — Remote control server (experimental)
 
 ### New Features

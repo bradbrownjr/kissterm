@@ -67,6 +67,7 @@ from .settings_schema import (
     get_value,
     set_value,
 )
+from .operator import render
 from .symbol_picker import SymbolPicker
 
 log = logging.getLogger(__name__)
@@ -884,7 +885,8 @@ class SettingsPane(Vertical):
         line = self.query_one("#settings-help-line", Static)
         if key in _SPECS:
             spec = _SPECS[key]
-            label, text, apply = spec.label, spec.help, spec.apply
+            # The core's wording, in this UI's keys (`ui/operator.render`).
+            label, text, apply = spec.label, render(spec.help), spec.apply
         elif key in self._row_help:
             label, text, apply = self._row_help[key]
         else:

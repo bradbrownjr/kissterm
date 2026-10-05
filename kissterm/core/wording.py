@@ -7,8 +7,9 @@ thing to know. So the core writes a token where a key or a view goes, and
 each client renders it:
 
 * ``{key:ACTION}`` -- a command, by its action name (`ui/commands.py`
-  for the terminal). The terminal shows its key ("Ctrl+T"); a client
-  without one shows `KEYS[ACTION]` ("the Transmit switch").
+  for the terminal). The terminal shows its key ("Ctrl+T"), or for a
+  menu-only command its menu path ("F10 > Session > RMS gateways"); a
+  client without either shows `KEYS[ACTION]` ("the Transmit switch").
 * ``{view:NAME}`` -- a place. ``monitor``, ``downloads``, and
   ``settings/<Section>``. The terminal shows where it is and its key
   ("Monitor tab (F8)", "Settings (F9) > Radio"); otherwise `neutral`.
@@ -30,6 +31,11 @@ TOKEN = re.compile(r"\{(key|view):([A-Za-z_/]+)\}")
 KEYS: dict[str, str] = {
     "toggle_transmit": "the Transmit switch",
     "get_mail": "Send/Receive",
+    "set_callsign": "My callsign",
+    "check_updates": "Check for updates",
+    "rms_gateways": "RMS gateways",
+    "toggle_aprs_ssid_filter": "the SSID filter switch",
+    "toggle_contacts": "the Address Book",
 }
 
 #: A place, named for a client that does not show where it is.

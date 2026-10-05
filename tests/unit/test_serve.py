@@ -331,3 +331,17 @@ def test_the_pairing_link_carries_the_token_in_the_fragment():
     local = ServeConfig(listen="127.0.0.1", port=7425)
     assert pairing.websocket_url(local) == "ws://127.0.0.1:7425/v1"
     assert TOKEN in pairing_text(local, TOKEN)
+
+
+@pytest.mark.asyncio
+async def test_the_settings_a_phone_gets_name_no_keys_and_no_secrets():
+    core, server, ta, peer = await _serve()
+    client = await _join(server)
+    await client.next()
+    result = await client.command("c1", "settings_schema")
+    fields = [f for section in result["value"] for f in section["fields"]]
+    helps = " ".join(f["help"] for f in fields)
+    assert "{key:" not in helps and "Ctrl+" not in helps and "F10" not in helps
+    assert all(f["value"] is None for f in fields if f["kind"] == "secret")
+    await client.ws.close()
+    await server.stop()
