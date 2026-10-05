@@ -424,6 +424,21 @@ class RemoteServer:
     async def cmd_heard(self) -> list:
         return wire.jsonable(self.core.heard.entries())
 
+    async def cmd_aprs_conversations(self) -> list:
+        """Every APRS conversation, most recent first, with its last line."""
+        convos = sorted(self.core.aprs.conversations.conversations.values(),
+                        key=lambda c: c.last_activity, reverse=True)
+        return [{"callsign": c.callsign, "last_activity": c.last_activity,
+                 "last": wire.clean(c.messages[-1].text) if c.messages else ""}
+                for c in convos]
+
+    async def cmd_aprs_thread(self, callsign: str) -> list:
+        """One conversation's messages, oldest first (`MessageEntry`)."""
+        convo = self.core.aprs.conversations.conversations.get(str(callsign).strip().upper())
+        if convo is None:
+            return []
+        return [{**wire.jsonable(m), "text": wire.clean(m.text)} for m in convo.messages]
+
     async def cmd_mail_folders(self) -> list:
         return list(self.core.mail.store.folders())
 

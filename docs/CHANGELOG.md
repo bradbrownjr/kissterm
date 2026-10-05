@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — The remote client's connection and model
+
+### New Features
+
+- **`kissterm/client/`** (ROADMAP P7a M8's second step): a remote
+  client's connection to a station, which reconnects by itself and asks
+  only for the events it missed, stops for good on a rotated link, and
+  answers questions; and a model of the station built from the protocol
+  alone. No screen yet. The server adds `aprs_conversations` and
+  `aprs_thread` for reading APRS conversations remotely.
+
+**Files:** `kissterm/client/` (new: `connection.py`, `state.py`,
+`AGENTS.md`), `kissterm/serve/server.py`, `docs/PROTOCOL.md`, `AGENTS.md`,
+`tests/unit/test_client.py` (new), `tests/unit/test_serve.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-05] — The remote server moves onto uvicorn, ready to serve a web client
 
 ### Improvements

@@ -345,3 +345,18 @@ async def test_the_settings_a_phone_gets_name_no_keys_and_no_secrets():
     assert all(f["value"] is None for f in fields if f["kind"] == "secret")
     await client.ws.close()
     await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_aprs_threads_are_read_with_off_air_text_filtered():
+    core, server, ta, peer = await _serve()
+    core.aprs.conversations.record_incoming("W1AW-7", "net \x1b[31mstarts\x9b now", number="7")
+    client = await _join(server)
+    await client.next()
+    convos = (await client.command("c1", "aprs_conversations"))["value"]
+    assert convos[0]["callsign"] == "W1AW-7"
+    thread = (await client.command("c2", "aprs_thread", callsign="w1aw-7"))["value"]
+    assert thread[0]["direction"] == "in" and "\x1b" not in thread[0]["text"]
+    assert "\x9b" not in thread[0]["text"]
+    await client.ws.close()
+    await server.stop()

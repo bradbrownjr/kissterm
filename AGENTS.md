@@ -16,7 +16,7 @@ Companion files: `README.md` (users, a newcomer's front page),
 either)**, `docs/ROADMAP.md` (what is open), `docs/CHANGELOG.md` (what
 changed), `docs/SOURCES.md` (the far-end software's source,
 documentation and captures each reference rests on). Each package has its own short `AGENTS.md` (`kissterm/ax25/`,
-`transport/`, `aprs/`, `ui/`, `mail/`, `core/`, `serve/`).
+`transport/`, `aprs/`, `ui/`, `mail/`, `core/`, `serve/`, `client/`).
 
 ---
 
@@ -145,7 +145,8 @@ kissterm/
   nodes/ aprs_services/   SHIPPED references (data/*.toml)
   core/  UI-free station: transports, gate, flows; Operator port + events
   serve/ kissterm --serve: WebSocket server for remote clients (PROTOCOL.md)
-  ax25/  aprs/  transport/  ui/  mail/  core/  serve/   each with its own AGENTS.md
+  client/ the remote client: protocol connection, state model, Flet UI
+  ax25/  aprs/  transport/  ui/  mail/  core/  serve/  client/  each with its own AGENTS.md
          ui/commands.py is the key table; core/settings_schema.py drives Settings
 tests/  loopback.py  unit/ (test_ax25_link.py matters most)  pilot/ (_wait.py)
 ```

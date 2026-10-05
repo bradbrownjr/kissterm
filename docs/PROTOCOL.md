@@ -142,6 +142,7 @@ lighter path around a rule the terminal follows.
 | `send_line` `{key, text}` | `Sessions.send_line` | yes, while connected |
 | `aprs_send` `{to, text}` | `Aprs.compose` | yes |
 | `aprs_position` | `Aprs.send_position_now` | yes |
+| `aprs_conversations` / `aprs_thread` `{callsign}` | `Aprs.conversations` | no |
 | `beacon_now` | `Aprs.beacon_now` | no (refused while closed) |
 | `send_receive` `{folder, internet}` | `Mail.send_receive` | through its connect |
 | `get_bulletins` `{internet}` / `get_files` | `Mail` | through its connect |
