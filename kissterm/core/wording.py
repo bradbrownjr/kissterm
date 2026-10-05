@@ -27,6 +27,9 @@ from collections.abc import Callable
 #: A key or view token in a notice's text.
 TOKEN = re.compile(r"\{(key|view):([A-Za-z_/]+)\}")
 
+#: What comes before a token that opens a sentence.
+SENTENCE_START = re.compile(r"(?:^|[.!?]\s+)$")
+
 #: A command, named for a client that has no key for it.
 KEYS: dict[str, str] = {
     "toggle_transmit": "the Transmit switch",
@@ -63,8 +66,13 @@ def render(text: str, *, key: Callable[[str], str | None] | None = None,
     def one(match: re.Match) -> str:
         kind, name = match.group(1), match.group(2)
         if kind == "key":
-            return (key(name) if key else None) or KEYS.get(name, name)
-        return (view(name) if view else None) or neutral_view(name)
+            word = (key(name) if key else None) or KEYS.get(name, name)
+        else:
+            word = (view(name) if view else None) or neutral_view(name)
+        # "the Transmit switch" opening a sentence: "The Transmit switch".
+        if SENTENCE_START.search(text[:match.start()]):
+            word = word[:1].upper() + word[1:]
+        return word
 
     return TOKEN.sub(one, text)
 

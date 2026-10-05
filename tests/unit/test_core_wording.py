@@ -71,3 +71,11 @@ def test_the_terminal_keeps_its_words():
     assert render("{view:settings/Radio} > Test") == "Settings (F9) > Radio > Test"
     assert render("{key:rms_gateways}") == "F10 > Session > RMS gateways"
     assert wording.neutral("{key:rms_gateways}") == "RMS gateways"
+
+
+def test_a_token_that_opens_a_sentence_is_capitalised():
+    text = "Transmit ENABLED for a connect. {key:toggle_transmit} turns it back off."
+    assert wording.neutral(text) == ("Transmit ENABLED for a connect. "
+                                     "The Transmit switch turns it back off.")
+    assert wording.neutral("press {key:toggle_transmit}") == "press the Transmit switch"
+    assert render(text).endswith(". Ctrl+T turns it back off.")

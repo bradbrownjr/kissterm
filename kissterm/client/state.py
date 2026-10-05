@@ -67,6 +67,12 @@ class Session:
     application: str = ""
     chunks: collections.deque = field(
         default_factory=lambda: collections.deque(maxlen=SESSION_CHUNKS))
+    #: Chunks ever received, so a view can append only what is new.
+    received: int = 0
+
+    def add(self, chunk: "Chunk") -> None:
+        self.chunks.append(chunk)
+        self.received += 1
 
     @property
     def title(self) -> str:
@@ -175,11 +181,11 @@ class StationState:
             self._tell("session", session)
         elif name == "SessionData":
             session = self.session(data.get("key", ""))
-            session.chunks.append(Chunk(data.get("text", ""), data.get("spans") or []))
+            session.add(Chunk(data.get("text", ""), data.get("spans") or []))
             self._tell("session", session)
         elif name == "LineSent":
             session = self.session(data.get("key", ""))
-            session.chunks.append(Chunk(data.get("text", "") + "\n", outgoing=True))
+            session.add(Chunk(data.get("text", "") + "\n", outgoing=True))
             self._tell("session", session)
         elif name == "SessionStateChanged":
             session = self.session(data.get("key", ""))

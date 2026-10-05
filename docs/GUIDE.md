@@ -547,8 +547,10 @@ gateway's challenge is sent.
 
 kissterm can be driven from another machine: the station keeps the radio
 and the TNC, and a phone, laptop or browser is a remote control for it.
-**No client ships yet** (ROADMAP P7a); what exists is the server and its
-protocol (`docs/PROTOCOL.md`), for testing and for anyone writing one.
+Open the pairing link in a phone's browser and the station serves the
+remote control itself; there is nothing to install on the phone. The
+protocol underneath is in `docs/PROTOCOL.md`, for anyone writing their
+own client.
 
 - **Turn it on** in Settings > Remote > Remote control, and the station's
   own screen and every remote client share one station; `REMOTE` (with
@@ -576,6 +578,34 @@ protocol (`docs/PROTOCOL.md`), for testing and for anyone writing one.
   runs inside the terminal; the first answer wins and the others close.
   Headless with no client connected, it is cancelled, and a cancelled
   request sends nothing.
+- **The remote control** (needs the `web` extra on the station, SETUP.md
+  section 11) is laid out for a phone: five places along the bottom
+  (Sessions, Messages, Mail, Stations, More), or down the side on a wide
+  screen, and the transmit switch always in the top corner, red with
+  "TX ON" while transmit is on. Tapping it while on turns transmit off at
+  once; turning it on asks first. In a browser's menu, "Add to Home
+  screen" or "Install app" keeps it as an app. The link's key is kept by
+  that browser and taken out of the address bar, so a screenshot of the
+  page does not show it.
+  - **Sessions** is the terminal: one page per session, swiped or tapped
+    across the top, and a line to type. A line goes only when you press
+    Send. Connect and Disconnect sit above the session, and both ask
+    first.
+  - **Messages** is APRS as conversations, in bubbles, with a new
+    message limited to the 67 characters APRS carries.
+  - **Mail** shows the station's mail folders; Send/Receive asks first.
+  - **Stations** has Heard and Contacts, swiped between. **A swipe never
+    transmits**: swiping a station right asks "Connect to ...?", swiping
+    it left opens its contact, and nothing happens until that sheet's
+    own button is pressed. Tapping a station asks to connect too.
+  - **More** shows the station, the Monitor, recent notices, and Settings
+    (the station's own, checked by the station as the terminal checks
+    them; a password field left empty keeps the saved one).
+  - A **question** (the radio reminder, a login) slides up from the
+    bottom. Swiping it away is Cancel.
+  - `kissterm --client LINK` opens the same remote control in a window
+    on a desktop (the `desktop` extra). It has not been tried on a
+    desktop yet.
 - **Settings > Remote** sets the port (7425), whether it listens on the
   LAN or on this machine only, and, under advanced, a **Public URL** for
   a reverse proxy that adds HTTPS, or a certificate and key for kissterm
@@ -596,6 +626,7 @@ kissterm --log-level debug   record every frame, both directions, to a file
 kissterm --no-update-check   do not look on GitHub for a newer version
 kissterm --serve             run with no screen, for remote clients (experimental)
 kissterm --rotate-token      replace the remote pairing link and print the new one
+kissterm --client LINK       open a station's remote control in a window (experimental)
 ```
 
 **Updates.** Once a day kissterm asks GitHub, over the Internet, whether a

@@ -10,11 +10,38 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## Remote control from a phone (0.1.414, 2026-10-05)
+
+Install the `web` extra on the station (SETUP.md section 11), turn on
+Settings > Remote > Remote control, and open Session > Remote pairing.
+
+- [ ] **The phone opens the link.** Scan the QR code. Expected: the
+  remote control in the phone's browser, the station's callsign at the
+  top, "TX OFF" in the corner, and the `#t=...` gone from the address
+  bar. Reload the page: it still connects (the browser kept the key).
+- [ ] **A swipe connects only when asked.** In Stations > Contacts, swipe
+  a contact that has a frequency to the right. Expected: "Connect to
+  ...?" and nothing on the air; Cancel, and still nothing. Swipe again
+  and press Connect: the radio reminder comes up on the phone (and on
+  the station's screen; answer on either), then the SABM, "TX ON" in red
+  on the phone and the station, and the phone moves to Sessions with the
+  node's banner.
+- [ ] **Type to the node.** Send a command from Sessions. Expected: the
+  line in bold, the node's answer below it with its colours, and the
+  same lines on the station's own Terminal tab.
+- [ ] **Turn transmit off from the phone.** Tap "TX ON". Expected: off at
+  once, on the phone and the station's status bar, with no question.
+- [ ] **Sleep and wake.** Lock the phone for a minute while the node
+  sends something, then unlock. Expected: the remote control reconnects
+  by itself and shows what arrived meanwhile.
+- [ ] **Add to Home screen.** Install it from the browser's menu.
+  Expected: it opens full screen with the kissterm name.
+
 ## Remote control server (0.1.408, 2026-10-05)
 
-`kissterm --serve` (SETUP.md section 11). No client ships yet, so these
-need a WebSocket test client (for example `python -m websockets
-ws://HOST:7425/v1`, then paste
+`kissterm --serve` (SETUP.md section 11). Use the phone's remote control
+(above), or for the raw protocol a WebSocket test client (for example
+`python -m websockets ws://HOST:7425/v1`, then paste
 `{"type":"hello","token":"<the part after #t=>"}`).
 
 - [ ] **Behind Caddy.** Set Settings > Remote > Public URL to the proxy's
@@ -30,7 +57,7 @@ ws://HOST:7425/v1`, then paste
 - [ ] **Inside the terminal.** Turn on Settings > Remote > Remote
   control, open Session > Remote pairing and scan the QR code with a
   phone. Expected: the phone's browser opens the `http://...:7425/#t=...`
-  link (it shows a short kissterm page until a client ships), `REMOTE`
+  link (the remote control, with the `web` extra), `REMOTE`
   in the status bar, and after Rotate (confirmed) the old link refused.
 - [ ] **A reminder with no client.** Give a contact a frequency reminder,
   close the client, and trigger a connect to it from another client that

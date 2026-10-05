@@ -662,6 +662,8 @@ class KissTermApp(App):
         elif isinstance(event, ConfigChanged):
             for pane in self._base_query(SettingsPane):
                 pane.render_settings(self.config)
+            # A remote client's save may have changed Settings > Remote.
+            self._reconcile_remote()
         elif isinstance(event, AddressBookChanged):
             from .addressbook_pane import AddressBookPane
 

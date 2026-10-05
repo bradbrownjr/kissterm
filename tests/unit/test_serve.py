@@ -59,7 +59,7 @@ async def _serve(*, standalone: bool = True):
     peer = AX25Station(PEER, tb, _params(), accept_incoming=True)
     config = Config(mycall=str(MYCALL), serve=ServeConfig(listen="127.0.0.1", port=0))
     core = Core(config, station)
-    server = RemoteServer(core, token=TOKEN, standalone=standalone)
+    server = RemoteServer(core, token=TOKEN, standalone=standalone, web=False)
     core.operator = server.operator
     core.attach_view(HeadlessView(core))
     core.attach_station()
@@ -360,3 +360,35 @@ async def test_aprs_threads_are_read_with_off_air_text_filtered():
     assert "\x9b" not in thread[0]["text"]
     await client.ws.close()
     await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_a_contact_script_never_leaves_and_an_edit_keeps_it():
+    core, server, ta, peer = await _serve()
+    core.addressbook.upsert("W1AW-2", script="BBS\nPASSWORD hunter2", note="home")
+    client = await _join(server)
+    await client.next()
+    book = (await client.command("c1", "addressbook"))["value"]
+    entry = next(e for e in book if e["target"] == "W1AW-2")
+    assert "script" not in entry and entry["has_script"] is True
+    assert "hunter2" not in str(book)
+    saved = await client.command("c2", "addressbook_save",
+                                 entry={"target": "W1AW-2", "note": "home BBS"})
+    assert saved["ok"]
+    assert core.addressbook.find("W1AW-2").script == "BBS\nPASSWORD hunter2"
+    assert core.addressbook.find("W1AW-2").note == "home BBS"
+    refused = await client.command("c3", "addressbook_save",
+                                   entry={"target": "W1AW-2", "attempts": "99"})
+    assert refused["ok"] is False
+    await client.ws.close()
+    await server.stop()
+
+
+def test_a_transport_question_sends_names_not_config_entries():
+    from kissterm.core.questions import ChooseSessionTransport
+
+    asked = ChooseSessionTransport(({"name": "bbs-ssh", "kind": "ssh", "password": "hunter2"},
+                                    {"name": "node", "kind": "telnet"}), "node")
+    message = wire.question("q1", asked)
+    assert message["data"]["transports"] == ["bbs-ssh", "node"]
+    assert "hunter2" not in str(message)

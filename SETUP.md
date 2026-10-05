@@ -504,14 +504,21 @@ pytest
 ## 11. Remote control: kissterm --serve (experimental)
 
 `kissterm --serve` runs the station with no screen, for remote clients
-(docs/GUIDE.md, "Remote control"; no client ships yet). It needs the
-`serve` extra (uvicorn, Starlette, `websockets` and `segno`):
+(docs/GUIDE.md, "Remote control"). It needs the `serve` extra (uvicorn,
+Starlette, `websockets` and `segno`). The `web` extra adds the remote
+control that phones and browsers open at the pairing link (Flet, about
+80 MB; served from the station itself, so it works with no Internet):
 
 ```
-uv tool install "kissterm[serve] @ git+https://github.com/bradbrownjr/kissterm"
-pipx install "kissterm[serve] @ git+https://github.com/bradbrownjr/kissterm"
-pip install -e ".[serve]"                   # from-source
+uv tool install "kissterm[web] @ git+https://github.com/bradbrownjr/kissterm"
+pipx install "kissterm[web] @ git+https://github.com/bradbrownjr/kissterm"
+pip install -e ".[web]"                     # from-source
 ```
+
+With only `serve`, the station answers the protocol at `/v1` but has no
+page at `/`. For `kissterm --client LINK` on a desktop, install the
+`desktop` extra on that machine instead; Flet downloads its window
+program the first time it runs.
 
 It listens on port 7425 on every interface (Settings > Remote changes
 both) and prints a pairing link with its QR code. Run it under systemd or

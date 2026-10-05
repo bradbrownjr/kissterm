@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.413"
+version = "0.1.414"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -55,6 +55,11 @@ ssh = ["asyncssh"]
 # and Starlette serve the WebSocket API (uvicorn's WebSocket support is the
 # websockets library) and segno draws the pairing QR code.
 serve = ["starlette>=1.7", "uvicorn>=0.54", "websockets>=13", "segno"]
+# The phone, desktop and browser client (kissterm/client/), served by the
+# station at the pairing link: Flet, its web build, and the serve extra.
+web = ["kissterm[serve]", "flet>=1.0.3,<2", "flet-web>=1.0.3,<2"]
+# The same client as a desktop app (`kissterm --client LINK`).
+desktop = ["websockets>=13", "flet>=1.0.3,<2", "flet-desktop>=1.0.3,<2"]
 # aprslib (GPLv2) is test-only, never imported at runtime -- kissterm is MIT
 # and a runtime dependency on GPL code would put a copyleft obligation on
 # anyone distributing kissterm (relevant for the PyPI/Debian packaging
@@ -62,7 +67,7 @@ serve = ["starlette>=1.7", "uvicorn>=0.54", "websockets>=13", "segno"]
 # kissterm/aprs/mice.py: found and fixed a real bug in 0.1.44 (an inverted
 # message-status table) that this codebase's own self-consistent fixtures
 # could never have caught. See tests/unit/test_aprs_mice_cross_check.py.
-dev = ["pytest", "pytest-asyncio", "pytest-xdist", "asyncssh", "aprslib", "pillow", "starlette>=1.7", "uvicorn>=0.54", "websockets>=13", "segno"]
+dev = ["pytest", "pytest-asyncio", "pytest-xdist", "asyncssh", "aprslib", "pillow", "starlette>=1.7", "uvicorn>=0.54", "websockets>=13", "segno", "flet>=1.0.3,<2"]
 all = ["pyserial-asyncio-fast", "bleak", "asyncssh", "starlette>=1.7", "uvicorn>=0.54", "websockets>=13", "segno"]
 
 [project.scripts]
@@ -79,6 +84,8 @@ kissterm = "kissterm.__main__:main"
 "kissterm.aprs_services" = ["data/*.toml"]
 # And for the ARRL numbered radiogram texts the radiogram form offers.
 "kissterm.mail" = ["data/*.json", "data/forms/*.toml"]
+# The web client's terminal font (0xProto, SIL OFL 1.1, licence beside it).
+"kissterm.client.ui" = ["assets/fonts/*.ttf", "assets/fonts/*.txt"]
 
 [tool.setuptools.packages.find]
 include = ["kissterm*"]

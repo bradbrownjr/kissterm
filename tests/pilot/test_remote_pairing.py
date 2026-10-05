@@ -118,8 +118,8 @@ async def test_rotate_asks_first_then_drops_every_client():
         await pilot.click("#pairing-rotate")
         await pilot.pause()
         await pilot.click("#connect-go")
-        await pilot.pause()
-        assert app.remote.token() != old
+        # Rotating restarts the server in a worker: wait for it, not a pause.
+        await wait_for(lambda: app.remote.token() != old, "the link to rotate")
         with pytest.raises(ConnectionClosed) as closed:
             await asyncio.wait_for(ws.recv(), 3)
         assert closed.value.rcvd.code == UNAUTHORIZED

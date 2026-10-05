@@ -181,3 +181,20 @@ class Connection:
             self.on_message(message)
         except Exception:  # noqa: BLE001 - a UI bug must not drop the connection
             log.exception("client could not apply %s", kind)
+
+
+def parse_link(link: str) -> tuple[str, str]:
+    """A pairing link (`http://host:7425/#t=TOKEN`, as the station shows
+    it) as the WebSocket URL and the token. Raises ValueError for a link
+    with no token."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(link.strip())
+    token = ""
+    for item in parts.fragment.lstrip("/").split("&"):
+        if item.startswith("t="):
+            token = item[2:]
+    if not token:
+        raise ValueError("the link has no token (#t=...): copy it from Remote pairing")
+    scheme = {"https": "wss", "wss": "wss"}.get(parts.scheme, "ws")
+    return f"{scheme}://{parts.netloc}/v1", token

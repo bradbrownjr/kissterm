@@ -57,6 +57,19 @@ UNAUTHORIZED = 4401
 TOO_SLOW = 4408
 
 
+#: Contact fields a client may set (`AddressBook.upsert`'s, besides the
+#: Internet ones).
+EDITABLE_CONTACT_FIELDS = ("script", "hops", "credential", "script_name", "frequency",
+                           "connection_type", "paclen", "window", "note")
+
+
+def redact_entry(entry: dict) -> dict:
+    """A contact as a client sees it: everything but the script's text."""
+    entry = dict(entry)
+    entry["has_script"] = bool(entry.pop("script", ""))
+    return entry
+
+
 class CommandError(Exception):
     """A command the station refused, with the reason to show."""
 
@@ -96,15 +109,15 @@ def client_address(ws) -> str:
 class RemoteServer:
     """The WebSocket server for `core`. `operator` is set on the core by
     the caller: this server's `operator` alone (headless) or fanned out
-    with the terminal's (`operator.FanOutOperator`). `web_app`: the web
-    client's ASGI app, mounted at `/` (`http.build_app`)."""
+    with the terminal's (`operator.FanOutOperator`). `web`: serve the web
+    client at `/` when the `web` extra is installed (`client/ui/web.py`)."""
 
     PATH = PATH
 
     def __init__(self, core, *, token: str | None = None, standalone: bool = True,
-                 web_app=None) -> None:
+                 web: bool = True) -> None:
         self.core = core
-        self.web_app = web_app
+        self.web = web
         self.token = token if token is not None else pairing.load_token()
         self.operator = RemoteOperator(self, standalone=standalone)
         self.clients: set[_Client] = set()
@@ -124,7 +137,13 @@ class RemoteServer:
         from . import http
 
         serve_config = self.core.config.serve
-        app = http.build_app(self, __version__, self.web_app)
+        web_app = None
+        if self.web:
+            from ..client.ui import web
+
+            if web.available():
+                web_app = web.build(self)
+        app = http.build_app(self, __version__, web_app)
         sock = http.bind(serve_config.listen, serve_config.port)
         listener = http.Listener(app, sock, tls_cert=serve_config.tls_cert,
                                  tls_key=serve_config.tls_key)
@@ -401,6 +420,10 @@ class RemoteServer:
         core = self.core
         before = getattr(core.config, "active_transport", "")
         result = core.settings.save(draft, str(active_transport))
+        if not result.errors:
+            # Every screen redraws its settings (the terminal's Settings
+            # tab included) and re-reads what it runs itself.
+            core.events.publish(ev.ConfigChanged())
         if result.errors or not active_transport or (
                 active_transport == before and core.transport is not None):
             return dataclasses.asdict(result)
@@ -411,15 +434,31 @@ class RemoteServer:
         return dataclasses.asdict(result)
 
     async def cmd_addressbook(self) -> list:
-        return wire.jsonable(self.core.addressbook.entries)
+        """Every contact. A login script is literal text sent after the
+        connect and may hold a password, so it never leaves the station:
+        `has_script` says whether there is one."""
+        return [redact_entry(wire.jsonable(e)) for e in self.core.addressbook.entries]
 
     async def cmd_addressbook_save(self, entry: dict) -> dict:
+        """Create or edit a contact. Only the fields sent change: a phone
+        editing a note must not wipe the script it was never shown."""
+        from ..addressbook import INTERNET_FIELDS
+
         if not isinstance(entry, dict) or not entry.get("target"):
             raise CommandError("an entry needs a target")
-        fields = {k: str(v) for k, v in entry.items() if k != "target"}
-        saved = self.core.addressbook.upsert(str(entry["target"]), **fields)
+        editable = EDITABLE_CONTACT_FIELDS + tuple(INTERNET_FIELDS)
+        unknown = sorted(set(entry) - set(editable) - {"target", "original_target"})
+        if unknown:
+            raise CommandError(f"not contact fields: {', '.join(unknown)}")
+        book = self.core.addressbook
+        original = str(entry.get("original_target") or entry["target"])
+        existing = book.find(original)
+        fields = {name: getattr(existing, name) for name in editable} if existing else {}
+        fields.update({k: str(v) for k, v in entry.items() if k in editable})
+        saved = book.upsert(str(entry["target"]),
+                            original_target=existing.target if existing else "", **fields)
         self.core.events.publish(ev.AddressBookChanged())
-        return wire.jsonable(saved)
+        return redact_entry(wire.jsonable(saved))
 
     async def cmd_heard(self) -> list:
         return wire.jsonable(self.core.heard.entries())

@@ -664,6 +664,41 @@ docstrings do: explain *why*, at the moment it matters.
 
 ---
 
+## 8a. Phone and browser (the remote control)
+
+The Flet client in `kissterm/client/ui/` follows the platform, not the
+terminal: Material 3, touch first. Sections 2-6 are about the terminal
+and do not apply there; these do.
+
+- **A swipe never transmits.** A swipe on a row (`stations.py`) opens a
+  sheet saying what would happen ("Connect to W1AW-7?") and the row
+  springs back; only the sheet's own button acts. Swiping between pages
+  changes the page and nothing else. A phone in a pocket swipes by
+  accident; the radio must not key because of it
+  (`tests/unit/test_client_ui.py`).
+- **Anything that puts a frame on the air asks first** in a sheet:
+  connect, disconnect, Send/Receive. Typing a line and pressing Send is
+  already the deliberate commit, as Enter is in the terminal.
+- **The transmit switch is always in the top-right corner**, outlined
+  "TX OFF", filled red "TX ON". Turning it off never asks; turning it on
+  does, with a heavy haptic. Same rule as the terminal: the gate is never
+  silent.
+- **Five places**: Sessions, Messages, Mail, Stations, More. A bottom
+  NavigationBar below 720 px wide, a NavigationRail from 720 up; nothing
+  else changes between them.
+- **One sheet shape** (`sheets.sheet`): drag handle, title, body,
+  buttons at the right with the commitment last and filled. Dragging a
+  sheet away is Cancel. A question from the station is the same sheet.
+- **Notices are floating snack bars**, red for an error, never a dialog
+  that blocks the page.
+- **Session text is the 0xProto mono font**, bundled; the station has
+  already filtered it (`serve/wire.py`), and the client only lays it out.
+  The operator's own lines are bold in the primary colour.
+- **Connect lives in the session header, not a floating button**, which
+  would sit on Send where the thumb already is.
+
+---
+
 ## 9. Changing any of this
 
 1. Edit `kissterm/ui/styles.py` — never inline `styles.` assignments in a pane,

@@ -109,6 +109,11 @@ def question(qid: str, question: q.Question) -> dict:
     data = jsonable(question)
     if isinstance(question, q.PickFiles):
         data["have"] = jsonable(question.have)
+    if isinstance(question, q.ChooseSessionTransport):
+        # Whole config entries, and a Telnet or SSH one can hold a
+        # password: a client needs the names only (the answer is one).
+        data["transports"] = [str(t.get("name", "")) if isinstance(t, dict) else str(t)
+                              for t in question.transports]
     return {"type": "question", "id": qid, "name": type(question).__name__, "data": data}
 
 

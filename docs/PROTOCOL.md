@@ -1,6 +1,7 @@
 # kissterm remote protocol, version 1
 
-**Status: built (`kissterm/serve/`, 2026-10-05); no client ships yet.**
+**Status: built (`kissterm/serve/`, 2026-10-05); the station serves its
+own client, a Flet web app, at `/` (`kissterm/client/`).**
 This is how a phone, desktop or browser client talks to a station running
 `kissterm --serve` (ROADMAP P7a M7). The server's code and
 `tests/unit/test_serve.py` are the reference where this page is unclear.
@@ -17,6 +18,8 @@ the same transmit-gate rules as the terminal.
   `wss://` natively or through a reverse proxy (section 7).
   Default port **7425** (Settings > Remote).
 - **Every message is one JSON object** with a `type`. Text frames only.
+- **The web client** is served at `/` on the same port when the station
+  has the `web` extra; it reaches `/v1` on the station's own loopback.
 - **Version** is in the path (`/v1`). A breaking change gets `/v2`; a
   client that sees fields it does not know ignores them.
 
@@ -102,7 +105,9 @@ The answer forms: `RadioReminder`, `TrustHostKey`: true or false.
 `WinlinkGateway`: `{target, remember}`. `InternetLoginAsk`: `{target,
 username, password}`. `LoginAsk`: the password, or with `username` set
 `{username, password}`. `ChooseCategories`: `{categories, all}`.
-`PickFiles`: a list of names. A setup question also takes `"skip"`
+`PickFiles`: a list of names. `ChooseSessionTransport`'s `data` names
+the configured transports (`transports`, `active`) and never sends
+their config, which can hold a password. A setup question also takes `"skip"`
 (leave this service out) and `"go"` (cancel; `SetupRequested` follows).
 
 ### 3.5 result
@@ -151,6 +156,14 @@ lighter path around a rule the terminal follows.
 | `addressbook` / `addressbook_save` `{entry}` | `Core.addressbook` | no |
 | `heard` | `Core.heard.entries` | no |
 | `mail_folders` / `mail_list` `{folder}` / `mail_read` `{ref}` | `Mail.store` | no |
+
+**The Address Book never sends a login script** (it may hold a
+password): `addressbook` returns each contact without `script`, and
+`has_script` true when one is saved. `addressbook_save` merges the fields
+it is given onto the saved contact (`original_target` names it when
+renaming), so a script it never saw survives, and refuses a field it does
+not know. A successful `settings_save` is followed by `ConfigChanged`, so
+every client refreshes.
 
 File transfers (upload from a phone) and compose-with-attachments are
 not in v1.

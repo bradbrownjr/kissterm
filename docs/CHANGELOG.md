@@ -5,6 +5,43 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — A remote control for phones and browsers
+
+### New Features
+
+- **The station serves a remote control at its pairing link**
+  (`kissterm/client/ui/`, ROADMAP P7a M8): a Flet web app for a phone's
+  browser, installable to the home screen, with Sessions, Messages
+  (APRS as conversations), Mail, Stations (Heard and Contacts) and More
+  (station, Monitor, notices, Settings). The transmit switch is always in
+  the top corner. **A swipe never transmits**: swiping a station opens a
+  sheet, and only its button connects. Questions arrive as sheets;
+  dragging one away is Cancel. Needs the new `web` extra; `kissterm
+  --client LINK` opens it in a desktop window (`desktop` extra, not yet
+  tried on a desktop).
+
+### Improvements
+
+- The Address Book over the protocol never sends a login script, and a
+  save merges onto the saved contact; a transport question sends names,
+  not config entries; `settings_save` announces `ConfigChanged`.
+- A key named at the start of a sentence is capitalised ("The Transmit
+  switch turns it back off").
+- The rotate-link test waits for the rotation instead of one pause (it
+  failed under parallel load).
+
+**Files:** `kissterm/client/ui/` (new: `shell.py`, `sessions.py`,
+`messages.py`, `mail.py`, `stations.py`, `more.py`, `settings.py`,
+`questions.py`, `sheets.py`, `text.py`, `web.py`, `desktop.py`,
+`assets/fonts/`), `kissterm/client/connection.py`, `state.py`,
+`AGENTS.md`, `kissterm/serve/server.py`, `wire.py`,
+`kissterm/core/wording.py`, `kissterm/ui/app.py`, `kissterm/__main__.py`,
+`pyproject.toml`, `DESIGN.md`, `docs/GUIDE.md`, `SETUP.md`,
+`docs/PROTOCOL.md`, `docs/ON-AIR-TESTS.md`,
+`tests/unit/test_client_ui.py` (new), `test_serve.py`,
+`test_core_wording.py`, `tests/pilot/test_remote_pairing.py`,
+`docs/CHANGELOG.md`
+
 ## [2026-10-05] — The remote client's connection and model
 
 ### New Features

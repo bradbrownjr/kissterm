@@ -117,6 +117,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="replace the remote pairing token (the old link stops working), print the new link",
     )
     parser.add_argument(
+        "--client",
+        metavar="LINK",
+        help="open a station's remote control in a window, by its pairing link "
+             "(needs kissterm[desktop])",
+    )
+    parser.add_argument(
         "--log-level",
         default="warning",
         choices=["debug", "info", "warning", "error"],
@@ -672,9 +678,28 @@ async def _amain(args) -> int:
     return 0
 
 
+def _run_client(link: str) -> int:
+    """`--client LINK`: a window on another station; this machine's own
+    config, radio and transports are never touched. Flet runs its own
+    event loop, so this happens before `_amain`'s."""
+    from .client.ui import desktop
+
+    if not desktop.available():
+        print("The desktop client needs its extra: pip install 'kissterm[desktop]'",
+              file=sys.stderr)
+        return 2
+    try:
+        return desktop.run(link)
+    except ValueError as exc:
+        print(f"That link will not do: {exc}", file=sys.stderr)
+        return 2
+
+
 def main() -> int:
     args = _build_parser().parse_args()
     _setup_logging(args.log_level)
+    if args.client:
+        return _run_client(args.client)
     try:
         return asyncio.run(_amain(args))
     except KeyboardInterrupt:
