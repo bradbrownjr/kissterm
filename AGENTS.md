@@ -357,6 +357,9 @@ changes.
   made (`Beaconer.send_once`, `_send_banner`).
 - **Answering is off by default and stays that way**; a refusal is a DM, never
   silence.
+- **Remote control is off by default**, and while its server runs inside
+  the terminal the status bar shows `REMOTE` (`ui/remote.py`): another
+  screen can key this radio.
 
 ### One way to build a transport
 - **`transport.build_transport()` is the only constructor from config** (app,

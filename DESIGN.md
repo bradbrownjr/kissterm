@@ -532,7 +532,7 @@ their place (Send/Receive's line above the message list, removed 2026-09-25).
 
 | What it is | Where | Examples |
 |---|---|---|
-| A state that lasts (seconds or more) | Status bar field, removed when it ends | `TX OFF`, `ANSWERING`, `BEACON`; in green, `Receiving 2 of 4` |
+| A state that lasts (seconds or more) | Status bar field, removed when it ends | `TX OFF`, `ANSWERING`, `BEACON`, `REMOTE 1`; in green, `Receiving 2 of 4` |
 | An event: something started, finished or failed | Toast (`notify`); `warning` or `error` severity for a problem | "Connecting to WS1EC-2 to send and receive mail...", "No new mail", "Send/Receive stopped: ..." |
 | The record of a session | The session's transcript (Session > Transcripts); kissterm.log when there is none | `Mail: Reading 1 of 3: #2578 ...`, `Connecting to WS1EC-2`, `Transmit enabled automatically for: ...` |
 

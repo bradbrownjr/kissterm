@@ -805,9 +805,15 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
     Section(
         "Remote",
         (
+            Field("serve.enabled", "Remote control", "bool",
+                  "Let a phone, laptop or browser control this station while "
+                  "kissterm runs here. They see the same sessions and follow the "
+                  "same transmit rules; each needs this station's pairing link "
+                  "({key:remote_pairing}). kissterm --serve does the same with no "
+                  "screen.",
+                  apply="live"),
             Field("serve.port", "Port", "int",
-                  "The TCP port remote clients connect to (kissterm --serve; "
-                  "docs/GUIDE.md, Remote control).", minimum=1, maximum=65535,
+                  "The TCP port remote clients connect to.", minimum=1, maximum=65535,
                   apply="live"),
             Field("serve.listen", "Listen on", "choice",
                   "The LAN lets other devices on your network connect; this machine "

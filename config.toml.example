@@ -443,10 +443,10 @@ path = "WIDE1-1,WIDE2-1"
 
 # --- Remote control (phone, desktop, browser) ------------------------------
 # `kissterm --serve` runs the station with no screen and lets clients
-# connect; `enabled` (not yet used) will run the same server inside the
-# terminal UI too. The token that admits a client is made once per machine
-# and kept in the state folder, not here: the pairing URL and QR code show
-# it. See docs/PROTOCOL.md.
+# connect; `enabled` runs the same server inside the terminal UI too. The
+# token that admits a client is made once per machine and kept in the state
+# folder, not here: the pairing URL and QR code show it. See
+# docs/PROTOCOL.md.
 [serve]
 enabled = false
 port = 7425

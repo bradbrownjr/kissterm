@@ -1,0 +1,138 @@
+"""The remote-control server inside the terminal UI, as the operator meets
+it: off unless Settings says so, REMOTE in the status bar while on, a
+question on the station's screen and the phone at once (the first answer
+takes the other down), and a pairing dialog that fits 80x24 and rotates
+the link only when confirmed.
+"""
+
+from __future__ import annotations
+
+from kissterm._isolate import isolate
+
+isolate()
+
+import asyncio  # noqa: E402
+import json  # noqa: E402
+
+import pytest  # noqa: E402
+
+pytest.importorskip("websockets")
+
+from textual.widgets import Static  # noqa: E402
+from websockets.asyncio.client import connect as ws_connect  # noqa: E402
+from websockets.exceptions import ConnectionClosed  # noqa: E402
+
+from kissterm.app import KissTermApp  # noqa: E402
+from kissterm.config import Config, ServeConfig  # noqa: E402
+from kissterm.core.questions import RadioReminder  # noqa: E402
+from kissterm.serve.server import UNAUTHORIZED  # noqa: E402
+from kissterm.ui.dialogs import RadioReminderScreen, RemotePairingScreen, RotateTokenScreen  # noqa: E402
+from tests.pilot._wait import wait_for  # noqa: E402
+
+
+def _app(enabled: bool) -> KissTermApp:
+    serve = ServeConfig(enabled=enabled, listen="127.0.0.1", port=0)
+    return KissTermApp(Config(mycall="N1ABC-1", serve=serve))
+
+
+def _status(app) -> str:
+    from textual.geometry import Region
+
+    app._refresh_status()
+    bar = app.query_one("#status-bar")
+    region = Region(0, 0, bar.outer_size.width or 200, bar.outer_size.height or 1)
+    return "\n".join(strip.text for strip in bar.render_lines(region))
+
+
+async def _client(app):
+    ws = await ws_connect(f"ws://127.0.0.1:{app.remote.server.port}/v1")
+    await ws.send(json.dumps({"type": "hello", "token": app.remote.token()}))
+    assert json.loads(await ws.recv())["type"] == "welcome"
+    return ws
+
+
+async def _next(ws, kind: str) -> dict:
+    async def read():
+        while True:
+            message = json.loads(await ws.recv())
+            if message["type"] == kind:
+                return message
+    return await asyncio.wait_for(read(), 3)
+
+
+@pytest.mark.asyncio
+async def test_off_by_default_and_the_dialog_still_shows_the_link():
+    app = _app(enabled=False)
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        assert app.remote.server is None and "REMOTE" not in _status(app)
+        app.action_remote_pairing()
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, RemotePairingScreen)
+        assert app.remote.token() in str(screen.query_one("#pairing-url", Static).render())
+        assert str(screen.query_one("#pairing-status", Static).render()).startswith("Off.")
+        box = screen.query_one("#connect-box").region
+        assert box.bottom <= 24 and box.right <= 80, "the dialog runs off an 80x24 screen"
+        assert screen.query_one("#pairing-close").region.bottom <= 24
+        qr = screen.query_one("#pairing-qr", Static)
+        assert qr.region.height >= 17, "no room for the QR code"
+
+
+@pytest.mark.asyncio
+async def test_on_a_question_goes_to_both_and_the_phone_can_answer_it():
+    app = _app(enabled=True)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await wait_for(lambda: app.remote.server is not None, "the server to start")
+        await pilot.pause()
+        assert "REMOTE" in _status(app)
+        ws = await _client(app)
+        asked = asyncio.ensure_future(app.core.operator.ask(RadioReminder("145.090")))
+        question = await _next(ws, "question")
+        await pilot.pause()
+        assert isinstance(app.screen, RadioReminderScreen)
+        await ws.send(json.dumps({"type": "answer", "id": question["id"], "value": True}))
+        assert await asyncio.wait_for(asked, 3) is True
+        await pilot.pause()
+        assert not isinstance(app.screen, RadioReminderScreen), \
+            "the station's question stayed up after the phone answered"
+        await ws.close()
+
+
+@pytest.mark.asyncio
+async def test_rotate_asks_first_then_drops_every_client():
+    app = _app(enabled=True)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await wait_for(lambda: app.remote.server is not None, "the server to start")
+        ws = await _client(app)
+        await wait_for(lambda: app.remote.clients == 1, "the client to register")
+        old = app.remote.token()
+        app.action_remote_pairing()
+        await pilot.pause()
+        await pilot.click("#pairing-rotate")
+        await pilot.pause()
+        assert isinstance(app.screen, RotateTokenScreen)
+        await pilot.click("#connect-cancel")
+        await pilot.pause()
+        assert app.remote.token() == old, "Cancel still rotated the link"
+        await pilot.click("#pairing-rotate")
+        await pilot.pause()
+        await pilot.click("#connect-go")
+        await pilot.pause()
+        assert app.remote.token() != old
+        with pytest.raises(ConnectionClosed) as closed:
+            await asyncio.wait_for(ws.recv(), 3)
+        assert closed.value.rcvd.code == UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+async def test_turning_it_off_in_settings_stops_it_and_the_screen_answers_alone():
+    app = _app(enabled=True)
+    async with app.run_test(size=(110, 32)) as pilot:
+        await wait_for(lambda: app.remote.server is not None, "the server to start")
+        local = app.remote.local
+        app.config.serve.enabled = False
+        app.apply_runtime_settings()
+        await wait_for(lambda: app.remote.server is None, "the server to stop")
+        await pilot.pause()
+        assert app.core.operator is local and "REMOTE" not in _status(app)

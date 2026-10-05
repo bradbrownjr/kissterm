@@ -21,7 +21,6 @@ operator's callsign. Never log it, never put it in a notice.
 from __future__ import annotations
 
 import contextlib
-import io
 import os
 import secrets
 import socket
@@ -98,12 +97,30 @@ def websocket_url(serve) -> str:
     return ("wss" + url[5:] if url.startswith("https") else "ws" + url[4:]) + "/v1"
 
 
-def qr_text(url: str) -> str:
-    """`url` as a QR code drawn in text, for a terminal; "" without segno."""
+#: Light modules around the code. The standard asks for 4; 2 scans
+#: reliably off a screen and keeps the code inside an 80x24 terminal.
+QR_BORDER = 2
+
+
+def qr_lines(url: str) -> list[str]:
+    """`url` as a QR code in half-block characters, two module rows per
+    text row, light modules drawn: show it light-on-dark (`qr_text`, the
+    pairing dialog) whatever the terminal's theme, or it will not scan.
+    [] without segno."""
     try:
         import segno
     except ImportError:
-        return ""
-    out = io.StringIO()
-    segno.make(url, error="m").terminal(out=out, compact=True)
-    return out.getvalue()
+        return []
+    rows = [list(row) for row in segno.make(url, error="l").matrix_iter(border=QR_BORDER)]
+    if len(rows) % 2:
+        rows.append([0] * len(rows[0]))
+    glyph = {(True, True): "\u2588", (True, False): "\u2580",
+             (False, True): "\u2584", (False, False): " "}
+    return ["".join(glyph[(not top, not bottom)] for top, bottom in zip(upper, lower))
+            for upper, lower in zip(rows[0::2], rows[1::2])]
+
+
+def qr_text(url: str) -> str:
+    """`qr_lines` for a plain terminal: bright white on black, explicitly,
+    so a light theme does not invert it. "" without segno."""
+    return "".join(f"\x1b[97;40m{line}\x1b[0m\n" for line in qr_lines(url))

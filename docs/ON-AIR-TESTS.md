@@ -27,6 +27,11 @@ ws://HOST:7425/v1`, then paste
   with TX off. Expected: a "Transmit ENABLED" notice, the SABM on the
   air, `SessionOpened` and the node's banner as `SessionData` events.
   Then `send_line` a command and `disconnect`.
+- [ ] **Inside the terminal.** Turn on Settings > Remote > Remote
+  control, open Session > Remote pairing and scan the QR code with a
+  phone. Expected: the phone's browser opens the `http://...:7425/#t=...`
+  link (it shows a short kissterm page until a client ships), `REMOTE`
+  in the status bar, and after Rotate (confirmed) the old link refused.
 - [ ] **A reminder with no client.** Give a contact a frequency reminder,
   close the client, and trigger a connect to it from another client that
   then disconnects at once. Expected: nothing transmitted.

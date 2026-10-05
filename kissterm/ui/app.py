@@ -183,6 +183,7 @@ from .dialogs import (
     AprsIsWatchScreen,
     TranscriptsScreen,
     FileTransferScreen,
+    RemotePairingScreen,
     UpdateScreen,
 )
 from .heard_pane import HeardPane
@@ -192,6 +193,7 @@ from .help_pane import HelpPane
 from .mail_pane import MessageBrowser, MessageList, bulletins_browser, files_browser, mail_browser
 from .styles import APP_CSS
 from .operator import TextualOperator
+from .remote import RemoteControl
 from .terminal_pane import TerminalPane
 
 log = logging.getLogger(__name__)
@@ -451,6 +453,9 @@ class KissTermApp(App):
         #: The sessions (`kissterm/core/sessions.py`) and the connect flow
         #: (`connect.py`), shown in this app's Terminal tabs.
         self.core.attach_view(_TerminalSessionView(self))
+        #: The remote-control server, run while Settings > Remote says so
+        #: (`ui/remote.py`); its clients share this core with the screen.
+        self.remote = RemoteControl(self)
         self.gate.on_change.append(self._on_transmit_change)
         self.monitor_filter = MonitorFilter()
         #: A background job's status-bar field ("Receiving 1 of 3"), shown green.
@@ -940,6 +945,17 @@ class KissTermApp(App):
         for pane in self._base_query(TerminalPane):
             pane.remote_color = getattr(self.config, "remote_color", True)
         self.core.settings.apply_runtime()
+        self._reconcile_remote()
+
+    @work(exclusive=True, group="remote")
+    async def _reconcile_remote(self) -> None:
+        """Start, stop or restart the remote-control server to match
+        Settings > Remote (`ui/remote.py`)."""
+        await self.remote.reconcile()
+
+    def action_remote_pairing(self) -> None:
+        """Session > Remote pairing: the link and QR code, and Rotate."""
+        self.push_screen(RemotePairingScreen(self.remote))
 
     def _reconcile_aprs_is_debug_watch(self) -> None:
         """`Aprs.reconcile_is_debug_watch` (kissterm/core/aprs.py)."""
@@ -994,6 +1010,7 @@ class KissTermApp(App):
         down would transmit under the operator's callsign with nothing on
         screen to show it -- and nowhere to show it.
         """
+        self.remote.close_now()
         self.core.aprs.shutdown()
         self.core.transfers.shutdown()
         self.core.detach_transport()
@@ -2202,10 +2219,14 @@ class KissTermApp(App):
         if place == "connect":
             self.action_connect()
             return
-        path = {
+        self.go_to_setting({
             "winlink": "winlink.account",
             "bbs": "home_bbs.route",
-        }[place]
+        }[place])
+
+    def go_to_setting(self, path: str) -> None:
+        """Settings, open at the field `path` (a dialog's button that goes
+        there, DESIGN.md section 5)."""
         self.query_one("#main-tabs", TabbedContent).active = "settings"
         pane = self.query_one(SettingsPane)
         self.call_after_refresh(pane.open_field, path)
@@ -2652,6 +2673,10 @@ class KissTermApp(App):
             parts.append("BEACON")
         if self.aprs_beaconer.running:
             parts.append("APRS BEACON")
+        if self.remote.server is not None:
+            # Another screen can key this radio: on screen while it can.
+            clients = self.remote.clients
+            parts.append(f"REMOTE {clients}" if clients else "REMOTE")
         if self.transcript is not None:
             parts.append("LOGGING")
         if self.gps_reader is not None and self.gps_reader.running:

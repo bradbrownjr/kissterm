@@ -142,13 +142,19 @@ class RemoteServer:
         """The port actually bound (a test asks for port 0)."""
         return self._server.sockets[0].getsockname()[1]
 
-    async def stop(self) -> None:
+    def close(self) -> None:
+        """Stop at once, without waiting (the terminal UI's unmount): no
+        more events, every open question cancelled, the socket closed."""
         self._unsubscribe()
         self.operator.cancel_all()
         for task in list(self._tasks):
             task.cancel()
         if self._server is not None:
             self._server.close()
+
+    async def stop(self) -> None:
+        self.close()
+        if self._server is not None:
             with contextlib.suppress(Exception):
                 await self._server.wait_closed()
             self._server = None

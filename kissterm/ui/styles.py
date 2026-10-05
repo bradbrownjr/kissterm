@@ -463,6 +463,18 @@ AddressBookEntryScreen #connect-buttons { height: auto; margin-top: 0; }
 /* RadioReminderScreen -- a checkpoint, not a form; sized to its short
    fixed content rather than the wider #connect-box default. */
 #reminder-detail { color: $text; padding: 0 0 1 0; }
+/* Remote pairing: the QR code beside the link, so the box fits 80x24.
+   The code is literal white on black, never theme colours: a light theme
+   would invert it and a phone would not scan it. */
+RemotePairingScreen #connect-box { width: 78; padding: 0 1; }
+#pairing-body { height: auto; }
+#pairing-qr { width: auto; height: auto; color: #ffffff; background: #000000; }
+#pairing-qr.-none { width: 30; color: $text-muted; background: transparent; }
+#pairing-side { width: 1fr; height: auto; padding-left: 1; }
+#pairing-status { text-style: bold; }
+#pairing-note { color: $text-muted; padding: 1 0; }
+#pairing-url { padding-bottom: 1; }
+RemotePairingScreen #connect-buttons { align: left middle; margin-top: 0; }
 /* Bulletin categories (`bulletin_screen.py`): a long list scrolls inside
    the box rather than pushing its buttons off the screen. */
 #categories-list { height: auto; max-height: 14; margin: 0 0 1 0; }

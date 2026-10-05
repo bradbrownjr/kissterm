@@ -45,6 +45,7 @@ from ..core.questions import (  # noqa: F401 - the answer types, defined by the 
     InternetLogin,
 )
 from ..locator import LocatorError, from_grid, from_mgrs, from_utm
+from .button_row import ButtonRow
 from .symbol_picker import SymbolPicker
 from .wraplog import WrapLog
 
@@ -3926,3 +3927,132 @@ class TranscriptsScreen(ModalScreen[None]):
     @on(Button.Pressed, "#transcripts-close")
     def _close(self) -> None:
         self.dismiss(None)
+
+
+class RemotePairingScreen(ModalScreen[None]):
+    """Session > Remote pairing: this station's link for a phone, laptop or
+    browser (ROADMAP P7a M7), as a QR code and as text.
+
+    **The link is the key to the transmitter**, so the screen says so, and
+    Rotate (confirmed first) replaces it. It is shown even while the server
+    is off: the token is the same every launch, so the link a phone saves
+    now works once Remote control is turned on. The QR code is drawn
+    light-on-dark explicitly (`#pairing-qr`), whatever the theme, or a
+    light theme would invert it and it would not scan.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Close")]
+
+    def __init__(self, remote) -> None:
+        super().__init__()
+        self._remote = remote
+
+    def _url(self) -> str:
+        from ..serve import pairing
+
+        return pairing.pairing_url(self._remote.core.config.serve, self._remote.token())
+
+    def _status(self) -> str:
+        remote = self._remote
+        if remote.server is None:
+            return "Off. Turn on Remote control in Settings, or run kissterm --serve."
+        clients = remote.clients
+        who = f"{clients} client{'s' if clients != 1 else ''} connected" if clients \
+            else "no client connected"
+        return f"On, port {remote.server.port}: {who}."
+
+    def compose(self) -> ComposeResult:
+        from ..serve import pairing
+        from .remote import EXTRA_HINT, serve_available
+
+        url = self._url()
+        with Vertical(id="connect-box"):
+            yield Label("Remote pairing", id="connect-title")
+            with Horizontal(id="pairing-body"):
+                qr = "\n".join(pairing.qr_lines(url)) if serve_available() else ""
+                yield Static(qr or EXTRA_HINT, id="pairing-qr", classes="" if qr else "-none")
+                with Vertical(id="pairing-side"):
+                    yield Static(self._status(), id="pairing-status")
+                    yield Static("Scan the code or open the link. Whoever has it can "
+                                 "key your radio: keep it private.", id="pairing-note")
+                    yield Static(url, id="pairing-url")
+                    with ButtonRow(id="connect-buttons"):
+                        yield Button("Copy link", variant="primary", id="pairing-copy")
+                        yield Button("Rotate", variant="error", id="pairing-rotate")
+                        yield Button("Settings", id="pairing-settings")
+                        yield Button("Close", id="pairing-close")
+
+    def on_mount(self) -> None:
+        self.query_one("#pairing-close", Button).focus()
+        self.set_interval(1.0, self._refresh_status)
+
+    def _refresh_status(self) -> None:
+        self.query_one("#pairing-status", Static).update(self._status())
+
+    @on(Button.Pressed, "#pairing-copy")
+    def _copy(self) -> None:
+        self.app.copy_to_clipboard(self._url())
+        self.app.notify("Pairing link copied.")
+
+    @on(Button.Pressed, "#pairing-rotate")
+    def _rotate(self) -> None:
+        def done(confirmed: bool | None) -> None:
+            if not confirmed:
+                return
+            self._remote.rotate()
+            self.app.notify("New pairing link made. The old one no longer works.")
+            self._redraw()
+
+        self.app.push_screen(RotateTokenScreen(self._remote.clients), done)
+
+    def _redraw(self) -> None:
+        from ..serve import pairing
+        from .remote import serve_available
+
+        url = self._url()
+        if serve_available():
+            self.query_one("#pairing-qr", Static).update("\n".join(pairing.qr_lines(url)))
+        self.query_one("#pairing-url", Static).update(url)
+        self._refresh_status()
+
+    @on(Button.Pressed, "#pairing-settings")
+    def _settings(self) -> None:
+        self.dismiss(None)
+        self.app.go_to_setting("serve.enabled")
+
+    @on(Button.Pressed, "#pairing-close")
+    def _close(self) -> None:
+        self.dismiss(None)
+
+
+class RotateTokenScreen(ModalScreen[bool]):
+    """Confirm replacing the pairing link: it cannot be undone, and every
+    phone and bookmark has to be paired again."""
+
+    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
+
+    def __init__(self, clients: int) -> None:
+        super().__init__()
+        self._clients = clients
+
+    def compose(self) -> ComposeResult:
+        dropped = (f" The {self._clients} connected client{'s' if self._clients != 1 else ''} "
+                   "will be disconnected." if self._clients else "")
+        with Vertical(id="connect-box"):
+            yield Label("Make a new pairing link?", id="connect-title")
+            yield Static("The old link stops working at once, for every phone, "
+                         f"browser and bookmark that has it.{dropped}", id="reminder-detail")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Rotate", variant="error", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#connect-cancel", Button).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#connect-go")
+    def _go(self) -> None:
+        self.dismiss(True)

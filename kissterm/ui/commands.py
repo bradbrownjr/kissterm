@@ -212,6 +212,9 @@ COMMANDS: tuple[Command, ...] = (
             "Read saved session transcripts"),
     Command("set_callsign", "My callsign", "Session", "M",
             "Change the callsign this station uses"),
+    Command("remote_pairing", "Remote pairing", "Session", "P",
+            "The link and QR code that let a phone or browser control this "
+            "station; make a new one if it leaked"),
     Command("quit", "Quit", "Session", "Q", "Leave kissterm", key="ctrl+q",
             footer=("*",)),
     # --- APRS ----------------------------------------------------------

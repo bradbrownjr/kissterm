@@ -495,16 +495,6 @@ a desktop GUI for those who are not, and a browser version for a shelter
 laptop, a tablet or a station run from another room. All three drive one
 back end, so a protocol fix or a new transport lands everywhere at once.
 
-- [ ] **Extract the core from `ui/app.py`.** The protocol layers are
-  already UI-free (`ax25/`, `transport/`, `mail/`, `aprs/`, `config.py`
-  import nothing from Textual; keep it so). What is not: the connect flow
-  (frequency reminder, transmit-gate arming, hops, login), Send/Receive,
-  the APRS retry queue and beaconing all live in the Textual app. Move
-  them into a UI-free service with events out (link state, lines
-  received, progress, toasts) and requests in, each with the same
-  gate and confirmation rules. The Textual UI becomes the first client
-  of it, with no change the operator can see. Do this before either
-  front end below.
 - [ ] **Web front end.** Cheapest first step: `textual serve` (P6) runs
   the existing UI in a browser unchanged. A real web client later talks
   to the core over a local WebSocket API. **Bound to localhost by

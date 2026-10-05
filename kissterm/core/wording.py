@@ -36,6 +36,7 @@ KEYS: dict[str, str] = {
     "rms_gateways": "RMS gateways",
     "toggle_aprs_ssid_filter": "the SSID filter switch",
     "toggle_contacts": "the Address Book",
+    "remote_pairing": "Remote pairing",
 }
 
 #: A place, named for a client that does not show where it is.

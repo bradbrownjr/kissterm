@@ -5,6 +5,28 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-05] — Remote control inside the terminal, and Remote pairing
+
+### New Features
+
+- **Settings > Remote > Remote control** runs the remote-control server
+  inside the terminal UI: the screen and every client share the station,
+  a question goes to both and the first answer wins, and the status bar
+  shows `REMOTE` (with the client count) while it runs. Restarted when
+  the port, interface or certificate changes.
+- **Session > Remote pairing** shows the link and its QR code (drawn
+  black on white whatever the theme), with Copy link, Rotate (confirmed
+  first; every client is dropped) and Settings.
+
+**Files:** `kissterm/ui/remote.py` (new), `ui/app.py`, `ui/dialogs.py`,
+`ui/commands.py`, `ui/styles.py`, `kissterm/serve/pairing.py`,
+`serve/server.py`, `core/settings_schema.py`, `core/wording.py`,
+`config.toml.example`, `scripts/generate_screenshot.py`,
+`assets/screenshot-remote-pairing.png` (new), `assets/`,
+`tests/pilot/test_remote_pairing.py` (new), `tests/pilot/test_settings.py`,
+`docs/GUIDE.md`, `DESIGN.md`, `AGENTS.md`, `docs/ON-AIR-TESTS.md`,
+`docs/ROADMAP.md` (the core extraction item: shipped), `docs/CHANGELOG.md`
+
 ## [2026-10-05] — Settings help names no keys for remote clients
 
 ### Improvements
