@@ -377,6 +377,11 @@ class RemoteServer:
             raise CommandError("No radio transport is open.")
         await connector.connect(ConnectRequest(str(target).strip().upper(), port=int(port)))
 
+    async def cmd_reconnect(self, key: str = "") -> None:
+        """`Connector.reconnect`: session `key`'s own last request again,
+        through the reminder and the gate."""
+        await self._need_sessions().reconnect(str(key))
+
     async def cmd_disconnect(self, key: str) -> None:
         await self._need_sessions().disconnect(str(key))
 
@@ -401,6 +406,30 @@ class RemoteServer:
 
     async def cmd_get_bulletins(self, internet: bool = False) -> None:
         await self.core.mail.get_bulletins(internet=bool(internet))
+
+    async def cmd_bulletin_categories(self) -> dict | None:
+        """`Mail.bulletin_categories`, or null before any collection has
+        listed them."""
+        choice = self.core.mail.bulletin_categories()
+        return wire.jsonable(choice) if choice is not None else None
+
+    async def cmd_bulletin_categories_save(self, picked: list, all: bool = False) -> None:  # noqa: A002
+        self.core.mail.choose_bulletin_categories([str(p) for p in picked or []],
+                                                  all_=bool(all))
+
+    async def cmd_transcripts(self, needle: str = "") -> list:
+        """Past transcripts, newest first (`Sessions.transcripts`)."""
+        return [{"name": info.path.name, "started": info.started, "peer": info.peer,
+                 "mycall": info.mycall, "size": info.size}
+                for info in (self.core.sessions.transcripts(str(needle))
+                             if self.core.sessions is not None else [])]
+
+    async def cmd_transcript_read(self, file: str) -> str:
+        """One transcript by the `name` `transcripts` gave it."""
+        try:
+            return wire.clean(self.core.sessions.read_transcript(str(file)))
+        except FileNotFoundError:
+            raise CommandError(f"No transcript named {file!r}.") from None
 
     async def cmd_get_files(self) -> None:
         await self.core.mail.get_files()

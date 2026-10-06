@@ -66,6 +66,10 @@ Settings > Remote > Remote control, and open Session > Remote pairing.
   BBS/Outbox until the run, then sent (the session shows the `SP` or
   `SR` and the text), and in Sent. A swipe-deleted message is in
   BBS/Deleted, and Undo put one back.
+- [ ] **Reconnect from the phone** (0.1.434). Connect to the node from
+  the phone, disconnect it, then tap **Reconnect** and confirm.
+  Expected: the radio reminder, then the same route and login as the
+  first time, and the session back in the same tab.
 - [ ] **Turn transmit off from the phone.** Tap "TX ON". Expected: off at
   once, on the phone and the station's status bar, with no question.
 - [ ] **Sleep and wake.** Lock the phone for a minute while the node

@@ -1,6 +1,7 @@
 """More: the station itself (callsign, transport, what it is doing, and
 Send beacon, the terminal's Session > Send beacon), the
-channel as the Monitor shows it, recent notices, the terminal's look on
+channel as the Monitor shows it, recent notices, past sessions'
+transcripts (`transcripts.py`), the terminal's look on
 this device, and Settings.
 
 **Terminal is this device's choice and Settings the station's**, so they
@@ -13,6 +14,7 @@ from __future__ import annotations
 import flet as ft
 
 from . import sheets
+from .transcripts import TranscriptsSection
 from .settings import SettingsEditor
 from .text import MONO, MONO_BOLD, TEXT_COLOURS, Look
 
@@ -33,7 +35,8 @@ class MoreView:
                       ft.Segment(value="light", label="Light", icon=ft.Icons.LIGHT_MODE)])
         self.swatches = ft.Row(wrap=True, spacing=12, run_spacing=8)
         self.preview = ft.Container(border_radius=8, padding=ft.Padding.all(12))
-        self.control = ft.ListView(expand=True, padding=ft.Padding.all(12), controls=[
+        self.transcripts = TranscriptsSection(app, self._over)
+        self.list = ft.ListView(expand=True, padding=ft.Padding.all(12), controls=[
             ft.Card(content=ft.Container(padding=ft.Padding.all(16), content=ft.Column(
                 tight=True, spacing=12, controls=[
                     self.station,
@@ -45,6 +48,7 @@ class MoreView:
                 "Every frame the station hears or sends", size=12),
                 controls=[self.monitor]),
             ft.ExpansionTile(title=ft.Text("Notices"), controls=[self.notices]),
+            self.transcripts.tile,
             ft.ExpansionTile(title=ft.Text("Terminal"), subtitle=ft.Text(
                 "How session text looks on this device", size=12),
                 controls=[ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=8),
@@ -59,8 +63,14 @@ class MoreView:
                                  controls=[self.settings.save_button])],
                 on_change=self._settings_opened),
         ])
+        #: The list, or a page over it (a transcript being read).
+        self.control = ft.Container(expand=True, content=self.list)
         self._paint()
         self.look_changed()
+
+    def _over(self, page: ft.Control | None) -> None:
+        self.control.content = page if page is not None else self.list
+        self.app.page.update()
 
     def fab(self):
         return None

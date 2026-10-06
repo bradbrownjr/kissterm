@@ -283,6 +283,21 @@ class SessionsView:
         sheets.confirm(self.app.page, f"Disconnect from {key or 'the session'}?",
                        "Sends a disconnect to the far station.", "Disconnect", go)
 
+    async def reconnect(self, _e=None) -> None:
+        """The Reconnect chip, on a session that has dropped (Ctrl+R in
+        the terminal): its own last request again, through the station's
+        reminder and gate, asked first like every connect here."""
+        key = self.current
+        if not key:
+            return
+
+        async def go() -> None:
+            await self.app.command("reconnect", key=key)
+
+        sheets.confirm(self.app.page, f"Reconnect to {key}?",
+                       "The station dials it again the same way: route, port and login.",
+                       "Reconnect", go)
+
     async def _connect_sheet(self, _e) -> None:
         contacts = await self.app.command("addressbook") or []
         target = ft.TextField(label="Station, node or BBS", hint_text="e.g. W1AW-7",

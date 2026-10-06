@@ -716,7 +716,9 @@ and do not apply there; these do.
   icon for its state (linked, unlinked, hourglass) and ends in Connect,
   never a floating button, which would sit on Send where the thumb
   already is. **Disconnect is a chip beside the transmit switch**, on
-  Sessions while the session shown is connected.
+  Sessions while the session shown is connected, and **Reconnect** takes
+  its place once that session has dropped (not while it is still
+  connecting: Cancel is on its hourglass).
 - **A connect shows at once.** Sessions comes to the front as soon as it
   is asked for, and while the station is dialling, an hourglass lies
   over that session with Cancel. Cancel needs no confirming: it only

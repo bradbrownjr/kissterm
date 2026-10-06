@@ -144,6 +144,7 @@ lighter path around a rule the terminal follows.
 | `transmit` `{enabled}` | the master switch (Ctrl+T) | it is the switch |
 | `connect` `{target}` or `{entry}` | `Connector.dial_entry` / `connect` | yes, after the reminder |
 | `disconnect` `{key}` | `Connector.disconnect` | no |
+| `reconnect` `{key}` | `Connector.reconnect`: that session's own last request again | yes, after the reminder |
 | `send_line` `{key, text}` | `Sessions.send_line` | yes, while connected |
 | `aprs_send` `{to, text}` | `Aprs.compose` | yes |
 | `aprs_position` | `Aprs.send_position_now` | yes |
@@ -159,6 +160,8 @@ lighter path around a rule the terminal follows.
 | `mail_folders` / `mail_list` `{folder}` / `mail_read` `{ref}` | `Mail.store`; a read also carries `routing`, the `R:` lines of a message from a BBS (`Mail.routing`), and `reply_all`, true when Reply all would reach anyone besides the sender | no |
 | `mail_reply_start` `{ref, quoted, all}` | `Mail.reply_start`: `to`, `title`, `body`, `send_type`, `by_number`, `heading`, `note` for a reply (`quoted` null: as Settings says; `all`: Reply all) | no |
 | `mail_write` `{to, at, title, body, send_type, reply_to}` | `Mail.write`: checked, then filed in its Outbox; returns `problems` (nothing filed) or `folder`. `send_type` is `P`, `B` or `W`; a reply goes as its original's kind | no (Send/Receive sends it) |
+| `bulletin_categories` / `bulletin_categories_save` `{picked, all}` | `Mail.bulletin_categories` (`bbs`, `seen` with counts, `chosen`, `all`; null before any collection listed them) / `Mail.choose_bulletin_categories` | no (offline) |
+| `transcripts` `{needle}` / `transcript_read` `{file}` | `Sessions.transcripts` (`name`, `started`, `peer`, `mycall`, `size`, newest first) / `Sessions.read_transcript`, by a listed name only, the last 256 KB | no |
 | `mail_delete` / `mail_restore` `{ref}` | `Mail.delete` / `Mail.restore`; returns the new ref, which the other puts back (Undo) | no |
 
 **The Address Book never sends a login script** (it may hold a

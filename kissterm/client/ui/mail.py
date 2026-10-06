@@ -109,6 +109,9 @@ class MailView:
         #: Write: the terminal's Insert, on a Mail folder.
         self.write_button = ft.FilledTonalButton(content="Write", icon=ft.Icons.EDIT,
                                                  on_click=self._write_new)
+        #: Categories: the terminal's S on Bulletins, on a Bulletins folder.
+        self.categories_button = ft.FilledTonalButton(
+            content="Categories", icon=ft.Icons.CHECKLIST, on_click=self._categories)
         self._writing: dict | None = None
         self.list = ft.ListView(expand=True)
         self.reader: ft.Control | None = None
@@ -171,10 +174,11 @@ class MailView:
     def _show_list(self) -> None:
         self.reader = None
         self._paint_activity()
-        self.write_button.visible = self.folder.startswith("Mail")
+        self._paint_toolbar()
         self.control.content = ft.Column(expand=True, spacing=0, controls=[
             ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-                         content=ft.Row(controls=[self.folders, self.write_button])),
+                         content=ft.Row(controls=[self.folders, self.write_button,
+                                                  self.categories_button])),
             *([ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=4),
                             content=self.activity)] if self.app.state.activity else []),
             self.list])
@@ -190,8 +194,44 @@ class MailView:
                 padding=ft.Padding.all(24),
                 content=ft.Text("Nothing in this folder.", color=ft.Colors.OUTLINE))]
         if self.reader is None and self._writing is None:
-            self.write_button.visible = self.folder.startswith("Mail")
+            self._paint_toolbar()
         self.app.page.update()
+
+    def _paint_toolbar(self) -> None:
+        self.write_button.visible = self.folder.startswith("Mail")
+        self.categories_button.visible = self.folder.startswith("Bulletins")
+
+    async def _categories(self, _e) -> None:
+        """Which bulletin categories are collected, from those the Home BBS
+        listed last; changed here, offline, and saved by the station."""
+        choice = await self.app.command("bulletin_categories")
+        if not choice:
+            sheets.snack(self.app.page, "No categories yet: Get bulletins asks the BBS "
+                                        "for its list on the first collection.")
+            return
+        chosen = {c.upper() for c in choice.get("chosen", [])}
+        every = ft.Switch(label="Every category, now and later", value=bool(choice.get("all")))
+        boxes = [ft.Checkbox(label=f"{name}  ({count})", value=name.upper() in chosen, data=name)
+                 for name, count in (choice.get("seen") or {}).items()]
+
+        def every_changed(_e) -> None:
+            for box in boxes:
+                box.disabled = bool(every.value)
+            self.app.page.update()
+
+        every.on_change = every_changed
+        every_changed(None)
+
+        async def save() -> None:
+            await self.app.command("bulletin_categories_save",
+                                   picked=[b.data for b in boxes if b.value],
+                                   all=bool(every.value))
+
+        sheets.form(self.app.page, f"Bulletins from {choice.get('bbs', 'the Home BBS')}",
+                    [every, ft.Column(tight=True, spacing=0, controls=boxes)],
+                    "Save", save,
+                    detail="Ticked categories are collected by Get bulletins. Nothing is "
+                           "asked of the BBS to change this.")
 
     def _row(self, m: dict) -> ft.Control:
         ref = m.get("ref", "")

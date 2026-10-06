@@ -754,6 +754,28 @@ class Connector:
             return
         self.core.operator.notice(Notice("Not connected.", Severity.WARNING))
 
+    async def reconnect(self, key: str) -> None:
+        """Reconnect (Ctrl+R; the phone's Reconnect chip): dial session
+        `key`'s own last request again, through the same flow as any
+        connect -- reminder, gate, hops, login. A live session is left
+        alone: reconnecting it would mean disconnecting it first."""
+        if key and self.session_is_live(key):
+            self.core.operator.notice(Notice(f"Already connected to {key}.", Severity.INFORMATION))
+            return
+        request = self.reconnect_request(key)
+        if request is None:
+            self.core.operator.notice(Notice(
+                "Nothing to reconnect to yet: connect to a station first.", Severity.WARNING))
+            return
+        contact = self.core.addressbook.find(request.target)
+        if contact is not None and contact.is_internet:
+            await self.dial_internet(contact)
+            return
+        if self.core.station is None:
+            self.core.operator.notice(Notice("No radio transport is open.", Severity.WARNING))
+            return
+        await self.connect(request)
+
     def reconnect_request(self, key: str) -> ConnectRequest | None:
         """What Reconnect would dial for session `key`: its own last
         request; for a session that answered an incoming call, its peer;

@@ -14,7 +14,8 @@ it on asks first and buzzes the phone; turning it off never asks
 the station reports it on every screen.
 
 **Disconnect sits beside it** (`disconnect_chip`), on Sessions while the
-session shown is connected: the row that used to repeat the session's
+session shown is connected, and **Reconnect** in its place once that
+session has dropped (`reconnect_chip`, Ctrl+R in the terminal): the row that used to repeat the session's
 name above the terminal is gone, and its height is the terminal's.
 
 **A connect runs in the background** (`start_connect`): Sessions comes to
@@ -73,6 +74,16 @@ DESTINATIONS = (
 )
 
 
+
+def session_chips(index: int, session) -> tuple[bool, bool]:
+    """(Disconnect, Reconnect) beside the transmit switch: on Sessions
+    only, Disconnect while the session shown is connected, Reconnect once
+    it has dropped (never while it is still connecting: Cancel is on its
+    hourglass)."""
+    if index != 0 or session is None or not session.key:
+        return False, False
+    return bool(session.connected), not session.connected and not session.connecting
+
 class ClientApp:
     """One page's client of one station."""
 
@@ -95,6 +106,13 @@ class ClientApp:
             padding=ft.Padding.symmetric(horizontal=12, vertical=6),
             content=ft.Row(tight=True, spacing=6, controls=[
                 ft.Icon(ft.Icons.LINK_OFF, size=18), ft.Text("Disconnect")]))
+        #: Reconnect, in the same place, while the session shown has dropped.
+        self.reconnect_chip = ft.Container(
+            visible=False, on_click=self._reconnect_clicked, border_radius=16,
+            border=ft.Border.all(1, ft.Colors.OUTLINE), tooltip="Connect this session again",
+            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+            content=ft.Row(tight=True, spacing=6, controls=[
+                ft.Icon(ft.Icons.REFRESH, size=18), ft.Text("Reconnect")]))
         self.views = [SessionsView(self), MessagesView(self), MailView(self),
                       StationsView(self), MoreView(self)]
         #: The connection's state, a strip above everything while it is
@@ -122,7 +140,7 @@ class ClientApp:
         page.padding = 0
         page.appbar = ft.AppBar(title=ft.Text("kissterm"), center_title=False, actions=[
             ft.Container(padding=ft.Padding.only(right=12), content=ft.Row(
-                tight=True, spacing=8, controls=[self.disconnect_chip, self.gate_button]))])
+                tight=True, spacing=8, controls=[self.disconnect_chip, self.reconnect_chip, self.gate_button]))])
         page.on_resize = self._on_resize
         self._paint_gate()
         self._place()
@@ -199,11 +217,14 @@ class ClientApp:
         connected session."""
         views = getattr(self, "views", None)  # None while they are built
         session = views[0].current_session if views else None
-        self.disconnect_chip.visible = bool(
-            self.index == 0 and session is not None and session.connected)
+        self.disconnect_chip.visible, self.reconnect_chip.visible = session_chips(
+            self.index, session)
 
     async def _disconnect_clicked(self, _e) -> None:
         await self.views[0].disconnect()
+
+    async def _reconnect_clicked(self, _e) -> None:
+        await self.views[0].reconnect()
 
     def start_connect(self, **args) -> None:
         """Ask the station to connect, without waiting on it here: Sessions

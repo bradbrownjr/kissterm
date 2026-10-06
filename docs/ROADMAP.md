@@ -479,9 +479,9 @@ back end, so a protocol fix or a new transport lands everywhere at once.
   because it can key a transmitter.
 - [ ] **Parity: what the terminal does that the remote client cannot
   yet** (AGENTS.md section 7, operator 2026-10-06). These need protocol
-  commands first: writing forms and radiograms; bulletin categories; sending a file (YAPP); Reconnect;
-  session transcripts; the node's command help and suggestions; APRS
-  objects and templates; RMS gateways; Monitor filters.
+  commands first: writing forms and radiograms; sending a file (YAPP);
+  the node's command help and suggestions; APRS objects and templates;
+  RMS gateways; Monitor filters.
 - [ ] **Desktop GUI** for Windows, macOS and Linux, on the same core.
   Toolkit to be chosen when this starts (for example Qt, or the web
   client in a native window so the two share one UI).

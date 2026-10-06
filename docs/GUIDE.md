@@ -614,7 +614,10 @@ own client.
     across the top, and a line to type. A line goes only when you press
     Send. Connect is at the end of the session tabs; **Disconnect** sits
     beside the transmit switch while the session shown is connected.
-    Both ask first. A connect brings Sessions to the front at once: while
+    Both ask first. Once a session has dropped, **Reconnect** takes
+    Disconnect's place (Ctrl+R in the terminal): after asking, the
+    station dials it again the same way, route, port and login.
+    A connect brings Sessions to the front at once: while
     the station is calling, an hourglass shows over the session with
     **Cancel**, which stops the attempt without asking (it only stops
     transmitting).
@@ -626,7 +629,10 @@ own client.
     and does what G and I do on the terminal's tabs: on a mail folder,
     Send/Receive **By radio** or **By Internet** (no transmitting); on a
     Bulletins folder, Get bulletins either way; on Files, Get files by
-    radio, which then asks here which files to download.
+    radio, which then asks here which files to download. On a Bulletins
+    folder, **Categories** (S in the terminal) ticks which categories Get
+    bulletins collects, from the list the Home BBS gave last; nothing is
+    asked of the BBS to change it.
     A message from a BBS has a folded **Routing** section under its
     header: the `R:` line each BBS added as it passed the message on,
     the latest first. A number@BBS there is that BBS's message number,
@@ -651,7 +657,8 @@ own client.
     own button is pressed. Tapping a station asks to connect too.
   - **More** shows the station (with **Send beacon**, the beacon text
     once, as Session > Send beacon does; transmit must already be on),
-    the Monitor, recent notices, Terminal,
+    the Monitor, **Transcripts** (past sessions, newest first, searched
+    by callsign or by what was said, and read in the terminal's look), recent notices, Terminal,
     and Settings (the station's own, checked by the station as the
     terminal checks them; a password field left empty keeps the saved
     one). **Terminal** sets how session text looks on this phone or

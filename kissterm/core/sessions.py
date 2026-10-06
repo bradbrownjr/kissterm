@@ -340,6 +340,29 @@ class Sessions:
 
         return Path(self.config.log_dir) if self.config.log_dir else log_path()
 
+    def transcripts(self, needle: str = "") -> list:
+        """Past transcripts, newest first, filtered by callsign or by what
+        is in them (`transcripts.search_transcripts`): the terminal's
+        Transcripts screen and the phone's both read this directory."""
+        from ..transcripts import search_transcripts
+
+        return search_transcripts(self.transcript_directory(), needle)
+
+    def read_transcript(self, name: str, limit: int = 256 * 1024) -> str:
+        """One transcript's text by its file name, the last `limit` bytes
+        of a long one. Only a name `transcripts` lists is read, never a
+        path: a client cannot reach outside the directory."""
+        from ..ansi import decode_text
+        from ..transcripts import list_transcripts
+
+        for info in list_transcripts(self.transcript_directory()):
+            if info.path.name == name:
+                with open(info.path, "rb") as handle:
+                    if info.size > limit:
+                        handle.seek(info.size - limit)
+                    return decode_text(handle.read())
+        raise FileNotFoundError(name)
+
     def start_transcript(self, key: str, link) -> None:
         """Open a transcript for `key`, if recording is enabled."""
         self.close_transcript(key)

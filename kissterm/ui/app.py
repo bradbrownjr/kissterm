@@ -2313,21 +2313,19 @@ class KissTermApp(App):
         offline, from those the BBS listed last."""
         from .bulletin_screen import BulletinCategoriesScreen
 
-        bbs = self._bulletin_bbs()
-        subs = self.bulletin_subscriptions.for_bbs(bbs) if bbs else None
-        if subs is None or not subs.seen:
-            self.notify("No categories yet: G asks the BBS for its list on the first "
-                        "collection.")
+        from ..core.mail import NO_CATEGORIES
+
+        choice = self.core.mail.bulletin_categories()
+        if choice is None:
+            self.notify(NO_CATEGORIES)
             return
         answer = await self.push_screen_wait(BulletinCategoriesScreen(
-            bbs, subs.seen, ticked=subs.chosen, all_=subs.all))
+            choice.bbs, choice.seen, ticked=choice.chosen, all_=choice.all))
         if answer is None:
             return
         picked, all_ = answer
-        subs.choose(list(subs.seen), picked, all_=all_)
-        self.bulletin_subscriptions.save()
-        self.notify("Collecting " + ("every category." if subs.all
-                                     else (", ".join(subs.chosen) or "no categories") + "."))
+        # `Mail.choose_bulletin_categories`, as the phone's Categories.
+        self.core.mail.choose_bulletin_categories(picked, all_=all_)
 
     def _set_activity(self, phase: str) -> None:
         """The status-bar field for a job the operator started, in green
@@ -2550,16 +2548,8 @@ class KissTermApp(App):
             # is what Ctrl+N already does there.
             self.action_connect()
             return
-        if key and self.session_is_live(key):
-            self.notify(f"Already connected to {key}.", severity="information")
-            return
-        if request is None:
-            self.notify(
-                "Nothing to reconnect to yet. Ctrl+N connects to a station.",
-                severity="warning",
-            )
-            return
-        self.action_connect(redial=request)
+        # The rest is the core's (`Connector.reconnect`), as on the phone.
+        self.run_worker(self.core.connector.reconnect(key), exclusive=False)
 
     def action_close_tab(self) -> None:
         """Session > Close tab, APRS > Close conversation: whichever tab

@@ -5,6 +5,29 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Phone parity: Reconnect, bulletin categories, transcripts
+
+### Improvements
+
+- **Reconnect on the phone**: a chip in Disconnect's place once the
+  session shown has dropped; after asking, the station redials it as
+  Ctrl+R does (`Connector.reconnect`, now Ctrl+R's path too).
+- **Categories** on a Bulletins folder: tick what Get bulletins
+  collects, offline, as S does (`Mail.bulletin_categories`).
+- **Transcripts** in More: past sessions, searched and read, by listed
+  name only (`Sessions.transcripts`, `read_transcript`).
+- Protocol: `reconnect`, `bulletin_categories`(`_save`), `transcripts`,
+  `transcript_read`.
+
+**Files:** `kissterm/core/connect.py`, `kissterm/core/mail.py`,
+`kissterm/core/sessions.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/shell.py`, `kissterm/client/ui/sessions.py`,
+`kissterm/client/ui/mail.py`, `kissterm/client/ui/more.py`,
+`kissterm/client/ui/transcripts.py`, `kissterm/ui/app.py`, `DESIGN.md`,
+`docs/GUIDE.md`, `docs/PROTOCOL.md`, `docs/ROADMAP.md`,
+`docs/ON-AIR-TESTS.md`, `tests/unit/test_core_parity_more.py`,
+`tests/unit/test_serve.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-06] — Phone parity: write, reply, reply all, delete, restore
 
 ### New Features

@@ -445,3 +445,30 @@ async def test_a_client_writes_replies_deletes_and_restores_mail():
     await client.ws.close()
     await server.stop()
     core.sessions.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_a_client_reads_transcripts_and_bulletin_categories(tmp_path):
+    core, server, ta, peer = await _serve()
+    core.config.log_dir = str(tmp_path)
+    (tmp_path / "20261006-120000_N1ABC-1_W1AW-7.log").write_text("Welcome\n")
+    from kissterm.mail.bulletins import SubscriptionBook
+
+    core.mail.subscriptions = SubscriptionBook(tmp_path / "bulletins.json")
+    core.mail.subscriptions.for_bbs("WS1EC").seen = {"WX": 3}
+    core.mail.bulletin_bbs = lambda: "WS1EC"
+    client = await _join(server)
+    await client.next()
+    [listed] = (await client.command("t1", "transcripts"))["value"]
+    assert listed["peer"] == "W1AW-7"
+    text = (await client.command("t2", "transcript_read", file=listed["name"]))["value"]
+    assert text == "Welcome\n"
+    refused = await client.command("t3", "transcript_read", file="../../config.toml")
+    assert refused["ok"] is False
+    choice = (await client.command("t4", "bulletin_categories"))["value"]
+    assert choice == {"bbs": "WS1EC", "seen": {"WX": 3}, "chosen": [], "all": False}
+    await client.command("t5", "bulletin_categories_save", picked=["WX"], all=False)
+    assert core.mail.bulletin_categories().chosen == ["WX"]
+    await client.ws.close()
+    await server.stop()
+    core.sessions.shutdown()

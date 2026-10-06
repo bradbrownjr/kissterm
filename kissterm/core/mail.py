@@ -117,6 +117,22 @@ class ReplyStart:
     note: str = ""
 
 
+@dataclass(frozen=True, slots=True)
+class BulletinChoice:
+    """`Mail.bulletin_categories`: the Home BBS, each category it listed
+    last with its count, the ones collected, and whether all are."""
+
+    bbs: str
+    seen: dict
+    chosen: list
+    all: bool
+
+
+#: Said when categories are asked for before any collection listed them.
+NO_CATEGORIES = ("No categories yet: Get bulletins asks the BBS for its list on the "
+                 "first collection.")
+
+
 class SkipService(Exception):
     """The operator pressed Skip on an All Inboxes setup question."""
 
@@ -770,6 +786,29 @@ class Mail:
                    else self.store.restore(ref))
         self._publish(MailChanged())
         return new_ref
+
+    def bulletin_categories(self) -> BulletinChoice | None:
+        """What S on Bulletins (and the phone's Categories) offers: the
+        categories the Home BBS listed last, and which are collected.
+        None before any collection has asked the BBS: nothing is asked of
+        the air to fill this in."""
+        bbs = self.bulletin_bbs()
+        subs = self.subscriptions.for_bbs(bbs) if bbs else None
+        if subs is None or not subs.seen:
+            return None
+        return BulletinChoice(bbs, dict(sorted(subs.seen.items())), sorted(subs.chosen), subs.all)
+
+    def choose_bulletin_categories(self, picked: list[str], *, all_: bool) -> None:
+        """Replace the choice of categories collected, offline."""
+        bbs = self.bulletin_bbs()
+        subs = self.subscriptions.for_bbs(bbs) if bbs else None
+        if subs is None or not subs.seen:
+            self._notice(NO_CATEGORIES)
+            return
+        subs.choose(list(subs.seen), list(picked), all_=all_)
+        self.subscriptions.save()
+        self._notice("Collecting " + ("every category." if subs.all
+                                      else (", ".join(subs.chosen) or "no categories") + "."))
 
     def bulletin_bbs(self) -> str:
         """The Home BBS's callsign as its choices are kept, or ""."""

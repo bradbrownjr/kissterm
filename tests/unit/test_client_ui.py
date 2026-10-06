@@ -630,3 +630,82 @@ def test_a_date_reads_as_the_terminal_shows_it():
     utc = datetime(2026, 10, 6, 18, 40, tzinfo=timezone.utc)
     assert when(utc.isoformat()) == utc.astimezone().strftime("%Y-%m-%d %H:%M")
     assert when(None) == "" and when("yesterday") == "yesterday"
+
+
+# ----------------------------------------------------------------------
+# Reconnect, bulletin categories, transcripts (parity group 3)
+# ----------------------------------------------------------------------
+
+
+def test_reconnect_shows_where_disconnect_was_once_the_session_drops():
+    from kissterm.client.state import Session
+    from kissterm.client.ui.shell import session_chips
+
+    assert session_chips(0, Session("W1AW-7", connected=True)) == (True, False)
+    assert session_chips(0, Session("W1AW-7")) == (False, True)
+    assert session_chips(0, Session("W1AW-7", connecting=True)) == (False, False), \
+        "a connect under way has Cancel on its hourglass"
+    assert session_chips(2, Session("W1AW-7")) == (False, False)
+    assert session_chips(0, None) == (False, False)
+
+
+@pytest.mark.asyncio
+async def test_reconnect_asks_first_then_redials_that_session():
+    from kissterm.client.ui.sessions import SessionsView
+
+    app = MailApp({})
+    view = SessionsView(app)
+    view.keys, view.selected = ["W1AW-7"], 0
+    await view.reconnect()
+    assert app.commands == [], "Reconnect sent before the sheet was answered"
+    [asked] = app.page.dialogs
+    await _button(asked, "Reconnect").on_click(None)
+    assert app.commands == [("reconnect", {"key": "W1AW-7"})]
+
+
+@pytest.mark.asyncio
+async def test_categories_on_a_bulletins_folder_save_offline():
+    from kissterm.client.ui.mail import MailView
+
+    app = MailApp({"bulletin_categories": None, "mail_list": [], "mail_folders": []})
+    view = MailView(app)
+    view.folder = "Bulletins/WX"
+    await view.reload()
+    assert view.categories_button.visible and not view.write_button.visible
+    await view._categories(None)
+    assert "No categories yet" in app.page.dialogs[-1].content.value
+    app.page.dialogs.clear()
+
+    app.answers["bulletin_categories"] = {"bbs": "WS1EC", "seen": {"ARES": 2, "WX": 4},
+                                          "chosen": ["WX"], "all": False}
+    await view._categories(None)
+    [sheet] = app.page.dialogs
+    boxes = [c for c in sheet.content.content.controls[3].controls]
+    assert [(b.data, b.value) for b in boxes] == [("ARES", False), ("WX", True)]
+    boxes[0].value = True
+    await _button(sheet, "Save").on_click(None)
+    assert app.commands[-1] == ("bulletin_categories_save",
+                                {"picked": ["ARES", "WX"], "all": False})
+
+
+@pytest.mark.asyncio
+async def test_transcripts_list_search_and_open_over_more():
+    from kissterm.client.ui.more import MoreView
+
+    app = MailApp({"transcripts": [{"name": "20261006-120000_N1ABC-1_W1AW-7.log",
+                                    "peer": "W1AW-7", "started": "2026-10-06 12:00:00",
+                                    "size": 2048}],
+                   "transcript_read": "Welcome to W1AW\n"})
+    more = MoreView(app)
+    more.transcripts.search.value = "W1AW"
+    await more.transcripts.load()
+    assert app.commands[-1] == ("transcripts", {"needle": "W1AW"})
+    [row] = more.transcripts.list.controls
+    assert row.title.value == "W1AW-7" and "2.0 KB" in row.subtitle.value
+    await row.on_click(None)
+    assert app.commands[-1] == ("transcript_read",
+                                {"file": "20261006-120000_N1ABC-1_W1AW-7.log"})
+    assert more.control.content is not more.list
+    back = more.control.content.controls[0].controls[0]
+    await back.on_click(None)
+    assert more.control.content is more.list
