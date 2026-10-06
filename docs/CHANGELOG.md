@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Web remote: coming back to the page works
+
+### Improvements
+
+- **A page left asleep starts afresh** rather than rejoining Flet's
+  dropped session, which did not redraw and had already lost its
+  station connection; the station replays its state to the new one.
+- **The browser's kept key read is retried**; if it still does not
+  answer, the page says so with Try again instead of staying blank.
+
+**Files:** `kissterm/client/ui/web.py`, `docs/GUIDE.md`,
+`docs/ROADMAP.md`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-06] — Phone parity: Reconnect, bulletin categories, transcripts
 
 ### Improvements

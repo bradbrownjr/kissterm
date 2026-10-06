@@ -127,6 +127,18 @@ CHANGELOG only. As of 2026-10-04: one item open outside the code
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
+- **Web remote dead after returning to it** (2026-10-06, `awaiting
+  confirmation`): "I returned to the web app and it reloaded and is
+  unable to connect to the server. This isn't uncommon." Evidence: the
+  station's log had one `TimeoutException ... SharedPreferences(9).get`
+  at 12:58, which ended the page's start with nothing on screen; and,
+  reproduced under headless Chromium by closing Flet's socket, a page
+  that rejoins its dropped Flet session has no station connection (we
+  closed it on the drop) and does not redraw (Flet 1.0.3). Fix: a drop
+  now deletes the session, so the browser's return starts fresh and
+  reconnects; reading the kept key is retried, then the page says so
+  with Try again (`kissterm/client/ui/web.py`).
+
 - **A screenshot test failed once under full-suite load** (2026-10-05,
   `open`; found by the suite). `tests/pilot/test_app_mounts.py::
   test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filters`

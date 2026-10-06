@@ -13,6 +13,30 @@ again.
 the station over the loopback with the same protocol as any client --
 never a shortcut into the core (`client/AGENTS.md`).
 
+**A dropped page is forgotten, never resumed.** Flet keeps a session
+for an hour after the browser's socket drops (a phone asleep, a tab in
+the background) and the browser rejoins it on waking, even across a
+reload. Under Flet 1.0.3 a rejoined page does not redraw: taps reach
+this Python and its updates go out, but the screen stays as it was. Our
+side had also closed the station connection on the drop, so the page
+came back looking normal with nothing behind it (operator, 2026-10-06:
+"I returned to the web app and it reloaded and is unable to connect to
+the server"; reproduced the same day by closing Flet's socket under
+headless Chromium). A fresh session after the same drop works. So the
+drop closes the station connection and deletes the session (`forget`);
+the returning browser finds none, starts a new one from the stored
+token, and the station replays its state to it.
+
+**The browser's storage can fail to answer.** Flet reads it by a round
+trip to the page, which times out after 10 s; a phone returning to a
+reloaded, half-awake tab is where that happens, and it once left a dead
+page with nothing to press (operator, 2026-10-06: "I returned to the web
+app and it reloaded and is unable to connect to the server"; the log had
+`TimeoutException ... SharedPreferences(9).get`). So the read is retried,
+then the page says what happened and offers Try again, and tries again by
+itself when the tab comes back to the front. Saving a token from the
+link is best effort: the session goes ahead with the token in hand.
+
 **Everything is served from here** (`no_cdn`): a station on a LAN with
 no Internet, the usual emergency case, still serves a working app.
 """
@@ -38,6 +62,37 @@ def token_from_route(route: str) -> str:
         if item.startswith("t=") and len(item) > 2:
             return item[2:]
     return ""
+
+
+async def read_token(prefs, attempts: int = 2) -> str | None:
+    """The token this browser kept, "" if none, None if it never answered."""
+    for _ in range(attempts):
+        try:
+            return await prefs.get(TOKEN_KEY) or ""
+        except Exception:
+            continue
+    return None
+
+
+def session_key(manager, session) -> str | None:
+    """`session`'s key in Flet's session registry, None if not there.
+
+    Flet keys it by page name, session id and a hash of the client, a
+    private formula; finding it by identity in the (also private) registry
+    does not depend on the formula. `test_client_ui` fails if a Flet
+    upgrade renames the registry."""
+    sessions = getattr(manager, "_FletAppManager__sessions", None) or {}
+    return next((key for key, value in sessions.items() if value is session), None)
+
+
+async def forget(session) -> None:
+    """Drop a session whose browser went away, so the browser's return
+    starts a new one rather than rejoining this (module docstring)."""
+    from flet_web.fastapi.flet_app_manager import app_manager
+
+    key = session_key(app_manager, session)
+    if key is not None:
+        await app_manager.delete_session(key)
 
 
 def loopback_url(serve, port: int) -> tuple[str, ssl.SSLContext | None]:
@@ -74,22 +129,55 @@ def build(server):
         prefs = ft.SharedPreferences()
         token = token_from_route(page.route)
         if token:
-            await prefs.set(TOKEN_KEY, token)
+            try:
+                await prefs.set(TOKEN_KEY, token)
+            except Exception:
+                pass
             await page.push_route("/")
+            await start(page, prefs, token)
         else:
-            token = await prefs.get(TOKEN_KEY) or ""
-        if not token:
-            page.add(ft.SafeArea(content=ft.Container(padding=ft.Padding.all(24), content=ft.Text(
-                "Open this station's pairing link to use it: on the station, "
-                "Session > Remote pairing, or the link kissterm --serve printed."))))
+            await resume(page, prefs)
+
+    async def resume(page, prefs) -> None:
+        """Start from the stored token, or say why not and offer to retry."""
+        token = await read_token(prefs)
+        if token:
+            await start(page, prefs, token)
             return
+
+        async def again(_e=None) -> None:
+            page.on_app_lifecycle_state_change = None
+            page.controls.clear()
+            page.update()
+            await resume(page, prefs)
+
+        async def back_in_front(e) -> None:
+            if e.state in (ft.AppLifecycleState.SHOW, ft.AppLifecycleState.RESUME):
+                await again()
+
+        if token is None:
+            text = ("This browser did not answer when asked for its pairing with the "
+                    "station. The station is fine; try again.")
+            page.on_app_lifecycle_state_change = back_in_front
+            more = [ft.FilledButton("Try again", icon=ft.Icons.REFRESH, on_click=again)]
+        else:
+            text = ("Open this station's pairing link to use it: on the station, "
+                    "Session > Remote pairing, or the link kissterm --serve printed.")
+            more = []
+        page.add(ft.SafeArea(content=ft.Container(padding=ft.Padding.all(24), content=ft.Column(
+            tight=True, spacing=16, controls=[ft.Text(text), *more]))))
+
+    async def start(page, prefs, token: str) -> None:
         url, context = loopback_url(server.core.config.serve, server.port)
         state = StationState()
         app: ClientApp | None = None
 
         async def on_status(status: str) -> None:
             if status == "refused":
-                await prefs.remove(TOKEN_KEY)
+                try:
+                    await prefs.remove(TOKEN_KEY)
+                except Exception:
+                    pass
 
         def status(text: str) -> None:
             if app is not None:
@@ -106,7 +194,11 @@ def build(server):
         async def closed(_e=None) -> None:
             await conn.close()
 
-        page.on_disconnect = closed
+        async def dropped(_e=None) -> None:
+            await conn.close()
+            await forget(page.session)
+
+        page.on_disconnect = dropped
         page.on_close = closed
 
     return flet_fastapi.app(

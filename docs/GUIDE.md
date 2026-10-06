@@ -610,6 +610,11 @@ own client.
   screen" or "Install app" keeps it as an app. The link's key is kept by
   that browser and taken out of the address bar, so a screenshot of the
   page does not show it.
+  Coming back to the page after the phone slept or the tab sat in the
+  background starts it afresh: it reconnects to the station and shows
+  where things stand, so a moment's blank screen there is expected. If
+  the browser is slow to hand back the kept key, the page says so with
+  **Try again** (and tries again itself when it comes to the front).
   - **Sessions** is the terminal: one page per session, swiped or tapped
     across the top, and a line to type. A line goes only when you press
     Send. Connect is at the end of the session tabs; **Disconnect** sits

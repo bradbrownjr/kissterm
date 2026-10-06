@@ -27,7 +27,8 @@ from kissterm.client.ui.stations import LEFT, RIGHT, StationsView  # noqa: E402
 from kissterm.client.ui.text import (  # noqa: E402
     FONTS, MONO_BOLD, OUTGOING, TEXT_COLOURS, Look, runs, split_lines, style_props)
 from kissterm.client.ui.web import ASSETS  # noqa: E402
-from kissterm.client.ui.web import loopback_url, token_from_route  # noqa: E402
+from kissterm.client.ui.web import (  # noqa: E402
+    loopback_url, read_token, session_key, token_from_route)
 from kissterm.config import ServeConfig  # noqa: E402
 
 # ----------------------------------------------------------------------
@@ -65,6 +66,45 @@ def test_the_token_comes_from_the_route():
     assert token_from_route("t=abc") == "abc"
     assert token_from_route("/t=abc") == "abc"
     assert token_from_route("/") == ""
+
+
+class _Prefs:
+    def __init__(self, *answers):
+        self.answers = list(answers)
+        self.asked = 0
+
+    async def get(self, key):
+        self.asked += 1
+        answer = self.answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+
+@pytest.mark.asyncio
+async def test_a_browser_slow_to_give_its_token_is_asked_again_then_reported():
+    # The station's log, 2026-10-06: SharedPreferences.get timed out and
+    # left a dead page. A second ask can succeed; two failures are None
+    # ("did not answer"), which the page tells apart from "never paired".
+    late = RuntimeError("TimeoutException after 0:00:10")
+    assert await read_token(_Prefs(late, "tok")) == "tok"
+    assert await read_token(_Prefs(late, late)) is None
+    assert await read_token(_Prefs(None)) == ""
+
+
+def test_a_dropped_page_session_is_found_in_flets_registry():
+    # A rejoined Flet session does not redraw, so a dropped one is deleted
+    # (web.forget); this fails if a Flet upgrade renames the registry.
+    from flet_web.fastapi.flet_app_manager import app_manager
+
+    assert hasattr(app_manager, "_FletAppManager__sessions")
+    mine, other = object(), object()
+
+    class Manager:
+        _FletAppManager__sessions = {"_a_1": other, "_b_2": mine}
+
+    assert session_key(Manager(), mine) == "_b_2"
+    assert session_key(Manager(), object()) is None
 
 
 def test_the_web_app_reaches_its_own_station_on_the_loopback():
