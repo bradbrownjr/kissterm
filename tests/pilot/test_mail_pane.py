@@ -211,3 +211,74 @@ async def test_a_winlink_form_reads_from_its_xml_not_its_text(tmp_path):
         shown = _reader_text(mail)
         assert "ICS-213 General Message" in shown and "ICE STORM" in shown
         assert "Cots needed." in shown
+
+
+@pytest.mark.asyncio
+async def test_t_unfolds_a_bbs_messages_routing_as_the_phone_does(tmp_path):
+    """Operator, 2026-10-06: "the UIs need parity in functionality". The
+    phone folds a message's R: lines under its header; here T does."""
+    app, store = _app(tmp_path)
+    raw = (b"From: W1BKW\rTo: KC1JMH\rType/Status: PN\rDate/Time: 02-Oct 23:21Z\r"
+           b"Bid: 8243_W1BKW\rTitle: Hello from kissterm\r"
+           b"R:261002/2321Z 8243@W1BKW.#OXFO.ME.USA.NOAM BPQ6.0.25\r"
+           b"\rHello Brad,\r\r[End of Message #3105 from W1BKW]\r")
+    store.add("Mail/BBS/Inbox", Message(sender="W1BKW", to="KC1JMH", date=WHEN + timedelta(hours=2),
+                                        subject="Hello from kissterm", source="BBS WS1EC",
+                                        body="Hello Brad,\n"), raw=raw, raw_suffix=".bbs")
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        mail = _browser(app, "mail")
+        table = mail.query_one(MessageList)
+        table.focus()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert "Routing: 1 BBS (T shows it)" in _reader_text(mail)
+        assert "8243@W1BKW" not in _reader_text(mail), "folded by default"
+        assert "t" in app.screen.active_bindings
+        await pilot.press("t")
+        await pilot.pause()
+        shown = _reader_text(mail)
+        assert "R:261002/2321Z 8243@W1BKW.#OXFO.ME.USA.NOAM" in shown
+        assert "not the sender's address" in shown
+        await pilot.press("t")
+        await pilot.pause()
+        assert "8243@W1BKW" not in _reader_text(mail)
+        # A message with no routing has no T.
+        await pilot.press("down")
+        await pilot.press("enter")
+        await pilot.pause()
+        assert table.check_action("toggle_routing", ()) is False
+        assert "Routing" not in _reader_text(mail)
+
+
+@pytest.mark.asyncio
+async def test_g_cancels_a_run_that_is_going_as_the_phones_button_does(tmp_path):
+    """Parity with the phone (operator, 2026-10-06): while a run is going
+    G cancels it, the Footer says so, and nothing starts a second run."""
+    from kissterm.core.events import MailRunChanged
+
+    app, _store = _app(tmp_path)
+    cancelled: list[bool] = []
+
+    async def cancel() -> bool:
+        cancelled.append(True)
+        return True
+
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.core.mail.cancel = cancel
+        table = _browser(app, "mail").query_one(MessageList)
+        table.focus()
+        await pilot.pause()
+        assert table.check_action("cancel_run", ()) is False
+        assert table.check_action("get_internet", ()) is True
+        app.core.mail.collecting = True
+        app.core.events.publish(MailRunChanged(True))
+        await pilot.pause()
+        assert table.check_action("cancel_run", ()) is True
+        assert not any(table.check_action(a, ()) for a in ("get_mail", "get_winlink", "get_all"))
+        assert table.check_action("get_internet", ()) is False
+        await pilot.press("g")
+        await app.workers.wait_for_complete()
+        assert cancelled == [True]
+        app.core.mail.collecting = False

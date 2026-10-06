@@ -275,6 +275,19 @@ def routes_in(raw: bytes) -> list[str]:
     return list(read.routes) if read is not None else []
 
 
+def routes_of(store, ref: str) -> list[str]:
+    """`routes_in` for message `ref` in `store`, from the `.bbs` kept
+    beside it; [] for a message that did not come from a BBS read. One
+    function for every reader, the terminal's and a remote client's."""
+    for path in store.raw_files(ref):
+        if path.suffix == ".bbs":  # collect.RAW_SUFFIX
+            try:
+                return routes_in(path.read_bytes())
+            except OSError:
+                return []
+    return []
+
+
 def infer_date(text: str, now: datetime | None = None) -> datetime | None:
     """`21-Sep 08:37Z` -> a UTC datetime in the year that puts it not in the future.
 

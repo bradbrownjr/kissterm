@@ -47,6 +47,7 @@ from textual.widgets import DataTable, Tree
 
 from ..files_view import kind_of, zip_members
 from ..mail import MessageStore, form_parse, form_xml
+from ..mail.bpqmail import routes_of
 from ..mail.store import ALL_INBOXES, DELETED, FILES, check_folder, is_deleted_folder
 from ..monitor import sanitize
 from . import slideouts
@@ -81,6 +82,23 @@ _BULLETIN_ACTIONS = {b.action for b in _BULLETIN_BINDINGS}
 #: The Files tab's G (ROADMAP P2, Files): the Home BBS's `FILES`, a pick,
 #: and a YAPP download of each, by radio only (`collect.py`).
 _FILES_GET = Binding("g", "get_files", "Get files")
+#: While a run is going, G cancels it instead (operator, 2026-10-06: the
+#: phone's turning button cancels on a tap, and "the UIs need parity").
+_CANCEL_RUN = Binding("g", "cancel_run", "Cancel run")
+#: What G and I start: none of them while a run is going.
+_STARTS_A_RUN = {"get_mail", "get_winlink", "get_all", "get_internet", "get_bulletins",
+                 "get_bulletins_internet", "get_files"}
+
+
+def _run_gate(app, action: str) -> bool | None:
+    """While a run is going only `cancel_run` of G and I applies; with
+    none, never it. None: the caller decides."""
+    running = bool(getattr(app, "_collecting", False))
+    if action == "cancel_run":
+        return running
+    if action in _STARTS_A_RUN and running:
+        return False
+    return None
 
 
 class FolderTree(Tree):
@@ -98,9 +116,13 @@ class FolderTree(Tree):
         Binding("i", "get_internet", "By Internet"),
         *_BULLETIN_BINDINGS,
         _FILES_GET,
+        _CANCEL_RUN,
     ]
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
+        gate = _run_gate(self.app, action)
+        if gate is not None:
+            return gate
         browser = self.query_ancestor(MessageBrowser)
         if action in _BULLETIN_ACTIONS:
             return browser.id == "bulletins-browser"
@@ -116,6 +138,9 @@ class FolderTree(Tree):
 
     def action_get_mail(self) -> None:
         self.app.action_get_mail()  # type: ignore[attr-defined]
+
+    def action_cancel_run(self) -> None:
+        self.app.action_cancel_mail_run()  # type: ignore[attr-defined]
 
     def action_get_winlink(self) -> None:
         self.app.action_get_mail()  # type: ignore[attr-defined]
@@ -157,8 +182,10 @@ class MessageList(DataTable):
         Binding("g", "get_all", "Send/Receive all"),
         Binding("i", "get_internet", "By Internet"),
         Binding("v", "toggle_form", "Form/text"),
+        Binding("t", "toggle_routing", "Routing"),
         *_BULLETIN_BINDINGS,
         _FILES_GET,
+        _CANCEL_RUN,
         Binding("s", "send_file", "Send"),
     ]
 
@@ -166,6 +193,9 @@ class MessageList(DataTable):
         return self.query_ancestor(MessageBrowser)
 
     def check_action(self, action: str, parameters: tuple) -> bool | None:
+        gate = _run_gate(self.app, action)
+        if gate is not None:
+            return gate
         browser = self._browser()
         if action in _BULLETIN_ACTIONS:
             return browser.id == "bulletins-browser"
@@ -189,10 +219,18 @@ class MessageList(DataTable):
             return self.row_count > 0 and not browser.files
         if action == "toggle_form":
             return browser.showing_form_message()
+        if action == "toggle_routing":
+            return browser.showing_routed_message()
         return True
 
     def action_toggle_form(self) -> None:
         self._browser().toggle_form_view()
+
+    def action_cancel_run(self) -> None:
+        self.app.action_cancel_mail_run()  # type: ignore[attr-defined]
+
+    def action_toggle_routing(self) -> None:
+        self._browser().toggle_routing()
 
     def action_new_message(self) -> None:
         self.app.action_compose_mail()  # type: ignore[attr-defined]
@@ -315,6 +353,11 @@ class MessageBrowser(Horizontal):
         self._open_ref = ""
         self._open_form = None
         self._as_text = False
+        #: Its `R:` routing lines, and whether T has unfolded them: folded
+        #: by default, as the phone's reader has them (operator,
+        #: 2026-10-06: "the UIs need parity in functionality").
+        self._open_routes: list[str] = []
+        self._show_routes = False
 
     def compose(self) -> ComposeResult:
         tree = FolderTree("folders", classes="mail-tree")
@@ -569,12 +612,13 @@ class MessageBrowser(Horizontal):
         message = self.store.read(ref)
         if ref != self._open_ref:
             self._open_ref, self._as_text = ref, False
+            self._open_routes, self._show_routes = routes_of(self.store, ref), False
             # A Winlink form's XML is exactly what was filled in; the text
             # is read against the template only when there is none.
             found = form_xml.from_raw(self.store.raw_files(ref))
             self._open_form = form_xml.read(found) if found is not None else form_parse.recognize(
                 message.subject, message.body, form_id=message.extra.get("Form", ""))
-            self.query_one(MessageList).refresh_bindings()  # V, in the Footer
+            self.query_one(MessageList).refresh_bindings()  # V and T, in the Footer
         head = Text()
         for label, value in (
             ("From", message.sender),
@@ -587,6 +631,18 @@ class MessageBrowser(Horizontal):
                 head.append(f"{label}: ", style="bold")
                 head.append(sanitize(value.encode("utf-8"), keep_newlines=False) + "\n")
         reader.write(head)
+        if self._open_routes:
+            count = len(self._open_routes)
+            noun = "BBS" if count == 1 else "BBSes"
+            if self._show_routes:
+                routing = Text(f"Routing ({count} {noun}), the latest first; "
+                               "not the sender's address:\n", style="dim")
+                for line in self._open_routes:
+                    routing.append(sanitize(line.encode("utf-8"), keep_newlines=False) + "\n",
+                                   style="dim")
+            else:
+                routing = Text(f"Routing: {count} {noun} (T shows it)", style="dim")
+            reader.write(routing)
         if self._open_form is not None and not self._as_text:
             reader.write(form_text(self._open_form))
         else:
@@ -598,6 +654,15 @@ class MessageBrowser(Horizontal):
     def showing_form_message(self) -> bool:
         """The reader holds a message that reads as a form (V applies)."""
         return self._open_form is not None and self._open_ref == self._selected()
+
+    def showing_routed_message(self) -> bool:
+        """The reader holds a message with routing lines (T applies)."""
+        return bool(self._open_routes) and self._open_ref == self._selected()
+
+    def toggle_routing(self) -> None:
+        if self.showing_routed_message():
+            self._show_routes = not self._show_routes
+            self.open_selected()
 
     def toggle_form_view(self) -> None:
         if self.showing_form_message():

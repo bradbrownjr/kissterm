@@ -76,6 +76,11 @@ it Terminal instead): a folder tree, the message list, and a reader.
 - **Every message is a plain text file** under kissterm's data folder, so
   any editor can read one. Delete moves a message to Deleted; U puts it
   back.
+- **Routing.** A message read from a BBS says "Routing: 2 BBSes" under
+  its header; **T** shows the `R:` line each BBS added as it passed the
+  message on, the latest first, and T again folds them away. A
+  number@BBS there is that BBS's message number, not the sender's
+  address.
 
 ### Send/Receive by radio (G)
 
@@ -88,6 +93,9 @@ in the Terminal tab as it happens (the BBS's side and the commands kissterm sent
 the status bar, and a note of each step in the session's transcript). Messages stay on the BBS. Anything missing (the entry to dial, a
 password, a BBS login) is asked for before anything is dialed, so a
 missing setting never costs airtime.
+While a run is going, **G cancels it** (the Footer says "Cancel run"):
+a radio run's SABMs stop, or its link is disconnected; an Internet run
+is stopped.
 
 On a Winlink folder, G sends and receives with a Winlink RMS gateway
 instead: Settings > Mail > Winlink names the Address Book contact that

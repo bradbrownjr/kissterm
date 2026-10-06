@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Terminal parity: routing (T) and cancelling a run (G)
+
+### Improvements
+
+- **The terminal's mail reader shows a message's routing**, folded as on
+  the phone: "Routing: 2 BBSes (T shows it)" under the header, and T
+  unfolds the `R:` lines. One function reads them for both readers
+  (`bpqmail.routes_of`).
+- **G cancels a run that is going** on Mail, Bulletins and Files, as the
+  phone's turning button does; the Footer says "Cancel run".
+- AGENTS.md: the front ends keep parity in functionality.
+
+**Files:** `kissterm/ui/mail_pane.py`, `kissterm/ui/app.py`,
+`kissterm/mail/bpqmail.py`, `kissterm/core/mail.py`, `AGENTS.md`,
+`DESIGN.md`, `docs/GUIDE.md`, `tests/pilot/test_mail_pane.py`
+
 ## [2026-10-06] — Mail runs sign off with B; a message's routing on the phone
 
 ### Improvements

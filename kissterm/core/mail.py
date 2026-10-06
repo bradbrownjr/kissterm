@@ -658,18 +658,10 @@ class Mail:
         self._publish(MailChanged())
 
     def routing(self, ref: str) -> list[str]:
-        """The `R:` lines of a message from a BBS, from the reply kept
-        beside it (`bpqmail.routes_in`); [] for anything else."""
-        from ..mail.bpqmail import routes_in
-        from ..mail.collect import RAW_SUFFIX
+        """The `R:` lines of a message from a BBS (`bpqmail.routes_of`)."""
+        from ..mail.bpqmail import routes_of
 
-        for path in self.store.raw_files(ref):
-            if path.suffix == RAW_SUFFIX:
-                try:
-                    return routes_in(path.read_bytes())
-                except OSError:
-                    return []
-        return []
+        return routes_of(self.store, ref)
 
     def bulletin_bbs(self) -> str:
         """The Home BBS's callsign as its choices are kept, or ""."""

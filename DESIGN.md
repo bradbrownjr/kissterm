@@ -255,8 +255,11 @@ is the enforcement.
    full screen in the viewer (a click previews it in the reader), where Enter
    fills in a recognised PKTNET form; on Mail and
    Bulletins, V switches a message
-   received as a form between the form and its text, R replies and Q
-   replies with the original quoted. None of them transmits; Files' S
+   received as a form between the form and its text; while a Send/Receive,
+   Get bulletins or Get files is running, G cancels it instead (the Footer
+   says "Cancel run"), as the phone's turning button does; T shows or folds
+   away a BBS message's routing (its `R:` lines, folded by default as on
+   the phone), R replies and Q replies with the original quoted. None of them transmits; Files' S
    only opens the transfer dialog, which transmits on Start.
 5. **The Footer shows only what works right now.** An action that does not
    apply on this tab, or in this state, is absent — not shown and then

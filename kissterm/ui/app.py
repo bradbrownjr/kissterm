@@ -128,6 +128,7 @@ from ..ax25 import AX25Station
 from ..core import TRANSPORT_SKIPPED, Core, GateChanged, TransportChanged
 from ..core.events import (
     ActivityChanged,
+    MailRunChanged,
     FrameSeen,
     KnownNodesChanged,
     AddressBookChanged,
@@ -633,6 +634,9 @@ class KissTermApp(App):
             self._refresh_context_footer()
         elif isinstance(event, ActivityChanged):
             self._set_activity(event.text)
+        elif isinstance(event, MailRunChanged):
+            # G starts a run, or cancels the one going: the Footer says which.
+            self.screen.refresh_bindings()
         elif isinstance(event, AprsMessage):
             self._note_aprs_incoming(event.correspondent, to_me=event.to_me)
         elif isinstance(event, (AprsAcked, AprsRetried)):
@@ -2235,6 +2239,13 @@ class KissTermApp(App):
         says it started, the status bar shows its phase, a toast gives the
         outcome; the whole session is in its Terminal tab."""
         await self.core.mail.send_receive(self._mail_folder())
+
+    @work(exclusive=False)
+    async def action_cancel_mail_run(self) -> None:
+        """G while a run is going (Mail, Bulletins, Files): `Mail.cancel`,
+        as the phone's turning button does. Stopping never asks."""
+        if await self.core.mail.cancel():
+            self.notify("Cancelling Send/Receive...")
 
     def _go_to_setup(self, place: str) -> None:
         """Where a setup question's go button leads."""

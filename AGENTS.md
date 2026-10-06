@@ -235,6 +235,13 @@ changes.
   hardware) and `README.md` (only when a front-page claim changes). Keep
   claims honest: not proven on the air means "experimental" or "on the
   roadmap", never a plain yes.
+- **The front ends have parity in functionality** (operator,
+  2026-10-06: "the UIs need parity in functionality"). Something an
+  operator can do or see in the terminal UI or the remote client
+  (`kissterm/client/`) ships in the other in the same change, in that
+  front end's own idiom (a key and the Footer; a tap and a sheet), built
+  on one core method. A gap that cannot close yet (the protocol lacks
+  it) is named in the reply and in ROADMAP P7a.
 - **Screenshots ship with the change too.** If a change alters a screen
   that `assets/` shows, re-run `scripts/generate_screenshot.py` (or, for
   the phone client, `scripts/generate_phone_screenshots.py`), look at
