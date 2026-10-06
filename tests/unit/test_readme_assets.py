@@ -4,8 +4,9 @@ part of every change, AGENTS.md section 7).
 
 Every image the docs show exists, every image in `assets/` is shown
 somewhere (a dropped one is deleted, not left to go stale), and every
-image is one `scripts/generate_screenshot.py` makes, so none can be
-edited by hand and silently fall behind the app.
+image is one a screenshot script makes (`scripts/generate_screenshot.py`
+for the terminal, `scripts/generate_phone_screenshots.py` for the phone),
+so none can be edited by hand and silently fall behind the app.
 """
 
 from __future__ import annotations
@@ -26,9 +27,15 @@ def _shown() -> set[str]:
     return names
 
 
+SCRIPTS = ("generate_screenshot.py", "generate_phone_screenshots.py")
+
+
 def _made() -> set[str]:
-    script = (ROOT / "scripts" / "generate_screenshot.py").read_text(encoding="utf-8")
-    return {f"{name}.png" for name in re.findall(r'await shot\("([^"]+)"\)', script)}
+    names = set()
+    for script in SCRIPTS:
+        text = (ROOT / "scripts" / script).read_text(encoding="utf-8")
+        names.update(f"{name}.png" for name in re.findall(r'await shot\("([^"]+)"', text))
+    return names
 
 
 def test_every_image_the_docs_show_exists():
@@ -43,6 +50,7 @@ def test_every_image_in_assets_is_shown():
 
 def test_every_image_comes_from_the_screenshot_script():
     made = _made()
-    assert made, "found no shot() calls in scripts/generate_screenshot.py"
+    assert made, f"found no shot() calls in {SCRIPTS}"
+    assert "screenshot-phone.png" in made, "the phone script's shot() was not found"
     by_hand = sorted(name for name in _shown() if name not in made)
-    assert not by_hand, f"not made by scripts/generate_screenshot.py: {by_hand}"
+    assert not by_hand, f"not made by a screenshot script: {by_hand}"

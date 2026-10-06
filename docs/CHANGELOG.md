@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Phone screenshots of the remote control
+
+### Improvements
+
+- **The GUIDE shows the remote control on a phone**: the swipe that asks
+  before connecting, the radio reminder, a session with transmit on, and
+  an APRS conversation. `scripts/generate_phone_screenshots.py` drives
+  the web client against a scratch station in a browser (a browserless
+  server via `BROWSERLESS_WS`, or Playwright's Chromium), tapping by name
+  through Flutter's accessibility tree and waiting on the station rather
+  than the clock. New `screenshots` extra; `test_readme_assets` checks
+  both screenshot scripts.
+
+**Files:** `scripts/generate_phone_screenshots.py`, `assets/screenshot-phone.png`,
+`pyproject.toml`, `tests/unit/test_readme_assets.py`, `docs/GUIDE.md`,
+`README.md`, `AGENTS.md`, `kissterm/client/AGENTS.md`
+
 ## [2026-10-05] — A remote control for phones and browsers
 
 ### New Features

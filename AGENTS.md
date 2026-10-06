@@ -236,7 +236,8 @@ changes.
   claims honest: not proven on the air means "experimental" or "on the
   roadmap", never a plain yes.
 - **Screenshots ship with the change too.** If a change alters a screen
-  that `assets/` shows, re-run `scripts/generate_screenshot.py`, look at
+  that `assets/` shows, re-run `scripts/generate_screenshot.py` (or, for
+  the phone client, `scripts/generate_phone_screenshots.py`), look at
   every image, and commit the PNGs with it; a new tab or feature worth
   showing gets its own scene there. If the images cannot be made (the
   font download failed, say), say so in the reply rather than committing

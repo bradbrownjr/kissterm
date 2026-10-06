@@ -606,6 +606,9 @@ own client.
   - `kissterm --client LINK` opens the same remote control in a window
     on a desktop (the `desktop` extra). It has not been tried on a
     desktop yet.
+
+![The remote control on a phone: a swipe asks before connecting, the radio reminder, a session with transmit on, and an APRS conversation](../assets/screenshot-phone.png)
+
 - **Settings > Remote** sets the port (7425), whether it listens on the
   LAN or on this machine only, and, under advanced, a **Public URL** for
   a reverse proxy that adds HTTPS, or a certificate and key for kissterm

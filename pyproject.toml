@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.414"
+version = "0.1.415"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -60,6 +60,9 @@ serve = ["starlette>=1.7", "uvicorn>=0.54", "websockets>=13", "segno"]
 web = ["kissterm[serve]", "flet>=1.0.3,<2", "flet-web>=1.0.3,<2"]
 # The same client as a desktop app (`kissterm --client LINK`).
 desktop = ["websockets>=13", "flet>=1.0.3,<2", "flet-desktop>=1.0.3,<2"]
+# For maintainers: scripts/generate_phone_screenshots.py drives the web
+# client in a browser (a browserless server, or Playwright's own Chromium).
+screenshots = ["kissterm[web]", "playwright>=1.50"]
 # aprslib (GPLv2) is test-only, never imported at runtime -- kissterm is MIT
 # and a runtime dependency on GPL code would put a copyleft obligation on
 # anyone distributing kissterm (relevant for the PyPI/Debian packaging

@@ -28,4 +28,9 @@ The remote client (ROADMAP P7a M8): the other end of `docs/PROTOCOL.md`.
 8. **Look at it.** A layout change is checked in a browser
    (Playwright's headless Chromium against a scratch station), not only
    by tests: sheets that shrank to their text and a centred terminal
-   line both passed every test.
+   line both passed every test. `scripts/generate_phone_screenshots.py`
+   (the `screenshots` extra; `BROWSERLESS_WS=ws://HOST:3000?token=...`
+   for a browserless server, from the environment, never committed)
+   makes `assets/screenshot-phone.png` and taps by name through
+   Flutter's accessibility tree, so a renamed button or tooltip fails it.
+   Selectable text (session lines, message bubbles) is not in that tree.

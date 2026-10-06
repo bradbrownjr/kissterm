@@ -218,7 +218,9 @@ git config core.hooksPath hooks     # once per clone: version bump + dep resync
 
 The AX.25 stack is tested against a software loopback with frame loss, so
 the link layer is exercised without a radio. The screenshots come from
-`scripts/generate_screenshot.py`, with invented stations.
+`scripts/generate_screenshot.py` (the terminal) and
+`scripts/generate_phone_screenshots.py` (the phone), with invented
+stations.
 
 ## License
 
