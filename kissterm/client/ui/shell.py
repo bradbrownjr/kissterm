@@ -13,6 +13,18 @@ it on asks first and buzzes the phone; turning it off never asks
 (stopping is always safe). It sends the protocol's `transmit` command:
 the station reports it on every screen.
 
+**Disconnect sits beside it** (`disconnect_chip`), on Sessions while the
+session shown is connected: the row that used to repeat the session's
+name above the terminal is gone, and its height is the terminal's.
+
+**A connect runs in the background** (`start_connect`): Sessions comes to
+the front at once and the session shows its hourglass there, never a
+screen waiting on the station's answer.
+
+**Titles name the place, not the station** ("APRS messages", not
+"KC1JMH Messages"): the callsign is in More, and the room is the
+title's (operator, 2026-10-06).
+
 **Every station question is a sheet** (`questions.py`), the first answer
 anywhere wins (`question_closed` takes it down here).
 
@@ -48,6 +60,10 @@ LOOK_KEYS = ("kissterm.terminal.background", "kissterm.terminal.text")
 #: Width (logical pixels) from which destinations move to a side rail.
 WIDE = 720
 
+#: The top bar's title on each destination, where the bar's label is
+#: too short to say it.
+TITLES = {"Messages": "APRS messages"}
+
 DESTINATIONS = (
     ("Sessions", ft.Icons.TERMINAL_OUTLINED, ft.Icons.TERMINAL),
     ("Messages", ft.Icons.CHAT_BUBBLE_OUTLINE, ft.Icons.CHAT_BUBBLE),
@@ -65,16 +81,22 @@ class ClientApp:
         self.conn = conn
         self.state = state
         self.index = 0
-        #: Set by a connect asked from another view: the next new session
-        #: brings Sessions to the front. A session another screen opened
-        #: never moves this one.
+        #: Set by a connect asked here (`start_connect`): the session it opens
+        #: is selected in Sessions. A session another screen opened never
+        #: moves this one.
         self.follow_next_session = False
         self.look = Look()
-        self.views = [SessionsView(self), MessagesView(self), MailView(self),
-                      StationsView(self), MoreView(self)]
         self.questions = QuestionSheets(self)
         self.gate_button = ft.Container(on_click=self._gate_clicked, border_radius=16,
                                         padding=ft.Padding.symmetric(horizontal=12, vertical=6))
+        self.disconnect_chip = ft.Container(
+            visible=False, on_click=self._disconnect_clicked, border_radius=16,
+            border=ft.Border.all(1, ft.Colors.OUTLINE), tooltip="Disconnect this session",
+            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+            content=ft.Row(tight=True, spacing=6, controls=[
+                ft.Icon(ft.Icons.LINK_OFF, size=18), ft.Text("Disconnect")]))
+        self.views = [SessionsView(self), MessagesView(self), MailView(self),
+                      StationsView(self), MoreView(self)]
         #: The connection's state, a strip above everything while it is
         #: not "connected" (never a dialog: it must not cover a question).
         self.status = ft.Container(visible=False, bgcolor=ft.Colors.TERTIARY_CONTAINER,
@@ -99,7 +121,8 @@ class ClientApp:
         page.title = "kissterm"
         page.padding = 0
         page.appbar = ft.AppBar(title=ft.Text("kissterm"), center_title=False, actions=[
-            ft.Container(content=self.gate_button, padding=ft.Padding.only(right=12))])
+            ft.Container(padding=ft.Padding.only(right=12), content=ft.Row(
+                tight=True, spacing=8, controls=[self.disconnect_chip, self.gate_button]))])
         page.on_resize = self._on_resize
         self._paint_gate()
         self._place()
@@ -163,12 +186,37 @@ class ClientApp:
         self.body.content = view.control
         self.page.floating_action_button = view.fab()
         self.page.appbar.title = ft.Text(self._title())
+        self.paint_actions()
         self.page.run_task(view.shown)
         self.page.update()
 
     def _title(self) -> str:
-        call = self.state.callsign or "kissterm"
-        return f"{call}  {DESTINATIONS[self.index][0]}"
+        label = DESTINATIONS[self.index][0]
+        return TITLES.get(label, label)
+
+    def paint_actions(self) -> None:
+        """Disconnect beside the transmit switch while Sessions shows a
+        connected session."""
+        views = getattr(self, "views", None)  # None while they are built
+        session = views[0].current_session if views else None
+        self.disconnect_chip.visible = bool(
+            self.index == 0 and session is not None and session.connected)
+
+    async def _disconnect_clicked(self, _e) -> None:
+        await self.views[0].disconnect()
+
+    def start_connect(self, **args) -> None:
+        """Ask the station to connect, without waiting on it here: Sessions
+        comes to the front now, and the new session follows (module
+        docstring)."""
+        self.follow_next_session = True
+        self.go(0)
+
+        async def run() -> None:
+            await self.command("connect", **args)
+            self.follow_next_session = False
+
+        self.page.run_task(run)
 
     # ------------------------------------------------------------------
     async def command(self, name: str, **args):
@@ -240,10 +288,6 @@ class ClientApp:
             self.questions.show(data)
         elif kind == "question_closed":
             self.questions.closed(data)
-        elif (kind == "session" and self.follow_next_session
-              and data.key not in self.views[0].terminals):
-            self.follow_next_session = False
-            self.go(0)  # Sessions selects a new session as it adds it
         for view in self.views:
             view.on_state(kind, data)
         self.page.update()

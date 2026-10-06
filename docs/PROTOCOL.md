@@ -53,7 +53,7 @@ the same transmit-gate rules as the terminal.
 ```json
 {"type": "welcome", "version": 1, "seq": 1234,
  "station": {"callsign": "KC1JMH-1", "kissterm": "0.1.405"},
- "snapshot": {"gate": false, "transport": {}, "sessions": [], "activity": ""} }
+ "snapshot": {"gate": false, "transport": {}, "sessions": [], "connecting": [], "activity": ""} }
 ```
 
 `seq` is the last event sequence number included in `snapshot`. Events
@@ -192,6 +192,7 @@ it as history, if at all, and never raises it again.
 | `SessionStateChanged` | `key, state` |
 | `SessionUpdated` | `key`, and the session's current summary |
 | `SessionClosed` | `key` |
+| `ConnectingChanged` | `keys`: every session with a connect still in progress (a `disconnect` cancels it). A radio session gets its `SessionOpened` only once the link is up, so a client shows a key here it has not seen as a session being dialled; the snapshot's `connecting` is the same list |
 | `ActivityChanged` | `text` |
 | `AprsMessage`, `AprsAcked`, `AprsBulletinHeard`, `AprsRetried` | as in `events.py` |
 | `AprsPacketHeard` | `line, at` (the decoded packet stays on the station) |

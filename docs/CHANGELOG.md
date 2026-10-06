@@ -5,6 +5,33 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Remote control: more terminal, a connect you can watch and cancel, its own icon
+
+### Improvements
+
+- **More room for the session.** The row above the terminal that
+  repeated the session's name with Connect and Disconnect is gone:
+  Connect ends the session tabs, and Disconnect is a chip beside the
+  transmit switch.
+- **A connect no longer freezes the screen.** It runs in the background;
+  Sessions comes to the front at once, with an hourglass and Cancel over
+  the session while the station calls. The station now tells clients
+  which sessions are connecting (`ConnectingChanged` carries `keys`, the
+  snapshot a `connecting` list), and ends an attempt only after its
+  session has opened.
+- **Stations opens on Contacts**, Heard second. **Titles drop the
+  callsign**, and Messages is titled "APRS messages".
+- **kissterm's own icon** replaces Flet's logo on the loading screen, the
+  browser tab and the home screen (`scripts/generate_web_icons.py`).
+
+**Files:** `kissterm/client/ui/sessions.py`, `kissterm/client/ui/shell.py`,
+`kissterm/client/ui/stations.py`, `kissterm/client/state.py`,
+`kissterm/client/ui/assets/icons/`, `kissterm/client/ui/assets/favicon.png`,
+`kissterm/core/connect.py`, `kissterm/serve/wire.py`, `kissterm/serve/server.py`,
+`scripts/generate_web_icons.py`, `scripts/generate_phone_screenshots.py`,
+`pyproject.toml`, `DESIGN.md`, `docs/GUIDE.md`, `docs/PROTOCOL.md`,
+`assets/screenshot-phone*.png`, `assets/screenshot-desktop.png`, tests
+
 ## [2026-10-06] — The pairing screen: a Settings button, and no pop-up once paired
 
 ### Improvements

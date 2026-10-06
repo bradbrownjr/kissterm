@@ -601,12 +601,17 @@ own client.
   page does not show it.
   - **Sessions** is the terminal: one page per session, swiped or tapped
     across the top, and a line to type. A line goes only when you press
-    Send. Connect and Disconnect sit above the session, and both ask
-    first.
-  - **Messages** is APRS as conversations, in bubbles, with a new
-    message limited to the 67 characters APRS carries.
+    Send. Connect is at the end of the session tabs; **Disconnect** sits
+    beside the transmit switch while the session shown is connected.
+    Both ask first. A connect brings Sessions to the front at once: while
+    the station is calling, an hourglass shows over the session with
+    **Cancel**, which stops the attempt without asking (it only stops
+    transmitting).
+  - **Messages** (titled APRS messages) is APRS as conversations, in
+    bubbles, with a new message limited to the 67 characters APRS
+    carries.
   - **Mail** shows the station's mail folders; Send/Receive asks first.
-  - **Stations** has Heard and Contacts, swiped between. **A swipe never
+  - **Stations** has Contacts and Heard, swiped between. **A swipe never
     transmits**: swiping a station right asks "Connect to ...?", swiping
     it left opens its contact, and nothing happens until that sheet's
     own button is pressed. Tapping a station asks to connect too.

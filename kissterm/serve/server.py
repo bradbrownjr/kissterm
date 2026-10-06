@@ -225,6 +225,7 @@ class RemoteServer:
             "gate": core.gate.enabled,
             "transport": transport,
             "sessions": sessions,
+            "connecting": wire.connecting_keys(core),
             "activity": self._activity,
         }
 

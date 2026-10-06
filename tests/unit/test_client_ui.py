@@ -85,6 +85,15 @@ def test_the_terminal_appends_only_what_is_new_and_joins_a_split_line():
     assert texts == ["Welcome to the node", "prompt> "]
 
 
+def test_kissterms_own_icons_replace_flets_splash_and_home_screen_icon():
+    """Operator, 2026-10-06: the splash showed Flet's logo. The server
+    looks in our assets first, so these names replace Flet's."""
+    for name in ("icons/loading-animation.png", "icons/icon-192.png", "icons/icon-512.png",
+                 "icons/icon-maskable-192.png", "icons/icon-maskable-512.png",
+                 "icons/apple-touch-icon-192.png", "favicon.png"):
+        assert (ASSETS / name).is_file(), f"{name} is missing: scripts/generate_web_icons.py"
+
+
 def test_both_weights_of_the_terminal_font_are_bundled():
     for path in FONTS.values():
         assert (ASSETS / path).is_file(), f"{path} is not in the client's assets"
@@ -117,7 +126,7 @@ def test_a_new_look_redraws_the_session_on_its_new_panel():
     terminal = Terminal("W1AW-7")
     terminal.sync(session)
     terminal.restyle(Look("light", "amber"), session)
-    assert terminal.control.bgcolor == Look("light").bgcolor
+    assert terminal.panel.bgcolor == Look("light").bgcolor
     assert [c.color for c in terminal.list.controls] == [Look("light", "amber").color] * 2
     assert len(terminal.list.controls) == 2, "restyling must not duplicate lines"
 
@@ -173,6 +182,14 @@ class FakeApp:
 
     def go(self, index) -> None:
         self.index = index
+
+    def start_connect(self, **args) -> None:
+        self.follow_next_session = True
+        self.go(0)
+        self.commands.append(("connect", args))
+
+    def paint_actions(self) -> None:
+        pass
 
 
 class FakeSwipe:
@@ -236,6 +253,8 @@ async def test_only_the_sheets_own_button_connects():
     await _button(app.page.dialogs[-1], "Connect").on_click(None)
     assert app.commands == [("connect", {"target": "W1AW"})]
     assert app.follow_next_session, "the new session should come to the front"
+    assert app.index == 0, "Sessions comes to the front before the link is up"
+
 
 
 def _question(qid: str = "q1") -> Question:
@@ -289,3 +308,87 @@ def test_every_sheet_is_the_one_shape():
     sheets.form(page, "Add contact", [ft.TextField(label="Station")], "Save", nothing)
     for sheet in page.dialogs:
         assert sheet.content.width == sheets.SHEET_WIDTH
+
+
+# ----------------------------------------------------------------------
+# Sessions: the connect in progress (operator, 2026-10-06)
+# ----------------------------------------------------------------------
+
+
+def test_the_station_says_which_sessions_are_still_connecting():
+    state = StationState()
+    seen = []
+    state.subscribe(lambda kind, data: seen.append((kind, getattr(data, "key", data))))
+    state.apply({"type": "event", "seq": 2, "name": "ConnectingChanged",
+                 "data": {"keys": ["W1AW-7"]}})
+    assert state.sessions["W1AW-7"].connecting
+    state.apply({"type": "event", "seq": 3, "name": "ConnectingChanged", "data": {"keys": []}})
+    assert "W1AW-7" not in state.sessions, "a cancelled attempt with nothing to show stays"
+    assert seen[-1] == ("session_closed", "W1AW-7")
+
+
+def test_a_session_being_dialled_shows_before_the_station_opens_it():
+    """The station opens a radio session when its link is up; the client
+    shows the attempt from the first ConnectingChanged."""
+    state = StationState()
+    state.apply({"type": "event", "seq": 1, "name": "ConnectingChanged",
+                 "data": {"keys": ["K1ABC"]}})
+    assert state.sessions["K1ABC"].connecting
+    state.apply({"type": "event", "seq": 2, "name": "SessionOpened",
+                 "data": {"key": "K1ABC", "peer": "K1ABC"}})
+    # The station ends the attempt after the session opened, before any
+    # text: the session stays.
+    state.apply({"type": "event", "seq": 3, "name": "ConnectingChanged", "data": {"keys": []}})
+    assert "K1ABC" in state.sessions and not state.sessions["K1ABC"].connecting
+
+
+@pytest.mark.asyncio
+async def test_a_connecting_session_shows_an_hourglass_and_cancel_needs_no_confirming():
+    from kissterm.client.ui.sessions import SessionsView
+
+    app = FakeApp()
+    view = SessionsView(app)
+    app.follow_next_session = True
+    session = app.state.session("W1AW-7")
+    session.connecting = True
+    view.on_state("session", session)
+    assert view.current == "W1AW-7" and not app.follow_next_session
+    terminal = view.terminals["W1AW-7"]
+    assert terminal.waiting.visible
+    cancel = next(c for c in _walk(terminal.waiting) if isinstance(c, ft.OutlinedButton))
+    await cancel.on_click(None)
+    assert app.commands == [("disconnect", {"key": "W1AW-7"})]
+    assert app.page.dialogs == [], "cancelling a connect never asks first"
+
+    session.connecting, session.connected = False, True
+    view.on_state("session", session)
+    assert not terminal.waiting.visible
+
+
+def test_the_terminal_has_no_header_row_above_it():
+    from kissterm.client.ui.sessions import SessionsView
+
+    app = FakeApp()
+    view = SessionsView(app)
+    view.on_state("session", app.state.session("W1AW-7"))
+    assert view.control.controls == [view.pages, view.send_row]
+
+
+def test_contacts_come_before_heard():
+    view = StationsView(FakeApp())
+    bar = view.control.content.controls[0]
+    assert [t.label for t in bar.tabs] == ["Contacts", "Heard"]
+
+
+def _walk(control) -> list:
+    found, todo = [], [control]
+    while todo:
+        c = todo.pop()
+        found.append(c)
+        for name in ("content", "controls"):
+            child = getattr(c, name, None)
+            if isinstance(child, list):
+                todo.extend(child)
+            elif isinstance(child, ft.Control):
+                todo.append(child)
+    return found

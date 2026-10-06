@@ -1,5 +1,6 @@
-"""Stations: who has been heard, and the Address Book, as two swipeable
-pages.
+"""Stations: the Address Book and who has been heard, as two swipeable
+pages. Contacts first: they are what an operator connects to; Heard is
+mostly to look at (operator, 2026-10-06).
 
 **Swipe actions open a sheet; they never act** (DESIGN.md, "A swipe
 never transmits"). Swiping a row right offers to connect to it, left
@@ -42,8 +43,8 @@ class StationsView:
         self.control = ft.Tabs(
             length=2, selected_index=0, expand=True,
             content=ft.Column(expand=True, spacing=0, controls=[
-                ft.TabBar(tabs=[ft.Tab(label="Heard"), ft.Tab(label="Contacts")]),
-                ft.TabBarView(expand=True, controls=[self.heard, self.contacts])]))
+                ft.TabBar(tabs=[ft.Tab(label="Contacts"), ft.Tab(label="Heard")]),
+                ft.TabBarView(expand=True, controls=[self.contacts, self.heard])]))
         self._stale = False
 
     def fab(self):
@@ -110,11 +111,10 @@ class StationsView:
         entry = self.book.get(callsign.upper())
 
         async def go() -> None:
-            self.app.follow_next_session = True
             if entry is not None:
-                await self.app.command("connect", entry=entry["target"])
+                self.app.start_connect(entry=entry["target"])
             else:
-                await self.app.command("connect", target=callsign)
+                self.app.start_connect(target=callsign)
 
         detail = " ".join(p for p in ((entry or {}).get("frequency", ""),
                                        (entry or {}).get("note", "")) if p)

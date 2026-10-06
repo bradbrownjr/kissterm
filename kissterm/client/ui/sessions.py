@@ -10,6 +10,18 @@ nothing else.
 **Connect and Disconnect ask first**: a phone is easily mis-tapped, and
 both put a frame on the air. A contact in the Connect sheet fills the
 field (`AGENTS.md`: suggestions fill, never send).
+
+**The terminal gets the height** (operator, 2026-10-06, on a phone):
+there is no row above it repeating the session's name. The tab strip
+names the sessions and ends in Connect; Disconnect is a chip beside the
+transmit switch (`shell.py`) while the shown session is connected.
+
+**A connect shows at once, and can be cancelled** (same day: the screen
+"quietly locks" until the link is up). The connect runs in the
+background (`ClientApp.start_connect`), Sessions comes to the front, and
+while the station says a connect is in progress (`ConnectingChanged`)
+an hourglass lies over the session with a Cancel that needs no
+confirming: stopping never transmits more.
 """
 
 from __future__ import annotations
@@ -41,6 +53,12 @@ def line_control(text: str, spans: list, look: Look, *, outgoing: bool = False) 
                    color=look.color)
 
 
+def _state_icon(session) -> str:
+    if session.connecting:
+        return ft.Icons.HOURGLASS_TOP
+    return ft.Icons.LINK if session.connected else ft.Icons.LINK_OFF
+
+
 class Terminal:
     """One session's text, appended as it arrives, on a panel in the
     device's chosen `Look`."""
@@ -50,8 +68,28 @@ class Terminal:
         self.look = look or Look()
         self.list = ft.ListView(expand=True, auto_scroll=True, spacing=0,
                                 padding=ft.Padding.all(10))
-        self.control = ft.Container(expand=True, content=self.list, bgcolor=self.look.bgcolor)
+        self.panel = ft.Container(expand=True, content=self.list, bgcolor=self.look.bgcolor)
+        #: The hourglass over the panel while a connect is in progress.
+        self.waiting = ft.Container(visible=False, expand=True,
+                                    bgcolor=ft.Colors.with_opacity(0.55, ft.Colors.BLACK),
+                                    alignment=ft.Alignment.CENTER)
+        self.control = ft.Stack(expand=True, controls=[self.panel, self.waiting])
         self._reset()
+
+    def show_connecting(self, session, on_cancel) -> None:
+        """The hourglass and Cancel while `session` is connecting."""
+        self.waiting.visible = session.connecting
+        if not session.connecting:
+            return
+        self.waiting.content = ft.Card(content=ft.Container(
+            padding=ft.Padding.all(20), content=ft.Column(
+                tight=True, spacing=12, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                controls=[
+                    ft.Icon(ft.Icons.HOURGLASS_TOP, size=40),
+                    ft.Text(f"Connecting to {session.title}...",
+                            theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
+                    ft.OutlinedButton(content="Cancel", icon=ft.Icons.CLOSE,
+                                      on_click=on_cancel)])))
 
     def _reset(self) -> None:
         self.list.controls.clear()
@@ -64,7 +102,7 @@ class Terminal:
     def restyle(self, look: Look, session) -> None:
         """Draw everything again in `look` (the lines still held)."""
         self.look = look
-        self.control.bgcolor = look.bgcolor
+        self.panel.bgcolor = look.bgcolor
         self._reset()
         self.rendered = session.received - len(session.chunks)
         self.sync(session)
@@ -115,17 +153,15 @@ class SessionsView:
             text_style=ft.TextStyle(font_family=MONO),
             capitalization=ft.TextCapitalization.NONE, on_submit=self._send)
         self.pages = ft.Container(expand=True)
-        self.header = ft.Row(spacing=0)
         self.send_row = ft.Container(padding=ft.Padding.all(8), content=ft.Row(controls=[
             self.input,
             ft.IconButton(icon=ft.Icons.SEND, tooltip="Send", on_click=self._send)]))
-        self.control = ft.Column(expand=True, spacing=0, controls=[
-            self.header, self.pages, self.send_row])
+        self.control = ft.Column(expand=True, spacing=0, controls=[self.pages, self.send_row])
         self._rebuild()
 
     def fab(self):
-        # Connect lives in the session header: a floating button would sit
-        # on the Send button, where a thumb already is.
+        # Connect ends the tab strip: a floating button would sit on the
+        # Send button, where a thumb already is.
         return None
 
     async def shown(self) -> None:
@@ -142,27 +178,41 @@ class SessionsView:
     def current(self) -> str | None:
         return self.keys[self.selected] if self.keys and self.selected < len(self.keys) else None
 
+    @property
+    def current_session(self):
+        key = self.current
+        return self.app.state.sessions.get(key) if key is not None else None
+
     # ------------------------------------------------------------------
     def on_state(self, kind: str, data) -> None:
         if kind == "session":
-            if data.key not in self.terminals:
-                self._rebuild()
+            follow = self.app.follow_next_session and (
+                data.key not in self.terminals or data.connecting)
+            if follow:
+                # The session this client just asked for comes to the front.
+                self.app.follow_next_session = False
+            if data.key not in self.terminals or follow:
+                self._rebuild(select=data.key if follow else None)
             self.terminals[data.key].sync(data)
-            self._paint_header()
+            self.terminals[data.key].show_connecting(data, self._canceller(data.key))
+            self._paint_tabs()
         elif kind in ("session_closed", "station"):
             self._rebuild()
 
-    def _rebuild(self) -> None:
+    def _rebuild(self, select: str | None = None) -> None:
         sessions = self.app.state.sessions
-        current = self.current
+        current = select or self.current
         self.keys = list(sessions)
         for key in self.keys:
             terminal = self.terminals.setdefault(key, Terminal(key, self.app.look))
             terminal.sync(sessions[key])
+            terminal.show_connecting(sessions[key], self._canceller(key))
         for key in [k for k in self.terminals if k not in sessions]:
             del self.terminals[key]
         self.selected = self.keys.index(current) if current in self.keys else max(0, len(self.keys) - 1)
+        self.send_row.visible = bool(self.keys)
         if not self.keys:
+            self.tab_bar = None
             self.pages.content = ft.Container(
                 alignment=ft.Alignment.CENTER, padding=ft.Padding.all(24),
                 content=ft.Column(tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -172,38 +222,43 @@ class SessionsView:
                     ft.FilledButton(content="Connect", icon=ft.Icons.ADD_LINK,
                                     on_click=self._connect_sheet)]))
         else:
-            sessions_by_key = self.app.state.sessions
+            self.tab_bar = ft.TabBar(scrollable=True, tabs=[], expand=True,
+                                     tab_alignment=ft.TabAlignment.START)
             self.pages.content = ft.Tabs(
                 length=len(self.keys), selected_index=self.selected, expand=True,
                 on_change=self._tab_changed,
                 content=ft.Column(expand=True, spacing=0, controls=[
-                    ft.TabBar(scrollable=True, tabs=[
-                        ft.Tab(label=sessions_by_key[k].title) for k in self.keys]),
+                    ft.Row(spacing=0, controls=[
+                        self.tab_bar,
+                        ft.IconButton(icon=ft.Icons.ADD_LINK, tooltip="Connect",
+                                      on_click=self._connect_sheet)]),
                     ft.TabBarView(expand=True, controls=[
                         self.terminals[k].control for k in self.keys])]))
-        self._paint_header()
+            self._paint_tabs()
+        self.app.paint_actions()
 
-    def _paint_header(self) -> None:
-        key = self.current
-        session = self.app.state.sessions.get(key) if key is not None else None
-        self.send_row.visible = session is not None
-        if session is None:
-            self.header.controls = []
+    def _paint_tabs(self) -> None:
+        """Each tab: the session's name, and an icon for its state."""
+        if getattr(self, "tab_bar", None) is None:
             return
-        state = session.state or ("connected" if session.connected else "")
-        where = " > ".join(p for p in (session.node, session.application) if p)
-        self.header.controls = [
-            ft.Container(expand=True, padding=ft.Padding.only(left=16, top=4), content=ft.Text(
-                f"{session.title}  {state}  {where}".strip(), size=12, color=ft.Colors.OUTLINE)),
-            ft.IconButton(icon=ft.Icons.ADD_LINK, tooltip="Connect",
-                          on_click=self._connect_sheet),
-            ft.IconButton(icon=ft.Icons.LINK_OFF, tooltip="Disconnect",
-                          on_click=self._disconnect)]
+        sessions = self.app.state.sessions
+        # The icon beside the name, not above it: a taller strip is the
+        # height the terminal was given back.
+        self.tab_bar.tabs = [ft.Tab(label=ft.Row(tight=True, spacing=6, controls=[
+            ft.Icon(_state_icon(sessions[k]), size=16), ft.Text(sessions[k].title)]))
+            for k in self.keys]
+        self.app.paint_actions()
 
     async def _tab_changed(self, e) -> None:
         self.selected = int(e.control.selected_index)
-        self._paint_header()
+        self.app.paint_actions()
         self.app.page.update()
+
+    def _canceller(self, key: str):
+        async def cancel(_e) -> None:
+            # No confirmation: cancelling sends no more SABMs, never one more.
+            await self.app.command("disconnect", key=key)
+        return cancel
 
     # ------------------------------------------------------------------
     async def _send(self, _e) -> None:
@@ -216,7 +271,8 @@ class SessionsView:
             self.input.value = ""
         self.app.page.update()
 
-    async def _disconnect(self, _e) -> None:
+    async def disconnect(self, _e=None) -> None:
+        """The Disconnect chip beside the transmit switch (`shell.py`)."""
         key = self.current
         if key is None:
             return
@@ -248,9 +304,9 @@ class SessionsView:
             if not name:
                 return
             if name in by_target:
-                await self.app.command("connect", entry=by_target[name]["target"])
+                self.app.start_connect(entry=by_target[name]["target"])
             else:
-                await self.app.command("connect", target=name)
+                self.app.start_connect(target=name)
 
         sheets.form(self.app.page, "Connect", [target, chips] if contacts else [target],
                     "Connect", go, detail="The station asks first if a contact has a reminder.")

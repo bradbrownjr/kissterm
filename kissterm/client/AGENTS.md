@@ -34,3 +34,7 @@ The remote client (ROADMAP P7a M8): the other end of `docs/PROTOCOL.md`.
    makes `assets/screenshot-phone.png` and taps by name through
    Flutter's accessibility tree, so a renamed button or tooltip fails it.
    Selectable text (session lines, message bubbles) is not in that tree.
+9. **The icons are kissterm's** (`scripts/generate_web_icons.py`, into
+   `ui/assets/`): Flet's server looks there before its own web files, so
+   `icons/loading-animation.png`, `icons/icon-*.png` and `favicon.png`
+   replace Flet's by name. Re-run the script after changing the mark.

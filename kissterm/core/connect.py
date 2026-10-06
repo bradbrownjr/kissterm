@@ -354,12 +354,14 @@ class Connector:
                 window=entry_link_override(reminder.window) if reminder else None,
             )
         except TransportError as exc:
+            self._done_connecting(self.connecting, key)
             self._problem(report, str(exc))
             return
-        finally:
-            self.connecting.pop(key, None)
-            self.core.events.publish(ConnectingChanged())
+        except BaseException:
+            self._done_connecting(self.connecting, key)
+            raise
         if link is None:
+            self._done_connecting(self.connecting, key)
             failed = station.link_to(path.destination, port)
             reason = getattr(failed, "last_error", "") if failed else ""
             if reason == CANCELLED_REASON:
@@ -385,6 +387,9 @@ class Connector:
             self._problem(report, why.rstrip("."), Severity.WARNING)
             return
         self.core.sessions.bind(link, key)
+        # Only now: a client that saw the attempt end before the session
+        # opened would take it for one that failed (`_done_connecting`).
+        self._done_connecting(self.connecting, key)
         if on_link is not None:
             on_link(link, key)
         # Explicit: `AX25Station.connect` ran the SABM/UA exchange before
@@ -490,25 +495,28 @@ class Connector:
             await transport.open()
             session = await self.session_connect(transport)
         except asyncio.CancelledError:
+            self._done_connecting(self.internet_connecting, key)
             self.core.sessions.record(key, "Connect cancelled by operator")
             with contextlib.suppress(Exception):
                 await transport.close()
             reached(False)
             return
         except (TransportError, OSError) as exc:
+            self._done_connecting(self.internet_connecting, key)
             self.core.sessions.record(key, f"Could not connect: {exc}")
             self._problem(report, f"{key}: {exc}")
             with contextlib.suppress(Exception):
                 await transport.close()
             reached(False)
             return
-        finally:
-            self.internet_connecting.pop(key, None)
-            self.core.events.publish(ConnectingChanged())
+        except BaseException:
+            self._done_connecting(self.internet_connecting, key)
+            raise
         link = SessionLinkAdapter(session, transport)
         if on_link is not None:
             on_link(link, key)
         self.core.sessions.bind(link, key, activate=focus)
+        self._done_connecting(self.internet_connecting, key)
         self.core.sessions.note(key, f"Connected to {key}")
         if self.core.addressbook is not None:
             self.core.addressbook.record_connect(entry.target)
@@ -701,6 +709,13 @@ class Connector:
         link = self.core.sessions.link(key)
         connected = link is not None and link.connected
         return connected or key in self.connecting or key in self.internet_connecting
+
+    def _done_connecting(self, table: dict, key: str) -> None:
+        """A connect attempt for `key` is over: say so (`ConnectingChanged`).
+        On success, called after the session is bound, so a remote client
+        never sees the attempt end before the session it opened."""
+        if table.pop(key, None) is not None:
+            self.core.events.publish(ConnectingChanged())
 
     async def disconnect(self, key: str) -> None:
         """End session `key`, or cancel its connect still in progress."""

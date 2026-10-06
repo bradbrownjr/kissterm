@@ -701,8 +701,24 @@ and do not apply there; these do.
   (`text.Look`). On a light panel the colours a node meant for a dark
   screen are drawn darker. The operator's own lines are bold, in a blue
   accent that is none of the text colours.
-- **Connect lives in the session header, not a floating button**, which
-  would sit on Send where the thumb already is.
+- **The terminal gets the height** (operator, 2026-10-06). Nothing above
+  the session repeats its name: the tab strip names each session with an
+  icon for its state (linked, unlinked, hourglass) and ends in Connect,
+  never a floating button, which would sit on Send where the thumb
+  already is. **Disconnect is a chip beside the transmit switch**, on
+  Sessions while the session shown is connected.
+- **A connect shows at once.** Sessions comes to the front as soon as it
+  is asked for, and while the station is dialling, an hourglass lies
+  over that session with Cancel. Cancel needs no confirming: it only
+  stops transmitting. Nothing waits on the station's answer with the
+  screen frozen.
+- **A title names the place, not the station**: "APRS messages", not
+  "KC1JMH Messages"; the callsign is in More.
+- **What the operator acts on comes first**: Stations opens on Contacts,
+  Heard second.
+- **The app's own icon**: a `>_` prompt and an antenna on the dark
+  terminal panel (`scripts/generate_web_icons.py`), for the loading
+  splash, the browser tab and the home screen, never Flet's.
 
 ---
 

@@ -60,17 +60,26 @@ def styled(data: bytes) -> dict:
     return {"text": text.plain, "spans": spans}
 
 
+def connecting_keys(core) -> list[str]:
+    """Sessions with a connect still in progress (what a disconnect cancels)."""
+    connector = core.connector
+    if connector is None:
+        return []
+    return sorted({*connector.connecting, *connector.internet_connecting})
+
+
 def session_summary(core, key: str) -> dict:
     """What a client shows about session `key`."""
     session = core.sessions.get(key) if core.sessions is not None else None
     if session is None:
-        return {"key": key, "connected": False}
+        return {"key": key, "connected": False, "connecting": False}
     link = session.link
     family = session.reference.family
     return {
         "key": key,
         "peer": str(getattr(link, "peer", "") or ""),
         "connected": bool(link is not None and getattr(link, "connected", False)),
+        "connecting": key in connecting_keys(core),
         "node": family.name if family is not None else "",
         "current_node": session.current_node,
         "application": session.application,
@@ -94,6 +103,8 @@ def event(core, seq: int, event: ev.Event) -> dict:
         data = session_summary(core, event.key)
     elif isinstance(event, ev.LineSent):
         data = {"key": event.key, "text": event.text}
+    elif isinstance(event, ev.ConnectingChanged):
+        data = {"keys": connecting_keys(core)}
     else:
         data = jsonable(event)
     return {"type": "event", "seq": seq, "name": name, "data": data}

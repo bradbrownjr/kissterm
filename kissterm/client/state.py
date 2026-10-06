@@ -68,6 +68,12 @@ class Session:
     key: str
     peer: str = ""
     connected: bool = False
+    #: A connect is still in progress (SABMs, or an SSH login): a
+    #: `disconnect` cancels it.
+    connecting: bool = False
+    #: False for a session only being dialled: the station has not opened
+    #: it (`StationState._connecting`).
+    opened: bool = True
     state: str = ""
     node: str = ""
     current_node: str = ""
@@ -164,16 +170,39 @@ class StationState:
         for summary in snapshot.get("sessions") or []:
             live.add(summary.get("key", ""))
             self._summary(summary)
+        connecting = set(snapshot.get("connecting") or ())
+        live |= connecting
+        self._connecting(connecting)
         for key in [k for k in self.sessions if k not in live and not self.sessions[k].chunks]:
             del self.sessions[key]
         self._tell("station")
 
     def _summary(self, data: dict) -> None:
         session = self.session(data.get("key", ""))
-        for name in ("peer", "connected", "node", "current_node", "application"):
+        session.opened = True
+        for name in ("peer", "connected", "connecting", "node", "current_node", "application"):
             if name in data:
                 setattr(session, name, data[name])
         self._tell("session", session)
+
+    def _connecting(self, keys: set[str]) -> None:
+        """The station's sessions with a connect in progress. The station
+        opens a session only once its link is up, so one being dialled is
+        made here, to show the attempt and its Cancel at once; if the
+        attempt ends with nothing to show (cancelled, or no answer: the
+        reason comes as a notice), it goes again."""
+        for key in keys - set(self.sessions):
+            self.session(key).opened = False
+        for session in list(self.sessions.values()):
+            connecting = session.key in keys
+            if session.connecting == connecting:
+                continue
+            session.connecting = connecting
+            if not connecting and not session.opened:
+                del self.sessions[session.key]
+                self._tell("session_closed", session.key)
+            else:
+                self._tell("session", session)
 
     def _event(self, name: str, data: dict) -> None:
         if name == "GateChanged":
@@ -188,6 +217,7 @@ class StationState:
         elif name == "SessionOpened":
             session = self.session(data.get("key", ""))
             session.peer = data.get("peer", session.peer)
+            session.opened = True
             self._tell("session", session)
         elif name == "SessionData":
             session = self.session(data.get("key", ""))
@@ -206,6 +236,8 @@ class StationState:
             self._tell("session", session)
         elif name == "SessionUpdated":
             self._summary(data)
+        elif name == "ConnectingChanged":
+            self._connecting(set(data.get("keys") or ()))
         elif name == "SessionClosed":
             key = data.get("key", "")
             if self.sessions.pop(key, None) is not None:

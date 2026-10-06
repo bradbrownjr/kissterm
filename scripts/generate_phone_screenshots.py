@@ -285,8 +285,10 @@ async def open_page(browser, url: str, metrics: dict):
 async def drive(phone: Phone, core, tb) -> None:
     await phone.accessible()
 
-    # Stations: a swipe right on a heard station asks; it does not connect.
+    # Stations > Heard: a swipe right on a heard station asks; it does not
+    # connect.
     await phone.tab("Stations")
+    await phone.tab("Heard")
     await phone.swipe(phone.button("W1AW-2"))
     await phone.shown("Connect to W1AW-2?")
     await phone.frame()
@@ -303,7 +305,7 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.tap(phone.button("Connect"))
 
     # The session, with transmit now on, after asking the node for help.
-    await phone.shown("W1AW-7  connected")
+    await phone.shown("Disconnect")
     await phone.enter("?")
     await until(lambda: NODE_ASKED)
     await phone.page.wait_for_timeout(1500)
@@ -346,7 +348,7 @@ async def main() -> int:
             # session and conversation arrive as the server's replay.
             desktop = Phone(await open_page(browser, url, DESKTOP))
             await desktop.accessible()
-            await desktop.shown("W1AW-7  connected")
+            await desktop.shown("Disconnect")
             await desktop.frame()
             await browser.close()
         await shot("screenshot-phone-connect", phone.frames[:2])

@@ -227,6 +227,10 @@ async def test_a_remote_connect_arms_the_gate_visibly_and_opens_the_session():
     names = [m.get("name") for m in client.seen if m["type"] == "event"]
     assert "GateChanged" in names and "SessionOpened" in names
     assert any(m["type"] == "notice" and "ENABLED" in m["text"] for m in client.seen)
+    # The phone shows an hourglass from these, and its Cancel while one is up.
+    connecting = [m["data"]["keys"] for m in client.seen
+                  if m["type"] == "event" and m["name"] == "ConnectingChanged"]
+    assert connecting[0] == ["WS1EC-7"] and connecting[-1] == []
     await client.ws.close()
     await server.stop()
     core.sessions.shutdown()
