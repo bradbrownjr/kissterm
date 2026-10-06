@@ -57,10 +57,11 @@ Settings > Remote > Remote control, and open Session > Remote pairing.
   over Telnet with nothing in the Monitor's transmit lines.
 - [ ] **Send position and Send beacon from the phone** (0.1.426).
   APRS messages > Send position > Send: transmit turns on and one
-  position report shows in the Monitor. More > Send beacon > Send with
-  transmit on: the beacon text once; with transmit off, the notice that
-  transmit is off and nothing on the air.
-- [ ] **Mail written on the phone goes out** (0.1.433). Mail > Write
+  position report shows in the Monitor. More > Send beacon asks Packet
+  or APRS (0.1.436): Packet beacon with transmit on sends the beacon
+  text once; with transmit off, the notice that transmit is off and
+  nothing on the air. APRS position: one position report, as above.
+- [ ] **Mail written on the phone goes out** (0.1.433). BBS Mail > the pencil (Write)
   a short private message to yourself at the Home BBS (or Reply to one),
   Save to Outbox, then Send/Receive by radio. Expected: the message in
   BBS/Outbox until the run, then sent (the session shows the `SP` or

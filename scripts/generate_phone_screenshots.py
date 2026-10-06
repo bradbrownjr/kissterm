@@ -347,8 +347,9 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(1500)
     await phone.frame()
 
-    # Mail: a Winlink message in the reader with its actions, then Reply
-    # all, written and not yet saved (nothing transmits until Send/Receive).
+    # BBS Mail: the folder with Write's pencil over Send/Receive, a Winlink
+    # message in the reader with its actions, then Reply all, written and
+    # not yet saved (nothing transmits until Send/Receive).
     for sender, to, subject, body, minutes in MAIL:
         core.mail.store.add("Mail/BBS/Inbox", Message(
             sender=sender, to=to, subject=subject, source="Winlink", body=body,
@@ -356,6 +357,7 @@ async def drive(phone: Phone, core, tb) -> None:
     core.events.publish(MailChanged())  # as a Send/Receive filing it would
     await phone.tab("Mail")
     await phone.shown(MAIL[0][2])
+    await phone.frame()
     await phone.tap(phone.button(MAIL[0][2]))
     await phone.shown("Reply all")
     await phone.frame()
@@ -390,7 +392,7 @@ async def main() -> int:
             await browser.close()
         await shot("screenshot-phone-connect", phone.frames[:2])
         await shot("screenshot-phone", phone.frames[2:4])
-        await shot("screenshot-phone-mail", phone.frames[4:6])
+        await shot("screenshot-phone-mail", phone.frames[4:7])
         await shot("screenshot-desktop", desktop.frames)
     finally:
         await server.stop()

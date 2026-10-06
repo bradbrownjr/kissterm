@@ -23,8 +23,8 @@ the front at once and the session shows its hourglass there, never a
 screen waiting on the station's answer.
 
 **Titles name the place, not the station** ("APRS messages", not
-"KC1JMH Messages"): the callsign is in More, and the room is the
-title's (operator, 2026-10-06).
+"KC1JMH Messages", and "BBS Mail" for Mail): the callsign is in More,
+and the room is the title's (operator, 2026-10-06).
 
 **Every station question is a sheet** (`questions.py`), the first answer
 anywhere wins (`question_closed` takes it down here).
@@ -63,7 +63,7 @@ WIDE = 720
 
 #: The top bar's title on each destination, where the bar's label is
 #: too short to say it.
-TITLES = {"Messages": "APRS messages"}
+TITLES = {"Messages": "APRS messages", "Mail": "BBS Mail"}
 
 DESTINATIONS = (
     ("Sessions", ft.Icons.TERMINAL_OUTLINED, ft.Icons.TERMINAL),

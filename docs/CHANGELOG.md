@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Phone: BBS Mail title, Write pencil, Beacon asks which
+
+### Improvements
+
+- **Mail is titled "BBS Mail"**, as Messages is "APRS messages".
+- **Write is a small pencil above Send/Receive**, with no label, in
+  place of the toolbar's Write button.
+- **More > Send beacon asks Packet or APRS**: the beacon text once
+  (Session > Send beacon) or one position report (APRS > Send position).
+
+**Files:** `kissterm/client/ui/shell.py`, `kissterm/client/ui/mail.py`,
+`kissterm/client/ui/more.py`, `scripts/generate_phone_screenshots.py`,
+`assets/screenshot-phone-mail.png`, `DESIGN.md`, `docs/GUIDE.md`,
+`docs/ON-AIR-TESTS.md`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-06] — Web remote: coming back to the page works
 
 ### Improvements

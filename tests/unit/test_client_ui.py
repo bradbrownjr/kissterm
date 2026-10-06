@@ -544,9 +544,13 @@ async def test_send_position_and_send_beacon_ask_first():
     await more._send_beacon(None)
     await _choose(app, "Cancel")
     assert app.commands == []
+    # Beacon asks Packet or APRS (operator, 2026-10-06).
     await more._send_beacon(None)
-    await _choose(app, "Send")
+    await _choose(app, "Packet beacon")
     assert app.commands == [("beacon_now", {})]
+    await more._send_beacon(None)
+    await _choose(app, "APRS position")
+    assert app.commands[-1] == ("aprs_position", {})
 
 
 # ----------------------------------------------------------------------
@@ -701,6 +705,23 @@ async def test_reconnect_asks_first_then_redials_that_session():
     [asked] = app.page.dialogs
     await _button(asked, "Reconnect").on_click(None)
     assert app.commands == [("reconnect", {"key": "W1AW-7"})]
+
+
+def test_mail_is_titled_bbs_mail_and_write_is_a_pencil_over_send_receive():
+    # Operator, 2026-10-06: "update the Mail section title to BBS Mail";
+    # "move the pencil icon ... next to the send/receive button and drop
+    # the text label".
+    import flet as ft
+
+    from kissterm.client.ui.mail import MailView
+    from kissterm.client.ui.shell import TITLES
+
+    assert TITLES["Mail"] == "BBS Mail"
+    view = MailView(FakeApp())
+    pencil = view.write_button
+    assert isinstance(pencil, ft.FloatingActionButton) and pencil.mini
+    assert pencil.icon == ft.Icons.EDIT and not pencil.content
+    assert pencil in view.control.content.controls  # over the list, not in its toolbar
 
 
 @pytest.mark.asyncio

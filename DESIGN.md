@@ -685,7 +685,7 @@ and do not apply there; these do.
   (`tests/unit/test_client_ui.py`).
 - **Anything that puts a frame on the air asks first** in a sheet:
   connect, disconnect, Send/Receive, Get bulletins and files, Send
-  position, Send beacon. **Where there is more than one way, the sheet
+  position, Send beacon (which asks Packet or APRS). **Where there is more than one way, the sheet
   offers each** (By Internet, By radio: `sheets.choose`), the usual one
   last and filled, never a second screen. Typing a line and pressing Send is
   already the deliberate commit, as Enter is in the terminal.
@@ -738,7 +738,13 @@ and do not apply there; these do.
   ("Routing (2 BBSes)"), with a line saying it is not the sender's
   address: a recipient took a routing line for one (2026-10-06).
 - **A title names the place, not the station**: "APRS messages", not
-  "KC1JMH Messages"; the callsign is in More.
+  "KC1JMH Messages"; the callsign is in More. Where a place's label is
+  ambiguous on its own, the title says which kind: Mail is titled "BBS
+  Mail" (operator, 2026-10-06).
+- **A place's second action is a mini button stacked above its main
+  one**, icon only, centred on it (Mail's Write pencil over
+  Send/Receive; operator, 2026-10-06: "drop the text label"), never a
+  labelled button in the toolbar.
 - **What the operator acts on comes first**: Stations opens on Contacts,
   Heard second.
 - **The app's own icon**: a `>_` prompt and an antenna on the dark

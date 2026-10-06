@@ -10,8 +10,8 @@ missing).
 **Writing, replying and deleting are the terminal's** (Insert, R, A, Q,
 Delete, U), on the same core methods (`mail_write`, `mail_reply_start`,
 `mail_delete`, `mail_restore`), and none of them transmits: Save puts a
-message in its Outbox for Send/Receive. Write sits beside the folder
-list on a Mail folder; the reader has Reply, Reply all (when there is
+message in its Outbox for Send/Receive. Write is a small pencil
+over the Send/Receive button on a Mail folder; the reader has Reply, Reply all (when there is
 anyone else), Reply with quote, and Delete, or Restore in Deleted.
 
 **A swipe on a message deletes it** (operator, 2026-10-06), or restores
@@ -100,15 +100,23 @@ def swipe_background(restore: bool, end: bool) -> ft.Control:
         content=ft.Row(tight=True, controls=parts[::-1] if end else parts))
 
 
+# The page's button sits 16 px in from the body's corner and is 56 px
+# across; the mini (40 px) Write rides above it, centred on it.
+WRITE_RIGHT = 16 + (56 - 40) / 2
+WRITE_BOTTOM = 16 + 56 + 16
+
+
 class MailView:
     def __init__(self, app) -> None:
         self.app = app
         self.folder = "Mail/BBS/Inbox"
         self.folders = ft.Dropdown(dense=True, expand=True, on_select=self._folder_changed,
                                    options=[])
-        #: Write: the terminal's Insert, on a Mail folder.
-        self.write_button = ft.FilledTonalButton(content="Write", icon=ft.Icons.EDIT,
-                                                 on_click=self._write_new)
+        #: Write: the terminal's Insert, on a Mail folder. A small pencil
+        #: stacked over Send/Receive, no label (operator, 2026-10-06).
+        self.write_button = ft.FloatingActionButton(
+            icon=ft.Icons.EDIT, tooltip="Write", mini=True, on_click=self._write_new,
+            right=WRITE_RIGHT, bottom=WRITE_BOTTOM)
         #: Categories: the terminal's S on Bulletins, on a Bulletins folder.
         self.categories_button = ft.FilledTonalButton(
             content="Categories", icon=ft.Icons.CHECKLIST, on_click=self._categories)
@@ -175,13 +183,13 @@ class MailView:
         self.reader = None
         self._paint_activity()
         self._paint_toolbar()
-        self.control.content = ft.Column(expand=True, spacing=0, controls=[
-            ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-                         content=ft.Row(controls=[self.folders, self.write_button,
-                                                  self.categories_button])),
-            *([ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=4),
-                            content=self.activity)] if self.app.state.activity else []),
-            self.list])
+        self.control.content = ft.Stack(expand=True, controls=[ft.Column(
+            expand=True, spacing=0, controls=[
+                ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+                             content=ft.Row(controls=[self.folders, self.categories_button])),
+                *([ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=4),
+                                content=self.activity)] if self.app.state.activity else []),
+                self.list]), self.write_button])
 
     async def reload(self) -> None:
         folders = await self.app.command("mail_folders") or []

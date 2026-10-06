@@ -1,5 +1,6 @@
 """More: the station itself (callsign, transport, what it is doing, and
-Send beacon, the terminal's Session > Send beacon), the
+Send beacon, which asks Packet (the terminal's Session > Send beacon) or
+APRS (APRS > Send position)), the
 channel as the Monitor shows it, recent notices, past sessions'
 transcripts (`transcripts.py`), the terminal's look on
 this device, and Settings.
@@ -40,7 +41,7 @@ class MoreView:
             ft.Card(content=ft.Container(padding=ft.Padding.all(16), content=ft.Column(
                 tight=True, spacing=12, controls=[
                     self.station,
-                    # Session > Send beacon in the terminal: the beacon text, once.
+                    # Session > Send beacon or APRS > Send position in the terminal, once.
                     ft.Row(controls=[ft.OutlinedButton(
                         content="Send beacon", icon=ft.Icons.CAMPAIGN,
                         on_click=self._send_beacon)])]))),
@@ -146,12 +147,21 @@ class MoreView:
             for name, value in lines]
 
     async def _send_beacon(self, _e) -> None:
-        async def go() -> None:
+        """Which beacon: the packet beacon text (the terminal's Session >
+        Send beacon) or an APRS position (APRS > Send position); each its
+        own button, asked first (operator, 2026-10-06: "Beacon under More
+        should ask Packet or APRS")."""
+        async def packet() -> None:
             await self.app.command("beacon_now")
 
-        sheets.confirm(self.app.page, "Send your beacon now?",
-                       "Transmits the station's beacon text once. Transmit must already "
-                       "be on; the beacon's timer is not changed.", "Send", go)
+        async def aprs() -> None:
+            await self.app.command("aprs_position")
+
+        sheets.choose(self.app.page, "Send a beacon now?",
+                      "Packet sends the station's beacon text once, and only while "
+                      "transmit is on. APRS sends one position report. Neither "
+                      "changes a beacon timer.",
+                      [("APRS position", aprs), ("Packet beacon", packet)])
 
     async def _settings_opened(self, e) -> None:
         if e.control.expanded if hasattr(e.control, "expanded") else True:

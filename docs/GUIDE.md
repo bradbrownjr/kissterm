@@ -630,7 +630,7 @@ own client.
     bubbles, with a new message limited to the 67 characters APRS
     carries. **Send position** above the conversations sends one
     position report (APRS > Send position in the terminal), after asking.
-  - **Mail** shows the station's mail folders. Its button asks first
+  - **Mail** (titled BBS Mail) shows the station's mail folders. Its button asks first
     and does what G and I do on the terminal's tabs: on a mail folder,
     Send/Receive **By radio** or **By Internet** (no transmitting); on a
     Bulletins folder, Get bulletins either way; on Files, Get files by
@@ -645,7 +645,8 @@ own client.
     While a run is going its button turns and the progress line
     ("Receiving 2 of 2") counts dots; tap the turning button to cancel
     the run, which disconnects without asking.
-    **Write** (beside the folder list, on a Mail folder) writes a private
+    **Write** (the small pencil above the Send/Receive button, on a Mail
+    folder) writes a private
     BBS message, a bulletin or a Winlink message; **Save to Outbox** files
     it, with the same checks as the terminal (a To without an SSID, a
     title, nothing that ends the text early), and sends nothing until
@@ -660,8 +661,10 @@ own client.
     transmits**: swiping a station right asks "Connect to ...?", swiping
     it left opens its contact, and nothing happens until that sheet's
     own button is pressed. Tapping a station asks to connect too.
-  - **More** shows the station (with **Send beacon**, the beacon text
-    once, as Session > Send beacon does; transmit must already be on),
+  - **More** shows the station (with **Send beacon**, which asks which:
+    **Packet beacon** sends the beacon text once, as Session > Send
+    beacon does, and needs transmit already on; **APRS position** sends
+    one position report, as APRS > Send position does),
     the Monitor, **Transcripts** (past sessions, newest first, searched
     by callsign or by what was said, and read in the terminal's look), recent notices, Terminal,
     and Settings (the station's own, checked by the station as the
@@ -688,7 +691,7 @@ own client.
 
 ![A node session with transmit on, and an APRS conversation](../assets/screenshot-phone.png)
 
-![A Winlink message with Reply, Reply all, Reply with quote and Delete, then Reply all being written](../assets/screenshot-phone-mail.png)
+![BBS Mail's Inbox with the Write pencil over Send/Receive, a Winlink message with Reply, Reply all, Reply with quote and Delete, then Reply all being written](../assets/screenshot-phone-mail.png)
 
 On a wider screen (a laptop's browser, a tablet) the places run down the
 side:
