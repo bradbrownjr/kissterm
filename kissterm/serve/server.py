@@ -537,6 +537,9 @@ class RemoteServer:
         message = {k: wire.clean(v) if isinstance(v, str) else v for k, v in message.items()}
         # The BBSes it passed through, for a reader that wants to show them.
         message["routing"] = [wire.clean(line) for line in self.core.mail.routing(str(ref))]
+        from ..mail.bpqmail import route_bbses
+
+        message["routed"] = route_bbses(message["routing"])
         # Whether Reply all would reach anyone besides the sender.
         from ..mail.compose import has_others
 

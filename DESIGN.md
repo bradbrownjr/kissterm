@@ -739,9 +739,11 @@ and do not apply there; these do.
   a full page with the commitment, Save to Outbox, filled, at the top
   right and close at the top left, which asks before throwing typed
   text away.
-- **A message's routing is folded away, one tap from the header**
-  ("Routing (2 BBSes)"), with a line saying it is not the sender's
-  address: a recipient took a routing line for one (2026-10-06).
+- **A message's routing is one small line under the date**, "Routed
+  W1BKW > WS1EC" (the BBSes in travel order, no explanation: operator,
+  2026-10-06, "Routing takes more space than the message"); a tap (T in
+  the terminal) shows the `R:` lines under it. The lines stay folded
+  because a recipient once took one for the sender's address.
 - **A title names the place, not the station**: "APRS messages", not
   "KC1JMH Messages"; the callsign is in More. Where a place's label is
   ambiguous on its own, the title says which kind: Mail is titled "BBS

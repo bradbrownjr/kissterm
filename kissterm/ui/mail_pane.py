@@ -47,7 +47,7 @@ from textual.widgets import DataTable, Tree
 
 from ..files_view import kind_of, zip_members
 from ..mail import MessageStore, form_parse, form_xml
-from ..mail.bpqmail import routes_of
+from ..mail.bpqmail import route_bbses, routes_of
 from ..mail.compose import has_others
 from ..mail.store import ALL_INBOXES, DELETED, FILES, check_folder, is_deleted_folder
 from ..monitor import sanitize
@@ -644,16 +644,18 @@ class MessageBrowser(Horizontal):
                 head.append(sanitize(value.encode("utf-8"), keep_newlines=False) + "\n")
         reader.write(head)
         if self._open_routes:
-            count = len(self._open_routes)
-            noun = "BBS" if count == 1 else "BBSes"
+            # One line, as on the phone: the BBSes in travel order; T adds
+            # the R: lines (operator, 2026-10-06).
+            bbses = route_bbses(self._open_routes) or [f"{len(self._open_routes)} BBS"]
+            routing = Text(sanitize(("Routed " + " > ".join(bbses)).encode("utf-8"),
+                                    keep_newlines=False), style="dim")
             if self._show_routes:
-                routing = Text(f"Routing ({count} {noun}), the latest first; "
-                               "not the sender's address:\n", style="dim")
+                routing.append("\n")
                 for line in self._open_routes:
                     routing.append(sanitize(line.encode("utf-8"), keep_newlines=False) + "\n",
                                    style="dim")
             else:
-                routing = Text(f"Routing: {count} {noun} (T shows it)", style="dim")
+                routing.append("  (T shows the lines)", style="dim")
             reader.write(routing)
         if self._open_form is not None and not self._as_text:
             reader.write(form_text(self._open_form))

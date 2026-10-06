@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Routing is one small line
+
+### Improvements
+
+- **A BBS message's routing is one line under the date**, "Routed
+  W1BKW > WS1EC" (the BBSes in travel order), on the phone and in the
+  terminal; a tap (T) shows the `R:` lines. The explanation is gone.
+  Protocol: `mail_read` adds `routed`.
+
+**Files:** `kissterm/mail/bpqmail.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/mail.py`, `kissterm/ui/mail_pane.py`, `DESIGN.md`,
+`docs/GUIDE.md`, `docs/PROTOCOL.md`, `tests/unit/test_client_ui.py`,
+`tests/pilot/test_mail_pane.py`
+
 ## [2026-10-06] — Phone: All Inboxes; the pencil against the edge
 
 ### Improvements

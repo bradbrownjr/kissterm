@@ -473,14 +473,20 @@ async def test_a_running_send_receive_turns_counts_and_cancels_on_a_tap():
     assert not view.activity.value.endswith(".")
 
 
-def test_routing_is_folded_away_and_says_it_is_not_the_sender():
+def test_routing_is_one_small_line_with_the_lines_folded():
     from kissterm.client.ui.mail import routing_section
 
-    assert routing_section([]) == []
-    [tile] = routing_section(["R:261002/1236Z 3098@WS1EC.#CUMB.ME.USA.NOAM LinBPQ6.0.25"])
-    assert isinstance(tile, ft.ExpansionTile) and not tile.expanded
-    assert "Not the sender" in tile.subtitle.value
-    assert "3098@WS1EC" in tile.controls[0].value
+    assert routing_section([], []) == []
+    # One small line, the BBSes in travel order; a tap shows the lines
+    # (operator, 2026-10-06: "one small tight small-font line under the date").
+    routes = ["R:261002/1236Z 3098@WS1EC.#CUMB.ME.USA.NOAM LinBPQ6.0.25",
+              "R:261002/1230Z 8243@W1BKW.#OXFO.ME.USA.NOAM BPQ6.0.25"]
+    from kissterm.mail.bpqmail import route_bbses
+
+    assert route_bbses(routes) == ["W1BKW", "WS1EC"]
+    line, lines = routing_section(routes, route_bbses(routes))
+    assert line.content.value == "Routed W1BKW > WS1EC" and line.content.size <= 12
+    assert not lines.visible and "3098@WS1EC" in lines.value
 
 
 # ----------------------------------------------------------------------
