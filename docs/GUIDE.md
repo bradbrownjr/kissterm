@@ -186,8 +186,16 @@ WX), so kissterm collects only the categories you choose:
   offered again.
 - The first collection from a category goes back Settings > Mail > First
   collection (days), 7 by default, listing a hundred message numbers at a
-  time so it can stop as soon as the bulletins are older. Later ones ask
-  only for bulletins newer than the newest you have.
+  time so it can stop as soon as the bulletins are older. A category the
+  list counted 20 or fewer bulletins in is listed whole in one command
+  instead. Later collections ask only for bulletins newer than the newest
+  you have.
+- Each bulletin is read with its own command, so a long backlog is a
+  long run, especially over the air. When more than 20 are new, kissterm
+  asks first: **Newest 20** (the default; Enter), **All**, or **None**
+  (Escape; nothing is read, and the next run lists them again). Reading
+  the newest leaves the older ones behind for good: the next run starts
+  after the newest read. The phone asks the same question as a sheet.
 - **S** changes your choice at any time, offline, from the categories the
   BBS listed last.
 - Bulletins are filed under Bulletins, one folder per category. Nothing

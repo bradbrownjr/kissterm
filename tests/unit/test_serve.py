@@ -32,6 +32,7 @@ from kissterm.core import events as ev  # noqa: E402
 from kissterm.core.questions import (  # noqa: E402
     SETUP_SKIP,
     ChooseCategories,
+    HowManyBulletins,
     GatewayChoice,
     RadioReminder,
     WinlinkGateway,
@@ -318,6 +319,8 @@ def test_answers_become_what_the_flow_expects():
         (["ARES"], False)
     with pytest.raises(wire.BadAnswer):
         wire.answer(gateway, {"remember": True})
+    many = HowManyBulletins("W1AW", 72, ("WX",), 20)
+    assert [wire.answer(many, v) for v in (20, 72, 500, -3)] == [20, 72, 72, 0]
 
 
 def test_the_token_is_kept_private_and_stable(tmp_path):

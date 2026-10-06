@@ -26,6 +26,7 @@ from ..core.questions import (
     ChooseCategories,
     ChooseSessionTransport,
     HomeBbsRoute,
+    HowManyBulletins,
     InternetLoginAsk,
     LoginAsk,
     PickFiles,
@@ -83,6 +84,12 @@ def _choose_categories(q: ChooseCategories) -> Screen:
     return BulletinCategoriesScreen(q.bbs, dict(q.counts), new_only=q.new_only)
 
 
+def _how_many(q: HowManyBulletins) -> Screen:
+    from .bulletin_screen import BulletinCountScreen
+
+    return BulletinCountScreen(q.bbs, q.count, list(q.categories), q.newest, radio=q.radio)
+
+
 def _pick_files(q: PickFiles) -> Screen:
     from .bbs_files_screen import BbsFilesScreen
 
@@ -111,6 +118,7 @@ SCREENS: dict[type[Question], Callable[[Any], Screen]] = {
     LoginAsk: _login_ask,
     InternetLoginAsk: _internet_login,
     ChooseCategories: _choose_categories,
+    HowManyBulletins: _how_many,
     PickFiles: _pick_files,
     CallsignAsk: _callsign,
     ChooseSessionTransport: _session_transport,

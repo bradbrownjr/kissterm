@@ -97,3 +97,52 @@ class BulletinCategoriesScreen(ModalScreen["CategoryChoice | None"]):
         all_ = bool(boxes) and boxes.first(Checkbox).value
         picked = list(self.query_one("#categories-list", SelectionList).selected)
         self.dismiss((sorted(picked), all_))
+
+
+def count_detail(count: int, categories: list[str], newest: int, radio: bool) -> str:
+    """What the how-many question says, the same words on the phone."""
+    where = "over the air" if radio else "over the Internet"
+    return (f"{count} new bulletins in {', '.join(categories)}, read one by one "
+            f"{where}. The newest {newest} leaves the older ones; the next run "
+            "starts after the newest read.")
+
+
+class BulletinCountScreen(ModalScreen["int | None"]):
+    """Mid-run, more new bulletins than `newest`: read all, the newest, or
+    none (`core.questions.HowManyBulletins`). Answer: how many; None reads
+    none. Choosing transmits nothing new: the run is already connected,
+    and each read is a command to the BBS it is already in."""
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, bbs: str, count: int, categories: list[str], newest: int,
+                 *, radio: bool = False) -> None:
+        super().__init__()
+        self._bbs, self._count, self._newest = bbs, count, newest
+        self._categories, self._radio = categories, radio
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label(f"{self._count} new bulletins on {self._bbs}", id="connect-title")
+            yield Static(count_detail(self._count, self._categories, self._newest,
+                                      self._radio), id="reminder-detail")
+            with Horizontal(id="connect-buttons"):
+                yield Button(f"Newest {self._newest}", variant="primary", id="count-newest")
+                yield Button(f"All {self._count}", id="count-all")
+                yield Button("None", id="connect-cancel")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#count-newest", Button).focus()
+
+    @on(Button.Pressed, "#count-newest")
+    def _newest_only(self) -> None:
+        self.dismiss(self._newest)
+
+    @on(Button.Pressed, "#count-all")
+    def _all(self) -> None:
+        self.dismiss(self._count)
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _none(self) -> None:
+        self.dismiss(None)

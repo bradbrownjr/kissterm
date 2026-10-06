@@ -88,6 +88,7 @@ from .questions import (
     Credential,
     GatewayChoice,
     HomeBbsRoute,
+    HowManyBulletins,
     InternetLogin,
     InternetLoginAsk,
     LoginAsk,
@@ -639,6 +640,8 @@ class Mail:
                 progress=self.core.set_activity,
                 subscriptions=self.subscriptions,
                 choose=self.choose_categories,
+                how_many=lambda count, categories: self.how_many_bulletins(
+                    count, categories, radio=True),
                 pick_files=self.pick_files,
                 files_dir=self.downloads_dir() if options.files else None,
                 transferring=lambda on: self._transferring(key, on),
@@ -881,6 +884,15 @@ class Mail:
         return await self._ask(ChooseCategories(
             self.bulletin_bbs() or "the BBS", {c: counts.get(c, 0) for c in offer},
             new_only=not first))
+
+    async def how_many_bulletins(self, count: int, categories: list[str], *,
+                                 radio: bool = False) -> int | None:
+        """The collector's question (`collect.HowMany`): more than
+        `bulletins.ASK_OVER` new, so all, the newest, or none."""
+        from ..mail.bulletins import ASK_OVER
+
+        return await self._ask(HowManyBulletins(
+            self.bulletin_bbs() or "the BBS", count, tuple(categories), ASK_OVER, radio=radio))
 
     async def pick_files(self, files):
         """The collector's question (`collect.PickFiles`), asked mid-run."""
@@ -1175,7 +1187,8 @@ class Mail:
             return BbsCollector(link, self.store, options, note=note, sent=sent,
                                 progress=self.core.set_activity,
                                 subscriptions=self.subscriptions,
-                                choose=self.choose_categories)
+                                choose=self.choose_categories,
+                                how_many=self.how_many_bulletins)
 
         result = await self._internet_run(transport, entry.target, entry.target, build, label)
         if result is not None:

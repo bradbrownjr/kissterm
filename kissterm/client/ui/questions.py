@@ -173,6 +173,21 @@ class QuestionSheets:
                 self._buttons(q, "Collect", lambda: {
                     "categories": [b.data for b in boxes if b.value], "all": every.value}))
 
+    def _HowManyBulletins(self, q):
+        d = q.data
+        count, newest = int(d.get("count", 0)), int(d.get("newest", 0))
+        where = "over the air" if d.get("radio") else "over the Internet"
+        detail = (f"{count} new bulletins in {', '.join(d.get('categories') or [])}, read "
+                  f"one by one {where}. The newest {newest} leaves the older ones; the "
+                  "next run starts after the newest read.")
+        # The usual answer last and filled, as every sheet (DESIGN.md 8a).
+        return (f"{count} new bulletins on {d.get('bbs', '')}",
+                [ft.Text(detail)],
+                [ft.TextButton(content="None", on_click=self.answer(q.qid, None)),
+                 ft.TextButton(content=f"All {count}", on_click=self.answer(q.qid, count)),
+                 ft.FilledButton(content=f"Newest {newest}",
+                                 on_click=self.answer(q.qid, newest))])
+
     def _PickFiles(self, q):
         d = q.data
         have = d.get("have") or {}

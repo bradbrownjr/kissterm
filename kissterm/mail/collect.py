@@ -87,10 +87,12 @@ from ..yapp import YappError, receive_file, starts_download
 from . import bpqmail
 from .bbs_files import BbsFile, parse_files
 from .bulletins import (
+    ASK_OVER,
     DEFAULT_CHECK_DAYS,
     DEFAULT_FIRST_DAYS,
     LATEST_COMMAND,
     MAX_WINDOWS,
+    SMALL_CATEGORY,
     WINDOW,
     SubscriptionBook,
     latest_number,
@@ -170,6 +172,9 @@ class CollectOptions:
 #: next check). Given the categories to offer, every category with its
 #: count, and whether this is the BBS's first offer.
 Choose = Callable[[list[str], dict[str, int], bool], Awaitable[tuple[list[str], bool] | None]]
+#: How many of the new bulletins to read: all of them, the newest
+#: `ASK_OVER`, or none (None or 0). Given the count and the categories.
+HowMany = Callable[[int, list[str]], Awaitable[int | None]]
 #: The operator's pick from the BBS's files: the names to download, or None
 #: if cancelled. Given what `FILES` listed.
 PickFiles = Callable[[list[BbsFile]], Awaitable[list[str] | None]]
@@ -209,6 +214,7 @@ class BbsCollector:
         progress: Callable[[str], None] = lambda _phase: None,
         subscriptions: SubscriptionBook | None = None,
         choose: Choose | None = None,
+        how_many: HowMany | None = None,
         pick_files: PickFiles | None = None,
         files_dir: Path | None = None,
         transferring: Callable[[bool], None] = lambda _on: None,
@@ -219,6 +225,7 @@ class BbsCollector:
         self.options = options
         self.subscriptions = subscriptions
         self._choose = choose
+        self._how_many = how_many
         self._pick_files = pick_files
         self._files_dir = files_dir
         self._transferring = transferring
@@ -654,6 +661,12 @@ class BbsCollector:
                 await self._send(list_command(category, newest))
                 listing, _ = await self._until_prompt()
                 entries = self._bulletins_to(category, listing)
+            elif 0 < subs.seen.get(category, SMALL_CATEGORY + 1) <= SMALL_CATEGORY:
+                # Few enough to list whole: one listing that ends by itself
+                # (`A` stops it should it reach older dates), not windows.
+                await self._send(list_command(category))
+                listing, _ = await self._until_prompt(reached_older)
+                entries = [e for e in self._bulletins_to(category, listing) if not older(e)]
             else:
                 latest = latest or await self._latest()
                 entries = []
@@ -678,6 +691,17 @@ class BbsCollector:
             self._note(f"No new bulletins in {', '.join(categories)}.")
             return
         self._note(f"{len(new)} new bulletins in {', '.join(categories)}.")
+        if len(new) > ASK_OVER and self._how_many is not None:
+            wanted = await self._how_many(len(new), list(categories))
+            if not wanted:
+                self._note(f"Not reading the {len(new)} bulletins (chosen); "
+                           "the next run lists them again.")
+                return
+            if wanted < len(new):
+                # The newest, read oldest first; the older ones are left,
+                # and the next run starts after the newest read.
+                self._note(f"Reading the newest {wanted} of {len(new)}.")
+                new = new[-wanted:]
         await self._read_entries(new, result, bbs_call)
 
     async def _collect_files(self, result: CollectResult) -> None:

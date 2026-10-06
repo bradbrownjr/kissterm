@@ -156,11 +156,12 @@ class Bbs(ScriptedBbs):
         await super().send(data)
 
 
-async def _bulletins(bbs, store, book, choose=None, now=NOW, **options):
+async def _bulletins(bbs, store, book, choose=None, now=NOW, how_many=None, **options):
     notes: list[str] = []
     collector = BbsCollector(bbs, store, CollectOptions(bulletins=True, **options),
                              note=notes.append, sent=lambda _t: None,
-                             subscriptions=book, choose=choose, now=lambda: now)
+                             subscriptions=book, choose=choose, how_many=how_many,
+                             now=lambda: now)
     bbs.start()
     result = await asyncio.wait_for(collector.run(), 5)
     return result, notes
@@ -175,10 +176,10 @@ async def test_the_first_run_offers_the_categories_then_reads_the_chosen(tmp_pat
         offers.append((offer, counts, first))
         return ["WX"], False
 
-    bbs = Bbs({"LC": _lc(("ALL", 1), ("WX", 2)), "LB> WX 3005-3104": _listed(3102, 3101),
+    bbs = Bbs({"LC": _lc(("ALL", 1), ("WX", 300)), "LB> WX 3005-3104": _listed(3102, 3101),
                "R 3101": _bulletin(3101), "R 3102": _bulletin(3102)})
     result, _ = await _bulletins(bbs, store, book, choose)
-    assert offers == [(["ALL", "WX"], {"ALL": 1, "WX": 2}, True)]
+    assert offers == [(["ALL", "WX"], {"ALL": 1, "WX": 300}, True)]
     # Windows back from the greeting's latest number, ten at most when none
     # reaches older dates; reads oldest first.
     windows = [c for c in bbs.sent if c.startswith("LB> ")]
@@ -304,3 +305,72 @@ async def test_a_changed_greeting_asks_ll_1_for_the_latest_number(tmp_path):
     result, _ = await _bulletins(bbs, store, book, now=NOW, first_days=1)
     assert bbs.sent[:2] == ["LL 1", "LB> WX 3005-3104"]
     assert len(result.filed) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_small_category_is_listed_whole_not_window_by_window(tmp_path):
+    """NTS held one bulletin on WS1EC-2 (2026-10-06): seven empty windows
+    went out looking for its date. A category the LC counted at most
+    `SMALL_CATEGORY` of is one listing that ends by itself."""
+    store, book = _store(tmp_path), SubscriptionBook(tmp_path / "subs.json")
+
+    async def choose(offer, counts, first):
+        return ["NTS", "WX"], False
+
+    bbs = Bbs({"LC": _lc(("NTS", 1), ("WX", 300)), "LB> NTS": _listed(3100, category="NTS"),
+               "R 3100": _bulletin(3100, "NTS")})
+    result, _ = await _bulletins(bbs, store, book, choose)
+    listings = [c for c in bbs.sent if c.startswith("LB> ")]
+    assert listings[0] == "LB> NTS" and not any(c.startswith("LB> NTS ") for c in listings)
+    assert listings[1] == "LB> WX 3005-3104"  # WX, a big one, still by windows
+    assert [c for c in bbs.sent if c.startswith("R ")] == ["R 3100"]
+    assert len(result.filed) == 1
+
+
+def _many(count: int) -> tuple[dict, list[int]]:
+    numbers = list(range(3104 - count + 1, 3105))
+    replies = {"LB> WX 3005-3104": _listed(*reversed(numbers))}
+    replies.update({f"R {n}": _bulletin(n) for n in numbers})
+    return replies, numbers
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("answer, read", [(5, 5), (25, 25), (None, 0), (0, 0)])
+async def test_more_than_ask_over_new_asks_how_many(tmp_path, answer, read):
+    """72 new over WS1EC SSH, 2026-10-06, a long read by radio: the run
+    asks first, and the newest are read when the operator says so."""
+    store, book = _store(tmp_path), SubscriptionBook(tmp_path / "subs.json")
+    subs = book.for_bbs("WS1EC")
+    subs.answer(["WX"], ["WX"])
+    subs.checked = NOW
+    replies, numbers = _many(25)
+    asked = []
+
+    async def how_many(count, categories):
+        asked.append((count, categories))
+        return answer
+
+    bbs = Bbs(replies)
+    result, notes = await _bulletins(bbs, store, book, how_many=how_many)
+    assert asked == [(25, ["WX"])]
+    reads = [c for c in bbs.sent if c.startswith("R ")]
+    assert reads == [f"R {n}" for n in numbers[len(numbers) - read:]] if read else reads == []
+    assert not result.stopped
+    if not read:
+        assert any("Not reading the 25 bulletins" in n for n in notes)
+
+
+@pytest.mark.asyncio
+async def test_twenty_or_fewer_new_are_read_without_asking(tmp_path):
+    store, book = _store(tmp_path), SubscriptionBook(tmp_path / "subs.json")
+    subs = book.for_bbs("WS1EC")
+    subs.answer(["WX"], ["WX"])
+    subs.checked = NOW
+    replies, numbers = _many(20)
+
+    async def how_many(count, categories):
+        raise AssertionError("asked about 20")
+
+    bbs = Bbs(replies)
+    result, _ = await _bulletins(bbs, store, book, how_many=how_many)
+    assert len(result.filed) == 20

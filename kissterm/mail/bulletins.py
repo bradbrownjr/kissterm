@@ -100,6 +100,16 @@ def parse_categories(lines: list[str]) -> dict[str, int]:
     return categories
 
 
+#: More new bulletins than this, and the run asks first: all of them, the
+#: newest `ASK_OVER`, or none (operator, 2026-10-06: a first collection
+#: over WS1EC SSH listed 72 for one week, a long read by radio).
+ASK_OVER = 20
+#: A category whose `LC` count is at most this is listed whole (`LB> NTS`,
+#: one page in BPQMail, 23 to a page) rather than window by window: a
+#: window with none of its bulletins in it cannot show a date, so a first
+#: run went seven windows back for NTS's one bulletin (2026-10-06).
+SMALL_CATEGORY = 20
+
 #: Message numbers per window on a first run (`window_command`).
 WINDOW = 100
 #: Windows asked for at most on a first run: 1000 message numbers back.

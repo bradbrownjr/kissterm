@@ -78,12 +78,16 @@ Settings > Remote > Remote control, and open Session > Remote pairing.
 - [ ] **Type to the node.** Send a command from Sessions. Expected: the
   line in bold, the node's answer below it with its colours, and the
   same lines on the station's own Terminal tab.
-- [ ] **Bulletins, files and By Internet from the phone** (0.1.426).
-  On a Bulletins folder tap the button: "Get bulletins?" with By
-  Internet and By radio; By radio runs the bulletin collection over RF.
-  On Files: "Get files from the Home BBS?", then the station's file
-  list as a question on the phone. On BBS/Inbox, By Internet: the run
-  over Telnet with nothing in the Monitor's transmit lines.
+- [x] **Get bulletins from the phone** (0.1.426). On a Bulletins folder
+  tap the button: "Get bulletins?" with By Internet and By radio; By
+  radio runs the bulletin collection over RF. **Passed 2026-10-06** from
+  the mobile web UI: By radio started the run over the air (the link
+  failure after `LC` is under Bulletins below), then By Internet
+  collected over SSH.
+- [ ] **Files and By Internet from the phone** (0.1.426). On Files: "Get
+  files from the Home BBS?", then the station's file list as a question
+  on the phone. On BBS/Inbox, By Internet: the run over Telnet with
+  nothing in the Monitor's transmit lines.
 - [ ] **Send position and Send beacon from the phone** (0.1.426).
   APRS messages > Send position > Send: transmit turns on and one
   position report shows in the Monitor. More > Send beacon asks Packet
@@ -251,6 +255,15 @@ change on screen. Worth one session on the air to confirm.
   after 11 retries (68 s and 140 s later). No frame log: run the station
   with `--log-level debug` for the next try, so kissterm.log shows
   whether the BBS's reply was heard and what was acknowledged.
+
+- [ ] **More than 20 new asks first** (0.1.449). A first collection of
+  WX (72 new on 2026-10-06): before any `R`, "72 new bulletins on
+  WS1EC-2" with Newest 20, All 72 and None, on the terminal and on the
+  phone. Newest 20 reads only the 20 highest numbers; None reads nothing
+  and the next run offers them again.
+- [ ] **A small category is one listing** (0.1.449). Tick a category the
+  list counts 20 or fewer in (NTS had 1): kissterm sends `LB> NTS` once,
+  not `LB> NTS n-m` window after window.
 
 ## Files (YAPP and AutoBIN)
 

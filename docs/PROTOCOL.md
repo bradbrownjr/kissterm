@@ -105,7 +105,9 @@ The answer forms: `RadioReminder`, `TrustHostKey`: true or false.
 `WinlinkGateway`: `{target, remember}`. `InternetLoginAsk`: `{target,
 username, password}`. `LoginAsk`: the password, or with `username` set
 `{username, password}`. `ChooseCategories`: `{categories, all}`.
-`PickFiles`: a list of names. `ChooseSessionTransport`'s `data` names
+`PickFiles`: a list of names. `HowManyBulletins` (`data`: `bbs`,
+`count`, `categories`, `newest`, `radio`): how many of the newest to
+read, a number from 0 to `count`; `null` reads none. `ChooseSessionTransport`'s `data` names
 the configured transports (`transports`, `active`) and never sends
 their config, which can hold a password. A setup question also takes `"skip"`
 (leave this service out) and `"go"` (cancel; `SetupRequested` follows).

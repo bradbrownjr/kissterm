@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Bulletins: ask before a long read; small categories in one listing
+
+### Improvements
+
+- **More than 20 new bulletins asks first**: Newest 20 (the default),
+  All, or None, on the terminal and the phone (`HowManyBulletins`), since
+  each is read with its own command (72 on WS1EC-2's first run).
+- **A category the list counts 20 or fewer in is listed whole** with
+  `LB> CAT`, not window by window (NTS's 1 bulletin cost 7 windows).
+- On-air tests: the phone's Get bulletins ticked (mobile web UI); Files
+  and By Internet from the phone stay open.
+
+**Files:** `kissterm/mail/bulletins.py`, `kissterm/mail/collect.py`,
+`kissterm/core/questions.py`, `kissterm/core/mail.py`, `kissterm/serve/wire.py`,
+`kissterm/ui/bulletin_screen.py`, `kissterm/ui/operator.py`,
+`kissterm/client/ui/questions.py`, `docs/GUIDE.md`, `docs/PROTOCOL.md`,
+`docs/ON-AIR-TESTS.md`, tests
+
 ## [2026-10-06] — On-air results: bulletins over the Internet
 
 ### Improvements

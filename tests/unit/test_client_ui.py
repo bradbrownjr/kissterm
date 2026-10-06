@@ -343,6 +343,20 @@ async def test_a_question_the_station_closed_is_never_answered_here():
     assert app.conn.answers == []
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("label, answer", [("Newest 20", 20), ("All 72", 72), ("None", None)])
+async def test_how_many_bulletins_answers_a_count(label, answer):
+    app = FakeApp()
+    questions = QuestionSheets(app)
+    questions.show(Question("q1", "HowManyBulletins", {
+        "bbs": "WS1EC", "count": 72, "categories": ["WX", "ARES"], "newest": 20,
+        "radio": True}))
+    sheet = app.page.dialogs[-1]
+    assert any("72 new bulletins on WS1EC" in str(getattr(c, "value", "")) for c in _walk(sheet))
+    await _button(sheet, label).on_click(None)
+    assert app.conn.answers == [("q1", answer)]
+
+
 def test_every_sheet_is_the_one_shape():
     page = FakePage()
 

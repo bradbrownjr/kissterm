@@ -161,6 +161,8 @@ def answer(question: q.Question, value: Any) -> Any:
             return [str(c) for c in value["categories"]], bool(value.get("all", False))
         if isinstance(question, q.PickFiles):
             return [str(name) for name in value]
+        if isinstance(question, q.HowManyBulletins):
+            return max(0, min(int(value), question.count))
         if isinstance(question, (q.HomeBbsRoute, q.CallsignAsk, q.ChooseSessionTransport)):
             return str(value)
     except (KeyError, TypeError, ValueError) as exc:

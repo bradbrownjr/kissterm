@@ -156,6 +156,20 @@ class ChooseCategories(Question):
 
 
 @dataclass(frozen=True)
+class HowManyBulletins(Question):
+    """Mid-run, more than `newest` new bulletins listed (`count`, in
+    `categories`; `radio`: over the air): read them all, only the newest
+    `newest`, or none. Answer: the number to read (`count`, `newest`);
+    None or 0 reads none."""
+
+    bbs: str
+    count: int
+    categories: tuple
+    newest: int
+    radio: bool = False
+
+
+@dataclass(frozen=True)
 class PickFiles(Question):
     """Mid-run: which of the BBS's listed files to download (`files`:
     `mail.collect` file entries; `have`: name -> size already in

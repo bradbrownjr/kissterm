@@ -168,3 +168,29 @@ async def test_s_changes_the_categories_offline(tmp_path):
         assert book.for_bbs("WS1EC").declined == ["ALL", "WX"]
         assert not station.transport.sent  # offline
     station.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("press, answer", [("enter", 20), ("escape", None)])
+async def test_the_how_many_question_defaults_to_the_newest(press, answer):
+    """More than `ASK_OVER` new: Newest is focused, so Enter reads the
+    newest 20 and Escape reads none (`BulletinCountScreen`)."""
+    from textual.app import App
+
+    from kissterm.ui.bulletin_screen import BulletinCountScreen
+
+    answers = []
+
+    class Host(App):
+        def on_mount(self) -> None:
+            self.push_screen(BulletinCountScreen("WS1EC", 72, ["WX"], 20, radio=True),
+                             answers.append)
+
+    app = Host()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        assert "72 new bulletins on WS1EC" in str(app.screen.query_one("#connect-title").render())
+        assert app.screen.focused.id == "count-newest"
+        await pilot.press(press)
+        await wait_for(lambda: answers, "the answer")
+    assert answers == [answer]
