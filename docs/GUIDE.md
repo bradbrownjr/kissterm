@@ -618,8 +618,13 @@ own client.
     transmitting).
   - **Messages** (titled APRS messages) is APRS as conversations, in
     bubbles, with a new message limited to the 67 characters APRS
-    carries.
-  - **Mail** shows the station's mail folders; Send/Receive asks first.
+    carries. **Send position** above the conversations sends one
+    position report (APRS > Send position in the terminal), after asking.
+  - **Mail** shows the station's mail folders. Its button asks first
+    and does what G and I do on the terminal's tabs: on a mail folder,
+    Send/Receive **By radio** or **By Internet** (no transmitting); on a
+    Bulletins folder, Get bulletins either way; on Files, Get files by
+    radio, which then asks here which files to download.
     A message from a BBS has a folded **Routing** section under its
     header: the `R:` line each BBS added as it passed the message on,
     the latest first. A number@BBS there is that BBS's message number,
@@ -631,7 +636,9 @@ own client.
     transmits**: swiping a station right asks "Connect to ...?", swiping
     it left opens its contact, and nothing happens until that sheet's
     own button is pressed. Tapping a station asks to connect too.
-  - **More** shows the station, the Monitor, recent notices, Terminal,
+  - **More** shows the station (with **Send beacon**, the beacon text
+    once, as Session > Send beacon does; transmit must already be on),
+    the Monitor, recent notices, Terminal,
     and Settings (the station's own, checked by the station as the
     terminal checks them; a password field left empty keeps the saved
     one). **Terminal** sets how session text looks on this phone or

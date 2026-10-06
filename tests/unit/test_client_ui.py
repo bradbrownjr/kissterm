@@ -158,6 +158,7 @@ class FakePage:
 class FakeConn:
     def __init__(self) -> None:
         self.answers: list = []
+        self.status = "connected"
 
     async def answer(self, qid, value) -> None:
         self.answers.append((qid, value))
@@ -209,7 +210,7 @@ def _buttons(sheet) -> list:
     found, todo = [], [sheet.content]
     while todo:
         control = todo.pop()
-        if isinstance(control, (ft.FilledButton, ft.TextButton)):
+        if isinstance(control, (ft.FilledButton, ft.TextButton, ft.OutlinedButton)):
             found.append(control)
         for name in ("content", "controls"):
             child = getattr(control, name, None)
@@ -437,3 +438,72 @@ def test_routing_is_folded_away_and_says_it_is_not_the_sender():
     assert isinstance(tile, ft.ExpansionTile) and not tile.expanded
     assert "Not the sender" in tile.subtitle.value
     assert "3098@WS1EC" in tile.controls[0].value
+
+
+# ----------------------------------------------------------------------
+# Parity with the terminal: Get bulletins, Get files, By Internet (I),
+# Send position (APRS > P), Send beacon (Session > B)
+# ----------------------------------------------------------------------
+
+
+async def _choose(app, label: str) -> None:
+    [sheet] = app.page.dialogs
+    await _button(sheet, label).on_click(None)
+    assert app.page.dialogs == [], "the sheet stayed up"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("folder, label, expected", [
+    ("Mail/BBS/Inbox", "By radio", ("send_receive", {"folder": "Mail/BBS/Inbox"})),
+    ("Mail/BBS/Inbox", "By Internet",
+     ("send_receive", {"folder": "Mail/BBS/Inbox", "internet": True})),
+    ("Bulletins/ALL", "By radio", ("get_bulletins", {})),
+    ("Bulletins/ALL", "By Internet", ("get_bulletins", {"internet": True})),
+    ("Files", "Get files", ("get_files", {})),
+])
+async def test_the_mail_button_does_what_g_and_i_do_for_the_folder(folder, label, expected):
+    from kissterm.client.ui.mail import MailView
+
+    app = FakeApp()
+    view = MailView(app)
+    view.folder = folder
+    await view.button.on_click(None)
+    assert app.commands == [], "the button sent before the sheet was answered"
+    await _choose(app, label)
+    assert app.commands == [expected]
+
+
+@pytest.mark.asyncio
+async def test_cancelling_the_mail_sheet_sends_nothing():
+    from kissterm.client.ui.mail import MailView
+
+    app = FakeApp()
+    view = MailView(app)
+    await view.button.on_click(None)
+    await _choose(app, "Cancel")
+    assert app.commands == []
+
+
+@pytest.mark.asyncio
+async def test_send_position_and_send_beacon_ask_first():
+    from kissterm.client.ui.messages import MessagesView
+    from kissterm.client.ui.more import MoreView
+
+    app = FakeApp()
+    messages = MessagesView(app)
+    await messages.reload()
+    position = next(c for c in messages.list.controls[0].content.controls
+                    if c.content == "Send position")
+    await position.on_click(None)
+    assert app.commands == [("aprs_conversations", {})], "Send position sent before asking"
+    await _choose(app, "Send")
+    assert app.commands[-1] == ("aprs_position", {})
+
+    app.commands.clear()
+    more = MoreView(app)
+    await more._send_beacon(None)
+    await _choose(app, "Cancel")
+    assert app.commands == []
+    await more._send_beacon(None)
+    await _choose(app, "Send")
+    assert app.commands == [("beacon_now", {})]

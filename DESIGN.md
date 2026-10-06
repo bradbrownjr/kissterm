@@ -680,7 +680,10 @@ and do not apply there; these do.
   accident; the radio must not key because of it
   (`tests/unit/test_client_ui.py`).
 - **Anything that puts a frame on the air asks first** in a sheet:
-  connect, disconnect, Send/Receive. Typing a line and pressing Send is
+  connect, disconnect, Send/Receive, Get bulletins and files, Send
+  position, Send beacon. **Where there is more than one way, the sheet
+  offers each** (By Internet, By radio: `sheets.choose`), the usual one
+  last and filled, never a second screen. Typing a line and pressing Send is
   already the deliberate commit, as Enter is in the terminal.
 - **The transmit switch is always in the top-right corner**, outlined
   "TX OFF", filled red "TX ON". Turning it off never asks; turning it on

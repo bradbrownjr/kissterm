@@ -502,10 +502,8 @@ back end, so a protocol fix or a new transport lands everywhere at once.
   only a client holding the pairing token** (operator, 2026-10-05),
   because it can key a transmitter.
 - [ ] **Parity: what the terminal does that the remote client cannot
-  yet** (AGENTS.md section 7, operator 2026-10-06). The protocol already
-  carries these, the phone has no control for them: Get bulletins, Get
-  files, Send/Receive by Internet (I), Send position and Beacon now.
-  These need protocol commands first: writing, replying to, deleting and
+  yet** (AGENTS.md section 7, operator 2026-10-06). These need protocol
+  commands first: writing, replying to, deleting and
   restoring mail; bulletin categories; sending a file (YAPP); Reconnect;
   session transcripts; the node's command help and suggestions; APRS
   objects and templates; RMS gateways; Monitor filters.

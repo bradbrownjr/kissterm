@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Phone parity: bulletins, files, By Internet, position, beacon
+
+### Improvements
+
+- **The phone's Mail button does what G and I do** for the folder shown:
+  Send/Receive or Get bulletins, each By radio or By Internet in one
+  sheet (`sheets.choose`); on Files, Get files.
+- **Send position** heads APRS messages, and **Send beacon** sits on
+  More's station card; both ask first.
+
+**Files:** `kissterm/client/ui/mail.py`, `kissterm/client/ui/messages.py`,
+`kissterm/client/ui/more.py`, `kissterm/client/ui/sheets.py`,
+`DESIGN.md`, `docs/GUIDE.md`, `docs/ROADMAP.md`,
+`tests/unit/test_client_ui.py`
+
 ## [2026-10-06] — Terminal parity: routing (T) and cancelling a run (G)
 
 ### Improvements

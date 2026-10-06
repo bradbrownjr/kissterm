@@ -49,6 +49,17 @@ Settings > Remote > Remote control, and open Session > Remote pairing.
 - [ ] **Type to the node.** Send a command from Sessions. Expected: the
   line in bold, the node's answer below it with its colours, and the
   same lines on the station's own Terminal tab.
+- [ ] **Bulletins, files and By Internet from the phone** (0.1.426).
+  On a Bulletins folder tap the button: "Get bulletins?" with By
+  Internet and By radio; By radio runs the bulletin collection over RF.
+  On Files: "Get files from the Home BBS?", then the station's file
+  list as a question on the phone. On BBS/Inbox, By Internet: the run
+  over Telnet with nothing in the Monitor's transmit lines.
+- [ ] **Send position and Send beacon from the phone** (0.1.426).
+  APRS messages > Send position > Send: transmit turns on and one
+  position report shows in the Monitor. More > Send beacon > Send with
+  transmit on: the beacon text once; with transmit off, the notice that
+  transmit is off and nothing on the air.
 - [ ] **Turn transmit off from the phone.** Tap "TX ON". Expected: off at
   once, on the phone and the station's status bar, with no question.
 - [ ] **Sleep and wake.** Lock the phone for a minute while the node

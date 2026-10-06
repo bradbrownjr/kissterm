@@ -1,4 +1,5 @@
-"""More: the station itself (callsign, transport, what it is doing), the
+"""More: the station itself (callsign, transport, what it is doing, and
+Send beacon, the terminal's Session > Send beacon), the
 channel as the Monitor shows it, recent notices, the terminal's look on
 this device, and Settings.
 
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import flet as ft
 
+from . import sheets
 from .settings import SettingsEditor
 from .text import MONO, MONO_BOLD, TEXT_COLOURS, Look
 
@@ -32,7 +34,13 @@ class MoreView:
         self.swatches = ft.Row(wrap=True, spacing=12, run_spacing=8)
         self.preview = ft.Container(border_radius=8, padding=ft.Padding.all(12))
         self.control = ft.ListView(expand=True, padding=ft.Padding.all(12), controls=[
-            ft.Card(content=ft.Container(padding=ft.Padding.all(16), content=self.station)),
+            ft.Card(content=ft.Container(padding=ft.Padding.all(16), content=ft.Column(
+                tight=True, spacing=12, controls=[
+                    self.station,
+                    # Session > Send beacon in the terminal: the beacon text, once.
+                    ft.Row(controls=[ft.OutlinedButton(
+                        content="Send beacon", icon=ft.Icons.CAMPAIGN,
+                        on_click=self._send_beacon)])]))),
             ft.ExpansionTile(title=ft.Text("Monitor"), subtitle=ft.Text(
                 "Every frame the station hears or sends", size=12),
                 controls=[self.monitor]),
@@ -126,6 +134,14 @@ class MoreView:
         self.station.controls = [ft.Row(controls=[
             ft.Text(name, width=100, color=ft.Colors.OUTLINE), ft.Text(value, expand=True)])
             for name, value in lines]
+
+    async def _send_beacon(self, _e) -> None:
+        async def go() -> None:
+            await self.app.command("beacon_now")
+
+        sheets.confirm(self.app.page, "Send your beacon now?",
+                       "Transmits the station's beacon text once. Transmit must already "
+                       "be on; the beacon's timer is not changed.", "Send", go)
 
     async def _settings_opened(self, e) -> None:
         if e.control.expanded if hasattr(e.control, "expanded") else True:

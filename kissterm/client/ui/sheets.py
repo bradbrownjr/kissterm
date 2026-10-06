@@ -56,6 +56,32 @@ def confirm(page, title: str, detail: str, go_label: str, on_go: Action, *,
     return shown
 
 
+def choose(page, title: str, detail: str, choices: list[tuple[str, Action]]) -> ft.BottomSheet:
+    """A sheet asking `title` with several ways to do it (By radio, By
+    Internet); each runs only from its own button, the last one filled
+    as the usual choice. Cancel, the scrim or a drag does nothing."""
+
+    def run(on_go: Action):
+        async def go(_e) -> None:
+            page.pop_dialog()
+            await on_go()
+        return go
+
+    async def cancel(_e) -> None:
+        page.pop_dialog()
+
+    buttons: list[ft.Control] = [ft.TextButton(content="Cancel", on_click=cancel)]
+    for i, (label, on_go) in enumerate(choices):
+        kind = ft.FilledButton if i == len(choices) - 1 else ft.OutlinedButton
+        buttons.append(kind(content=label, on_click=run(on_go)))
+    shown = sheet([
+        ft.Text(title, theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
+        *([ft.Text(detail)] if detail else []),
+        ft.Row(alignment=ft.MainAxisAlignment.END, wrap=True, controls=buttons)])
+    page.show_dialog(shown)
+    return shown
+
+
 def form(page, title: str, fields: list[ft.Control], go_label: str, on_go: Action,
          detail: str = "") -> ft.BottomSheet:
     """A sheet with `fields` and one button; `on_go` reads the fields."""

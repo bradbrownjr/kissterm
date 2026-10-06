@@ -2,7 +2,8 @@
 Receive started from it.
 
 Reading is free; **Send/Receive is a button**, the same request as the
-terminal's G, and dials the Home BBS or Winlink through the station's own
+terminal's G (and, in its sheet, By Internet: the terminal's I; on a
+Bulletins folder Get bulletins, on Files Get files), and dials the Home BBS or Winlink through the station's own
 connect flow (the reminder, the gate, a login question here if one is
 missing). Writing mail from the phone is not in protocol v1.
 
@@ -75,8 +76,9 @@ class MailView:
 
     def _paint_button(self) -> None:
         running = self.app.state.mail_running
-        self.button.tooltip = ("Sending and receiving: tap to cancel" if running
-                               else "Send/Receive")
+        what = ("Get files" if self.folder.startswith("Files")
+                else "Get bulletins" if self.folder.startswith("Bulletins") else "Send/Receive")
+        self.button.tooltip = "Running: tap to cancel" if running else what
 
     async def shown(self) -> None:
         await self.reload()
@@ -141,6 +143,7 @@ class MailView:
 
     async def _folder_changed(self, e) -> None:
         self.folder = e.control.value
+        self._paint_button()
         await self.reload()
 
     def _opener(self, ref: str):
@@ -181,10 +184,27 @@ class MailView:
                 sheets.snack(self.app.page, "Cancelling Send/Receive...")
             return
         folder = self.folder
+        app = self.app
 
-        async def go() -> None:
-            await self.app.command("send_receive", folder=folder)
+        def run(name: str, **args):
+            async def go() -> None:
+                await app.command(name, **args)
+            return go
 
-        sheets.confirm(self.app.page, "Send and receive mail?",
-                       "The station connects by radio, sends the Outbox and reads new mail.",
-                       "Send/Receive", go)
+        # What G and I do on the terminal's Mail, Bulletins and Files tabs.
+        if folder.startswith("Files"):
+            sheets.confirm(app.page, "Get files from the Home BBS?",
+                           "The station connects by radio, lists the BBS's files, and "
+                           "asks here which to download.", "Get files", run("get_files"))
+        elif folder.startswith("Bulletins"):
+            sheets.choose(app.page, "Get bulletins?",
+                          "The station gets new bulletins in the categories you chose "
+                          "from the Home BBS.",
+                          [("By Internet", run("get_bulletins", internet=True)),
+                           ("By radio", run("get_bulletins"))])
+        else:
+            sheets.choose(app.page, "Send and receive mail?",
+                          "The station sends the Outbox and reads new mail: by radio, "
+                          "or over the Internet with no transmitting.",
+                          [("By Internet", run("send_receive", folder=folder, internet=True)),
+                           ("By radio", run("send_receive", folder=folder))])

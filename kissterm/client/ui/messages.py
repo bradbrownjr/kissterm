@@ -2,6 +2,9 @@
 correspondents, newest first, with an unread dot; a thread of bubbles,
 mine on the right with a tick once acknowledged.
 
+**Send position** sits above the conversations (the terminal's P on
+its APRS tab), asking first like every transmission.
+
 **Send is the commitment** (the station arms the gate for it, as the
 terminal's Send does: `Aprs.compose`); opening, scrolling or swiping a
 thread never sends. Retries are the station's, never this client's.
@@ -55,6 +58,12 @@ class MessagesView:
         self.thread = ft.ListView(expand=True, auto_scroll=True, padding=ft.Padding.all(8))
         self.compose = ft.TextField(expand=True, hint_text="Message", dense=True,
                                     on_submit=self._send, max_length=67)
+        #: APRS > Send position, the terminal's P on its APRS tab.
+        self.toolbar = ft.Container(
+            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+            content=ft.Row(controls=[ft.OutlinedButton(
+                content="Send position", icon=ft.Icons.MY_LOCATION,
+                on_click=self._send_position)]))
         self.control = ft.Container(expand=True)
         self._show_list()
 
@@ -74,7 +83,7 @@ class MessagesView:
     async def reload(self) -> None:
         convos = await self.app.command("aprs_conversations") or []
         unread = self.app.state.unread_aprs
-        self.list.controls = [ft.ListTile(
+        self.list.controls = [self.toolbar] + [ft.ListTile(
             leading=ft.CircleAvatar(content=ft.Text(c["callsign"][:2])),
             title=ft.Text(c["callsign"], weight=ft.FontWeight.BOLD if c["callsign"] in unread else None),
             subtitle=ft.Text(c.get("last", ""), max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
@@ -82,9 +91,11 @@ class MessagesView:
                 ft.Text(ago(c.get("last_activity", 0)), size=11, color=ft.Colors.OUTLINE),
                 *([ft.Container(width=10, height=10, border_radius=5, bgcolor=ft.Colors.PRIMARY)]
                   if c["callsign"] in unread else [])]),
-            on_click=self._opener(c["callsign"])) for c in convos] or [ft.Container(
+            on_click=self._opener(c["callsign"])) for c in convos]
+        if not convos:
+            self.list.controls.append(ft.Container(
                 padding=ft.Padding.all(24),
-                content=ft.Text("No APRS messages yet.", color=ft.Colors.OUTLINE))]
+                content=ft.Text("No APRS messages yet.", color=ft.Colors.OUTLINE)))
         if self.thread_of is not None:
             await self._load_thread()
         self.app.page.update()
@@ -131,6 +142,14 @@ class MessagesView:
             self.compose.value = ""
             await self._load_thread()
         self.app.page.update()
+
+    async def _send_position(self, _e) -> None:
+        async def go() -> None:
+            await self.app.command("aprs_position")
+
+        sheets.confirm(self.app.page, "Send your position now?",
+                       "Turns transmit on and sends one APRS position report from "
+                       "the station. The position beacon's timer is not changed.", "Send", go)
 
     async def _new(self, _e) -> None:
         to = ft.TextField(label="To", hint_text="Callsign, e.g. W1AW-7", autofocus=True,
