@@ -768,9 +768,13 @@ and do not apply there; these do.
   one**, icon only, right edges in line so both hug the screen's edge (Mail's Write pencil over
   Send/Receive; operator, 2026-10-06: "drop the text label"), never a
   labelled button in the toolbar.
+- **Messages' toolbar is one row of one-word buttons**: Position (the
+  terminal's Send position), Map, Object (operator, 2026-10-06: "change
+  the send position to just position to reduce the need for the
+  wrapping"); it still wraps on a phone too narrow for them.
 - **What the operator acts on comes first**: Stations opens on Contacts,
   Heard second.
-- **The map is a page of Messages** (Map beside Send position; operator,
+- **The map is a page of Messages** (Map beside Position; operator,
   2026-10-06), not a sixth place: drag pans, pinch and the wheel zoom,
   with +, - and show-everything buttons stacked at the top right for a
   hand without a second finger. A tap on a point opens a panel at the

@@ -2,7 +2,7 @@
 where it goes, sent as one object report (the terminal's APRS > Object;
 operator, 2026-10-06: "How do I place an object on the map?").
 
-Opened by **Object** beside Send position (here), a **long press** on the
+Opened by **Object** beside Position and Map (here), a **long press** on the
 map (that spot), or **Move** on one of this station's objects (its name,
 symbol and comment kept, the place long-pressed). What it starts with and
 every rule are the station's (`aprs_object_start`, `aprs_object`,

@@ -3,7 +3,7 @@ items with coordinates, and this station, over an offline map (operator,
 2026-10-06: "a button next to Send Position on the APRS Messages to show
 a map of heard stations ... Basic offline map if possible").
 
-Opened by **Map** beside Send position. What it shows is the station's
+Opened by **Map** beside Position. What it shows is the station's
 (`map_points`, `Aprs.map_points`); the outlines are `kissterm.geo`'s,
 shipped with kissterm (Natural Earth), so nothing is fetched from the
 Internet and the map works on a station with no connection but its

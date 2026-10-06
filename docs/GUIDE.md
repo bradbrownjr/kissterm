@@ -689,7 +689,7 @@ own client.
     written at the terminal for now.
   - **Messages** (titled APRS messages) is APRS as conversations, in
     bubbles, with a new message limited to the 67 characters APRS
-    carries. **Send position** above the conversations sends one
+    carries. **Position** above the conversations sends one
     position report (APRS > Send position in the terminal), after asking.
     **Map** beside it shows the APRS map (APRS > Map in the terminal):
     drag to pan, pinch or the mouse wheel to zoom, + and - and a button

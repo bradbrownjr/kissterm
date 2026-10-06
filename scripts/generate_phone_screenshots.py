@@ -360,7 +360,7 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(1500)
     await phone.frame()
 
-    # The APRS map, from Map beside Send position: the heard stations with
+    # The APRS map, from Map beside Position: the heard stations with
     # a position, the shelter object, this station, over the offline
     # outlines; then a tapped station's panel.
     await phone.tap(phone.button("All messages"))

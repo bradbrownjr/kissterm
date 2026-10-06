@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Phone: Position, Map, Object on one row
+
+### Improvements
+
+- **Send position is "Position" on the phone**, so Position, Map and
+  Object fit one row above the conversations instead of wrapping.
+
+**Files:** `kissterm/client/ui/messages.py`, `kissterm/client/ui/aprs_map.py`,
+`kissterm/client/ui/aprs_object.py`, `scripts/generate_phone_screenshots.py`,
+`DESIGN.md`, `docs/GUIDE.md`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-06] — Place, move and kill APRS objects from the map
 
 ### New Features

@@ -543,7 +543,7 @@ async def test_send_position_and_send_beacon_ask_first():
     messages = MessagesView(app)
     await messages.reload()
     position = next(c for c in messages.list.controls[0].content.controls
-                    if c.content == "Send position")
+                    if c.content == "Position")
     await position.on_click(None)
     assert app.commands == [("aprs_conversations", {})], "Send position sent before asking"
     await _choose(app, "Send")
@@ -992,7 +992,7 @@ async def test_map_opens_beside_send_position_and_never_transmits():
     messages = MessagesView(app)
     await messages.reload()
     buttons = [c.content for c in messages.list.controls[0].content.controls]
-    assert buttons == ["Send position", "Map", "Object"]
+    assert buttons == ["Position", "Map", "Object"]
     open_map = messages.list.controls[0].content.controls[1]
     await open_map.on_click(None)
     assert isinstance(messages.map, MapPage)

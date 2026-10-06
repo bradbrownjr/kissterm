@@ -2,8 +2,9 @@
 correspondents, newest first, with an unread dot; a thread of bubbles,
 mine on the right with a tick once acknowledged.
 
-**Send position** sits above the conversations (the terminal's P on
-its APRS tab), asking first like every transmission; **Map** beside it
+**Position** sits above the conversations (the terminal's APRS > Send
+position), asking first like every transmission; one word, so it,
+Map and Object fit one row on a phone (operator, 2026-10-06); **Map** beside it
 opens the map of what was heard with a position (`aprs_map.py`, the
 terminal's APRS > Map), and **Object** an object report to send
 (`aprs_object.py`, APRS > Object), as a long press on the map does.
@@ -70,7 +71,7 @@ class MessagesView:
             padding=ft.Padding.symmetric(horizontal=12, vertical=6),
             # Wraps on a narrow phone rather than pushing Object off the edge.
             content=ft.Row(wrap=True, spacing=8, run_spacing=8, controls=[
-                ft.OutlinedButton(content="Send position", icon=ft.Icons.MY_LOCATION,
+                ft.OutlinedButton(content="Position", icon=ft.Icons.MY_LOCATION,
                                   on_click=self._send_position),
                 ft.OutlinedButton(content="Map", icon=ft.Icons.MAP_OUTLINED,
                                   on_click=self._open_map),
