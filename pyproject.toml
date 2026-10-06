@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.431"
+version = "0.1.432"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -60,6 +60,10 @@ serve = ["starlette>=1.7", "uvicorn>=0.54", "websockets>=13", "segno"]
 web = ["kissterm[serve]", "flet>=1.0.3,<2", "flet-web>=1.0.3,<2"]
 # The same client as a desktop app (`kissterm --client LINK`).
 desktop = ["websockets>=13", "flet>=1.0.3,<2", "flet-desktop>=1.0.3,<2"]
+# This terminal UI in a browser (`kissterm --web-terminal`): Textual's own
+# web server. It has NO login; the remote control (`serve`, `web`) is the
+# paired, supported way to reach a station from a browser.
+webterm = ["textual-serve>=1.1"]
 # For maintainers: scripts/generate_phone_screenshots.py drives the web
 # client in a browser (a browserless server, or Playwright's own Chromium).
 screenshots = ["kissterm[web]", "playwright>=1.50"]

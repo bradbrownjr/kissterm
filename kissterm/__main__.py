@@ -124,6 +124,14 @@ def _build_parser() -> argparse.ArgumentParser:
              "(needs kissterm[desktop])",
     )
     parser.add_argument(
+        "--web-terminal",
+        nargs="?",
+        const="127.0.0.1:8765",
+        metavar="HOST:PORT",
+        help="this terminal UI in a browser, with NO login (default 127.0.0.1:8765; "
+             "needs kissterm[webterm]); for a paired link use --serve",
+    )
+    parser.add_argument(
         "--log-level",
         default="warning",
         choices=["debug", "info", "warning", "error"],
@@ -790,6 +798,10 @@ def main() -> int:
     _setup_logging(args.log_level)
     if args.client:
         return _run_client(args.client)
+    if args.web_terminal:
+        from . import webterm
+
+        return webterm.run(args)
     try:
         return asyncio.run(_amain(args))
     except KeyboardInterrupt:

@@ -549,6 +549,11 @@ page at `/`. For `kissterm --client LINK` on a desktop, install the
 `desktop` extra on that machine instead; Flet downloads its window
 program the first time it runs.
 
+`kissterm --web-terminal` is something else: this terminal UI on a web
+page through Textual's `textual-serve` (the `webterm` extra), with **no
+pairing and no login**. It prints that warning when it starts and
+listens on 127.0.0.1:8765 unless given another address.
+
 It listens on port 7425 on every interface (Settings > Remote changes
 both) and prints a pairing link with its QR code. Run it under systemd or
 `tmux` like any other service; it stops on Ctrl+C or SIGTERM.

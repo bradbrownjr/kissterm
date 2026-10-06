@@ -650,15 +650,14 @@ own client.
   - `kissterm --client LINK` opens the same remote control in a window
     on a desktop (the `desktop` extra). It has not been tried on a
     desktop yet.
-- **The whole terminal in a browser** (experimental): Textual's
-  `textual-serve` runs kissterm itself on a web page, keys and all.
-  `pip install textual-serve`, then
-  `python -c 'from textual_serve.server import Server; Server("kissterm").serve()'`
-  serves it at `http://localhost:8000`. **It has no pairing link and no
-  login**: anyone who can open that address can key the radio. Keep it
-  on localhost, or behind something that asks for a password. If the
-  modem is off at launch, kissterm starts and says so in the page
-  rather than asking in a terminal it does not have.
+- **Not the remote control: `kissterm --web-terminal`** (experimental)
+  puts this terminal UI itself on a web page, keys and all, through
+  Textual's `textual-serve` (the `webterm` extra). **It has no pairing
+  link and no login**: anyone who can open its address can key the
+  radio, and it says so when it starts. It listens on
+  `127.0.0.1:8765` unless given an address (`--web-terminal
+  0.0.0.0:8765` opens it to the network, and the warning says so too).
+  For a browser or a phone, the remote control above is the way.
 
 ![A swipe asks before connecting, then the station's radio reminder: nothing transmits until Connect](../assets/screenshot-phone-connect.png)
 
@@ -690,6 +689,7 @@ kissterm --no-update-check   do not look on GitHub for a newer version
 kissterm --serve             run with no screen, for remote clients (experimental)
 kissterm --rotate-token      replace the remote pairing link and print the new one
 kissterm --client LINK       open a station's remote control in a window (experimental)
+kissterm --web-terminal      this terminal UI in a browser, NO login (experimental)
 ```
 
 **Updates.** Once a day kissterm asks GitHub, over the Internet, whether a

@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — The web terminal is an opt-in: kissterm --web-terminal
+
+### Improvements
+
+- **The terminal UI in a browser is a separate, deliberate choice**
+  (operator: "a toggle for web based terminal, vs the actual web UI,
+  with the warning in the command line"). `kissterm --web-terminal
+  [HOST:PORT]` runs it through `textual-serve` (the `webterm` extra),
+  on 127.0.0.1:8765 by default, and first prints that it has no pairing
+  and no login and that the remote control is the way for a browser.
+
+**Files:** `kissterm/webterm.py`, `kissterm/__main__.py`, `pyproject.toml`,
+`docs/GUIDE.md`, `SETUP.md`, `tests/unit/test_webterm.py`
+
 ## [2026-10-06] — Settings > Radio names the transport launch opened
 
 ### Improvements
