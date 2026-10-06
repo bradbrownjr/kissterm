@@ -2422,6 +2422,15 @@ class KissTermApp(App):
     def _gateway_cache(self):
         return self.core.mail.gateway_cache()
 
+    def action_aprs_map(self) -> None:
+        """F10 > APRS > Map: what was heard with a position, on the offline
+        map (`ui/map_screen.py`), from the core's list the phone's map
+        reads too (`Aprs.map_points`). Nothing transmits."""
+        from .map_screen import MapScreen
+
+        self.push_screen(MapScreen(self.core.aprs.map_points,
+                                   ascii_safe=self.config.ascii_safe))
+
     @work
     async def action_rms_gateways(self) -> None:
         """F10 > Session > RMS gateways: choose a Winlink gateway from the

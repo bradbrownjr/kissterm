@@ -10,6 +10,29 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## The APRS map (0.1.443, 2026-10-06)
+
+Listen on the local APRS frequency for a while first, so the Heard list
+has stations with positions. Your own position is Settings > APRS
+(latitude and longitude) or the GPS.
+
+- [ ] **Off-air stations land where they are.** F10 > APRS > Map.
+  Expected: the stations you heard, at their real places against the
+  roads and towns you know (zoom in with I until counties and roads
+  show), distances and bearings in the list that match the Heard tab's.
+- [ ] **An object off the air shows, and a killed one goes.** When a
+  station sends an object (a net, an event), it appears with `+` and
+  "by" its reporter; when it is killed, it leaves the map within a few
+  seconds.
+- [ ] **The phone's Map matches.** Messages > Map on the phone, with the
+  map open in the terminal too. Expected: the same points; a tap on one
+  shows its distance, bearing, last heard and comment; new stations
+  appear without reopening it.
+- [ ] **Mic-E positions land where they are** (AGENTS.md section 8: Mic-E
+  is not yet checked against off-air traffic). A mobile with a Mic-E
+  radio (a Kenwood TH-D74, a Yaesu FTM) on the map. Expected: on the
+  road it is on, not hundreds of miles off.
+
 ## Remote control from a phone (0.1.414, 2026-10-05)
 
 Install the `web` extra on the station (SETUP.md section 11), turn on

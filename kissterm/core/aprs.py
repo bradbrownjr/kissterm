@@ -36,6 +36,7 @@ import time
 from datetime import UTC, datetime
 
 from .. import aprs
+from ..aprs import symbols as aprs_symbols
 from ..aprs_beacon import AprsBeaconer
 from ..aprs_conversations import ConversationStore, MessageDeduplicator, PendingAcks
 from ..aprs_is import AprsIsWatch
@@ -45,6 +46,8 @@ from ..ax25.address import AX25Address, AX25AddressError
 from ..aprs_contacts import Contact, build_message_body
 from ..beacon import Beaconer
 from ..config import AprsConfig, BeaconConfig
+from ..geo import placemarks as marks
+from ..geo.project import describe
 from ..gps import GpsReader
 from ..locator import find_grid_in_text
 from ..monitor import aprs_message_matches, sanitize
@@ -65,6 +68,12 @@ log = logging.getLogger(__name__)
 #: of `PendingAcks.retry_seconds` (how long a single message waits before
 #: its own first/next retry) -- this is just the polling granularity.
 RETRY_CHECK_INTERVAL = 10.0
+
+
+def _clean(text: str) -> str:
+    """A decoded field from the air, safe for any widget: the same filter
+    as raw bytes (`monitor.sanitize`), one line."""
+    return sanitize(text.encode("utf-8", "replace"), keep_newlines=False).strip()
 
 
 class Aprs:
@@ -115,6 +124,9 @@ class Aprs:
         #: Optional, wholly local; never part of the frame fan-out.
         self.gps_reader: GpsReader | None = None
         self._gps_had_fix = False
+        #: The map's symbols, comments and objects (`geo/placemarks.py`);
+        #: positions of stations themselves stay in the heard list.
+        self.placemarks = marks.Placemarks()
         self._tasks: set[asyncio.Task] = set()
         self._retry_task: asyncio.Task | None = None
 
@@ -188,6 +200,9 @@ class Aprs:
             # The one place the heard list gets a position (`HeardTable`
             # never decodes APRS itself).
             heard.set_position(str(packet.source), packet.data.latitude, packet.data.longitude)
+            self._place_station(str(packet.source), packet.data)
+        elif packet.kind in ("object", "item") and isinstance(packet.data, aprs.ObjectReport):
+            self._place_object(str(packet.source), packet.data)
         elif packet.kind == "unparsed":
             # A plain node or BBS beacon often signs off with its grid square
             # ("de W1AW FN31pr"); `find_grid_in_text` is conservative, and a
@@ -266,6 +281,68 @@ class Aprs:
             timeout=15 if decision.urgent else 10,
         )
         self._publish(Alert(decision.title, decision.body, decision.urgent))
+
+    # ------------------------------------------------------------------
+    # The map
+    # ------------------------------------------------------------------
+    def _place_station(self, callsign: str, position) -> None:
+        self.placemarks.station(
+            callsign, position.latitude, position.longitude,
+            symbol=position.symbol_table + position.symbol_code,
+            comment=_clean(position.comment))
+
+    def _place_object(self, by: str, report) -> None:
+        position = report.position
+        self.placemarks.object(
+            _clean(report.name), by, report.alive,
+            position.latitude if position else None,
+            position.longitude if position else None,
+            item=report.is_item,
+            symbol=(position.symbol_table + position.symbol_code) if position else "",
+            comment=_clean(position.comment) if position else "")
+
+    def own_position(self) -> tuple[float, float] | None:
+        """Where this station is: the GPS fix, else the configured position
+        (0, 0 is "not set", never a place in the Gulf of Guinea)."""
+        fix = self.gps_position()
+        if fix is not None:
+            return fix
+        aprs_config = self.config.aprs
+        if aprs_config.latitude or aprs_config.longitude:
+            return aprs_config.latitude, aprs_config.longitude
+        return None
+
+    def map_points(self) -> list[dict]:
+        """Everything the map shows, as plain dicts (`Placemark.to_dict`
+        plus `symbol_name` and, when this station's position is known,
+        `where`: distance and bearing from here). Stations are every
+        heard-list entry with a position, objects every live one with
+        coordinates, and this station itself (`kind` "me") first."""
+        here = self.own_position()
+        points: list[marks.Placemark] = []
+        if here is not None:
+            points.append(marks.Placemark(
+                self.active_identity(), here[0], here[1], marks.ME,
+                self.config.aprs.symbol, "", time.time()))
+        for entry in self.core.heard.entries():
+            if entry.last_position is None:
+                continue
+            lat, lon = entry.last_position
+            known = self.placemarks.stations.get(entry.callsign)
+            points.append(marks.Placemark(
+                entry.callsign, lat, lon, marks.STATION,
+                known.symbol if known else "", known.comment if known else "",
+                entry.last_heard))
+        points += self.placemarks.objects.values()
+        out = []
+        for point in points:
+            row = point.to_dict()
+            symbol = aprs_symbols.lookup(point.symbol[:1], point.symbol[1:2]) if point.symbol else None
+            row["symbol_name"] = symbol.description if symbol else ""
+            if here is not None and point.kind != marks.ME:
+                row["where"] = describe(here[0], here[1], point.lat, point.lon)
+            out.append(row)
+        return out
 
     def purge_stale_synthetic_messages(self) -> None:
         """Drop persisted lines no person typed, from builds before the

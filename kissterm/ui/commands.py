@@ -238,6 +238,9 @@ COMMANDS: tuple[Command, ...] = (
             "Close the conversation tab on screen. Delete does the same while "
             "the tab row has focus", key="ctrl+w", tabs=("aprs",),
             footer=("aprs",), priority=True, short="Close"),
+    Command("aprs_map", "Map", "APRS", "M",
+            "Heard stations and objects with a position, on an offline map",
+            tabs=("aprs",)),
     Command("aprs_is_watch", "Watch APRS-IS", "APRS", "W",
             "Watch APRS-IS for traffic to or from you (receive only)",
             tabs=("aprs",)),

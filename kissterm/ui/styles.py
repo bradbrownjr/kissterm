@@ -560,6 +560,17 @@ TransportEntryScreen { align: center middle; }
 #gateways-mode-label { width: 6; }
 #gateways-mode { width: 20; }
 #gateways-table { height: 1fr; }
+
+/* APRS > Map: the braille map over the list of what is on it. */
+#map-box {
+    width: 95%; height: 95%; padding: 0 2;
+    border: thick $primary; background: $surface;
+}
+#map-heading { height: 1; }
+#map-title { text-style: bold; color: $accent; width: auto; padding: 0 2 0 0; }
+#map-caption { color: $text-muted; width: 1fr; }
+#map-canvas { height: 1fr; min-height: 8; }
+#map-table { height: 9; }
 TranscriptsScreen { align: center middle; }
 #transcripts-box {
     width: 90%; height: 85%; padding: 1 2;

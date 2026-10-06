@@ -68,6 +68,7 @@ from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa
 from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config, ServeConfig  # noqa: E402
 from kissterm.core import Core  # noqa: E402
+from kissterm.geo.project import View  # noqa: E402
 from kissterm.client.ui.web import available as web_available  # noqa: E402
 from kissterm.serve.headless import HeadlessView  # noqa: E402
 from kissterm.serve.server import RemoteServer  # noqa: E402
@@ -102,8 +103,18 @@ NODE_HELP = (b"W1AWND:W1AW-7} BBS CHAT CONNECT INFO NODES PORTS ROUTES USERS MHE
 #: What the node was sent, so the script knows the session's line went out.
 NODE_ASKED: list[bytes] = []
 #: Stations heard, oldest first, as (callsign, what they sent).
-HEARD = [("W1MRA-1", b"W1MRA digi"), ("KB1QRP", b">On the air from FN43"),
-         ("W1AW-2", b"Mail for: N1ABC KC1XYZ"), ("KC1XYZ-9", b"!4348.50N/07026.20W>mobile")]
+HEARD = [("W1MRA-1", b"!4351.20N/07016.80W#W1MRA digi, Cumberland"),
+         ("KB1QRP", b">On the air from FN43"),
+         ("W1AW-2", b"Mail for: N1ABC KC1XYZ"),
+         ("K1QRP-7", b"!4337.60N/07019.10W[hiking the Eastern Prom"),
+         ("KC1XYZ-9", b"!4346.00N/07022.50W>mobile")]
+#: Where W1MRA-1's beacon puts it, for the tap on the map.
+W1MRA = (43 + 51.2 / 60, -(70 + 16.8 / 60))
+#: An object with coordinates, reported by KC1XYZ-9, for the map.
+OBJECT = b";SHELTER  *061830z4344.10N/07032.40WhShelter open, cots for 40"
+#: This station's own position (Windham, Maine), so the map shows
+#: distances and bearings.
+HERE = (43.80, -70.42)
 #: An APRS message to us, then the reply after ours.
 APRS_IN = b":N1ABC-1  :Are you on the net tonight?{01"
 APRS_REPLY = b":N1ABC-1  :Great, see you at 7{02"
@@ -136,6 +147,7 @@ async def start_station():
     node.on_incoming.append(answer)
 
     config = Config(mycall=str(MYCALL), serve=ServeConfig(listen="0.0.0.0", port=0))
+    config.aprs.latitude, config.aprs.longitude = HERE
     core = Core(config, station)
     server = RemoteServer(core, token=secrets.token_urlsafe(32), standalone=True)
     core.operator = server.operator
@@ -148,6 +160,7 @@ async def start_station():
     await server.start()
     for call, info in HEARD:
         await ui(tb, call, info, dest="ID")
+    await ui(tb, "KC1XYZ-9", OBJECT)
     return core, server, tb
 
 
@@ -347,6 +360,35 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(1500)
     await phone.frame()
 
+    # The APRS map, from Map beside Send position: the heard stations with
+    # a position, the shelter object, this station, over the offline
+    # outlines; then a tapped station's panel.
+    await phone.tap(phone.button("All messages"))
+    await phone.tap(phone.button("Map"))
+    await phone.shown("Zoom in")
+    await phone.page.wait_for_timeout(2500)
+    await phone.frame()
+    # The canvas starts under the bar and the map's own row, and fills the
+    # width down to the navigation bar. With semantics on, a click on the
+    # canvas is its accessible tap, delivered at its centre, while a drag
+    # still pans: so W1MRA-1 is dragged to the centre, then tapped.
+    top, bottom = 96, PHONE["height"] - 80
+    view = View.fit([(p["lat"], p["lon"]) for p in core.aprs.map_points()],
+                    PHONE["width"], bottom - top)
+    x, y = view.to_screen(*W1MRA)
+    centre = (PHONE["width"] / 2, top + (bottom - top) / 2)
+    mouse = phone.page.mouse
+    await mouse.move(x, top + y)
+    await mouse.down()
+    for step in range(1, 21):
+        await mouse.move(x + (centre[0] - x) * step / 20, top + y + (centre[1] - top - y) * step / 20)
+        await phone.page.wait_for_timeout(15)
+    await mouse.up()
+    await phone.page.wait_for_timeout(500)
+    await mouse.click(*centre)
+    await phone.shown("Close")  # the panel's; its text is selectable, not in the tree
+    await phone.frame()
+
     # BBS Mail: the folder with Write's pencil over Send/Receive, a Winlink
     # message in the reader with its actions, then Reply all, written and
     # not yet saved (nothing transmits until Send/Receive).
@@ -397,7 +439,8 @@ async def main() -> int:
             await browser.close()
         await shot("screenshot-phone-connect", phone.frames[:2])
         await shot("screenshot-phone", phone.frames[2:4])
-        await shot("screenshot-phone-mail", phone.frames[4:7])
+        await shot("screenshot-phone-map", phone.frames[4:6])
+        await shot("screenshot-phone-mail", phone.frames[6:9])
         await shot("screenshot-desktop", desktop.frames)
     finally:
         await server.stop()

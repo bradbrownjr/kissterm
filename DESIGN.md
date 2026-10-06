@@ -53,6 +53,13 @@ Rules:
   to the theme's `variables` dict, not to a rule.
 - **`$error`/`$warning`/`$success` mean state, not emphasis.** A red border
   must mean something is wrong, or red stops meaning anything.
+- **The map's legend is the one fixed palette** (APRS > Map, and the
+  phone's Map): water blue, roads amber and object pins red, the same on
+  both, as on any paper map. A theme's `$primary` may be purple, and
+  `$warning` or `$error` on a road would say something is wrong. Lines
+  are `$text` at three strengths (country, state, county), this
+  station is `$accent`, stations `$primary`, and the cursor's point is
+  reversed (`ui/map_screen.py` `LEGEND`).
 - **Two surfaces that should read as "the same chrome" must use the same
   token.** The status bar uses `$background` to match the tab bar, not `$panel`
   which the Header uses — they were visibly different shades before that was
@@ -262,6 +269,10 @@ is the enforcement.
    the phone), R replies, A replies to all (a Winlink message with other
    recipients only) and Q replies with the original quoted. None of them transmits; Files' S
    only opens the transfer dialog, which transmits on Start.
+   On the APRS map's list (F10 > APRS > Map) I zooms in, O out, F shows
+   everything and Enter centres the highlighted point; Tab moves to the
+   map itself, a widget rather than a list, so no letters there: the
+   arrows pan and PgUp and PgDn zoom.
 5. **The Footer shows only what works right now.** An action that does not
    apply on this tab, or in this state, is absent — not shown and then
    answered with a toast. `KissTermApp.check_action` is where that decision
@@ -756,6 +767,13 @@ and do not apply there; these do.
   labelled button in the toolbar.
 - **What the operator acts on comes first**: Stations opens on Contacts,
   Heard second.
+- **The map is a page of Messages** (Map beside Send position; operator,
+  2026-10-06), not a sixth place: drag pans, pinch and the wheel zoom,
+  with +, - and show-everything buttons stacked at the top right for a
+  hand without a second finger. A tap on a point opens a panel at the
+  bottom (what it reported, distance and bearing, last heard, comment,
+  Message for a station); nothing on it transmits. This station's name
+  is the one label never crowded out.
 - **The app's own icon**: a `>_` prompt and an antenna on the dark
   terminal panel (`scripts/generate_web_icons.py`), for the loading
   splash, the browser tab and the home screen, never Flet's.

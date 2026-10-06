@@ -412,6 +412,27 @@ correspondent, with acknowledgements shown; `Ctrl+G` opens your contacts
 and the directory of APRS gateway services, and `Ctrl+R` fills in a
 message to one (SMS, email, weather).
 
+**The map (F10 > APRS > Map).** Every station heard with a position
+(an APRS report, or a grid square in a node's text), every object and
+item received with coordinates, and your own station, on a map drawn in
+braille dots. The map ships with kissterm and needs no Internet:
+coastlines, country and state lines everywhere, and once zoomed in
+closer than about 6 degrees across, county lines, major and secondary
+highways, rivers, lakes and a more detailed coast (from Natural Earth).
+Below it is the list, nearest first, with the distance and bearing each
+station reports, when it was last heard, its comment, and who reported
+an object. Positions are what stations claim, which is why the list
+says "reported". The list has the keys: `I` zooms in, `O` zooms out,
+`F` shows everything, and `Enter` centres the highlighted point, which
+is marked on the map as the cursor moves. `Tab` moves to the map, where
+the arrows pan and `PgUp` and `PgDn` zoom; the mouse wheel zooms and a
+click centres. A killed object leaves the map at once. Objects are kept
+only while kissterm runs; stations come from the Heard list. Terminals
+without braille in their font (Settings, ASCII-safe mode) get dots instead.
+Nothing on the map transmits.
+
+![The APRS map: stations, an object and this station over county lines, roads, Sebago Lake and the coast, with the list beneath](../assets/screenshot-aprs-map.png)
+
 **Heard (F7):** who you have heard, when, how often, by what path, and
 whether directly or through a digipeater. Once kissterm knows where you
 are, it shows the bearing and distance to any station reporting a
@@ -660,6 +681,12 @@ own client.
     bubbles, with a new message limited to the 67 characters APRS
     carries. **Send position** above the conversations sends one
     position report (APRS > Send position in the terminal), after asking.
+    **Map** beside it shows the APRS map (APRS > Map in the terminal):
+    drag to pan, pinch or the mouse wheel to zoom, + and - and a button
+    to show everything again, and a tap on a point for what it reported,
+    how far and which way, when it was heard and its comment, with
+    **Message** to open a conversation with a station. It refreshes as
+    stations are heard.
   - **Terminal** (once called Sessions) is the terminal: one page per session, swiped or tapped
     across the top, and a line to type. A line goes only when you press
     Send. Connect is at the end of the session tabs; **Disconnect** sits
@@ -704,6 +731,8 @@ own client.
 ![A swipe asks before connecting, then the station's radio reminder: nothing transmits until Connect](../assets/screenshot-phone-connect.png)
 
 ![A node session with transmit on, and an APRS conversation](../assets/screenshot-phone.png)
+
+![The APRS map on the phone: stations, an object and this station over roads, county lines, a lake and the coast; then a tapped station's distance, bearing and comment](../assets/screenshot-phone-map.png)
 
 ![BBS Mail's Inbox with the Write pencil over Send/Receive, a Winlink message with Reply, Reply all, Reply with quote and Delete, then Reply all being written](../assets/screenshot-phone-mail.png)
 

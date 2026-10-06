@@ -442,9 +442,6 @@ closed by a coding session.
 - [ ] **Service directory currency** -- periodic manual re-check of each
   `kissterm/aprs_services/` entry against its `source` URL. No liveness
   probe, by design.
-- [ ] **Station list/map view** -- the remaining half of the original P4:
-  bearing and distance per heard station, from the existing decode
-  subscriber. Post-1.0.
 - **Out of scope:** igate and digipeater operation. A separate tool if ever.
 
 ## P6 — UX (post-1.0)

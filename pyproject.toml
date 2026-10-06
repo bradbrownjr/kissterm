@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kissterm"
-version = "0.1.442"
+version = "0.1.443"
 description = "A modern terminal UI for amateur radio packet -- AX.25 connected mode over KISS, with no Linux kernel AX.25 stack required"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -92,6 +92,9 @@ kissterm = "kissterm.__main__:main"
 # And for the ARRL numbered radiogram texts the radiogram form offers.
 "kissterm.mail" = ["data/*.json", "data/forms/*.toml"]
 # The web client's terminal font (0xProto, SIL OFL 1.1, licence beside it).
+# The offline map's outlines (Natural Earth, public domain;
+# scripts/build_basemap.py). Without them the map is dots on a blank page.
+"kissterm.geo" = ["data/*.json.gz"]
 "kissterm.client.ui" = ["assets/fonts/*.ttf", "assets/fonts/*.txt", "assets/icons/*.png", "assets/favicon.png"]
 
 [tool.setuptools.packages.find]

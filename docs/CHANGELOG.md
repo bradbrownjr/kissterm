@@ -5,6 +5,39 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — The APRS map, offline, on the phone and in the terminal
+
+### New Features
+
+- **A map of what was heard with a position**: stations (an APRS
+  report or a grid square), objects and items with coordinates, and this
+  station, with each one's reported distance and bearing, when it was
+  heard and its comment. A killed object leaves the map. On the phone,
+  **Map** beside Send position (drag, pinch, tap a point; Message opens
+  a conversation); in the terminal, F10 > APRS > Map, drawn in braille
+  dots over a nearest-first list (I, O, F, Enter; arrows and PgUp/PgDn
+  on the map).
+- **The map ships with kissterm** (Natural Earth, public domain, 1.8 MB):
+  coast, country and state lines everywhere; zoomed in, US counties,
+  main roads and highways, rivers, lakes and a detailed coast. No
+  Internet needed. `map_points` on the protocol, from `Aprs.map_points`.
+
+### Improvements
+
+- `kissterm/geo.py` (bearing and distance) is now the `kissterm.geo`
+  package's `distance` module; its imports are unchanged.
+
+**Files:** `kissterm/geo/`, `scripts/build_basemap.py`,
+`kissterm/core/aprs.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/aprs_map.py`, `kissterm/client/ui/messages.py`,
+`kissterm/ui/map_screen.py`, `kissterm/ui/app.py`,
+`kissterm/ui/commands.py`, `kissterm/ui/styles.py`, `pyproject.toml`,
+`scripts/generate_screenshot.py`, `scripts/generate_phone_screenshots.py`,
+`assets/`, `DESIGN.md`, `AGENTS.md`, `docs/GUIDE.md`, `docs/PROTOCOL.md`,
+`docs/ROADMAP.md`, `docs/SOURCES.md`, `docs/ON-AIR-TESTS.md`,
+`tests/unit/test_map.py`, `tests/unit/test_client_ui.py`,
+`tests/pilot/test_aprs_map.py`
+
 ## [2026-10-06] — Phone: Mail first, Sessions is Terminal
 
 ### Improvements

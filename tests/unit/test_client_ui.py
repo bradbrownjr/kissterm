@@ -966,3 +966,65 @@ def test_mail_and_messages_reload_only_while_in_front():
     app.index = MESSAGES
     messages.on_state("stale", "aprs")
     assert app.page.tasks == [mail.reload, messages.reload]
+
+
+# ----------------------------------------------------------------------
+# The APRS map (operator, 2026-10-06)
+# ----------------------------------------------------------------------
+
+MAP_POINTS = [
+    {"name": "N1ABC-1", "lat": 43.5354, "lon": -70.7153, "kind": "me", "symbol": "/-",
+     "symbol_name": "House", "comment": "", "when": 0, "by": ""},
+    {"name": "W1AW-9", "lat": 43.6591, "lon": -70.2568, "kind": "station", "symbol": "/>",
+     "symbol_name": "Car", "comment": "QRV 147.09", "when": 1000.0, "by": "",
+     "where": "24.5 mi 70\N{DEGREE SIGN} ENE"},
+    {"name": "SHELTER", "lat": 43.58, "lon": -70.6, "kind": "object", "symbol": "/h",
+     "symbol_name": "Hospital", "comment": "Red Cross", "when": 1000.0, "by": "W1AW-9"},
+]
+
+
+@pytest.mark.asyncio
+async def test_map_opens_beside_send_position_and_never_transmits():
+    from kissterm.client.ui.aprs_map import MapPage
+    from kissterm.client.ui.messages import MessagesView
+
+    app = MailApp({"map_points": MAP_POINTS})
+    messages = MessagesView(app)
+    await messages.reload()
+    buttons = [c.content for c in messages.list.controls[0].content.controls]
+    assert buttons == ["Send position", "Map"]
+    open_map = messages.list.controls[0].content.controls[1]
+    await open_map.on_click(None)
+    assert isinstance(messages.map, MapPage)
+    assert messages.fab() is None
+    assert [name for name, _ in app.commands] == ["aprs_conversations", "map_points"]
+    assert messages.map.counts.value == "1 station, 1 object"
+    # New traffic redraws it, while in front, at most every few seconds.
+    from kissterm.client.ui.shell import MESSAGES
+
+    app.index = MESSAGES
+    messages.on_state("stale", "heard")
+    messages.on_state("stale", "heard")
+    assert len(app.page.tasks) == 1
+    await messages._back(None)
+    assert messages.map is None
+
+
+def test_the_map_draws_outlines_points_and_finds_a_tap():
+    from kissterm.client.ui.aprs_map import details, nearest, shapes
+    from kissterm.geo.project import View
+
+    view = View.fit([(p["lat"], p["lon"]) for p in MAP_POINTS], 400, 600)
+    drawn = shapes(view, MAP_POINTS, selected="W1AW-9")
+    paths = [s for s in drawn if isinstance(s, ft.canvas.Path)]
+    assert paths, "no outlines around Portland, Maine"
+    labels = [s.value for s in drawn if isinstance(s, ft.canvas.Text)]
+    assert {"N1ABC-1", "W1AW-9", "SHELTER"} <= set(labels)
+    assert any(label.endswith(" mi") for label in labels), "no scale bar"
+    x, y = view.to_screen(43.6591, -70.2568)
+    assert nearest(view, MAP_POINTS, x + 5, y - 5)["name"] == "W1AW-9"
+    assert nearest(view, MAP_POINTS, 2, 2) is None
+    station = details(MAP_POINTS[1], now=1000.0 + 600)
+    assert station == ["Station, Car", "Reported 24.5 mi 70\N{DEGREE SIGN} ENE from here",
+                       "Last heard 10 min ago", "QRV 147.09"]
+    assert "Reported by W1AW-9" in details(MAP_POINTS[2], now=1000.0)

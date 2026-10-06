@@ -5,6 +5,8 @@ The remote client (ROADMAP P7a M8): the other end of `docs/PROTOCOL.md`.
 1. **Talks only the protocol.** Never import `kissterm.core`, `ui`,
    `serve`, `transport` or `ax25` (`tests/unit/test_client.py`): it runs
    on a phone with no station in it, and has no path around the gate.
+   `kissterm.geo` is allowed: the map's outlines and arithmetic, with
+   no station in them (`tests/unit/test_map.py` keeps it that way).
 2. **`connection.py` and `state.py` have no UI** and are tested against a
    real server on a loopback station. Widgets read `StationState`; they
    never hold station state of their own.

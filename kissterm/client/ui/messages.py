@@ -3,7 +3,9 @@ correspondents, newest first, with an unread dot; a thread of bubbles,
 mine on the right with a tick once acknowledged.
 
 **Send position** sits above the conversations (the terminal's P on
-its APRS tab), asking first like every transmission.
+its APRS tab), asking first like every transmission; **Map** beside it
+opens the map of what was heard with a position (`aprs_map.py`, the
+terminal's APRS > Map).
 
 **Send is the commitment** (the station arms the gate for it, as the
 terminal's Send does: `Aprs.compose`); opening, scrolling or swiping a
@@ -54,6 +56,8 @@ class MessagesView:
     def __init__(self, app) -> None:
         self.app = app
         self.thread_of: str | None = None
+        #: The map page while it is open (`aprs_map.MapPage`).
+        self.map = None
         self.list = ft.ListView(expand=True)
         self.thread = ft.ListView(expand=True, auto_scroll=True, padding=ft.Padding.all(8))
         self.compose = ft.TextField(expand=True, hint_text="Message", dense=True,
@@ -61,19 +65,24 @@ class MessagesView:
         #: APRS > Send position, the terminal's P on its APRS tab.
         self.toolbar = ft.Container(
             padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-            content=ft.Row(controls=[ft.OutlinedButton(
-                content="Send position", icon=ft.Icons.MY_LOCATION,
-                on_click=self._send_position)]))
+            content=ft.Row(controls=[
+                ft.OutlinedButton(content="Send position", icon=ft.Icons.MY_LOCATION,
+                                  on_click=self._send_position),
+                ft.OutlinedButton(content="Map", icon=ft.Icons.MAP_OUTLINED,
+                                  on_click=self._open_map)]))
         self.control = ft.Container(expand=True)
         self._show_list()
 
     def fab(self):
-        if self.thread_of is not None:
+        if self.thread_of is not None or self.map is not None:
             return None
         return ft.FloatingActionButton(icon=ft.Icons.EDIT, tooltip="New message",
                                        on_click=self._new, mini=True)
 
     async def shown(self) -> None:
+        if self.map is not None:
+            await self.map.reload()
+            return
         await self.reload()
 
     def on_state(self, kind: str, data) -> None:
@@ -84,6 +93,11 @@ class MessagesView:
 
             if self.app.index == MESSAGES:
                 self.app.page.run_task(self.reload)
+        elif kind == "stale" and data == "heard" and self.map is not None:
+            from .shell import MESSAGES
+
+            if self.app.index == MESSAGES:
+                self.map.stale()
 
     async def reload(self) -> None:
         convos = await self.app.command("aprs_conversations") or []
@@ -110,7 +124,17 @@ class MessagesView:
             await self.open(callsign)
         return handler
 
+    async def _open_map(self, _e) -> None:
+        from .aprs_map import MapPage
+
+        self.map = MapPage(self)
+        self.control.content = self.map.control()
+        self.app.page.floating_action_button = None
+        self.app.page.update()
+        await self.map.reload()
+
     async def open(self, callsign: str) -> None:
+        self.map = None
         self.thread_of = callsign
         self.app.state.unread_aprs.discard(callsign)
         await self._load_thread()
@@ -136,6 +160,7 @@ class MessagesView:
 
     def _show_list(self) -> None:
         self.thread_of = None
+        self.map = None
         self.control.content = self.list
 
     async def _send(self, _e) -> None:

@@ -503,6 +503,11 @@ class RemoteServer:
     async def cmd_heard(self) -> list:
         return wire.jsonable(self.core.heard.entries())
 
+    async def cmd_map_points(self) -> list:
+        """What the APRS map shows (`Aprs.map_points`): this station,
+        heard stations with a position, live objects and items."""
+        return self.core.aprs.map_points()
+
     async def cmd_aprs_conversations(self) -> list:
         """Every APRS conversation, most recent first, with its last line."""
         convos = sorted(self.core.aprs.conversations.conversations.values(),

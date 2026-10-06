@@ -102,6 +102,7 @@ Before this audit `jnos.toml` listed JNOS *console* commands from memory
 | TNC2 command mode | The long-standing TAPR TNC2 command set as cloned by Kantronics, MFJ, PacComm, Timewave | Mostly recalled; no source document cited yet |
 | APRS services (`aprs_services/data/`) | Each file cites its service's own page | See each file |
 | Raspberry Pi UARTs (SETUP.md section 2) | Raspberry Pi [Configuration > Configure UARTs](https://www.raspberrypi.com/documentation/computers/configuration.html): which UART `/dev/serial0` names per model, `disable-bt`/`miniuart-bt`, `hciuart`, raspi-config's Serial Port; read 2026-10-06 | Documented; not yet tried with a HAT |
+| The offline map (`geo/data/`, `scripts/build_basemap.py`) | [Natural Earth](https://www.naturalearthdata.com/) vector data, public domain, the GeoJSON in [nvkelso/natural-earth-vector](https://github.com/nvkelso/natural-earth-vector) `geojson/`: 1:50m coastline, country and state lines, lakes (scalerank 2 or less); 1:10m coastline, US counties, roads (Major and Secondary Highway, Beltway, Bypass), rivers, lakes; fetched 2026-10-06 | Source; simplified (Douglas-Peucker), so a shore is within a few hundred metres zoomed in |
 | Midnight Commander theme (`ui/themes.py`) | [mc](https://github.com/MidnightCommander/mc) `misc/skins/default.ini` and `lib/tty/color-internal.c` (colour names to ANSI numbers), commit 23a260a; Linux `drivers/tty/vt/vt.c` `default_red/grn/blu` for the colours; read 2026-10-02 | Source |
 
 ## Captures

@@ -376,6 +376,26 @@ async def main() -> int:
         app.action_show_tab("heard")
         await _pause(pilot)
         await shot("screenshot-heard")
+        # 8b. APRS > Map: stations and an object with a position, around
+        # this station, on the braille map.
+        for src, info in (
+            ("W1MRA-1", b"!4351.20N/07016.80W#W1MRA digi, Cumberland"),
+            ("K1QRP-7", b"!4337.60N/07019.10W[hiking the Eastern Prom"),
+            ("KC1XYZ-9", b";SHELTER  *061830z4344.10N/07032.40WhShelter open, cots for 40"),
+        ):
+            frame = _frame(src, "APRS", (), info)
+            app.heard.record(frame, 0)
+            await app.core.aprs.on_frame(frame)
+        from kissterm.ui.map_screen import MapScreen
+
+        app.action_aprs_map()
+        await _pause(pilot, 0.3)
+        app.screen.query_one("#map-table").move_cursor(row=1)
+        await _pause(pilot, 0.3)
+        assert isinstance(app.screen, MapScreen)
+        await shot("screenshot-aprs-map")
+        app.pop_screen()
+        await _pause(pilot)
         app.action_show_tab("monitor")
         await _pause(pilot)
         await shot("screenshot-monitor")

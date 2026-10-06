@@ -90,7 +90,9 @@ one-line meaning as you type. Nothing is sent until you press Enter.
 
 **APRS (F6).** Messages with other stations, with delivery
 acknowledgements, and a directory of APRS gateway services: SMS, email,
-weather and more.
+weather and more. A map of the stations and objects heard with a
+position, with roads, county lines and water, that needs no Internet
+(F10 > APRS > Map; Map on the phone).
 
 ![An APRS conversation beside the contacts and gateway list](assets/screenshot-aprs.png)
 
