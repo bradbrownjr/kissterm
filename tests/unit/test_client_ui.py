@@ -23,6 +23,7 @@ from kissterm.client.state import Chunk, Question, Session, StationState  # noqa
 from kissterm.client.ui import sheets  # noqa: E402
 from kissterm.client.ui.questions import QuestionSheets  # noqa: E402
 from kissterm.client.ui.sessions import Terminal, line_control  # noqa: E402
+from kissterm.client.ui.shell import STATIONS, TERMINAL  # noqa: E402
 from kissterm.client.ui.stations import LEFT, RIGHT, StationsView  # noqa: E402
 from kissterm.client.ui.text import (  # noqa: E402
     FONTS, MONO_BOLD, OUTGOING, TEXT_COLOURS, Look, runs, split_lines, style_props)
@@ -210,7 +211,7 @@ class FakeApp:
         self.conn = FakeConn()
         self.state = StationState()
         self.commands: list = []
-        self.index = 3
+        self.index = STATIONS
         self.follow_next_session = False
         self.look = Look()
 
@@ -226,7 +227,7 @@ class FakeApp:
 
     def start_connect(self, **args) -> None:
         self.follow_next_session = True
-        self.go(0)
+        self.go(TERMINAL)
         self.commands.append(("connect", args))
 
     def section_changed(self) -> None:
@@ -297,7 +298,7 @@ async def test_only_the_sheets_own_button_connects():
     await _button(app.page.dialogs[-1], "Connect").on_click(None)
     assert app.commands == [("connect", {"target": "W1AW"})]
     assert app.follow_next_session, "the new session should come to the front"
-    assert app.index == 0, "Sessions comes to the front before the link is up"
+    assert app.index == TERMINAL, "Terminal comes to the front before the link is up"
 
 
 
@@ -692,14 +693,14 @@ def test_a_date_reads_as_the_terminal_shows_it():
 
 def test_reconnect_shows_where_disconnect_was_once_the_session_drops():
     from kissterm.client.state import Session
-    from kissterm.client.ui.shell import session_chips
+    from kissterm.client.ui.shell import MAIL, TERMINAL, session_chips
 
-    assert session_chips(0, Session("W1AW-7", connected=True)) == (True, False)
-    assert session_chips(0, Session("W1AW-7")) == (False, True)
-    assert session_chips(0, Session("W1AW-7", connecting=True)) == (False, False), \
+    assert session_chips(TERMINAL, Session("W1AW-7", connected=True)) == (True, False)
+    assert session_chips(TERMINAL, Session("W1AW-7")) == (False, True)
+    assert session_chips(TERMINAL, Session("W1AW-7", connecting=True)) == (False, False), \
         "a connect under way has Cancel on its hourglass"
-    assert session_chips(2, Session("W1AW-7")) == (False, False)
-    assert session_chips(0, None) == (False, False)
+    assert session_chips(MAIL, Session("W1AW-7")) == (False, False)
+    assert session_chips(TERMINAL, None) == (False, False)
 
 
 @pytest.mark.asyncio
@@ -786,12 +787,15 @@ async def test_the_phone_switches_between_mail_bulletins_and_files():
 
 def test_a_wide_screen_has_a_rail_place_per_section_and_no_switch():
     from kissterm.client.ui.mail import MailView
-    from kissterm.client.ui.shell import DESTINATIONS, RAIL, rail_index
+    from kissterm.client.ui.shell import DESTINATIONS, MAIL, RAIL, STATIONS, rail_index
 
-    assert [r[0] for r in RAIL] == ["Sessions", "Messages", "Mail", "Bulletins", "Files",
+    # Operator, 2026-10-06: "Mail, Messages, Terminal (renamed from
+    # Sessions), Stations".
+    assert [r[0] for r in RAIL] == ["Mail", "Bulletins", "Files", "Messages", "Terminal",
                                     "Stations", "More"]
+    assert [d[0] for d in DESTINATIONS] == ["Mail", "Messages", "Terminal", "Stations", "More"]
     assert len(DESTINATIONS) == 5, "the phone's bar stays at five"
-    assert rail_index(2, "Files") == 4 and rail_index(3, "Mail") == 5
+    assert rail_index(MAIL, "Files") == 2 and rail_index(STATIONS, "Mail") == 5
     app = FakeApp()
     app.wide = True
     view = MailView(app)
@@ -925,3 +929,40 @@ async def test_saving_a_radiogram_shows_problems_or_files_it():
     app.answers["radiogram_write"] = {"problems": [], "folder": "Mail/BBS/Outbox"}
     await form.save(None)
     assert "Radiogram saved" in app.page.dialogs[-1].content.value
+
+
+def test_the_place_in_front_loads_once_the_station_is_connected():
+    # Opening on Mail asked for its folders before the connection was up,
+    # and the page showed "Not connected to the station." (2026-10-06).
+    from kissterm.client.ui.shell import MAIL, ClientApp
+
+    conn = FakeConn()
+    conn.status = "connecting"
+    page = FakePage()
+    page.appbar = ft.AppBar()
+    app = ClientApp(page, conn, StationState())
+    app.go(MAIL)
+    assert page.tasks == [], "asked the station before it was connected"
+    conn.status = "connected"
+    app.on_status("connected")
+    assert page.tasks == [app.views[MAIL].shown]
+
+
+def test_mail_and_messages_reload_only_while_in_front():
+    # A list rebuilt off screen came back with a row drawn twice (Flet
+    # 1.0.3, reproduced 2026-10-06); `shown` reloads it on the way back.
+    from kissterm.client.ui.mail import MailView
+    from kissterm.client.ui.messages import MessagesView
+    from kissterm.client.ui.shell import MAIL, MESSAGES
+
+    app = FakeApp()
+    mail, messages = MailView(app), MessagesView(app)
+    app.index = STATIONS
+    mail.on_state("stale", "mail")
+    messages.on_state("stale", "aprs")
+    assert app.page.tasks == []
+    app.index = MAIL
+    mail.on_state("stale", "mail")
+    app.index = MESSAGES
+    messages.on_state("stale", "aprs")
+    assert app.page.tasks == [mail.reload, messages.reload]

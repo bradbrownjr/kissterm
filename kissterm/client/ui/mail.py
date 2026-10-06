@@ -195,6 +195,8 @@ class MailView:
         self.categories_button = ft.FilledTonalButton(
             content="Categories", icon=ft.Icons.CHECKLIST, on_click=self._categories)
         self._writing: dict | None = None
+        self._reloading = False
+        self._reload_again = False
         self.list = ft.ListView(expand=True)
         self.reader: ft.Control | None = None
         self.control = ft.Container(expand=True)
@@ -223,7 +225,13 @@ class MailView:
 
     def on_state(self, kind: str, data) -> None:
         if kind == "stale" and data == "mail":
-            self.app.page.run_task(self.reload)
+            # Only while in front; `shown` reloads when it comes back. Under
+            # Flet 1.0.3 a list rebuilt off screen was drawn with a row
+            # twice once it came back (reproduced 2026-10-06).
+            from .shell import MAIL
+
+            if self.app.index == MAIL:
+                self.app.page.run_task(self.reload)
         elif kind == "activity" and self.reader is None and self._writing is None:
             self._show_list()
         elif kind in ("mail_running", "station"):  # "station": a (re)join mid-run
@@ -271,6 +279,24 @@ class MailView:
                 self.list]), self.write_button])
 
     async def reload(self) -> None:
+        """Load the folder list and the folder shown. One at a time: the
+        connection coming up, a mail change and a tap can all ask at once,
+        and overlapping rebuilds of the keyed rows drew a message twice
+        (2026-10-06). A request during a load runs once more after it."""
+        if self._reloading:
+            self._reload_again = True
+            return
+        self._reloading = True
+        try:
+            while True:
+                self._reload_again = False
+                await self._reload_once()
+                if not self._reload_again:
+                    break
+        finally:
+            self._reloading = False
+
+    async def _reload_once(self) -> None:
         folders = section_folders(await self.app.command("mail_folders") or [], self.section)
         if not in_section(self.folder, self.section) or (folders and self.folder not in folders):
             self.folder = default_folder(folders, self.section)

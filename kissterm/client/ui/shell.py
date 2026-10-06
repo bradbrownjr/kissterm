@@ -13,12 +13,12 @@ it on asks first and buzzes the phone; turning it off never asks
 (stopping is always safe). It sends the protocol's `transmit` command:
 the station reports it on every screen.
 
-**Disconnect sits beside it** (`disconnect_chip`), on Sessions while the
+**Disconnect sits beside it** (`disconnect_chip`), on Terminal while the
 session shown is connected, and **Reconnect** in its place once that
 session has dropped (`reconnect_chip`, Ctrl+R in the terminal): the row that used to repeat the session's
 name above the terminal is gone, and its height is the terminal's.
 
-**A connect runs in the background** (`start_connect`): Sessions comes to
+**A connect runs in the background** (`start_connect`): Terminal comes to
 the front at once and the session shows its hourglass there, never a
 screen waiting on the station's answer.
 
@@ -71,12 +71,15 @@ WIDE = 720
 #: too short to say it (Mail's comes from its section: `MailView.title`).
 TITLES = {"Messages": "APRS messages", "Mail": "BBS Mail"}
 
-MAIL = 2
+#: The places, in the bar's order (operator, 2026-10-06: "Mail, Messages,
+#: Terminal (renamed from Sessions), Stations"; More stays last). The app
+#: opens on the first. Code names a place by these, never by a number.
+MAIL, MESSAGES, TERMINAL, STATIONS, MORE = range(5)
 
 DESTINATIONS = (
-    ("Sessions", ft.Icons.TERMINAL_OUTLINED, ft.Icons.TERMINAL),
-    ("Messages", ft.Icons.CHAT_BUBBLE_OUTLINE, ft.Icons.CHAT_BUBBLE),
     ("Mail", ft.Icons.MAIL_OUTLINE, ft.Icons.MAIL),
+    ("Messages", ft.Icons.CHAT_BUBBLE_OUTLINE, ft.Icons.CHAT_BUBBLE),
+    ("Terminal", ft.Icons.TERMINAL_OUTLINED, ft.Icons.TERMINAL),
     ("Stations", ft.Icons.CELL_TOWER_OUTLINED, ft.Icons.CELL_TOWER),
     ("More", ft.Icons.MORE_HORIZ, ft.Icons.MORE_HORIZ),
 )
@@ -98,11 +101,11 @@ def rail_index(view: int, section: str) -> int:
 
 
 def session_chips(index: int, session) -> tuple[bool, bool]:
-    """(Disconnect, Reconnect) beside the transmit switch: on Sessions
+    """(Disconnect, Reconnect) beside the transmit switch: on Terminal
     only, Disconnect while the session shown is connected, Reconnect once
     it has dropped (never while it is still connecting: Cancel is on its
     hourglass)."""
-    if index != 0 or session is None or not session.key:
+    if index != TERMINAL or session is None or not session.key:
         return False, False
     return bool(session.connected), not session.connected and not session.connecting
 
@@ -113,9 +116,9 @@ class ClientApp:
         self.page = page
         self.conn = conn
         self.state = state
-        self.index = 0
+        self.index = MAIL
         #: Set by a connect asked here (`start_connect`): the session it opens
-        #: is selected in Sessions. A session another screen opened never
+        #: is selected in Terminal. A session another screen opened never
         #: moves this one.
         self.follow_next_session = False
         self.look = Look()
@@ -135,8 +138,10 @@ class ClientApp:
             padding=ft.Padding.symmetric(horizontal=12, vertical=6),
             content=ft.Row(tight=True, spacing=6, controls=[
                 ft.Icon(ft.Icons.REFRESH, size=18), ft.Text("Reconnect")]))
-        self.views = [SessionsView(self), MessagesView(self), MailView(self),
-                      StationsView(self), MoreView(self)]
+        views = {MAIL: MailView(self), MESSAGES: MessagesView(self),
+                 TERMINAL: SessionsView(self), STATIONS: StationsView(self),
+                 MORE: MoreView(self)}
+        self.views = [views[i] for i in range(len(DESTINATIONS))]
         #: The connection's state, a strip above everything while it is
         #: not "connected" (never a dialog: it must not cover a question).
         self.status = ft.Container(visible=False, bgcolor=ft.Colors.TERTIARY_CONTAINER,
@@ -169,7 +174,7 @@ class ClientApp:
         page.run_task(self.load_look)
         page.add(ft.SafeArea(expand=True, content=ft.Column(
             expand=True, spacing=0, controls=[self.status, self.layout])))
-        self.go(0)
+        self.go(MAIL)
 
     async def load_look(self) -> None:
         try:
@@ -194,8 +199,8 @@ class ClientApp:
         if look == self.look:
             return
         self.look = look
-        self.views[0].restyle()
-        self.views[4].look_changed()
+        self.views[TERMINAL].restyle()
+        self.views[MORE].look_changed()
         self.page.update()
 
     @property
@@ -236,8 +241,15 @@ class ClientApp:
         self.page.floating_action_button = view.fab()
         self.page.appbar.title = ft.Text(self._title())
         self.paint_actions()
-        self.page.run_task(view.shown)
+        if self.connected:
+            # Otherwise it loads when the connection comes up (`on_status`):
+            # asked before then, the station's answer is "Not connected".
+            self.page.run_task(view.shown)
         self.page.update()
+
+    @property
+    def connected(self) -> bool:
+        return getattr(self.conn, "status", "connected") == "connected"
 
     def _title(self) -> str:
         if self.index == MAIL:
@@ -252,25 +264,25 @@ class ClientApp:
         self.page.floating_action_button = self.views[self.index].fab()
 
     def paint_actions(self) -> None:
-        """Disconnect beside the transmit switch while Sessions shows a
+        """Disconnect beside the transmit switch while Terminal shows a
         connected session."""
         views = getattr(self, "views", None)  # None while they are built
-        session = views[0].current_session if views else None
+        session = views[TERMINAL].current_session if views else None
         self.disconnect_chip.visible, self.reconnect_chip.visible = session_chips(
             self.index, session)
 
     async def _disconnect_clicked(self, _e) -> None:
-        await self.views[0].disconnect()
+        await self.views[TERMINAL].disconnect()
 
     async def _reconnect_clicked(self, _e) -> None:
-        await self.views[0].reconnect()
+        await self.views[TERMINAL].reconnect()
 
     def start_connect(self, **args) -> None:
-        """Ask the station to connect, without waiting on it here: Sessions
+        """Ask the station to connect, without waiting on it here: Terminal
         comes to the front now, and the new session follows (module
         docstring)."""
         self.follow_next_session = True
-        self.go(0)
+        self.go(TERMINAL)
 
         async def run() -> None:
             await self.command("connect", **args)
@@ -330,6 +342,10 @@ class ClientApp:
         }.get(status, status)
         self.status.content = ft.Text(text)
         self.status.visible = bool(text)
+        if status == "connected":
+            # First connect or back after a drop: the place in front loads
+            # (again) from the station.
+            self.page.run_task(self.views[self.index].shown)
         self.page.update()
 
     def _on_state(self, kind: str, data) -> None:

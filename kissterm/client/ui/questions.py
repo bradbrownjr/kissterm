@@ -66,7 +66,9 @@ class QuestionSheets:
                 self.app.page.update()
             await self.app.conn.answer(qid, value)
             if value == GO:
-                self.app.go(4)
+                from .shell import MORE
+
+                self.app.go(MORE)
         return handler
 
     def _buttons(self, question, go_label: str, value_of, *, cancel: str = "Cancel",

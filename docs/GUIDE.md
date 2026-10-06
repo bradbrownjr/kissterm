@@ -605,9 +605,10 @@ own client.
   request sends nothing.
 - **The remote control** (needs the `web` extra on the station, SETUP.md
   section 11) is laid out for a phone: five places along the bottom
-  (Sessions, Messages, Mail, Stations, More), or down the side on a wide
-  screen (where Mail's Bulletins and Files get a place each), and the transmit switch always in the top corner, red with
-  "TX ON" while transmit is on. Tapping it while on turns transmit off at
+  (Mail, Messages, Terminal, Stations, More; it opens on Mail), or down
+  the side on a wide screen (where Mail's Bulletins and Files get a
+  place each), and the transmit switch always in the top corner, red
+  with "TX ON" while transmit is on. Tapping it while on turns transmit off at
   once; turning it on asks first. In a browser's menu, "Add to Home
   screen" or "Install app" keeps it as an app. The link's key is kept by
   that browser and taken out of the address bar, so a screenshot of the
@@ -617,21 +618,6 @@ own client.
   where things stand, so a moment's blank screen there is expected. If
   the browser is slow to hand back the kept key, the page says so with
   **Try again** (and tries again itself when it comes to the front).
-  - **Sessions** is the terminal: one page per session, swiped or tapped
-    across the top, and a line to type. A line goes only when you press
-    Send. Connect is at the end of the session tabs; **Disconnect** sits
-    beside the transmit switch while the session shown is connected.
-    Both ask first. Once a session has dropped, **Reconnect** takes
-    Disconnect's place (Ctrl+R in the terminal): after asking, the
-    station dials it again the same way, route, port and login.
-    A connect brings Sessions to the front at once: while
-    the station is calling, an hourglass shows over the session with
-    **Cancel**, which stops the attempt without asking (it only stops
-    transmitting).
-  - **Messages** (titled APRS messages) is APRS as conversations, in
-    bubbles, with a new message limited to the 67 characters APRS
-    carries. **Send position** above the conversations sends one
-    position report (APRS > Send position in the terminal), after asking.
   - **Mail** has three sections, as the terminal has three tabs: **Mail**
     (titled BBS Mail), **Bulletins** and **Files**, switched at the top of
     the page (on a wide screen, each is its own place at the side). The
@@ -670,6 +656,21 @@ own client.
     the `ST <zip> @ NTS<state>` routing and the title follow every change.
     Save to Outbox files it; Send/Receive sends it. Winlink forms are
     written at the terminal for now.
+  - **Messages** (titled APRS messages) is APRS as conversations, in
+    bubbles, with a new message limited to the 67 characters APRS
+    carries. **Send position** above the conversations sends one
+    position report (APRS > Send position in the terminal), after asking.
+  - **Terminal** (once called Sessions) is the terminal: one page per session, swiped or tapped
+    across the top, and a line to type. A line goes only when you press
+    Send. Connect is at the end of the session tabs; **Disconnect** sits
+    beside the transmit switch while the session shown is connected.
+    Both ask first. Once a session has dropped, **Reconnect** takes
+    Disconnect's place (Ctrl+R in the terminal): after asking, the
+    station dials it again the same way, route, port and login.
+    A connect brings Terminal to the front at once: while
+    the station is calling, an hourglass shows over the session with
+    **Cancel**, which stops the attempt without asking (it only stops
+    transmitting).
   - **Stations** has Contacts and Heard, swiped between. **A swipe never
     transmits**: swiping a station right asks "Connect to ...?", swiping
     it left opens its contact, and nothing happens until that sheet's

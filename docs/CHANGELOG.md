@@ -5,6 +5,29 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Phone: Mail first, Sessions is Terminal
+
+### Improvements
+
+- **The places are Mail, Messages, Terminal, Stations, More**, and the
+  app opens on Mail; Sessions is renamed Terminal. Code names the
+  places (`shell.MAIL` ...) rather than numbering them.
+
+### Fixes
+
+- **No "Not connected to the station." at start**: the place in front
+  loads once the connection is up, and again after a reconnect.
+- **A message no longer shows twice** after mail arrived while another
+  place was in front: Mail and Messages reload only while in front
+  (a list rebuilt off screen was drawn with a duplicate row, Flet 1.0.3).
+
+**Files:** `kissterm/client/ui/shell.py`, `kissterm/client/ui/mail.py`,
+`kissterm/client/ui/messages.py`, `kissterm/client/ui/sessions.py`,
+`kissterm/client/ui/questions.py`, `kissterm/client/ui/stations.py`,
+`scripts/generate_phone_screenshots.py`, `assets/screenshot-phone*.png`,
+`assets/screenshot-desktop.png`, `DESIGN.md`, `docs/GUIDE.md`,
+`tests/unit/test_client_ui.py`
+
 ## [2026-10-06] — kissterm --serve stops on Esc or Ctrl+Q
 
 ### Improvements

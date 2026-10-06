@@ -693,7 +693,9 @@ and do not apply there; these do.
   "TX OFF", filled red "TX ON". Turning it off never asks; turning it on
   does, with a heavy haptic. Same rule as the terminal: the gate is never
   silent.
-- **Five places**: Sessions, Messages, Mail, Stations, More. A bottom
+- **Five places**, in this order: Mail, Messages, Terminal (once
+  Sessions), Stations, More (operator, 2026-10-06); the app opens on
+  the first. Code names them (`shell.MAIL` ...), never by number. A bottom
   NavigationBar below 720 px wide, a NavigationRail from 720 up. The one
   difference: Mail's sections (Mail, Bulletins, Files, the terminal's
   three tabs) are a switch at the top of the Mail page on the phone and
@@ -721,10 +723,10 @@ and do not apply there; these do.
   icon for its state (linked, unlinked, hourglass) and ends in Connect,
   never a floating button, which would sit on Send where the thumb
   already is. **Disconnect is a chip beside the transmit switch**, on
-  Sessions while the session shown is connected, and **Reconnect** takes
+  Terminal while the session shown is connected, and **Reconnect** takes
   its place once that session has dropped (not while it is still
   connecting: Cancel is on its hourglass).
-- **A connect shows at once.** Sessions comes to the front as soon as it
+- **A connect shows at once.** Terminal comes to the front as soon as it
   is asked for, and while the station is dialling, an hourglass lies
   over that session with Cancel. Cancel needs no confirming: it only
   stops transmitting. Nothing waits on the station's answer with the

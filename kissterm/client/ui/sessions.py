@@ -1,5 +1,5 @@
-"""Sessions: the terminal, on a phone. One swipeable page per session (a
-node, a BBS), the text as the station filtered it, and a line to type.
+"""Terminal (once called Sessions): the terminal, on a phone. One
+swipeable page per session (a node, a BBS), the text as the station filtered it, and a line to type.
 
 **Typing sends only on Send** (the keyboard's send key or the button),
 the deliberate commit the terminal's Enter is; the line shows in the
@@ -18,7 +18,7 @@ transmit switch (`shell.py`) while the shown session is connected.
 
 **A connect shows at once, and can be cancelled** (same day: the screen
 "quietly locks" until the link is up). The connect runs in the
-background (`ClientApp.start_connect`), Sessions comes to the front, and
+background (`ClientApp.start_connect`), Terminal comes to the front, and
 while the station says a connect is in progress (`ConnectingChanged`)
 an hourglass lies over the session with a Cancel that needs no
 confirming: stopping never transmits more.

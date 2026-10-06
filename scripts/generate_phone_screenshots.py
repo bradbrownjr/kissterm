@@ -387,6 +387,11 @@ async def main() -> int:
             # session and conversation arrive as the server's replay.
             desktop = Phone(await open_page(browser, url, DESKTOP))
             await desktop.accessible()
+            # It opens on Mail; Terminal is the rail's fifth place (Mail,
+            # Bulletins, Files, Messages, Terminal), whose labels are not
+            # in the accessibility tree: tapped where it is drawn.
+            await desktop.shown("Bulletins")
+            await desktop.page.mouse.click(40, 80 + 4 * 64)
             await desktop.shown("Disconnect")
             await desktop.frame()
             await browser.close()

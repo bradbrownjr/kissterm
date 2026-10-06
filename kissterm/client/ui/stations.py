@@ -55,7 +55,9 @@ class StationsView:
         await self.reload()
 
     def on_state(self, kind: str, data) -> None:
-        if kind == "stale" and data in ("heard", "addressbook") and self.app.index == 3:
+        from .shell import STATIONS
+
+        if kind == "stale" and data in ("heard", "addressbook") and self.app.index == STATIONS:
             # Heard goes stale with every frame: refresh at most once at a time.
             if not self._stale:
                 self._stale = True

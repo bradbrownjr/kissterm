@@ -78,7 +78,12 @@ class MessagesView:
 
     def on_state(self, kind: str, data) -> None:
         if kind == "stale" and data == "aprs":
-            self.app.page.run_task(self.reload)
+            # Only while in front, as Mail (`mail.MailView.on_state`):
+            # `shown` reloads when it comes back.
+            from .shell import MESSAGES
+
+            if self.app.index == MESSAGES:
+                self.app.page.run_task(self.reload)
 
     async def reload(self) -> None:
         convos = await self.app.command("aprs_conversations") or []
