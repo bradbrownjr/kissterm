@@ -2097,7 +2097,7 @@ class KissTermApp(App):
 
     @work(exclusive=False)
     async def action_compose_mail(self, reply: str = "", quoted: bool | None = False,
-                                  form: str = "") -> None:
+                                  form: str = "", everyone: bool = False) -> None:
         """Write a message into Mail/BBS/Outbox, or Mail/Winlink/Outbox
         for a Winlink one (Mail tab: Insert, R, Q).
 
@@ -2105,13 +2105,14 @@ class KissTermApp(App):
         means "as Settings > Mail says" (R), True always quotes (Q).
         `form` starts at a Type as the compose screen returns it
         (`FORM_PREFIX` + id, or `RADIOGRAM`): Enter on a PKTNET form in the
-        Files viewer. Nothing transmits: the message waits in the Outbox.
+        Files viewer. `everyone` is Reply all (A): a Winlink message's other
+        recipients too (`Mail.reply_start`). Nothing transmits: the message
+        waits in the Outbox (`Mail.file_outbox`, as the phone's Write).
         """
         from ..config import state_path
         from ..locator import to_grid
         from ..mail import form_xml, forms
-        from ..mail.compose import BBS_OUTBOX, SEND_WINLINK, bulletin_choices, radiogram_defaults
-        from ..mail.winlink_collect import WINLINK_OUTBOX
+        from ..mail.compose import SEND_WINLINK, bulletin_choices, radiogram_defaults
         from .compose import (
             ANSWER_STRIP, FORM_PREFIX, RADIOGRAM, RADIOGRAM_ICS213, REPLY_FORM, ComposeScreen,
             reply_form_for,
@@ -2132,7 +2133,9 @@ class KissTermApp(App):
         on_winlink = folder == WINLINK_FOLDER or folder.startswith(f"{WINLINK_FOLDER}/")
         message = form or await self.push_screen_wait(
             ComposeScreen(str(self.config.mycall or ""), reply_to=original, quoted=bool(quoted),
-                          bulletins=bulletin_choices(self.mail_store), winlink=on_winlink)
+                          bulletins=bulletin_choices(self.mail_store), winlink=on_winlink,
+                          to=self.core.mail.reply_start(reply, everyone=True).to
+                          if everyone and reply else "")
         )
         remembered_at = state_path() / "forms.json"
         aprs = self.config.aprs
@@ -2211,9 +2214,7 @@ class KissTermApp(App):
                     note = f" {exc}, so it goes as text only."
             else:
                 note = " The text was changed after the form, so it goes as text only."
-        self.mail_store.add(WINLINK_OUTBOX if winlink else BBS_OUTBOX, message,
-                            raw=xml, raw_suffix=".xml")
-        self._reload_mail_tabs()
+        self.core.mail.file_outbox(message, raw=xml, raw_suffix=".xml")
         where = "Winlink Outbox" if winlink else "Outbox"
         self.notify(f"Saved to the {where}: {message.subject}.{note}")
 

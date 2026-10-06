@@ -259,7 +259,8 @@ is the enforcement.
    Get bulletins or Get files is running, G cancels it instead (the Footer
    says "Cancel run"), as the phone's turning button does; T shows or folds
    away a BBS message's routing (its `R:` lines, folded by default as on
-   the phone), R replies and Q replies with the original quoted. None of them transmits; Files' S
+   the phone), R replies, A replies to all (a Winlink message with other
+   recipients only) and Q replies with the original quoted. None of them transmits; Files' S
    only opens the transfer dialog, which transmits on Start.
 5. **The Footer shows only what works right now.** An action that does not
    apply on this tab, or in this state, is absent — not shown and then
@@ -673,9 +674,12 @@ The Flet client in `kissterm/client/ui/` follows the platform, not the
 terminal: Material 3, touch first. Sections 2-6 are about the terminal
 and do not apply there; these do.
 
-- **A swipe never transmits.** A swipe on a row (`stations.py`) opens a
-  sheet saying what would happen ("Connect to W1AW-7?") and the row
-  springs back; only the sheet's own button acts. Swiping between pages
+- **A swipe never transmits.** A swipe on a station's row (`stations.py`)
+  opens a sheet saying what would happen ("Connect to W1AW-7?") and the
+  row springs back; only the sheet's own button acts. **A swipe on a
+  message deletes it** (restores it in Deleted), since nothing transmits
+  (operator, 2026-10-06): it takes half the row's width, sliding back
+  before letting go cancels, and the note after it has **Undo**. Swiping between pages
   changes the page and nothing else. A phone in a pocket swipes by
   accident; the radio must not key because of it
   (`tests/unit/test_client_ui.py`).
@@ -722,6 +726,12 @@ and do not apply there; these do.
   turns and its progress line counts dots while a run is under way, and
   a tap on the turning button cancels it without a sheet (stopping is
   always safe).
+- **A reader's actions are icons on one row under its title**: Reply,
+  Reply all (only when there is someone else), Reply with quote, then
+  Delete (Restore in Deleted), last as the one that removes. Writing is
+  a full page with the commitment, Save to Outbox, filled, at the top
+  right and close at the top left, which asks before throwing typed
+  text away.
 - **A message's routing is folded away, one tap from the header**
   ("Routing (2 BBSes)"), with a line saying it is not the sender's
   address: a recipient took a routing line for one (2026-10-06).

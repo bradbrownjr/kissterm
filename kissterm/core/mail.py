@@ -30,6 +30,12 @@ link goes, reporting "cancelled". A run over the Internet with no session
 of its own (the Winlink CMS, the Home BBS by I) is a task cancelled; its
 `finally` closes the connection. `MailRunChanged` tells every client a
 run started and ended, so a phone can offer the cancel.
+
+**Writing, deleting and restoring are here too** (`reply_start`, `write`,
+`file_outbox`, `delete`, `restore`), so the terminal and the phone do them
+the same way (AGENTS.md: the front ends have parity). None of them
+transmits: a written message waits in its Outbox for Send/Receive, and a
+deleted one waits in Deleted for Restore (the phone's Undo).
 """
 
 from __future__ import annotations
@@ -37,6 +43,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..ax25 import parse_path
@@ -93,6 +100,21 @@ UNKNOWN_CLIENT = (
     "Nothing was sent. Settings > Mail > Internet server can use Winlink's test "
     "server instead."
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ReplyStart:
+    """A reply as it starts (`Mail.reply_start`). `by_number`: it goes as
+    `SR <number>`, which the BBS addresses and titles, so To and Title are
+    not the operator's to change."""
+
+    to: str
+    title: str
+    body: str
+    send_type: str
+    by_number: bool
+    heading: str
+    note: str = ""
 
 
 class SkipService(Exception):
@@ -662,6 +684,92 @@ class Mail:
         from ..mail.bpqmail import routes_of
 
         return routes_of(self.store, ref)
+
+    # -- writing, deleting, restoring (every front end) ----------------
+    def reply_start(self, ref: str, *, quoted: bool | None = None,
+                    everyone: bool = False) -> ReplyStart:
+        """How a reply to `ref` starts: addressed, titled, quoted when asked
+        (`quoted` None: as Settings > Mail says; R, and the phone's Reply).
+        `everyone` is Reply all: a Winlink message's other recipients too."""
+        from ..mail.compose import (
+            MAX_TITLE, MAX_WINLINK_TITLE, SEND_PRIVATE, SEND_WINLINK, can_reply_by_number,
+            is_winlink, quote, reply_all_to, reply_title,
+        )
+
+        original = self.store.read(ref)
+        winlink = is_winlink(original)
+        by_number = not winlink and can_reply_by_number(original)
+        if quoted is None:
+            quoted = self.config.reply_quote
+        number = original.extra.get("Bbs-Number", "")
+        heading = f"Reply to #{number}" if number else "Reply"
+        heading += f" from {original.sender}" + (" by Winlink" if winlink else "")
+        return ReplyStart(
+            to=reply_all_to(original, str(self.config.mycall or "")) if everyone
+            else original.sender,
+            title=reply_title(original.subject, MAX_WINLINK_TITLE if winlink else MAX_TITLE),
+            body="\n\n" + quote(original) if quoted else "",
+            send_type=SEND_WINLINK if winlink else SEND_PRIVATE,
+            by_number=by_number,
+            heading=heading,
+            note=(f"Sent as SR {number}: {original.source.removeprefix('BBS ')} "
+                  "addresses and titles it.") if by_number else "",
+        )
+
+    def write(self, *, to: str, at: str = "", title: str, body: str,
+              send_type: str = "P", reply_to: str = "") -> tuple[list[str], str]:
+        """Check a message and file it in its Outbox: (problems, folder).
+        Nothing is filed while there is a problem, and nothing transmits:
+        the message waits for Send/Receive. The checks are the terminal's
+        compose screen's (`mail/compose.py`), BPQMail's and Winlink's own."""
+        from ..mail.compose import (
+            SEND_BULLETIN, SEND_PRIVATE, SEND_WINLINK, can_reply_by_number, check,
+            check_winlink, is_winlink, outbox_message,
+        )
+
+        original = self.store.read(reply_to) if reply_to else None
+        if original is not None:
+            # A reply goes as its original's kind, whatever was asked.
+            send_type = SEND_WINLINK if is_winlink(original) else SEND_PRIVATE
+        if send_type not in (SEND_PRIVATE, SEND_BULLETIN, SEND_WINLINK):
+            return [f"Unknown message type {send_type!r}."], ""
+        if send_type == SEND_WINLINK:
+            problems = check_winlink(to, title, body)
+        else:
+            by_number = original is not None and can_reply_by_number(original)
+            problems = check(to, at, title, body, reply_by_number=by_number)
+        if problems:
+            return problems, ""
+        message = outbox_message(sender=str(self.config.mycall or ""), to=to, at=at,
+                                 title=title, body=body, send_type=send_type,
+                                 reply_to=original)
+        return [], self.file_outbox(message)
+
+    def file_outbox(self, message, *, raw: bytes | None = None, raw_suffix: str = ".xml") -> str:
+        """File a written message in Mail/BBS/Outbox, or Mail/Winlink/Outbox
+        for a Winlink one; returns the folder. One place for every front end."""
+        from ..mail.compose import BBS_OUTBOX, SEND_WINLINK
+        from ..mail.winlink_collect import WINLINK_OUTBOX
+
+        folder = WINLINK_OUTBOX if message.extra.get("Send-Type") == SEND_WINLINK else BBS_OUTBOX
+        self.store.add(folder, message, raw=raw, raw_suffix=raw_suffix)
+        self._publish(MailChanged())
+        return folder
+
+    def delete(self, ref: str) -> str:
+        """Move a message, or a file under Files, to the Deleted folder
+        beside it; returns its new ref, which `restore` puts back (Undo)."""
+        new_ref = (self.store.delete_file(ref) if ref.split("/", 1)[0] == FILES
+                   else self.store.delete(ref))
+        self._publish(MailChanged())
+        return new_ref
+
+    def restore(self, ref: str) -> str:
+        """Put a deleted message or file back where it was deleted from."""
+        new_ref = (self.store.restore_file(ref) if ref.split("/", 1)[0] == FILES
+                   else self.store.restore(ref))
+        self._publish(MailChanged())
+        return new_ref
 
     def bulletin_bbs(self) -> str:
         """The Home BBS's callsign as its choices are kept, or ""."""

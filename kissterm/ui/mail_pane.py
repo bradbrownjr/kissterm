@@ -48,6 +48,7 @@ from textual.widgets import DataTable, Tree
 from ..files_view import kind_of, zip_members
 from ..mail import MessageStore, form_parse, form_xml
 from ..mail.bpqmail import routes_of
+from ..mail.compose import has_others
 from ..mail.store import ALL_INBOXES, DELETED, FILES, check_folder, is_deleted_folder
 from ..monitor import sanitize
 from . import slideouts
@@ -175,6 +176,7 @@ class MessageList(DataTable):
         Binding("insert", "new_message", "New"),
         Binding("r", "reply", "Reply"),
         Binding("q", "reply_quoted", "Reply quoted"),
+        Binding("a", "reply_all", "Reply all"),
         Binding("delete", "delete_message", "Delete"),
         Binding("u", "restore_message", "Restore"),
         Binding("g", "get_mail", "Send/Receive"),
@@ -217,6 +219,8 @@ class MessageList(DataTable):
             return browser.id == "mail-browser"
         if action in ("reply", "reply_quoted"):
             return self.row_count > 0 and not browser.files
+        if action == "reply_all":
+            return self.row_count > 0 and not browser.files and browser.showing_reply_all_message()
         if action == "toggle_form":
             return browser.showing_form_message()
         if action == "toggle_routing":
@@ -244,6 +248,11 @@ class MessageList(DataTable):
         ref = self._browser().selected_ref()
         if ref:
             self.app.action_compose_mail(ref, quoted=True)  # type: ignore[attr-defined]
+
+    def action_reply_all(self) -> None:
+        ref = self._browser().selected_ref()
+        if ref:
+            self.app.action_compose_mail(ref, quoted=None, everyone=True)  # type: ignore[attr-defined]
 
     async def _on_click(self, event: events.Click) -> None:
         """A click on a row opens it in the reader, as Enter does.
@@ -358,6 +367,8 @@ class MessageBrowser(Horizontal):
         #: 2026-10-06: "the UIs need parity in functionality").
         self._open_routes: list[str] = []
         self._show_routes = False
+        #: Whether A (Reply all) would reach anyone besides the sender.
+        self._open_reply_all = False
 
     def compose(self) -> ComposeResult:
         tree = FolderTree("folders", classes="mail-tree")
@@ -613,6 +624,7 @@ class MessageBrowser(Horizontal):
         if ref != self._open_ref:
             self._open_ref, self._as_text = ref, False
             self._open_routes, self._show_routes = routes_of(self.store, ref), False
+            self._open_reply_all = has_others(message, str(self.app.config.mycall or ""))  # type: ignore[attr-defined]
             # A Winlink form's XML is exactly what was filled in; the text
             # is read against the template only when there is none.
             found = form_xml.from_raw(self.store.raw_files(ref))
@@ -655,6 +667,10 @@ class MessageBrowser(Horizontal):
         """The reader holds a message that reads as a form (V applies)."""
         return self._open_form is not None and self._open_ref == self._selected()
 
+    def showing_reply_all_message(self) -> bool:
+        """The reader holds a message with other recipients (A applies)."""
+        return self._open_reply_all and self._open_ref == self._selected()
+
     def showing_routed_message(self) -> bool:
         """The reader holds a message with routing lines (T applies)."""
         return bool(self._open_routes) and self._open_ref == self._selected()
@@ -673,25 +689,21 @@ class MessageBrowser(Horizontal):
     def delete_selected(self) -> None:
         ref = self._selected()
         if ref and self.can_delete():
+            self.app.core.mail.delete(ref)  # type: ignore[attr-defined]
+            self._refresh_after_change()
             if self.files:
-                self.store.delete_file(ref)
-                self._refresh_after_change()
                 self.app.notify(f"Moved to Files > {DELETED}. U restores it from there.")
                 return
-            self.store.delete(ref)
-            self._refresh_after_change()
             self.app.notify(f"Moved to {DELETED}. U restores it from there.")
 
     def restore_selected(self) -> None:
         ref = self._selected()
         if ref and self.can_restore():
+            back = self.app.core.mail.restore(ref)  # type: ignore[attr-defined]
+            self._refresh_after_change()
             if self.files:
-                back = self.store.restore_file(ref)
-                self._refresh_after_change()
                 self.app.notify(f"Restored to {back.rsplit('/', 1)[0].replace('/', ' > ')}.")
                 return
-            back = self.store.restore(ref)
-            self._refresh_after_change()
             self.app.notify(f"Restored to {back.rsplit('/', 1)[0]}.")
 
     def _refresh_after_change(self) -> None:

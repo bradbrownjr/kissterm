@@ -502,7 +502,34 @@ class RemoteServer:
         message = {k: wire.clean(v) if isinstance(v, str) else v for k, v in message.items()}
         # The BBSes it passed through, for a reader that wants to show them.
         message["routing"] = [wire.clean(line) for line in self.core.mail.routing(str(ref))]
+        # Whether Reply all would reach anyone besides the sender.
+        from ..mail.compose import has_others
+
+        message["reply_all"] = has_others(self.core.mail.store.read(str(ref)),
+                                          str(self.core.config.mycall or ""))
         return message
+
+    async def cmd_mail_reply_start(self, ref: str, quoted: bool | None = None,
+                                   all: bool = False) -> dict:  # noqa: A002 - the wire name
+        start = self.core.mail.reply_start(
+            str(ref), quoted=None if quoted is None else bool(quoted), everyone=bool(all))
+        return {k: wire.clean(v) if isinstance(v, str) else v
+                for k, v in wire.jsonable(start).items()}
+
+    async def cmd_mail_write(self, to: str, title: str, body: str, at: str = "",
+                             send_type: str = "P", reply_to: str = "") -> dict:
+        """Check and file a message in its Outbox (`Mail.write`); nothing
+        transmits. `problems` empty means it was filed in `folder`."""
+        problems, folder = self.core.mail.write(
+            to=str(to), at=str(at), title=str(title), body=str(body),
+            send_type=str(send_type), reply_to=str(reply_to))
+        return {"problems": problems, "folder": folder}
+
+    async def cmd_mail_delete(self, ref: str) -> str:
+        return self.core.mail.delete(str(ref))
+
+    async def cmd_mail_restore(self, ref: str) -> str:
+        return self.core.mail.restore(str(ref))
 
 
 COMMANDS: dict[str, Any] = {

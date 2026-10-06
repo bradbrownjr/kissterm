@@ -507,3 +507,126 @@ async def test_send_position_and_send_beacon_ask_first():
     await more._send_beacon(None)
     await _choose(app, "Send")
     assert app.commands == [("beacon_now", {})]
+
+
+# ----------------------------------------------------------------------
+# Writing, replying and deleting mail from the phone (parity group 2)
+# ----------------------------------------------------------------------
+
+
+class MailApp(FakeApp):
+    """A FakeApp whose commands answer from `answers` (a value, or a
+    function of the arguments)."""
+
+    def __init__(self, answers: dict) -> None:
+        super().__init__()
+        self.answers = answers
+
+    async def command(self, name, **args):
+        self.commands.append((name, args))
+        answer = self.answers.get(name)
+        return answer(**args) if callable(answer) else answer
+
+
+class FakeDismiss:
+    def __init__(self, control) -> None:
+        self.control = control
+
+
+def _icons(controls) -> list:
+    return [c.tooltip for c in controls if isinstance(c, ft.IconButton)]
+
+
+@pytest.mark.asyncio
+async def test_a_swipe_deletes_with_undo_and_restores_in_deleted():
+    from kissterm.client.ui.mail import MailView
+
+    app = MailApp({"mail_folders": ["Mail/BBS/Inbox", "Mail/BBS/Deleted"],
+                   "mail_list": [{"ref": "Mail/BBS/Inbox/a.msg", "subject": "Hi"}],
+                   "mail_delete": "Mail/BBS/Deleted/a.msg",
+                   "mail_restore": "Mail/BBS/Inbox/a.msg"})
+    view = MailView(app)
+    await view.reload()
+    [row] = view.list.controls
+    assert isinstance(row, ft.Dismissible) and row.data == "Mail/BBS/Inbox/a.msg"
+    assert set(row.dismiss_thresholds.values()) == {0.5}, "a short drag springs back"
+    assert row.on_confirm_dismiss is None, "the swipe acts: deleting transmits nothing"
+    await view._swiped(FakeDismiss(row))
+    assert row not in view.list.controls
+    assert app.commands[-1] == ("mail_delete", {"ref": "Mail/BBS/Inbox/a.msg"})
+    [note] = app.page.dialogs
+    assert note.action == "Undo"
+    await note.on_action(None)
+    assert app.commands[-1] == ("mail_restore", {"ref": "Mail/BBS/Deleted/a.msg"})
+
+    view.folder = "Mail/BBS/Deleted"
+    app.page.dialogs.clear()
+    await view.discard("Mail/BBS/Deleted/a.msg")
+    assert app.commands[-1] == ("mail_restore", {"ref": "Mail/BBS/Deleted/a.msg"})
+    assert "Restored to BBS/Inbox" in app.page.dialogs[-1].content.value
+
+
+def test_the_reader_offers_reply_all_only_with_others_and_restore_in_deleted():
+    from kissterm.client.ui.mail import MailView
+
+    view = MailView(MailApp({}))
+    assert _icons(view.reader_actions("r", {"reply_all": False})) == [
+        "Reply", "Reply with quote", "Delete"]
+    assert _icons(view.reader_actions("r", {"reply_all": True})) == [
+        "Reply", "Reply all", "Reply with quote", "Delete"]
+    view.folder = "Mail/Winlink/Deleted"
+    assert _icons(view.reader_actions("r", {}))[-1] == "Restore"
+    view.folder = "Files/Downloads"
+    assert _icons(view.reader_actions("r", {})) == ["Delete"]
+
+
+@pytest.mark.asyncio
+async def test_writing_saves_to_the_outbox_or_shows_why_not():
+    from kissterm.client.ui.mail import MailView
+
+    results = [{"problems": ["To is empty."], "folder": ""},
+               {"problems": [], "folder": "Mail/BBS/Outbox"}]
+    app = MailApp({"mail_write": lambda **_: results.pop(0), "mail_list": [],
+                   "mail_folders": ["Mail/BBS/Inbox"]})
+    view = MailView(app)
+    await view._write_new(None)
+    writing = view._writing
+    assert view.fab() is None and writing["kind"].value == "P"
+    writing["title"].value, writing["body"].value = "Hi", "Hello"
+    await writing["save"](None)
+    assert writing["problems"].value == "To is empty." and view._writing is writing, \
+        "a refused message stays open with the reason"
+    writing["to"].value = "W1BKW"
+    await writing["save"](None)
+    assert app.commands[-3][0] == "mail_write" and app.commands[-3][1]["to"] == "W1BKW"
+    assert view._writing is None and "Send/Receive sends it" in app.page.dialogs[-1].content.value
+
+
+@pytest.mark.asyncio
+async def test_a_reply_starts_from_the_station_and_closing_asks_first():
+    from kissterm.client.ui.mail import MailView
+
+    start = {"to": "W1AW, K1XYZ", "title": "Re:Net", "body": "", "send_type": "W",
+             "by_number": False, "heading": "Reply from W1AW by Winlink", "note": ""}
+    app = MailApp({"mail_reply_start": start, "mail_list": [], "mail_folders": []})
+    view = MailView(app)
+    await view.reply("Mail/Winlink/Inbox/x.msg", quoted=None, everyone=True)
+    assert app.commands[-1] == ("mail_reply_start", {"ref": "Mail/Winlink/Inbox/x.msg",
+                                                     "quoted": None, "all": True})
+    writing = view._writing
+    assert writing["to"].value == "W1AW, K1XYZ" and not writing["kind"].visible
+    assert not writing["at"].visible, "Winlink has no @"
+    writing["body"].value = "Yes"
+    await writing["close"](None)
+    assert view._writing is writing and isinstance(app.page.dialogs[-1], ft.BottomSheet), \
+        "typed text is not thrown away without asking"
+
+
+def test_a_date_reads_as_the_terminal_shows_it():
+    from datetime import datetime, timezone
+
+    from kissterm.client.ui.mail import when
+
+    utc = datetime(2026, 10, 6, 18, 40, tzinfo=timezone.utc)
+    assert when(utc.isoformat()) == utc.astimezone().strftime("%Y-%m-%d %H:%M")
+    assert when(None) == "" and when("yesterday") == "yesterday"

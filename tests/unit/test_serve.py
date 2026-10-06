@@ -416,3 +416,32 @@ async def test_a_bbs_message_is_read_with_its_routing_lines(tmp_path):
     await client.ws.close()
     await server.stop()
     core.sessions.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_a_client_writes_replies_deletes_and_restores_mail():
+    """The phone's Write, Reply, Delete and Undo: core methods (`Mail.write`,
+    `reply_start`, `delete`, `restore`), none of which transmits."""
+    from kissterm.mail.message import Message
+
+    core, server, ta, peer = await _serve()
+    ref = core.mail.store.add("Mail/Winlink/Inbox", Message(
+        sender="W1AW", to=f"{MYCALL}, K1XYZ", subject="Net", source="Winlink", body="7 pm\n"))
+    client = await _join(server)
+    await client.next()
+    read = (await client.command("r1", "mail_read", ref=ref))["value"]
+    assert read["reply_all"] is True
+    start = (await client.command("r2", "mail_reply_start", ref=ref, all=True))["value"]
+    assert start["to"] == "W1AW, K1XYZ" and start["send_type"] == "W"
+    bad = (await client.command("r3", "mail_write", to="", title="x", body="y"))["value"]
+    assert bad["folder"] == "" and bad["problems"]
+    good = (await client.command("r4", "mail_write", to=start["to"], title=start["title"],
+                                 body="Yes", reply_to=ref))["value"]
+    assert good == {"problems": [], "folder": "Mail/Winlink/Outbox"}
+    gone = (await client.command("r5", "mail_delete", ref=ref))["value"]
+    assert gone.startswith("Mail/Winlink/Deleted/")
+    back = (await client.command("r6", "mail_restore", ref=gone))["value"]
+    assert back.startswith("Mail/Winlink/Inbox/")
+    await client.ws.close()
+    await server.stop()
+    core.sessions.shutdown()

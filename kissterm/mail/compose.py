@@ -265,6 +265,39 @@ def outbox_message(
     )
 
 
+def _me(address: str, mycall: str) -> bool:
+    """`address` is this station: its callsign with or without an SSID, or
+    that callsign at an Internet domain (`KC1JMH@winlink.org`)."""
+    base = mycall.split("-", 1)[0].upper()
+    bare = address.split(":", 1)[-1].split("@", 1)[0].split("-", 1)[0].upper()
+    return bool(base) and bare == base
+
+
+def reply_all_to(original: Message, mycall: str) -> str:
+    """Everyone a Winlink message went to, for Reply all: its sender, then
+    its To and Cc recipients, without this station and without repeats.
+    A BBS message has one recipient, so Reply all is Reply there."""
+    if not is_winlink(original):
+        return original.sender
+    everyone = [original.sender]
+    for field_ in (original.to, original.extra.get("Cc", "")):
+        everyone += [a for a in re.split(r"[,;\s]+", field_) if a]
+    seen: set[str] = set()
+    kept = []
+    for address in everyone:
+        key = address.upper()
+        if not address or key in seen or (address != original.sender and _me(address, mycall)):
+            continue
+        seen.add(key)
+        kept.append(address)
+    return ", ".join(kept)
+
+
+def has_others(original: Message, mycall: str) -> bool:
+    """Reply all would reach someone besides the sender."""
+    return reply_all_to(original, mycall) != original.sender
+
+
 def can_reply_by_number(original: Message) -> bool:
     """A message read from a BBS, so `SR <number>` can answer it there."""
     return bool(original.extra.get("Bbs-Number")) and original.source.startswith("BBS ")

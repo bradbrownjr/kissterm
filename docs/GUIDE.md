@@ -129,7 +129,9 @@ quoted** (Settings > Mail can make R quote too). A message waits in the
 Outbox, and G sends it before reading, moving it to Sent once the BBS
 accepts it. Insert on a Winlink folder writes a Winlink message (several
 callsigns or email addresses, no @), and R on one received from Winlink
-answers by Winlink.
+answers by Winlink. **A replies to all**: on a Winlink message sent to
+others besides you, the sender and every other recipient (the Footer
+shows A only then).
 
 **Type: NTS radiogram** opens an ARRL radiogram form. Each word converts to
 its radiogram form as you finish it (a period becomes X, `ARL 46` becomes
@@ -632,6 +634,17 @@ own client.
     While a run is going its button turns and the progress line
     ("Receiving 2 of 2") counts dots; tap the turning button to cancel
     the run, which disconnects without asking.
+    **Write** (beside the folder list, on a Mail folder) writes a private
+    BBS message, a bulletin or a Winlink message; **Save to Outbox** files
+    it, with the same checks as the terminal (a To without an SSID, a
+    title, nothing that ends the text early), and sends nothing until
+    Send/Receive. The reader has **Reply**, **Reply all** (only when the
+    message went to others too), **Reply with quote** and **Delete**
+    (Restore in Deleted). **Swipe a message** either way to delete it
+    (or, in Deleted, to restore it): it goes once the row is dragged
+    halfway, and sliding it back before letting go cancels. **Undo** on
+    the note that follows puts it back. Forms and radiograms are written
+    at the terminal for now.
   - **Stations** has Contacts and Heard, swiped between. **A swipe never
     transmits**: swiping a station right asks "Connect to ...?", swiping
     it left opens its contact, and nothing happens until that sheet's
@@ -662,6 +675,8 @@ own client.
 ![A swipe asks before connecting, then the station's radio reminder: nothing transmits until Connect](../assets/screenshot-phone-connect.png)
 
 ![A node session with transmit on, and an APRS conversation](../assets/screenshot-phone.png)
+
+![A Winlink message with Reply, Reply all, Reply with quote and Delete, then Reply all being written](../assets/screenshot-phone-mail.png)
 
 On a wider screen (a laptop's browser, a tablet) the places run down the
 side:

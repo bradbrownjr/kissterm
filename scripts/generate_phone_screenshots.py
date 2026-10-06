@@ -60,6 +60,10 @@ from urllib.parse import urlsplit  # noqa: E402
 from PIL import Image  # noqa: E402
 from playwright.async_api import async_playwright  # noqa: E402
 
+from datetime import datetime, timezone  # noqa: E402
+
+from kissterm.core.events import MailChanged  # noqa: E402
+from kissterm.mail.message import Message  # noqa: E402
 from kissterm.ax25 import AX25Address, AX25Path, AX25Station, LinkParams  # noqa: E402
 from kissterm.ax25.frame import AX25Frame, UType  # noqa: E402
 from kissterm.config import Config, ServeConfig  # noqa: E402
@@ -80,6 +84,12 @@ DESKTOP = {"width": 1000, "height": 560, "deviceScaleFactor": 2, "mobile": False
 GAP, BACKDROP = 48, (226, 226, 234)
 
 MYCALL = AX25Address.parse("N1ABC-1")
+#: (sender, to, subject, body, minute) for Mail, newest last.
+MAIL = (
+    ("W1AW", "N1ABC, K1XYZ, W1BKW", "Net tonight at 7",
+     "Bring the go-kit and a spare battery.\nWe will start on 147.09.\n73, Hiram\n", 40),
+    ("KC1UIX", "N1ABC", "Antenna party Saturday", "Coffee at 8, up the tower by 9.\n", 12),
+)
 NODE = AX25Address.parse("W1AW-7")
 
 # --- invented content --------------------------------------------------------
@@ -244,6 +254,16 @@ class Phone:
             raise RuntimeError(f"typed {text!r}, the field holds {await field.input_value()!r}")
         await self.tap(self.button("Send"))
 
+    async def enter_field(self, label: str, text: str) -> None:
+        """Type `text` into the field labelled `label`, without sending."""
+        field = self.page.get_by_role("textbox", name=label).filter(visible=True).last
+        for _attempt in range(10):
+            await self.tap(field, settle=300)
+            if await self.page.evaluate("document.activeElement?.tagName === 'TEXTAREA' "
+                                        "|| document.activeElement?.tagName === 'INPUT'"):
+                break
+        await self.page.keyboard.type(text, delay=30)
+
     async def frame(self) -> None:
         # Off every control, so no tooltip is left showing.
         await self.page.mouse.move(195, 500)
@@ -327,6 +347,23 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(1500)
     await phone.frame()
 
+    # Mail: a Winlink message in the reader with its actions, then Reply
+    # all, written and not yet saved (nothing transmits until Send/Receive).
+    for sender, to, subject, body, minutes in MAIL:
+        core.mail.store.add("Mail/BBS/Inbox", Message(
+            sender=sender, to=to, subject=subject, source="Winlink", body=body,
+            date=datetime(2026, 10, 6, 18, minutes, tzinfo=timezone.utc)))
+    core.events.publish(MailChanged())  # as a Send/Receive filing it would
+    await phone.tab("Mail")
+    await phone.shown(MAIL[0][2])
+    await phone.tap(phone.button(MAIL[0][2]))
+    await phone.shown("Reply all")
+    await phone.frame()
+    await phone.tap(phone.button("Reply all"))
+    await phone.shown("Save to Outbox")
+    await phone.enter_field("Message", "I'll be there, with the 2 m rig.")
+    await phone.frame()
+
 
 async def main() -> int:
     if not web_available():
@@ -352,7 +389,8 @@ async def main() -> int:
             await desktop.frame()
             await browser.close()
         await shot("screenshot-phone-connect", phone.frames[:2])
-        await shot("screenshot-phone", phone.frames[2:])
+        await shot("screenshot-phone", phone.frames[2:4])
+        await shot("screenshot-phone-mail", phone.frames[4:6])
         await shot("screenshot-desktop", desktop.frames)
     finally:
         await server.stop()

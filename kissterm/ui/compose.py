@@ -106,8 +106,10 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
     def __init__(self, sender: str, reply_to: Message | None = None, quoted: bool = False,
                  draft: Draft | None = None,
                  bulletins: tuple[list[str], list[str]] | None = None,
-                 winlink: bool = False) -> None:
+                 winlink: bool = False, to: str = "") -> None:
         super().__init__()
+        #: Who a reply goes to, when not only its sender (Reply all).
+        self._reply_to_address = to
         #: A reply to a Winlink message stays Winlink; a new message starts
         #: as one when written from a Winlink folder.
         self._winlink_reply = reply_to is not None and is_winlink(reply_to)
@@ -198,7 +200,7 @@ class ComposeScreen(ModalScreen["Message | str | None"]):
             return
         to = self.query_one("#compose-to", Input)
         title = self.query_one("#compose-title", Input)
-        to.value = original.sender
+        to.value = self._reply_to_address or original.sender
         if self._winlink_reply:
             self._show_type(SEND_WINLINK)
             title.value = reply_title(original.subject, MAX_WINLINK_TITLE)

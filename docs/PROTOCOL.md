@@ -156,7 +156,10 @@ lighter path around a rule the terminal follows.
 | `settings_save` `{draft, active_transport}` | `Settings.save`; a new transport is opened | no |
 | `addressbook` / `addressbook_save` `{entry}` | `Core.addressbook` | no |
 | `heard` | `Core.heard.entries` | no |
-| `mail_folders` / `mail_list` `{folder}` / `mail_read` `{ref}` | `Mail.store`; a read also carries `routing`, the `R:` lines of a message from a BBS (`Mail.routing`) | no |
+| `mail_folders` / `mail_list` `{folder}` / `mail_read` `{ref}` | `Mail.store`; a read also carries `routing`, the `R:` lines of a message from a BBS (`Mail.routing`), and `reply_all`, true when Reply all would reach anyone besides the sender | no |
+| `mail_reply_start` `{ref, quoted, all}` | `Mail.reply_start`: `to`, `title`, `body`, `send_type`, `by_number`, `heading`, `note` for a reply (`quoted` null: as Settings says; `all`: Reply all) | no |
+| `mail_write` `{to, at, title, body, send_type, reply_to}` | `Mail.write`: checked, then filed in its Outbox; returns `problems` (nothing filed) or `folder`. `send_type` is `P`, `B` or `W`; a reply goes as its original's kind | no (Send/Receive sends it) |
+| `mail_delete` / `mail_restore` `{ref}` | `Mail.delete` / `Mail.restore`; returns the new ref, which the other puts back (Undo) | no |
 
 **The Address Book never sends a login script** (it may hold a
 password): `addressbook` returns each contact without `script`, and

@@ -60,6 +60,12 @@ Settings > Remote > Remote control, and open Session > Remote pairing.
   position report shows in the Monitor. More > Send beacon > Send with
   transmit on: the beacon text once; with transmit off, the notice that
   transmit is off and nothing on the air.
+- [ ] **Mail written on the phone goes out** (0.1.433). Mail > Write
+  a short private message to yourself at the Home BBS (or Reply to one),
+  Save to Outbox, then Send/Receive by radio. Expected: the message in
+  BBS/Outbox until the run, then sent (the session shows the `SP` or
+  `SR` and the text), and in Sent. A swipe-deleted message is in
+  BBS/Deleted, and Undo put one back.
 - [ ] **Turn transmit off from the phone.** Tap "TX ON". Expected: off at
   once, on the phone and the station's status bar, with no question.
 - [ ] **Sleep and wake.** Lock the phone for a minute while the node

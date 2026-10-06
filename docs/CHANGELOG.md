@@ -5,6 +5,33 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Phone parity: write, reply, reply all, delete, restore
+
+### New Features
+
+- **The phone writes mail**: Write on a Mail folder (private, bulletin
+  or Winlink), and Reply, Reply all, Reply with quote and Delete (or
+  Restore) in the reader. Save files it in the Outbox with the
+  terminal's checks; nothing transmits until Send/Receive.
+- **Swipe a message to delete it** (restore in Deleted), halfway to
+  count, slide back to cancel, and Undo on the note (operator,
+  2026-10-06).
+- **The terminal's A replies to all** on a Winlink message with other
+  recipients, for parity.
+- The core does both front ends' writing, deleting and restoring
+  (`Mail.reply_start`, `write`, `file_outbox`, `delete`, `restore`);
+  protocol `mail_reply_start`, `mail_write`, `mail_delete`,
+  `mail_restore`, and `reply_all` on `mail_read`.
+
+**Files:** `kissterm/core/mail.py`, `kissterm/mail/compose.py`,
+`kissterm/serve/server.py`, `kissterm/client/ui/mail.py`,
+`kissterm/client/ui/sheets.py`, `kissterm/ui/app.py`,
+`kissterm/ui/compose.py`, `kissterm/ui/mail_pane.py`, `DESIGN.md`,
+`docs/GUIDE.md`, `docs/PROTOCOL.md`, `docs/ROADMAP.md`,
+`docs/ON-AIR-TESTS.md`, `tests/unit/test_core_mail_write.py`,
+`tests/unit/test_serve.py`, `tests/unit/test_client_ui.py`,
+`tests/pilot/test_compose.py`
+
 ## [2026-10-06] — The web terminal is an opt-in: kissterm --web-terminal
 
 ### Improvements

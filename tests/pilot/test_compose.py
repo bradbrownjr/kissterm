@@ -276,3 +276,36 @@ async def test_on_a_winlink_folder_new_and_reply_are_winlink(tmp_path):
         await wait_for(lambda: store.list(WINLINK_OUTBOX), "the reply in the Winlink Outbox")
         reply = store.read(store.list(WINLINK_OUTBOX)[0].ref)
         assert reply.subject == "Re:Checking in" and reply.extra["Send-Type"] == "W"
+
+
+@pytest.mark.asyncio
+async def test_a_replies_to_everyone_on_a_winlink_message_only(tmp_path):
+    """Reply all (A), the phone's Reply all: the sender and the other
+    recipients, never this station; offered only where there are others."""
+    from kissterm.mail.winlink_collect import WINLINK_INBOX, WINLINK_OUTBOX
+
+    app, store = _app(tmp_path)
+    store.add(WINLINK_INBOX, Message(
+        sender="W1AW", to="KC1JMH, K1XYZ", subject="Net", date=WHEN, source="Winlink",
+        message_id="ABCDEFGHIJKM", body="7 pm\n", extra={"Cc": "kc1jmh@winlink.org"}))
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        browser = app.query_one("#mail-browser", MessageBrowser)
+        table = await _focus_list(app, pilot)
+        browser.show_folder("Mail/BBS/Inbox")
+        browser.open_selected()
+        await pilot.pause()
+        assert not table.check_action("reply_all", ()), \
+            "A shown for a BBS message, which has one recipient"
+        browser.show_folder(WINLINK_INBOX)
+        table.focus()
+        browser.open_selected()
+        await pilot.pause()
+        assert table.check_action("reply_all", ()) is True
+        await pilot.press("a")
+        await wait_for(lambda: isinstance(app.screen, ComposeScreen), "the reply")
+        await pilot.pause()
+        assert app.screen.query_one("#compose-to", Input).value == "W1AW, K1XYZ"
+        app.screen.query_one("#compose-body", TextArea).text = "Yes"
+        await pilot.click("#compose-save")
+        await wait_for(lambda: store.list(WINLINK_OUTBOX), "the reply in the Winlink Outbox")

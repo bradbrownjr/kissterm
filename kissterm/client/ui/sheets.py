@@ -105,9 +105,20 @@ def form(page, title: str, fields: list[ft.Control], go_label: str, on_go: Actio
     return shown
 
 
-def snack(page, text: str, *, error: bool = False, seconds: float = 4) -> None:
-    page.show_dialog(ft.SnackBar(
+def snack(page, text: str, *, error: bool = False, seconds: float = 4,
+          action: str = "", on_action: Action | None = None) -> ft.SnackBar:
+    """A floating note; with `action` ("Undo"), a button that runs
+    `on_action` while it shows."""
+
+    async def act(_e) -> None:
+        if on_action is not None:
+            await on_action()
+
+    shown = ft.SnackBar(
         content=ft.Text(text, color=ft.Colors.ON_ERROR if error else None),
         bgcolor=ft.Colors.ERROR if error else None,
         duration=int(max(seconds, 4) * 1000), show_close_icon=True,
-        behavior=ft.SnackBarBehavior.FLOATING))
+        behavior=ft.SnackBarBehavior.FLOATING,
+        action=action or None, on_action=act if action else None)
+    page.show_dialog(shown)
+    return shown
