@@ -58,6 +58,13 @@ def _bpqmail(bbs: AX25Station, heard: list[str]) -> None:
                 reply = REPLIES.get(command)
                 if reply is not None:
                     asyncio.get_event_loop().create_task(link.send(reply))
+                elif command == "B":
+                    # BPQMail's Bye: its sign-off, then it hangs up.
+                    async def _bye() -> None:
+                        await link.send(b"73 de WS1EC\r")
+                        await asyncio.sleep(0.1)
+                        await link.disconnect()
+                    asyncio.get_event_loop().create_task(_bye())
 
         link.on_data.append(_answer)
 
@@ -152,7 +159,8 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
         assert "Receiving" not in _status_text(app)
         link = station.link_to(BBS)
         await wait_for(lambda: not link.connected, "the disconnect")
-        assert heard == ["LM", "R 2578"]
+        # And B at the end: the BBS's goodbye, then it hangs up.
+        assert heard == ["LM", "R 2578", "B"]
         [summary] = app.mail_store.list(BBS_INBOX)
         assert (summary.subject, summary.source) == ("Test message", "BBS WS1EC")
         text = _log_text(app)
@@ -173,7 +181,7 @@ async def test_g_dials_the_home_bbs_files_new_mail_and_disconnects(tmp_path):
         await pilot.pause()
         app.query_one("#mail-browser").query_one(MessageList).focus()
         await pilot.press("g")
-        await wait_for(lambda: heard == ["LM"] and not station.link_to(BBS).connected,
+        await wait_for(lambda: heard == ["LM", "B"] and not station.link_to(BBS).connected,
                        "a second run that reads nothing")
     bbs.close()
     station.close()

@@ -427,3 +427,13 @@ async def test_a_running_send_receive_turns_counts_and_cancels_on_a_tap():
     app.state.apply({"type": "event", "seq": 3, "name": "MailRunChanged", "data": {"running": False}})
     view._paint_activity()
     assert not view.activity.value.endswith(".")
+
+
+def test_routing_is_folded_away_and_says_it_is_not_the_sender():
+    from kissterm.client.ui.mail import routing_section
+
+    assert routing_section([]) == []
+    [tile] = routing_section(["R:261002/1236Z 3098@WS1EC.#CUMB.ME.USA.NOAM LinBPQ6.0.25"])
+    assert isinstance(tile, ft.ExpansionTile) and not tile.expanded
+    assert "Not the sender" in tile.subtitle.value
+    assert "3098@WS1EC" in tile.controls[0].value

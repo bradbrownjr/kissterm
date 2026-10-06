@@ -158,6 +158,11 @@ class CollectOptions:
     first_days: int = DEFAULT_FIRST_DAYS
     #: Download files (the Files tab) in place of mail.
     files: bool = False
+    #: End a finished run with the BBS's own `B` (Bye) rather than only a
+    #: link disconnect, and wait up to `sign_off_wait` s for the BBS to
+    #: hang up (`BbsCollector._sign_off`).
+    sign_off: bool = False
+    sign_off_wait: float = 30.0
 
 
 #: The operator's answer to a category offer: the categories picked and
@@ -523,6 +528,44 @@ class BbsCollector:
         finally:
             self.close()
         return result
+
+    async def sign_off(self) -> None:
+        """`B`, and wait for the BBS to hang up, after a run that finished
+        (operator, 2026-10-06: a run that ended in a bare disconnect left
+        the session at the BBS prompt, with nothing to say it was over).
+        BPQMail answers `B` with its sign-off ("73 de WS1EC"), waits a
+        second and disconnects (`BBSUtilities.c`, the `Bye` command); its
+        disconnect handling saves the same "last listed" record either way,
+        so this is for the operator, not the BBS. Not hung up within
+        `sign_off_wait`, the caller's link disconnect ends it as before.
+        Called after `run` (and its outcome notice), so waiting on a slow
+        path never holds up the result."""
+        if not self.options.sign_off or not self.link.connected:
+            return
+        hooks = getattr(self.link, "on_state", None)
+        if hooks is not None:
+            hooks.append(self._on_state)
+        try:
+            self._progress("Signing off")
+            self._arrived.clear()
+            await self._send("B")
+            loop = asyncio.get_running_loop()
+            end = loop.time() + self.options.sign_off_wait
+            while self.link.connected:
+                left = end - loop.time()
+                if left <= 0:
+                    return
+                self._arrived.clear()
+                try:
+                    await asyncio.wait_for(self._arrived.wait(), left)
+                except asyncio.TimeoutError:
+                    return
+        except CollectStopped:
+            return  # transmit off or the link gone: the caller disconnects
+        finally:
+            if hooks is not None:
+                with contextlib.suppress(ValueError):
+                    hooks.remove(self._on_state)
 
     async def _collect(self, result: CollectResult) -> None:
         self._note("Waiting for the BBS prompt...")

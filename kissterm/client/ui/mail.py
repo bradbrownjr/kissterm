@@ -13,6 +13,9 @@ progress line ("Receiving 2 of 2") is followed by dots counting one to
 three. **Tapping the turning button cancels the run** with no sheet:
 stopping only ends the exchange (`mail_cancel`, a DISC if the link is
 up), as the transmit switch turns off without asking.
+
+**A message's routing is one tap away** (`routing_section`): the `R:`
+lines, folded under the header.
 """
 
 from __future__ import annotations
@@ -23,10 +26,28 @@ import math
 import flet as ft
 
 from . import sheets
+from .text import MONO
 
 ALL_INBOXES = ""
 #: Seconds per step of the turning icon and the counting dots.
 TICK = 0.4
+
+
+def routing_section(routes: list[str]) -> list[ft.Control]:
+    """The BBSes a message passed through, folded away until asked for
+    (operator, 2026-10-06: a recipient took a routing line for the
+    sender's address, so they stay out of sight, but anyone who needs
+    them can look)."""
+    if not routes:
+        return []
+    return [ft.ExpansionTile(
+        title=ft.Text(f"Routing ({len(routes)} BBS{'es' if len(routes) != 1 else ''})"),
+        subtitle=ft.Text("Where it was filed on its way: the latest first, where it "
+                         "started last. Not the sender's address.", size=12),
+        tile_padding=ft.Padding.symmetric(horizontal=0),
+        expanded_cross_axis_alignment=ft.CrossAxisAlignment.START,
+        controls=[ft.Text("\n".join(routes), font_family=MONO, size=12, selectable=True,
+                          color=ft.Colors.OUTLINE)])]
 
 
 class MailView:
@@ -141,6 +162,7 @@ class MailView:
             ft.Container(expand=True, padding=ft.Padding.all(16), content=ft.Column(
                 scroll=ft.ScrollMode.AUTO, controls=[
                     ft.Text("\n".join(head), color=ft.Colors.OUTLINE, selectable=True),
+                    *routing_section(message.get("routing") or []),
                     ft.Divider(),
                     ft.Text(message.get("body", ""), selectable=True)]))])
         self.control.content = self.reader

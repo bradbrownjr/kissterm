@@ -345,3 +345,56 @@ async def test_bpq_telnet_login_then_bbs_then_mail(tmp_path):
     assert not result.stopped, result.stopped
     assert bbs.sent == ["KC1JMH", "secret", "BBS", "LM"]
     assert "secret" not in shown and "(password sent)" in shown
+
+
+
+async def _run_and_sign_off(bbs, store, **options):
+    notes: list[str] = []
+    shown: list[str] = []
+    collector = BbsCollector(bbs, store, CollectOptions(**options),
+                             note=notes.append, sent=shown.append, gate_open=lambda: True)
+    bbs.start()
+    result = await asyncio.wait_for(collector.run(), 5)
+    assert "B" not in bbs.sent, "run() itself never says bye"
+    await asyncio.wait_for(collector.sign_off(), 5)
+    return result, notes, shown, collector
+
+
+class _HangsUpOnBye(ScriptedBbs):
+    """BPQMail's `B`: its sign-off, then it disconnects."""
+
+    def __init__(self, replies, *, hangs_up: bool = True):
+        super().__init__(replies)
+        self.on_state: list = []
+        self.hangs_up = hangs_up
+
+    async def send(self, data: bytes) -> None:
+        await super().send(data)
+        if data == b"B\r" and self.hangs_up:
+            loop = asyncio.get_event_loop()
+            loop.call_later(0.01, self._deliver, ["73 de WS1EC"])
+            loop.call_later(0.05, self._hang_up)
+
+    def _hang_up(self) -> None:
+        self.connected = False
+        for callback in list(self.on_state):
+            callback("disconnected")
+
+
+@pytest.mark.asyncio
+async def test_a_finished_run_says_bye_and_the_bbs_hangs_up(tmp_path):
+    """Operator, 2026-10-06: end with B, so the session shows the BBS's own
+    goodbye rather than stopping at its prompt."""
+    bbs = _HangsUpOnBye({"LM": LIST_TWO, "R 2578": READ_2578, "R 2501": _read(2501)})
+    result, notes, shown, collector = await _run_and_sign_off(bbs, _store(tmp_path), sign_off=True)
+    assert bbs.sent[-1] == "B" and shown[-1] == "B", "B is sent and shown like any line"
+    assert not result.stopped and not bbs.connected
+
+
+@pytest.mark.asyncio
+async def test_a_bbs_that_does_not_hang_up_is_left_to_the_callers_disconnect(tmp_path):
+    bbs = _HangsUpOnBye({"LM": LIST_TWO, "R 2578": READ_2578, "R 2501": _read(2501)},
+                        hangs_up=False)
+    result, _notes, _shown, _c = await _run_and_sign_off(bbs, _store(tmp_path), sign_off=True,
+                                                         sign_off_wait=0.1)
+    assert bbs.sent[-1] == "B" and not result.stopped and bbs.connected

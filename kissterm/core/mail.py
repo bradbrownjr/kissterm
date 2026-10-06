@@ -576,6 +576,7 @@ class Mail:
             ready_text=home.ready_text,
             login_prompt=home.login_prompt,
             login_text=login_text,
+            sign_off=True,
         )
         return entry, options
 
@@ -611,7 +612,11 @@ class Mail:
         collector, key = dialed
         result = await collector.run()
         self.bbs_report(result, bulletins=options.bulletins, files=options.files)
-        await self.core.connector.disconnect(key)
+        if not result.stopped and not self.cancel_requested:
+            await collector.sign_off()
+        if collector.link.connected:
+            # The BBS did not hang up after `B` (or the run stopped first).
+            await self.core.connector.disconnect(key)
 
     def bbs_report(self, result, bulletins: bool = False, files: bool = False) -> None:
         """The outcome notice of a Home BBS run, over radio or the Internet."""
@@ -651,6 +656,20 @@ class Mail:
         else:
             self._notice("No new mail on the Home BBS.")
         self._publish(MailChanged())
+
+    def routing(self, ref: str) -> list[str]:
+        """The `R:` lines of a message from a BBS, from the reply kept
+        beside it (`bpqmail.routes_in`); [] for anything else."""
+        from ..mail.bpqmail import routes_in
+        from ..mail.collect import RAW_SUFFIX
+
+        for path in self.store.raw_files(ref):
+            if path.suffix == RAW_SUFFIX:
+                try:
+                    return routes_in(path.read_bytes())
+                except OSError:
+                    return []
+        return []
 
     def bulletin_bbs(self) -> str:
         """The Home BBS's callsign as its choices are kept, or ""."""
@@ -832,7 +851,12 @@ class Mail:
                 lambda text: record.sent(masked(text)) if record is not None else None,
                 lambda text: record.received(text) if record is not None else None,
             )
-            return await collector.run()
+            result = await collector.run()
+            if not result.stopped and hasattr(collector, "sign_off"):
+                # Before the outcome notice here, but over the Internet
+                # the BBS hangs up at once (`sign_off_wait`).
+                await collector.sign_off()
+            return result
         finally:
             if link is not None:
                 with contextlib.suppress(Exception):
@@ -930,6 +954,9 @@ class Mail:
             telnet_user=user,
             telnet_password=password,
             after_login=home.internet_command.strip(),
+            sign_off=True,
+            # A Telnet session hangs up at once; no radio path to wait on.
+            sign_off_wait=10.0,
         )
 
     async def _bbs_internet_run(self, entry, options) -> None:

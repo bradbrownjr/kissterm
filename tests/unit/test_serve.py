@@ -396,3 +396,23 @@ def test_a_transport_question_sends_names_not_config_entries():
     message = wire.question("q1", asked)
     assert message["data"]["transports"] == ["bbs-ssh", "node"]
     assert "hunter2" not in str(message)
+
+
+
+@pytest.mark.asyncio
+async def test_a_bbs_message_is_read_with_its_routing_lines(tmp_path):
+    from kissterm.mail.message import Message
+
+    core, server, ta, peer = await _serve()
+    raw = (b"From: W1BKW\rTo: N1ABC\rType/Status: PN\rDate/Time: 02-Oct 23:21Z\r"
+           b"Bid: 8243_W1BKW\rTitle: Hello\rR:261002/2321Z 8243@W1BKW.#OXFO.ME.USA.NOAM BPQ6.0.25\r"
+           b"\rHello\r\r[End of Message #3105 from W1BKW]\r")
+    ref = core.mail.store.add("Mail/BBS/Inbox", Message(sender="W1BKW", subject="Hello", body="Hello"),
+                              raw=raw, raw_suffix=".bbs")
+    client = await _join(server)
+    await client.next()
+    result = await client.command("r1", "mail_read", ref=ref)
+    assert result["value"]["routing"] == ["R:261002/2321Z 8243@W1BKW.#OXFO.ME.USA.NOAM BPQ6.0.25"]
+    await client.ws.close()
+    await server.stop()
+    core.sessions.shutdown()

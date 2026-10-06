@@ -716,6 +716,9 @@ and do not apply there; these do.
   turns and its progress line counts dots while a run is under way, and
   a tap on the turning button cancels it without a sheet (stopping is
   always safe).
+- **A message's routing is folded away, one tap from the header**
+  ("Routing (2 BBSes)"), with a line saying it is not the sender's
+  address: a recipient took a routing line for one (2026-10-06).
 - **A title names the place, not the station**: "APRS messages", not
   "KC1JMH Messages"; the callsign is in More.
 - **What the operator acts on comes first**: Stations opens on Contacts,

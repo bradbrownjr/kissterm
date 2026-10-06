@@ -499,7 +499,10 @@ class RemoteServer:
 
     async def cmd_mail_read(self, ref: str) -> dict:
         message = wire.jsonable(self.core.mail.store.read(str(ref)))
-        return {k: wire.clean(v) if isinstance(v, str) else v for k, v in message.items()}
+        message = {k: wire.clean(v) if isinstance(v, str) else v for k, v in message.items()}
+        # The BBSes it passed through, for a reader that wants to show them.
+        message["routing"] = [wire.clean(line) for line in self.core.mail.routing(str(ref))]
+        return message
 
 
 COMMANDS: dict[str, Any] = {

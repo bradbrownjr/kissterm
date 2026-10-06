@@ -5,6 +5,25 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Mail runs sign off with B; a message's routing on the phone
+
+### Improvements
+
+- **A Home BBS run ends with `B`**, as an operator would: the BBS's
+  goodbye shows in the session and it hangs up; kissterm disconnects
+  only if it has not within 30 s (10 s over the Internet). The outcome
+  notice comes first, so a slow path never delays it. LinBPQ saves the
+  same "last listed" record on a plain disconnect (`BBSUtilities.c`), so
+  nothing changes at the BBS. Winlink runs end as before.
+- **The phone's mail reader has a folded Routing section** with the
+  message's `R:` lines (`mail_read` now carries `routing`), saying they
+  are not the sender's address.
+
+**Files:** `kissterm/mail/collect.py`, `kissterm/mail/bpqmail.py`,
+`kissterm/core/mail.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/mail.py`, `DESIGN.md`, `docs/GUIDE.md`,
+`docs/PROTOCOL.md`, `docs/ON-AIR-TESTS.md`, tests
+
 ## [2026-10-06] — Send/Receive shows it is running and can be cancelled
 
 ### Improvements

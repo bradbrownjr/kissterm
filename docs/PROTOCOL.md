@@ -156,7 +156,7 @@ lighter path around a rule the terminal follows.
 | `settings_save` `{draft, active_transport}` | `Settings.save`; a new transport is opened | no |
 | `addressbook` / `addressbook_save` `{entry}` | `Core.addressbook` | no |
 | `heard` | `Core.heard.entries` | no |
-| `mail_folders` / `mail_list` `{folder}` / `mail_read` `{ref}` | `Mail.store` | no |
+| `mail_folders` / `mail_list` `{folder}` / `mail_read` `{ref}` | `Mail.store`; a read also carries `routing`, the `R:` lines of a message from a BBS (`Mail.routing`) | no |
 
 **The Address Book never sends a login script** (it may hold a
 password): `addressbook` returns each contact without `script`, and

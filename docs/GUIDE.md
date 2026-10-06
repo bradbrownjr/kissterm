@@ -82,8 +82,9 @@ it Terminal instead): a folder tree, the message list, and a reader.
 **G** sends your Outbox and gets your mail from the BBS set in
 Settings > Mail (BPQMail so far). It dials the Address Book entry named
 there, lists your mail with `LM`, reads only what kissterm does not
-already have, and disconnects, all shown in the Terminal tab as it
-happens (the BBS's side and the commands kissterm sent; progress is in
+already have, and signs off with `B` (the BBS says goodbye and hangs
+up; if it has not within 30 seconds, kissterm disconnects), all shown
+in the Terminal tab as it happens (the BBS's side and the commands kissterm sent; progress is in
 the status bar, and a note of each step in the session's transcript). Messages stay on the BBS. Anything missing (the entry to dial, a
 password, a BBS login) is asked for before anything is dialed, so a
 missing setting never costs airtime.
@@ -611,6 +612,10 @@ own client.
     bubbles, with a new message limited to the 67 characters APRS
     carries.
   - **Mail** shows the station's mail folders; Send/Receive asks first.
+    A message from a BBS has a folded **Routing** section under its
+    header: the `R:` line each BBS added as it passed the message on,
+    the latest first. A number@BBS there is that BBS's message number,
+    not the sender's address.
     While a run is going its button turns and the progress line
     ("Receiving 2 of 2") counts dots; tap the turning button to cancel
     the run, which disconnects without asking.

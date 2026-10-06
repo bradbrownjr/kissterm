@@ -197,3 +197,15 @@ def test_a_read_from_winlink_or_email_ends_at_its_marker():
         read = parse_read(lines)
         assert read is not None and read.complete and read.number == 2801, sender
         assert read.body == ["Body text"]
+
+
+def test_the_routing_lines_come_back_from_the_reply_kept_as_it_arrived():
+    """A filed message keeps its raw reply (`.bbs`, CR line endings); the
+    reader's Routing section reads the R: lines from it (operator,
+    2026-10-06)."""
+    from kissterm.mail.bpqmail import routes_in
+
+    raw = "\r".join(_lines("read_2686_excerpt.txt")).encode("latin-1")
+    routes = routes_in(raw)
+    assert len(routes) == 5 and all(r.startswith("R:") for r in routes)
+    assert routes_in(b"not a read at all\r") == []

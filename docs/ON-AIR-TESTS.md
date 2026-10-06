@@ -23,6 +23,10 @@ Settings > Remote > Remote control, and open Session > Remote pairing.
 - [x] **Send/Receive from the phone, by radio** (2026-10-06). Mail >
   Send/Receive. Expected: the Home BBS run over RF, the new mail in
   BBS/Inbox on the phone.
+- [ ] **A Send/Receive signs off with B** (0.1.424). Run Send/Receive by
+  radio. Expected: after the outcome notice, `B` in the session, the
+  BBS's "73 de WS1EC", and the BBS hanging up (the tab shows the link
+  off); the Monitor shows the BBS's DISC, not one from kissterm.
 - [ ] **Watch and cancel a Send/Receive** (0.1.422). Start Send/Receive
   from the phone's Mail. Expected: the button's icon turns and the
   progress line ("Receiving 1 of 2") counts dots until the run ends.

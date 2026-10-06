@@ -342,6 +342,9 @@ async def test_i_on_a_bbs_folder_logs_in_to_the_node_and_gets_mail(tmp_path):
                 line, buffer = buffer.split(b"\r", 1)
                 command = line.decode("latin-1").strip()
                 heard.append(command)
+                if command == "B":  # BPQMail's Bye: it hangs up
+                    writer.close()
+                    return
                 reply = answers.get(command) or REPLIES.get(command)
                 if reply:
                     writer.write(reply)
@@ -410,6 +413,9 @@ async def test_i_uses_the_contacts_node_login_without_asking(tmp_path):
                 line, buffer = buffer.split(b"\r", 1)
                 command = line.decode("latin-1").strip()
                 heard.append(command)
+                if command == "B":  # BPQMail's Bye: it hangs up
+                    writer.close()
+                    return
                 if reply := answers.get(command) or REPLIES.get(command):
                     writer.write(reply)
 

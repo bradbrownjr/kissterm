@@ -261,6 +261,20 @@ def parse_read(lines: list[str]) -> BbsRead | None:
     return read
 
 
+def routes_in(raw: bytes) -> list[str]:
+    """The `R:` routing lines of a read kept as it arrived (the `.bbs`
+    beside a filed message): one per BBS the message passed through, the
+    latest first and the one it started at last. `R:261002/1236Z
+    3098@WS1EC.#CUMB.ME.USA.NOAM` is WS1EC filing it as its message 3098,
+    not who sent it (operator, 2026-10-06: a recipient took that for the
+    sender's address)."""
+    from ..ansi import decode_text
+
+    lines = re.split(r"\r\n|\r|\n", decode_text(raw))
+    read = parse_read(lines)
+    return list(read.routes) if read is not None else []
+
+
 def infer_date(text: str, now: datetime | None = None) -> datetime | None:
     """`21-Sep 08:37Z` -> a UTC datetime in the year that puts it not in the future.
 
