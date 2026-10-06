@@ -575,7 +575,8 @@ own client.
   own screen and every remote client share one station; `REMOTE` (with
   the number of clients connected) shows in the status bar while it
   runs. Or start `kissterm --serve`, which runs with no screen and prints
-  the link and QR code instead. Both need the `serve` extra (SETUP.md
+  the link and QR code instead; **Esc** or **Ctrl+Q** there stops it
+  (Ctrl+C too). Both need the `serve` extra (SETUP.md
   section 11).
 - **The pairing screen** shows the link and its QR code to scan with the
   phone, with Copy link, Rotate and a Settings button. It opens by itself

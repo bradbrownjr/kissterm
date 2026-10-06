@@ -556,7 +556,8 @@ listens on 127.0.0.1:8765 unless given another address.
 
 It listens on port 7425 on every interface (Settings > Remote changes
 both) and prints a pairing link with its QR code. Run it under systemd or
-`tmux` like any other service; it stops on Ctrl+C or SIGTERM.
+`tmux` like any other service; it stops on Esc or Ctrl+Q at its
+terminal, Ctrl+C, or SIGTERM.
 
 **HTTPS.** The link carries the key to your transmitter, so off a trusted
 LAN or VPN, put TLS in front of it. Either give kissterm a certificate

@@ -10,6 +10,14 @@ a full interval, as always.
 
 Questions go only to connected clients; with none connected a question is
 cancelled, and a cancelled flow sends nothing (`operator.RemoteOperator`).
+
+**Esc or Ctrl+Q stops it** from the terminal it runs in, as Ctrl+C does
+(operator, 2026-10-06: "make ^q or even just ESC work to exit it without
+having to break with ^C"; `watch_keys`). The terminal is put in cbreak
+mode with flow control off, so Ctrl+Q (XON) reaches us; Ctrl+C still
+signals. A lone Esc stops; an arrow key's escape sequence, read in the
+same chunk, does not. With no terminal (systemd, a pipe) nothing is
+watched, and the terminal's settings are put back on the way out.
 """
 
 from __future__ import annotations
@@ -17,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 import signal
 import sys
 
@@ -55,6 +64,74 @@ class HeadlessView:
         pass
 
 
+#: Esc and Ctrl+Q, as bytes from a terminal.
+ESC, CTRL_Q = b"\x1b", b"\x11"
+
+
+def is_quit(chunk: bytes) -> bool:
+    """A chunk read from the terminal means "stop": Ctrl+Q anywhere in it,
+    or Esc on its own (an arrow key is Esc followed by more, in one read)."""
+    return CTRL_Q in chunk or chunk == ESC
+
+
+def watch_keys(stop: asyncio.Event, fd: int | None = None):
+    """Set `stop` on Esc or Ctrl+Q typed at this terminal. Returns what
+    undoes it (the reader, the terminal's settings), or None when there
+    is no terminal to watch."""
+    fd = sys.stdin.fileno() if fd is None else fd
+    try:
+        if not os.isatty(fd):
+            return None
+        import termios
+    except (ImportError, OSError, ValueError):
+        return _watch_windows_keys(stop)
+    saved = termios.tcgetattr(fd)
+    mode = termios.tcgetattr(fd)
+    mode[0] &= ~termios.IXON                       # Ctrl+Q reaches us, not flow control
+    mode[3] &= ~(termios.ICANON | termios.ECHO)    # a key at a time, not echoed; ISIG stays
+    mode[6][termios.VMIN], mode[6][termios.VTIME] = 1, 0
+    termios.tcsetattr(fd, termios.TCSANOW, mode)
+    loop = asyncio.get_running_loop()
+
+    def readable() -> None:
+        try:
+            chunk = os.read(fd, 64)
+        except OSError:
+            chunk = b""
+        if not chunk:  # the terminal went away: stop watching, keep serving
+            loop.remove_reader(fd)
+        elif is_quit(chunk):
+            stop.set()
+
+    loop.add_reader(fd, readable)
+
+    def undo() -> None:
+        with contextlib.suppress(Exception):
+            loop.remove_reader(fd)
+        with contextlib.suppress(Exception):
+            termios.tcsetattr(fd, termios.TCSANOW, saved)
+
+    return undo
+
+
+def _watch_windows_keys(stop: asyncio.Event):
+    """Windows' console has no termios: poll it for the same two keys."""
+    try:
+        import msvcrt
+    except ImportError:
+        return None
+
+    async def poll() -> None:
+        while not stop.is_set():
+            while msvcrt.kbhit():
+                if is_quit(msvcrt.getwch().encode("latin-1", "replace")):
+                    stop.set()
+            await asyncio.sleep(0.2)
+
+    task = asyncio.get_running_loop().create_task(poll())
+    return task.cancel
+
+
 def pairing_text(serve, token: str) -> str:
     """What `--serve` prints: the link, and its QR code when segno is there."""
     url = pairing.pairing_url(serve, token)
@@ -70,7 +147,7 @@ def pairing_text(serve, token: str) -> str:
 
 async def run(config, station=None, session_transport=None, transport_problem=None,
               *, stream=None) -> int:
-    """Serve until interrupted (Ctrl+C, SIGTERM)."""
+    """Serve until interrupted (Esc, Ctrl+Q, Ctrl+C, SIGTERM)."""
     stream = stream or sys.stdout
     core = Core(config, station, session_transport=session_transport,
                 transport_problem=transport_problem)
@@ -93,9 +170,14 @@ async def run(config, station=None, session_transport=None, transport_problem=No
     for sig in (signal.SIGINT, signal.SIGTERM):
         with contextlib.suppress(NotImplementedError, RuntimeError):
             loop.add_signal_handler(sig, stop.set)
+    undo = watch_keys(stop)
+    if undo is not None:
+        print("Press Esc or Ctrl+Q to stop the station.", file=stream, flush=True)
     try:
         await stop.wait()
     finally:
+        if undo is not None:
+            undo()
         await _shutdown(core, server)
         await _close_opened_here(core, station, session_transport)
     return 0

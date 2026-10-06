@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — kissterm --serve stops on Esc or Ctrl+Q
+
+### Improvements
+
+- **Esc or Ctrl+Q stops `kissterm --serve`** at its terminal, as Ctrl+C
+  does, shutting down the same way. Flow control is off while it runs
+  so Ctrl+Q arrives, and the terminal's settings are restored on exit;
+  an arrow key does not stop it, and with no terminal nothing changes.
+
+**Files:** `kissterm/serve/headless.py`, `SETUP.md`, `docs/GUIDE.md`,
+`tests/unit/test_serve_keys.py`
+
 ## [2026-10-06] — Radiograms from the phone
 
 ### New Features
