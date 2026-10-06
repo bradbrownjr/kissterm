@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — On-air results: bulletins over the Internet
+
+### Improvements
+
+- **The first bulletin collection over the Internet passed on WS1EC-2**
+  (SSH): the window form `LB> WX n-m` is confirmed, no longer marked
+  unverified. Over the air, the same run failed twice right after `LC`
+  (no reply, link failed after 11 retries); noted in ON-AIR-TESTS with
+  how to capture it next time.
+
+**Files:** `kissterm/mail/bulletins.py`, `docs/ON-AIR-TESTS.md`,
+`docs/SOURCES.md`
+
 ## [2026-10-06] — Phone: Position, Map, Object on one row
 
 ### Improvements

@@ -38,8 +38,13 @@ Confirmed by the operator's capture from WS1EC-2, 2026-10-02
 fifteen categories, `SPACWX 142UPDATE 49` (a three-digit count runs into
 the next name), and `LB> WX` paging 310 bulletins 23 to a page.
 
-# UNVERIFIED: the range forms (`LB> WX 2801-`, `LB> WX 2705-2804`) and
-# `LL 1` are the source's, not yet seen in a capture.
+The window form (`LB> WX 3112-3211`) is confirmed by the operator's first
+collection over WS1EC's SSH login, 2026-10-06
+(`20261006-231343_KC1JMH_WS1ECSSH.log`): windows answered, older dates
+stopped the listing, 72 bulletins of the last 7 days read.
+
+# UNVERIFIED: the open range (`LB> WX 2801-`, a later run) and `LL 1` are
+# the source's, not yet seen in a capture.
 
 The choices live in a small JSON file in the state folder, one record per
 BBS callsign (categories differ from BBS to BBS). Same persistence shape

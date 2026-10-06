@@ -226,7 +226,7 @@ change on screen. Worth one session on the air to confirm.
 
 ## Bulletins (G and I on the Bulletins tab)
 
-- [ ] **First collection over the Internet.** On the Bulletins tab press
+- [x] **First collection over the Internet.** On the Bulletins tab press
   **I**. Expected: the category list appears with WS1EC-2's counts (WX
   310, SPACWX 142, ...). Tick WX only and Save. kissterm sends
   `LB> WX 3005-3104` (numbers will have moved on), then the hundred before
@@ -234,11 +234,23 @@ change on screen. Worth one session on the air to confirm.
   7 days oldest first, and files them under Bulletins > WX. The Terminal
   tab (F5) shows each command. Send Claude the transcript name: the
   `LB> WX n-m` range form is from the LinBPQ source, not yet seen.
+  **Passed 2026-10-06** (`20261006-231343_KC1JMH_WS1ECSSH.log`): the
+  14 categories with counts, ALERT, DTN, NTS and WX chosen, `LB> ALERT
+  3112-3211` and older windows answered, the WX listing stopped with `A`
+  once it reached older dates, then 72 bulletins of the last 7 days
+  (#3004 of 29 September first) read oldest first and filed under
+  Bulletins > WX; cancelled by the operator after 10, all 10 filed.
 - [ ] **A second I lists only what is new.** Straight after: no category
   list this time, `LB> WX <newest+1>-` only, and "No new bulletins" unless
   one arrived meanwhile.
 - [ ] **The same over the air with G**, once the Yagi is up: the windows
   are short, so the first collection should take minutes, not hours.
+  **Failed twice on 2026-10-06** (`20261006-202640_KC1JMH_WS1EC-2.log`,
+  `20261006-225734_KC1JMH_WS1EC-2.log`): the greeting and prompt
+  arrived, `LC` went out, then nothing came back and the link failed
+  after 11 retries (68 s and 140 s later). No frame log: run the station
+  with `--log-level debug` for the next try, so kissterm.log shows
+  whether the BBS's reply was heard and what was acknowledged.
 
 ## Files (YAPP and AutoBIN)
 
