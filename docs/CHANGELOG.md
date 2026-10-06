@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — SETUP.md: a TNC on the Raspberry Pi's GPIO pins
+
+### Improvements
+
+- **SETUP.md section 2 covers a HAT TNC on the Pi's UART**: turning off
+  the serial console, `disable-bt` on a Pi 3/4/Zero W, `/dev/serial0`
+  (or `/dev/ttyAMA0` on a Pi 5) typed in, from Raspberry Pi's own
+  documentation. Experimental until a HAT is tried. With the serial
+  fallback and `dialout` notes already there, P7's Pi note is done.
+
+**Files:** `SETUP.md`, `docs/ROADMAP.md`, `docs/SOURCES.md`
+
 ## [2026-10-06] — Two tests that failed under full-suite load wait on conditions
 
 ### Improvements

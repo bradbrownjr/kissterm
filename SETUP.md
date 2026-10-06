@@ -125,6 +125,35 @@ the single most common cause of "I ran the command and it still doesn't
 work." Confirm it took with `groups` after logging back in; `dialout` should
 be in the list.
 
+### A TNC on the Raspberry Pi's GPIO pins (a TNC HAT)
+
+**Experimental**, like all serial (ROADMAP P3): written from Raspberry
+Pi's own documentation (raspberrypi.com, Configuration > "Configure
+UARTs"), not yet tried with a HAT. A HAT TNC such as the TNC-Pi talks
+over the Pi's UART on GPIO 14 and 15, not over USB. Three things have
+to be set first:
+
+1. **Turn off the serial login console**, or Linux talks over the TNC:
+   `sudo raspi-config`, then Interface Options > Serial Port. Answer
+   **No** to a login shell over serial and **Yes** to the serial port
+   hardware. Reboot.
+2. **On a Pi 3, 4 or Zero W, give the pins the full UART.** Bluetooth
+   uses it by default and leaves the pins the mini UART (`/dev/ttyS0`),
+   whose speed follows the CPU clock. Add `dtoverlay=disable-bt` to
+   `/boot/firmware/config.txt` (`/boot/config.txt` on older images),
+   run `sudo systemctl disable hciuart`, and reboot; the pins are then
+   `/dev/ttyAMA0`. `dtoverlay=miniuart-bt` keeps Bluetooth on the mini
+   UART instead.
+3. **Be in the `dialout` group** (above).
+
+Then add a Serial transport (Settings > Radio, or `kissterm --setup`)
+with the device typed in: **`/dev/serial0`** on a Pi 1, 2, 3, 4 or
+Zero, which always names the pins' UART. On a **Pi 5**, `/dev/serial0`
+is the separate debug connector, so use `/dev/ttyAMA0` for the pins.
+The pins' port may not be in the discovered list, since pyserial leaves
+out some built-in ports; typing it is the normal way. For the baud
+rate, use the one in the HAT's manual (below).
+
 ### Baud rate
 
 The serial baud rate between your computer and the TNC (often 9600 or

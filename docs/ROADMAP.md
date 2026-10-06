@@ -453,8 +453,6 @@ closed by a coding session.
   real install command.
 - [ ] **`pipx` / `uv tool install`** verified against the published package
   and documented.
-- [ ] **Raspberry Pi note** in SETUP.md: serial backend fallback, `dialout`
-  group, GPIO UART.
 - [ ] **Standalone binaries** -- post-1.0: Windows, macOS and Linux, each
   on x86-64 and ARM64, so an operator installs one file with no Python.
   Built per platform on CI runners (Nuitka or PyInstaller cannot
