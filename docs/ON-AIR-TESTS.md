@@ -15,10 +15,26 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 Install the `web` extra on the station (SETUP.md section 11), turn on
 Settings > Remote > Remote control, and open Session > Remote pairing.
 
-- [ ] **The phone opens the link.** Scan the QR code. Expected: the
-  remote control in the phone's browser, the station's callsign at the
-  top, "TX OFF" in the corner, and the `#t=...` gone from the address
-  bar. Reload the page: it still connects (the browser kept the key).
+- [x] **The phone opens the link** (2026-10-06, Galaxy S25 Ultra). Scan
+  the QR code. Expected: the remote control in the phone's browser,
+  "TX OFF" in the corner, and the `#t=...` gone from the address bar.
+- [ ] **A reload keeps the pairing.** Reload the page. Expected: it still
+  connects (the browser kept the key).
+- [x] **Send/Receive from the phone, by radio** (2026-10-06). Mail >
+  Send/Receive. Expected: the Home BBS run over RF, the new mail in
+  BBS/Inbox on the phone.
+- [ ] **Watch and cancel a Send/Receive** (0.1.422). Start Send/Receive
+  from the phone's Mail. Expected: the button's icon turns and the
+  progress line ("Receiving 1 of 2") counts dots until the run ends.
+  Start another and tap the turning button partway: "Cancelling
+  Send/Receive...", the link is disconnected (a DISC in the Monitor), and
+  the notice says "Send/Receive stopped: cancelled". Tapped while the
+  station is still calling, the SABMs stop and the notice is
+  "Send/Receive cancelled."
+- [ ] **A connect shows at once, and Cancel stops it** (0.1.421). Connect
+  from Stations to a station that will not answer. Expected: Sessions
+  at once, an hourglass over the new session with Cancel; Cancel stops
+  the SABMs (the Monitor shows no more) and the session's tab goes.
 - [ ] **A swipe connects only when asked.** In Stations > Contacts, swipe
   a contact that has a frequency to the right. Expected: "Connect to
   ...?" and nothing on the air; Cancel, and still nothing. Swipe again
