@@ -22,6 +22,12 @@ name above the terminal is gone, and its height is the terminal's.
 the front at once and the session shows its hourglass there, never a
 screen waiting on the station's answer.
 
+**Mail, Bulletins and Files are one view** (`MailView`) with three
+sections: on the phone a switch at the top of the Mail page, on a wide
+screen three places in the rail, where there is room (operator,
+2026-10-06: "Desktop will have room for the additional section
+buttons"). The bottom bar stays at five.
+
 **Titles name the place, not the station** ("APRS messages", not
 "KC1JMH Messages", and "BBS Mail" for Mail): the callsign is in More,
 and the room is the title's (operator, 2026-10-06).
@@ -45,7 +51,7 @@ import flet as ft
 from ..connection import CommandFailed, Connection
 from ..state import StationState
 from . import sheets
-from .mail import MailView
+from .mail import SECTIONS, MailView
 from .messages import MessagesView
 from .more import MoreView
 from .questions import QuestionSheets
@@ -62,8 +68,10 @@ LOOK_KEYS = ("kissterm.terminal.background", "kissterm.terminal.text")
 WIDE = 720
 
 #: The top bar's title on each destination, where the bar's label is
-#: too short to say it.
+#: too short to say it (Mail's comes from its section: `MailView.title`).
 TITLES = {"Messages": "APRS messages", "Mail": "BBS Mail"}
+
+MAIL = 2
 
 DESTINATIONS = (
     ("Sessions", ft.Icons.TERMINAL_OUTLINED, ft.Icons.TERMINAL),
@@ -73,6 +81,20 @@ DESTINATIONS = (
     ("More", ft.Icons.MORE_HORIZ, ft.Icons.MORE_HORIZ),
 )
 
+
+#: The rail's places: the bar's, with Mail's three sections each a place
+#: of its own (there is room at the side; on the phone they are the Mail
+#: page's switch). (label, icon, selected icon, view, section)
+RAIL = tuple(
+    item for label, icon, selected in DESTINATIONS for item in (
+        [(value, i, s, MAIL, value) for value, _title, i, s in SECTIONS]
+        if label == "Mail" else
+        [(label, icon, selected, [d[0] for d in DESTINATIONS].index(label), None)]))
+
+
+def rail_index(view: int, section: str) -> int:
+    return next(i for i, (_l, _i, _s, v, sec) in enumerate(RAIL)
+                if v == view and sec in (None, section))
 
 
 def session_chips(index: int, session) -> tuple[bool, bool]:
@@ -129,7 +151,7 @@ class ClientApp:
             selected_index=0, on_change=self._nav_changed,
             label_type=ft.NavigationRailLabelType.ALL,
             destinations=[ft.NavigationRailDestination(icon=i, selected_icon=s, label=label)
-                          for label, i, s in DESTINATIONS])
+                          for label, i, s, _view, _section in RAIL])
         self.layout = ft.Row(expand=True, spacing=0)
         state.subscribe(self._on_state)
 
@@ -192,14 +214,23 @@ class ClientApp:
         was = self.page.navigation_bar is None
         if was != self.wide:
             self._place()
+            self.views[MAIL].relayout()
             self.page.update()
 
     async def _nav_changed(self, e) -> None:
-        self.go(int(e.control.selected_index))
+        picked = int(e.control.selected_index)
+        if e.control is self.rail:
+            _label, _icon, _selected, view, section = RAIL[picked]
+            self.go(view, section)
+        else:
+            self.go(picked)
 
-    def go(self, index: int) -> None:
+    def go(self, index: int, section: str | None = None) -> None:
         self.index = index
-        self.bar.selected_index = self.rail.selected_index = index
+        if section is not None:
+            self.views[MAIL].set_section(section)
+        self.bar.selected_index = index
+        self.rail.selected_index = rail_index(index, self.views[MAIL].section)
         view = self.views[index]
         self.body.content = view.control
         self.page.floating_action_button = view.fab()
@@ -209,8 +240,16 @@ class ClientApp:
         self.page.update()
 
     def _title(self) -> str:
+        if self.index == MAIL:
+            return self.views[MAIL].title()
         label = DESTINATIONS[self.index][0]
         return TITLES.get(label, label)
+
+    def section_changed(self) -> None:
+        """Mail's switch moved: the title and the rail follow."""
+        self.rail.selected_index = rail_index(self.index, self.views[MAIL].section)
+        self.page.appbar.title = ft.Text(self._title())
+        self.page.floating_action_button = self.views[self.index].fab()
 
     def paint_actions(self) -> None:
         """Disconnect beside the transmit switch while Sessions shows a

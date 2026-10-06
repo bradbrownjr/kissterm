@@ -1,6 +1,14 @@
 """Mail: the station's message store, read from the phone, and Send/
 Receive started from it.
 
+**Three sections, as the terminal's three tabs** (`SECTIONS`): Mail,
+Bulletins and Files, each with only its own folders. On the phone a
+switch at the top of the page chooses; on a wide screen the shell's
+rail has each as a place (`shell.RAIL`) and the switch hides (operator,
+2026-10-06: "Desktop will have room for the additional section
+buttons"). A section opens where it was left, else on an Inbox or its
+first folder, never on Deleted.
+
 Reading is free; **Send/Receive is a button**, the same request as the
 terminal's G (and, in its sheet, By Internet: the terminal's I; on a
 Bulletins folder Get bulletins, on Files Get files), and dials the Home BBS or Winlink through the station's own
@@ -83,6 +91,39 @@ def when(iso: str | None) -> str:
         return str(iso)
 
 
+#: The three kinds of folder, as the terminal's Mail, Bulletins and Files
+#: tabs: (top folder, title, icon, selected icon).
+SECTIONS = (
+    ("Mail", "BBS Mail", ft.Icons.MAIL_OUTLINE, ft.Icons.MAIL),
+    ("Bulletins", "Bulletins", ft.Icons.FEED_OUTLINED, ft.Icons.FEED),
+    ("Files", "Files", ft.Icons.FOLDER_OUTLINED, ft.Icons.FOLDER),
+)
+
+
+def in_section(folder: str, section: str) -> bool:
+    return folder == section or folder.startswith(section + "/")
+
+
+def section_folders(folders: list[str], section: str) -> list[str]:
+    """The section's folders a message can be in: its own top folder only
+    when nothing is under it (Files), never a bare parent (Mail, Mail/BBS)."""
+    mine = [f for f in folders if in_section(f, section)]
+    leaves = [f for f in mine if not any(o.startswith(f + "/") for o in mine)]
+    return sorted(leaves, key=in_deleted)  # Deleted last, the rest as they came
+
+
+def default_folder(folders: list[str], section: str) -> str:
+    """Where a section opens: an Inbox, else its first folder that is not
+    Deleted (a section never opens on what was thrown away)."""
+    return next((f for f in folders if f.endswith("Inbox")),
+                next((f for f in folders if not in_deleted(f)),
+                     folders[0] if folders else section))
+
+
+def folder_label(folder: str, section: str) -> str:
+    return folder.removeprefix(section + "/") if folder != section else section
+
+
 def in_deleted(folder: str) -> bool:
     return folder.rsplit("/", 1)[-1] == "Deleted"
 
@@ -110,6 +151,16 @@ class MailView:
     def __init__(self, app) -> None:
         self.app = app
         self.folder = "Mail/BBS/Inbox"
+        #: Mail, Bulletins or Files (`SECTIONS`), and the folder last shown
+        #: in each, so going back to one finds it where it was.
+        self.section = "Mail"
+        self._last: dict[str, str] = {}
+        #: The phone's way between the sections; on a wide screen the rail
+        #: has each as its own place and this is hidden.
+        self.switch = ft.SegmentedButton(
+            selected=["Mail"], show_selected_icon=False, on_change=self._switched,
+            segments=[ft.Segment(value=value, label=ft.Text(value), icon=ft.Icon(icon))
+                      for value, _title, icon, _sel in SECTIONS])
         self.folders = ft.Dropdown(dense=True, expand=True, on_select=self._folder_changed,
                                    options=[])
         #: Write: the terminal's Insert, on a Mail folder. A small pencil
@@ -183,8 +234,13 @@ class MailView:
         self.reader = None
         self._paint_activity()
         self._paint_toolbar()
+        self.paint_switch()
         self.control.content = ft.Stack(expand=True, controls=[ft.Column(
             expand=True, spacing=0, controls=[
+                ft.Container(padding=ft.Padding.only(left=12, right=12, top=6),
+                             content=ft.Row(controls=[self.switch],
+                                            alignment=ft.MainAxisAlignment.CENTER),
+                             visible=self.switch.visible),
                 ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6),
                              content=ft.Row(controls=[self.folders, self.categories_button])),
                 *([ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=4),
@@ -192,10 +248,13 @@ class MailView:
                 self.list]), self.write_button])
 
     async def reload(self) -> None:
-        folders = await self.app.command("mail_folders") or []
-        if folders and self.folder not in folders:
-            self.folder = next((f for f in folders if f.endswith("Inbox")), folders[0])
-        self.folders.options = [ft.DropdownOption(key=f, text=f.removeprefix("Mail/")) for f in folders]
+        folders = section_folders(await self.app.command("mail_folders") or [], self.section)
+        if not in_section(self.folder, self.section) or (folders and self.folder not in folders):
+            self.folder = default_folder(folders, self.section)
+        self.folders.options = [ft.DropdownOption(key=f, text=folder_label(f, self.section))
+                                for f in folders] or [
+            ft.DropdownOption(key=self.folder, text=folder_label(self.folder, self.section))]
+        self._paint_button()
         self.folders.value = self.folder
         messages = await self.app.command("mail_list", folder=self.folder) or []
         self.list.controls = [self._row(m) for m in messages] or [ft.Container(
@@ -281,6 +340,38 @@ class MailView:
         where = moved.rsplit("/", 1)[0].removeprefix("Mail/")
         sheets.snack(self.app.page, f"Restored to {where}." if restoring else "Moved to Deleted.",
                      action="Undo", on_action=undo)
+
+    def title(self) -> str:
+        return next(title for value, title, *_ in SECTIONS if value == self.section)
+
+    def relayout(self) -> None:
+        """The screen crossed `shell.WIDE`: the switch shows or goes."""
+        if self.reader is None and self._writing is None:
+            self._show_list()
+
+    def paint_switch(self) -> None:
+        self.switch.visible = not getattr(self.app, "wide", False)
+        self.switch.selected = [self.section]
+
+    def set_section(self, section: str) -> None:
+        """Show Mail, Bulletins or Files, at the folder last shown there."""
+        if section == self.section:
+            return
+        self._last[self.section] = self.folder
+        self.section = section
+        self.folder = self._last.get(section, "")
+        if self.reader is None and self._writing is None:
+            self._show_list()
+
+    async def _switched(self, e) -> None:
+        picked = list(e.control.selected or [])
+        if not picked:  # a tap on the selected segment: stay
+            self.paint_switch()
+            self.app.page.update()
+            return
+        self.set_section(picked[0])
+        self.app.section_changed()
+        await self.reload()
 
     async def _folder_changed(self, e) -> None:
         self.folder = e.control.value

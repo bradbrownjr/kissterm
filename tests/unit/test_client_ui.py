@@ -229,6 +229,9 @@ class FakeApp:
         self.go(0)
         self.commands.append(("connect", args))
 
+    def section_changed(self) -> None:
+        self.sections_changed = getattr(self, "sections_changed", 0) + 1
+
     def paint_actions(self) -> None:
         pass
 
@@ -724,12 +727,75 @@ def test_mail_is_titled_bbs_mail_and_write_is_a_pencil_over_send_receive():
     assert pencil in view.control.content.controls  # over the list, not in its toolbar
 
 
+FOLDERS = ["Bulletins", "Bulletins/ARES", "Bulletins/Deleted", "Bulletins/WX", "Files", "Mail", "Mail/BBS",
+           "Mail/BBS/Deleted", "Mail/BBS/Inbox", "Mail/BBS/Outbox", "Mail/Winlink",
+           "Mail/Winlink/Inbox"]
+
+
+def test_each_section_lists_only_its_own_folders():
+    from kissterm.client.ui.mail import default_folder, folder_label, section_folders
+
+    mail = section_folders(FOLDERS, "Mail")
+    assert mail == ["Mail/BBS/Inbox", "Mail/BBS/Outbox", "Mail/Winlink/Inbox",
+                    "Mail/BBS/Deleted"]
+    assert default_folder(mail, "Mail") == "Mail/BBS/Inbox"
+    bulletins = section_folders(FOLDERS, "Bulletins")
+    assert bulletins == ["Bulletins/ARES", "Bulletins/WX", "Bulletins/Deleted"]
+    assert default_folder(["Bulletins/Deleted", "Bulletins/WX"], "Bulletins") == "Bulletins/WX"
+    assert section_folders(FOLDERS, "Files") == ["Files"]
+    assert folder_label("Bulletins/WX", "Bulletins") == "WX"
+    assert folder_label("Files", "Files") == "Files"
+
+
+@pytest.mark.asyncio
+async def test_the_phone_switches_between_mail_bulletins_and_files():
+    # Operator, 2026-10-06: bulletins and files on the phone; the desktop
+    # has room for a place each.
+    from kissterm.client.ui.mail import MailView
+
+    app = MailApp({"mail_folders": FOLDERS, "mail_list": []})
+    view = MailView(app)
+    await view.reload()
+    assert view.switch.visible and view.title() == "BBS Mail"
+    assert view.folder == "Mail/BBS/Inbox" and view.write_button.visible
+
+    view.switch.selected = ["Bulletins"]
+    await view._switched(type("E", (), {"control": view.switch})())
+    assert app.sections_changed == 1 and view.title() == "Bulletins"
+    assert [o.key for o in view.folders.options] == ["Bulletins/ARES", "Bulletins/WX",
+                                                     "Bulletins/Deleted"]
+    assert view.categories_button.visible and not view.write_button.visible
+    assert view.button.tooltip == "Get bulletins"
+
+    view.set_section("Files")
+    await view.reload()
+    assert view.folder == "Files" and view.button.tooltip == "Get files"
+    view.set_section("Mail")
+    await view.reload()
+    assert view.folder == "Mail/BBS/Inbox", "a section forgot where it was"
+
+
+def test_a_wide_screen_has_a_rail_place_per_section_and_no_switch():
+    from kissterm.client.ui.mail import MailView
+    from kissterm.client.ui.shell import DESTINATIONS, RAIL, rail_index
+
+    assert [r[0] for r in RAIL] == ["Sessions", "Messages", "Mail", "Bulletins", "Files",
+                                    "Stations", "More"]
+    assert len(DESTINATIONS) == 5, "the phone's bar stays at five"
+    assert rail_index(2, "Files") == 4 and rail_index(3, "Mail") == 5
+    app = FakeApp()
+    app.wide = True
+    view = MailView(app)
+    assert not view.switch.visible
+
+
 @pytest.mark.asyncio
 async def test_categories_on_a_bulletins_folder_save_offline():
     from kissterm.client.ui.mail import MailView
 
     app = MailApp({"bulletin_categories": None, "mail_list": [], "mail_folders": []})
     view = MailView(app)
+    view.set_section("Bulletins")
     view.folder = "Bulletins/WX"
     await view.reload()
     assert view.categories_button.visible and not view.write_button.visible

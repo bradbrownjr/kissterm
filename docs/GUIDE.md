@@ -604,7 +604,7 @@ own client.
 - **The remote control** (needs the `web` extra on the station, SETUP.md
   section 11) is laid out for a phone: five places along the bottom
   (Sessions, Messages, Mail, Stations, More), or down the side on a wide
-  screen, and the transmit switch always in the top corner, red with
+  screen (where Mail's Bulletins and Files get a place each), and the transmit switch always in the top corner, red with
   "TX ON" while transmit is on. Tapping it while on turns transmit off at
   once; turning it on asks first. In a browser's menu, "Add to Home
   screen" or "Install app" keeps it as an app. The link's key is kept by
@@ -630,7 +630,11 @@ own client.
     bubbles, with a new message limited to the 67 characters APRS
     carries. **Send position** above the conversations sends one
     position report (APRS > Send position in the terminal), after asking.
-  - **Mail** (titled BBS Mail) shows the station's mail folders. Its button asks first
+  - **Mail** has three sections, as the terminal has three tabs: **Mail**
+    (titled BBS Mail), **Bulletins** and **Files**, switched at the top of
+    the page (on a wide screen, each is its own place at the side). The
+    folder list under the switch holds that section's folders only, and
+    each section opens where you left it. Its button asks first
     and does what G and I do on the terminal's tabs: on a mail folder,
     Send/Receive **By radio** or **By Internet** (no transmitting); on a
     Bulletins folder, Get bulletins either way; on Files, Get files by

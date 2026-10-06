@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Phone: Mail, Bulletins and Files as sections
+
+### Improvements
+
+- **Mail has three sections**, as the terminal has three tabs: a
+  Mail | Bulletins | Files switch at the top of the page on the phone,
+  and a rail place each on a wide screen; the title follows (BBS Mail,
+  Bulletins, Files) and the folder list holds that section's folders.
+- A section opens where it was left, else on its Inbox or first folder;
+  Deleted is listed last and never opened by default.
+
+**Files:** `kissterm/client/ui/mail.py`, `kissterm/client/ui/shell.py`,
+`assets/screenshot-phone-mail.png`, `assets/screenshot-desktop.png`,
+`DESIGN.md`, `docs/GUIDE.md`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-06] — Phone: BBS Mail title, Write pencil, Beacon asks which
 
 ### Improvements

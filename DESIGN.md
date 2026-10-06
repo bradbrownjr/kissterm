@@ -694,8 +694,12 @@ and do not apply there; these do.
   does, with a heavy haptic. Same rule as the terminal: the gate is never
   silent.
 - **Five places**: Sessions, Messages, Mail, Stations, More. A bottom
-  NavigationBar below 720 px wide, a NavigationRail from 720 up; nothing
-  else changes between them.
+  NavigationBar below 720 px wide, a NavigationRail from 720 up. The one
+  difference: Mail's sections (Mail, Bulletins, Files, the terminal's
+  three tabs) are a switch at the top of the Mail page on the phone and
+  a rail place each from 720 up, where there is room (operator,
+  2026-10-06). A section opens where it was left, else on its Inbox or
+  first folder, never on Deleted, which is listed last.
 - **One sheet shape** (`sheets.sheet`): drag handle, title, body,
   buttons at the right with the commitment last and filled. Dragging a
   sheet away is Cancel. A question from the station is the same sheet.
