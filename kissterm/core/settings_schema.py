@@ -808,9 +808,10 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
             Field("serve.enabled", "Remote control", "bool",
                   "Let a phone, laptop or browser control this station while "
                   "kissterm runs here. They see the same sessions and follow the "
-                  "same transmit rules; each needs this station's pairing link "
-                  "({key:remote_pairing}). kissterm --serve does the same with no "
-                  "screen.",
+                  "same transmit rules; each needs this station's pairing link, "
+                  "shown with its QR code when you turn this on and Save, and "
+                  "again from {key:remote_pairing}. kissterm --serve does the "
+                  "same with no screen.",
                   apply="live"),
             Field("serve.port", "Port", "int",
                   "The TCP port remote clients connect to.", minimum=1, maximum=65535,

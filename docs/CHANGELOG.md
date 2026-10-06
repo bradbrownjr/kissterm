@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Turning on remote control no longer freezes the terminal; the QR code shows
+
+### Improvements
+
+- **Turning on Remote control no longer freezes the screen.** Starting
+  the server imported the web app (Flet, uvicorn) on the UI's own loop,
+  5.6 s cold here and longer on a slow disk; a thread does it now, with
+  a "Starting remote control..." notice, and the start itself takes
+  about 20 ms.
+- **The pairing screen opens when you turn it on** in Settings and Save,
+  so the QR code is in front of you when the phone needs it. It does not
+  open at launch with remote control already on.
+
+**Files:** `kissterm/ui/remote.py`, `kissterm/ui/app.py`,
+`kissterm/core/settings_schema.py`, `docs/GUIDE.md`,
+`tests/pilot/test_remote_pairing.py`
+
 ## [2026-10-06] — Start without the modem: Enter skips the wait
 
 ### Improvements

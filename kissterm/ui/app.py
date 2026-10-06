@@ -973,6 +973,12 @@ class KissTermApp(App):
         """Session > Remote pairing: the link and QR code, and Rotate."""
         self.push_screen(RemotePairingScreen(self.remote))
 
+    def show_pairing(self) -> None:
+        """Remote control was just turned on in Settings: show the link and
+        QR code, unless a dialog is already up (`ui/remote.py`)."""
+        if self.screen is self.screen_stack[0]:
+            self.action_remote_pairing()
+
     def _reconcile_aprs_is_debug_watch(self) -> None:
         """`Aprs.reconcile_is_debug_watch` (kissterm/core/aprs.py)."""
         self.core.aprs.reconcile_is_debug_watch()

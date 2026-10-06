@@ -11,10 +11,21 @@ save and at launch), restarted when the port, interface or certificate
 changes; a Public URL change needs no restart, it only changes the link.
 A server that cannot start (the port taken, a bad certificate, the
 `serve` extra missing) is one notice, and the terminal carries on.
+
+**The web app is imported off the event loop** (`_preload`). Flet and its
+FastAPI host take seconds to import (5.6 s cold on the dev machine), and
+importing them inside `start` froze the whole terminal from Save until the
+"Remote control on" notice (operator, 2026-10-06: "locked up the whole
+program"). A thread imports them while the screen keeps drawing.
+
+**Turned on from Settings, the pairing screen opens** with its QR code, the
+one thing a phone needs next (operator, 2026-10-06: "there is no QR
+code"). Not when it was already on at launch: nothing changed then.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from ..core.operator import Notice, Severity
@@ -23,6 +34,29 @@ log = logging.getLogger(__name__)
 
 #: What a client needs to install for the server and the QR code.
 EXTRA_HINT = "Remote control needs the serve extra: pip install 'kissterm[serve]'."
+
+
+def _preload() -> None:
+    """Import the server and the web app, in a thread (module docstring)."""
+    import importlib
+
+    from ..client.ui import web
+    from ..serve import http, server  # noqa: F401 - imported for their cost
+
+    # uvicorn, and the protocol modules it imports by name as it starts.
+    for name in ("uvicorn", "uvicorn.protocols.http.auto",
+                 "uvicorn.protocols.websockets.auto", "uvicorn.lifespan.off",
+                 "uvicorn.loops.auto"):
+        try:
+            importlib.import_module(name)
+        except ImportError:
+            pass
+
+    if web.available():
+        import flet  # noqa: F401
+        import flet_web.fastapi  # noqa: F401
+
+        from ..client.ui import shell  # noqa: F401 - what `web.build` imports
 
 
 def serve_available() -> bool:
@@ -42,6 +76,8 @@ class RemoteControl:
         #: The settings the running server was started with.
         self._running_with: tuple | None = None
         self._told_missing = False
+        #: False until the first `reconcile` (launch) has run.
+        self._settled = False
 
     @property
     def core(self):
@@ -59,9 +95,11 @@ class RemoteControl:
 
     async def reconcile(self) -> None:
         """Make the server match Settings: start, stop or restart it."""
+        launch, self._settled = not self._settled, True
         want = self.wanted()
         if want == self._running_with:
             return
+        was_on = self._running_with is not None
         await self.stop()
         if want is None:
             return
@@ -70,7 +108,12 @@ class RemoteControl:
                 self._told_missing = True
                 self.local.notice(Notice(EXTRA_HINT, Severity.WARNING))
             return
+        if not launch:
+            self.local.notice(Notice("Starting remote control..."))
+        await asyncio.to_thread(_preload)
         await self.start(want)
+        if self.server is not None and not launch and not was_on:
+            self.app.show_pairing()
 
     async def start(self, want: tuple) -> None:
         from ..serve.operator import FanOutOperator

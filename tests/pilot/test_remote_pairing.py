@@ -136,3 +136,49 @@ async def test_turning_it_off_in_settings_stops_it_and_the_screen_answers_alone(
         await wait_for(lambda: app.remote.server is None, "the server to stop")
         await pilot.pause()
         assert app.core.operator is local and "REMOTE" not in _status(app)
+
+
+@pytest.mark.asyncio
+async def test_turning_it_on_keeps_the_screen_drawing_and_shows_the_qr_code(monkeypatch):
+    """Operator, 2026-10-06: turning it on "locked up the whole program"
+    (Flet's import, seconds long, ran on the event loop), and then there
+    was no QR code anywhere in sight. The import is a thread's; the
+    pairing screen opens once the server is up."""
+    import time
+
+    from kissterm.ui import remote
+
+    real = remote._preload
+
+    def slow_preload():
+        real()  # the real imports, so `start` finds them done
+        time.sleep(0.6)  # and a slow disk on top
+
+    monkeypatch.setattr(remote, "_preload", slow_preload)
+    app = _app(enabled=False)
+    # A configured radio, so first-run onboarding is not the screen up.
+    app.config.transports = [{"name": "dw", "kind": "tcp", "host": "127.0.0.1", "port": 8001}]
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        assert app.remote.server is None and not isinstance(app.screen, RemotePairingScreen), \
+            "the pairing screen opened at launch, with nothing turned on"
+        loop = asyncio.get_running_loop()
+        gaps, last = [], loop.time()
+
+        async def tick():
+            nonlocal last
+            while True:
+                await asyncio.sleep(0.02)
+                gaps.append(loop.time() - last)
+                last = loop.time()
+
+        ticker = asyncio.ensure_future(tick())
+        app.config.serve.enabled = True
+        app.apply_runtime_settings()
+        await wait_for(lambda: app.remote.server is not None, "the server to start")
+        ticker.cancel()
+        assert max(gaps) < 0.3, f"the event loop stalled {max(gaps):.2f}s while starting"
+        await wait_for(lambda: isinstance(app.screen, RemotePairingScreen), "the pairing screen")
+        await pilot.pause()
+        qr = app.screen.query_one("#pairing-qr", Static)
+        assert "-none" not in qr.classes, "the pairing screen came up without its QR code"
