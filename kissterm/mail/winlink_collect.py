@@ -194,10 +194,22 @@ class WinlinkCollector:
             have=lambda mid: bool(store.find(mid, SOURCE)),
         )
         link.on_data.append(self._on_data)
+        # A link that goes down wakes the wait at once, rather than after
+        # the idle timeout (300 s): a disconnect, or a phone's cancel
+        # (`core/mail.py`), ends the run as soon as it happens.
+        self._on_state_list = getattr(link, "on_state", None)
+        if self._on_state_list is not None:
+            self._on_state_list.append(self._on_state)
+
+    def _on_state(self, _state) -> None:
+        self._arrived.set()
 
     def close(self) -> None:
         with contextlib.suppress(ValueError):
             self.link.on_data.remove(self._on_data)
+        if self._on_state_list is not None:
+            with contextlib.suppress(ValueError):
+                self._on_state_list.remove(self._on_state)
 
     def _outbox(self) -> list[B2Message]:
         messages: list[B2Message] = []

@@ -712,6 +712,10 @@ and do not apply there; these do.
   over that session with Cancel. Cancel needs no confirming: it only
   stops transmitting. Nothing waits on the station's answer with the
   screen frozen.
+- **A long job shows it is still going**: Mail's Send/Receive button
+  turns and its progress line counts dots while a run is under way, and
+  a tap on the turning button cancels it without a sheet (stopping is
+  always safe).
 - **A title names the place, not the station**: "APRS messages", not
   "KC1JMH Messages"; the callsign is in More.
 - **What the operator acts on comes first**: Stations opens on Contacts,

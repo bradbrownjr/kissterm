@@ -4,7 +4,7 @@ messages alone (docs/PROTOCOL.md), with no UI.
 **Separate from the widgets so it can be tested without Flutter**, and so
 the phone, desktop and browser layouts read one model. `apply` takes every
 message in order; listeners (`subscribe`) hear `(kind, data)` for what
-changed: "station", "gate", "transport", "activity", "session",
+changed: "station", "gate", "transport", "activity", "mail_running", "session",
 "session_closed", "notice", "question", "question_closed", "monitor",
 "alert", "setup", or "stale" with what to re-read ("mail", "aprs",
 "heard", "addressbook", "config", "nodes").
@@ -109,6 +109,8 @@ class StationState:
         self.gate = False
         self.transport: dict = {}
         self.activity = ""
+        #: A Send/Receive (or bulletins, files) is running on the station.
+        self.mail_running = False
         self.sessions: dict[str, Session] = {}
         self.questions: dict[str, Question] = {}
         self.notices: collections.deque = collections.deque(maxlen=NOTICES)
@@ -164,6 +166,7 @@ class StationState:
         self.gate = bool(snapshot.get("gate"))
         self.transport = snapshot.get("transport") or {}
         self.activity = snapshot.get("activity", "")
+        self.mail_running = bool(snapshot.get("mail_running"))
         # Questions are sent again after every welcome: start clean.
         self.questions.clear()
         live = set()
@@ -214,6 +217,9 @@ class StationState:
         elif name == "ActivityChanged":
             self.activity = data.get("text", "")
             self._tell("activity", self.activity)
+        elif name == "MailRunChanged":
+            self.mail_running = bool(data.get("running"))
+            self._tell("mail_running", self.mail_running)
         elif name == "SessionOpened":
             session = self.session(data.get("key", ""))
             session.peer = data.get("peer", session.peer)

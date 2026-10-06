@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Send/Receive shows it is running and can be cancelled
+
+### Improvements
+
+- **On the phone, a running Send/Receive is visible**: the button's icon
+  turns and the progress line counts dots; tapping it again cancels the
+  run. The station gained `Mail.cancel` (`mail_cancel`, `MailRunChanged`):
+  it stops the SABMs or disconnects the run's session, or stops an
+  Internet run, and says "cancelled".
+
+### Fixes
+
+- **A mail run noticed a dropped link only after its 300 s idle
+  timeout.** Both collectors now wake when the link's state changes.
+
+**Files:** `kissterm/core/mail.py`, `kissterm/core/events.py`,
+`kissterm/mail/collect.py`, `kissterm/mail/winlink_collect.py`,
+`kissterm/serve/server.py`, `kissterm/client/state.py`,
+`kissterm/client/ui/mail.py`, `DESIGN.md`, `docs/GUIDE.md`, `docs/PROTOCOL.md`,
+`tests/unit/test_core_mail.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-06] — Remote control: more terminal, a connect you can watch and cancel, its own icon
 
 ### Improvements

@@ -226,6 +226,7 @@ class RemoteServer:
             "transport": transport,
             "sessions": sessions,
             "connecting": wire.connecting_keys(core),
+            "mail_running": bool(core.mail.collecting),
             "activity": self._activity,
         }
 
@@ -394,6 +395,9 @@ class RemoteServer:
 
     async def cmd_send_receive(self, folder: str = "", internet: bool = False) -> None:
         await self.core.mail.send_receive(str(folder), internet=bool(internet))
+
+    async def cmd_mail_cancel(self) -> bool:
+        return await self.core.mail.cancel()
 
     async def cmd_get_bulletins(self, internet: bool = False) -> None:
         await self.core.mail.get_bulletins(internet=bool(internet))

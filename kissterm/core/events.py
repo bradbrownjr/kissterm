@@ -153,6 +153,14 @@ class ConnectingChanged(Event):
 
 
 @dataclass(frozen=True, slots=True)
+class MailRunChanged(Event):
+    """Send/Receive, Get bulletins or Get files started (`running`) or
+    ended (`core/mail.py`); `Mail.cancel` stops one."""
+
+    running: bool
+
+
+@dataclass(frozen=True, slots=True)
 class ActivityChanged(Event):
     """A job the operator started says how far it has got ("Reading the
     command list"); "" when it is over."""

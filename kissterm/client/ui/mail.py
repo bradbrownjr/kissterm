@@ -5,15 +5,28 @@ Reading is free; **Send/Receive is a button**, the same request as the
 terminal's G, and dials the Home BBS or Winlink through the station's own
 connect flow (the reminder, the gate, a login question here if one is
 missing). Writing mail from the phone is not in protocol v1.
+
+**A run shows it is still going** (operator, 2026-10-06: after the first
+notice, nothing said it was). While the station reports one running
+(`MailRunChanged`), the Send/Receive button's icon turns, and the
+progress line ("Receiving 2 of 2") is followed by dots counting one to
+three. **Tapping the turning button cancels the run** with no sheet:
+stopping only ends the exchange (`mail_cancel`, a DISC if the link is
+up), as the transmit switch turns off without asking.
 """
 
 from __future__ import annotations
+
+import asyncio
+import math
 
 import flet as ft
 
 from . import sheets
 
 ALL_INBOXES = ""
+#: Seconds per step of the turning icon and the counting dots.
+TICK = 0.4
 
 
 class MailView:
@@ -25,13 +38,24 @@ class MailView:
         self.list = ft.ListView(expand=True)
         self.reader: ft.Control | None = None
         self.control = ft.Container(expand=True)
+        self.activity = ft.Text("", color=ft.Colors.PRIMARY)
+        self.sync_icon = ft.Icon(ft.Icons.SYNC, rotate=0,
+                                 animate_rotation=ft.Animation(int(TICK * 1000), ft.AnimationCurve.LINEAR))
+        self.button = ft.FloatingActionButton(content=self.sync_icon, on_click=self._send_receive)
+        self._ticking = False
+        self._dots = 0
+        self._paint_button()
         self._show_list()
 
     def fab(self):
         if self.reader is not None:
             return None
-        return ft.FloatingActionButton(icon=ft.Icons.SYNC, tooltip="Send/Receive",
-                                       on_click=self._send_receive)
+        return self.button
+
+    def _paint_button(self) -> None:
+        running = self.app.state.mail_running
+        self.button.tooltip = ("Sending and receiving: tap to cancel" if running
+                               else "Send/Receive")
 
     async def shown(self) -> None:
         await self.reload()
@@ -41,15 +65,41 @@ class MailView:
             self.app.page.run_task(self.reload)
         elif kind == "activity" and self.reader is None:
             self._show_list()
+        elif kind in ("mail_running", "station"):  # "station": a (re)join mid-run
+            self._paint_button()
+            if self.app.state.mail_running and not self._ticking:
+                self._ticking = True
+                self.app.page.run_task(self._tick)
+
+    async def _tick(self) -> None:
+        """Turn the icon and count the dots while a run is going."""
+        try:
+            while self.app.state.mail_running:
+                self.sync_icon.rotate = (self.sync_icon.rotate or 0) + math.pi / 2
+                self._dots = self._dots % 3 + 1
+                self._paint_activity()
+                self.app.page.update()
+                await asyncio.sleep(TICK)
+        finally:
+            self._ticking = False
+            self._dots = 0
+            self._paint_activity()
+            self.app.page.update()
+
+    def _paint_activity(self) -> None:
+        text = self.app.state.activity
+        dots = "." * self._dots if self.app.state.mail_running else ""
+        # The dots in a fixed width, so the line does not shuffle as they count.
+        self.activity.value = f"{text}{dots:<3}" if text else ""
 
     def _show_list(self) -> None:
         self.reader = None
-        activity = self.app.state.activity
+        self._paint_activity()
         self.control.content = ft.Column(expand=True, spacing=0, controls=[
             ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6),
                          content=ft.Row(controls=[self.folders])),
             *([ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=4),
-                            content=ft.Text(activity, color=ft.Colors.PRIMARY))] if activity else []),
+                            content=self.activity)] if self.app.state.activity else []),
             self.list])
 
     async def reload(self) -> None:
@@ -103,6 +153,11 @@ class MailView:
         await self.reload()
 
     async def _send_receive(self, _e) -> None:
+        if self.app.state.mail_running:
+            # Stopping never asks (module docstring).
+            if await self.app.command("mail_cancel"):
+                sheets.snack(self.app.page, "Cancelling Send/Receive...")
+            return
         folder = self.folder
 
         async def go() -> None:

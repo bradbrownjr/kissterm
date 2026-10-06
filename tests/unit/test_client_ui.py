@@ -392,3 +392,38 @@ def _walk(control) -> list:
             elif isinstance(child, ft.Control):
                 todo.append(child)
     return found
+
+
+# ----------------------------------------------------------------------
+# Mail: a run shows it is going, and a second tap cancels it
+# ----------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_running_send_receive_turns_counts_and_cancels_on_a_tap():
+    from kissterm.client.ui.mail import MailView
+
+    app = FakeApp()
+    view = MailView(app)
+    await view.button.on_click(None)
+    assert app.commands == [] and len(app.page.dialogs) == 1, "a new run asks first"
+    app.page.dialogs.clear()
+
+    app.state.apply({"type": "event", "seq": 1, "name": "MailRunChanged", "data": {"running": True}})
+    app.state.apply({"type": "event", "seq": 2, "name": "ActivityChanged",
+                     "data": {"text": "Receiving 2 of 2"}})
+    view.on_state("mail_running", True)
+    assert app.page.tasks == [view._tick], "the icon starts turning"
+    view._dots = 2
+    view._paint_activity()
+    assert view.activity.value == "Receiving 2 of 2.. "
+    assert "cancel" in view.button.tooltip
+
+    await view.button.on_click(None)
+    assert app.commands == [("mail_cancel", {})], "a tap while running cancels"
+    assert all(not isinstance(d, ft.BottomSheet) for d in app.page.dialogs), \
+        "cancelling never asks"
+
+    app.state.apply({"type": "event", "seq": 3, "name": "MailRunChanged", "data": {"running": False}})
+    view._paint_activity()
+    assert not view.activity.value.endswith(".")

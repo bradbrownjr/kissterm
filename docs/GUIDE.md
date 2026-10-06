@@ -611,6 +611,9 @@ own client.
     bubbles, with a new message limited to the 67 characters APRS
     carries.
   - **Mail** shows the station's mail folders; Send/Receive asks first.
+    While a run is going its button turns and the progress line
+    ("Receiving 2 of 2") counts dots; tap the turning button to cancel
+    the run, which disconnects without asking.
   - **Stations** has Contacts and Heard, swiped between. **A swipe never
     transmits**: swiping a station right asks "Connect to ...?", swiping
     it left opens its contact, and nothing happens until that sheet's

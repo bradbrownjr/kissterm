@@ -125,3 +125,89 @@ async def test_a_transfer_needs_a_connected_session(tmp_path):
     assert core.transfers.refusal("WS1EC-2") == "Connect before starting a file transfer."
     assert core.transfers.can_send("WS1EC-2") is False
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_cancel_stops_a_run_still_calling_and_says_so(tmp_path):
+    """Operator, 2026-10-06, from a phone: tap the turning Send/Receive
+    button "to cancel and disconnect". Here the BBS never answers: the
+    SABMs stop, the run ends, and every client is told it did."""
+    import asyncio
+
+    from kissterm.core.events import MailRunChanged
+
+    core, operator, station, ta, events = await _core(tmp_path, {})
+    core.addressbook.upsert("WS1EC-2")
+    core.config.home_bbs.route = "WS1EC-2"
+    run = asyncio.ensure_future(core.mail.send_receive("Mail/BBS/Inbox"))
+    for _ in range(200):
+        if core.connector.connecting:
+            break
+        await asyncio.sleep(0.01)
+    assert core.mail.session_key in core.connector.connecting
+    assert await core.mail.cancel() is True
+    await asyncio.wait_for(run, 5)
+    sent = len(ta.sent)
+    await asyncio.sleep(0.3)
+    assert len(ta.sent) == sent, "SABMs went on after the cancel"
+    assert core.mail.collecting is False
+    assert [e.running for e in events if isinstance(e, MailRunChanged)] == [True, False]
+    assert any(n.text == "Send/Receive cancelled." for n in operator.notices)
+    assert await core.mail.cancel() is False, "nothing left to cancel"
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_cancel_stops_a_run_with_no_session_of_its_own(tmp_path):
+    """An Internet run (the Winlink CMS, the BBS by I) is a task cancelled;
+    the run ends quietly, not the task that asked for it."""
+    import asyncio
+
+    core, operator, station, ta, events = await _core(tmp_path, {})
+    started = asyncio.Event()
+
+    async def slow(*_args):
+        started.set()
+        await asyncio.sleep(3600)
+
+    async def prepared(*_args):
+        return [(slow, ())]
+
+    core.mail._prepare_runs = prepared
+    run = asyncio.ensure_future(core.mail.send_receive("", internet=True))
+    await asyncio.wait_for(started.wait(), 2)
+    assert await core.mail.cancel() is True
+    await asyncio.wait_for(run, 2)
+    assert not run.cancelled(), "the caller's task was cancelled, not just the run"
+    assert core.mail.collecting is False
+    assert any(n.text == "Send/Receive cancelled." for n in operator.notices)
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_cancel_after_the_link_is_up_disconnects_and_reports_cancelled(tmp_path):
+    """The BBS answered but the run is not done: cancel ends the link as a
+    disconnect does, and the one outcome notice says it was cancelled."""
+    import asyncio
+
+    core, operator, station, ta, events = await _core(tmp_path, {})
+    peer = AX25Station(AX25Address.parse("WS1EC-2"), ta.peer, LinkParams(),
+                       accept_incoming=True)
+    core.addressbook.upsert("WS1EC-2")
+    core.config.home_bbs.route = "WS1EC-2"
+    run = asyncio.ensure_future(core.mail.send_receive("Mail/BBS/Inbox"))
+    for _ in range(300):
+        link = core.sessions.link("WS1EC-2")
+        if link is not None and link.connected:
+            break
+        await asyncio.sleep(0.01)
+    assert link is not None and link.connected
+    assert await core.mail.cancel() is True
+    # Well inside the collector's 300 s idle timeout: the drop wakes it.
+    await asyncio.wait_for(run, 3)
+    assert core.mail.collecting is False
+    assert any(n.text.startswith("Send/Receive stopped: cancelled.") for n in operator.notices)
+    link = core.sessions.link("WS1EC-2")
+    assert link is None or not link.connected
+    station.close()
+    peer.close()

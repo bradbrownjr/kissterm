@@ -21,10 +21,20 @@ nothing in it can key a radio. Every line sent is echoed to the session
 (`LineSent`) and its transcript; when a radio run finishes, the link is
 disconnected. Progress goes to `core.set_activity`; the outcome is one
 notice (DESIGN.md section 6: one event, one notice).
+
+**A run can be cancelled** (`cancel`; operator, 2026-10-06, from a phone:
+"tap it again to cancel and disconnect"). A run on a session (radio, or
+an Internet contact) is ended the way a disconnect ends any session: its
+SABMs stop, or the link gets its DISC, and the collector stops as the
+link goes, reporting "cancelled". A run over the Internet with no session
+of its own (the Winlink CMS, the Home BBS by I) is a task cancelled; its
+`finally` closes the connection. `MailRunChanged` tells every client a
+run started and ended, so a phone can offer the cancel.
 """
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 from pathlib import Path
@@ -52,6 +62,7 @@ from .events import (
     ConfigChanged,
     LineSent,
     MailChanged,
+    MailRunChanged,
     SessionData,
     SetupRequested,
 )
@@ -114,6 +125,11 @@ class Mail:
         self.subscriptions.load()
         #: True while a run is under way; one at a time.
         self.collecting = False
+        #: The run's task, its session's key once it dials one, and whether
+        #: `cancel` was asked for (module docstring).
+        self._task: asyncio.Task | None = None
+        self.session_key = ""
+        self.cancel_requested = False
         #: While G or I on All Inboxes prepares its runs: (key, service
         #: being asked about), so each question says why it is asked and
         #: offers to skip that service (`_all_inboxes_ask`).
@@ -181,11 +197,42 @@ class Mail:
             self._notice("Already sending and receiving.", Severity.WARNING)
             return True
         self.collecting = True
+        self._task = asyncio.current_task()
+        self.session_key = ""
+        self.cancel_requested = False
+        self._publish(MailRunChanged(True))
         return False
 
     def _done(self) -> None:
         self.collecting = False
+        self._task = None
+        self.session_key = ""
         self.core.set_activity("")
+        self._publish(MailRunChanged(False))
+
+    def _cancelled(self) -> bool:
+        """Whether a CancelledError reaching a run is `cancel`'s, which
+        ends the run quietly rather than the task it runs in."""
+        if not self.cancel_requested:
+            return False
+        task = asyncio.current_task()
+        if task is not None:
+            task.uncancel()
+        self._notice("Send/Receive cancelled.")
+        return True
+
+    async def cancel(self) -> bool:
+        """Stop the run under way (module docstring). False if none is."""
+        if not self.collecting:
+            return False
+        self.cancel_requested = True
+        key = self.session_key
+        connector = self.core.connector
+        if key and connector is not None and connector.session_is_live(key):
+            await connector.disconnect(key)
+        elif self._task is not None and self._task is not asyncio.current_task():
+            self._task.cancel()
+        return True
 
     async def send_receive(self, folder: str, *, internet: bool = False) -> None:
         """Send/Receive (G; I with `internet`) for the folder in front."""
@@ -199,6 +246,8 @@ class Mail:
                     ("Winlink", self.winlink_login, self._winlink_cms_run),
                 ))
                 for run, args in runs or ():
+                    if self.cancel_requested:
+                        break
                     await run(*args)
             else:
                 runs = await self._prepare_runs(kind, "G", (
@@ -206,7 +255,12 @@ class Mail:
                     ("Winlink", self._winlink_prepare, self._winlink_run),
                 ))
                 for run, (entry, options) in runs or ():
+                    if self.cancel_requested:
+                        break
                     await run(entry, options)
+        except asyncio.CancelledError:
+            if not self._cancelled():
+                raise
         finally:
             self._done()
 
@@ -230,6 +284,9 @@ class Mail:
             await run(entry, options)
         except SkipService:
             pass
+        except asyncio.CancelledError:
+            if not self._cancelled():
+                raise
         finally:
             self._done()
 
@@ -248,6 +305,9 @@ class Mail:
             await self._bbs_run(entry, options)
         except SkipService:
             pass
+        except asyncio.CancelledError:
+            if not self._cancelled():
+                raise
         finally:
             self._done()
 
@@ -434,6 +494,8 @@ class Mail:
             self._notice(announce)
             announce = ""
         self.core.set_activity(f"Connecting to {entry.target}")
+        # The key `Connector` gives the session, so `cancel` can end it.
+        self.session_key = entry.target if entry.is_internet else str(peer)
         await self.core.connector.dial_entry(
             entry, on_link=on_link, on_reached=on_reached, focus=False,
             announce=announce, report=reasons.append,
@@ -442,9 +504,12 @@ class Mail:
         why = reasons[-1].rstrip(".") if reasons else f"did not reach {entry.target}"
         if runner is None:
             # No reason means the operator cancelled (the reminder, a
-            # disconnect): nothing to tell them.
+            # disconnect): nothing to tell them, unless it was `cancel`,
+            # which a remote tap asked for and wants to see done.
             if reasons:
                 self._notice(f"{label}: {why}.", Severity.ERROR)
+            elif self.cancel_requested:
+                self._notice(f"{label} cancelled.")
             return None
         if not state["reached"]:
             runner.close()
@@ -550,6 +615,8 @@ class Mail:
 
     def bbs_report(self, result, bulletins: bool = False, files: bool = False) -> None:
         """The outcome notice of a Home BBS run, over radio or the Internet."""
+        if self.cancel_requested and result.stopped:
+            result.stopped = "cancelled"
         sent = f"{len(result.sent)} sent, " if result.sent else ""
         if files:
             got = len(result.downloaded)
@@ -713,6 +780,8 @@ class Mail:
 
     def winlink_report(self, result) -> None:
         """The outcome notice of a Winlink run, over radio or the Internet."""
+        if self.cancel_requested and result.stopped:
+            result.stopped = "cancelled"
         sent = f"{len(result.sent)} sent, " if result.sent else ""
         if "unknown client type" in result.stopped.lower():
             self._notice(UNKNOWN_CLIENT, Severity.WARNING, timeout=15)

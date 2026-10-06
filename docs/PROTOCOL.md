@@ -53,7 +53,7 @@ the same transmit-gate rules as the terminal.
 ```json
 {"type": "welcome", "version": 1, "seq": 1234,
  "station": {"callsign": "KC1JMH-1", "kissterm": "0.1.405"},
- "snapshot": {"gate": false, "transport": {}, "sessions": [], "connecting": [], "activity": ""} }
+ "snapshot": {"gate": false, "transport": {}, "sessions": [], "connecting": [], "mail_running": false, "activity": ""} }
 ```
 
 `seq` is the last event sequence number included in `snapshot`. Events
@@ -151,6 +151,7 @@ lighter path around a rule the terminal follows.
 | `beacon_now` | `Aprs.beacon_now` | no (refused while closed) |
 | `send_receive` `{folder, internet}` | `Mail.send_receive` | through its connect |
 | `get_bulletins` `{internet}` / `get_files` | `Mail` | through its connect |
+| `mail_cancel` | `Mail.cancel`: the run's session is disconnected (or its SABMs stopped), an Internet run stopped; false if none was running | a DISC, if its link is up |
 | `settings_schema` | `SETTINGS_SCHEMA`, each field with its `value` (a secret's is null) | no |
 | `settings_save` `{draft, active_transport}` | `Settings.save`; a new transport is opened | no |
 | `addressbook` / `addressbook_save` `{entry}` | `Core.addressbook` | no |
@@ -194,6 +195,7 @@ it as history, if at all, and never raises it again.
 | `SessionClosed` | `key` |
 | `ConnectingChanged` | `keys`: every session with a connect still in progress (a `disconnect` cancels it). A radio session gets its `SessionOpened` only once the link is up, so a client shows a key here it has not seen as a session being dialled; the snapshot's `connecting` is the same list |
 | `ActivityChanged` | `text` |
+| `MailRunChanged` | `running`: a Send/Receive, Get bulletins or Get files started or ended (the snapshot's `mail_running` says the same) |
 | `AprsMessage`, `AprsAcked`, `AprsBulletinHeard`, `AprsRetried` | as in `events.py` |
 | `AprsPacketHeard` | `line, at` (the decoded packet stays on the station) |
 | `Alert` | `title, body, urgent, topic` |
