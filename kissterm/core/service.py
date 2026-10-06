@@ -49,6 +49,11 @@ log = logging.getLogger(__name__)
 #: disagree about how many connections are usable at once.
 MAX_LINKS = 8
 
+#: `Core.transport_problem` when the operator skipped the modem at launch
+#: (pressed Enter while kissterm waited on it), not a failed open: nothing
+#: is wrong to fix, so a front end does not open Settings over it.
+TRANSPORT_SKIPPED = "skipped at startup"
+
 
 def build_station(config, transport, max_links: int = MAX_LINKS) -> AX25Station:
     """The `AX25Station` for `config` on an opened frame `transport`.

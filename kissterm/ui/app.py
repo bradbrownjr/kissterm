@@ -125,7 +125,7 @@ from textual.widgets._footer import FooterKey
 from .. import __version__
 from ..addressbook import adopt_internet_transports
 from ..ax25 import AX25Station
-from ..core import Core, GateChanged, TransportChanged
+from ..core import TRANSPORT_SKIPPED, Core, GateChanged, TransportChanged
 from ..core.events import (
     ActivityChanged,
     FrameSeen,
@@ -822,6 +822,8 @@ class KissTermApp(App):
             # Pushing a modal directly from on_mount races Textual's initial
             # focus pass and can leave the callsign box unfocused.
             self.call_after_refresh(self._show_onboarding)
+        elif self._transport_problem == TRANSPORT_SKIPPED:
+            self.call_after_refresh(self._show_transport_skipped)
         elif self._transport_problem:
             self.call_after_refresh(self._show_transport_problem)
         else:
@@ -854,6 +856,18 @@ class KissTermApp(App):
                 # this the list's keys (G) stayed off it until something else
                 # redrew it.
                 self.query_one(KissTermFooter).refresh_bindings()
+
+    def _show_transport_skipped(self) -> None:
+        """The operator pressed Enter rather than wait for the modem: they
+        meant to start without it, so stay on the launch tab (nothing is
+        wrong to fix) and say how to open it later."""
+        self._focus_start_tab()
+        self.notify(
+            "Started without the modem. Internet (Telnet/SSH) contacts work from "
+            "the Address Book (Ctrl+G); once the modem software is running, Save on "
+            "Settings > Radio opens it.",
+            timeout=10,
+        )
 
     def _show_transport_problem(self) -> None:
         """Land on Settings > Radio after a startup open failed.

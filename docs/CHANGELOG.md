@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Start without the modem: Enter skips the wait
+
+### Improvements
+
+- **Enter skips the startup wait for the modem.** With the modem
+  software or TNC off, kissterm counted down its connect timeout with no
+  way past it, though Telnet and SSH contacts need no modem. Enter now
+  starts without it, stays on the usual tab, and says that Save on
+  Settings > Radio opens the modem later. The half-open transport is
+  closed so it does not keep redialling. Unix terminals only.
+
+**Files:** `kissterm/__main__.py`, `kissterm/core/service.py`,
+`kissterm/core/__init__.py`, `kissterm/ui/app.py`, `docs/GUIDE.md`,
+`tests/unit/test_tcp_kiss_connect_timeout.py`, `tests/pilot/test_app_mounts.py`
+
 ## [2026-10-06] — Remote control on the README's front page
 
 ### Improvements

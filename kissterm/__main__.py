@@ -396,7 +396,56 @@ def _move_internet_transports(config) -> None:
 _NETWORK_KINDS = frozenset({"telnet", "ssh"})
 
 
-async def _open_with_progress(transport, entry: dict, stream=None) -> None:
+class OpenSkipped(Exception):
+    """The operator pressed Enter to start without waiting for the modem."""
+
+
+def _skip_key(stdin):
+    """Watch `stdin` for Enter while the modem opens; return (future,
+    stop), or None where that cannot be done without stealing input.
+
+    Unix only: the event loop watches the descriptor and reads the line
+    with `os.read`, so nothing is left in Python's buffer for the TUI to
+    miss. Windows' event loop cannot watch a console, and a thread blocked
+    in `readline` would go on eating keystrokes after the app starts, so
+    there the wait simply runs out as before. `stop` also throws away
+    anything typed without Enter, which would otherwise arrive in the
+    first widget the app focuses.
+    """
+    import contextlib
+    import os
+
+    try:
+        import termios
+
+        fd = stdin.fileno()
+    except (AttributeError, OSError, ValueError, ImportError):
+        return None
+    loop = asyncio.get_running_loop()
+    pressed = loop.create_future()
+
+    def readable() -> None:
+        try:
+            os.read(fd, 4096)
+        except OSError:
+            pass
+        if not pressed.done():
+            pressed.set_result(None)
+
+    try:
+        loop.add_reader(fd, readable)
+    except (NotImplementedError, OSError, ValueError):
+        return None
+
+    def stop() -> None:
+        loop.remove_reader(fd)
+        with contextlib.suppress(OSError, termios.error):
+            termios.tcflush(fd, termios.TCIFLUSH)
+
+    return pressed, stop
+
+
+async def _open_with_progress(transport, entry: dict, stream=None, stdin=None) -> None:
     """Open `transport`, telling the operator what we are waiting on.
 
     This runs before the TUI exists, so without it a TNC that is down leaves a
@@ -406,8 +455,17 @@ async def _open_with_progress(transport, entry: dict, stream=None) -> None:
     long it will wait (`connect_timeout`), elapsed time when it does not.
     Piped or redirected, it prints the one line and skips the animation, so a
     log file does not fill with carriage returns.
+
+    On a terminal, Enter skips the wait and raises `OpenSkipped` (operator,
+    2026-10-06: started with the radio room's modem off, and should have been
+    offered a way past it, since Telnet and SSH contacts need no modem). The
+    half-open transport is closed first, so its reconnect loop does not keep
+    dialling the modem behind the app.
     """
+    import contextlib
+
     stream = stream if stream is not None else sys.stderr
+    stdin = stdin if stdin is not None else sys.stdin
     kind = entry.get("kind", "")
     what = "node" if kind in _NETWORK_KINDS else "modem"
     label = f"Connecting to {what} {entry.get('name')!r}..."
@@ -421,10 +479,16 @@ async def _open_with_progress(transport, entry: dict, stream=None) -> None:
         await transport.open()
         return
 
+    skip = _skip_key(stdin) if stdin.isatty() and what == "modem" else None
+    if skip is not None:
+        print("Press Enter to start without it; Internet (Telnet/SSH) contacts "
+              "still work.", file=stream, flush=True)
     task = asyncio.ensure_future(transport.open())
+    waits = {task} if skip is None else {task, skip[0]}
     loop = asyncio.get_running_loop()
     started = loop.time()
     width = 0
+    skipped = False
     try:
         while True:
             elapsed = loop.time() - started
@@ -436,14 +500,25 @@ async def _open_with_progress(transport, entry: dict, stream=None) -> None:
             stream.write("\r" + line.ljust(width))
             stream.flush()
             width = len(line)
-            done, _ = await asyncio.wait({task}, timeout=1.0)
+            done, _ = await asyncio.wait(waits, timeout=1.0)
+            if task in done:
+                break
             if done:
+                skipped = True
                 break
     finally:
-        stream.write("\r" + label.ljust(width) + "\n")
+        if skip is not None:
+            skip[1]()
+        stream.write("\r" + (f"{label} skipped" if skipped else label).ljust(width) + "\n")
         stream.flush()
         if not task.done():
             task.cancel()
+    if skipped:
+        with contextlib.suppress(asyncio.CancelledError, Exception):
+            await task
+        with contextlib.suppress(Exception):
+            await transport.close()
+        raise OpenSkipped
     task.result()
 
 
@@ -612,6 +687,11 @@ async def _amain(args) -> int:
         try:
             transport = build_transport(entry)
             await _open_with_progress(transport, entry)
+        except OpenSkipped:
+            from .core import TRANSPORT_SKIPPED
+
+            transport_problem = TRANSPORT_SKIPPED
+            transport = None
         except (TransportError, Exception) as exc:  # noqa: BLE001 - reported, not raised
             print(f"Could not open transport {entry.get('name')!r}: {exc}", file=sys.stderr)
             if entry.get("kind") in _OPEN_HINTS:

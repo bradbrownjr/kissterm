@@ -326,6 +326,24 @@ async def test_starting_anyway_lands_on_transports_and_save_retries_the_open(mon
 
 
 @pytest.mark.asyncio
+async def test_a_skipped_modem_stays_on_the_launch_tab():
+    """Enter at the startup wait means "start without it", not "it is broken":
+    no Settings detour, and a notice saying how to open it later."""
+    from kissterm.core import TRANSPORT_SKIPPED
+
+    config = Config(
+        mycall=str(MYCALL),
+        transports=[{"name": "dw", "kind": "tcp", "host": "127.0.0.1", "port": 8001}],
+        active_transport="dw",
+    )
+    app = KissTermApp(config, transport_problem=TRANSPORT_SKIPPED)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert app.query_one("#main-tabs", TabbedContent).active != "settings"
+        assert any("Started without the modem" in str(n.message) for n in app._notifications)
+
+
+@pytest.mark.asyncio
 async def test_first_saved_transport_opens_without_requiring_a_restart(monkeypatch):
     """Onboarding must leave a live frame station for APRS and beacons."""
     ta, tb = loopback_pair()

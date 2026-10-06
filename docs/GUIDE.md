@@ -352,6 +352,13 @@ echo, so each line shows once. The password line of a saved login is
 shown as `********`, on screen and in the transcript. The status bar
 names the contact by its host (`WS1EC`, not the full address).
 
+Telnet and SSH need no modem. If kissterm starts while the modem software
+or TNC is off, it waits on it with a countdown; press **Enter** to skip
+the wait and start without it. Your Internet contacts work as usual, the
+status bar shows `NO TRANSPORT`, and once the modem is running, Save on
+Settings > Radio opens it. (On Windows the wait cannot be skipped yet; it
+gives up at the countdown and asks whether to start anyway.)
+
 ### Link behaviour
 
 Full AX.25 2.2 connected mode, with retransmission and timer recovery, so

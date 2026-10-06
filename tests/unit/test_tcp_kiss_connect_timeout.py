@@ -93,6 +93,79 @@ async def test_piped_output_gets_one_line_and_no_carriage_returns():
     assert out.text == "Connecting to node 'gb7x'...\n"
 
 
+class _KeyboardPipe:
+    """A stdin that claims to be a terminal, on a real descriptor the event
+    loop can watch; `press()` is the operator hitting Enter."""
+
+    def __init__(self):
+        import os
+
+        self.r, self.w = os.pipe()
+
+    def fileno(self):
+        return self.r
+
+    def isatty(self):
+        return True
+
+    def press(self):
+        import os
+
+        os.write(self.w, b"\n")
+
+    def close(self):
+        import os
+
+        os.close(self.r)
+        os.close(self.w)
+
+
+class _HangingModem:
+    connect_timeout = 10
+
+    def __init__(self):
+        self.closed = False
+
+    async def open(self):
+        await asyncio.sleep(3600)
+
+    async def close(self):
+        self.closed = True
+
+
+@pytest.mark.asyncio
+async def test_enter_skips_the_wait_and_closes_the_half_open_modem():
+    """Operator, 2026-10-06: the radio room's modem was off; Telnet/SSH
+    contacts need none, so the wait offers a way past it."""
+    from kissterm.__main__ import OpenSkipped, _open_with_progress
+
+    out, keys, modem = _Tty(), _KeyboardPipe(), _HangingModem()
+    try:
+        asyncio.get_running_loop().call_later(0.2, keys.press)
+        with pytest.raises(OpenSkipped):
+            await asyncio.wait_for(
+                _open_with_progress(modem, {"kind": "tcp", "name": "dw"}, out, keys), 5
+            )
+    finally:
+        keys.close()
+    assert "Press Enter to start without it" in out.text
+    assert out.text.rstrip().endswith("Connecting to modem 'dw'... skipped")
+    assert modem.closed, "a skipped modem must not keep dialling behind the app"
+
+
+@pytest.mark.asyncio
+async def test_a_node_over_the_internet_offers_no_skip():
+    """Telnet/SSH is the Internet connection itself; skipping it leaves nothing."""
+    from kissterm.__main__ import _open_with_progress
+
+    out, keys = _Tty(), _KeyboardPipe()
+    try:
+        await _open_with_progress(_SlowTransport(0.01), {"kind": "telnet", "name": "gb7x"}, out, keys)
+    finally:
+        keys.close()
+    assert "Press Enter" not in out.text
+
+
 class _Stdin:
     def __init__(self, answer, tty=True):
         self.answer, self._tty = answer, tty
