@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — A tab key pressed at launch is no longer undone
+
+### Improvements
+
+- **A tab key pressed in the first moment after launch stays put.** F9
+  went to Settings and then flipped back to Terminal: the send line's
+  startup focus told the tab row "Terminal" after the key had moved on.
+  The tab row now ignores that message once focus has left the pane
+  (`ui/main_tabs.py`). Found by the test suite (ROADMAP P0.1).
+
+**Files:** `kissterm/ui/main_tabs.py`, `kissterm/ui/app.py`,
+`docs/ROADMAP.md`
+
 ## [2026-10-06] — Phone parity: bulletins, files, By Internet, position, beacon
 
 ### Improvements

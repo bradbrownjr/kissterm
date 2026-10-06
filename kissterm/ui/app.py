@@ -175,6 +175,7 @@ from .clock import KissTermHeader
 from . import commands as cmdreg
 from .commands import TAB_ORDER, KeyBindingsProvider
 from .menu import MenuScreen
+from .main_tabs import MainTabs
 from ..nodes import Command, CommandReference
 from .dialogs import (
     CommandReferenceScreen,
@@ -691,7 +692,7 @@ class KissTermApp(App):
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
         yield KissTermHeader(show_clock=True)
-        with TabbedContent(initial=self._start_tab(), id="main-tabs"):
+        with MainTabs(initial=self._start_tab(), id="main-tabs"):
             # Help first: it is on F1, and the row reads F1 to F9 left to
             # right. See `help_pane.py` for why it is a tab, not a modal.
             with TabPane("F1 Help", id="help"):

@@ -127,19 +127,6 @@ CHANGELOG only. As of 2026-10-04: one item open outside the code
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
-- **A tab key pressed right at launch is undone** (2026-10-05, `open`;
-  found by the test suite, not yet seen by the operator, who asked for
-  bugs found to be filed here). Evidence: `tests/pilot/test_addressbook_
-  pane.py::test_settings_is_f9_and_ctrl_g_closes_and_reopens_the_
-  addressbook` fails since at least 0.1.397: F9 pressed as the first key
-  switches to Settings, then the tab flips back to Terminal. Trace: the
-  startup focus on Terminal's send line (`#session-input`) posts
-  `TabPane.Focused`, which Textual's `TabbedContent._on_tab_pane_focused`
-  handles AFTER the F9 switch, re-activating Terminal. Tab order seen:
-  help-keys, terminal, settings, terminal. With one pause before the key
-  it works, so it needs a key within the first frame or so; whether an
-  operator can hit it on a slow machine (a Pi) is unconfirmed. The test
-  is the reproduction; it stays failing until this is fixed.
 - **A scan-coverage test fails under full-suite load** (2026-10-05,
   `open`; found by the suite). `tests/unit/test_scan_coverage.py::test_a_
   truncated_sweep_says_so_instead_of_looking_complete` gives the sweep a
