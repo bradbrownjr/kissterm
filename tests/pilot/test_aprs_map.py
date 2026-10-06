@@ -99,3 +99,56 @@ def test_ascii_safe_draws_dots_not_braille():
     text = "".join(c for row in canvas.cells() for c, _ in row)
     assert "W1AW" in text and "." in text
     assert not any(0x2800 <= ord(c) <= 0x28FF for c in text)
+
+
+@pytest.mark.asyncio
+async def test_insert_places_an_object_at_the_centre_and_delete_kills_only_yours():
+    from kissterm.ui.dialogs import AprsObjectScreen
+
+    app, ta, tb = await _app()
+    async with app.run_test(size=(120, 44)) as pilot:
+        await pilot.pause()
+        await _hear(app, "KC1XYZ-9", OBJECT)
+        app.action_aprs_map()
+        await wait_for(lambda: isinstance(app.screen, MapScreen), "the map")
+        await pilot.pause()
+        screen = app.screen
+        canvas = screen.query_one(MapCanvas)
+        table = screen.query_one("#map-table")
+        table.focus()
+        # Someone else's object: no Move or Kill.
+        row = [table.get_row_at(i)[1] for i in range(table.row_count)].index("SHELTER")
+        table.move_cursor(row=row)
+        await pilot.pause()
+        assert not screen.selected_is_mine()
+        await pilot.press("delete")
+        await pilot.pause()
+        assert isinstance(app.screen, MapScreen), "Delete opened a form for another's object"
+        # Insert: the form, at the map's centre; Send is the only way out
+        # that transmits.
+        await pilot.press("insert")
+        await wait_for(lambda: isinstance(app.screen, AprsObjectScreen), "the object form")
+        await pilot.pause()
+        form = app.screen
+        assert float(form.query_one("#aprs-object-latitude").value) == pytest.approx(
+            canvas.view.lat, abs=1e-4)
+        assert ta.sent == [], "the form transmitted on opening"
+        form.query_one("#aprs-object-name").value = "DRILL"
+        await pilot.click("#aprs-object-send")
+        await wait_for(lambda: isinstance(app.screen, MapScreen), "back on the map")
+        await wait_for(lambda: ta.sent, "the object report")
+        await pilot.pause()
+        names = [table.get_row_at(i)[1] for i in range(table.row_count)]
+        assert "DRILL" in names
+        table.move_cursor(row=names.index("DRILL"))
+        await pilot.pause()
+        assert screen.selected_is_mine()
+        await pilot.press("delete")
+        await wait_for(lambda: isinstance(app.screen, AprsObjectScreen), "the kill form")
+        await pilot.pause()
+        assert app.screen.query_one("#aprs-object-alive").value == "killed"
+        assert app.screen.query_one("#aprs-object-name").value == "DRILL"
+        await pilot.press("escape")
+        await pilot.pause()
+    await ta.close()
+    await tb.close()

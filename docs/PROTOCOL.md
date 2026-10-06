@@ -149,6 +149,8 @@ lighter path around a rule the terminal follows.
 | `aprs_send` `{to, text}` | `Aprs.compose` | yes |
 | `aprs_position` | `Aprs.send_position_now` | yes |
 | `aprs_conversations` / `aprs_thread` `{callsign}` | `Aprs.conversations` | no |
+| `aprs_object_start` `{latitude, longitude, name}` | `Aprs.object_start`: a new object's form, at here or the place given (a long press on the map), with `symbol`, `comment`, `scopes` and `symbols` (key, description); `name` one of this station's objects fills in its symbol and comment (Move, Kill) | no |
+| `aprs_object` `{name, alive, latitude, longitude, symbol, comment, scope}` | `Aprs.send_object_now`, after `object_problems`: returns `problems` (nothing sent) and `sent`; the object is on this station's map at once, `mine` true. `alive` false kills it | yes |
 | `beacon_now` | `Aprs.beacon_now` | no (refused while closed) |
 | `send_receive` `{folder, internet}` | `Mail.send_receive` | through its connect |
 | `get_bulletins` `{internet}` / `get_files` | `Mail` | through its connect |
@@ -157,7 +159,7 @@ lighter path around a rule the terminal follows.
 | `settings_save` `{draft, active_transport}` | `Settings.save`; a new transport is opened | no |
 | `addressbook` / `addressbook_save` `{entry}` | `Core.addressbook` | no |
 | `heard` | `Core.heard.entries` | no |
-| `map_points` | `Aprs.map_points`: what the APRS map shows, this station first (`kind` `me`), then each heard station with a position (`station`) and each live object or item (`object`, `item`); every one has `name`, `lat`, `lon`, `symbol` (APRS table and code), `symbol_name`, `comment`, `when`, `by` (who reported an object), and `where` (distance and bearing from here) when this station's position is known. Refreshed on `stale heard` | no |
+| `map_points` | `Aprs.map_points`: what the APRS map shows, this station first (`kind` `me`), then each heard station with a position (`station`) and each live object or item (`object`, `item`); every one has `name`, `lat`, `lon`, `symbol` (APRS table and code), `symbol_name`, `comment`, `when`, `by` (who reported an object), `mine` (an object this station sent), and `where` (distance and bearing from here) when this station's position is known. Refreshed on `stale heard` | no |
 | `radiogram_start` `{ics213}` / `radiogram_check` `{fields, ics213}` / `radiogram_write` `{fields, ics213}` | `Mail.radiogram_start`, `radiogram_check`, `write_radiogram`: a new radiogram's defaults (next number, last place, ARL texts), what the form shows as it is filled (check, routing, title, the text as it will go, problems), and filing it in the BBS Outbox; `fields` are `nts.Radiogram`'s (`core.mail.RADIOGRAM_FIELDS`) | no |
 | `mail_folders` / `mail_list` `{folder}` / `mail_read` `{ref}` | `Mail.store`; `mail_list` also takes `"All Inboxes"`, every Inbox under Mail together, as the terminal's view of that name; a read also carries `routing`, the `R:` lines of a message from a BBS (`Mail.routing`), and `routed`, the BBSes in them in travel order (`bpqmail.route_bbses`), and `reply_all`, true when Reply all would reach anyone besides the sender | no |
 | `mail_reply_start` `{ref, quoted, all}` | `Mail.reply_start`: `to`, `title`, `body`, `send_type`, `by_number`, `heading`, `note` for a reply (`quoted` null: as Settings says; `all`: Reply all) | no |

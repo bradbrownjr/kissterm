@@ -6,7 +6,9 @@ square in a node's beacon); this store adds what the heard list does not
 keep, the APRS symbol and comment. **Objects and items** (`;` and `)`)
 exist only here: they are someone else's report about a thing, not a
 station heard, so they never enter the heard list. A killed object is
-removed at once -- its originator is saying it is no longer there.
+removed at once -- its originator is saying it is no longer there. An
+object this station sends is recorded as it goes (`mine`), so the map
+shows it without waiting for a digipeater to repeat it back.
 
 In memory only, like the dedup window: a map restored from disk would
 show stale positions as if heard. `MAX_OBJECTS` bounds a busy channel's
@@ -38,11 +40,13 @@ class Placemark:
     comment: str = ""
     when: float = 0.0
     by: str = ""
+    #: An object this station reported: the map offers Move and Kill.
+    mine: bool = False
 
     def to_dict(self) -> dict:
         return {"name": self.name, "lat": self.lat, "lon": self.lon, "kind": self.kind,
                 "symbol": self.symbol, "comment": self.comment, "when": self.when,
-                "by": self.by}
+                "by": self.by, "mine": self.mine}
 
 
 class Placemarks:
@@ -60,9 +64,11 @@ class Placemarks:
 
     def object(self, name: str, by: str, alive: bool, lat: float | None = None,
                lon: float | None = None, *, item: bool = False, symbol: str = "",
-               comment: str = "", when: float | None = None) -> None:
+               comment: str = "", when: float | None = None, mine: bool = False) -> None:
         """Record or kill an object. Keyed by name alone: APRS objects are
-        global, and a second station updating one is taking it over."""
+        global, and a second station updating one is taking it over.
+        `mine`: this station sent it (recorded as it goes, since a station
+        does not hear its own transmission)."""
         key = name.strip().upper()
         if not key:
             return
@@ -74,6 +80,6 @@ class Placemarks:
         self.objects.pop(key, None)  # re-inserted last: the newest
         self.objects[key] = Placemark(
             name.strip(), lat, lon, ITEM if item else OBJECT, symbol, comment,
-            time.time() if when is None else when, by)
+            time.time() if when is None else when, by, mine)
         while len(self.objects) > MAX_OBJECTS:
             self.objects.pop(next(iter(self.objects)))

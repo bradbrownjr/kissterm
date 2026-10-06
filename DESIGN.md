@@ -270,7 +270,10 @@ is the enforcement.
    recipients only) and Q replies with the original quoted. None of them transmits; Files' S
    only opens the transfer dialog, which transmits on Start.
    On the APRS map's list (F10 > APRS > Map) I zooms in, O out, F shows
-   everything and Enter centres the highlighted point; Tab moves to the
+   everything and Enter centres the highlighted point; Insert places a
+   new object at the map's centre (the `x`), and on one of this
+   station's objects M moves it there and Delete kills it, each through
+   the object form, whose Send is the only transmit. Tab moves to the
    map itself, a widget rather than a list, so no letters there: the
    arrows pan and PgUp and PgDn zoom.
 5. **The Footer shows only what works right now.** An action that does not
@@ -773,7 +776,10 @@ and do not apply there; these do.
   hand without a second finger. A tap on a point opens a panel at the
   bottom (what it reported, distance and bearing, last heard, comment,
   Message for a station); nothing on it transmits. This station's name
-  is the one label never crowded out.
+  is the one label never crowded out. **A long press places an object**
+  (operator, 2026-10-06): the object form at that spot, a full page like
+  Write; one of this station's objects has Move (a banner, then a long
+  press where it goes) and Kill on its panel. Send and Kill ask first.
 - **The app's own icon**: a `>_` prompt and an antenna on the dark
   terminal panel (`scripts/generate_web_icons.py`), for the loading
   splash, the browser tab and the home screen, never Flet's.

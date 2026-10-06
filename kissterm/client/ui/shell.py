@@ -291,7 +291,7 @@ class ClientApp:
         self.page.run_task(run)
 
     # ------------------------------------------------------------------
-    async def command(self, name: str, **args):
+    async def command(self, name: str, /, **args):
         """Run a station command; a refusal is a snack bar, never a crash.
         Returns the value, or None when it failed."""
         try:

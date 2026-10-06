@@ -1584,17 +1584,29 @@ class KissTermApp(App):
         returns a request here, which is the operator-committed action that
         may arm the transmit gate.
         """
+        await self.compose_aprs_object()
+
+    async def compose_aprs_object(self, latitude: float | None = None,
+                                  longitude: float | None = None, *, name: str = "",
+                                  kill: bool = False) -> bool:
+        """The object form, filled in from `Aprs.object_start` (the place
+        given, else here; `name`, one of this station's objects, keeps
+        its symbol and comment), then sent only by its Send button. The
+        map's Insert, M and Delete come through here, as the phone's long
+        press, Move and Kill come through `aprs_object_start`."""
+        start = self.core.aprs.object_start(latitude, longitude, name)
         request = await self.push_screen_wait(
             AprsObjectScreen(
-                latitude=self.config.aprs.latitude,
-                longitude=self.config.aprs.longitude,
-                symbol=self.config.aprs.symbol,
+                latitude=round(start["latitude"], 5),
+                longitude=round(start["longitude"], 5),
+                symbol=start["symbol"],
                 ascii_safe=self.config.ascii_safe,
+                name=start["name"], comment=start["comment"], alive=not kill,
             )
         )
         if request is None:
-            return
-        await self.core.aprs.send_object_now(request)
+            return False
+        return await self.core.aprs.send_object_now(request)
 
     @work
     async def action_aprs_is_watch(self) -> None:

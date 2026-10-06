@@ -215,7 +215,7 @@ class FakeApp:
         self.follow_next_session = False
         self.look = Look()
 
-    async def command(self, name, **args):
+    async def command(self, name, /, **args):
         self.commands.append((name, args))
         return None
 
@@ -576,7 +576,7 @@ class MailApp(FakeApp):
         super().__init__()
         self.answers = answers
 
-    async def command(self, name, **args):
+    async def command(self, name, /, **args):
         self.commands.append((name, args))
         answer = self.answers.get(name)
         return answer(**args) if callable(answer) else answer
@@ -992,7 +992,7 @@ async def test_map_opens_beside_send_position_and_never_transmits():
     messages = MessagesView(app)
     await messages.reload()
     buttons = [c.content for c in messages.list.controls[0].content.controls]
-    assert buttons == ["Send position", "Map"]
+    assert buttons == ["Send position", "Map", "Object"]
     open_map = messages.list.controls[0].content.controls[1]
     await open_map.on_click(None)
     assert isinstance(messages.map, MapPage)
@@ -1028,3 +1028,70 @@ def test_the_map_draws_outlines_points_and_finds_a_tap():
     assert station == ["Station, Car", "Reported 24.5 mi 70\N{DEGREE SIGN} ENE from here",
                        "Last heard 10 min ago", "QRV 147.09"]
     assert "Reported by W1AW-9" in details(MAP_POINTS[2], now=1000.0)
+
+
+OBJECT_START = {"name": "", "latitude": 43.58, "longitude": -70.6, "symbol": "/h",
+                "comment": "", "scopes": [["network", "Normal"], ["direct", "Direct"]],
+                "symbols": [["/h", "Hospital"], ["/-", "House"]]}
+
+
+@pytest.mark.asyncio
+async def test_a_long_press_places_an_object_and_only_send_after_asking_transmits():
+    from kissterm.client.ui.messages import MessagesView
+
+    sent = []
+
+    def send(**args):
+        sent.append(args)
+        return {"problems": [], "sent": True}
+
+    app = MailApp({"map_points": MAP_POINTS, "aprs_object_start": OBJECT_START,
+                   "aprs_object": send})
+    messages = MessagesView(app)
+    await messages._open_map(None)
+    page = messages.map
+    page.map = __import__("kissterm.geo.project", fromlist=["View"]).View.fit(
+        [(p["lat"], p["lon"]) for p in MAP_POINTS], 400, 600)
+    x, y = page.map.to_screen(43.58, -70.6)
+    await page._long_pressed(type("E", (), {"local_position": type("P", (), {"x": x, "y": y})()})())
+    name, args = app.commands[-1]
+    assert name == "aprs_object_start"
+    assert args["latitude"] == pytest.approx(43.58) and args["name"] == ""
+    form = messages.object_form
+    assert form is not None and messages.fab() is None
+    form.name.value = "drill"
+    await form.send(None)
+    assert sent == [], "Send transmitted before asking"
+    await _button(app.page.dialogs[-1], "Send").on_click(None)  # then the snack bar
+    assert sent[0]["name"] == "DRILL" and sent[0]["alive"] is True
+    assert sent[0]["latitude"] == pytest.approx(43.58, abs=1e-5)
+    # Back on the same map page, which reloads.
+    assert messages.object_form is None and messages.control.content is page.root
+
+
+@pytest.mark.asyncio
+async def test_move_and_kill_are_offered_only_on_this_stations_objects():
+    from kissterm.client.ui.messages import MessagesView
+
+    mine = dict(MAP_POINTS[2], mine=True, by="N1ABC-1")
+    sent = []
+    app = MailApp({"map_points": [MAP_POINTS[0], MAP_POINTS[1], mine],
+                   "aprs_object": lambda **a: sent.append(a) or {"problems": [], "sent": True}})
+    messages = MessagesView(app)
+    await messages._open_map(None)
+    page = messages.map
+    page.map = __import__("kissterm.geo.project", fromlist=["View"]).View.fit(
+        [(p["lat"], p["lon"]) for p in page.points], 400, 600)
+    for point, offered in ((MAP_POINTS[1], False), (mine, True)):
+        x, y = page.map.to_screen(point["lat"], point["lon"])
+        page._tapped(type("E", (), {"local_position": type("P", (), {"x": x, "y": y})()})())
+        assert page.selected == point["name"]
+        assert page.move.visible is offered and page.kill.visible is offered
+    await page._kill(None)
+    assert sent == [], "Kill transmitted before asking"
+    await _button(app.page.dialogs[-1], "Kill").on_click(None)  # then the snack bar
+    assert sent[0]["alive"] is False and sent[0]["name"] == "SHELTER"
+    # Move waits for a long press, then opens the form for that object.
+    page.selected = "SHELTER"
+    page._move(None)
+    assert page.banner.visible and page.moving == "SHELTER"

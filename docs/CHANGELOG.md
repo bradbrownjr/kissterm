@@ -5,6 +5,35 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Place, move and kill APRS objects from the map
+
+### New Features
+
+- **Place an object from the map.** Terminal: Insert on the map's list
+  opens the object form at the map's centre (the `x`). Phone: a long
+  press on the map, or **Object** beside Map; sending objects from the
+  phone is new. Only the form's Send transmits, after asking on the
+  phone, arming the gate as APRS > Object does.
+- **Your objects show on your map at once**, marked as yours; on one,
+  M or Move puts it somewhere new and Delete or Kill kills it.
+- Protocol: `aprs_object_start` and `aprs_object`; map points carry
+  `mine`.
+
+### Fixes
+
+- The phone's `command` takes its name positionally only, so a command
+  argument called `name` (an object's) no longer collides with it.
+
+**Files:** `kissterm/core/aprs.py`, `kissterm/geo/placemarks.py`,
+`kissterm/serve/server.py`, `kissterm/client/connection.py`,
+`kissterm/client/ui/shell.py`, `kissterm/client/ui/aprs_object.py`,
+`kissterm/client/ui/aprs_map.py`, `kissterm/client/ui/messages.py`,
+`kissterm/ui/map_screen.py`, `kissterm/ui/dialogs.py`, `kissterm/ui/app.py`,
+`DESIGN.md`, `docs/GUIDE.md`, `docs/PROTOCOL.md`, `docs/ROADMAP.md`,
+`docs/ON-AIR-TESTS.md`, `tests/unit/test_map.py`,
+`tests/unit/test_client_ui.py`, `tests/pilot/test_aprs_map.py`,
+`assets/screenshot-aprs-map.png`, `assets/screenshot-phone-map.png`
+
 ## [2026-10-06] — The APRS map, offline, on the phone and in the terminal
 
 ### New Features

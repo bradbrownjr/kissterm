@@ -28,6 +28,12 @@ has stations with positions. Your own position is Settings > APRS
   map open in the terminal too. Expected: the same points; a tap on one
   shows its distance, bearing, last heard and comment; new stations
   appear without reopening it.
+- [ ] **An object placed from the map goes out and shows** (0.1.446).
+  Terminal: F10 > APRS > Map, pan until the `x` is on a place, Insert,
+  name it, Send object. Phone: long-press the map, name it, Send. Expected:
+  on your map at once, "yours"; heard by another station or aprs.fi at
+  that place. Then Delete (terminal) or Kill (phone): it leaves your map
+  and theirs.
 - [ ] **Mic-E positions land where they are** (AGENTS.md section 8: Mic-E
   is not yet checked against off-air traffic). A mobile with a Mic-E
   radio (a Kenwood TH-D74, a Yaesu FTM) on the map. Expected: on the

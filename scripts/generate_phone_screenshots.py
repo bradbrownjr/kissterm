@@ -364,6 +364,7 @@ async def drive(phone: Phone, core, tb) -> None:
     # a position, the shelter object, this station, over the offline
     # outlines; then a tapped station's panel.
     await phone.tap(phone.button("All messages"))
+    await phone.page.wait_for_timeout(800)
     await phone.tap(phone.button("Map"))
     await phone.shown("Zoom in")
     await phone.page.wait_for_timeout(2500)
@@ -387,6 +388,18 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(500)
     await mouse.click(*centre)
     await phone.shown("Close")  # the panel's; its text is selectable, not in the tree
+    await phone.page.wait_for_timeout(800)
+    await phone.frame()
+    # A long press places an object there: the form, filled in.
+    await phone.tap(phone.button("Close"))
+    spot = (PHONE["width"] * 0.3, top + (bottom - top) * 0.3)
+    await mouse.move(*spot)
+    await mouse.down()
+    await phone.page.wait_for_timeout(900)
+    await mouse.up()
+    await phone.shown("APRS object")
+    await phone.enter_field("Name", "STAGING")
+    await phone.enter_field("Comment", "Net control staging area")
     await phone.frame()
 
     # BBS Mail: the folder with Write's pencil over Send/Receive, a Winlink
@@ -439,8 +452,8 @@ async def main() -> int:
             await browser.close()
         await shot("screenshot-phone-connect", phone.frames[:2])
         await shot("screenshot-phone", phone.frames[2:4])
-        await shot("screenshot-phone-map", phone.frames[4:6])
-        await shot("screenshot-phone-mail", phone.frames[6:9])
+        await shot("screenshot-phone-map", phone.frames[4:7])
+        await shot("screenshot-phone-mail", phone.frames[7:10])
         await shot("screenshot-desktop", desktop.frames)
     finally:
         await server.stop()

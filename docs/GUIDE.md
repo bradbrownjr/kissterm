@@ -427,7 +427,17 @@ says "reported". The list has the keys: `I` zooms in, `O` zooms out,
 is marked on the map as the cursor moves. `Tab` moves to the map, where
 the arrows pan and `PgUp` and `PgDn` zoom; the mouse wheel zooms and a
 click centres. A killed object leaves the map at once. Objects are kept
-only while kissterm runs; stations come from the Heard list. Terminals
+only while kissterm runs; stations come from the Heard list.
+
+**Placing an object from the map.** The `x` at the map's centre (its
+position is in the heading) is where `Insert` puts a new object: pan or
+click until the `x` is on the place, then `Insert` opens the object form
+(APRS > Object) filled in with it. The objects you send show on your map
+at once, marked "yours" in the list. On one of yours, `M` moves it to
+the `x` and `Delete` kills it; each opens the same form, its name,
+symbol and comment kept. Only the form's Send object button transmits,
+turning transmit on as APRS > Object does, and nothing repeats an object:
+other stations keep it only as long as their software does. Terminals
 without braille in their font (Settings, ASCII-safe mode) get dots instead.
 Nothing on the map transmits.
 
@@ -686,7 +696,12 @@ own client.
     to show everything again, and a tap on a point for what it reported,
     how far and which way, when it was heard and its comment, with
     **Message** to open a conversation with a station. It refreshes as
-    stations are heard.
+    stations are heard. A **long press** on the map opens an object
+    report for that spot, and **Object** beside Map one for where you
+    are (APRS > Object in the terminal): a name, the place, a symbol, a
+    comment and where it goes, sent by Send after asking. Your objects
+    show at once; tap one for **Move** (then a long press where it goes)
+    and **Kill** (after asking).
   - **Terminal** (once called Sessions) is the terminal: one page per session, swiped or tapped
     across the top, and a line to type. A line goes only when you press
     Send. Connect is at the end of the session tabs; **Disconnect** sits

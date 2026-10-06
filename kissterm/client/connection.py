@@ -96,7 +96,7 @@ class Connection:
         return True
 
     # ------------------------------------------------------------------
-    async def command(self, name: str, **args) -> Any:
+    async def command(self, name: str, /, **args) -> Any:
         if self._ws is None or self.status != "connected":
             raise NotConnected()
         cid = f"c{next(self._ids)}"

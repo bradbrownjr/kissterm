@@ -101,6 +101,10 @@ async def _core(**aprs_config):
     for name, value in aprs_config.items():
         setattr(config.aprs, name, value)
     core = Core(config, station)
+    from tests.unit.test_core_aprs import _Operator, _View
+
+    core.operator = _Operator()
+    core.attach_view(_View())
     core.attach_station()
     return core, station
 
@@ -165,3 +169,52 @@ def test_geo_never_reaches_into_a_ui_or_the_station():
             else:
                 continue
             assert not name.startswith(banned), f"{path.name} imports {name}"
+
+
+@pytest.mark.asyncio
+async def test_an_object_this_station_sends_is_on_its_map_at_once_and_killing_removes_it():
+    from kissterm.core.aprs import AprsObjectRequest, object_problems
+
+    core, station = await _core(latitude=WATERBORO[0], longitude=WATERBORO[1])
+    request = AprsObjectRequest("DRILL", True, 43.58, -70.6, "/h", "tabletop", "network")
+    assert object_problems(request) == []
+    assert core.gate.enabled is False
+    assert await core.aprs.send_object_now(request)
+    assert core.gate.enabled, "a sent object is an operator-named request: it arms"
+    [drill] = [p for p in core.aprs.map_points() if p["name"] == "DRILL"]
+    assert drill["mine"] and drill["kind"] == "object" and drill["comment"] == "tabletop"
+    start = core.aprs.object_start(43.6, -70.5, "drill")
+    assert (start["name"], start["symbol"], start["comment"]) == ("DRILL", "/h", "tabletop")
+    assert start["latitude"] == 43.6 and ["direct", "Direct (no digipeaters)"] in start["scopes"]
+    killed = AprsObjectRequest("DRILL", False, 43.58, -70.6, "/h", "", "network")
+    assert await core.aprs.send_object_now(killed)
+    assert "DRILL" not in [p["name"] for p in core.aprs.map_points()]
+    station.close()
+
+
+def test_object_problems_are_the_encoders_in_words():
+    from kissterm.core.aprs import AprsObjectRequest, object_problems
+
+    def problems(**changes):
+        fields = dict(name="DRILL", alive=True, latitude=43.5, longitude=-70.5,
+                      symbol="/h", comment="", scope="network")
+        fields.update(changes)
+        return object_problems(AprsObjectRequest(**fields))
+
+    assert problems(name="  ") == ["Give the object a name."]
+    assert problems(name="TOOLONGNAME")[0].startswith("Object name must be 1-9")
+    assert "off the map" in problems(latitude=95)[0]
+    assert problems(comment="x" * 50)[0].startswith("Object comment must be at most")
+    assert problems(symbol="?")[0].startswith("Symbol")
+    assert problems(scope="moon") == ["Choose where the object goes."]
+
+
+@pytest.mark.asyncio
+async def test_a_closed_gate_sends_nothing_and_puts_nothing_on_the_map():
+    from kissterm.core.aprs import AprsObjectRequest
+
+    core, station = await _core()
+    request = AprsObjectRequest("DRILL", True, 43.58, -70.6, "/h", "", "network")
+    assert await core.aprs.send_object(request) is False
+    assert core.aprs.placemarks.objects == {}
+    station.close()

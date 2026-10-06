@@ -16,7 +16,12 @@ point again. A tap on a point shows what the station said about it:
 symbol, distance and bearing from here, when it was heard, its comment,
 and who reported an object. **A position is a claim** (AGENTS.md: "A
 callsign is a claim, not an identity"): the panel says "reported", never
-"is at". Nothing here transmits; Message opens the conversation.
+"is at". Message opens the conversation.
+
+**Placing an object** (operator, 2026-10-06): a long press opens the
+object form at that spot (`aprs_object.py`); on one of this station's
+objects the panel has Move (then a long press where it goes) and Kill.
+The map itself never transmits: the form's Send and Kill each ask first.
 
 Redrawn as the heard list changes (`stale heard`), at most every few
 seconds, and only while the map is in front.
@@ -133,7 +138,9 @@ def details(point: dict, now: float | None = None) -> list[str]:
         heard = "heard" if point.get("kind") == "station" else "reported"
         lines.append(f"Last {heard} {ago(point['when'], now)}"
                      f"{'' if ago(point['when'], now) == 'just now' else ' ago'}")
-    if point.get("by"):
+    if point.get("mine"):
+        lines.append("Yours: sent from this station")
+    elif point.get("by"):
         lines.append(f"Reported by {point['by']}")
     if point.get("comment"):
         lines.append(point["comment"])
@@ -160,18 +167,35 @@ class MapPage:
         self.info_lines = ft.Text("", size=12, selectable=True)
         self.message = ft.TextButton(content="Message", icon=ft.Icons.CHAT_BUBBLE_OUTLINE,
                                      on_click=self._message)
+        #: On one of this station's objects (`mine`): Move, then a long
+        #: press where it goes; Kill, after asking.
+        self.move = ft.TextButton(content="Move", icon=ft.Icons.OPEN_WITH, on_click=self._move)
+        self.kill = ft.TextButton(content="Kill", icon=ft.Icons.DELETE_OUTLINE,
+                                  on_click=self._kill)
+        #: The name of the object being moved, while waiting for its place.
+        self.moving: str | None = None
+        self.banner_text = ft.Text("", expand=True)
+        self.banner = ft.Container(
+            visible=False, padding=ft.Padding.symmetric(horizontal=16, vertical=6),
+            bgcolor=ft.Colors.SECONDARY_CONTAINER, content=ft.Row(controls=[
+                self.banner_text,
+                ft.TextButton(content="Cancel", on_click=self._cancel_move)]))
         self.info = ft.Container(
             visible=False, left=8, right=8, bottom=34, padding=ft.Padding.all(12),
             border_radius=12, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH,
             content=ft.Column(tight=True, spacing=4, controls=[
-                ft.Row(controls=[self.info_name, self.message,
-                                 ft.IconButton(icon=ft.Icons.CLOSE, tooltip="Close",
-                                               on_click=self._unselect)]),
+                ft.Row(spacing=0, controls=[
+                    self.info_name, self.message, self.move, self.kill,
+                    ft.IconButton(icon=ft.Icons.CLOSE, tooltip="Close",
+                                  on_click=self._unselect)]),
                 self.info_lines]))
+        #: Built once: the object form returns to this same page.
+        self.root = self.control()
 
     def control(self) -> ft.Control:
         gestures = ft.GestureDetector(
             expand=True, content=self.canvas, on_tap_up=self._tapped,
+            on_long_press_start=self._long_pressed,
             on_scale_start=self._scale_start, on_scale_update=self._scaled,
             on_scroll=self._scrolled)
         zoom = ft.Column(top=8, right=8, spacing=4, controls=[
@@ -187,6 +211,7 @@ class MapPage:
                               on_click=self.view._back),
                 ft.Text("Map", theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
                 ft.Container(expand=True), self.counts, ft.Container(width=12)]),
+            self.banner,
             ft.Stack(expand=True, clip_behavior=ft.ClipBehavior.HARD_EDGE,
                      controls=[ft.Container(expand=True, left=0, top=0, right=0, bottom=0,
                                             bgcolor=ft.Colors.SURFACE, content=gestures),
@@ -289,8 +314,45 @@ class MapPage:
         self.info_name.value = point["name"]
         self.info_lines.value = "\n".join(details(point))
         self.message.visible = point.get("kind") == "station"
+        self.move.visible = self.kill.visible = bool(point.get("mine"))
         self.info.visible = True
         self.draw()
+
+    async def _long_pressed(self, e) -> None:
+        """A new object at this spot, or the one being moved, moved here:
+        the form, filled in; only its Send transmits."""
+        if self.map is None or e.local_position is None:
+            return
+        lat, lon = self.map.to_map(e.local_position.x, e.local_position.y)
+        name, self.moving = self.moving or "", None
+        self.banner.visible = False
+        await self.view.open_object_form(lat, lon, name)
+
+    def _move(self, _e) -> None:
+        if not self.selected:
+            return
+        self.moving = self.selected
+        self.banner_text.value = f"Long-press where {self.selected} goes."
+        self.banner.visible = True
+        self._unselect(None)
+
+    def _cancel_move(self, _e) -> None:
+        self.moving = None
+        self.banner.visible = False
+        self.app.page.update()
+
+    async def _kill(self, _e) -> None:
+        from .aprs_object import kill
+
+        point = next((p for p in self.points if p["name"] == self.selected), None)
+        if point is None:
+            return
+
+        async def done() -> None:
+            self._unselect(None)
+            await self.reload()
+
+        await kill(self.app, point, done)
 
     def _unselect(self, _e) -> None:
         self.selected = None

@@ -14,7 +14,13 @@ plain letters are the map's -- I zooms in, O out, F shows everything,
 Enter centres the highlighted point -- and the point under the cursor is
 marked on the map. Tab moves to the map, where the arrows pan and PgUp
 and PgDn zoom; the mouse wheel zooms and a click centres. Esc closes.
-**Nothing here transmits**; the list re-reads the station every few
+
+**Placing an object** (operator, 2026-10-06: "How do I place an object
+on the map?"): the x at the centre is where Insert puts a new one; M
+moves the highlighted object, if it is this station's, to the x, and
+Delete kills it. Each opens the object form filled in, and **only its
+Send object button transmits**, arming the gate as APRS > Object does.
+The map itself never transmits; the list re-reads the station every few
 seconds while open.
 
 **A position is a claim**, as the Heard pane says: the list reads
@@ -28,7 +34,7 @@ from collections.abc import Callable
 
 from rich.style import Style
 from rich.text import Text
-from textual import on
+from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.color import Color
@@ -78,11 +84,24 @@ def draw(view: project.View, points: list[dict], selected: str | None, *,
         style = "selected" if point["name"] == selected else point.get("kind", "station")
         if canvas.write(col, row, MARKERS.get(point.get("kind"), "*"), style):
             placed.append((point, col, row))
-    for point, col, row in placed:
+    # The x first, where Insert places an object (the caption says so), so
+    # names go around it rather than hiding it. Names go right of the
+    # marker, else left, else on the row above or below; this station's
+    # before the others, so it is never the one crowded out.
+    def label(point, col, row) -> None:
         name = point["name"]
         style = "selected-label" if name == selected else "label"
-        if not canvas.write(col + 1, row, name, style):
-            canvas.write(col - len(name), row, name, style)
+        for c, r in ((col + 1, row), (col - len(name), row), (col, row - 1), (col, row + 1)):
+            if canvas.write(c, r, name, style):
+                return
+
+    canvas.write(cols // 2, rows // 2, "x", "centre")
+    mine = [entry for entry in placed if entry[0].get("kind") == "me"]
+    for entry in mine:
+        label(*entry)
+    for entry in placed:
+        if entry not in mine:
+            label(*entry)
     return canvas
 
 
@@ -94,7 +113,26 @@ class _MapTable(DataTable):
         Binding("i", "zoom(2)", "Zoom in"),
         Binding("o", "zoom(0.5)", "Zoom out"),
         Binding("f", "fit", "Show everything"),
+        Binding("insert", "place", "New object here"),
+        Binding("m", "move", "Move here"),
+        Binding("delete", "kill", "Kill"),
     ]
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        # Move and Kill only on one of this station's objects (DESIGN.md
+        # section 5 rule 5: the Footer shows only what works now).
+        if action in ("move", "kill"):
+            return self.screen.selected_is_mine()
+        return True
+
+    def action_place(self) -> None:
+        self.screen.place()
+
+    def action_move(self) -> None:
+        self.screen.place(move=True)
+
+    def action_kill(self) -> None:
+        self.screen.place(kill=True)
 
     def action_centre(self) -> None:
         self.screen.centre_selected()
@@ -196,6 +234,7 @@ class MapCanvas(Widget, can_focus=True):
             "object": Style(color=LEGEND["object"], bold=True),
             "item": Style(color=LEGEND["object"], bold=True),
             "selected": Style(reverse=True, bold=True),
+            "centre": Style(color=colour("accent", "#FEA62B"), bold=True),
             "selected-label": Style(reverse=True),
             "label": Style(color=colour("foreground", "#E0E0E0")),
         }
@@ -292,7 +331,9 @@ class MapScreen(ModalScreen[None]):
             where = p.get("where") or ("here" if kind == "me" else "")
             heard = "" if kind == "me" else ago(p.get("when", 0))
             comment = p.get("comment", "")
-            if p.get("by"):
+            if p.get("mine"):
+                comment = f"yours: {comment}" if comment else "yours"
+            elif p.get("by"):
                 comment = f"by {p['by']}: {comment}" if comment else f"by {p['by']}"
             table.add_row(MARKERS.get(kind, "*"), p["name"], where, heard, comment)
         if keep is not None:
@@ -309,8 +350,34 @@ class MapScreen(ModalScreen[None]):
             length, label = canvas.view.scale_bar(24.0)
             cells = max(2, round(length / 2))
             bar = "|" + "-" * (cells - 2) + "|"
-            caption = f"{caption}    {bar} {label}"
+            caption = (f"{caption}    {bar} {label}    x {canvas.view.lat:.4f}, "
+                       f"{canvas.view.lon:.4f}")
         self.query_one("#map-caption", Static).update(caption)
+
+    # -- objects ---------------------------------------------------------------
+    def selected_is_mine(self) -> bool:
+        canvas = self.query_one(MapCanvas)
+        point = next((p for p in self._rows if p["name"] == canvas.selected), None)
+        return bool(point and point.get("mine"))
+
+    @work
+    async def place(self, *, move: bool = False, kill: bool = False) -> None:
+        """Insert: a new object at the map's centre (the x). M: the
+        highlighted object of this station's, moved there. Delete: it,
+        killed where it is. Each opens the object form filled in; only its
+        Send object button transmits (`KissTermApp.compose_aprs_object`)."""
+        canvas = self.query_one(MapCanvas)
+        if canvas.view is None:
+            return
+        name = canvas.selected if (move or kill) and self.selected_is_mine() else ""
+        if (move or kill) and not name:
+            return
+        lat, lon = canvas.view.lat, canvas.view.lon
+        if kill:
+            point = next(p for p in self._rows if p["name"] == name)
+            lat, lon = point["lat"], point["lon"]
+        if await self.app.compose_aprs_object(lat, lon, name=name, kill=kill):
+            self.reload()
 
     def zoom(self, factor: float) -> None:
         canvas = self.query_one(MapCanvas)
@@ -336,6 +403,7 @@ class MapScreen(ModalScreen[None]):
         if 0 <= event.cursor_row < len(self._rows):
             canvas.selected = self._rows[event.cursor_row]["name"]
             canvas.refresh()
+            self.query_one(_MapTable).refresh_bindings()
 
     @on(Button.Pressed)
     def _pressed(self, event: Button.Pressed) -> None:

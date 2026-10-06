@@ -395,6 +395,32 @@ class RemoteServer:
     async def cmd_aprs_position(self) -> None:
         await self.core.aprs.send_position_now()
 
+    async def cmd_aprs_object_start(self, latitude: float | None = None,
+                                    longitude: float | None = None, name: str = "") -> dict:
+        """A new object's form: here or the place given; for `name`, one of
+        this station's objects (Move, Kill)."""
+        return self.core.aprs.object_start(
+            None if latitude is None else float(latitude),
+            None if longitude is None else float(longitude), str(name or ""))
+
+    async def cmd_aprs_object(self, name: str, alive: bool, latitude: float, longitude: float,
+                              symbol: str, comment: str = "", scope: str = "network") -> dict:
+        """Send one object report, as the terminal's Send object does: checked
+        first (nothing sent with a problem), then the gate armed by this
+        operator-named request (`Aprs.send_object_now`)."""
+        from ..core.aprs import AprsObjectRequest, object_problems
+
+        try:
+            request = AprsObjectRequest(str(name), bool(alive), float(latitude),
+                                        float(longitude), str(symbol), str(comment or ""),
+                                        str(scope or "network"))
+        except (TypeError, ValueError):
+            return {"problems": ["The position must be two numbers."], "sent": False}
+        problems = object_problems(request)
+        if problems:
+            return {"problems": problems, "sent": False}
+        return {"problems": [], "sent": await self.core.aprs.send_object_now(request)}
+
     async def cmd_beacon_now(self) -> None:
         await self.core.aprs.beacon_now()
 

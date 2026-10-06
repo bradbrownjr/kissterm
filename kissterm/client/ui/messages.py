@@ -5,7 +5,8 @@ mine on the right with a tick once acknowledged.
 **Send position** sits above the conversations (the terminal's P on
 its APRS tab), asking first like every transmission; **Map** beside it
 opens the map of what was heard with a position (`aprs_map.py`, the
-terminal's APRS > Map).
+terminal's APRS > Map), and **Object** an object report to send
+(`aprs_object.py`, APRS > Object), as a long press on the map does.
 
 **Send is the commitment** (the station arms the gate for it, as the
 terminal's Send does: `Aprs.compose`); opening, scrolling or swiping a
@@ -58,6 +59,8 @@ class MessagesView:
         self.thread_of: str | None = None
         #: The map page while it is open (`aprs_map.MapPage`).
         self.map = None
+        #: The object form while it is open (`aprs_object.ObjectForm`).
+        self.object_form = None
         self.list = ft.ListView(expand=True)
         self.thread = ft.ListView(expand=True, auto_scroll=True, padding=ft.Padding.all(8))
         self.compose = ft.TextField(expand=True, hint_text="Message", dense=True,
@@ -65,21 +68,26 @@ class MessagesView:
         #: APRS > Send position, the terminal's P on its APRS tab.
         self.toolbar = ft.Container(
             padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-            content=ft.Row(controls=[
+            # Wraps on a narrow phone rather than pushing Object off the edge.
+            content=ft.Row(wrap=True, spacing=8, run_spacing=8, controls=[
                 ft.OutlinedButton(content="Send position", icon=ft.Icons.MY_LOCATION,
                                   on_click=self._send_position),
                 ft.OutlinedButton(content="Map", icon=ft.Icons.MAP_OUTLINED,
-                                  on_click=self._open_map)]))
+                                  on_click=self._open_map),
+                ft.OutlinedButton(content="Object", icon=ft.Icons.ADD_LOCATION_ALT_OUTLINED,
+                                  on_click=self._new_object)]))
         self.control = ft.Container(expand=True)
         self._show_list()
 
     def fab(self):
-        if self.thread_of is not None or self.map is not None:
+        if self.thread_of is not None or self.map is not None or self.object_form is not None:
             return None
         return ft.FloatingActionButton(icon=ft.Icons.EDIT, tooltip="New message",
                                        on_click=self._new, mini=True)
 
     async def shown(self) -> None:
+        if self.object_form is not None:
+            return  # what is typed stays
         if self.map is not None:
             await self.map.reload()
             return
@@ -128,13 +136,44 @@ class MessagesView:
         from .aprs_map import MapPage
 
         self.map = MapPage(self)
-        self.control.content = self.map.control()
+        self.control.content = self.map.root
         self.app.page.floating_action_button = None
         self.app.page.update()
         await self.map.reload()
 
+    async def _new_object(self, _e) -> None:
+        await self.open_object_form()
+
+    async def open_object_form(self, latitude: float | None = None,
+                               longitude: float | None = None, name: str = "") -> None:
+        """The object form, here or at the place given (a long press on the
+        map); `name`, one of this station's objects, moves it."""
+        from .aprs_object import ObjectForm
+
+        args = {"name": name}
+        if latitude is not None:
+            args.update(latitude=latitude, longitude=longitude)
+        start = await self.app.command("aprs_object_start", **args)
+        if not start:
+            return
+        self.object_form = ObjectForm(self, start, moving=bool(name))
+        self.control.content = self.object_form.control()
+        self.app.page.floating_action_button = None
+        self.app.page.update()
+
+    async def close_object_form(self) -> None:
+        """Back to where the form was opened from: the map, else the list."""
+        self.object_form = None
+        if self.map is not None:
+            self.control.content = self.map.root
+            self.app.page.update()
+            await self.map.reload()
+            return
+        await self._back(None)
+
     async def open(self, callsign: str) -> None:
         self.map = None
+        self.object_form = None
         self.thread_of = callsign
         self.app.state.unread_aprs.discard(callsign)
         await self._load_thread()
@@ -161,6 +200,7 @@ class MessagesView:
     def _show_list(self) -> None:
         self.thread_of = None
         self.map = None
+        self.object_form = None
         self.control.content = self.list
 
     async def _send(self, _e) -> None:

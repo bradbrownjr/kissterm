@@ -489,8 +489,9 @@ back end, so a protocol fix or a new transport lands everywhere at once.
 - [ ] **Parity: what the terminal does that the remote client cannot
   yet** (AGENTS.md section 7, operator 2026-10-06). These need protocol
   commands first: writing Winlink forms; sending a file (YAPP);
-  the node's command help and suggestions; APRS objects and templates;
-  RMS gateways; Monitor filters.
+  the node's command help and suggestions; APRS templates; an object's
+  place as a grid square, MGRS or UTM (the phone takes a long press or
+  decimal degrees); RMS gateways; Monitor filters.
 - [ ] **Desktop GUI** for Windows, macOS and Linux, on the same core.
   Toolkit to be chosen when this starts (for example Qt, or the web
   client in a native window so the two share one UI).

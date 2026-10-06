@@ -33,6 +33,7 @@ import asyncio
 import logging
 import re
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from .. import aprs
@@ -68,6 +69,52 @@ log = logging.getLogger(__name__)
 #: of `PendingAcks.retry_seconds` (how long a single message waits before
 #: its own first/next retry) -- this is just the polling granularity.
 RETRY_CHECK_INTERVAL = 10.0
+
+
+#: Where an object goes: the configured path, RF only (RFONLY: compliant
+#: iGates keep it off APRS-IS), or direct (no digipeaters).
+OBJECT_SCOPES = (
+    ("network", "APRS network (your path)"),
+    ("rf_only", "Local RF only (no iGate)"),
+    ("direct", "Direct (no digipeaters)"),
+)
+
+
+@dataclass(frozen=True)
+class AprsObjectRequest:
+    """The deliberately composed contents of one APRS object report, from
+    the terminal's form or the phone's (`Aprs.send_object_now`)."""
+
+    name: str
+    alive: bool
+    latitude: float
+    longitude: float
+    symbol: str
+    comment: str
+    scope: str = "network"
+
+
+def object_problems(request: AprsObjectRequest) -> list[str]:
+    """What is wrong with `request`, in words for the form, by the one
+    encoder every object goes through (`aprs.object_report`); empty when
+    it would go."""
+    problems = []
+    if not request.name.strip():
+        problems.append("Give the object a name.")
+    if not -90 <= request.latitude <= 90 or not -180 <= request.longitude <= 180:
+        problems.append("The position is off the map: latitude -90 to 90, longitude -180 to 180.")
+    if request.scope not in {key for key, _label in OBJECT_SCOPES}:
+        problems.append("Choose where the object goes.")
+    if problems:
+        return problems
+    try:
+        aprs.object_report(request.name, request.alive, "010000z", request.latitude,
+                           request.longitude, request.symbol[:1], request.symbol[1:2],
+                           request.comment)
+    except ValueError as exc:
+        text = str(exc)
+        return [text[:1].upper() + text[1:] + "."]
+    return []
 
 
 def _clean(text: str) -> str:
@@ -293,13 +340,14 @@ class Aprs:
 
     def _place_object(self, by: str, report) -> None:
         position = report.position
+        mine = by == self.active_identity()  # our own, repeated by a digipeater
         self.placemarks.object(
             _clean(report.name), by, report.alive,
             position.latitude if position else None,
             position.longitude if position else None,
             item=report.is_item,
             symbol=(position.symbol_table + position.symbol_code) if position else "",
-            comment=_clean(position.comment) if position else "")
+            comment=_clean(position.comment) if position else "", mine=mine)
 
     def own_position(self) -> tuple[float, float] | None:
         """Where this station is: the GPS fix, else the configured position
@@ -551,11 +599,35 @@ class Aprs:
         except Exception as exc:  # noqa: BLE001 - reported as not sent
             log.debug("APRS object %s not sent: %s", request.name, exc)
             return False
+        # On this station's map as it goes: a station does not hear itself.
+        # (Clients redraw on the sent frame's FrameSeen.)
+        self.placemarks.object(request.name, self.active_identity(), request.alive,
+                               request.latitude, request.longitude, symbol=request.symbol,
+                               comment=request.comment.strip(), mine=True)
         # Strict printable ASCII, so the payload is safe to keep verbatim.
         log.debug("APRS object transmission accepted: %s:%s", outframe.path, payload.decode("ascii"))
         log.info("sent %s APRS object %s", "live" if request.alive else "killed",
                  request.name.strip())
         return True
+
+    def object_start(self, latitude: float | None = None,
+                     longitude: float | None = None, name: str = "") -> dict:
+        """What a new object's form starts with: here (or the place given,
+        a long press on the map), this station's symbol, and the choices;
+        for `name`, one of this station's objects, its symbol and comment
+        (Move and Kill)."""
+        here = self.own_position() or (0.0, 0.0)
+        mine = self.placemarks.objects.get(name.strip().upper()) if name else None
+        return {
+            "name": mine.name if mine else name.strip(),
+            "latitude": here[0] if latitude is None else latitude,
+            "longitude": here[1] if longitude is None else longitude,
+            "symbol": (mine.symbol if mine else "") or self.config.aprs.symbol,
+            "comment": mine.comment if mine else "",
+            "scopes": [list(scope) for scope in OBJECT_SCOPES],
+            "symbols": [[symbol.key, symbol.description] for symbol in aprs_symbols.SYMBOLS
+                        if symbol.description],
+        }
 
     async def send_object_now(self, request) -> bool:
         """A composed object, sent: the explicit Send is operator-committed
