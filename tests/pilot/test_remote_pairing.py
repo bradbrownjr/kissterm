@@ -182,3 +182,62 @@ async def test_turning_it_on_keeps_the_screen_drawing_and_shows_the_qr_code(monk
         await pilot.pause()
         qr = app.screen.query_one("#pairing-qr", Static)
         assert "-none" not in qr.classes, "the pairing screen came up without its QR code"
+
+
+@pytest.mark.asyncio
+async def test_a_paired_link_turns_on_quietly_and_settings_has_the_button():
+    """Operator, 2026-10-06: a device already paired does not need the
+    pairing screen each time remote access is turned on; Settings > Remote
+    has a button for it instead, and only that section shows it."""
+    from textual.widgets import Button
+
+    from kissterm.serve import pairing
+    from kissterm.ui.settings_pane import SettingsPane
+
+    app = _app(enabled=False)
+    app.config.transports = [{"name": "dw", "kind": "tcp", "host": "127.0.0.1", "port": 8001}]
+    pairing.mark_paired(pairing.load_token())
+    try:
+        async with app.run_test(size=(110, 32)) as pilot:
+            await pilot.pause()
+            app.config.serve.enabled = True
+            app.apply_runtime_settings()
+            await wait_for(lambda: app.remote.server is not None, "the server to start")
+            await pilot.pause()
+            assert not isinstance(app.screen, RemotePairingScreen), \
+                "the pairing screen opened for a link a device already uses"
+
+            app.action_show_tab("settings")
+            pane = app.query_one(SettingsPane)
+            button = pane.query_one("#settings-pairing", Button)
+            pane.show_section("Radio")
+            await pilot.pause()
+            assert not button.display
+            pane.show_section("Remote")
+            await pilot.pause()
+            assert button.display
+            await pilot.click("#settings-pairing")
+            await wait_for(lambda: isinstance(app.screen, RemotePairingScreen), "the pairing screen")
+            await pilot.pause()
+    finally:
+        pairing.paired_path().unlink(missing_ok=True)
+
+
+@pytest.mark.asyncio
+async def test_a_client_signing_in_marks_the_link_paired_and_rotating_clears_it():
+    from kissterm.serve import pairing
+
+    pairing.paired_path().unlink(missing_ok=True)
+    app = _app(enabled=True)
+    try:
+        async with app.run_test(size=(110, 32)):
+            await wait_for(lambda: app.remote.server is not None, "the server to start")
+            assert not app.remote.server.paired
+            ws = await _client(app)
+            assert app.remote.server.paired and pairing.has_paired(app.remote.token())
+            app.remote.rotate()
+            assert not app.remote.server.paired
+            assert not pairing.has_paired(app.remote.token())
+            await ws.close()
+    finally:
+        pairing.paired_path().unlink(missing_ok=True)

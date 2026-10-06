@@ -119,6 +119,8 @@ class RemoteServer:
         self.core = core
         self.web = web
         self.token = token if token is not None else pairing.load_token()
+        #: Whether a client has signed in with this token (`pairing.mark_paired`).
+        self.paired = pairing.has_paired(self.token)
         self.operator = RemoteOperator(self, standalone=standalone)
         self.clients: set[_Client] = set()
         self.history: collections.deque = collections.deque(maxlen=HISTORY)
@@ -182,6 +184,7 @@ class RemoteServer:
     def rotate(self) -> str:
         """A new token; every client is closed and must pair again."""
         self.token = pairing.rotate_token()
+        self.paired = False
         for client in list(self.clients):
             self._drop(client, UNAUTHORIZED, "token rotated")
         log.info("remote token rotated")
@@ -255,6 +258,9 @@ class RemoteServer:
             log.warning("remote client %s refused: wrong or missing token", address)
             await ws.close(UNAUTHORIZED, "unauthorized")
             return
+        if not self.paired:
+            self.paired = True
+            pairing.mark_paired(self.token)
         client = _Client(ws, address)
         since = hello.get("since", 0)
         since = since if isinstance(since, int) and since >= 0 else 0

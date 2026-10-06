@@ -565,10 +565,12 @@ own client.
   runs. Or start `kissterm --serve`, which runs with no screen and prints
   the link and QR code instead. Both need the `serve` extra (SETUP.md
   section 11).
-- **The pairing screen opens by itself** when you turn remote control on
-  and Save: the link and its QR code to scan with the phone. Later,
-  **Session > Remote pairing** (F10, then P) shows it again, even while
-  remote control is off, with Copy link, Rotate and a Settings button.
+- **The pairing screen** shows the link and its QR code to scan with the
+  phone, with Copy link, Rotate and a Settings button. It opens by itself
+  when you turn remote control on and Save, until a device has paired
+  with the link (and again after Rotate). Any time, even while remote
+  control is off: the **Pairing link** button in Settings > Remote, or
+  **Session > Remote pairing** (F10, then P).
   Starting the server takes a few seconds the first time (it loads the
   web app); the screen keeps working meanwhile.
 

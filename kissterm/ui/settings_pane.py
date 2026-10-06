@@ -302,6 +302,10 @@ class SettingsPane(Vertical):
             with Horizontal(classes="settings-actions"):
                 yield Button("Save", variant="primary", compact=True, id="settings-save")
                 yield Button("Discard changes", compact=True, id="settings-reload", disabled=True)
+                # Settings > Remote only: the pairing screen is the terminal's,
+                # not a setting, so it is a button here rather than a row a
+                # phone's Settings would also show (`_section_opened`).
+                yield Button("Pairing link", compact=True, id="settings-pairing")
                 yield Static("", id="settings-footer")
             yield Static(_HELP_IDLE, id="settings-help-line")
 
@@ -329,6 +333,8 @@ class SettingsPane(Vertical):
 
     def _section_opened(self, tab: str) -> None:
         section = _SECTION_BY_TAB.get(tab)
+        self.query_one("#settings-pairing", Button).display = (
+            section is not None and section.title == "Remote")
         self._end_edit()
         if section is None:
             self._editing = ""
@@ -1579,6 +1585,10 @@ class SettingsPane(Vertical):
         # The result is already in the detail line; toast only a problem.
         if not identity.is_tnc:
             self.app.notify(line, severity=severity)
+
+    @on(Button.Pressed, "#settings-pairing")
+    def _pairing_pressed(self) -> None:
+        self.app.action_remote_pairing()  # type: ignore[attr-defined]
 
     @on(Button.Pressed, "#settings-test")
     def _test_pressed(self) -> None:

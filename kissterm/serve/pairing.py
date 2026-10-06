@@ -16,11 +16,19 @@ machine's own LAN address.
 
 Holding the token is holding the station's transmitter, under the
 operator's callsign. Never log it, never put it in a notice.
+
+**Whether a device has paired** with the current link is kept beside it
+(`mark_paired`, `has_paired`): a hash of the token a client last signed in
+with, never the token. The terminal opens the pairing screen when remote
+control is turned on only while nothing has paired yet (operator,
+2026-10-06: a device already paired does not need it); a rotated link
+starts unpaired.
 """
 
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import os
 import secrets
 import socket
@@ -64,6 +72,32 @@ def rotate_token(path: Path | None = None) -> str:
     token = secrets.token_urlsafe(TOKEN_BYTES)
     _write(path or token_path(), token)
     return token
+
+
+def paired_path() -> Path:
+    from ..config import state_path
+
+    return state_path() / "remote-paired"
+
+
+def _digest(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def mark_paired(token: str, path: Path | None = None) -> None:
+    """A client signed in with `token`. A file that cannot be written
+    costs only an extra look at the pairing screen."""
+    path = path or paired_path()
+    with contextlib.suppress(OSError):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_digest(token) + "\n", encoding="ascii")
+
+
+def has_paired(token: str, path: Path | None = None) -> bool:
+    """Whether any client has signed in with `token`, this link."""
+    with contextlib.suppress(OSError):
+        return (path or paired_path()).read_text(encoding="ascii").strip() == _digest(token)
+    return False
 
 
 def lan_address() -> str:

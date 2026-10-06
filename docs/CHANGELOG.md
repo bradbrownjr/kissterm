@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — The pairing screen: a Settings button, and no pop-up once paired
+
+### Improvements
+
+- **Settings > Remote has a Pairing link button** that opens the link and
+  QR code. Only the terminal shows it; a phone's Settings does not.
+- **Turning remote control on opens the pairing screen only until a
+  device has paired** with the link. The station remembers that a client
+  signed in (a hash of the token, never the token); Rotate starts over.
+
+**Files:** `kissterm/serve/pairing.py`, `kissterm/serve/server.py`,
+`kissterm/ui/remote.py`, `kissterm/ui/settings_pane.py`,
+`kissterm/ui/styles.py`, `kissterm/core/settings_schema.py`,
+`docs/GUIDE.md`, `tests/pilot/test_remote_pairing.py`
+
 ## [2026-10-06] — Turning on remote control no longer freezes the terminal; the QR code shows
 
 ### Improvements

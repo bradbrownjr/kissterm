@@ -18,9 +18,12 @@ importing them inside `start` froze the whole terminal from Save until the
 "Remote control on" notice (operator, 2026-10-06: "locked up the whole
 program"). A thread imports them while the screen keeps drawing.
 
-**Turned on from Settings, the pairing screen opens** with its QR code, the
-one thing a phone needs next (operator, 2026-10-06: "there is no QR
-code"). Not when it was already on at launch: nothing changed then.
+**Turned on from Settings, the pairing screen opens** with its QR code,
+the one thing a phone needs next (operator, 2026-10-06: "there is no QR
+code") -- but only while no device has paired with this link
+(`pairing.has_paired`; operator, same day: a device already paired does
+not need it), and not when it was already on at launch. Settings > Remote
+has a Pairing link button for every other time.
 """
 
 from __future__ import annotations
@@ -112,7 +115,8 @@ class RemoteControl:
             self.local.notice(Notice("Starting remote control..."))
         await asyncio.to_thread(_preload)
         await self.start(want)
-        if self.server is not None and not launch and not was_on:
+        if (self.server is not None and not launch and not was_on
+                and not self.server.paired):
             self.app.show_pairing()
 
     async def start(self, want: tuple) -> None:

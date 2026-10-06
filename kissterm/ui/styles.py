@@ -645,6 +645,7 @@ SettingsPane { layout: vertical; }
 .settings-actions { height: auto; }
 #settings-footer { width: 1fr; height: auto; padding: 0 0 0 1; }
 .settings-actions Button { margin: 0 1 0 0; }
+#settings-pairing { display: none; }
 /* The swatch's fill is the one legitimate exception to "never hardcode a
    hex value" (DESIGN.md#2): it renders an arbitrary color the operator
    typed, not a piece of kissterm's own chrome, so it is set at runtime from
