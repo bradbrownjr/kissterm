@@ -36,6 +36,11 @@ run started and ended, so a phone can offer the cancel.
 the same way (AGENTS.md: the front ends have parity). None of them
 transmits: a written message waits in its Outbox for Send/Receive, and a
 deleted one waits in Deleted for Restore (the phone's Undo).
+
+**So are radiograms** (`radiogram_start`, `radiogram_check`,
+`write_radiogram`, `radiogram_problems`): the terminal's radiogram form
+and the phone's check and save the same way (operator, 2026-10-06, on
+the phone: "New Message lacks NTS"). The rules are `mail/nts.py`'s.
 """
 
 from __future__ import annotations
@@ -44,6 +49,7 @@ import asyncio
 import contextlib
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 from ..ax25 import parse_path
@@ -761,6 +767,58 @@ class Mail:
                                  reply_to=original)
         return [], self.file_outbox(message)
 
+    # -- radiograms (the terminal's radiogram form, the phone's) ----------
+    def radiogram_start(self, ics213: bool = False) -> dict:
+        """A new radiogram's defaults: the next number and the last place
+        of origin (from the Outbox and Sent), this station as origin, HXI
+        on a radiogram-ICS213, and the choices the form offers."""
+        from ..mail.compose import radiogram_defaults
+        from ..mail.nts import PRECEDENCES, arl_texts, date_filed
+
+        number, place = radiogram_defaults(self.store)
+        return {
+            "number": number, "place": place,
+            "origin": str(self.config.mycall or "").split("-")[0].upper(),
+            "precedence": "R", "handling": "HXI" if ics213 else "",
+            "date": date_filed(datetime.now(timezone.utc)),
+            "precedences": [list(p) for p in PRECEDENCES],
+            "arl": [{"number": t.number, "groups": t.groups, "text": t.text}
+                    for t in arl_texts()],
+        }
+
+    def radiogram_check(self, fields: dict, ics213: bool = False) -> dict:
+        """What the form shows as it is filled: the check, the BBS routing
+        and title, the ARL texts used, the text as it will go (`text`, a
+        final X dropped) and as it converts while typed (`live`, the
+        terminal form's as-you-type conversion, ending in a space),
+        warnings, and what stops it being saved (`problems`)."""
+        from ..mail.nts import arl_used, encode_text
+
+        gram = radiogram_from(fields, ics213)
+        to, at = gram.routing()
+        live = encode_text(gram.text, final=False)
+        return {
+            "live": f"{live} " if live else "",
+            "check": gram.check,
+            "route": f"ST {to or '<zip>'} @ {at if len(at) == 5 else 'NTS<state>'}",
+            "subject": gram.subject(),
+            "text": encode_text(gram.text),
+            "arl_used": [f"{t.groups} = {t.text}" for t in arl_used(gram.encoded_text)],
+            "warnings": gram.warnings(),
+            "problems": radiogram_problems(gram),
+        }
+
+    def write_radiogram(self, fields: dict, ics213: bool = False) -> tuple[list[str], str]:
+        """Check a radiogram and file it in the BBS Outbox as `ST <zip> @
+        NTS<state>`: (problems, folder). Nothing transmits."""
+        from ..mail.compose import radiogram_message
+
+        gram = radiogram_from(fields, ics213)
+        problems = radiogram_problems(gram)
+        if problems:
+            return problems, ""
+        return [], self.file_outbox(radiogram_message(gram, str(self.config.mycall or "")))
+
     def file_outbox(self, message, *, raw: bytes | None = None, raw_suffix: str = ".xml") -> str:
         """File a written message in Mail/BBS/Outbox, or Mail/Winlink/Outbox
         for a Winlink one; returns the folder. One place for every front end."""
@@ -1122,3 +1180,37 @@ class Mail:
         result = await self._internet_run(transport, entry.target, entry.target, build, label)
         if result is not None:
             self.bbs_report(result, bulletins=options.bulletins)
+
+
+#: The radiogram fields a front end fills (`nts.Radiogram`'s, less the
+#: filing date, which is now, and the kind, which is `ics213`).
+RADIOGRAM_FIELDS = (
+    "number", "precedence", "test", "handling", "origin", "place", "time_filed",
+    "to_name", "to_call", "to_street", "to_city", "to_state", "to_zip", "to_phone",
+    "to_email", "to_op_note", "text", "signature", "sig_op_note", "ics_subject",
+)
+
+
+def radiogram_from(fields: dict, ics213: bool = False):
+    """An `nts.Radiogram` from a front end's fields; unknown keys are
+    ignored, and only text (or the `test` flag) is taken from them."""
+    from ..mail.nts import Radiogram
+
+    values = {}
+    for name in RADIOGRAM_FIELDS:
+        if name in fields:
+            value = fields[name]
+            values[name] = bool(value) if name == "test" else str(value or "")
+    values.setdefault("precedence", "R")
+    return Radiogram(**values, ics213=bool(ics213))
+
+
+def radiogram_problems(gram) -> list[str]:
+    """What stops a radiogram being saved: its own rules (`nts.py`), and a
+    line that would end the message early on the BBS. Both forms' check."""
+    from ..mail.compose import ends_text_early
+
+    problems = gram.problems()
+    if any(ends_text_early(line) for line in gram.body().splitlines()):
+        problems.append("A line would end the message on the BBS (/EX); reword it.")
+    return problems

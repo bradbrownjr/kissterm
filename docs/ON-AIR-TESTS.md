@@ -67,6 +67,12 @@ Settings > Remote > Remote control, and open Session > Remote pairing.
   BBS/Outbox until the run, then sent (the session shows the `SP` or
   `SR` and the text), and in Sent. A swipe-deleted message is in
   BBS/Deleted, and Undo put one back.
+- [ ] **A radiogram written on the phone goes out** (0.1.440). BBS
+  Mail > the pencil > Type: NTS radiogram (ST); fill it in to a real
+  NTS addressee (or one your net expects as a test, Test switched on),
+  Save to Outbox, then Send/Receive by radio. Expected: the session
+  shows `ST <zip> @ NTS<state>` with the title the form showed, the
+  BBS takes it, and it is in Sent.
 - [ ] **Reconnect from the phone** (0.1.434). Connect to the node from
   the phone, disconnect it, then tap **Reconnect** and confirm.
   Expected: the radio reminder, then the same route and login as the

@@ -39,7 +39,8 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Footer, Input, Label, Select, Static, TextArea
 
 from ..mail import Message
-from ..mail.compose import ends_text_early, radiogram_message
+from ..core.mail import radiogram_problems
+from ..mail.compose import radiogram_message
 from ..mail.nts import PRECEDENCES, Radiogram, arl_texts, arl_used, date_filed, encode_text
 
 #: The Input fields, by id suffix, and the `Radiogram` attribute each fills.
@@ -228,9 +229,7 @@ class RadiogramScreen(ModalScreen[Message | None]):
     @on(Button.Pressed, "#rg-save")
     def _save(self) -> None:
         gram = self.radiogram()
-        problems = gram.problems()
-        if any(ends_text_early(line) for line in gram.body().splitlines()):
-            problems.append("A line would end the message on the BBS (/EX); reword it.")
+        problems = radiogram_problems(gram)  # the phone's check too
         if problems:
             self.query_one("#rg-error", Label).update("\n".join(problems[:3]) + (
                 f"\n...and {len(problems) - 3} more" if len(problems) > 3 else ""))

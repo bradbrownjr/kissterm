@@ -563,6 +563,20 @@ class RemoteServer:
             send_type=str(send_type), reply_to=str(reply_to))
         return {"problems": problems, "folder": folder}
 
+    async def cmd_radiogram_start(self, ics213: bool = False) -> dict:
+        """A new radiogram's defaults and choices (`Mail.radiogram_start`)."""
+        return self.core.mail.radiogram_start(bool(ics213))
+
+    async def cmd_radiogram_check(self, fields: dict, ics213: bool = False) -> dict:
+        """The check, routing, title, ARL texts and problems of a radiogram
+        as filled so far (`Mail.radiogram_check`); files nothing."""
+        return self.core.mail.radiogram_check(dict(fields or {}), bool(ics213))
+
+    async def cmd_radiogram_write(self, fields: dict, ics213: bool = False) -> dict:
+        """Check and file a radiogram in the BBS Outbox; nothing transmits."""
+        problems, folder = self.core.mail.write_radiogram(dict(fields or {}), bool(ics213))
+        return {"problems": problems, "folder": folder}
+
     async def cmd_mail_delete(self, ref: str) -> str:
         return self.core.mail.delete(str(ref))
 

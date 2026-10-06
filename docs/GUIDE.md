@@ -662,8 +662,13 @@ own client.
     (Restore in Deleted). **Swipe a message** either way to delete it
     (or, in Deleted, to restore it): it goes once the row is dragged
     halfway, and sliding it back before letting go cancels. **Undo** on
-    the note that follows puts it back. Forms and radiograms are written
-    at the terminal for now.
+    the note that follows puts it back. **Radiograms** are written here
+    too: choose **NTS radiogram (ST)** or **Radiogram-ICS213 (ST)** as a
+    new message's Type for the radiogram form, with the terminal's rules.
+    The text converts as you type (a period becomes X), and the check,
+    the `ST <zip> @ NTS<state>` routing and the title follow every change.
+    Save to Outbox files it; Send/Receive sends it. Winlink forms are
+    written at the terminal for now.
   - **Stations** has Contacts and Heard, swiped between. **A swipe never
     transmits**: swiping a station right asks "Connect to ...?", swiping
     it left opens its contact, and nothing happens until that sheet's

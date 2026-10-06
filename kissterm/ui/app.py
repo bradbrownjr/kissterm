@@ -2112,7 +2112,7 @@ class KissTermApp(App):
         from ..config import state_path
         from ..locator import to_grid
         from ..mail import form_xml, forms
-        from ..mail.compose import SEND_WINLINK, bulletin_choices, radiogram_defaults
+        from ..mail.compose import SEND_WINLINK, bulletin_choices
         from .compose import (
             ANSWER_STRIP, FORM_PREFIX, RADIOGRAM, RADIOGRAM_ICS213, REPLY_FORM, ComposeScreen,
             reply_form_for,
@@ -2190,7 +2190,8 @@ class KissTermApp(App):
             )
         if message in (RADIOGRAM, RADIOGRAM_ICS213):
             # A radiogram has its own form; the compose screen hands over.
-            number, place = radiogram_defaults(self.mail_store)
+            start = self.core.mail.radiogram_start(message == RADIOGRAM_ICS213)
+            number, place = start["number"], start["place"]
             message = await self.push_screen_wait(RadiogramScreen(
                 str(self.config.mycall or ""), number=number, place=place,
                 ics213=message == RADIOGRAM_ICS213,

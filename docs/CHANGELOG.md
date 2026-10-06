@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Radiograms from the phone
+
+### New Features
+
+- **NTS radiograms on the phone**: New Message's Type offers NTS
+  radiogram (ST) and Radiogram-ICS213 (ST), which open the radiogram
+  form, with the text converted as typed and the check, routing and
+  title following each change. Save files it in the BBS Outbox.
+- **One set of radiogram rules for both front ends**:
+  `Mail.radiogram_start`, `radiogram_check`, `write_radiogram` and
+  `radiogram_problems`; the terminal's form takes its number and its
+  save check from them. Protocol: `radiogram_start`, `radiogram_check`,
+  `radiogram_write`.
+
+**Files:** `kissterm/core/mail.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/radiogram.py`, `kissterm/client/ui/mail.py`,
+`kissterm/ui/radiogram.py`, `kissterm/ui/app.py`, `docs/GUIDE.md`,
+`docs/PROTOCOL.md`, `docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`,
+`tests/unit/test_core_mail_write.py`, `tests/unit/test_serve.py`,
+`tests/unit/test_client_ui.py`
+
 ## [2026-10-06] — Routing is one small line
 
 ### Improvements

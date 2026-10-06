@@ -79,8 +79,12 @@ def routing_section(routes: list[str], bbses: list[str]) -> list[ft.Control]:
             lines]
 
 
-#: Message types the phone writes; forms and radiograms are the terminal's.
-TYPES = (("P", "Private (BBS)"), ("B", "Bulletin (BBS)"), ("W", "Winlink"))
+#: Message types the phone writes, as the terminal's Type list: the last
+#: two open the radiogram form (`radiogram.py`); Winlink forms are the
+#: terminal's for now.
+RADIOGRAM, RADIOGRAM_ICS213 = "radiogram", "radiogram-ics213"
+TYPES = (("P", "Private (BBS)"), ("B", "Bulletin (BBS)"), ("W", "Winlink"),
+         (RADIOGRAM, "NTS radiogram (ST)"), (RADIOGRAM_ICS213, "Radiogram-ICS213 (ST)"))
 _TO_HINT = {"P": "Callsign, e.g. W1BKW", "B": "Category, e.g. WX",
             "W": "Callsigns or email addresses, e.g. W1AW, n0call@example.com"}
 
@@ -505,6 +509,9 @@ class MailView:
         problems = ft.Text("", color=ft.Colors.ERROR)
 
         def kind_changed(_e) -> None:
+            if kind.value in (RADIOGRAM, RADIOGRAM_ICS213):
+                self.app.page.run_task(self.show_radiogram, kind.value == RADIOGRAM_ICS213)
+                return
             to.hint_text = _TO_HINT.get(kind.value, "")
             at.visible = kind.value != "W"
             at.label = "@ distribution, e.g. USA" if kind.value == "B" else \
@@ -552,6 +559,20 @@ class MailView:
                              *([ft.Text(start["note"], color=ft.Colors.OUTLINE, size=12)]
                                if start.get("note") else []),
                              kind, to, at, title, body, problems]))])
+        self.app.page.floating_action_button = None
+        self.app.page.update()
+
+    async def show_radiogram(self, ics213: bool = False) -> None:
+        """The radiogram form, in the writer's place (`radiogram.py`)."""
+        from .radiogram import RadiogramForm
+
+        start = await self.app.command("radiogram_start", ics213=ics213)
+        if start is None:
+            return
+        form = RadiogramForm(self, start, ics213)
+        self._writing = {"radiogram": form}
+        self.reader = None
+        self.control.content = form.control()
         self.app.page.floating_action_button = None
         self.app.page.update()
 

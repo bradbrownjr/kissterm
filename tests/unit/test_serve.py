@@ -452,6 +452,27 @@ async def test_a_client_writes_replies_deletes_and_restores_mail():
 
 
 @pytest.mark.asyncio
+async def test_a_client_checks_and_files_a_radiogram():
+    """The phone's radiogram form: the station's rules, nothing transmits."""
+    core, server, ta, peer = await _serve()
+    client = await _join(server)
+    await client.next()
+    start = (await client.command("g1", "radiogram_start", ics213=True))["value"]
+    assert start["handling"] == "HXI" and start["arl"]
+    fields = {"number": start["number"], "handling": "HXI", "origin": "N1ABC",
+              "place": "WATERBORO ME", "to_name": "EOC", "to_city": "AUGUSTA",
+              "to_state": "ME", "to_zip": "04330", "text": "Shelter open.",
+              "signature": "JANE DOE MANAGER", "ics_subject": "SHELTER"}
+    check = (await client.command("g2", "radiogram_check", fields=fields, ics213=True))["value"]
+    assert check["route"] == "ST 04330 @ NTSME" and check["problems"] == []
+    saved = (await client.command("g3", "radiogram_write", fields=fields, ics213=True))["value"]
+    assert saved == {"problems": [], "folder": "Mail/BBS/Outbox"}
+    await client.ws.close()
+    await server.stop()
+    core.sessions.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_a_client_reads_transcripts_and_bulletin_categories(tmp_path):
     core, server, ta, peer = await _serve()
     core.config.log_dir = str(tmp_path)

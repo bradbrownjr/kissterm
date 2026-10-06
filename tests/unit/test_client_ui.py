@@ -856,3 +856,72 @@ def test_all_inboxes_rows_say_which_service_each_came_by():
     assert view._via({"source": "", "folder": "Mail/BBS/Inbox"}) == "BBS"
     view.folder = "Mail/BBS/Inbox"
     assert view._via({"source": "BBS", "folder": "Mail/BBS/Inbox"}) == ""
+
+
+# ----------------------------------------------------------------------
+# NTS radiograms from the phone (operator, 2026-10-06: "New Message lacks NTS")
+# ----------------------------------------------------------------------
+
+RADIOGRAM_START = {"number": "3", "place": "WATERBORO ME", "origin": "KC1JMH",
+                   "precedence": "R", "handling": "", "date": "OCT 6",
+                   "precedences": [["R", "Routine"], ["P", "Priority"]],
+                   "arl": [{"number": 46, "groups": "ARL FORTY SIX", "text": "Greetings"}]}
+
+
+@pytest.mark.asyncio
+async def test_choosing_nts_in_a_new_message_opens_the_radiogram_form():
+    from kissterm.client.ui.mail import RADIOGRAM, TYPES, MailView
+
+    assert RADIOGRAM in [k for k, _ in TYPES]
+    app = MailApp({"radiogram_start": RADIOGRAM_START})
+    view = MailView(app)
+    await view._write_new(None)
+    view._writing["kind"].value = RADIOGRAM
+    view._writing["kind"].on_select(None)
+    assert view.show_radiogram in app.page.tasks
+    await view.show_radiogram(False)
+    form = view._writing["radiogram"]
+    assert form.fields["number"].value == "3" and form.fields["origin"].value == "KC1JMH"
+    assert app.commands[-1] == ("radiogram_start", {"ics213": False})
+    assert view.fab() is None
+
+
+@pytest.mark.asyncio
+async def test_the_radiogram_text_converts_and_a_late_answer_is_not_applied():
+    from kissterm.client.ui.mail import MailView
+    from kissterm.client.ui.radiogram import RadiogramForm
+
+    answer = {"check": "2", "route": "ST <zip> @ NTS<state>", "subject": "- -",
+              "text": "HELLO X", "live": "HELLO X ", "arl_used": [], "warnings": [],
+              "problems": []}
+    app = MailApp({"radiogram_check": lambda **_: answer})
+    form = RadiogramForm(MailView(app), RADIOGRAM_START, False)
+    form.fields["text"].value = "hello. "
+    await form.refresh(live=True)
+    assert form.fields["text"].value == "HELLO X " and "Check 2" in form.check.value
+    # Mid-word, nothing is replaced under the operator's thumb.
+    form.fields["text"].value = "HELLO X wor"
+    await form.refresh(live=True)
+    assert form.fields["text"].value == "HELLO X wor"
+    # Leaving the text converts all of it.
+    await form.refresh(final=True)
+    assert form.fields["text"].value == "HELLO X"
+
+
+@pytest.mark.asyncio
+async def test_saving_a_radiogram_shows_problems_or_files_it():
+    from kissterm.client.ui.mail import MailView
+    from kissterm.client.ui.radiogram import RadiogramForm
+
+    app = MailApp({"radiogram_write": {"problems": ["ZIP: 5 or 9 digits."], "folder": ""}})
+    view = MailView(app)
+    form = RadiogramForm(view, RADIOGRAM_START, True)
+    assert "ics_subject" in form.fields
+    await form.save(None)
+    assert "ZIP" in form.problems.value
+    name, args = app.commands[-1]
+    assert name == "radiogram_write" and args["ics213"] is True
+    assert args["fields"]["number"] == "3" and args["fields"]["test"] is False
+    app.answers["radiogram_write"] = {"problems": [], "folder": "Mail/BBS/Outbox"}
+    await form.save(None)
+    assert "Radiogram saved" in app.page.dialogs[-1].content.value

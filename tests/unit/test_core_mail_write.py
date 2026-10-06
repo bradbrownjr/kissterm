@@ -88,3 +88,48 @@ def test_delete_then_restore_puts_it_back():
     back = core.mail.restore(gone)
     assert back.startswith("Mail/BBS/Inbox/")
     assert len([e for e in seen if isinstance(e, MailChanged)]) == 2
+
+
+# ----------------------------------------------------------------------
+# Radiograms: the terminal's form and the phone's check and save the same
+# way (operator, 2026-10-06: "New Message lacks NTS").
+# ----------------------------------------------------------------------
+
+GRAM = {"number": "7", "precedence": "R", "handling": "", "origin": "KC1JMH",
+        "place": "WATERBORO ME", "to_name": "JOHN SMITH", "to_street": "1 MAIN ST",
+        "to_city": "RIVER CITY", "to_state": "MD", "to_zip": "00789",
+        "to_phone": "301 555 3470", "text": "Arrived safely. Love", "signature": "JANE"}
+
+
+def test_a_new_radiogram_starts_numbered_from_this_station():
+    core, _ = _core()
+    start = core.mail.radiogram_start()
+    # The next number after any already in the Outbox or Sent (other
+    # tests share this store), from this station without its SSID.
+    assert start["number"].isdigit() and int(start["number"]) >= 1
+    assert (start["origin"], start["handling"]) == ("KC1JMH", "")
+    assert ["R", "Routine"] in start["precedences"] and start["arl"]
+    assert core.mail.radiogram_start(ics213=True)["handling"] == "HXI"
+
+
+def test_a_radiogram_check_shows_what_the_form_shows():
+    core, _ = _core()
+    result = core.mail.radiogram_check(GRAM)
+    assert result["text"] == "ARRIVED SAFELY X LOVE"
+    assert result["live"] == "ARRIVED SAFELY X LOVE "
+    assert result["check"] == "4" and result["route"] == "ST 00789 @ NTSMD"
+    assert result["problems"] == []
+    assert core.mail.radiogram_check({**GRAM, "to_zip": ""})["problems"]
+
+
+def test_a_radiogram_is_filed_in_the_bbs_outbox_or_says_why_not():
+    core, seen = _core()
+    problems, folder = core.mail.write_radiogram({**GRAM, "to_state": ""})
+    assert folder == "" and any("State" in p for p in problems)
+    problems, folder = core.mail.write_radiogram(GRAM)
+    assert (problems, folder) == ([], "Mail/BBS/Outbox")
+    [summary] = [s for s in core.mail.store.list("Mail/BBS/Outbox") if s.to == "00789"]
+    message = core.mail.store.read(summary.ref)
+    assert message.to == "00789" and message.extra["Send-At"] == "NTSMD"
+    assert message.extra["Send-Type"] == "T" and any(isinstance(e, MailChanged) for e in seen)
+    assert int(core.mail.radiogram_start()["number"]) >= 8, "the next one counts on"
