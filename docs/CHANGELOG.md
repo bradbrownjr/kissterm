@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Two tests that failed under full-suite load wait on conditions
+
+### Improvements
+
+- **The scan-coverage test no longer races the clock**: the sweep's
+  deadline now runs out after the first wave of probes has started,
+  not after 0.5 s of wall time. With every core busy, the first wave
+  had not started by then.
+- **The drag-select test waits for the lines to be drawn**, and for the
+  selection, rather than for one pause. Under load it had selected
+  nothing (reproduced, then 6 of 6 passed).
+
+**Files:** `tests/unit/test_scan_coverage.py`,
+`tests/pilot/test_text_selection.py`, `docs/ROADMAP.md`
+
 ## [2026-10-06] — A tab key pressed at launch is no longer undone
 
 ### Improvements

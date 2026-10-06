@@ -17,6 +17,7 @@ from kissterm.config import Config  # noqa: E402
 from kissterm.ui.app import KissTermApp  # noqa: E402
 from kissterm.ui.terminal_pane import TerminalPane  # noqa: E402
 from kissterm.ui.wraplog import WrapLog  # noqa: E402
+from tests.pilot._wait import wait_for  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -30,6 +31,11 @@ async def test_drag_in_the_terminal_scrollback_selects_and_ctrl_c_copies():
         log.clear()
         log.write(Text("Message #2578 Killed", style="red"))
         log.write(Text("de WS1EC#>"))
+        # A write waits for the log's size before it is drawn; under load
+        # one pause was not enough, and the drag selected nothing (ROADMAP
+        # P0.1, 2026-10-05).
+        await wait_for(lambda: [line.text.rstrip() for line in log.lines[:2]]
+                       == ["Message #2578 Killed", "de WS1EC#>"], "the two lines drawn")
         await pilot.pause()
         # Offsets are from the widget's edge; the text starts inside its border.
         dx = log.content_region.x - log.region.x
@@ -37,6 +43,7 @@ async def test_drag_in_the_terminal_scrollback_selects_and_ctrl_c_copies():
         await pilot.mouse_down(log, offset=(dx, dy))
         await pilot.hover(log, offset=(dx + 7, dy + 1))
         await pilot.mouse_up(log, offset=(dx + 7, dy + 1))
+        await wait_for(lambda: app.screen.get_selected_text(), "the selection")
         await pilot.pause()
         assert app.screen.get_selected_text() == "Message #2578 Killed\nde WS1EC"
         # The selected text stays visible: never one colour on itself.

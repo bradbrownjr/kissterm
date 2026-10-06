@@ -81,14 +81,36 @@ async def test_a_truncated_sweep_says_so_instead_of_looking_complete(monkeypatch
     """The actual defect. A scan that gives up early and reports normally
     sends an operator to check cabling that is fine."""
 
+    # The sweep's clock runs out once the first wave of probes has started,
+    # not after half a second of wall time: with every core busy (`-n
+    # auto`), creating the 1270 tasks alone took longer than that, so the
+    # first block never started and the test failed (ROADMAP P0.1,
+    # 2026-10-05).
+    started = 0
+    wave = discovery._MAX_CONCURRENT_PROBES
+
     async def slow_open_connection(host, port, *args, **kwargs):
+        nonlocal started
+        started += 1
         await asyncio.sleep(5.0)
         raise OSError("nothing here")
 
+    class Clock:
+        def __init__(self, loop):
+            self.loop = loop
+
+        def time(self) -> float:
+            return 0.0 if started < wave else 1e9
+
+        def __getattr__(self, name):
+            return getattr(self.loop, name)
+
+    real_get_event_loop = asyncio.get_event_loop
     monkeypatch.setattr(discovery.asyncio, "open_connection", slow_open_connection)
+    monkeypatch.setattr(discovery.asyncio, "get_event_loop", lambda: Clock(real_get_event_loop()))
 
     coverage = ScanCoverage()
-    await discovery.discover_network(subnet="10.6.26", timeout=0.5, coverage=coverage)
+    await discovery.discover_network(subnet="10.6.26", timeout=30.0, coverage=coverage)
 
     assert coverage.truncated, "a sweep that skipped most of its work looked complete"
     assert coverage.probes_done < coverage.probes_planned

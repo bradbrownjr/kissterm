@@ -127,20 +127,13 @@ CHANGELOG only. As of 2026-10-04: one item open outside the code
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
-- **A scan-coverage test fails under full-suite load** (2026-10-05,
-  `open`; found by the suite). `tests/unit/test_scan_coverage.py::test_a_
-  truncated_sweep_says_so_instead_of_looking_complete` gives the sweep a
-  0.5 s budget and then requires all 254 addresses on the first port to
-  have been probed; with every core busy (`-n auto`) fewer were. Passes
-  alone (3 of 3). A test timing assumption, not a kissterm fault as far as
-  seen; the fix is to wait on the first block's completion, not a clock.
-  Same shape, seen once (2026-10-05): `tests/pilot/test_app_mounts.py::
+- **A screenshot test failed once under full-suite load** (2026-10-05,
+  `open`; found by the suite). `tests/pilot/test_app_mounts.py::
   test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filters`
-  reads a screenshot after one `pilot.pause()`; passes alone and 3 of 3
-  reruns.
-  Likewise once (2026-10-05): `tests/pilot/test_text_selection.py::
-  test_drag_in_the_terminal_scrollback_selects_and_ctrl_c_copies`, a mouse
-  drag between single pauses; 3 of 3 alone.
+  reads a screenshot after one `pilot.pause()`. Which assertion failed
+  was not kept. Not reproduced since: 4 runs alone and 8 at once, all
+  with every core busy (2026-10-06), passed. Next time it fails, keep
+  the assertion line, then wait on that condition rather than a pause.
 
 - **Relaunch after closing mid-connection: stray polls, no way to see or
   end them** (2026-09-29, `awaiting confirmation`): "I closed the application and must've
