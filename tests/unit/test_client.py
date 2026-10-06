@@ -113,6 +113,20 @@ async def test_a_question_is_answered_through_the_model():
     await server.stop()
 
 
+def test_a_replayed_alert_is_history_not_a_new_alert():
+    state = StationState()
+    heard: list = []
+    state.subscribe(lambda kind, data: heard.append(kind))
+    alert = {"type": "event", "seq": 5, "name": "Alert",
+             "data": {"title": "APRS", "body": "hi", "urgent": False, "topic": "aprs"}}
+    state.apply({**alert, "replay": True})
+    state.apply({"type": "event", "seq": 6, "name": "SetupRequested",
+                 "data": {"place": "mail"}, "replay": True})
+    assert "alert" not in heard and "setup" not in heard
+    state.apply(alert)
+    assert heard.count("alert") == 1, "a live alert still alerts"
+
+
 def test_timer_recovery_is_still_connected():
     state = StationState()
     state.apply({"type": "event", "seq": 1, "name": "SessionStateChanged",

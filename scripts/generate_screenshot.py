@@ -387,16 +387,23 @@ async def main() -> int:
         await shot("screenshot-settings")
         # 9. Remote pairing, with an invented token and LAN address: the
         # real ones would change the image every run (and are the key to a
-        # transmitter).
+        # transmitter). Shown running, with a phone and a laptop connected
+        # (the README's front page): a stand-in server, never a real one.
+        from types import SimpleNamespace
+
         from kissterm.serve import pairing
         from kissterm.ui.dialogs import RemotePairingScreen
 
         pairing.lan_address = lambda: "192.168.1.20"
         app.remote.token = lambda: "Xq3v9Lr2Tn8Kp5Wm1Zc7Hd4Jf6Bs0Ya2Ue9Gi5Oo3Rk"
+        app.remote.server = SimpleNamespace(port=7425, clients=["phone", "laptop"])
+        app._refresh_status()
         app.push_screen(RemotePairingScreen(app.remote))
         await _pause(pilot, 0.3)
         await shot("screenshot-remote-pairing")
         app.pop_screen()
+        app.remote.server = None
+        app._refresh_status()
 
     station.close()
     node.close()

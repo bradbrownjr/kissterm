@@ -177,6 +177,8 @@ gets a `welcome` (the state now, and the current `seq`), then every
 buffered event after the hello's `since`, marked `"replay": true` --
 history to draw, not state to apply over the snapshot -- then live
 events, with no gap between the two. `since: 0` replays the whole buffer.
+A replayed `Alert` or `SetupRequested` already happened: a client shows
+it as history, if at all, and never raises it again.
 
 ## 6. Events on the wire
 

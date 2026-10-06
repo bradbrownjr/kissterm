@@ -17,12 +17,38 @@ the shack.
 - **Talks to your TNC directly**: a sound-card modem such as UZ7HO
   SoundModem or Direwolf, on this computer or another one on your network. USB, serial and Bluetooth TNCs are built
   in and on the roadmap to be proven with real hardware.
-- **More ways to use it are planned.** Today kissterm is a text interface.
-  A desktop app (Windows, macOS, Linux) and a web version for a tablet or a
-  shelter laptop are on the roadmap, built on the same core
-  ([ROADMAP](docs/ROADMAP.md), P7a).
+- **Run it from your phone or laptop too** (experimental). The station
+  keeps the radio; any phone, tablet or laptop on your network opens its
+  link in a browser and becomes a remote control. Nothing to install.
 
 ![The Mail tab: every inbox in one list, a message from the local BBS open](assets/screenshot-mail.png)
+
+## Remote control from a phone or laptop (experimental)
+
+Turn on remote control and the station serves its own app: open the link,
+or scan the QR code, in any browser on your network. The station and every
+screen share one station. The rules do not loosen at a distance. A connect
+from a phone still shows the radio reminder first, and the transmit switch
+is in the top corner of every screen, red while transmit is on. The link is
+the key to your transmitter, so keep it private; Rotate replaces it. Details
+are in the [user guide](docs/GUIDE.md#remote-control-experimental).
+
+**At the station:** Session > Remote pairing shows the link and its QR code,
+and `REMOTE` in the status bar says another screen can key the radio.
+
+![Remote pairing in the terminal: the QR code, the link, and two clients connected](assets/screenshot-remote-pairing.png)
+
+**In a browser on a laptop** the places run down the side:
+
+![The remote control in a laptop's browser: a node session, transmit on](assets/screenshot-desktop.png)
+
+**On a phone** they move to the bottom, in reach of a thumb. A session is
+the terminal, and APRS messages are conversations:
+
+![The remote control on a phone: a node session, and an APRS conversation](assets/screenshot-phone.png)
+
+It has been tried in browsers at laptop and phone sizes, not yet from a
+real phone on the air; [ON-AIR-TESTS](docs/ON-AIR-TESTS.md) lists the checks.
 
 ## A quick tour
 

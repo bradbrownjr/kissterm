@@ -13,6 +13,11 @@ changed: "station", "gate", "transport", "activity", "session",
 is plain with colour spans, never escape codes. Nothing here parses
 anything from the air.
 
+**A replayed event is history** (PROTOCOL.md section 5): it draws the
+session text and threads a late joiner missed, but an alert or a setup
+request in it already happened, so it is not raised again. Without that,
+a browser opened an hour later popped up the hour's APRS alerts.
+
 **Only what the station said is shown**: a line the operator types is
 not added to its session until the station's `LineSent` comes back, so a
 line that was refused never looks sent.
@@ -27,6 +32,8 @@ from dataclasses import dataclass, field
 #: Text chunks kept per session (the station keeps the rest in its
 #: transcript).
 SESSION_CHUNKS = 4000
+#: Events that ask for attention now, which a replay does not repeat.
+ONE_SHOT = frozenset({"Alert", "SetupRequested"})
 MONITOR_LINES = 500
 NOTICES = 50
 
@@ -123,7 +130,10 @@ class StationState:
         if kind == "welcome":
             self._welcome(message)
         elif kind == "event":
-            self._event(message.get("name", ""), message.get("data") or {})
+            name = message.get("name", "")
+            if message.get("replay") and name in ONE_SHOT:
+                return
+            self._event(name, message.get("data") or {})
         elif kind == "notice":
             self.notices.append(message)
             self._tell("notice", message)

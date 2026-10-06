@@ -5,6 +5,25 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Remote control on the README's front page
+
+### Improvements
+
+- **The README shows remote control**: the station's pairing dialog
+  (now drawn running, `REMOTE 2`), the app in a laptop's browser (the side
+  rail), and on a phone, each image large enough to read. The phone
+  screenshots are now pairs, not a strip of four, and the GUIDE adds the
+  laptop view.
+- **A browser that joins late no longer pops up old alerts.** The replay
+  that brings it the session text also carried past `Alert` and
+  `SetupRequested` events, which it raised as new; they are now history.
+
+**Files:** `README.md`, `docs/GUIDE.md`, `docs/PROTOCOL.md`,
+`kissterm/client/state.py`, `tests/unit/test_client.py`,
+`scripts/generate_phone_screenshots.py`, `scripts/generate_screenshot.py`,
+`assets/screenshot-desktop.png`, `assets/screenshot-phone.png`,
+`assets/screenshot-phone-connect.png`, `assets/screenshot-remote-pairing.png`
+
 ## [2026-10-06] — The remote control's terminal: a dark panel, real bold, a choice of colours
 
 ### Improvements

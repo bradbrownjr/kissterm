@@ -6,7 +6,8 @@ data. No radio, no phone.
 remote control is a Flutter page, so it needs a real browser. This runs a
 loopback station with the remote server and the web client (the `web`
 extra), opens it in headless Chrome at a phone's size, taps through it,
-and writes one PNG of four phone screens to `assets/`.
+and writes the phone screens, two to an image, and the same station in a
+desktop-sized window to `assets/`.
 
 **The browser** is a browserless v2 server when `BROWSERLESS_WS` is set
 (`ws://HOST:3000?token=...`, the URL Playwright's `connect_over_cdp`
@@ -51,6 +52,7 @@ isolate()
 import asyncio  # noqa: E402
 import io  # noqa: E402
 import os  # noqa: E402
+import re  # noqa: E402
 import secrets  # noqa: E402
 import socket  # noqa: E402
 from urllib.parse import urlsplit  # noqa: E402
@@ -72,6 +74,8 @@ ASSETS = REPO / "assets"
 #: Flutter then takes text only from touch input, and these taps are
 #: mouse clicks; the layout follows the width alone.
 PHONE = {"width": 390, "height": 844, "deviceScaleFactor": 2, "mobile": False}
+#: A laptop's browser window: wide enough for the side rail.
+DESKTOP = {"width": 1000, "height": 560, "deviceScaleFactor": 2, "mobile": False}
 #: Space between the phones in the composite, and its background.
 GAP, BACKDROP = 48, (226, 226, 234)
 
@@ -180,8 +184,11 @@ class Phone:
     async def accessible(self) -> None:
         """Turn on Flutter's semantics, which puts named DOM elements over
         the canvas: what a screen reader would announce."""
-        await self.page.evaluate("document.querySelector('flt-semantics-placeholder')?.click()")
-        await self.page.get_by_role("tab", name="Stations").wait_for()
+        page = self.page
+        await page.wait_for_selector("flt-semantics-placeholder", state="attached", timeout=60000)
+        await page.evaluate("document.querySelector('flt-semantics-placeholder').click()")
+        # The transmit switch: in the top bar on every layout.
+        await page.get_by_role("button", name=re.compile("^Transmit is")).first.wait_for()
 
     def button(self, name: str):
         """The last button so named: a sheet's is drawn over the page's.
@@ -245,15 +252,34 @@ class Phone:
 
 
 async def shot(name: str, frames: list[Image.Image]) -> None:
-    """The phones side by side, half size, as `assets/<name>.png`."""
+    """The screens side by side on a backdrop, at the browser's full
+    resolution (a README column shows it at about one phone's width
+    each, sharp on a high-density display), as `assets/<name>.png`."""
     w, h = frames[0].size
     sheet = Image.new("RGB", (len(frames) * w + (len(frames) + 1) * GAP, h + 2 * GAP), BACKDROP)
     for i, frame in enumerate(frames):
         sheet.paste(frame, (GAP + i * (w + GAP), GAP))
-    sheet = sheet.resize((sheet.width // 2, sheet.height // 2), Image.LANCZOS)
     path = ASSETS / f"{name}.png"
     sheet.save(path, optimize=True)
     print(f"wrote {path.relative_to(REPO)}")
+
+
+async def open_page(browser, url: str, metrics: dict):
+    """A page at `metrics` (CSS size and density), loaded from `url`."""
+    # Both: the context's viewport, or Playwright's default replaces the
+    # CDP override below.
+    context = await browser.new_context(
+        viewport={"width": metrics["width"], "height": metrics["height"]},
+        device_scale_factor=metrics["deviceScaleFactor"])
+    page = await context.new_page()
+    cdp = await context.new_cdp_session(page)
+    await cdp.send("Emulation.setDeviceMetricsOverride", metrics)
+    # A remote browser's tab is not the focused window, and Flutter's text
+    # field takes keys only once its hidden input has focus.
+    await cdp.send("Emulation.setFocusEmulationEnabled", {"enabled": True})
+    await page.bring_to_front()
+    await page.goto(url)
+    return page
 
 
 async def drive(phone: Phone, core, tb) -> None:
@@ -314,24 +340,18 @@ async def main() -> int:
                 browser = await p.chromium.connect_over_cdp(endpoint)
             else:
                 browser = await p.chromium.launch()
-            # Both: the context's viewport, or Playwright's default replaces
-            # the CDP override below.
-            context = await browser.new_context(
-                viewport={"width": PHONE["width"], "height": PHONE["height"]},
-                device_scale_factor=PHONE["deviceScaleFactor"])
-            page = await context.new_page()
-            cdp = await context.new_cdp_session(page)
-            await cdp.send("Emulation.setDeviceMetricsOverride", PHONE)
-            # A remote browser's tab is not the focused window, and Flutter's
-            # text field takes keys only once its hidden input has focus.
-            await cdp.send("Emulation.setFocusEmulationEnabled", {"enabled": True})
-            await page.bring_to_front()
-            await page.goto(url)
-            await page.wait_for_timeout(8000)  # Flutter's first load
-            phone = Phone(page)
+            phone = Phone(await open_page(browser, url, PHONE))
             await drive(phone, core, tb)
+            # The same station in a desktop browser, joining late: the
+            # session and conversation arrive as the server's replay.
+            desktop = Phone(await open_page(browser, url, DESKTOP))
+            await desktop.accessible()
+            await desktop.shown("W1AW-7  connected")
+            await desktop.frame()
             await browser.close()
-        await shot("screenshot-phone", phone.frames)
+        await shot("screenshot-phone-connect", phone.frames[:2])
+        await shot("screenshot-phone", phone.frames[2:])
+        await shot("screenshot-desktop", desktop.frames)
     finally:
         await server.stop()
         core.aprs.shutdown()

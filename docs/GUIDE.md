@@ -611,7 +611,14 @@ own client.
     on a desktop (the `desktop` extra). It has not been tried on a
     desktop yet.
 
-![The remote control on a phone: a swipe asks before connecting, the radio reminder, a session with transmit on, and an APRS conversation](../assets/screenshot-phone.png)
+![A swipe asks before connecting, then the station's radio reminder: nothing transmits until Connect](../assets/screenshot-phone-connect.png)
+
+![A node session with transmit on, and an APRS conversation](../assets/screenshot-phone.png)
+
+On a wider screen (a laptop's browser, a tablet) the places run down the
+side:
+
+![The remote control in a laptop's browser](../assets/screenshot-desktop.png)
 
 - **Settings > Remote** sets the port (7425), whether it listens on the
   LAN or on this machine only, and, under advanced, a **Public URL** for
