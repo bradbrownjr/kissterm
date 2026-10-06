@@ -598,9 +598,13 @@ own client.
     transmits**: swiping a station right asks "Connect to ...?", swiping
     it left opens its contact, and nothing happens until that sheet's
     own button is pressed. Tapping a station asks to connect too.
-  - **More** shows the station, the Monitor, recent notices, and Settings
-    (the station's own, checked by the station as the terminal checks
-    them; a password field left empty keeps the saved one).
+  - **More** shows the station, the Monitor, recent notices, Terminal,
+    and Settings (the station's own, checked by the station as the
+    terminal checks them; a password field left empty keeps the saved
+    one). **Terminal** sets how session text looks on this phone or
+    browser only: a dark panel (the default) or a light one for
+    sunlight, and the text colour (Grey, Contrast, Green, Amber or Cyan),
+    with a sample.
   - A **question** (the radio reminder, a login) slides up from the
     bottom. Swiping it away is Cancel.
   - `kissterm --client LINK` opens the same remote control in a window

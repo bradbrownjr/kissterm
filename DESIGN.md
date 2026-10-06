@@ -691,9 +691,16 @@ and do not apply there; these do.
   sheet away is Cancel. A question from the station is the same sheet.
 - **Notices are floating snack bars**, red for an error, never a dialog
   that blocks the page.
-- **Session text is the 0xProto mono font**, bundled; the station has
+- **Session text is the 0xProto mono font**, Regular and its own Bold
+  (two families, never a thickened Regular), bundled; the station has
   already filtered it (`serve/wire.py`), and the client only lays it out.
-  The operator's own lines are bold in the primary colour.
+- **The session is a terminal panel**, dark with grey text by default
+  whatever the app's theme. More > Terminal chooses Dark or Light and a
+  text colour (Grey, Contrast, Green, Amber, Cyan, each with a shade for
+  either background) for this device only, kept in its preferences
+  (`text.Look`). On a light panel the colours a node meant for a dark
+  screen are drawn darker. The operator's own lines are bold, in a blue
+  accent that is none of the text colours.
 - **Connect lives in the session header, not a floating button**, which
   would sit on Send where the thumb already is.
 

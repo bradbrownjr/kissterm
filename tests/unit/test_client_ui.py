@@ -22,9 +22,11 @@ from kissterm.client.connection import parse_link  # noqa: E402
 from kissterm.client.state import Chunk, Question, Session, StationState  # noqa: E402
 from kissterm.client.ui import sheets  # noqa: E402
 from kissterm.client.ui.questions import QuestionSheets  # noqa: E402
-from kissterm.client.ui.sessions import Terminal  # noqa: E402
+from kissterm.client.ui.sessions import Terminal, line_control  # noqa: E402
 from kissterm.client.ui.stations import LEFT, RIGHT, StationsView  # noqa: E402
-from kissterm.client.ui.text import runs, split_lines, style_props  # noqa: E402
+from kissterm.client.ui.text import (  # noqa: E402
+    FONTS, MONO_BOLD, OUTGOING, TEXT_COLOURS, Look, runs, split_lines, style_props)
+from kissterm.client.ui.web import ASSETS  # noqa: E402
 from kissterm.client.ui.web import loopback_url, token_from_route  # noqa: E402
 from kissterm.config import ServeConfig  # noqa: E402
 
@@ -83,6 +85,43 @@ def test_the_terminal_appends_only_what_is_new_and_joins_a_split_line():
     assert texts == ["Welcome to the node", "prompt> "]
 
 
+def test_both_weights_of_the_terminal_font_are_bundled():
+    for path in FONTS.values():
+        assert (ASSETS / path).is_file(), f"{path} is not in the client's assets"
+
+
+def test_the_terminal_is_dark_with_grey_text_unless_chosen_otherwise():
+    assert Look() == Look("dark", "grey")
+    assert Look("purple", "plaid") == Look(), "an unknown choice is the default, not an error"
+    assert Look().color == TEXT_COLOURS["grey"][0]
+    assert Look("light", "green").color == TEXT_COLOURS["green"][1]
+    assert Look("light").outgoing == OUTGOING["light"]
+
+
+def test_a_light_panel_darkens_the_colours_a_node_meant_for_a_dark_screen():
+    assert Look("light").ansi("#ffff00") != "#ffff00"
+    assert Look("dark").ansi("#ffff00") == "#ffff00"
+    assert Look("light").ansi("#cd0000") == "#cd0000", "a readable colour is left alone"
+
+
+def test_bold_text_is_the_bold_font_not_a_thickened_regular():
+    line = line_control("BBS here", [[0, 3, "bold green"]], Look())
+    assert line.spans[0].style.font_family == MONO_BOLD
+    assert line.spans[1].style.font_family is None
+    assert line_control("BBS", [], Look(), outgoing=True).font_family == MONO_BOLD
+
+
+def test_a_new_look_redraws_the_session_on_its_new_panel():
+    session = Session(key="W1AW-7")
+    session.add(Chunk("hello\nprompt> "))
+    terminal = Terminal("W1AW-7")
+    terminal.sync(session)
+    terminal.restyle(Look("light", "amber"), session)
+    assert terminal.control.bgcolor == Look("light").bgcolor
+    assert [c.color for c in terminal.list.controls] == [Look("light", "amber").color] * 2
+    assert len(terminal.list.controls) == 2, "restyling must not duplicate lines"
+
+
 # ----------------------------------------------------------------------
 # Views on a fake page
 # ----------------------------------------------------------------------
@@ -123,6 +162,7 @@ class FakeApp:
         self.commands: list = []
         self.index = 3
         self.follow_next_session = False
+        self.look = Look()
 
     async def command(self, name, **args):
         self.commands.append((name, args))

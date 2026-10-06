@@ -23,12 +23,12 @@ def run(link: str) -> int:
 
     from ..connection import parse_link
     from .shell import run as run_app
-    from .text import MONO
+    from .text import FONTS
 
     url, token = parse_link(link)
 
     async def main(page: ft.Page) -> None:
-        page.fonts = {MONO: "fonts/0xProto-Regular-NL.ttf"}
+        page.fonts = dict(FONTS)
         page.theme = ft.Theme(color_scheme_seed=ft.Colors.INDIGO)
         page.dark_theme = ft.Theme(color_scheme_seed=ft.Colors.INDIGO)
         page.theme_mode = ft.ThemeMode.SYSTEM

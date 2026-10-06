@@ -17,41 +17,57 @@ from __future__ import annotations
 import flet as ft
 
 from . import sheets
-from .text import MONO, runs, split_lines
+from .text import MONO, MONO_BOLD, Look, runs, split_lines
 
 #: Lines kept on screen per session; the station keeps the transcript.
 MAX_LINES = 2000
 
 
-def span_style(props: dict) -> ft.TextStyle:
+def span_style(props: dict, look: Look) -> ft.TextStyle:
+    # Bold is its own family: 0xProto Bold, not a thickened Regular.
     return ft.TextStyle(
-        color=props.get("color"), bgcolor=props.get("bgcolor"),
-        weight=ft.FontWeight.BOLD if props.get("bold") else None,
+        color=look.ansi(props.get("color")), bgcolor=props.get("bgcolor"),
+        font_family=MONO_BOLD if props.get("bold") else None,
         italic=props.get("italic") or None,
         decoration=ft.TextDecoration.UNDERLINE if props.get("underline") else None)
 
 
-def line_control(text: str, spans: list, *, outgoing: bool = False) -> ft.Text:
+def line_control(text: str, spans: list, look: Look, *, outgoing: bool = False) -> ft.Text:
     if outgoing:
-        return ft.Text(text, font_family=MONO, size=13, selectable=True,
-                       text_align=ft.TextAlign.LEFT,
-                       color=ft.Colors.PRIMARY, weight=ft.FontWeight.BOLD)
-    return ft.Text(spans=[ft.TextSpan(piece, span_style(props)) for piece, props in runs(text, spans)],
-                   font_family=MONO, size=13, selectable=True, text_align=ft.TextAlign.LEFT)
+        return ft.Text(text, font_family=MONO_BOLD, size=13, selectable=True,
+                       text_align=ft.TextAlign.LEFT, color=look.outgoing)
+    return ft.Text(spans=[ft.TextSpan(piece, span_style(props, look)) for piece, props in runs(text, spans)],
+                   font_family=MONO, size=13, selectable=True, text_align=ft.TextAlign.LEFT,
+                   color=look.color)
 
 
 class Terminal:
-    """One session's text, appended as it arrives."""
+    """One session's text, appended as it arrives, on a panel in the
+    device's chosen `Look`."""
 
-    def __init__(self, key: str) -> None:
+    def __init__(self, key: str, look: Look | None = None) -> None:
         self.key = key
+        self.look = look or Look()
         self.list = ft.ListView(expand=True, auto_scroll=True, spacing=0,
-                                padding=ft.Padding.all(8))
+                                padding=ft.Padding.all(10))
+        self.control = ft.Container(expand=True, content=self.list, bgcolor=self.look.bgcolor)
+        self._reset()
+
+    def _reset(self) -> None:
+        self.list.controls.clear()
         self.rendered = 0
         self._tail_text = ""
         self._tail_spans: list = []
         self._tail_outgoing = False
         self._tail_control: ft.Text | None = None
+
+    def restyle(self, look: Look, session) -> None:
+        """Draw everything again in `look` (the lines still held)."""
+        self.look = look
+        self.control.bgcolor = look.bgcolor
+        self._reset()
+        self.rendered = session.received - len(session.chunks)
+        self.sync(session)
 
     def sync(self, session) -> None:
         new = session.received - self.rendered
@@ -76,11 +92,11 @@ class Terminal:
             self.list.controls.remove(self._tail_control)
             self._tail_control = None
         for line, line_spans in lines[:-1]:
-            self.list.controls.append(line_control(line, line_spans, outgoing=outgoing))
+            self.list.controls.append(line_control(line, line_spans, self.look, outgoing=outgoing))
         tail, tail_spans = lines[-1]
         self._tail_text, self._tail_spans, self._tail_outgoing = tail, tail_spans, outgoing
         if tail:
-            self._tail_control = line_control(tail, tail_spans, outgoing=outgoing)
+            self._tail_control = line_control(tail, tail_spans, self.look, outgoing=outgoing)
             self.list.controls.append(self._tail_control)
 
     def _close_tail(self) -> None:
@@ -115,6 +131,13 @@ class SessionsView:
     async def shown(self) -> None:
         pass
 
+    def restyle(self) -> None:
+        """Every session again in the app's current `Look`."""
+        sessions = self.app.state.sessions
+        for key, terminal in self.terminals.items():
+            if key in sessions:
+                terminal.restyle(self.app.look, sessions[key])
+
     @property
     def current(self) -> str | None:
         return self.keys[self.selected] if self.keys and self.selected < len(self.keys) else None
@@ -134,7 +157,7 @@ class SessionsView:
         current = self.current
         self.keys = list(sessions)
         for key in self.keys:
-            terminal = self.terminals.setdefault(key, Terminal(key))
+            terminal = self.terminals.setdefault(key, Terminal(key, self.app.look))
             terminal.sync(sessions[key])
         for key in [k for k in self.terminals if k not in sessions]:
             del self.terminals[key]
@@ -157,7 +180,7 @@ class SessionsView:
                     ft.TabBar(scrollable=True, tabs=[
                         ft.Tab(label=sessions_by_key[k].title) for k in self.keys]),
                     ft.TabBarView(expand=True, controls=[
-                        self.terminals[k].list for k in self.keys])]))
+                        self.terminals[k].control for k in self.keys])]))
         self._paint_header()
 
     def _paint_header(self) -> None:

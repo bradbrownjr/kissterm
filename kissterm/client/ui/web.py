@@ -64,10 +64,10 @@ def build(server):
     from ..connection import Connection
     from ..state import StationState
     from .shell import ClientApp
-    from .text import MONO
+    from .text import FONTS
 
     async def main(page: ft.Page) -> None:
-        page.fonts = {MONO: "/fonts/0xProto-Regular-NL.ttf"}
+        page.fonts = {family: f"/{path}" for family, path in FONTS.items()}
         page.theme = ft.Theme(color_scheme_seed=ft.Colors.INDIGO)
         page.dark_theme = ft.Theme(color_scheme_seed=ft.Colors.INDIGO)
         page.theme_mode = ft.ThemeMode.SYSTEM

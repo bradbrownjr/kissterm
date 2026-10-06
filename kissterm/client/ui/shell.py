@@ -15,6 +15,11 @@ the station reports it on every screen.
 
 **Every station question is a sheet** (`questions.py`), the first answer
 anywhere wins (`question_closed` takes it down here).
+
+**The terminal's look belongs to the device**, not the station: a phone
+in the sun wants a light panel while the station's own screen stays
+dark. It is kept in the browser's (or desktop's) preferences, never sent
+to the station, and a value this version does not know is the default.
 """
 
 from __future__ import annotations
@@ -33,8 +38,12 @@ from .more import MoreView
 from .questions import QuestionSheets
 from .sessions import SessionsView
 from .stations import StationsView
+from .text import Look
 
 log = logging.getLogger(__name__)
+
+#: Preference keys for the terminal's look (`Look`).
+LOOK_KEYS = ("kissterm.terminal.background", "kissterm.terminal.text")
 
 #: Width (logical pixels) from which destinations move to a side rail.
 WIDE = 720
@@ -60,6 +69,7 @@ class ClientApp:
         #: brings Sessions to the front. A session another screen opened
         #: never moves this one.
         self.follow_next_session = False
+        self.look = Look()
         self.views = [SessionsView(self), MessagesView(self), MailView(self),
                       StationsView(self), MoreView(self)]
         self.questions = QuestionSheets(self)
@@ -93,9 +103,37 @@ class ClientApp:
         page.on_resize = self._on_resize
         self._paint_gate()
         self._place()
+        page.run_task(self.load_look)
         page.add(ft.SafeArea(expand=True, content=ft.Column(
             expand=True, spacing=0, controls=[self.status, self.layout])))
         self.go(0)
+
+    async def load_look(self) -> None:
+        try:
+            prefs = ft.SharedPreferences()
+            background, text = [await prefs.get(key) for key in LOOK_KEYS]
+        except Exception:  # noqa: BLE001 - no storage: the default look
+            log.debug("terminal look not loaded", exc_info=True)
+            return
+        self.apply_look(Look(str(background or ""), str(text or "")))
+
+    async def set_look(self, look: Look) -> None:
+        """Use `look` on this device and remember it."""
+        self.apply_look(look)
+        try:
+            prefs = ft.SharedPreferences()
+            for key, value in zip(LOOK_KEYS, (look.background, look.text)):
+                await prefs.set(key, value)
+        except Exception:  # noqa: BLE001 - shown now, just not remembered
+            log.debug("terminal look not saved", exc_info=True)
+
+    def apply_look(self, look: Look) -> None:
+        if look == self.look:
+            return
+        self.look = look
+        self.views[0].restyle()
+        self.views[4].look_changed()
+        self.page.update()
 
     @property
     def wide(self) -> bool:

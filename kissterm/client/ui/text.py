@@ -13,9 +13,14 @@ Pure functions, so the layout is tested without Flutter
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
-#: The terminal's font family; `web.py` and `desktop.py` register it with the page.
+#: The terminal's font families, one per weight, so bold is 0xProto's own
+#: Bold and not Flutter thickening the Regular. `web.py` and `desktop.py`
+#: register `FONTS` with the page.
 MONO = "kissterm-mono"
+MONO_BOLD = "kissterm-mono-bold"
+FONTS = {MONO: "fonts/0xProto-Regular-NL.ttf", MONO_BOLD: "fonts/0xProto-Bold-NL.ttf"}
 
 #: The 16 ANSI colours, as xterm draws them.
 ANSI = {
@@ -26,6 +31,70 @@ ANSI = {
     "bright_cyan": "#00ffff", "bright_white": "#ffffff",
 }
 _ORDER = list(ANSI)
+
+# ----------------------------------------------------------------------
+# The terminal's look, chosen on each device (More > Terminal)
+# ----------------------------------------------------------------------
+
+#: Background name -> panel colour. Dark by default: a terminal, whatever
+#: the rest of the app follows.
+BACKGROUNDS = {"dark": "#1b1d23", "light": "#fafaf7"}
+#: Text colour name -> (on dark, on light). Each pair keeps its contrast
+#: on its own background, which is why the strongest is "contrast" and not
+#: "white": on a light panel it is black.
+TEXT_COLOURS = {
+    "grey": ("#d4d4d4", "#24292f"),
+    "contrast": ("#ffffff", "#000000"),
+    "green": ("#4ade80", "#116329"),
+    "amber": ("#ffb000", "#8a5300"),
+    "cyan": ("#5eead4", "#0e6b72"),
+}
+#: The operator's own lines, in an accent that is neither text colour.
+OUTGOING = {"dark": "#8ab4f8", "light": "#1a56db"}
+DEFAULT_BACKGROUND, DEFAULT_TEXT = "dark", "grey"
+#: ANSI colours a node sends for a dark screen that vanish on a light one,
+#: drawn darker there.
+_ON_LIGHT = {"#e5e5e5": "#57606a", "#ffffff": "#24292f", "#cdcd00": "#7d6b00",
+             "#ffff00": "#7d6b00", "#00cd00": "#1a7f37", "#00ff00": "#1a7f37", "#00cdcd": "#0e6b72",
+             "#00ffff": "#0e6b72"}
+
+
+@dataclass(frozen=True, slots=True)
+class Look:
+    """How session text is drawn: `background` and `text` are names from
+    `BACKGROUNDS` and `TEXT_COLOURS`; an unknown name is the default."""
+
+    background: str = DEFAULT_BACKGROUND
+    text: str = DEFAULT_TEXT
+
+    def __post_init__(self) -> None:
+        if self.background not in BACKGROUNDS:
+            object.__setattr__(self, "background", DEFAULT_BACKGROUND)
+        if self.text not in TEXT_COLOURS:
+            object.__setattr__(self, "text", DEFAULT_TEXT)
+
+    @property
+    def light(self) -> bool:
+        return self.background == "light"
+
+    @property
+    def bgcolor(self) -> str:
+        return BACKGROUNDS[self.background]
+
+    @property
+    def color(self) -> str:
+        return TEXT_COLOURS[self.text][1 if self.light else 0]
+
+    @property
+    def outgoing(self) -> str:
+        return OUTGOING[self.background]
+
+    def ansi(self, color: str | None) -> str | None:
+        """A colour the station sent, readable on this background."""
+        if color is None or not self.light:
+            return color
+        return _ON_LIGHT.get(color.lower(), color)
+
 _HEX = re.compile(r"#[0-9a-fA-F]{6}")
 _INDEX = re.compile(r"color\((\d{1,3})\)")
 _RGB = re.compile(r"rgb\((\d{1,3}),(\d{1,3}),(\d{1,3})\)")

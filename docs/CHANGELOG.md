@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — The remote control's terminal: a dark panel, real bold, a choice of colours
+
+### Improvements
+
+- **Sessions in the remote control are a terminal panel**, dark with grey
+  text by default. More > Terminal picks Dark or Light and a text colour
+  (Grey, Contrast, Green, Amber, Cyan) for that device, remembered by its
+  browser; colours a node sends for a dark screen are darkened on a light
+  panel. Bold text is 0xProto's own Bold (2.502, the release the Regular
+  came from), about 210 KB more for a phone to load once.
+
+**Files:** `kissterm/client/ui/text.py`, `sessions.py`, `more.py`, `shell.py`,
+`web.py`, `desktop.py`, `assets/fonts/0xProto-Bold-NL.ttf`,
+`tests/unit/test_client_ui.py`, `DESIGN.md`, `docs/GUIDE.md`,
+`assets/screenshot-phone.png`
+
 ## [2026-10-06] — Phone screenshots of the remote control
 
 ### Improvements
