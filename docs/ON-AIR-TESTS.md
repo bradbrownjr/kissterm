@@ -10,7 +10,7 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
-## The APRS map (0.1.443, 2026-10-06)
+## The APRS map (0.1.444, 2026-10-06)
 
 Listen on the local APRS frequency for a while first, so the Heard list
 has stations with positions. Your own position is Settings > APRS
