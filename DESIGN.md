@@ -698,8 +698,9 @@ and do not apply there; these do.
   difference: Mail's sections (Mail, Bulletins, Files, the terminal's
   three tabs) are a switch at the top of the Mail page on the phone and
   a rail place each from 720 up, where there is room (operator,
-  2026-10-06). A section opens where it was left, else on its Inbox or
-  first folder, never on Deleted, which is listed last.
+  2026-10-06). A section opens where it was left, else on All Inboxes
+  (Mail, as the terminal's tab does), its Inbox or first folder, never
+  on Deleted, which is listed last.
 - **One sheet shape** (`sheets.sheet`): drag handle, title, body,
   buttons at the right with the commitment last and filled. Dragging a
   sheet away is Cancel. A question from the station is the same sheet.
@@ -746,7 +747,7 @@ and do not apply there; these do.
   ambiguous on its own, the title says which kind: Mail is titled "BBS
   Mail" (operator, 2026-10-06).
 - **A place's second action is a mini button stacked above its main
-  one**, icon only, centred on it (Mail's Write pencil over
+  one**, icon only, right edges in line so both hug the screen's edge (Mail's Write pencil over
   Send/Receive; operator, 2026-10-06: "drop the text label"), never a
   labelled button in the toolbar.
 - **What the operator acts on comes first**: Stations opens on Contacts,

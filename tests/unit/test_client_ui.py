@@ -736,9 +736,12 @@ def test_each_section_lists_only_its_own_folders():
     from kissterm.client.ui.mail import default_folder, folder_label, section_folders
 
     mail = section_folders(FOLDERS, "Mail")
-    assert mail == ["Mail/BBS/Inbox", "Mail/BBS/Outbox", "Mail/Winlink/Inbox",
+    # All Inboxes first, and where Mail opens, as on the terminal's Mail tab
+    # (operator, 2026-10-06: "All Inboxes is missing from the mail drop-down").
+    assert mail == ["All Inboxes", "Mail/BBS/Inbox", "Mail/BBS/Outbox", "Mail/Winlink/Inbox",
                     "Mail/BBS/Deleted"]
-    assert default_folder(mail, "Mail") == "Mail/BBS/Inbox"
+    assert default_folder(mail, "Mail") == "All Inboxes"
+    assert default_folder(mail[1:], "Mail") == "Mail/BBS/Inbox"
     bulletins = section_folders(FOLDERS, "Bulletins")
     assert bulletins == ["Bulletins/ARES", "Bulletins/WX", "Bulletins/Deleted"]
     assert default_folder(["Bulletins/Deleted", "Bulletins/WX"], "Bulletins") == "Bulletins/WX"
@@ -757,7 +760,7 @@ async def test_the_phone_switches_between_mail_bulletins_and_files():
     view = MailView(app)
     await view.reload()
     assert view.switch.visible and view.title() == "BBS Mail"
-    assert view.folder == "Mail/BBS/Inbox" and view.write_button.visible
+    assert view.folder == "All Inboxes" and view.write_button.visible
 
     view.switch.selected = ["Bulletins"]
     await view._switched(type("E", (), {"control": view.switch})())
@@ -772,7 +775,7 @@ async def test_the_phone_switches_between_mail_bulletins_and_files():
     assert view.folder == "Files" and view.button.tooltip == "Get files"
     view.set_section("Mail")
     await view.reload()
-    assert view.folder == "Mail/BBS/Inbox", "a section forgot where it was"
+    assert view.folder == "All Inboxes", "a section forgot where it was"
 
 
 def test_a_wide_screen_has_a_rail_place_per_section_and_no_switch():
@@ -836,3 +839,14 @@ async def test_transcripts_list_search_and_open_over_more():
     back = more.control.content.controls[0].controls[0]
     await back.on_click(None)
     assert more.control.content is more.list
+
+
+def test_all_inboxes_rows_say_which_service_each_came_by():
+    from kissterm.client.ui.mail import ALL_INBOXES, MailView
+
+    view = MailView(FakeApp())
+    view.folder = ALL_INBOXES
+    assert view._via({"source": "Winlink", "folder": "Mail/Winlink/Inbox"}) == "Winlink"
+    assert view._via({"source": "", "folder": "Mail/BBS/Inbox"}) == "BBS"
+    view.folder = "Mail/BBS/Inbox"
+    assert view._via({"source": "BBS", "folder": "Mail/BBS/Inbox"}) == ""

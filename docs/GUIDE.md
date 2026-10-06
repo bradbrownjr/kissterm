@@ -634,7 +634,9 @@ own client.
     (titled BBS Mail), **Bulletins** and **Files**, switched at the top of
     the page (on a wide screen, each is its own place at the side). The
     folder list under the switch holds that section's folders only, and
-    each section opens where you left it. Its button asks first
+    each section opens where you left it. Mail opens on **All Inboxes**,
+    BBS and Winlink together as on the terminal's Mail tab, each message
+    marked with the service it came by. Its button asks first
     and does what G and I do on the terminal's tabs: on a mail folder,
     Send/Receive **By radio** or **By Internet** (no transmitting); on a
     Bulletins folder, Get bulletins either way; on Files, Get files by
@@ -650,7 +652,7 @@ own client.
     ("Receiving 2 of 2") counts dots; tap the turning button to cancel
     the run, which disconnects without asking.
     **Write** (the small pencil above the Send/Receive button, on a Mail
-    folder) writes a private
+    folder, both against the screen's right edge) writes a private
     BBS message, a bulletin or a Winlink message; **Save to Outbox** files
     it, with the same checks as the terminal (a To without an SSID, a
     title, nothing that ends the text early), and sends nothing until

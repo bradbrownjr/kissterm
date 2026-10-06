@@ -442,6 +442,10 @@ async def test_a_client_writes_replies_deletes_and_restores_mail():
     assert gone.startswith("Mail/Winlink/Deleted/")
     back = (await client.command("r6", "mail_restore", ref=gone))["value"]
     assert back.startswith("Mail/Winlink/Inbox/")
+    # All Inboxes, the terminal's combined view, by name.
+    core.mail.store.add("Mail/BBS/Inbox", Message(sender="W1BKW", subject="Hi", body="x"))
+    every = (await client.command("r7", "mail_list", folder="All Inboxes"))["value"]
+    assert {m["folder"] for m in every} == {"Mail/BBS/Inbox", "Mail/Winlink/Inbox"}
     await client.ws.close()
     await server.stop()
     core.sessions.shutdown()

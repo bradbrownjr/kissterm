@@ -100,7 +100,15 @@ SECTIONS = (
 )
 
 
+#: The terminal's combined view of every Inbox under Mail: a name
+#: `mail_list` takes, not a folder anything is filed in. Mail opens on
+#: it, as the terminal's Mail tab does.
+ALL_INBOXES = "All Inboxes"
+
+
 def in_section(folder: str, section: str) -> bool:
+    if folder == ALL_INBOXES:
+        return section == "Mail"
     return folder == section or folder.startswith(section + "/")
 
 
@@ -109,12 +117,16 @@ def section_folders(folders: list[str], section: str) -> list[str]:
     when nothing is under it (Files), never a bare parent (Mail, Mail/BBS)."""
     mine = [f for f in folders if in_section(f, section)]
     leaves = [f for f in mine if not any(o.startswith(f + "/") for o in mine)]
-    return sorted(leaves, key=in_deleted)  # Deleted last, the rest as they came
+    leaves = sorted(leaves, key=in_deleted)  # Deleted last, the rest as they came
+    return [ALL_INBOXES, *leaves] if section == "Mail" else leaves
 
 
 def default_folder(folders: list[str], section: str) -> str:
-    """Where a section opens: an Inbox, else its first folder that is not
-    Deleted (a section never opens on what was thrown away)."""
+    """Where a section opens: All Inboxes or an Inbox, else its first
+    folder that is not Deleted (a section never opens on what was thrown
+    away)."""
+    if ALL_INBOXES in folders:
+        return ALL_INBOXES
     return next((f for f in folders if f.endswith("Inbox")),
                 next((f for f in folders if not in_deleted(f)),
                      folders[0] if folders else section))
@@ -142,15 +154,17 @@ def swipe_background(restore: bool, end: bool) -> ft.Control:
 
 
 # The page's button sits 16 px in from the body's corner and is 56 px
-# across; the mini (40 px) Write rides above it, centred on it.
-WRITE_RIGHT = 16 + (56 - 40) / 2
+# across; the mini (40 px) Write rides above it, its right edge on the
+# same line, both hugging the screen's edge (operator, 2026-10-06: "align
+# it right to have the buttons hug the edge of the screen").
+WRITE_RIGHT = 16
 WRITE_BOTTOM = 16 + 56 + 16
 
 
 class MailView:
     def __init__(self, app) -> None:
         self.app = app
-        self.folder = "Mail/BBS/Inbox"
+        self.folder = ALL_INBOXES
         #: Mail, Bulletins or Files (`SECTIONS`), and the folder last shown
         #: in each, so going back to one finds it where it was.
         self.section = "Mail"
@@ -265,8 +279,8 @@ class MailView:
         self.app.page.update()
 
     def _paint_toolbar(self) -> None:
-        self.write_button.visible = self.folder.startswith("Mail")
-        self.categories_button.visible = self.folder.startswith("Bulletins")
+        self.write_button.visible = in_section(self.folder, "Mail")
+        self.categories_button.visible = in_section(self.folder, "Bulletins")
 
     async def _categories(self, _e) -> None:
         """Which bulletin categories are collected, from those the Home BBS
@@ -315,8 +329,17 @@ class MailView:
             content=ft.ListTile(
                 title=ft.Text(m.get("subject", "") or "(no subject)", max_lines=1,
                               overflow=ft.TextOverflow.ELLIPSIS),
-                subtitle=ft.Text(f"{m.get('sender') or ''}  {when(m.get('date'))}".strip(), size=12),
+                subtitle=ft.Text("  ".join(part for part in (
+                    m.get("sender") or "", when(m.get("date")), self._via(m)) if part), size=12),
                 on_click=self._opener(ref)))
+
+    def _via(self, m: dict) -> str:
+        """On All Inboxes, which service a message came by (the terminal's
+        Via column): its source, else its folder's service."""
+        if self.folder != ALL_INBOXES:
+            return ""
+        parts = (m.get("folder") or "").split("/")
+        return m.get("source") or (parts[1] if len(parts) > 1 else "")
 
     async def _swiped(self, e) -> None:
         """The swipe went all the way: the row is gone, so is the message

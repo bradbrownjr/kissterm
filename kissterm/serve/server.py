@@ -522,9 +522,15 @@ class RemoteServer:
         return list(self.core.mail.store.folders())
 
     async def cmd_mail_list(self, folder: str) -> list:
+        """A folder's messages; "All Inboxes" is the terminal's combined
+        view of every Inbox under Mail (`MailStore.list_inboxes`)."""
+        from ..mail.store import ALL_INBOXES
+
+        store = self.core.mail.store
+        items = store.list_inboxes() if folder == ALL_INBOXES else store.list(str(folder))
         return [{k: wire.clean(v) if isinstance(v, str) else v
                  for k, v in wire.jsonable(s).items()}
-                for s in self.core.mail.store.list(str(folder))]
+                for s in items]
 
     async def cmd_mail_read(self, ref: str) -> dict:
         message = wire.jsonable(self.core.mail.store.read(str(ref)))

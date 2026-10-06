@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Phone: All Inboxes; the pencil against the edge
+
+### Improvements
+
+- **All Inboxes on the phone**: first in Mail's folder list and where
+  Mail opens, as on the terminal's Mail tab, each row marked BBS or
+  Winlink. Protocol: `mail_list` takes `"All Inboxes"`.
+- **Write's pencil lines up on the right** with Send/Receive, so both
+  hug the screen's edge.
+
+**Files:** `kissterm/serve/server.py`, `kissterm/client/ui/mail.py`,
+`assets/screenshot-phone-mail.png`, `DESIGN.md`, `docs/GUIDE.md`,
+`docs/PROTOCOL.md`, `tests/unit/test_serve.py`,
+`tests/unit/test_client_ui.py`
+
 ## [2026-10-06] — Phone: Mail, Bulletins and Files as sections
 
 ### Improvements
