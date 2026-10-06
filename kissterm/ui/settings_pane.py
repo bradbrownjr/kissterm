@@ -1042,6 +1042,10 @@ class SettingsPane(Vertical):
             v == config.active_transport for _, v in options
         ):
             select.value = config.active_transport
+        elif options:
+            # None named: launch opened the first (`_select_transport_entry`),
+            # so show that one, not "No transport configured" beside it.
+            select.value = options[0][1]
         self._render_transport_detail(config)
 
     def _render_transport_detail(self, config) -> None:

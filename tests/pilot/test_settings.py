@@ -841,6 +841,24 @@ async def _settings_tab(app, pilot):
 
 
 @pytest.mark.asyncio
+async def test_radio_in_use_shows_the_first_transport_when_none_is_named():
+    """A config with transports but no `active_transport` opens the first
+    at launch; Settings > Radio said "No transport configured" beside it
+    (seen under textual-serve, 2026-10-06)."""
+    config = Config(mycall=str(MYCALL))
+    config.transports = [{"kind": "tcp", "name": "dw", "host": "127.0.0.1", "port": 8001}]
+    app, station = await _app(config)
+    try:
+        async with app.run_test(size=(120, 44)) as pilot:
+            await _settings_tab(app, pilot)
+            assert app.query_one("#set-active-transport", Select).value == "dw"
+            detail = _detail_text(app)
+            assert "No transport configured" not in detail and "port = 8001" in detail, detail
+    finally:
+        station.close()
+
+
+@pytest.mark.asyncio
 async def test_test_button_names_a_web_service_for_what_it_is():
     """The whole point of the button: a scan that matched on port number
     alone put a self-hosted web app in the transport list, and the operator

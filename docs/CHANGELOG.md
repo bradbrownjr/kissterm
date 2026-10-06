@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — Settings > Radio names the transport launch opened
+
+### Improvements
+
+- **With transports configured but none named in use**, Radio in use
+  now shows the first one, the one launch opened, with its settings.
+  It had said "No transport configured" beside it.
+
+**Files:** `kissterm/ui/settings_pane.py`, `tests/pilot/test_settings.py`,
+`docs/ROADMAP.md`
+
 ## [2026-10-06] — kissterm runs under textual-serve in a browser
 
 ### Improvements

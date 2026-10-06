@@ -471,8 +471,8 @@ a desktop GUI for those who are not, and a browser version for a shelter
 laptop, a tablet or a station run from another room. All three drive one
 back end, so a protocol fix or a new transport lands everywhere at once.
 
-- [ ] **Web front end.** Cheapest first step: `textual serve` (P6) runs
-  the existing UI in a browser unchanged. A real web client talks to
+- [ ] **Web front end.** `textual-serve` runs the existing UI in a
+  browser (checked 2026-10-06, GUIDE; it has no login). A real web client talks to
   the core over the WebSocket API (`kissterm --serve`,
   `docs/PROTOCOL.md`), which **listens on the LAN by default and admits
   only a client holding the pairing token** (operator, 2026-10-05),
