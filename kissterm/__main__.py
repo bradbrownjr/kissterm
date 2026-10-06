@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -522,14 +523,23 @@ async def _open_with_progress(transport, entry: dict, stream=None, stdin=None) -
     task.result()
 
 
-def _offer_start_anyway(stdin=None, stream=None) -> bool:
+def _offer_start_anyway(stdin=None, stream=None, environ=None) -> bool:
     """After a failed open, ask whether to start kissterm and fix it there.
 
     Exiting with an error leaves a newcomer at a shell prompt with a config
     file they have never seen; the Settings page that fixes it is inside the
     app. Only asked on an interactive terminal -- a script or service gets
     the old non-zero exit, never a prompt it cannot answer. Enter means yes.
+
+    **A screen in a browser starts without asking** (`textual serve`, which
+    sets `TEXTUAL_DRIVER` for the app it runs, ROADMAP P6): there is no
+    terminal to answer on, and exiting showed the browser only "Application
+    failed to start" whenever the modem was off. The app shows the problem
+    itself, as it does after a yes.
     """
+    environ = environ if environ is not None else os.environ
+    if environ.get("TEXTUAL_DRIVER"):
+        return True
     stdin = stdin if stdin is not None else sys.stdin
     stream = stream if stream is not None else sys.stderr
     if not (stdin.isatty() and stream.isatty()):

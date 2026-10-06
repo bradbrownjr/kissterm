@@ -650,6 +650,15 @@ own client.
   - `kissterm --client LINK` opens the same remote control in a window
     on a desktop (the `desktop` extra). It has not been tried on a
     desktop yet.
+- **The whole terminal in a browser** (experimental): Textual's
+  `textual-serve` runs kissterm itself on a web page, keys and all.
+  `pip install textual-serve`, then
+  `python -c 'from textual_serve.server import Server; Server("kissterm").serve()'`
+  serves it at `http://localhost:8000`. **It has no pairing link and no
+  login**: anyone who can open that address can key the radio. Keep it
+  on localhost, or behind something that asks for a password. If the
+  modem is off at launch, kissterm starts and says so in the page
+  rather than asking in a terminal it does not have.
 
 ![A swipe asks before connecting, then the station's radio reminder: nothing transmits until Connect](../assets/screenshot-phone-connect.png)
 

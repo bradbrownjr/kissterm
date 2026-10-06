@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-06] — kissterm runs under textual-serve in a browser
+
+### Improvements
+
+- **With the modem off, kissterm under `textual-serve` starts** and
+  shows the problem in the page. It had exited, since there was no
+  terminal to ask "Start anyway?" on, and the browser said only
+  "Application failed to start". Tried in Chromium: F9 and the rest
+  of the keys work there. The GUIDE says how, and that it has no
+  login. P6's TTY check is done.
+
+**Files:** `kissterm/__main__.py`, `docs/GUIDE.md`, `docs/ROADMAP.md`,
+`tests/unit/test_tcp_kiss_connect_timeout.py`
+
 ## [2026-10-06] — SETUP.md: a TNC on the Raspberry Pi's GPIO pins
 
 ### Improvements

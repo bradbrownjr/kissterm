@@ -185,7 +185,7 @@ def test_start_anyway_defaults_to_yes_and_eof_means_no(answer, expected):
     from kissterm.__main__ import _offer_start_anyway
 
     out = _Tty()
-    assert _offer_start_anyway(_Stdin(answer), out) is expected
+    assert _offer_start_anyway(_Stdin(answer), out, environ={}) is expected
     assert "open the TNC settings" in out.text
 
 
@@ -194,7 +194,18 @@ def test_start_anyway_never_prompts_a_script():
     from kissterm.__main__ import _offer_start_anyway
 
     out = _Tty(tty=False)
-    assert _offer_start_anyway(_Stdin("y\n", tty=False), out) is False
+    assert _offer_start_anyway(_Stdin("y\n", tty=False), out, environ={}) is False
+    assert out.text == ""
+
+
+def test_start_anyway_in_a_browser_starts_without_asking():
+    """`textual serve` runs kissterm with no terminal to answer on; exiting
+    left the browser at "Application failed to start" (ROADMAP P6)."""
+    from kissterm.__main__ import _offer_start_anyway
+
+    out = _Tty(tty=False)
+    environ = {"TEXTUAL_DRIVER": "textual.drivers.web_driver:WebDriver"}
+    assert _offer_start_anyway(_Stdin("", tty=False), out, environ=environ) is True
     assert out.text == ""
 
 

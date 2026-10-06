@@ -441,8 +441,6 @@ closed by a coding session.
   instead of a macro DSL. Needs a security design before any plugin can
   transmit or touch files. Distinct from the shipped per-station auto-login
   and hop chains.
-- [ ] **`textual serve` remote access** -- confirm nothing assumes a local
-  TTY. Small.
 
 ## P7 — Packaging (1.0)
 
