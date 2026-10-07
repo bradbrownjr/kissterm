@@ -275,20 +275,6 @@ def routes_in(raw: bytes) -> list[str]:
     return list(read.routes) if read is not None else []
 
 
-def route_bbses(routes: list[str]) -> list[str]:
-    """The BBSes in `R:` lines (latest first), in the order the message
-    travelled: `R:261002/1236Z 3098@WS1EC.#CUMB...` is WS1EC. What both
-    readers once showed in one line, `W1BKW > WS1EC` (operator,
-    2026-10-06; dropped from the line 2026-10-07, the protocol still carries it)."""
-    found: list[str] = []
-    for line in reversed(routes):
-        after = line.split("@", 1)[1].strip() if "@" in line else ""
-        call = after.split(".", 1)[0].split()[0] if after else ""
-        if call and call not in found:
-            found.append(call)
-    return found
-
-
 def routes_of(store, ref: str) -> list[str]:
     """`routes_in` for message `ref` in `store`, from the `.bbs` kept
     beside it; [] for a message that did not come from a BBS read. One

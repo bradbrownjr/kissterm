@@ -13,9 +13,12 @@ you need the history of a specific change.
   and the phone's Mail, with no callsigns. The arrow says the line unfolds
   (T, or a tap) and turns to ▾ while the `R:` lines are shown. The phone
   draws it as a Material icon: its font has no U+25B8 and showed a box.
+- **The `routed` field is gone from `mail_read`**, with `route_bbses`: the
+  `R:` lines (`routing`) already carry each BBS.
 
 **Files:** `kissterm/ui/mail_pane.py`, `kissterm/client/ui/mail.py`,
-`kissterm/mail/bpqmail.py`, `DESIGN.md`, `docs/GUIDE.md`,
+`kissterm/mail/bpqmail.py`, `kissterm/serve/server.py`,
+`docs/PROTOCOL.md`, `DESIGN.md`, `docs/GUIDE.md`,
 `tests/pilot/test_mail_pane.py`, `tests/unit/test_client_ui.py`
 
 ## [2026-10-07] — A restarted station brings the phone's page back

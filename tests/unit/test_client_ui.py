@@ -496,9 +496,6 @@ def test_routing_is_one_small_line_with_the_lines_folded():
     # (operator, 2026-10-06: "one small tight small-font line under the date").
     routes = ["R:261002/1236Z 3098@WS1EC.#CUMB.ME.USA.NOAM LinBPQ6.0.25",
               "R:261002/1230Z 8243@W1BKW.#OXFO.ME.USA.NOAM BPQ6.0.25"]
-    from kissterm.mail.bpqmail import route_bbses
-
-    assert route_bbses(routes) == ["W1BKW", "WS1EC"]
     line, lines = routing_section(routes)
     assert line.content.controls[0].value == "Routing" and line.content.controls[0].size <= 12
     assert not lines.visible and "3098@WS1EC" in lines.value

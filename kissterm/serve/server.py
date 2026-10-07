@@ -590,11 +590,8 @@ class RemoteServer:
             return self._file_read(str(ref))
         message = wire.jsonable(self.core.mail.store.read(str(ref)))
         message = {k: wire.clean(v) if isinstance(v, str) else v for k, v in message.items()}
-        # The BBSes it passed through, for a reader that wants to show them.
+        # The `R:` lines: the BBSes it passed through, for a reader to unfold.
         message["routing"] = [wire.clean(line) for line in self.core.mail.routing(str(ref))]
-        from ..mail.bpqmail import route_bbses
-
-        message["routed"] = route_bbses(message["routing"])
         # Whether Reply all would reach anyone besides the sender.
         from ..mail.compose import has_others
 
