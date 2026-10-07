@@ -12,14 +12,15 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Adaptive frame size (2026-10-07)
 
-- [ ] **Resend the reply to Brian through WS1EC-2.** Mail > Send/Receive
-  with the Outbox reply ("Re:Hello from kissterm") still waiting.
-  Expected: if the long body frame is not taken, kissterm.log shows
-  "frame size 256 -> 128" (then 64, 32) within about 10 s per step, the
-  message goes through in shorter frames, and the Outbox entry moves to
-  Sent. On a good path nothing changes and no "frame size" line appears.
-  A later connect on a clean path should log "frame size ... -> ..."
-  back up toward 256.
+- [x] **Resend the reply to Brian through WS1EC-2.** Passed 2026-10-07
+  (03:24: the 180-byte body frame was not taken, kissterm.log showed
+  "frame size 256 -> 90" after two polls, two 90-byte frames went
+  through, the BBS answered "Message: 3218", and the reply moved to
+  Sent; about 36 s in all, against 10+ minutes of failed resends before).
+- [ ] **The frame size climbs back on a clean path.** Not seen yet: the
+  03:24 session ended after 3 more frames. Expected: after about 16 clean
+  frames (a long message read or sent) kissterm.log shows "path is
+  carrying frames again; frame size 90 -> 180", up to your paclen.
 
 ## Restart (0.1.454, 2026-10-07)
 

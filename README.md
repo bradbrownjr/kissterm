@@ -17,11 +17,12 @@ the shack.
 - **Talks to your TNC directly**: a sound-card modem such as UZ7HO
   SoundModem or Direwolf, on this computer or another one on your network. USB, serial and Bluetooth TNCs are built
   in and on the roadmap to be proven with real hardware.
-- **Adapts to a weak path** (experimental: built and tested on a
-  simulated lossy channel, not yet proven over the air). When the far end
-  hears your polls but a long frame never gets through, kissterm cuts the
-  waiting data into shorter frames on its own and works back up to full
-  size as the path recovers. Because it implements AX.25 itself, it can
+- **Adapts to a weak path.** When the far end hears your polls but a long
+  frame never gets through, kissterm cuts the waiting data into shorter
+  frames on its own (proven on the air, 2026-10-07: a reply that failed for
+  ten minutes went through in 36 seconds) and works back up to full size
+  as the path recovers (tested on a simulated channel, not yet seen on the
+  air). Because it implements AX.25 itself, it can
   do this without you editing a setting mid-session.
 - **Run it from your phone or laptop too** (experimental). The station
   keeps the radio; any phone, tablet or laptop on your network opens its

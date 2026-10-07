@@ -121,6 +121,12 @@ never touch the transmit switch.
 Winlink's production servers refuse programs they do not recognise, and
 kissterm is not recognised yet. Until it is, the Internet server setting
 in Settings > Mail can use Winlink's test server.
+That setting is only for kissterm's own Internet connection. Over the
+radio, the gateway (WS1EC-10, say) makes its own connection to the
+production servers, and kissterm cannot redirect it: the refusal comes
+back through the gateway ("Unknown client types are not allowed on
+production servers") until the gateway's operator or Winlink changes
+something.
 
 ### Writing messages
 
