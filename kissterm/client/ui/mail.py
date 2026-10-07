@@ -44,13 +44,20 @@ up), as the transmit switch turns off without asking.
 from __future__ import annotations
 
 import asyncio
+import base64
 import math
+import uuid
 from datetime import datetime
 
 import flet as ft
 
 from . import sheets
 from .text import MONO
+
+#: A piece of a file sent up to the station, and the most it will take (it
+#: refuses more: `Mail.MAX_UPLOAD`); this only spares reading a file it would refuse.
+UPLOAD_PIECE = 192 * 1024
+UPLOAD_MAX = 1024 * 1024
 
 #: Seconds per step of the turning icon and the counting dots.
 TICK = 0.4
@@ -249,6 +256,10 @@ class MailView:
         #: Categories: the terminal's S on Bulletins, on a Bulletins folder.
         self.categories_button = ft.FilledTonalButton(
             content="Categories", icon=ft.Icons.CHECKLIST, on_click=self._categories)
+        #: Add file: a file from this device into Files > Uploads, on a Files folder.
+        self.add_file_button = ft.FilledTonalButton(
+            content="Add file", icon=ft.Icons.UPLOAD_FILE, on_click=self._add_file)
+        self._picker: ft.FilePicker | None = None
         self._writing: dict | None = None
         self._reloading = False
         self._reload_again = False
@@ -328,7 +339,8 @@ class MailView:
                                             alignment=ft.MainAxisAlignment.CENTER),
                              visible=self.switch.visible),
                 ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-                             content=ft.Row(controls=[self.folders, self.categories_button])),
+                             content=ft.Row(controls=[self.folders, self.categories_button,
+                                                     self.add_file_button])),
                 self.panel,
                 *([ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=4),
                                 content=self.activity)] if self.app.state.activity else []),
@@ -431,6 +443,46 @@ class MailView:
     def _paint_toolbar(self) -> None:
         self.write_button.visible = in_section(self.folder, "Mail")
         self.categories_button.visible = in_section(self.folder, "Bulletins")
+        self.add_file_button.visible = in_section(self.folder, "Files")
+
+    async def _add_file(self, _e) -> None:
+        """Pick a file on this device and send it up to Files > Uploads
+        (`file_upload`, in pieces); the terminal reaches any file on its own
+        disk, a phone cannot. It is only kept there: sending it over the
+        radio is Send over the radio on the file, which asks first."""
+        if self._picker is None:
+            self._picker = ft.FilePicker()
+            self.app.page.services.append(self._picker)
+        picked = await self._picker.pick_files(dialog_title="Add a file to Files",
+                                               with_data=True)
+        if not picked:
+            return
+        name, data = picked[0].name, picked[0].bytes
+        if not data:
+            sheets.snack(self.app.page, "That file could not be read.", error=True)
+            return
+        if len(data) > UPLOAD_MAX:
+            sheets.snack(self.app.page, "That file is over 1 MiB, more than is worth sending "
+                                        "by packet.", error=True)
+            return
+        upload = uuid.uuid4().hex
+        sent, ref = 0, ""
+        while True:
+            piece = data[sent:sent + UPLOAD_PIECE]
+            done = sent + len(piece) >= len(data)
+            result = await self.app.command(
+                "file_upload", id=upload, filename=name, offset=sent,
+                data=base64.b64encode(piece).decode("ascii"), done=done)
+            if not result:
+                return
+            sent += len(piece)
+            if done:
+                ref = result["ref"]
+                break
+        sheets.snack(self.app.page, "Added to Files > Uploads. Open it and press Send over "
+                                    "the radio to send it.")
+        self.folder = ref.rsplit("/", 1)[0] or self.folder
+        await self.reload()
 
     async def _categories(self, _e) -> None:
         """Which bulletin categories are collected, from those the Home BBS

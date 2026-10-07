@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Add a file from the phone's own storage
+
+### New Features
+
+- **Add file** on the Files folders of the web and phone client: pick a
+  file on the device, it goes up to the station in pieces and is kept in
+  Files > Uploads (cleaned name, never replaces a file, 1 MiB at most).
+  Sending it by YAPP or AutoBIN is the file's Send over the radio, which
+  asks first; adding transmits nothing. (`Mail.save_upload`, command
+  `file_upload`; `Files/Uploads` joins the store's folders.) This closes
+  the remote client's parity list.
+
+**Files:** `kissterm/mail/store.py`, `kissterm/core/mail.py`,
+`kissterm/serve/server.py`, `kissterm/client/ui/mail.py`,
+`docs/PROTOCOL.md`, `docs/GUIDE.md`, `docs/ROADMAP.md`
+
 ## [2026-10-07] — Reply on form, Answer strip and Paste strip on the web and phone
 
 ### New Features

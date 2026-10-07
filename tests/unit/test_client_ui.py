@@ -1565,3 +1565,50 @@ async def test_a_bbs_command_fills_the_message_box_and_sends_nothing():
     await helper._use(None)
     assert view.input.value == "R 42"
     assert [n for n, _ in app.commands if n == "send_line"] == []
+
+
+@pytest.mark.asyncio
+async def test_add_file_sends_a_picked_file_up_in_pieces_and_never_transmits():
+    from kissterm.client.ui import mail as mailui
+    from kissterm.client.ui.mail import MailView
+
+    data = bytes(range(256)) * 3000  # 768000 bytes: four pieces of 192 KiB
+    ups: list[dict] = []
+
+    def upload(**a):
+        ups.append(a)
+        return {"received": a["offset"], "ref": "Files/Uploads/n.bin" if a["done"] else ""}
+
+    app = MailApp({"file_upload": upload, "mail_folders": ["Files/Uploads"], "mail_list": []})
+    view = MailView(app)
+    view.folder = "Files/Uploads"
+    view._paint_toolbar()
+    assert view.add_file_button.visible
+    view.folder = "Mail/BBS/Inbox"
+    view._paint_toolbar()
+    assert not view.add_file_button.visible
+
+    class Picker:
+        async def pick_files(self, **_k):
+            return [type("F", (), {"name": "n.bin", "bytes": data})()]
+
+    view._picker = Picker()
+    await view._add_file(None)
+    assert [u["offset"] for u in ups] == [0, mailui.UPLOAD_PIECE, 2 * mailui.UPLOAD_PIECE,
+                                          3 * mailui.UPLOAD_PIECE]
+    assert [u["done"] for u in ups] == [False, False, False, True]
+    assert len({u["id"] for u in ups}) == 1 and ups[0]["filename"] == "n.bin"
+    import base64
+    assert b"".join(base64.b64decode(u["data"]) for u in ups) == data
+    assert not [n for n, _ in app.commands if n in ("transfer_start", "send_line")]
+
+    ups.clear()
+    big = type("F", (), {"name": "big", "bytes": b"x" * (mailui.UPLOAD_MAX + 1)})()
+
+    class BigPicker:
+        async def pick_files(self, **_k):
+            return [big]
+
+    view._picker = BigPicker()
+    await view._add_file(None)
+    assert ups == [], "a file over the limit is refused before it is read up"

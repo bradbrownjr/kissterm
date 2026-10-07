@@ -852,6 +852,31 @@ class Mail:
             return problems, ""
         return [], self.file_outbox(message)
 
+    #: The largest file a client may add to Files/Uploads: a file this size
+    #: is already hours of packet, and the station holds it in memory.
+    MAX_UPLOAD = 1 << 20
+
+    def save_upload(self, name: str, data: bytes) -> str:
+        """A file from a client's own storage, kept in Files/Uploads so it
+        can be sent (Transfers) from there. The name is cleaned and never
+        replaces a file (`attachments.save_attachment`). Returns its ref;
+        ValueError when empty or over `MAX_UPLOAD`. Nothing transmits."""
+        from ..mail.attachments import save_attachment
+        from ..mail.store import FILES
+
+        if not data:
+            raise ValueError("That file is empty.")
+        if len(data) > self.MAX_UPLOAD:
+            raise ValueError(f"That file is over {self.MAX_UPLOAD // 1024} KiB, "
+                             "more than is worth sending by packet.")
+        root = self.store.root.resolve()
+        try:
+            path = save_attachment(root / FILES / "Uploads", name, data)
+        except OSError as exc:
+            raise ValueError(f"Cannot save it: {exc}") from None
+        self._publish(MailChanged())
+        return path.relative_to(root).as_posix()
+
     # -- forms (the terminal's Type > a form, the phone's) -----------------
     def forms_list(self) -> list[dict]:
         """The forms a new message can be written on (`mail/forms.py`)."""

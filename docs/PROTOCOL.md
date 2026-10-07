@@ -189,9 +189,14 @@ renaming), so a script it never saw survives, and refuses a field it does
 not know. A successful `settings_save` is followed by `ConfigChanged`, so
 every client refreshes.
 
-A file from a phone's own storage cannot be uploaded and compose-with-
-attachments is not in v1; a transfer sends a file already in the
-station's Files (`transfer_start`).
+A file from a phone's own storage goes up in pieces (`file_upload`
+`{id, filename, offset, data, done}`: `data` is base64, a piece at most
+about 192 KiB so a message stays under the 1 MiB limit, `offset` what the
+station already holds under `id`; a wrong offset or bad base64 starts it
+over; at most 1 MiB in all, `Mail.MAX_UPLOAD`). On `done` it is kept in
+Files/Uploads (`Mail.save_upload`: the name cleaned, never replacing a
+file) and `ref` says where; nothing transmits. Sending it is the
+separate, confirmed `transfer_start`. Compose-with-attachments is not in v1.
 
 ## 5. Reconnecting and history
 

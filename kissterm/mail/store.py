@@ -5,7 +5,7 @@
 <root>/Mail/Winlink/{Inbox,Outbox,Sent,Deleted}
 <root>/Mail/Local/{Inbox,Sent,Deleted}   (P9's mailbox; made when that ships)
 <root>/Bulletins/<category>, plus Bulletins/Deleted
-<root>/Files/{Downloads,Attachments,Received}
+<root>/Files/{Downloads,Attachments,Received,Uploads}
 ```
 
 Why it is shaped this way (ROADMAP P2, "The folder tree"):
@@ -93,6 +93,7 @@ DEFAULT_FOLDERS = (
     f"{FILES}/Downloads",
     f"{FILES}/Attachments",
     f"{FILES}/Received",
+    f"{FILES}/Uploads",
     f"{FILES}/{DELETED}",
 )
 

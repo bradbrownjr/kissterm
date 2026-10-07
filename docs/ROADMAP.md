@@ -468,11 +468,6 @@ a desktop GUI for those who are not, and a browser version for a shelter
 laptop, a tablet or a station run from another room. All three drive one
 back end, so a protocol fix or a new transport lands everywhere at once.
 
-- [ ] **Parity: what the terminal does that the remote client cannot
-  yet** (AGENTS.md section 7, operator 2026-10-06). These need protocol
-  commands first: uploading a file from the phone's own storage (a
-  file already in the station's Files can be sent).
-
 - Decided 2026-10-07: the web client in a browser (Chrome) is the
   desktop front end; no native desktop GUI and no separate binaries of it.
 

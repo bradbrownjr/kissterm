@@ -126,6 +126,8 @@ class RemoteServer:
         self.history: collections.deque = collections.deque(maxlen=HISTORY)
         #: What a `welcome` reports that no core attribute holds.
         self._activity = ""
+        #: A file being sent up in pieces (`cmd_file_upload`): id -> bytes so far.
+        self._uploads: dict[str, bytearray] = {}
         self._transport: dict = {}
         self._server = None
         self._unsubscribe = core.events.subscribe(self._on_event)
@@ -781,6 +783,43 @@ class RemoteServer:
         if cut:
             text += "\n[preview ends here]"
         return {**_file_entry(store.root, path), "body": text, "kind": kind}
+
+    async def cmd_file_upload(self, id: str, filename: str, offset: int, data: str,
+                              done: bool = False) -> dict:
+        """A file from the client's own storage, in pieces (a message is at
+        most `http.MAX_MESSAGE`): `data` is base64, `offset` what the station
+        already holds under `id`. On `done` it is kept in Files/Uploads
+        (`Mail.save_upload`) and `ref` says where; sending it is a separate,
+        confirmed `transfer_start`. A wrong offset or too much starts over."""
+        import base64
+        import binascii
+
+        pending = self._uploads
+        key = str(id)[:64]
+        held = pending.get(key)
+        if int(offset) == 0:
+            if held is None and len(pending) >= 4:
+                raise CommandError("Too many uploads at once.")
+            held = pending[key] = bytearray()
+        if held is None or len(held) != int(offset):
+            pending.pop(key, None)
+            raise CommandError("The upload lost its place; start it again.")
+        try:
+            held += base64.b64decode(str(data), validate=True)
+        except (binascii.Error, ValueError):
+            pending.pop(key, None)
+            raise CommandError("The upload was garbled; start it again.") from None
+        if len(held) > self.core.mail.MAX_UPLOAD:
+            pending.pop(key, None)
+            raise CommandError("That file is too big to send by packet.")
+        if not done:
+            return {"received": len(held), "ref": ""}
+        pending.pop(key, None)
+        try:
+            ref = self.core.mail.save_upload(wire.clean(str(filename)), bytes(held))
+        except ValueError as exc:
+            raise CommandError(wire.clean(str(exc))) from None
+        return {"received": len(held), "ref": ref}
 
     async def cmd_file_open(self, ref: str, member: list | None = None) -> dict:
         """A file under Files as the terminal's viewer opens it

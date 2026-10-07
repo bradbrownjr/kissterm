@@ -222,3 +222,17 @@ def test_a_received_form_offers_its_reply_form_with_its_blocks_filled_in():
         sender="W1BKW", to="KC1JMH", subject="Hi", source="BBS WS1EC", body="Hi\n"))
     with pytest.raises(ValueError):
         core.mail.form_start("", reply_to=plain)
+
+
+def test_an_upload_is_kept_in_files_uploads_cleaned_and_never_replaces_a_file():
+    import pytest
+
+    core, seen = _core()
+    ref = core.mail.save_upload("../../evil/..\\report?.txt", b"hello")
+    assert ref == "Files/Uploads/report_.txt" and core.mail.store.file_path(ref).read_bytes() == b"hello"
+    again = core.mail.save_upload("report?.txt", b"second")
+    assert again == "Files/Uploads/report_-1.txt" and any(isinstance(e, MailChanged) for e in seen)
+    with pytest.raises(ValueError):
+        core.mail.save_upload("x", b"")
+    with pytest.raises(ValueError):
+        core.mail.save_upload("x", b"y" * (core.mail.MAX_UPLOAD + 1))

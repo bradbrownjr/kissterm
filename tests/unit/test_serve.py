@@ -580,3 +580,29 @@ async def test_the_waiting_page_is_served_and_the_console_says_what_is_happening
     assert core.restarter.what().startswith("Shutting down kissterm")
     await server.stop()
     core.sessions.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_a_client_uploads_a_file_in_pieces_and_a_lost_place_starts_over():
+    import base64
+
+    core, server, ta, peer = await _serve()
+    client = await _join(server)
+    await client.next()
+    enc = lambda b: base64.b64encode(b).decode()  # noqa: E731
+    one = (await client.command("u1", "file_upload", id="a", filename="n.txt", offset=0,
+                                data=enc(b"hel")))["value"]
+    assert one == {"received": 3, "ref": ""}
+    skipped = await client.command("u2", "file_upload", id="a", filename="n.txt", offset=9,
+                                   data=enc(b"x"))
+    assert skipped.get("error") and "start it again" in skipped["error"]
+    await client.command("u3", "file_upload", id="a", filename="n.txt", offset=0, data=enc(b"hel"))
+    done = (await client.command("u4", "file_upload", id="a", filename="n.txt", offset=3,
+                                 data=enc(b"lo"), done=True))["value"]
+    assert done["ref"] == "Files/Uploads/n.txt"
+    assert core.mail.store.file_path(done["ref"]).read_bytes() == b"hello"
+    garbled = await client.command("u5", "file_upload", id="b", filename="n", offset=0, data="!!")
+    assert garbled.get("error")
+    await client.ws.close()
+    await server.stop()
+    core.sessions.shutdown()

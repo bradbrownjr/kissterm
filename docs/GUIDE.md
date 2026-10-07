@@ -721,9 +721,9 @@ own client.
     and never followed, images are never loaded, and nothing in the file
     runs. A PKTNET form page has **Fill in** (Enter in the terminal), which
     opens that form. **Send over the radio** (S in the terminal) sends the file by
-    YAPP or AutoBIN over a connected session after asking (a phone's own
-    files are not uploaded: the file is one already in the station's
-    Files); it is experimental until tried on the air. Delete and swipe
+    YAPP or AutoBIN over a connected session after asking (a file on the
+    phone is first added with **Add file**, on any Files folder, which
+    keeps it in Files > Uploads, up to 1 MiB, and sends nothing); it is experimental until tried on the air. Delete and swipe
     work as on messages.
     A message from a BBS has one small **Routing** line under the date,
     an arrow that unfolds; tap it
