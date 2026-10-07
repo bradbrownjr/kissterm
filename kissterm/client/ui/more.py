@@ -200,9 +200,17 @@ class MoreView:
 
         async def go() -> None:
             await self.app.command("restart" if again else "shutdown")
-            sheets.snack(self.app.page, "The station is restarting; this page reconnects "
-                                        "by itself." if again else
-                                        "The station is shutting down.")
+            # This page is served by the station and cannot outlive it:
+            # move the browser to the page that waits and reloads
+            # (`serve/http.py` RESTARTING_PAGE).
+            if not self.app.page.web:  # the desktop client reconnects by itself
+                sheets.snack(self.app.page, "The station is restarting; this window "
+                             "reconnects by itself." if again else
+                             "The station is shutting down.")
+                return
+            await ft.UrlLauncher().launch_url(
+                "/restarting" if again else "/restarting?shutdown",
+                web_only_window_name="_self")
 
         if again:
             sheets.confirm(self.app.page, "Restart the station?", " ".join(detail),

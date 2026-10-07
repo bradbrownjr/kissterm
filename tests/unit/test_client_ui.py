@@ -1143,6 +1143,7 @@ async def test_more_restarts_or_shuts_down_the_station_after_asking(label, comma
 
     app = MailApp({"restart_plan": {"sessions": ["WS1EC-2"], "aprs_unacked": 0},
                    "restart": True, "shutdown": True})
+    app.page.web = False
     more = MoreView(app)
     await (more._restart if command == "restart" else more._shutdown)(None)
     sheet = app.page.dialogs[-1]
@@ -1152,3 +1153,30 @@ async def test_more_restarts_or_shuts_down_the_station_after_asking(label, comma
     assert app.commands[-1] == ("restart_plan", {}), "nothing happens before the button"
     await _button(sheet, label).on_click(None)
     assert app.commands[-1] == (command, {})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("command, url", [("restart", "/restarting"),
+                                          ("shutdown", "/restarting?shutdown")])
+async def test_the_web_page_moves_to_the_waiting_page_when_the_station_stops(
+        monkeypatch, command, url):
+    """The page is the station's own: Flet's browser side cannot rejoin a
+    session a new process never had (operator, 2026-10-07: "the page isn't
+    reloading"), so the browser is sent to a page that waits and reloads."""
+    from kissterm.client.ui.more import MoreView
+
+    opened = []
+
+    class Launcher:
+        async def launch_url(self, target, **kw):
+            opened.append((target, kw))
+
+    monkeypatch.setattr(ft, "UrlLauncher", Launcher)
+    app = MailApp({"restart_plan": {"sessions": [], "aprs_unacked": 0},
+                   "restart": True, "shutdown": True})
+    app.page.web = True
+    more = MoreView(app)
+    await (more._restart if command == "restart" else more._shutdown)(None)
+    label = "Restart" if command == "restart" else "Shut down"
+    await _button(app.page.dialogs[-1], label).on_click(None)
+    assert opened == [(url, {"web_only_window_name": "_self"})]

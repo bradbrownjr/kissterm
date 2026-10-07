@@ -177,6 +177,9 @@ async def run(config, station=None, session_transport=None, transport_problem=No
     print(pairing_text(config.serve, server.token), file=stream, flush=True)
     stop = asyncio.Event()
     core.restarter.on_restart = stop.set
+    # At the request, not when it finishes: the disconnect can take seconds
+    # and the console would otherwise sit silent (operator, 2026-10-07).
+    core.restarter.on_request = lambda: print(f"\n{core.restarter.what()}", file=stream, flush=True)
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         with contextlib.suppress(NotImplementedError, RuntimeError):
@@ -191,6 +194,8 @@ async def run(config, station=None, session_transport=None, transport_problem=No
             undo()
         await _shutdown(core, server)
         await _close_opened_here(core, station, session_transport)
+    if core.restarter.requested and not core.restarter.again:
+        print(f"kissterm {__version__} shut down.", file=stream, flush=True)
     return RESTART_EXIT if core.restarter.restarting else 0
 
 

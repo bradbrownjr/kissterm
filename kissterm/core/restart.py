@@ -85,6 +85,8 @@ def reexec() -> None:
     """Replace this process with a fresh kissterm, same arguments, same
     terminal. Flushes the logs first. Does not return."""
     log.warning("Restarting: %s", " ".join(command_line()[1:]))
+    with contextlib.suppress(Exception):
+        print("Starting kissterm again...\n", file=sys.stderr, flush=True)
     logging.shutdown()
     with contextlib.suppress(Exception):
         sys.stdout.flush()
@@ -126,9 +128,14 @@ class Restarter:
         self.requested = False
         #: False for a shutdown: `__main__` re-executes only when this holds.
         self.again = True
+        #: Who asked ("a remote client", "the keyboard"), for the console.
+        self.by = ""
         #: The front end's stop (`KissTermApp.exit`, the headless loop's
         #: stop event), set when it starts.
         self.on_restart: Callable[[], None] | None = None
+        #: Called when a restart or shutdown is asked for (the headless
+        #: console says so; the terminal UI shows a notice instead).
+        self.on_request: Callable[[], None] | None = None
         #: Seconds, overridable by tests.
         self.disconnect_wait = DISCONNECT_WAIT
         self.shutdown_wait = SHUTDOWN_WAIT
@@ -150,6 +157,11 @@ class Restarter:
                     live.append(str(getattr(session.link, "peer", "") or key or "the session"))
         return {"sessions": live, "aprs_unacked": len(core.aprs.pending)}
 
+    def what(self) -> str:
+        """The console's line once a restart or shutdown is under way."""
+        return (f"Restarting kissterm (asked from {self.by})..." if self.again else
+                f"Shutting down kissterm (asked from {self.by})...")
+
     @property
     def restarting(self) -> bool:
         """A restart (not a shutdown) is under way: `__main__` re-executes."""
@@ -167,13 +179,16 @@ class Restarter:
         """Stop, disconnect, and hand over to the front end to exit."""
         if self.requested:
             return
-        self.requested, self.again = True, again
+        self.requested, self.again, self.by = True, again, by
         core = self.core
         what = "Restart" if again else "Shutdown"
         log.warning("%s requested from %s", what, by)
         core.operator.notice(Notice(
             f"{'Restarting' if again else 'Shutting down'} kissterm (asked from {by}).",
             Severity.WARNING))
+        if self.on_request is not None:
+            with contextlib.suppress(Exception):
+                self.on_request()
         self._start_watchdog()
         core.aprs.shutdown()
         core.transfers.shutdown()

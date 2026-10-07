@@ -636,13 +636,19 @@ own client.
   seconds is forced: the link is closed without sending anything more.
   If shutting down still hangs, kissterm restarts anyway after 15
   seconds. It comes back as at any launch, with transmit off and
-  beacons waiting a full interval, and a paired phone reconnects by
-  itself. kissterm.log records each restart and who asked. A TNC whose
+  beacons waiting a full interval. A browser page shows "The station
+  is restarting" and opens the app again by itself when the station
+  answers; a desktop client reconnects by itself. The console of
+  `kissterm --serve` prints "Restarting kissterm (asked from ...)",
+  "Starting kissterm again..." and then the version line. kissterm.log records each restart and who asked. A TNC whose
   transmitter is stuck on in hardware may need more than this: kissterm
   can only close its connection to the TNC.
 - **Shut down** (the phone's More, beside Restart station) does the same
   without starting again, as Quit does at the keyboard. Nothing remote
-  can start the station after that; someone at it has to.
+  can start the station after that; someone at it has to. The browser
+  page says so and opens the app again if the station is started; the
+  console prints "Shutting down kissterm (asked from ...)" and "shut
+  down".
 
 ![Remote pairing](../assets/screenshot-remote-pairing.png)
 

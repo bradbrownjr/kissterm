@@ -5,6 +5,25 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — A restarted station brings the phone's page back
+
+### Improvements
+
+- **The browser page reloads after Restart station or Shut down.** The
+  web client runs inside the station, so after a restart Flet's page
+  stayed blank. The page now moves to `/restarting`, which waits for
+  the station and opens the app again (the stored token signs it in);
+  after a shutdown it says so and does the same if the station is
+  started. The desktop client still reconnects by itself.
+- **The `--serve` console says what is happening**: "Restarting kissterm
+  (asked from a remote client)..." at the request, "Starting kissterm
+  again..." before the new process, "shut down" after a shutdown.
+
+**Files:** `kissterm/serve/http.py`, `kissterm/serve/headless.py`,
+`kissterm/core/restart.py`, `kissterm/client/ui/more.py`,
+`docs/GUIDE.md`, `docs/ON-AIR-TESTS.md`, `tests/unit/test_serve.py`,
+`tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — `--serve` says which version is running
 
 ### Improvements

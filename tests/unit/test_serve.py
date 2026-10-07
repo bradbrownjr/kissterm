@@ -536,3 +536,24 @@ async def test_a_client_reads_transcripts_and_bulletin_categories(tmp_path):
     await client.ws.close()
     await server.stop()
     core.sessions.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_the_waiting_page_is_served_and_the_console_says_what_is_happening(capsys):
+    """A restarting station sends its web page to /restarting, which polls
+    until the station is back; the console names who asked."""
+    pytest.importorskip("starlette")
+    from starlette.testclient import TestClient
+
+    from kissterm.serve.http import RESTARTING_PAGE, build_app
+
+    core, server, ta, peer = await _serve()
+    page = TestClient(build_app(server, "0")).get("/restarting")
+    assert page.status_code == 200 and "location.replace" in page.text
+    assert page.text == RESTARTING_PAGE
+    core.restarter.by = "a remote client"
+    assert core.restarter.what() == "Restarting kissterm (asked from a remote client)..."
+    core.restarter.again = False
+    assert core.restarter.what().startswith("Shutting down kissterm")
+    await server.stop()
+    core.sessions.shutdown()

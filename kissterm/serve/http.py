@@ -70,11 +70,49 @@ class Socket:
             await self._ws.close(code, reason)
 
 
+#: What a browser is sent to when the station it is a page of restarts or
+#: shuts down. The web client's Python runs inside the station, so its
+#: page cannot survive the station: Flet's browser side reconnects to a
+#: session that no longer exists and stays blank (operator, 2026-10-07:
+#: "the page isn't reloading"). This page needs nothing from the station
+#: while it waits; it asks for `/` until the station answers, then goes
+#: there, and the stored pairing token signs it back in.
+RESTARTING_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kissterm</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+background:#111318;color:#e3e3e8;font:18px system-ui,sans-serif;text-align:center}
+main{padding:24px;max-width:28em}small{color:#9a9aa5;display:block;margin-top:12px}
+</style></head><body><main>
+<p id="what">The station is restarting.</p>
+<small id="more">This page opens the app again by itself when the station is back.</small>
+</main>
+<script>
+var stopped = location.search.indexOf("shutdown") >= 0, tries = 0;
+if (stopped) {
+  document.getElementById("what").textContent = "The station was shut down.";
+  document.getElementById("more").textContent =
+    "Someone at the station has to start it. This page opens the app by itself when it is back.";
+}
+function poll() {
+  tries++;
+  fetch("/restarting?probe=" + Date.now(), {cache: "no-store"}).then(function (r) {
+    // A shutting-down station may still answer once; give it a moment first.
+    if (r.ok && tries > 2) { location.replace("/"); } else { setTimeout(poll, 2000); }
+  }).catch(function () { setTimeout(poll, 2000); });
+}
+setTimeout(poll, 3000);
+</script></body></html>
+"""
+
+
 def build_app(server, version: str, web_app=None):
     """The ASGI app: `/v1` for `server` (`RemoteServer`), then the web
     client when there is one, else a line saying where clients connect."""
     from starlette.applications import Starlette
-    from starlette.responses import PlainTextResponse
+    from starlette.responses import HTMLResponse, PlainTextResponse
     from starlette.routing import Mount, Route, WebSocketRoute
 
     async def api(ws) -> None:
@@ -86,7 +124,10 @@ def build_app(server, version: str, web_app=None):
             f"kissterm {version}: remote clients connect to {server.PATH}. "
             "Install kissterm[web] on the station for the web client.\n")
 
-    routes = [WebSocketRoute(server.PATH, api)]
+    async def restarting(request):
+        return HTMLResponse(RESTARTING_PAGE)
+
+    routes = [WebSocketRoute(server.PATH, api), Route("/restarting", restarting)]
     if web_app is not None:
         routes.append(Mount("/", app=web_app))
     else:
