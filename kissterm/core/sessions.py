@@ -849,6 +849,32 @@ class Sessions:
             "airtime": [describe_airtime(512), describe_airtime(8192)],
         }
 
+    def bbs_helpers(self) -> list[dict]:
+        """The BBS mail helper's dialects and their commands (the terminal's
+        `BbsHelperScreen`): each macro's `fields` (a message number, a
+        callsign) say what it needs. Nothing is sent."""
+        from .. import bbs
+
+        return [{"id": p.id, "name": p.name, "note": p.note, "macros": [
+            {"id": m.id, "label": m.label, "summary": m.summary, "fields": list(m.fields),
+             "confidence": m.confidence} for m in p.macros]} for p in bbs.profiles()]
+
+    def bbs_render(self, profile_id: str, macro_id: str, values: dict) -> dict:
+        """The one-line command a macro makes from `values`: `text`, or
+        `error` saying what is missing or not allowed (a number is digits,
+        no control characters). Fills a client's message box at most; never
+        sends."""
+        from .. import bbs
+
+        found = bbs.profile(profile_id)
+        macro = next((m for m in found.macros if m.id == macro_id), None) if found else None
+        if macro is None:
+            return {"text": "", "error": "Unknown BBS command."}
+        try:
+            return {"text": macro.render(**{k: str(v) for k, v in values.items()}), "error": ""}
+        except ValueError as exc:
+            return {"text": "", "error": str(exc)}
+
     def suggest(self, key: str, text: str, limit: int = 20) -> list[dict]:
         """Candidates for the partly-typed command `text` against the
         context this session is in (the terminal's suggestion strip). Fills

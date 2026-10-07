@@ -1496,3 +1496,27 @@ async def test_a_form_with_problems_stays_on_its_page_and_says_what_is_needed():
     page = view._writing["form"]
     await page._next(None)
     assert "Subject is needed." in page.problems.value and view._writing == {"form": page}
+
+
+@pytest.mark.asyncio
+async def test_a_bbs_command_fills_the_message_box_and_sends_nothing():
+    from kissterm.client.ui.reference import BbsHelper
+    from kissterm.client.ui.sessions import SessionsView
+
+    helpers = [{"id": "bpqmail", "name": "BPQMail", "note": "Check the prompt.",
+                "macros": [{"id": "read", "label": "Read a message", "summary": "R n",
+                            "fields": ["number"], "confidence": "documented"}]}]
+    app = MailApp({"bbs_helpers": helpers, "bbs_render": lambda **a: {
+        "text": f"R {a['values']['number']}", "error": ""} if a["values"]["number"] else
+        {"text": "", "error": "number is required"}})
+    view = SessionsView(app)
+    helper = BbsHelper(view)
+    await helper.show()
+    assert helper.number.visible and not helper.callsign.visible
+    assert helper.preview.value == "number is required"
+    helper.number.value = "42"
+    await helper._edited(None)
+    assert helper.preview.value.endswith("R 42")
+    await helper._use(None)
+    assert view.input.value == "R 42"
+    assert [n for n, _ in app.commands if n == "send_line"] == []

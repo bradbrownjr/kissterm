@@ -522,6 +522,14 @@ class RemoteServer:
         """`Sessions.forget_learned`: drop what was learned from this node."""
         return self._sessions().forget_learned(str(key))
 
+    async def cmd_bbs_helpers(self) -> list:
+        """`Sessions.bbs_helpers`: the BBS mail helper's commands."""
+        return self._sessions().bbs_helpers()
+
+    async def cmd_bbs_render(self, profile: str, macro: str, values: dict) -> dict:
+        """`Sessions.bbs_render`: the command a helper makes; never sends."""
+        return self._sessions().bbs_render(str(profile), str(macro), dict(values or {}))
+
     async def cmd_glossary(self, needle: str = "") -> list:
         """`glossary.search`: packet-radio terms."""
         from .. import glossary

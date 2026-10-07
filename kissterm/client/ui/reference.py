@@ -64,6 +64,7 @@ class ReferenceSheet:
     def _button_row(self) -> list[ft.Control]:
         buttons: list[ft.Control] = [ft.TextButton(content="Close", on_click=self._close)]
         if self.mode == "commands":
+            buttons.append(ft.OutlinedButton(content="BBS mail", on_click=self._bbs))
             buttons.append(ft.OutlinedButton(content="Receive file", on_click=self._receive))
             if self.data.get("learned"):
                 buttons.append(ft.OutlinedButton(content="Forget learned", on_click=self._forget))
@@ -127,6 +128,13 @@ class ReferenceSheet:
             self.search.label = "Search glossary" if self.mode == "glossary" else "Search"
             await self._paint()
             self.page.update()
+
+    async def _bbs(self, _e) -> None:
+        """The terminal's BBS mail helper: a documented BBS command with
+        its message number or callsign filled in, put in the message box
+        and not sent."""
+        self.page.pop_dialog()
+        await BbsHelper(self.view).show()
 
     async def _receive(self, _e) -> None:
         """The terminal's File transfer dialog, in download mode
@@ -222,3 +230,88 @@ class Suggestions:
             self.column.visible = False
             self.view.app.page.update()
         return fill
+
+
+class BbsHelper:
+    """One documented BBS mail command with its arguments (`bbs_helpers`,
+    `bbs_render`): the preview is the station's; Put in message box fills
+    the box and sends nothing."""
+
+    def __init__(self, view) -> None:
+        self.view = view
+        self.profiles: list[dict] = []
+        self.macro: dict = {}
+        self.pick = ft.Dropdown(label="Command", dense=True, on_select=self._picked)
+        self.number = ft.TextField(label="Message number", dense=True,
+                                   keyboard_type=ft.KeyboardType.NUMBER, on_change=self._edited)
+        self.callsign = ft.TextField(label="Recipient callsign", dense=True,
+                                     capitalization=ft.TextCapitalization.CHARACTERS,
+                                     on_change=self._edited)
+        self.preview = ft.Text("", font_family=MONO, size=12)
+        self.note = ft.Text("", size=12, color=ft.Colors.OUTLINE)
+        self.text = ""
+
+    @property
+    def page(self):
+        return self.view.app.page
+
+    async def show(self) -> None:
+        self.profiles = await self.view.app.command("bbs_helpers") or []
+        macros = [(p["id"], m) for p in self.profiles for m in p["macros"]]
+        if not macros:
+            sheets.snack(self.page, "No BBS commands are shipped.", error=True)
+            return
+        self.pick.options = [ft.DropdownOption(key=f"{pid}/{m['id']}", text=m["label"])
+                             for pid, m in macros]
+        first_profile, self.macro = macros[0]
+        self.profile_id = first_profile
+        self.pick.value = f"{first_profile}/{self.macro['id']}"
+        await self._sync()
+        self.page.show_dialog(sheets.sheet([
+            ft.Text("BBS mail", theme_style=ft.TextThemeStyle.TITLE_MEDIUM), self.note,
+            self.pick, self.number, self.callsign, self.preview,
+            ft.Text("Putting it in the message box does not send it. Review it, then press "
+                    "Send.", size=12),
+            ft.Row(alignment=ft.MainAxisAlignment.END, controls=[
+                ft.TextButton(content="Cancel", on_click=self._close),
+                ft.FilledButton(content="Put in message box", on_click=self._use)])],
+            scrollable=True))
+
+    async def _picked(self, e) -> None:
+        pid, mid = (e.control.value or "/").split("/", 1)
+        self.profile_id = pid
+        profile = next(p for p in self.profiles if p["id"] == pid)
+        self.macro = next(m for m in profile["macros"] if m["id"] == mid)
+        await self._sync()
+        self.page.update()
+
+    async def _edited(self, _e) -> None:
+        await self._render()
+        self.page.update()
+
+    async def _sync(self) -> None:
+        profile = next(p for p in self.profiles if p["id"] == self.profile_id)
+        self.note.value = (f"{profile['name']}: {self.macro['summary']} "
+                           f"({self.macro['confidence']}). {profile['note']}")
+        self.number.visible = "number" in self.macro["fields"]
+        self.callsign.visible = "callsign" in self.macro["fields"]
+        await self._render()
+
+    async def _render(self) -> None:
+        result = await self.view.app.command(
+            "bbs_render", profile=self.profile_id, macro=self.macro["id"],
+            values={"number": self.number.value or "", "callsign": self.callsign.value or ""})
+        self.text = (result or {}).get("text", "")
+        error = (result or {}).get("error", "")
+        self.preview.value = f"Will put in the message box: {self.text}" if self.text else error
+        self.preview.color = None if self.text else ft.Colors.ERROR
+
+    async def _use(self, _e) -> None:
+        if not self.text:
+            return
+        self.page.pop_dialog()
+        self.view.input.value = self.text
+        self.page.update()
+
+    async def _close(self, _e) -> None:
+        self.page.pop_dialog()

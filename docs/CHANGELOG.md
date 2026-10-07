@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — BBS mail helpers on the web and phone
+
+### New Features
+
+- **Commands > BBS mail** in the phone and web client: pick a documented
+  BBS command, give the message number or callsign, and Put in message box
+  fills the box; nothing is sent. The station renders it
+  (`Sessions.bbs_helpers`, `bbs_render`; commands `bbs_helpers`,
+  `bbs_render`).
+
+**Files:** `kissterm/core/sessions.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/reference.py`, `docs/PROTOCOL.md`, `docs/GUIDE.md`,
+`docs/ROADMAP.md`
+
 ## [2026-10-07] — Message forms on the web and phone
 
 ### New Features

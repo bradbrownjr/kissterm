@@ -206,3 +206,17 @@ async def test_a_background_transfer_is_checked_at_once_and_one_at_a_time(tmp_pa
     core.transfers.shutdown()
     station.close()
     peer.close()
+
+
+@pytest.mark.asyncio
+async def test_the_bbs_helper_renders_a_command_and_refuses_a_bad_argument():
+    core, operator, station, peer, events = await _setup()
+    [profile] = core.sessions.bbs_helpers()
+    read = next(m for m in profile["macros"] if "number" in m["fields"])
+    ok = core.sessions.bbs_render(profile["id"], read["id"], {"number": "42"})
+    assert ok["error"] == "" and "42" in ok["text"]
+    assert core.sessions.bbs_render(profile["id"], read["id"], {"number": "4x"})["error"]
+    assert core.sessions.bbs_render(profile["id"], read["id"], {})["error"]
+    assert core.sessions.bbs_render("nope", "x", {})["text"] == ""
+    station.close()
+    peer.close()

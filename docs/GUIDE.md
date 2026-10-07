@@ -324,7 +324,8 @@ anyway, never by asking it anything, and knows that software's commands:
   and captured session behind these.
 - **BBS mail helpers** (Node commands > BBS mail helpers) give starting
   commands for listing mail, reading a message and writing one. Choosing
-  one only fills the send line.
+  one only fills the send line. On the web and phone client, Commands >
+  BBS mail does the same into the message box.
 - **Learn from node** asks a node for its own command list once, tells you
   what that costs in airtime first, and caches the answer for good.
 
