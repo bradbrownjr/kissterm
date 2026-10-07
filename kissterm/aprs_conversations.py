@@ -309,6 +309,9 @@ class PendingAcks:
         key = (callsign.strip().upper(), number)
         self._pending[key] = _Pending(text=text, attempts=0, next_retry=now + self.retry_seconds)
 
+    def __len__(self) -> int:
+        return len(self._pending)
+
     def discard(self, callsign: str, number: str) -> None:
         self._pending.pop((callsign.strip().upper(), number), None)
 

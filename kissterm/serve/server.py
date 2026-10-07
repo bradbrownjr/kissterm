@@ -427,6 +427,16 @@ class RemoteServer:
     async def cmd_send_receive(self, folder: str = "", internet: bool = False) -> None:
         await self.core.mail.send_receive(str(folder), internet=bool(internet))
 
+    async def cmd_restart_plan(self) -> dict:
+        """What a restart would end: `{sessions, aprs_unacked}`."""
+        return self.core.restarter.plan()
+
+    async def cmd_restart(self) -> bool:
+        """Restart the station (`core.restart`): disconnects first, forced
+        after a few seconds, then starts again; this client reconnects."""
+        self.core.restarter.start("a remote client")
+        return True
+
     async def cmd_mail_cancel(self) -> bool:
         return await self.core.mail.cancel()
 

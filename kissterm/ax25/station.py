@@ -159,6 +159,14 @@ class AX25Station:
             return_exceptions=True,
         )
 
+    def drop(self, link: AX25Link) -> None:
+        """Forget `link` after `link.close()`, so a later `disconnect_all`
+        sends it no DISC (`core.restart`: a link whose DISC went
+        unanswered is forced closed, not asked again)."""
+        for key, held in list(self.links.items()):
+            if held is link:
+                del self.links[key]
+
     def close(self) -> None:
         """Drop the transport subscription and tear every link's timers down."""
         self._unsubscribe()

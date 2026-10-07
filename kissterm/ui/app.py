@@ -186,6 +186,7 @@ from .dialogs import (
     TranscriptsScreen,
     FileTransferScreen,
     RemotePairingScreen,
+    RestartScreen,
     UpdateScreen,
 )
 from .heard_pane import HeardPane
@@ -458,6 +459,9 @@ class KissTermApp(App):
         #: The remote-control server, run while Settings > Remote says so
         #: (`ui/remote.py`); its clients share this core with the screen.
         self.remote = RemoteControl(self)
+        # A restart from here or from a remote client ends with this app
+        # exiting; `__main__` then starts the same command line again.
+        self.core.restarter.on_restart = self.exit
         self.gate.on_change.append(self._on_transmit_change)
         self.monitor_filter = MonitorFilter()
         #: A background job's status-bar field ("Receiving 1 of 3"), shown green.
@@ -977,6 +981,16 @@ class KissTermApp(App):
     def action_remote_pairing(self) -> None:
         """Session > Remote pairing: the link and QR code, and Rotate."""
         self.push_screen(RemotePairingScreen(self.remote))
+
+    def action_restart(self) -> None:
+        """Session > Restart kissterm: asked first, then `core.restart`."""
+        from ..core.restart import describe
+
+        def answered(go: bool | None) -> None:
+            if go:
+                self.core.restarter.start("the keyboard")
+
+        self.push_screen(RestartScreen(describe(self.core.restarter.plan())), answered)
 
     def show_pairing(self) -> None:
         """Remote control was just turned on in Settings: show the link and

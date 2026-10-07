@@ -5,6 +5,25 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Restart kissterm, from the menu or the phone
+
+### New Features
+
+- **Session > Restart kissterm, and Restart station on the phone's
+  More**: stops and starts kissterm again with the same command line
+  (new code after an update; a reset for a station you are not at). It
+  never refuses: beacons and runs stop, every session is disconnected,
+  a DISC unanswered in 5 s is forced closed, and a watchdog restarts
+  anyway after 15 s if shutdown hangs. Logged at WARNING with who asked.
+
+**Files:** `kissterm/core/restart.py`, `kissterm/core/service.py`,
+`kissterm/__main__.py`, `kissterm/serve/headless.py`,
+`kissterm/serve/server.py`, `kissterm/ax25/station.py`,
+`kissterm/aprs_conversations.py`, `kissterm/ui/app.py`,
+`kissterm/ui/commands.py`, `kissterm/ui/dialogs.py`,
+`kissterm/client/ui/more.py`, `AGENTS.md`, `docs/GUIDE.md`,
+`docs/PROTOCOL.md`, `docs/ON-AIR-TESTS.md`, tests
+
 ## [2026-10-07] — Phone: the bulletin category list scrolls
 
 ### Improvements

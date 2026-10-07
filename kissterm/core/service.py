@@ -41,6 +41,7 @@ from ..ax25.address import AX25Address
 from ..tx import TransmitGate
 from .events import ActivityChanged, ConfigChanged, EventBus, GateChanged, TransportChanged
 from .operator import NullOperator, Notice, Operator, Severity
+from .restart import Restarter
 
 log = logging.getLogger(__name__)
 
@@ -158,6 +159,7 @@ class Core:
         #: callsigns (`channel.py`). First on the fan-out, so the heard list
         #: has an entry before the APRS decode adds a position to it.
         self.channel = Channel(self)
+        self.restarter = Restarter(self)
         self.frame_subscribers += [self.channel.on_received, self.aprs.on_frame]
         self.sent_subscribers.append(self.channel.on_sent)
 

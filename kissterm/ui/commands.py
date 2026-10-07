@@ -215,6 +215,9 @@ COMMANDS: tuple[Command, ...] = (
     Command("remote_pairing", "Remote pairing", "Session", "P",
             "The link and QR code that let a phone or browser control this "
             "station; make a new one if it leaked"),
+    Command("restart", "Restart kissterm", "Session", "K",
+            "Disconnect, then start kissterm again with the same settings "
+            "(new code after an update); a phone can do it from More"),
     Command("quit", "Quit", "Session", "Q", "Leave kissterm", key="ctrl+q",
             footer=("*",)),
     # --- APRS ----------------------------------------------------------

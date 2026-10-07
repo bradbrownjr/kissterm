@@ -42,9 +42,13 @@ class MoreView:
                 tight=True, spacing=12, controls=[
                     self.station,
                     # Session > Send beacon or APRS > Send position in the terminal, once.
-                    ft.Row(controls=[ft.OutlinedButton(
-                        content="Send beacon", icon=ft.Icons.CAMPAIGN,
-                        on_click=self._send_beacon)])]))),
+                    ft.Row(wrap=True, controls=[
+                        ft.OutlinedButton(content="Send beacon", icon=ft.Icons.CAMPAIGN,
+                                          on_click=self._send_beacon),
+                        # Session > Restart kissterm in the terminal.
+                        ft.OutlinedButton(content="Restart station",
+                                          icon=ft.Icons.RESTART_ALT,
+                                          on_click=self._restart)])]))),
             ft.ExpansionTile(title=ft.Text("Monitor"), subtitle=ft.Text(
                 "Every frame the station hears or sends", size=12),
                 controls=[self.monitor]),
@@ -162,6 +166,32 @@ class MoreView:
                       "transmit is on. APRS sends one position report. Neither "
                       "changes a beacon timer.",
                       [("APRS position", aprs), ("Packet beacon", packet)])
+
+    async def _restart(self, _e) -> None:
+        """Restart the station (operator, 2026-10-07: to restart it while
+        testing away from it, and as a remote control): it disconnects
+        first, forced after a few seconds, and this page reconnects by
+        itself (`connection.BACKOFF`)."""
+        plan = await self.app.command("restart_plan") or {}
+        sessions = plan.get("sessions") or []
+        unacked = int(plan.get("aprs_unacked") or 0)
+        detail = []
+        if sessions:
+            detail.append(f"Disconnects {', '.join(sessions)} first (forced after a "
+                          "few seconds without an answer).")
+        if unacked:
+            detail.append(f"{unacked} APRS message{'s' if unacked != 1 else ''} still "
+                          "waiting for an ack will not be resent.")
+        detail.append("kissterm starts again with the same settings, transmit off. "
+                      "This page reconnects by itself.")
+
+        async def go() -> None:
+            await self.app.command("restart")
+            sheets.snack(self.app.page, "The station is restarting; this page "
+                                        "reconnects by itself.")
+
+        sheets.confirm(self.app.page, "Restart the station?", " ".join(detail),
+                       "Restart", go, danger=True)
 
     async def _settings_opened(self, e) -> None:
         if e.control.expanded if hasattr(e.control, "expanded") else True:

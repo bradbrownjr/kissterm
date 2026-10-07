@@ -625,6 +625,20 @@ own client.
   **Session > Remote pairing** (F10, then P).
   Starting the server takes a few seconds the first time (it loads the
   web app); the screen keeps working meanwhile.
+- **Restart** (F10 > Session > Restart kissterm; **Restart station** on
+  the phone's More) stops kissterm and starts it again with the same
+  command line, so it picks up new code after an update and gives you a
+  way to reset a station you are not sitting at. It asks first, naming
+  what it will end. It never refuses: beacons, the APRS retry queue,
+  file transfers and a mail run stop first, then every connected
+  station is sent a disconnect. A disconnect not answered within 5
+  seconds is forced: the link is closed without sending anything more.
+  If shutting down still hangs, kissterm restarts anyway after 15
+  seconds. It comes back as at any launch, with transmit off and
+  beacons waiting a full interval, and a paired phone reconnects by
+  itself. kissterm.log records each restart and who asked. A TNC whose
+  transmitter is stuck on in hardware may need more than this: kissterm
+  can only close its connection to the TNC.
 
 ![Remote pairing](../assets/screenshot-remote-pairing.png)
 
@@ -734,7 +748,8 @@ own client.
   - **More** shows the station (with **Send beacon**, which asks which:
     **Packet beacon** sends the beacon text once, as Session > Send
     beacon does, and needs transmit already on; **APRS position** sends
-    one position report, as APRS > Send position does),
+    one position report, as APRS > Send position does, and **Restart
+    station**, which asks first: see Restart above),
     the Monitor, **Transcripts** (past sessions, newest first, searched
     by callsign or by what was said, and read in the terminal's look), recent notices, Terminal,
     and Settings (the station's own, checked by the station as the
@@ -800,7 +815,8 @@ F10 > Help > Check for updates offers **Update**, which shows the command
 first (`pipx upgrade kissterm` or `uv tool upgrade kissterm`) and is not
 offered while a session is connected, a connect is under way or
 Send/Receive is running. Restart kissterm afterwards to use the new
-version. A source checkout is told to `git pull`. Settings > Station >
+version (F10 > Session > Restart kissterm, or Restart station on the
+phone's More). A source checkout is told to `git pull`. Settings > Station >
 Check for updates turns the daily check off.
 
 `kissterm --doctor` diagnoses what usually goes wrong: serial

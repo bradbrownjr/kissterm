@@ -758,6 +758,10 @@ async def _amain(args) -> int:
             check_updates=not args.no_update_check,
         )
         await app.run_async()
+        if app.core.restarter.requested:
+            from .core.restart import RESTART_EXIT
+
+            return RESTART_EXIT
     finally:
         if station is not None:
             await station.disconnect_all()
@@ -803,9 +807,14 @@ def main() -> int:
 
         return webterm.run(args)
     try:
-        return asyncio.run(_amain(args))
+        code = asyncio.run(_amain(args))
     except KeyboardInterrupt:
         return 130
+    from .core.restart import RESTART_EXIT, reexec
+
+    if code == RESTART_EXIT:
+        reexec()  # Restart (Session menu, the phone's More): same arguments
+    return code
 
 
 if __name__ == "__main__":

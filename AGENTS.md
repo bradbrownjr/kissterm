@@ -369,6 +369,11 @@ changes.
   made (`Beaconer.send_once`, `_send_banner`).
 - **Answering is off by default and stays that way**; a refusal is a DM, never
   silence.
+- **Restart never refuses** (`core/restart.py`, operator 2026-10-07): it
+  stops the unattended transmitters, disconnects every session, forces a
+  DISC unanswered after `DISCONNECT_WAIT`, and a watchdog re-executes
+  after `SHUTDOWN_WAIT` if the shutdown hangs. It is the station's
+  remote reset; never make it wait on a live link.
 - **Remote control is off by default**, and while its server runs inside
   the terminal the status bar shows `REMOTE` (`ui/remote.py`): another
   screen can key this radio.

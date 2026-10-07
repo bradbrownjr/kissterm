@@ -4024,6 +4024,37 @@ class RemotePairingScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
+class RestartScreen(ModalScreen[bool]):
+    """Confirm Session > Restart kissterm (`core.restart`): what it will
+    disconnect and drop, from `Restarter.plan()`."""
+
+    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
+
+    def __init__(self, detail: str) -> None:
+        super().__init__()
+        self._detail = detail
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("Restart kissterm?", id="connect-title")
+            yield Static(self._detail, id="reminder-detail")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Restart", variant="error", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#connect-cancel", Button).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#connect-go")
+    def _go(self) -> None:
+        self.dismiss(True)
+
+
 class RotateTokenScreen(ModalScreen[bool]):
     """Confirm replacing the pairing link: it cannot be undone, and every
     phone and bookmark has to be paired again."""

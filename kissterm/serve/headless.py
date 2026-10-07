@@ -30,6 +30,7 @@ import signal
 import sys
 
 from ..core import MAX_LINKS, Core
+from ..core.restart import RESTART_EXIT
 from . import pairing
 from .server import RemoteServer
 
@@ -166,6 +167,7 @@ async def run(config, station=None, session_transport=None, transport_problem=No
         return 3
     print(pairing_text(config.serve, server.token), file=stream, flush=True)
     stop = asyncio.Event()
+    core.restarter.on_restart = stop.set
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         with contextlib.suppress(NotImplementedError, RuntimeError):
@@ -180,7 +182,7 @@ async def run(config, station=None, session_transport=None, transport_problem=No
             undo()
         await _shutdown(core, server)
         await _close_opened_here(core, station, session_transport)
-    return 0
+    return RESTART_EXIT if core.restarter.requested else 0
 
 
 async def _close_opened_here(core, station, session_transport) -> None:

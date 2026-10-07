@@ -10,6 +10,26 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## Restart (0.1.454, 2026-10-07)
+
+- [ ] **Restart station from the phone, nothing connected.** More >
+  Restart station > Restart. Expected: "The station is restarting", the
+  page drops and reconnects by itself within about 30 s, TX shows off,
+  and kissterm.log has "Restart requested from a remote client". (Tried
+  on a test station on another port before shipping: same process,
+  same pairing link.)
+- [ ] **Restart with a link up.** Connected to WS1EC-2 over the air,
+  Restart station (or F10 > Session > Restart kissterm). Expected: the
+  sheet names WS1EC-2; one DISC in the Monitor, the BBS's UA, then the
+  restart. The transcript ends with "Disconnecting".
+- [ ] **A disconnect that is not answered is forced.** Only when it
+  happens by itself (a weak path, the antenna down): the restart still
+  completes about 5 s after the DISC, and kissterm.log says "no answer
+  to DISC from ... closing the link without it".
+- [ ] **F10 > Session > Restart kissterm in the terminal.** Expected: the
+  question with Cancel focused; Restart clears the screen and kissterm
+  comes back in the same terminal window.
+
 ## The APRS map (0.1.444, 2026-10-06)
 
 Listen on the local APRS frequency for a while first, so the Heard list
