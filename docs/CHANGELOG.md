@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — RMS gateways on the web and phone
+
+### New Features
+
+- **RMS gateways** as the first row of Stations > Contacts (the terminal's
+  F10 > Session): the saved Winlink gateways nearest first, by mode;
+  choosing one, after asking, files it in the Address Book as the Winlink
+  Dial. Refresh is there and waits on the Winlink API key, as in the
+  terminal. The station does it all (`Mail.rms_gateways`, `rms_refresh`,
+  `use_gateway`, now shared with the terminal's own choice).
+
+**Files:** `kissterm/core/mail.py`, `kissterm/ui/app.py`,
+`kissterm/serve/server.py`, `kissterm/client/ui/gateways.py`,
+`kissterm/client/ui/stations.py`, `docs/PROTOCOL.md`, `docs/GUIDE.md`,
+`docs/ROADMAP.md`, `tests/unit/test_core_mail.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — Open a file from Files on the web and phone
 
 ### New Features

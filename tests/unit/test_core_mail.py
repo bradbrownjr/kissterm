@@ -12,6 +12,8 @@ from kissterm._isolate import isolate
 
 isolate()
 
+import json  # noqa: E402
+
 import pytest  # noqa: E402
 
 from kissterm.addressbook import AddressBook  # noqa: E402
@@ -211,3 +213,27 @@ async def test_cancel_after_the_link_is_up_disconnects_and_reports_cancelled(tmp
     assert link is None or not link.connected
     station.close()
     peer.close()
+
+
+@pytest.mark.asyncio
+async def test_a_gateway_chosen_is_filed_as_the_winlink_dial_and_nothing_is_sent(tmp_path):
+    from kissterm.winlink import gateways
+
+    core, operator, station, ta, events = await _core(tmp_path, {})
+    cache = core.mail.gateway_cache()
+    gateways.save_cached(cache, json.dumps({"Gateways": [{
+        "Callsign": "W1AW-10", "BaseCallsign": "W1AW", "Latitude": 41.7, "Longitude": -72.7,
+        "GatewayChannels": [{"Frequency": 145050000, "SupportedModes": "Packet 1200",
+                             "Gridsquare": "FN31pr"}]}]}).encode())
+    listed = core.mail.rms_gateways("packet")
+    assert [c["callsign"] for c in listed["channels"]] == ["W1AW-10"]
+    assert listed["channels"][0]["frequency"] == "145.050 MHz" and listed["modes"]
+    assert core.mail.rms_gateways("vara fm")["channels"] == []
+    assert listed["can_refresh"] is bool(gateways.ACCESS_KEY) and "fetched" in listed["note"]
+    if not gateways.ACCESS_KEY:
+        assert "Not refreshed" in await core.mail.rms_refresh()
+    core.mail.use_gateway("W1AW-10", "145.050 MHz", "Packet 1200", "FN31pr")
+    assert core.addressbook.find("W1AW-10") is not None
+    assert core.config.winlink.route == "W1AW-10"
+    assert ta.sent == [] and core.gate.enabled is False
+    station.close()

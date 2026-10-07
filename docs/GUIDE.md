@@ -786,6 +786,11 @@ own client.
     transmits**: swiping a station right asks "Connect to ...?", swiping
     it left opens its contact, and nothing happens until that sheet's
     own button is pressed. Tapping a station asks to connect too.
+    **RMS gateways**, the first row of Contacts (F10 > Session in the
+    terminal), lists the saved Winlink gateways nearest first, by mode;
+    choosing one, after asking, puts it in the Address Book as the Winlink
+    Dial and sends nothing. **Refresh** fetches the list from winlink.org
+    over the Internet and waits on kissterm's Winlink API key.
   - **More** shows the station (with **Send beacon**, which asks which:
     **Packet beacon** sends the beacon text once, as Session > Send
     beacon does, and needs transmit already on; **APRS position** sends

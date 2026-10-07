@@ -2469,20 +2469,13 @@ class KissTermApp(App):
             RmsGatewaysScreen(self._gateway_cache(), self._own_position()))
         if channel is None:
             return
-        # An entry already there keeps its hops, login and note: upsert
-        # would replace them all.
-        if self.addressbook.find(channel.callsign) is None:
-            note = f"Winlink RMS, {channel.modes}"
-            if channel.grid:
-                note += f", {channel.grid}"
-            self.addressbook.upsert(channel.callsign, frequency=channel.frequency, note=note)
-            for pane in self.query(AddressBookPane):
-                pane.refresh_from(self.addressbook)
-        self.config.winlink.route = channel.callsign
-        self._save_config()
+        # The core files it (`Mail.use_gateway`): the Address Book, the
+        # Winlink Dial, and the notice.
+        self.core.mail.use_gateway(channel.callsign, channel.frequency, channel.modes,
+                                   channel.grid)
+        for pane in self.query(AddressBookPane):
+            pane.refresh_from(self.addressbook)
         self.query_one(SettingsPane).render_settings(self.config)
-        self.notify(f"{channel.callsign} ({channel.frequency}) is in the Address Book "
-                    "and is now the Winlink Dial.")
 
     @work
     async def action_show_transcripts(self) -> None:

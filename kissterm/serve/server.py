@@ -529,6 +529,22 @@ class RemoteServer:
         return [{"name": t.name, "definition": t.definition}
                 for t in glossary.search(str(needle))]
 
+    async def cmd_rms_gateways(self, mode: str = "packet") -> dict:
+        """`Mail.rms_gateways`: the saved Winlink gateway list in `mode`,
+        nearest first. Reads the saved file; nothing is fetched or sent."""
+        return self.core.mail.rms_gateways(str(mode))
+
+    async def cmd_rms_refresh(self) -> str:
+        """`Mail.rms_refresh`: fetch the list from winlink.org (Internet,
+        only when asked); "" or why it was not refreshed."""
+        return await self.core.mail.rms_refresh()
+
+    async def cmd_rms_use(self, callsign: str, frequency: str = "", modes: str = "",
+                          grid: str = "") -> str:
+        """`Mail.use_gateway`: Address Book entry and Winlink Dial; sends nothing."""
+        return self.core.mail.use_gateway(str(callsign).strip().upper(), str(frequency),
+                                          str(modes), str(grid))
+
     async def cmd_get_files(self) -> None:
         await self.core.mail.get_files()
 

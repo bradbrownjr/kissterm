@@ -472,7 +472,7 @@ back end, so a protocol fix or a new transport lands everywhere at once.
   yet** (AGENTS.md section 7, operator 2026-10-06). These need protocol
   commands first: writing Winlink forms; sending a file (YAPP);
   the reference's BBS mail helpers (macros for a BBS's mail commands);
-  RMS gateways. A PKTNET page's Fill in (from the Files viewer) waits on
+  A PKTNET page's Fill in (from the Files viewer) waits on
   writing Winlink forms.
 - Decided 2026-10-07: the web client in a browser (Chrome) is the
   desktop front end; no native desktop GUI and no separate binaries of it.

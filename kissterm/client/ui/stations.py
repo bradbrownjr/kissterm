@@ -73,11 +73,22 @@ class StationsView:
             f"{ago(h.get('last_heard', 0))}  x{h.get('count', 1)}"
             + (f"  via {h['last_path']}" if h.get("last_path") else ""),
             h["callsign"].upper() in self.book) for h in heard] or [self._empty("Nothing heard yet.")]
-        self.contacts.controls = [self.row(
+        gateways = ft.ListTile(
+            leading=ft.Icon(ft.Icons.SETTINGS_INPUT_ANTENNA), title=ft.Text("RMS gateways"),
+            subtitle=ft.Text("Winlink gateways, nearest first", size=12),
+            on_click=self._open_gateways)
+        rows = [self.row(
             e["target"], "  ".join(p for p in (e.get("frequency", ""), e.get("note", "")) if p)
-            or ("Internet" if e.get("connect_by") else ""), True) for e in book] or [
-            self._empty("No contacts. Swipe a heard station left, or add one.")]
+            or ("Internet" if e.get("connect_by") else ""), True) for e in book]
+        self.contacts.controls = [gateways] + (rows or [
+            self._empty("No contacts. Swipe a heard station left, or add one.")])
         self.app.page.update()
+
+    async def _open_gateways(self, _e) -> None:
+        """The terminal's F10 > Session > RMS gateways (`gateways.py`)."""
+        from .gateways import GatewaysSheet
+
+        await GatewaysSheet(self).show()
 
     @staticmethod
     def _empty(text: str) -> ft.Control:

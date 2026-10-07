@@ -1396,3 +1396,23 @@ async def test_a_zip_opens_a_member_a_level_deeper_and_back_goes_up_one_level():
     assert viewer.path == [] and closed == []
     await viewer._back(None)
     assert closed == [True]
+
+
+@pytest.mark.asyncio
+async def test_a_gateway_is_used_only_after_asking_and_sends_nothing_on_the_air():
+    from kissterm.client.ui.gateways import GatewaysSheet
+
+    listed = {"channels": [{"callsign": "W1AW-10", "frequency": "145.050 MHz", "frequency_hz": 145050000,
+                            "modes": "Packet 1200", "grid": "FN31pr", "hours": "", "distance": "12 mi N"}],
+              "note": "From winlink.org, fetched 2 days ago; 1 shown.", "can_refresh": False,
+              "modes": [["Packet", "packet"], ["All modes", ""]]}
+    app = MailApp({"rms_gateways": listed, "rms_use": "ok"})
+    sheet = GatewaysSheet(type("V", (), {"app": app})())
+    await sheet.show()
+    assert sheet.refresh.disabled and sheet.note.value.startswith("From winlink.org")
+    [tile] = sheet.rows.controls
+    await tile.on_click(None)
+    assert [n for n, _ in app.commands if n == "rms_use"] == [], "used before asking"
+    await _button(app.page.dialogs[-1], "Use").on_click(None)
+    assert app.commands[-1] == ("rms_use", {"callsign": "W1AW-10", "frequency": "145.050 MHz",
+                                            "modes": "Packet 1200", "grid": "FN31pr"})

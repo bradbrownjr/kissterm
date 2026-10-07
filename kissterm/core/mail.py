@@ -213,6 +213,80 @@ class Mail:
         return gateways.cache_path(state_path())
 
     # ------------------------------------------------------------------
+    # RMS gateways (F10 > Session > RMS gateways): Internet on request only
+    # ------------------------------------------------------------------
+    def rms_gateways(self, mode: str = "packet", limit: int = 200) -> dict:
+        """The saved Winlink gateway list in `mode`, nearest first (the
+        terminal's `RmsGatewaysScreen`): `channels`, a `note` saying how old
+        the list is or why there is none, `modes` to choose from, and
+        whether `can_refresh` (a Winlink API key is set). Reads the saved
+        file only; nothing goes on the air and nothing is fetched."""
+        from ..geo import compass_point
+        from ..winlink import gateways
+
+        position = self.core.aprs.own_position()
+        lat, lon = position if position else (None, None)
+        channels, fetched = [], None
+        cached = gateways.load_cached(self.gateway_cache())
+        if cached is not None:
+            try:
+                channels = gateways.parse(cached[0], lat=lat, lon=lon)
+                fetched = cached[1]
+            except ValueError:
+                channels = []
+        shown = gateways.nearest(channels, mode, limit=limit)
+        key = bool(gateways.ACCESS_KEY)
+        if fetched is not None:
+            note = f"From winlink.org, {gateways.age_text(fetched)}; {len(shown)} shown."
+        elif not key:
+            note = ("No gateway list yet, and this version of kissterm cannot fetch one: "
+                    "it is waiting for its Winlink API key.")
+        else:
+            note = ("No gateway list yet. Refresh fetches it from winlink.org over the "
+                    "Internet; nothing goes on the air.")
+        if channels and position is None:
+            note += " Set your position in Settings > APRS to sort by distance."
+        return {
+            "channels": [{
+                "callsign": sanitize(c.callsign.encode()), "frequency": c.frequency,
+                "frequency_hz": c.frequency_hz, "modes": sanitize(c.modes.encode()),
+                "grid": sanitize(c.grid.encode()), "hours": sanitize(c.hours.encode()),
+                "distance": "" if c.distance_mi is None
+                else f"{c.distance_mi:.0f} mi {compass_point(c.bearing or 0.0)}"}
+                for c in shown],
+            "note": note, "can_refresh": key,
+            "modes": [list(m) for m in gateways.MODES],
+        }
+
+    async def rms_refresh(self) -> str:
+        """Fetch the list from winlink.org (an HTTPS request, only when
+        asked) and keep it; returns "" or why it was not refreshed."""
+        from ..winlink import gateways
+
+        try:
+            data = await asyncio.to_thread(gateways.fetch, gateways.ACCESS_KEY)
+            await asyncio.to_thread(gateways.save_cached, self.gateway_cache(), data)
+        except (gateways.NoAccessKey, gateways.FetchError, OSError) as exc:
+            return f"Not refreshed: {exc}."
+        return ""
+
+    def use_gateway(self, callsign: str, frequency: str = "", modes: str = "",
+                    grid: str = "") -> str:
+        """Make a gateway the Winlink Dial: into the Address Book (an
+        entry already there keeps its hops, login and note) and as the
+        Winlink route. Nothing is dialed or sent. Returns the notice."""
+        if self.core.addressbook.find(callsign) is None:
+            note = f"Winlink RMS, {modes}" + (f", {grid}" if grid else "")
+            self.core.addressbook.upsert(callsign, frequency=frequency, note=note)
+            self._publish(AddressBookChanged())
+        self.config.winlink.route = callsign
+        self._config_saved()
+        message = (f"{callsign} ({frequency}) is in the Address Book and is now the "
+                   "Winlink Dial.")
+        self.core.operator.notice(Notice(message))
+        return message
+
+    # ------------------------------------------------------------------
     # The runs
     # ------------------------------------------------------------------
     def send_receive_kind(self, folder: str, internet: bool = False) -> str:
