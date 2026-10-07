@@ -402,7 +402,8 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.enter_field("Comment", "Net control staging area")
     await phone.frame()
 
-    # BBS Mail: the folder with Write's pencil over Send/Receive, a Winlink
+    # BBS Mail: the folder with Write's pencil over Send/Receive, the folder
+    # tree opened, a Winlink
     # message in the reader with its actions, then Reply all, written and
     # not yet saved (nothing transmits until Send/Receive).
     for sender, to, subject, body, minutes in MAIL:
@@ -413,6 +414,12 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.tab("Mail")
     await phone.shown(MAIL[0][2])
     await phone.frame()
+    # The folder tree, opened from the row that shows where you are.
+    await phone.tap(phone.page.get_by_text("All Inboxes").first)
+    await phone.shown("Inbox")
+    await phone.frame()
+    await phone.tap(phone.page.get_by_text("All Inboxes").last)
+    await phone.shown(MAIL[0][2])
     await phone.tap(phone.button(MAIL[0][2]))
     await phone.shown("Reply all")
     await phone.frame()
@@ -453,7 +460,7 @@ async def main() -> int:
         await shot("screenshot-phone-connect", phone.frames[:2])
         await shot("screenshot-phone", phone.frames[2:4])
         await shot("screenshot-phone-map", phone.frames[4:7])
-        await shot("screenshot-phone-mail", phone.frames[7:10])
+        await shot("screenshot-phone-mail", phone.frames[7:11])
         await shot("screenshot-desktop", desktop.frames)
     finally:
         await server.stop()

@@ -15,7 +15,8 @@ you need the history of a specific change.
   shut, a folder picks and closes the panel. The tree opens on the
   service holding the folder shown.
 
-**Files:** `kissterm/client/ui/mail.py`, `docs/GUIDE.md`, `DESIGN.md`,
+**Files:** `kissterm/client/ui/mail.py`, `scripts/generate_phone_screenshots.py`,
+`assets/screenshot-phone-mail.png`, `docs/GUIDE.md`, `DESIGN.md`,
 `tests/unit/test_client_ui.py`
 
 ## [2026-10-07] — The routing line says "Routing", with an arrow
