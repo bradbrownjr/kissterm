@@ -47,7 +47,7 @@ from textual.widgets import DataTable, Tree
 
 from ..files_view import preview
 from ..mail import MessageStore, form_parse, form_xml
-from ..mail.bpqmail import route_bbses, routes_of
+from ..mail.bpqmail import routes_of
 from ..mail.compose import has_others
 from ..mail.store import ALL_INBOXES, DELETED, FILES, check_folder, is_deleted_folder
 from ..monitor import sanitize
@@ -620,9 +620,8 @@ class MessageBrowser(Horizontal):
         if self._open_routes:
             # One line, as on the phone: the BBSes in travel order; T adds
             # the R: lines (operator, 2026-10-06).
-            bbses = route_bbses(self._open_routes) or [f"{len(self._open_routes)} BBS"]
-            routing = Text(sanitize((("Routing \u25be " if self._show_routes else "Routing \u25b8 ") + " > ".join(bbses)).encode("utf-8"),
-                                    keep_newlines=False), style="dim")
+            routing = Text("Routing \u25be" if self._show_routes else "Routing \u25b8",
+                           style="dim")
             if self._show_routes:
                 routing.append("\n")
                 for line in self._open_routes:

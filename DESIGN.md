@@ -760,8 +760,9 @@ and do not apply there; these do.
   right and close at the top left, which asks before throwing typed
   text away.
 - **A message's routing is one small line under the date**, "Routing
-  ▸ W1BKW > WS1EC" (the arrow says it unfolds, ▾ once open; the BBSes in travel order, no explanation: operator,
-  2026-10-06, "Routing takes more space than the message"); a tap (T in
+  ▸" (the arrow says it unfolds, ▾ once open; no callsigns on the line, operator,
+  2026-10-07; the phone draws the arrow as a Material icon, its font has no U+25B8;
+  operator, 2026-10-06, "Routing takes more space than the message"); a tap (T in
   the terminal) shows the `R:` lines under it. The lines stay folded
   because a recipient once took one for the sender's address.
 - **A title names the place, not the station**: "APRS messages", not

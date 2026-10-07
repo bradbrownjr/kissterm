@@ -37,8 +37,8 @@ three. **Tapping the turning button cancels the run** with no sheet:
 stopping only ends the exchange (`mail_cancel`, a DISC if the link is
 up), as the transmit switch turns off without asking.
 
-**A message's routing is one small line** under the date (`Routing \u25b8 W1BKW
-> WS1EC`, `routing_section`); a tap shows the `R:` lines.
+**A message's routing is one small line** under the date (`Routing` and an arrow,
+`routing_section`); a tap shows the `R:` lines.
 """
 
 from __future__ import annotations
@@ -56,31 +56,30 @@ from .text import MONO
 TICK = 0.4
 
 
-def routing_section(routes: list[str], bbses: list[str]) -> list[ft.Control]:
-    """One small line under the date, `Routing \u25b8 W1BKW > WS1EC` (`bbses`,
-    the station's `route_bbses`); a tap shows
-    the `R:` lines themselves (operator, 2026-10-06: "Routing takes more
-    space than the message ... one small tight small-font line under the
-    date"; earlier the same day a recipient took a routing line for the
-    sender's address, so the lines stay folded)."""
+def routing_section(routes: list[str]) -> list[ft.Control]:
+    """One small `Routing` line under the date with an arrow icon that says
+    it unfolds; a tap shows the `R:` lines themselves (operator, 2026-10-06:
+    "Routing takes more space than the message ... one small tight
+    small-font line under the date"; earlier the same day a recipient took
+    a routing line for the sender's address, so the lines stay folded). No
+    callsigns on the line (operator, 2026-10-07: "the call sign after isn't
+    needed"). The arrow is a Material icon, not a text glyph: the web
+    client's font has no U+25B8 and drew a box."""
     if not routes:
         return []
     lines = ft.Text("\n".join(routes), font_family=MONO, size=11, selectable=True,
                     color=ft.Colors.OUTLINE, visible=False)
-    bbses = bbses or [f"{len(routes)} BBS"]
-
-    summary = " > ".join(bbses)
-    label = ft.Text(f"Routing \u25b8 {summary}", size=12, color=ft.Colors.OUTLINE)
+    arrow = ft.Icon(ft.Icons.ARROW_RIGHT, size=18, color=ft.Colors.OUTLINE)
 
     def toggle(_e) -> None:
         lines.visible = not lines.visible
-        arrow = "\u25be" if lines.visible else "\u25b8"
-        label.value = f"Routing {arrow} {summary}"
-        label.update()
+        arrow.icon = ft.Icons.ARROW_DROP_DOWN if lines.visible else ft.Icons.ARROW_RIGHT
+        arrow.update()
         lines.update()
 
-    return [ft.Container(on_click=toggle,
-                         content=label),
+    return [ft.Container(on_click=toggle, content=ft.Row(
+                spacing=0, tight=True, controls=[
+                    ft.Text("Routing", size=12, color=ft.Colors.OUTLINE), arrow])),
             lines]
 
 
@@ -479,8 +478,7 @@ class MailView:
                 scroll=ft.ScrollMode.AUTO, controls=[
                     ft.Column(spacing=2, tight=True, controls=[
                         ft.Text("\n".join(head), color=ft.Colors.OUTLINE, selectable=True),
-                        *routing_section(message.get("routing") or [],
-                                         message.get("routed") or [])]),
+                        *routing_section(message.get("routing") or [])]),
                     ft.Divider(),
                     ft.Text(message.get("body", ""), selectable=True)]))])
         self.control.content = self.reader

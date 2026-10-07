@@ -9,9 +9,10 @@ you need the history of a specific change.
 
 ### Improvements
 
-- **"Routed W1BKW > WS1EC" is now "Routing ▸ W1BKW > WS1EC"** in the
-  terminal reader and the phone's Mail. The arrow says the line unfolds
-  (T, or a tap) and turns to ▾ while the `R:` lines are shown.
+- **"Routed W1BKW > WS1EC" is now "Routing ▸"** in the terminal reader
+  and the phone's Mail, with no callsigns. The arrow says the line unfolds
+  (T, or a tap) and turns to ▾ while the `R:` lines are shown. The phone
+  draws it as a Material icon: its font has no U+25B8 and showed a box.
 
 **Files:** `kissterm/ui/mail_pane.py`, `kissterm/client/ui/mail.py`,
 `kissterm/mail/bpqmail.py`, `DESIGN.md`, `docs/GUIDE.md`,

@@ -278,8 +278,8 @@ def routes_in(raw: bytes) -> list[str]:
 def route_bbses(routes: list[str]) -> list[str]:
     """The BBSes in `R:` lines (latest first), in the order the message
     travelled: `R:261002/1236Z 3098@WS1EC.#CUMB...` is WS1EC. What both
-    readers show in one line, `Routing ▸ W1BKW > WS1EC` (operator,
-    2026-10-06: "one small tight small-font line under the date")."""
+    readers once showed in one line, `W1BKW > WS1EC` (operator,
+    2026-10-06; dropped from the line 2026-10-07, the protocol still carries it)."""
     found: list[str] = []
     for line in reversed(routes):
         after = line.split("@", 1)[1].strip() if "@" in line else ""
