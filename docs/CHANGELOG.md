@@ -22,7 +22,8 @@ you need the history of a specific change.
   after many returns to the browser). The browser client is the desktop
   front end: the native desktop GUI and its binaries are off the roadmap.
 
-**Files:** `kissterm/client/monitorfilter.py`, `kissterm/client/ui/more.py`,
+**Files:** `scripts/generate_phone_screenshots.py`, `assets/screenshot-phone-monitor.png`,
+`kissterm/client/monitorfilter.py`, `kissterm/client/ui/more.py`,
 `kissterm/client/state.py`, `kissterm/serve/wire.py`, `docs/PROTOCOL.md`,
 `docs/GUIDE.md`, `docs/ROADMAP.md`, `tests/unit/test_client_monitorfilter.py`
 

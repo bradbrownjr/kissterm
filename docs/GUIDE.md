@@ -808,6 +808,8 @@ own client.
 
 ![BBS Mail's Inbox with the Write pencil over Send/Receive, a Winlink message with Reply, Reply all, Reply with quote and Delete, then Reply all being written](../assets/screenshot-phone-mail.png)
 
+![More > Monitor with its filters, then narrowed to one callsign with Supervisory frames hidden](../assets/screenshot-phone-monitor.png)
+
 On a wider screen (a laptop's browser, a tablet) the places run down the
 side:
 

@@ -38,8 +38,9 @@ class MoreView:
             ft.TextField(label="Filter", hint_text="Callsign or text", dense=True,
                          on_change=self._query_changed),
             self.monitor_ports,
-            ft.Row(wrap=True, spacing=8, controls=[
-                ft.Checkbox(label=label, value=True, on_change=self._type_toggled(attr))
+            ft.Row(wrap=True, spacing=4, run_spacing=0, controls=[
+                ft.Container(width=150, content=ft.Checkbox(label=label, value=True,
+                                                           on_change=self._type_toggled(attr)))
                 for label, attr in (("Supervisory", "show_supervisory"),
                                     ("Unnumbered", "show_unnumbered"),
                                     ("Information", "show_information"),
