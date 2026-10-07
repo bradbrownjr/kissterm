@@ -27,7 +27,7 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   and kissterm.log has "Restart requested from a remote client". (Tried
   on a test station on another port before shipping: same process,
   same pairing link.)
-- [ ] **Restart with a link up.** Connected to WS1EC-2 over the air,
+- [x] **Restart with a link up.** Passed 2026-10-07 (WS1EC-15: one DISC, UA in 1.3 s, restarted 2 s later). Connected to WS1EC-2 over the air,
   Restart station (or F10 > Session > Restart kissterm). Expected: the
   sheet names WS1EC-2; one DISC in the Monitor, the BBS's UA, then the
   restart. The transcript ends with "Disconnecting".
