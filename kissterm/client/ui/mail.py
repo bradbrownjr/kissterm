@@ -158,6 +158,27 @@ def folder_label(folder: str, section: str) -> str:
     return folder.removeprefix(section + "/") if folder != section else section
 
 
+def folder_tree(folders: list[str], section: str) -> list[tuple[str, str, list[tuple[str, str]]]]:
+    """`section_folders` as the picker's tree: (label, folder, children).
+    A folder two levels under the section (`Mail/BBS/Inbox`) goes under its
+    service (`BBS`: no folder of its own, children `Inbox`), in the order the
+    services first appear; a one-level folder (All Inboxes, `Bulletins/WX`,
+    Files) stands alone. Pure, so the shape is tested without a page."""
+    out: list[tuple[str, str, list[tuple[str, str]]]] = []
+    groups: dict[str, list[tuple[str, str]]] = {}
+    for folder in folders:
+        rel = folder_label(folder, section) if folder != ALL_INBOXES else folder
+        group, _, leaf = rel.partition("/")
+        if not leaf:
+            out.append((rel, folder, []))
+        elif group in groups:
+            groups[group].append((leaf, folder))
+        else:
+            groups[group] = [(leaf, folder)]
+            out.append((group, "", groups[group]))
+    return out
+
+
 def in_deleted(folder: str) -> bool:
     return folder.rsplit("/", 1)[-1] == "Deleted"
 
@@ -197,8 +218,27 @@ class MailView:
             selected=["Mail"], show_selected_icon=False, on_change=self._switched,
             segments=[ft.Segment(value=value, label=ft.Text(value), icon=ft.Icon(icon))
                       for value, _title, icon, _sel in SECTIONS])
-        self.folders = ft.Dropdown(dense=True, expand=True, on_select=self._folder_changed,
-                                   options=[])
+        #: The folder picker (operator, 2026-10-07: "more of a tree folder
+        #: view", the inline panel): a row showing the folder, `Mail / BBS /
+        #: Inbox`, that opens a tree under it as wide as the section switch.
+        #: Services (BBS, Winlink) fold; a leaf picks and closes. Folded
+        #: arrows are Material icons, the web font has no text triangle.
+        self.folder_list: list[str] = []
+        self._picking = False
+        self._expanded: set[str] = set()
+        self._folder_text = ft.Text(expand=True, no_wrap=True,
+                                    overflow=ft.TextOverflow.ELLIPSIS)
+        self._folder_arrow = ft.Icon(ft.Icons.ARROW_DROP_DOWN, color=ft.Colors.OUTLINE)
+        self.folders = ft.Container(
+            expand=True, on_click=self._toggle_picker, ink=True,
+            padding=ft.Padding.symmetric(horizontal=14, vertical=12),
+            border=ft.Border.all(1, ft.Colors.OUTLINE_VARIANT), border_radius=6,
+            content=ft.Row(controls=[self._folder_text, self._folder_arrow]))
+        self.tree = ft.Column(spacing=0, tight=True)
+        self.panel = ft.Container(
+            visible=False, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH, border_radius=12,
+            padding=ft.Padding.symmetric(horizontal=8, vertical=6),
+            margin=ft.Margin.symmetric(horizontal=12), content=self.tree)
         #: Write: the terminal's Insert, on a Mail folder. A small pencil
         #: stacked over Send/Receive, no label (operator, 2026-10-06).
         self.write_button = ft.FloatingActionButton(
@@ -287,6 +327,7 @@ class MailView:
                              visible=self.switch.visible),
                 ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6),
                              content=ft.Row(controls=[self.folders, self.categories_button])),
+                self.panel,
                 *([ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=4),
                                 content=self.activity)] if self.app.state.activity else []),
                 self.list]), self.write_button])
@@ -313,17 +354,76 @@ class MailView:
         folders = section_folders(await self.app.command("mail_folders") or [], self.section)
         if not in_section(self.folder, self.section) or (folders and self.folder not in folders):
             self.folder = default_folder(folders, self.section)
-        self.folders.options = [ft.DropdownOption(key=f, text=folder_label(f, self.section))
-                                for f in folders] or [
-            ft.DropdownOption(key=self.folder, text=folder_label(self.folder, self.section))]
+        self.folder_list = folders
         self._paint_button()
-        self.folders.value = self.folder
+        self._paint_folders()
         messages = await self.app.command("mail_list", folder=self.folder) or []
         self.list.controls = [self._row(m) for m in messages] or [ft.Container(
                 padding=ft.Padding.all(24),
                 content=ft.Text("Nothing in this folder.", color=ft.Colors.OUTLINE))]
         if self.reader is None and self._writing is None:
             self._paint_toolbar()
+        self.app.page.update()
+
+    def _paint_folders(self) -> None:
+        """The picker row and its tree for the folder shown. The service
+        holding the folder shown is open; the others stay as left."""
+        self._folder_text.value = (self.folder if self.folder == ALL_INBOXES else
+                                   folder_label(self.folder, self.section)).replace("/", " / ")
+        self._folder_arrow.icon = (ft.Icons.ARROW_DROP_UP if self._picking
+                                   else ft.Icons.ARROW_DROP_DOWN)
+        self.panel.visible = self._picking
+        rows: list[ft.Control] = []
+        for label, key, kids in folder_tree(self.folder_list or [self.folder], self.section):
+            if not kids:
+                rows.append(self._leaf(label, key, 0))
+                continue
+            opened = label in self._expanded
+            rows.append(self._tree_row(
+                ft.Icons.ARROW_DROP_DOWN if opened else ft.Icons.ARROW_RIGHT,
+                ft.Icons.FOLDER_OPEN if opened else ft.Icons.FOLDER, label, False,
+                self._group_toggler(label), 0))
+            if opened:
+                rows += [self._leaf(name, k, 1) for name, k in kids]
+        self.tree.controls = rows
+
+    def _leaf(self, label: str, key: str, depth: int) -> ft.Control:
+        return self._tree_row(None, ft.Icons.ALL_INBOX if key == ALL_INBOXES else ft.Icons.INBOX
+                              if label == "Inbox" else ft.Icons.FOLDER_OUTLINED, label,
+                              key == self.folder, self._folder_picker(key), depth)
+
+    @staticmethod
+    def _tree_row(arrow, icon, label: str, selected: bool, on_click, depth: int) -> ft.Control:
+        return ft.Container(
+            on_click=on_click, ink=True, border_radius=8,
+            bgcolor=ft.Colors.SECONDARY_CONTAINER if selected else None,
+            padding=ft.Padding.only(left=8 + 28 * depth, right=8, top=10, bottom=10),
+            content=ft.Row(spacing=8, controls=[
+                ft.Icon(arrow, color=ft.Colors.OUTLINE) if arrow else ft.Container(width=0),
+                ft.Icon(icon, size=20, color=ft.Colors.PRIMARY if selected else ft.Colors.OUTLINE),
+                ft.Text(label)]))
+
+    def _group_toggler(self, label: str):
+        def handler(_e) -> None:
+            self._expanded.symmetric_difference_update({label})
+            self._paint_folders()
+            self.app.page.update()
+        return handler
+
+    def _folder_picker(self, key: str):
+        async def handler(_e) -> None:
+            self.folder = key
+            self._picking = False
+            self._paint_button()
+            await self.reload()
+        return handler
+
+    def _toggle_picker(self, _e) -> None:
+        self._picking = not self._picking
+        if self._picking:  # open on the service holding the folder shown
+            self._expanded.update(g for g, _k, kids in folder_tree(self.folder_list, self.section)
+                                  if any(k == self.folder for _n, k in kids))
+        self._paint_folders()
         self.app.page.update()
 
     def _paint_toolbar(self) -> None:
@@ -435,6 +535,7 @@ class MailView:
         if section == self.section:
             return
         self._last[self.section] = self.folder
+        self._picking = False
         self.section = section
         self.folder = self._last.get(section, "")
         if self.reader is None and self._writing is None:
@@ -448,11 +549,6 @@ class MailView:
             return
         self.set_section(picked[0])
         self.app.section_changed()
-        await self.reload()
-
-    async def _folder_changed(self, e) -> None:
-        self.folder = e.control.value
-        self._paint_button()
         await self.reload()
 
     def _opener(self, ref: str):

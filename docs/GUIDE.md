@@ -683,8 +683,11 @@ own client.
   - **Mail** has three sections, as the terminal has three tabs: **Mail**
     (titled BBS Mail), **Bulletins** and **Files**, switched at the top of
     the page (on a wide screen, each is its own place at the side). The
-    folder list under the switch holds that section's folders only, and
-    each section opens where you left it. Mail opens on **All Inboxes**,
+    folder row under the switch shows where you are ("BBS / Inbox"); tap
+    it and a tree opens under it, as wide as the switch: tap BBS or
+    Winlink to fold its folders open or shut, tap a folder to go there.
+    The tree holds that section's folders only, and each section opens
+    where you left it. Mail opens on **All Inboxes**,
     BBS and Winlink together as on the terminal's Mail tab, each message
     marked with the service it came by. Its button asks first
     and does what G and I do on the terminal's tabs: on a mail folder,

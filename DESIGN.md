@@ -765,6 +765,13 @@ and do not apply there; these do.
   operator, 2026-10-06, "Routing takes more space than the message"); a tap (T in
   the terminal) shows the `R:` lines under it. The lines stay folded
   because a recipient once took one for the sender's address.
+- **The phone's folder picker is a tree, not a dropdown** (operator,
+  2026-10-07, "more of a tree folder view", the inline panel over a
+  bottom sheet): a row with the path ("BBS / Inbox") opens a panel under
+  it, as wide as the section switch and pushing the list down; services
+  (BBS, Winlink) fold, a folder picks and closes it, the picked folder is
+  tinted. Arrows are Material icons, never text triangles: the web font
+  has none (`folder_tree`, `MailView._paint_folders`).
 - **A title names the place, not the station**: "APRS messages", not
   "KC1JMH Messages"; the callsign is in More. Where a place's label is
   ambiguous on its own, the title says which kind: Mail is titled "BBS

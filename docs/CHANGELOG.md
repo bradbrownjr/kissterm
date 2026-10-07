@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — The phone's mail folders are a tree
+
+### Improvements
+
+- **The folder dropdown on the phone's Mail, Bulletins and Files is now a
+  tree.** Tap the folder row (it shows "BBS / Inbox") and a panel opens
+  under it, as wide as the section switch: BBS and Winlink fold open and
+  shut, a folder picks and closes the panel. The tree opens on the
+  service holding the folder shown.
+
+**Files:** `kissterm/client/ui/mail.py`, `docs/GUIDE.md`, `DESIGN.md`,
+`tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — The routing line says "Routing", with an arrow
 
 ### Improvements

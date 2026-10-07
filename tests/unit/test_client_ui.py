@@ -789,6 +789,47 @@ def test_each_section_lists_only_its_own_folders():
     assert folder_label("Files", "Files") == "Files"
 
 
+def test_the_folder_picker_is_a_tree_of_services():
+    from kissterm.client.ui.mail import folder_tree, section_folders
+
+    # Operator, 2026-10-07: "more of a tree folder view". Services hold
+    # their folders, Deleted last in each; one-level folders stand alone.
+    mail = section_folders(FOLDERS, "Mail")
+    assert folder_tree(mail, "Mail") == [
+        ("All Inboxes", "All Inboxes", []),
+        ("BBS", "", [("Inbox", "Mail/BBS/Inbox"), ("Outbox", "Mail/BBS/Outbox"),
+                     ("Deleted", "Mail/BBS/Deleted")]),
+        ("Winlink", "", [("Inbox", "Mail/Winlink/Inbox")])]
+    assert folder_tree(section_folders(FOLDERS, "Bulletins"), "Bulletins") == [
+        ("ARES", "Bulletins/ARES", []), ("WX", "Bulletins/WX", []),
+        ("Deleted", "Bulletins/Deleted", [])]
+    assert folder_tree(["Files"], "Files") == [("Files", "Files", [])]
+
+
+@pytest.mark.asyncio
+async def test_the_folder_picker_opens_folds_and_picks():
+    from kissterm.client.ui.mail import MailView
+
+    app = MailApp({"mail_folders": FOLDERS, "mail_list": []})
+    view = MailView(app)
+    await view.reload()
+    assert not view.panel.visible and view.folders.content.controls[0].value == "All Inboxes"
+
+    view._toggle_picker(None)
+    assert view.panel.visible and len(view.tree.controls) == 3, "services start folded"
+
+    view._group_toggler("Winlink")(None)
+    assert len(view.tree.controls) == 4  # the service's folders appear under it
+    leaf = view.tree.controls[3]
+    await leaf.on_click(None)
+    assert view.folder == "Mail/Winlink/Inbox" and not view.panel.visible
+    assert view.folders.content.controls[0].value == "Winlink / Inbox"
+    assert ("mail_list", {"folder": "Mail/Winlink/Inbox"}) in app.commands
+
+    view._toggle_picker(None)  # reopens on the service holding the folder
+    assert len(view.tree.controls) == 4
+
+
 @pytest.mark.asyncio
 async def test_the_phone_switches_between_mail_bulletins_and_files():
     # Operator, 2026-10-06: bulletins and files on the phone; the desktop
@@ -804,8 +845,7 @@ async def test_the_phone_switches_between_mail_bulletins_and_files():
     view.switch.selected = ["Bulletins"]
     await view._switched(type("E", (), {"control": view.switch})())
     assert app.sections_changed == 1 and view.title() == "Bulletins"
-    assert [o.key for o in view.folders.options] == ["Bulletins/ARES", "Bulletins/WX",
-                                                     "Bulletins/Deleted"]
+    assert view.folder_list == ["Bulletins/ARES", "Bulletins/WX", "Bulletins/Deleted"]
     assert view.categories_button.visible and not view.write_button.visible
     assert view.button.tooltip == "Get bulletins"
 
