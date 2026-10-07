@@ -285,10 +285,12 @@ change on screen. Worth one session on the air to confirm.
   Deleted. **Passed 2026-10-07** (operator's screenshot: both listed
   with size and date; "delete works"). Before 0.1.450 every Files
   folder on the phone was empty.
-- [ ] **A file's preview and Undo on the phone** (0.1.450). Tap a zip
+- [x] **A file's preview and Undo on the phone** (0.1.450). Tap a zip
   in Files > Downloads: the reader shows its contents (`bulletin.html`
   and its size). Swipe one away, then Undo: it is back in Downloads
-  under its own name. (Not reported with the listing above.)
+  under its own name. **Passed 2026-10-07** (operator's screenshot:
+  "6,226 bulletin.html" under Size and Date; "swipe to delete and undo
+  to restore worked").
 - [ ] **Over WS1EC's SSH login, YAPP is refused before it goes out.**
   (`BBS`, then `YAPP bulletin.html.zip`.) Expected: a notice "File
   transfers are not supported over SSH...", the line still in the send

@@ -16,7 +16,7 @@ you need the history of a specific change.
   (`files_view.preview`). Opening a zip member or a formatted view stays
   terminal-only (ROADMAP P7a).
 - On-air tests: a second YAPP download kept beside the first, and the
-  phone's Files listing and delete, ticked.
+  phone's Files listing, delete, preview and Undo, ticked.
 
 **Files:** `kissterm/mail/store.py`, `kissterm/files_view.py`,
 `kissterm/serve/server.py`, `kissterm/ui/mail_pane.py`,
