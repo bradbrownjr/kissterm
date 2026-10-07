@@ -37,7 +37,7 @@ three. **Tapping the turning button cancels the run** with no sheet:
 stopping only ends the exchange (`mail_cancel`, a DISC if the link is
 up), as the transmit switch turns off without asking.
 
-**A message's routing is one small line** under the date (`Routed W1BKW
+**A message's routing is one small line** under the date (`Routing \u25b8 W1BKW
 > WS1EC`, `routing_section`); a tap shows the `R:` lines.
 """
 
@@ -57,7 +57,7 @@ TICK = 0.4
 
 
 def routing_section(routes: list[str], bbses: list[str]) -> list[ft.Control]:
-    """One small line under the date, `Routed W1BKW > WS1EC` (`bbses`,
+    """One small line under the date, `Routing \u25b8 W1BKW > WS1EC` (`bbses`,
     the station's `route_bbses`); a tap shows
     the `R:` lines themselves (operator, 2026-10-06: "Routing takes more
     space than the message ... one small tight small-font line under the
@@ -69,13 +69,18 @@ def routing_section(routes: list[str], bbses: list[str]) -> list[ft.Control]:
                     color=ft.Colors.OUTLINE, visible=False)
     bbses = bbses or [f"{len(routes)} BBS"]
 
+    summary = " > ".join(bbses)
+    label = ft.Text(f"Routing \u25b8 {summary}", size=12, color=ft.Colors.OUTLINE)
+
     def toggle(_e) -> None:
         lines.visible = not lines.visible
+        arrow = "\u25be" if lines.visible else "\u25b8"
+        label.value = f"Routing {arrow} {summary}"
+        label.update()
         lines.update()
 
     return [ft.Container(on_click=toggle,
-                         content=ft.Text("Routed " + " > ".join(bbses), size=12,
-                                         color=ft.Colors.OUTLINE)),
+                         content=label),
             lines]
 
 

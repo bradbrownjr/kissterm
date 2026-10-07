@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — The routing line says "Routing", with an arrow
+
+### Improvements
+
+- **"Routed W1BKW > WS1EC" is now "Routing ▸ W1BKW > WS1EC"** in the
+  terminal reader and the phone's Mail. The arrow says the line unfolds
+  (T, or a tap) and turns to ▾ while the `R:` lines are shown.
+
+**Files:** `kissterm/ui/mail_pane.py`, `kissterm/client/ui/mail.py`,
+`kissterm/mail/bpqmail.py`, `DESIGN.md`, `docs/GUIDE.md`,
+`tests/pilot/test_mail_pane.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — A restarted station brings the phone's page back
 
 ### Improvements

@@ -759,8 +759,8 @@ and do not apply there; these do.
   a full page with the commitment, Save to Outbox, filled, at the top
   right and close at the top left, which asks before throwing typed
   text away.
-- **A message's routing is one small line under the date**, "Routed
-  W1BKW > WS1EC" (the BBSes in travel order, no explanation: operator,
+- **A message's routing is one small line under the date**, "Routing
+  ▸ W1BKW > WS1EC" (the arrow says it unfolds, ▾ once open; the BBSes in travel order, no explanation: operator,
   2026-10-06, "Routing takes more space than the message"); a tap (T in
   the terminal) shows the `R:` lines under it. The lines stay folded
   because a recipient once took one for the sender's address.

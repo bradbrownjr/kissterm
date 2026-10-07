@@ -278,7 +278,7 @@ def routes_in(raw: bytes) -> list[str]:
 def route_bbses(routes: list[str]) -> list[str]:
     """The BBSes in `R:` lines (latest first), in the order the message
     travelled: `R:261002/1236Z 3098@WS1EC.#CUMB...` is WS1EC. What both
-    readers show in one line, `Routed W1BKW > WS1EC` (operator,
+    readers show in one line, `Routing ▸ W1BKW > WS1EC` (operator,
     2026-10-06: "one small tight small-font line under the date")."""
     found: list[str] = []
     for line in reversed(routes):

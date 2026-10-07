@@ -500,7 +500,7 @@ def test_routing_is_one_small_line_with_the_lines_folded():
 
     assert route_bbses(routes) == ["W1BKW", "WS1EC"]
     line, lines = routing_section(routes, route_bbses(routes))
-    assert line.content.value == "Routed W1BKW > WS1EC" and line.content.size <= 12
+    assert line.content.value == "Routing \u25b8 W1BKW > WS1EC" and line.content.size <= 12
     assert not lines.visible and "3098@WS1EC" in lines.value
 
 

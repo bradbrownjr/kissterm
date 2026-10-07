@@ -621,7 +621,7 @@ class MessageBrowser(Horizontal):
             # One line, as on the phone: the BBSes in travel order; T adds
             # the R: lines (operator, 2026-10-06).
             bbses = route_bbses(self._open_routes) or [f"{len(self._open_routes)} BBS"]
-            routing = Text(sanitize(("Routed " + " > ".join(bbses)).encode("utf-8"),
+            routing = Text(sanitize((("Routing \u25be " if self._show_routes else "Routing \u25b8 ") + " > ".join(bbses)).encode("utf-8"),
                                     keep_newlines=False), style="dim")
             if self._show_routes:
                 routing.append("\n")

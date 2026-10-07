@@ -77,7 +77,7 @@ it Terminal instead): a folder tree, the message list, and a reader.
   any editor can read one. Delete moves a message to Deleted; U puts it
   back.
 - **Routing.** A message read from a BBS says which BBSes it passed
-  through, in order, on one line under its header ("Routed W1BKW >
+  through, in order, on one line under its header ("Routing ▸ W1BKW >
   WS1EC"); **T** shows the `R:` line each BBS added as it passed the
   message on, the latest first, and T again folds them away. A
   number@BBS there is that BBS's message number, not the sender's
@@ -701,8 +701,8 @@ own client.
     not text. Opening a file inside a zip, or seeing HTML or Markdown
     formatted, is the terminal's alone for now. Delete and swipe work as
     on messages.
-    A message from a BBS has one small **Routed** line under the date,
-    the BBSes it passed through in order ("Routed W1BKW > WS1EC"); tap it
+    A message from a BBS has one small **Routing** line under the date,
+    the BBSes it passed through in order ("Routing ▸ W1BKW > WS1EC"); tap it
     for the `R:` line each BBS added, the latest first. A number@BBS there is that BBS's message number,
     not the sender's address.
     While a run is going its button turns and the progress line

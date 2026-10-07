@@ -232,7 +232,7 @@ async def test_t_unfolds_a_bbs_messages_routing_as_the_phone_does(tmp_path):
         table.focus()
         await pilot.press("enter")
         await pilot.pause()
-        assert "Routed W1BKW  (T shows the lines)" in _reader_text(mail)
+        assert "Routing \u25b8 W1BKW  (T shows the lines)" in _reader_text(mail)
         assert "8243@W1BKW" not in _reader_text(mail), "folded by default"
         assert "t" in app.screen.active_bindings
         await pilot.press("t")
