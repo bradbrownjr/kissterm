@@ -41,6 +41,10 @@ from .monitor import sanitize
 
 #: The most of one zip member the viewer reads.
 MAX_MEMBER = 1024 * 1024
+#: The most of a file on disk a viewer reads.
+MAX_FILE = 16 * 1024 * 1024
+#: The most text `describe` hands a remote client for one file.
+MAX_SHOWN = 256 * 1024
 #: The most entries a zip listing shows.
 MAX_MEMBERS = 2000
 
@@ -115,6 +119,43 @@ def preview(path) -> tuple[str, str, bool]:
     if kind == "binary":
         return kind, f"{path.name}: not a text file ({path.stat().st_size:,} bytes).", False
     return kind, sanitize(data[:PREVIEW_BYTES]), len(data) > PREVIEW_BYTES
+
+
+_IMAGE = re.compile(r"!\[([^\]]*)\]\([^)]*\)|!\[([^\]]*)\]\[[^\]]*\]")
+
+
+def no_images(markdown: str) -> str:
+    """Markdown with each image replaced by `[image: alt]`, as the HTML
+    conversion does: a viewer that rendered one would fetch whatever address
+    the file names, and nothing from the air may reach the network."""
+    return _IMAGE.sub(lambda m: f"[image: {m.group(1) or m.group(2) or ''}]", markdown)
+
+
+def describe(name: str, data: bytes) -> dict:
+    """One file, or one zip member, as a remote client's viewer shows it
+    (the terminal's `FileViewerScreen`): `kind`, a zip's `members` (name,
+    size), `markdown` for Markdown and HTML (HTML converted, images
+    never kept), `text` otherwise, `problem` when it cannot be shown, and
+    `form`, the kissterm form a PKTNET page is. Everything is sanitized
+    and size-capped; nothing is run, fetched or extracted."""
+    kind = kind_of(name, data)
+    out: dict = {"name": text_of(name.encode()), "size": len(data), "kind": kind,
+                 "members": [], "markdown": "", "text": "", "problem": "", "form": ""}
+    if kind == "zip":
+        try:
+            out["members"] = [[text_of(n.encode()), size] for n, size in zip_members(data)]
+        except ValueError as exc:
+            out["kind"], out["problem"] = "broken", str(exc)
+    elif kind in ("markdown", "html"):
+        source = text_of(data) if kind == "markdown" else html_to_markdown(data)
+        out["markdown"] = no_images(source)[:MAX_SHOWN]
+        if kind == "html":
+            out["form"] = pktnet_form(data)
+    elif kind == "text":
+        out["text"] = text_of(data)[:MAX_SHOWN]
+    else:
+        out["problem"] = "Not a text file; the viewer does not open it."
+    return out
 
 
 def text_of(data: bytes) -> str:

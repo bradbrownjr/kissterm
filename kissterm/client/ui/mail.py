@@ -581,6 +581,18 @@ class MailView:
         self.app.page.floating_action_button = None
         self.app.page.update()
 
+    async def open_viewer(self, ref: str) -> None:
+        from .files import FileViewer
+
+        async def close() -> None:
+            self.control.content = self.reader
+            self.app.page.update()
+
+        viewer = FileViewer(self, ref, close)
+        await viewer.show()
+        self.control.content = viewer.control
+        self.app.page.update()
+
     def reader_actions(self, ref: str, message: dict) -> list[ft.Control]:
         """Reply, Reply all, Reply with quote, Delete or Restore: the
         terminal's R, A, Q, Delete and U."""
@@ -594,6 +606,15 @@ class MailView:
             await self._back(None)
 
         actions: list[ft.Control] = []
+        if message.get("file") and message.get("kind") != "binary":
+            # The terminal's Enter on a file: a zip's members, Markdown and
+            # HTML formatted (`files.py`).
+            async def open_file(_e) -> None:
+                await self.open_viewer(ref)
+
+            actions.append(ft.IconButton(
+                icon=ft.Icons.OPEN_IN_FULL, on_click=open_file,
+                tooltip="Open as a list" if message.get("kind") == "zip" else "Open formatted"))
         if not self.folder.startswith("Files"):
             actions.append(ft.IconButton(icon=ft.Icons.REPLY, tooltip="Reply",
                                          on_click=reply(None)))

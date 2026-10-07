@@ -697,6 +697,24 @@ class RemoteServer:
             text += "\n[preview ends here]"
         return {**_file_entry(store.root, path), "body": text, "kind": kind}
 
+    async def cmd_file_open(self, ref: str, member: list | None = None) -> dict:
+        """A file under Files as the terminal's viewer opens it
+        (`files_view.describe`): a zip's members, Markdown and HTML as
+        Markdown, other text as text. `member` is a path of zip member
+        names into the file (a zip inside a zip). Read in memory, never
+        extracted; nothing runs or is fetched."""
+        from ..files_view import MAX_FILE, describe, zip_read
+
+        try:
+            path = self.core.mail.store.file_path(str(ref))
+            with open(path, "rb") as handle:
+                data, name = handle.read(MAX_FILE), path.name
+            for part in member or ():
+                data, name = zip_read(data, str(part)), str(part)
+        except (OSError, ValueError) as exc:
+            raise CommandError(wire.clean(str(exc))) from None
+        return describe(name, data)
+
     async def cmd_mail_delete(self, ref: str) -> str:
         return self.core.mail.delete(str(ref))
 

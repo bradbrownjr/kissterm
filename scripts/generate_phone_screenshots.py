@@ -459,6 +459,35 @@ async def drive(phone: Phone, core, tb) -> None:
 
     # Terminal > Commands: what the node in effect understands, from the
     # station; then suggestions as a command is typed. Neither sends.
+    # Mail > Files: a zip of a bulletin, its members, then one formatted.
+    import io as _io
+    import zipfile as _zip
+
+    pack = _io.BytesIO()
+    with _zip.ZipFile(pack, "w") as archive:
+        archive.writestr("net-bulletin.html", FILE_HTML)
+        archive.writestr("roster.txt", "W1AW-7\nN1ABC-1\n")
+    (core.mail.downloads_dir() / "bulletins.zip").write_bytes(pack.getvalue())
+    await phone.tab("Mail")
+    # The reply written above is still open: discard it.
+    await phone.tap(phone.button("Close"))
+    await phone.tap(phone.button("Discard"))
+    # The segments' labels are not in the accessibility tree: tapped where drawn.
+    await phone.page.mouse.click(302, 91)
+    await phone.page.wait_for_timeout(800)
+    await phone.tap(phone.page.get_by_text("Attachments").first)
+    await phone.shown("Downloads")
+    await phone.tap(phone.page.get_by_text("Downloads").last)
+    await phone.shown("bulletins.zip")
+    await phone.tap(phone.button("bulletins.zip"))
+    await phone.shown("Open as a list")
+    await phone.tap(phone.button("Open as a list"))
+    await phone.shown("net-bulletin.html")
+    await phone.frame()
+    await phone.tap(phone.button("net-bulletin.html"))
+    await phone.shown("Weekly net")
+    await phone.frame()
+
     await phone.tab("Terminal")
     await phone.tap(phone.button("Commands"))
     await phone.shown("Search")
@@ -467,6 +496,12 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.enter_field("Type to the station", "nod")
     await phone.page.wait_for_timeout(800)
     await phone.frame()
+
+
+FILE_HTML = ("<html><head><title>Net bulletin</title></head><body><h1>Weekly net</h1>"
+             "<p>Thursday 7 PM on <b>147.09</b> MHz. Bring a <i>go kit</i> and a pencil.</p>"
+             "<ul><li>Roll call</li><li>Traffic</li><li>Drill</li></ul>"
+             "<p>See <a href='http://example.org/net'>the net page</a>.</p></body></html>")
 
 
 async def main() -> int:
@@ -502,7 +537,8 @@ async def main() -> int:
         await shot("screenshot-phone-map", phone.frames[4:7])
         await shot("screenshot-phone-mail", phone.frames[7:11])
         await shot("screenshot-phone-monitor", phone.frames[13:15])
-        await shot("screenshot-phone-commands", phone.frames[15:17])
+        await shot("screenshot-phone-commands", phone.frames[17:19])
+        await shot("screenshot-phone-files", phone.frames[15:17])
         await shot("screenshot-phone-templates", phone.frames[11:13])
         await shot("screenshot-desktop", desktop.frames)
     finally:

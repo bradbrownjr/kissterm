@@ -37,6 +37,7 @@ from textual.screen import ModalScreen
 from textual.widgets import DataTable, Footer, Label, Markdown, Static
 
 from ..files_view import (
+    MAX_FILE,
     html_to_markdown,
     kind_of,
     pktnet_form,
@@ -45,10 +46,6 @@ from ..files_view import (
     zip_read,
 )
 from .wraplog import WrapLog
-
-#: The most of a file on disk the viewer reads.
-MAX_FILE = 16 * 1024 * 1024
-
 
 def read_for_viewer(path: Path) -> bytes:
     """A file's bytes, at most `MAX_FILE`."""

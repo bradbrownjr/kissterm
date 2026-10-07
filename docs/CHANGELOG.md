@@ -5,6 +5,25 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Open a file from Files on the web and phone
+
+### New Features
+
+- **Open on a file in Files** (the terminal's Enter): a zip's members as
+  a list, a tap opening one a level deeper; Markdown and HTML formatted;
+  other text. The station reads and prepares it (`file_open`,
+  `files_view.describe`): in memory, never extracted, HTML's scripts and
+  images dropped, Markdown images replaced by `[image: alt]` so nothing is
+  fetched, links shown and never followed. `files_view.MAX_FILE` moved
+  there from the viewer. A new scene in the phone screenshots.
+
+**Files:** `kissterm/files_view.py`, `kissterm/ui/file_viewer.py`,
+`kissterm/serve/server.py`, `kissterm/client/ui/files.py`,
+`kissterm/client/ui/mail.py`, `scripts/generate_phone_screenshots.py`,
+`assets/screenshot-phone-files.png`, `docs/PROTOCOL.md`, `docs/GUIDE.md`,
+`docs/ROADMAP.md`, `tests/unit/test_files_view.py`, `tests/unit/test_serve.py`,
+`tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — The node's command reference and suggestions on the web and phone
 
 ### New Features

@@ -485,6 +485,17 @@ async def test_a_files_folder_lists_its_files_and_reads_a_preview():
     assert read["kind"] == "zip" and "bulletin.html" in read["body"]
     escape = await client.command("f3", "mail_read", ref="Files/../config.toml")
     assert escape.get("error") or not escape.get("value")
+    # Opened: a zip's members, then one member formatted; a bad path is refused.
+    opened = (await client.command("f4", "file_open", ref=zipped["ref"]))["value"]
+    assert opened["kind"] == "zip" and opened["members"] == [["bulletin.html", 8]]
+    inner = (await client.command("f5", "file_open", ref=zipped["ref"],
+                                  member=["bulletin.html"]))["value"]
+    assert inner["kind"] == "html" and "x" in inner["markdown"]
+    notes = (await client.command("f6", "file_open", ref="Files/Downloads/notes.md"))["value"]
+    assert notes["kind"] == "markdown" and notes["markdown"].startswith("# Net")
+    for bad in ({"ref": "Files/../config.toml"}, {"ref": zipped["ref"], "member": ["nope"]}):
+        refused = await client.command("f7", "file_open", **bad)
+        assert refused.get("error") and not refused.get("ok", False)
     await client.ws.close()
     await server.stop()
     core.sessions.shutdown()

@@ -82,3 +82,27 @@ def test_page_text_cannot_become_markdown_or_escape_codes():
     assert "\x1b" not in text
     assert "## Real" in text
     assert "site (http://example.org)" in text
+
+
+def test_describe_gives_a_remote_viewer_text_never_images_or_a_path():
+    import io
+    import zipfile
+
+    from kissterm.files_view import describe
+
+    md = describe("n.md", b"# Net\n![x](http://evil/a.png) and ![y][r]\n\n[r]: http://evil/b.png\n")
+    assert md["kind"] == "markdown" and "evil/a.png" not in md["markdown"]
+    assert "[image: x]" in md["markdown"] and "[image: y]" in md["markdown"]
+    html = describe("p.html", b"<html><body><h1>Hi</h1><img src='http://evil/c.png' alt='pic'>"
+                              b"<script>alert(1)</script></body></html>")
+    assert html["kind"] == "html" and "Hi" in html["markdown"] and "alert" not in html["markdown"]
+    assert "evil" not in html["markdown"]
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("../../x.txt", "hello")
+        z.writestr("a/b.md", "# B")
+    zipped = describe("pack.zip", buf.getvalue())
+    assert zipped["kind"] == "zip" and [m[0] for m in zipped["members"]] == ["../../x.txt", "a/b.md"]
+    assert describe("bad.zip", b"PK\x03\x04junk")["kind"] == "broken"
+    assert describe("a.bin", b"\x00\x01")["problem"]
+    assert describe("t.txt", b"plain \x1b[31mred")["text"].startswith("plain")

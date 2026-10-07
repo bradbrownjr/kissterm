@@ -714,9 +714,11 @@ own client.
     A Files folder lists its files, newest first, with each one's size
     and date. Tapping one shows what the terminal's reader shows before
     Enter: a zip's contents, the start of a text file, or that a file is
-    not text. Opening a file inside a zip, or seeing HTML or Markdown
-    formatted, is the terminal's alone for now. Delete and swipe work as
-    on messages.
+    not text. The **Open** button (Enter in the terminal) shows a zip's
+    files as a list, a tap opening one a level deeper (a zip in a zip
+    too), Markdown and HTML formatted, and other text; links are shown
+    and never followed, images are never loaded, and nothing in the file
+    runs. Delete and swipe work as on messages.
     A message from a BBS has one small **Routing** line under the date,
     an arrow that unfolds; tap it
     for the `R:` line each BBS added, the latest first. A number@BBS there is that BBS's message number,
@@ -820,6 +822,8 @@ own client.
 ![The APRS map on the phone: stations, an object and this station over roads, county lines, a lake and the coast; then a tapped station's distance, bearing and comment](../assets/screenshot-phone-map.png)
 
 ![BBS Mail's Inbox with the Write pencil over Send/Receive, a Winlink message with Reply, Reply all, Reply with quote and Delete, then Reply all being written](../assets/screenshot-phone-mail.png)
+
+![Files: a zip's members, then one HTML page shown formatted](../assets/screenshot-phone-files.png)
 
 ![Terminal > Commands for a BPQ node, then the suggestions shown while typing nod](../assets/screenshot-phone-commands.png)
 

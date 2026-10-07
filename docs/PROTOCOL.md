@@ -174,6 +174,7 @@ lighter path around a rule the terminal follows.
 | `mail_write` `{to, at, title, body, send_type, reply_to}` | `Mail.write`: checked, then filed in its Outbox; returns `problems` (nothing filed) or `folder`. `send_type` is `P`, `B` or `W`; a reply goes as its original's kind | no (Send/Receive sends it) |
 | `bulletin_categories` / `bulletin_categories_save` `{picked, all}` | `Mail.bulletin_categories` (`bbs`, `seen` with counts, `chosen`, `all`; null before any collection listed them) / `Mail.choose_bulletin_categories` | no (offline) |
 | `transcripts` `{needle}` / `transcript_read` `{file}` | `Sessions.transcripts` (`name`, `started`, `peer`, `mycall`, `size`, newest first) / `Sessions.read_transcript`, by a listed name only, the last 256 KB | no |
+| `file_open` `{ref, member}` | `files_view.describe`: the terminal's file viewer on a file under Files, or on the zip member named by the path `member` (a zip inside a zip): `kind`, `members` (name, size), `markdown` (HTML converted, images never kept, scripts dropped), `text`, `problem`, `form` (the kissterm form a PKTNET page is). Read in memory, never extracted; sanitized and capped | no |
 | `mail_delete` / `mail_restore` `{ref}` | `Mail.delete` / `Mail.restore`; returns the new ref, which the other puts back (Undo) | no |
 
 **The Address Book never sends a login script** (it may hold a

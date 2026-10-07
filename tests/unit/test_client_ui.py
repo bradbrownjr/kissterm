@@ -1369,3 +1369,30 @@ async def test_suggestions_follow_the_typing_and_a_tap_fills_the_box():
     view.input.value = "x"
     await view.suggestions.typed("nod")
     assert not view.suggestions.column.visible
+
+
+@pytest.mark.asyncio
+async def test_a_zip_opens_a_member_a_level_deeper_and_back_goes_up_one_level():
+    from kissterm.client.ui.files import FileViewer
+
+    zipped = {"name": "pack.zip", "size": 9, "kind": "zip", "members": [["a.md", 3]],
+              "markdown": "", "text": "", "problem": "", "form": ""}
+    inner = {"name": "a.md", "size": 3, "kind": "markdown", "members": [],
+             "markdown": "# A", "text": "", "problem": "", "form": ""}
+    app = MailApp({"file_open": lambda ref, member: inner if member else zipped})
+    closed = []
+
+    async def close() -> None:
+        closed.append(True)
+
+    viewer = FileViewer(type("V", (), {"app": app})(), "Files/Downloads/pack.zip", close)
+    await viewer.show()
+    [tile] = [c for c in _walk(viewer.control) if isinstance(c, ft.ListTile)]
+    await tile.on_click(None)
+    assert app.commands[-1] == ("file_open", {"ref": "Files/Downloads/pack.zip", "member": ["a.md"]})
+    md = [c for c in _walk(viewer.control) if isinstance(c, ft.Markdown)]
+    assert md and md[0].auto_follow_links is False and md[0].value == "# A"
+    await viewer._back(None)
+    assert viewer.path == [] and closed == []
+    await viewer._back(None)
+    assert closed == [True]
