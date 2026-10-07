@@ -12,12 +12,12 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Restart (0.1.454, 2026-10-07)
 
-- [x] **The phone's page comes back by itself (0.1.457).** Passed 2026-10-07 (restart). The first
+- [x] **The phone's page comes back by itself (0.1.457).** Passed 2026-10-07 (restart and shut down). The first
   restart left the page blank. Restart station from More. Expected:
   the page changes to "The station is restarting" and, within about
   30 s, opens the app signed in with no reload by you; the console
   printed "Restarting kissterm (asked from a remote client)...",
-  "Starting kissterm again..." and the version line. Shut down (not yet reported):
+  "Starting kissterm again..." and the version line. Shut down:
   the page says it was shut down, the console says so, and starting
   kissterm again brings the page back.
 
