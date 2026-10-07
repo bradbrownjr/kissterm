@@ -361,6 +361,11 @@ class RemoteServer:
     def operator_notice(self, text: str, severity: Severity = Severity.INFORMATION) -> None:
         self.core.operator.notice(Notice(text, severity))
 
+    def _sessions(self):
+        if self.core.sessions is None:
+            raise CommandError("No sessions on this station.")
+        return self.core.sessions
+
     async def cmd_connect(self, target: str = "", entry: str = "", port: int = 0) -> None:
         from ..core.connect import ConnectRequest
 
@@ -495,6 +500,34 @@ class RemoteServer:
             return wire.clean(self.core.sessions.read_transcript(str(file)))
         except FileNotFoundError:
             raise CommandError(f"No transcript named {file!r}.") from None
+
+    async def cmd_session_reference(self, key: str) -> dict:
+        """`Sessions.reference_view`: the command reference for session `key`."""
+        return wire.jsonable(self._sessions().reference_view(str(key)))
+
+    async def cmd_session_suggest(self, key: str, text: str = "") -> list:
+        """`Sessions.suggest`: commands for the partly-typed `text`."""
+        return self._sessions().suggest(str(key), str(text))
+
+    async def cmd_session_harvest(self, key: str, context: str = "node") -> dict:
+        """`Sessions.harvest_commands`: ask the node's `?` once, the opt-in
+        the terminal's Learn from node is (the client confirms the airtime
+        first; it is sent through the gate, which it does not arm)."""
+        sessions = self._sessions()
+        names = await sessions.harvest_commands(str(key), context=str(context))
+        text = sessions.last_harvest_text(str(key))
+        return {"learned": list(names), "captured": len(text), "text": wire.clean(text)}
+
+    async def cmd_session_forget_learned(self, key: str) -> int:
+        """`Sessions.forget_learned`: drop what was learned from this node."""
+        return self._sessions().forget_learned(str(key))
+
+    async def cmd_glossary(self, needle: str = "") -> list:
+        """`glossary.search`: packet-radio terms."""
+        from .. import glossary
+
+        return [{"name": t.name, "definition": t.definition}
+                for t in glossary.search(str(needle))]
 
     async def cmd_get_files(self) -> None:
         await self.core.mail.get_files()

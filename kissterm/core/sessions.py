@@ -38,7 +38,14 @@ from pathlib import Path
 from ..harvested import HarvestedCommands
 from ..monitor import sanitize
 from ..nodes import Command, CommandReference
-from ..nodes.reference import application_named, applications_of, identify_family, parse_harvested
+from ..nodes.reference import (
+    UNPUBLISHED,
+    application_named,
+    applications_of,
+    describe_airtime,
+    identify_family,
+    parse_harvested,
+)
 from ..session_log import SessionLog
 from ..transport.base import SessionState
 from .connect import session_key
@@ -795,6 +802,63 @@ class Sessions:
                     learned=self.learned(session.current_node, family.harvest_context),
                 ))
         return tuple(sections)
+
+    def reference_view(self, key: str) -> dict:
+        """What the terminal's command reference (`CommandReferenceScreen`)
+        shows for this session, as plain data for a client: the command set
+        in effect and the others reachable from here, each command with its
+        source ("published", "recalled, unverified", ...), and what the
+        Learn from node button needs (whether the link is up, who would be
+        asked, the airtime range, the context in effect). Nothing is sent."""
+        session = self.by_key.get(key)
+        if session is None:
+            return {}
+        link = session.link
+        peer = session.current_node or (str(link.peer) if link is not None else "")
+        node, learned = self.learned_node(key)
+
+        def section(reference: CommandReference) -> dict:
+            family = reference.family
+            note = ""
+            if family is None:
+                note = ("The node has not been identified from its banner or prompt, so "
+                        "this list may not apply. Nothing has been asked of the node -- "
+                        "that would cost airtime.")
+            else:
+                note = " ".join(family.note.split())
+                if family.confidence == "recalled":
+                    note += " This reference is unverified; check a command before spending airtime on it."
+            return {
+                "title": family.name if family else "unknown node",
+                "note": note.strip(),
+                "commands": [{
+                    "name": c.name, "aliases": list(c.aliases), "usage": c.usage or c.name,
+                    "summary": c.summary or (UNPUBLISHED if c.confidence == "learned" else ""),
+                    "detail": c.detail, "context": c.context, "sysop": c.sysop,
+                    "source": reference.tier(c)} for c in reference.commands],
+            }
+
+        return {
+            "sections": [section(session.reference),
+                         *(section(r) for r in self.reference_sections(key))],
+            "can_harvest": link is not None and link.connected,
+            "peer": peer,
+            "context": self.context_of(session),
+            "learned": learned,
+            "learned_node": node,
+            "airtime": [describe_airtime(512), describe_airtime(8192)],
+        }
+
+    def suggest(self, key: str, text: str, limit: int = 20) -> list[dict]:
+        """Candidates for the partly-typed command `text` against the
+        context this session is in (the terminal's suggestion strip). Fills
+        a client's input at most; never sends."""
+        session = self.by_key.get(key)
+        if session is None:
+            return []
+        return [{"name": c.name, "summary": c.summary or (UNPUBLISHED if c.confidence == "learned" else ""),
+                 "usage": c.usage or c.name}
+                for c in session.reference.complete(text, limit=limit)]
 
     def harvest_context(self, key: str) -> str:
         """What a `?` asked now would be answered by."""

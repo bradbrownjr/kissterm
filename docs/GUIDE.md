@@ -768,6 +768,14 @@ own client.
     Both ask first. Once a session has dropped, **Reconnect** takes
     Disconnect's place (Ctrl+R in the terminal): after asking, the
     station dials it again the same way, route, port and login.
+    The **Commands** button (a book, beside the line; F1 in the terminal)
+    lists what the node or BBS in effect understands, with each line's
+    source and whether it needs the sysop, a **Glossary** of packet terms,
+    and a search; a choice fills the line and nothing is sent. As you
+    type, matching commands appear over the line (the terminal's
+    suggestion strip); tap one to fill it. **Learn from node** asks the
+    node for its own list, once, after showing its airtime, and **Forget
+    learned** drops it.
     A connect brings Terminal to the front at once: while
     the station is calling, an hourglass shows over the session with
     **Cancel**, which stops the attempt without asking (it only stops
@@ -812,6 +820,8 @@ own client.
 ![The APRS map on the phone: stations, an object and this station over roads, county lines, a lake and the coast; then a tapped station's distance, bearing and comment](../assets/screenshot-phone-map.png)
 
 ![BBS Mail's Inbox with the Write pencil over Send/Receive, a Winlink message with Reply, Reply all, Reply with quote and Delete, then Reply all being written](../assets/screenshot-phone-mail.png)
+
+![Terminal > Commands for a BPQ node, then the suggestions shown while typing nod](../assets/screenshot-phone-commands.png)
 
 ![A conversation with WLNK-1: the Templates sheet with the gateway's commands, then SP chosen into the message box, unsent](../assets/screenshot-phone-templates.png)
 

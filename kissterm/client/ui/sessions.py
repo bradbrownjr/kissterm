@@ -29,6 +29,7 @@ from __future__ import annotations
 import flet as ft
 
 from . import sheets
+from .reference import ReferenceSheet, Suggestions
 from .text import MONO, MONO_BOLD, Look, runs, split_lines
 
 #: Lines kept on screen per session; the station keeps the transcript.
@@ -151,12 +152,18 @@ class SessionsView:
             expand=True, hint_text="Type to the station", dense=True,
             autocorrect=False, enable_suggestions=False,
             text_style=ft.TextStyle(font_family=MONO),
-            capitalization=ft.TextCapitalization.NONE, on_submit=self._send)
+            capitalization=ft.TextCapitalization.NONE, on_submit=self._send,
+            on_change=self._typed)
+        self.suggestions = Suggestions(self)
         self.pages = ft.Container(expand=True)
         self.send_row = ft.Container(padding=ft.Padding.all(8), content=ft.Row(controls=[
+            # The terminal's command reference (F1): what to say to this node.
+            ft.IconButton(icon=ft.Icons.MENU_BOOK, tooltip="Commands",
+                          on_click=self._commands),
             self.input,
             ft.IconButton(icon=ft.Icons.SEND, tooltip="Send", on_click=self._send)]))
-        self.control = ft.Column(expand=True, spacing=0, controls=[self.pages, self.send_row])
+        self.control = ft.Column(expand=True, spacing=0, controls=[
+            self.pages, self.suggestions.column, self.send_row])
         self._rebuild()
 
     def fab(self):
@@ -261,6 +268,18 @@ class SessionsView:
         return cancel
 
     # ------------------------------------------------------------------
+    async def _typed(self, e) -> None:
+        await self.suggestions.typed(e.control.value or "")
+
+    async def _commands(self, _e) -> None:
+        key = self.current
+        if key is None:
+            sheets.snack(self.app.page, "No session. Connect first.")
+            return
+        data = await self.app.command("session_reference", key=key)
+        if data:
+            await ReferenceSheet(self, key, data).show()
+
     async def _send(self, _e) -> None:
         key = self.current
         text = self.input.value or ""
@@ -269,6 +288,7 @@ class SessionsView:
             return
         if await self.app.command("send_line", key=key, text=text):
             self.input.value = ""
+            self.suggestions.column.visible = False
         self.app.page.update()
 
     async def disconnect(self, _e=None) -> None:

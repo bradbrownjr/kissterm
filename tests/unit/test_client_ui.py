@@ -430,7 +430,7 @@ def test_the_terminal_has_no_header_row_above_it():
     app = FakeApp()
     view = SessionsView(app)
     view.on_state("session", app.state.session("W1AW-7"))
-    assert view.control.controls == [view.pages, view.send_row]
+    assert view.control.controls == [view.pages, view.suggestions.column, view.send_row]
 
 
 def test_contacts_come_before_heard():
@@ -1296,3 +1296,76 @@ async def test_an_object_placed_by_grid_square_sends_the_reference_for_the_stati
     await _button(app.page.dialogs[-1], "Send").on_click(None)
     assert sent[0]["format"] == "grid" and sent[0]["reference"] == "FN43"
     assert "latitude" not in sent[0] and sent[0]["name"] == "DRILL"
+
+
+REFERENCE = {
+    "sections": [
+        {"title": "BPQ32 / LinBPQ node", "note": "Node commands.",
+         "commands": [{"name": "N", "aliases": ["NODES"], "usage": "N | N C", "summary": "List nodes",
+                       "detail": "", "context": "node", "sysop": False, "source": "published"},
+                      {"name": "PASSWORD", "aliases": [], "usage": "PASSWORD", "summary": "Sysop login",
+                       "detail": "", "context": "node", "sysop": True, "source": "recalled, unverified"}]}],
+    "can_harvest": True, "peer": "WS1EC-15", "context": "node", "learned": 3,
+    "learned_node": "WS1EC-15", "airtime": ["4 seconds", "1.2 minutes"]}
+
+
+@pytest.mark.asyncio
+async def test_a_command_fills_the_message_box_and_nothing_is_sent():
+    from kissterm.client.ui.sessions import SessionsView
+
+    app = MailApp({"session_reference": REFERENCE})
+    view = SessionsView(app)
+    view.keys, view.selected = ["WS1EC-15"], 0
+    await view._commands(None)
+    assert app.commands == [("session_reference", {"key": "WS1EC-15"})]
+    sheet = app.page.dialogs[-1]
+    tiles = [c for c in _walk(sheet.content) if isinstance(c, ft.ListTile)][::-1]
+    assert [t.title.value for t in tiles] == ["N / NODES", "PASSWORD"]
+    assert "sysop" in tiles[1].trailing.value and "recalled" in tiles[1].trailing.value
+    await tiles[0].on_click(None)
+    assert view.input.value == "N"
+    assert [n for n, _ in app.commands if n == "send_line"] == []
+
+
+@pytest.mark.asyncio
+async def test_learning_from_the_node_shows_the_airtime_and_asks_only_from_its_own_button():
+    from kissterm.client.ui.reference import ReferenceSheet
+    from kissterm.client.ui.sessions import SessionsView
+
+    app = MailApp({"session_reference": REFERENCE, "glossary": [],
+                   "session_harvest": {"learned": ["X"], "captured": 40, "text": "..."},
+                   "session_forget_learned": 3})
+    view = SessionsView(app)
+    view.keys, view.selected = ["WS1EC-15"], 0
+    sheet = ReferenceSheet(view, "WS1EC-15", REFERENCE)
+    await sheet._paint()
+    await sheet._learn(None)
+    asked = app.page.dialogs[-1]
+    text = " ".join(c.value for c in _walk(asked.content) if isinstance(c, ft.Text) and c.value)
+    assert "1.2 minutes" in text and "WS1EC-15" in text
+    assert [n for n, _ in app.commands if n == "session_harvest"] == [], "asked before Ask"
+    await _button(asked, "Ask").on_click(None)
+    assert ("session_harvest", {"key": "WS1EC-15", "context": "node"}) in app.commands
+    await sheet._forget(None)
+    await _button(app.page.dialogs[-1], "Forget").on_click(None)
+    assert ("session_forget_learned", {"key": "WS1EC-15"}) in app.commands
+
+
+@pytest.mark.asyncio
+async def test_suggestions_follow_the_typing_and_a_tap_fills_the_box():
+    from kissterm.client.ui.sessions import SessionsView
+
+    app = MailApp({"session_suggest": [{"name": "NODES", "summary": "List nodes", "usage": "N"}]})
+    view = SessionsView(app)
+    view.keys, view.selected = ["WS1EC-15"], 0
+    view.input.value = "nod"
+    await view._typed(type("E", (), {"control": view.input})())
+    assert app.commands[-1] == ("session_suggest", {"key": "WS1EC-15", "text": "nod"})
+    [tile] = view.suggestions.column.controls
+    assert view.suggestions.column.visible
+    await tile.on_click(None)
+    assert view.input.value == "NODES" and not view.suggestions.column.visible
+    # An answer for text that has since changed is dropped.
+    view.input.value = "x"
+    await view.suggestions.typed("nod")
+    assert not view.suggestions.column.visible

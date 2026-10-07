@@ -457,6 +457,17 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(600)
     await phone.frame()
 
+    # Terminal > Commands: what the node in effect understands, from the
+    # station; then suggestions as a command is typed. Neither sends.
+    await phone.tab("Terminal")
+    await phone.tap(phone.button("Commands"))
+    await phone.shown("Search")
+    await phone.frame()
+    await phone.tap(phone.button("Close"))
+    await phone.enter_field("Type to the station", "nod")
+    await phone.page.wait_for_timeout(800)
+    await phone.frame()
+
 
 async def main() -> int:
     if not web_available():
@@ -491,6 +502,7 @@ async def main() -> int:
         await shot("screenshot-phone-map", phone.frames[4:7])
         await shot("screenshot-phone-mail", phone.frames[7:11])
         await shot("screenshot-phone-monitor", phone.frames[13:15])
+        await shot("screenshot-phone-commands", phone.frames[15:17])
         await shot("screenshot-phone-templates", phone.frames[11:13])
         await shot("screenshot-desktop", desktop.frames)
     finally:

@@ -471,7 +471,8 @@ back end, so a protocol fix or a new transport lands everywhere at once.
 - [ ] **Parity: what the terminal does that the remote client cannot
   yet** (AGENTS.md section 7, operator 2026-10-06). These need protocol
   commands first: writing Winlink forms; sending a file (YAPP);
-  the node's command help and suggestions; RMS gateways; opening a file
+  the reference's BBS mail helpers (macros for a BBS's mail commands);
+  RMS gateways; opening a file
   inside a zip, or HTML and Markdown formatted, from Files (the phone
   shows the reader's preview only).
 - Decided 2026-10-07: the web client in a browser (Chrome) is the

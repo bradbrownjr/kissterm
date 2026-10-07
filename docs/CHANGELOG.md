@@ -5,6 +5,28 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — The node's command reference and suggestions on the web and phone
+
+### New Features
+
+- **Terminal > Commands** (the terminal's F1 reference). The commands the
+  node or BBS in effect understands, with the others reachable from it,
+  each with its source and a sysop mark, a packet-radio **Glossary**, and
+  a search. **Learn from node** shows the airtime range and the choice of
+  list, then asks once; **Forget learned** asks first. A choice fills the
+  message box and sends nothing. While typing, matching commands show
+  over the box (the suggestion strip); a tap fills it.
+- Station side: `Sessions.reference_view` and `Sessions.suggest`; commands
+  `session_reference`, `session_suggest`, `session_harvest`,
+  `session_forget_learned` and `glossary`. A new scene in the phone
+  screenshots.
+
+**Files:** `kissterm/core/sessions.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/reference.py`, `kissterm/client/ui/sessions.py`,
+`scripts/generate_phone_screenshots.py`, `assets/screenshot-phone-commands.png`,
+`docs/PROTOCOL.md`, `docs/GUIDE.md`, `docs/ROADMAP.md`,
+`tests/unit/test_core_sessions.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — An object's place as a grid square, MGRS or UTM on the web and phone
 
 ### Improvements

@@ -162,3 +162,26 @@ async def test_the_reply_watch_speaks_only_after_an_acknowledgement(monkeypatch)
     assert any("acknowledged that -- no reply yet" in n.text for n in operator.notices)
     station.close()
     peer.close()
+
+
+@pytest.mark.asyncio
+async def test_the_reference_and_suggestions_come_from_the_node_in_effect_and_send_nothing():
+    core, operator, station, peer, events = await _setup()
+    core.gate.set(True)
+    link = await station.connect(AX25Path(PEER, MYCALL))
+    key = core.sessions.bind(link)
+    core.sessions.on_link_data(
+        key, b"CCEMA:WS1EC-15} BBS CHAT CONNECT BYE INFO NODES PORTS ROUTES USERS MHEARD\r")
+    view = core.sessions.reference_view(key)
+    first = view["sections"][0]
+    assert first["title"] and first["commands"]
+    assert {"name", "usage", "summary", "source", "context", "sysop"} <= set(first["commands"][0])
+    assert view["can_harvest"] is True and view["peer"]
+    assert len(view["airtime"]) == 2
+    assert core.sessions.suggest(key, "") == []
+    found = core.sessions.suggest(key, "nod")
+    assert found and found[0]["name"] == "N"  # NODES is its alias
+    assert not any(c["sysop"] for c in first["commands"] if c["name"] in {f["name"] for f in found})
+    assert core.sessions.reference_view("nobody") == {} and core.sessions.suggest("nobody", "n") == []
+    station.close()
+    peer.close()
