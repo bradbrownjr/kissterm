@@ -753,9 +753,12 @@ own client.
     the Type list) open on their own page, laid out as the terminal's are;
     **Next** checks the form and opens the writer with its text, title and
     To filled in, to be addressed and saved. A Winlink message carries the
-    form's XML unless you change the text after the form. Replying on a
-    form and answering an information strip are the terminal's alone for
-    now.
+    form's XML unless you change the text after the form. Reading a
+    message that is a form with a reply form (the ICS-213) offers **Reply
+    on form** (its blocks read-only above yours), and one carrying an
+    information strip offers **Answer strip**; both open the form, and Next
+    writes the reply addressed as any reply. **Information strip (paste)**
+    in the Type list takes a pasted strip and goes on to its questions.
   - **Messages** (titled APRS messages) is APRS as conversations, in
     bubbles, with a new message limited to the 67 characters APRS
     carries. **Templates**, beside the message box in a conversation (the

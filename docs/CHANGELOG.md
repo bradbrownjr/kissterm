@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Reply on form, Answer strip and Paste strip on the web and phone
+
+### New Features
+
+- **Reply on form** and **Answer strip** in the message reader (shown
+  when the message is a form with a reply form, or carries an information
+  strip), and **Information strip (paste)** in Mail > Write > Type: the
+  terminal's three, on one core method each (`Mail.reply_choices`,
+  `form_start(reply_to=)`, a `strip:` form key, `form_check`'s `next_form`,
+  `write_form(reply_to=)`). The answer is a reply (SR to a BBS message
+  number); nothing transmits until Send/Receive. `reply_form_for` moved to
+  `mail/form_parse.py` so the core shares it.
+
+**Files:** `kissterm/mail/form_parse.py`, `kissterm/ui/compose.py`,
+`kissterm/core/mail.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/forms.py`, `kissterm/client/ui/mail.py`, `docs/PROTOCOL.md`,
+`docs/GUIDE.md`, `docs/ROADMAP.md`
+
 ## [2026-10-07] — BBS mail helpers on the web and phone
 
 ### New Features
@@ -31,8 +49,8 @@ you need the history of a specific change.
   **Next** checks it and opens the writer with the text, title and To it
   made; Save files it, and a Winlink message carries the form's XML unless
   the text was changed after. **Fill in** on a PKTNET page in the Files
-  viewer opens that form. Replying on a form, answering a strip and
-  pasting one are still the terminal's.
+  viewer opens that form. (Reply on form, Answer strip and
+  Paste strip followed the same day.)
 - Station side: `Mail.forms_list`, `form_start`, `form_check`,
   `form_mail_log`, `write_form` (commands `forms`, `form_start`,
   `form_check`, `form_mail_log`, `form_write`); the terminal's mail-log

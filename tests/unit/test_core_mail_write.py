@@ -176,3 +176,49 @@ def test_the_mail_log_takes_the_mail_since_a_time_and_refuses_a_bad_time():
     bad = core.mail.form_mail_log("ics309", "log", "yesterday")
     assert bad["rows"] == [] and bad["problem"]
     assert core.mail.form_mail_log("ics309", "log", "2000-01-01")["problem"] == ""
+
+
+def test_a_strip_is_answered_or_pasted_as_a_form_and_the_answer_files_as_a_reply():
+    core, _ = _core()
+    strip = "GYX WEATHER/Location/Sky//"
+    ref = core.mail.store.add("Mail/BBS/Inbox", Message(
+        sender="W1BKW", to="KC1JMH", subject="Wx request", source="BBS WS1EC",
+        body=f"Please answer:\n{strip}\n", extra={"Bbs-Number": "3105"}))
+    choices = core.mail.reply_choices(ref)
+    assert choices == {"form": False, "strip": "strip:" + strip}
+    start = core.mail.form_start(choices["strip"])
+    assert start["key"] == choices["strip"] and start["form"].fields
+    values = {f.id: "x" for f in start["form"].fields}
+    checked = core.mail.form_check(start["key"], values)
+    assert checked["problems"] == [] and checked["body"].strip()
+    problems, folder, _note = core.mail.write_form(
+        form_id=start["key"], values=values, to="", title="", body=checked["body"],
+        send_type="P", reply_to=ref)
+    assert problems == [] and folder == "Mail/BBS/Outbox", "an answer is a reply (SR to the number)"
+    # Pasting is the first of two steps: it names the strip's questions.
+    paste = core.mail.forms_list()[0]["id"]
+    assert core.mail.form_check(paste, {"strip": "no strip here"})["problems"]
+    assert core.mail.form_check(paste, {"strip": strip})["next_form"] == "strip:" + strip
+
+
+def test_a_received_form_offers_its_reply_form_with_its_blocks_filled_in():
+    import pytest
+
+    core, _ = _core()
+    start = core.mail.form_start("ics213")
+    values = start["values"]
+    for f in start["form"].fields:
+        if f.required and f.kind != "rows":
+            values[f.id] = f.choices[0] if f.kind == "choice" else "W1AW" if f.id == "to" else "x"
+    made = core.mail.form_check("ics213", values)
+    ref = core.mail.store.add("Mail/BBS/Inbox", Message(
+        sender="W1BKW", to="KC1JMH", subject=made["title"], source="BBS WS1EC",
+        body=made["body"], extra={"Form": "ics213", "Bbs-Number": "12"}))
+    assert core.mail.reply_choices(ref)["form"] is True
+    reply = core.mail.form_start("", reply_to=ref)
+    assert reply["key"] == reply["form"].id != ""
+    assert any(reply["values"].get(f.id) for f in reply["form"].fields), "the original's half"
+    plain = core.mail.store.add("Mail/BBS/Inbox", Message(
+        sender="W1BKW", to="KC1JMH", subject="Hi", source="BBS WS1EC", body="Hi\n"))
+    with pytest.raises(ValueError):
+        core.mail.form_start("", reply_to=plain)

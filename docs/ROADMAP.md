@@ -470,8 +470,7 @@ back end, so a protocol fix or a new transport lands everywhere at once.
 
 - [ ] **Parity: what the terminal does that the remote client cannot
   yet** (AGENTS.md section 7, operator 2026-10-06). These need protocol
-  commands first: replying on a form (the ICS-213 reply) and answering an information
-  strip from a message, and pasting a strip; uploading a file from the phone's own storage (a
+  commands first: uploading a file from the phone's own storage (a
   file already in the station's Files can be sent).
 
 - Decided 2026-10-07: the web client in a browser (Chrome) is the

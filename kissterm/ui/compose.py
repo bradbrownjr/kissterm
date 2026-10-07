@@ -84,13 +84,7 @@ REPLY_FORM = "reply-form"
 def reply_form_for(original: Message) -> tuple[FormDef, Values] | None:
     """The reply form for a received form message, and the original's values
     for it (its read-only half), or None if it is no such form."""
-    parsed = form_parse.recognize(original.subject, original.body,
-                                  form_id=original.extra.get("Form", ""))
-    if parsed is None or not parsed.form.reply_form:
-        return None
-    form = get_form(parsed.form.reply_form)
-    ids = {f.id for f in form.fields}
-    return form, {k: v for k, v in parsed.values.items() if k in ids}
+    return form_parse.reply_form_for(original)  # shared with the core and the remote client
 
 
 def _types() -> list[tuple[str, str]]:

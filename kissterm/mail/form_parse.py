@@ -310,3 +310,16 @@ def recognize(subject: str, body: str, *, form_id: str = "") -> Parsed | None:
         if parsed.score >= MIN_SCORE and (best is None or parsed.score > best.score):
             best = parsed
     return best
+
+
+def reply_form_for(original) -> tuple[FormDef, dict] | None:
+    """The reply form for a received form message (an ICS-213's reply), and
+    the original's values for it (its read-only half), or None if the
+    message is no such form. The terminal's Reply on form and the remote
+    client's both come from here."""
+    parsed = recognize(original.subject, original.body, form_id=original.extra.get("Form", ""))
+    if parsed is None or not parsed.form.reply_form:
+        return None
+    form = get_form(parsed.form.reply_form)
+    ids = {f.id for f in form.fields}
+    return form, {k: v for k, v in parsed.values.items() if k in ids}

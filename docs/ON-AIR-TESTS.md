@@ -25,6 +25,11 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 - [ ] **Learn from node on the phone (Terminal > Commands > Learn from
   node).** Shows the airtime range first, asks only on Ask, learns the
   names and shows them in the list with "harvested only" until forgotten.
+- [ ] **Answer strip from the phone.** Receive a BBS message carrying an
+  information strip (or send yourself one), open it in Mail, press Answer
+  strip, fill the questions, Next, Save to Outbox, then Send/Receive.
+  Expected: the answer goes as `SR <number>` and the BBS addresses and
+  titles it; the phone sends nothing until Send/Receive.
 
 ## Adaptive frame size (2026-10-07)
 

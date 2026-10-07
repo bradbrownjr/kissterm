@@ -1499,6 +1499,51 @@ async def test_a_form_with_problems_stays_on_its_page_and_says_what_is_needed():
 
 
 @pytest.mark.asyncio
+async def test_an_answered_strip_opens_the_writer_as_a_reply_and_saves_it_as_one():
+    from kissterm.client.ui.mail import MailView
+
+    key = "strip:GYX WEATHER/Location/Sky//"
+    start = {"form": {"id": "strip", "title": "GYX WEATHER (strip)", "fields": [
+        {"id": "f0", "kind": "text", "label": "Location"}]}, "values": {"f0": ""}, "key": key}
+    made = {"problems": [], "to": "", "at": "", "title": "GYX WEATHER", "body": "GYX WEATHER/x//",
+            "send_type": "P"}
+    reply = {"to": "W1BKW", "title": "Re:Wx request", "body": "", "send_type": "P",
+             "by_number": True, "heading": "Reply to #3105 from W1BKW", "note": "Sent as SR 3105"}
+    app = MailApp({"form_start": start, "form_check": made, "mail_reply_start": reply,
+                   "form_write": {"problems": [], "folder": "Mail/BBS/Outbox", "note": ""},
+                   "mail_folders": [], "mail_list": [], "forms": []})
+    view = MailView(app)
+    await view.show_form(key, reply_to="Mail/BBS/Inbox/1")
+    assert app.commands[0][1]["reply_to"] == "", "a strip is not a reply form"
+    await view._writing["form"]._next(None)
+    assert app.commands[1][1]["form"] == key, "the station checks it by its strip"
+    writer = view._writing
+    assert writer["to"].value == "W1BKW" and writer["title"].value == "Re:Wx request"
+    assert not writer["kind"].visible, "an answer is a reply: no Type"
+    await writer["save"](None)
+    [args] = [a for n, a in app.commands if n == "form_write"]
+    assert args["form"] == key and args["reply_to"] == "Mail/BBS/Inbox/1"
+
+
+@pytest.mark.asyncio
+async def test_a_pasted_strip_goes_on_to_its_questions():
+    from kissterm.client.ui.mail import MailView
+
+    paste = {"form": {"id": "paste_strip", "title": "Paste a strip", "fields": [
+        {"id": "strip", "kind": "strip", "label": "Strip"}]}, "values": {"strip": ""},
+        "key": "paste_strip"}
+    questions = {"form": {"id": "strip", "title": "X (strip)", "fields": [
+        {"id": "f0", "kind": "text", "label": "Q"}]}, "values": {"f0": ""}, "key": "strip:X/Q//"}
+    app = MailApp({"form_start": lambda **a: questions if a["form"].startswith("strip:") else paste,
+                   "form_check": {"problems": [], "next_form": "strip:X/Q//"},
+                   "mail_folders": [], "mail_list": [], "forms": []})
+    view = MailView(app)
+    await view.show_form("paste_strip")
+    await view._writing["form"]._next(None)
+    assert view._writing["form"].key == "strip:X/Q//"
+
+
+@pytest.mark.asyncio
 async def test_a_bbs_command_fills_the_message_box_and_sends_nothing():
     from kissterm.client.ui.reference import BbsHelper
     from kissterm.client.ui.sessions import SessionsView

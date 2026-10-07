@@ -857,7 +857,31 @@ class Mail:
         """The forms a new message can be written on (`mail/forms.py`)."""
         from ..mail import forms
 
-        return [{"id": f.id, "title": f.title} for f in forms.load_forms() if not f.hidden]
+        # A pasted strip comes first, as in the terminal's Type list.
+        return [{"id": forms.PASTE_STRIP.id, "title": forms.PASTE_STRIP.title}] + [
+            {"id": f.id, "title": f.title} for f in forms.load_forms() if not f.hidden]
+
+    STRIP_KEY = "strip:"
+
+    def _form(self, key: str):
+        """A form from its key: a shipped form's id, or `strip:` and the
+        text of an information strip (a strip's questions are the form)."""
+        from ..mail import forms
+
+        if key.startswith(self.STRIP_KEY):
+            return forms.strip_form(key.removeprefix(self.STRIP_KEY))
+        return forms.get_form(key)
+
+    def reply_choices(self, ref: str) -> dict:
+        """What a received message can be answered on, besides a plain
+        reply: `form` (it is a form with a reply form, the ICS-213) and
+        `strip` (it carries an information strip), the key to open."""
+        from ..mail import form_parse, forms
+
+        original = self.store.read(ref)
+        strip = forms.find_strip(original.body)
+        return {"form": form_parse.reply_form_for(original) is not None,
+                "strip": self.STRIP_KEY + strip if strip else ""}
 
     def _form_ctx(self) -> tuple[Path, str]:
         from ..config import state_path
@@ -867,17 +891,31 @@ class Mail:
         grid = to_grid(aprs.latitude, aprs.longitude) if aprs.latitude or aprs.longitude else ""
         return state_path() / "forms.json", grid
 
-    def form_start(self, form_id: str) -> dict:
+    def form_start(self, form_id: str, reply_to: str = "") -> dict:
         """A form and the values it opens with: dates now, this station's
         call and grid, and what was kept from the last time (the station
-        half, never the message half). ValueError for an unknown form."""
-        from ..mail import forms
+        half, never the message half). `form_id` may be `strip:<text>`.
+        With `reply_to`, the form is that message's reply form with the
+        original's own blocks filled in (read-only). `key` is what to pass
+        back to `form_check` and `write_form`. ValueError for an unknown
+        form."""
+        from ..mail import form_parse, forms
 
-        form = forms.get_form(form_id)
+        seed: dict = {}
+        if reply_to:
+            found = form_parse.reply_form_for(self.store.read(reply_to))
+            if found is None:
+                raise ValueError("That message has no reply form.")
+            form, seed = found
+            form_id = form.id
+        else:
+            form = self._form(form_id)
         remembered, grid = self._form_ctx()
-        return {"form": form, "values": forms.defaults(
+        values = forms.defaults(
             form, mycall=str(self.config.mycall or ""), grid=grid,
-            remembered=forms.load_remembered(remembered, form.id))}
+            remembered=forms.load_remembered(remembered, form.id))
+        values.update(seed)
+        return {"form": form, "values": values, "key": form_id}
 
     def form_check(self, form_id: str, values: dict) -> dict:
         """What stops the form being finished (`problems`), and when none,
@@ -886,10 +924,13 @@ class Mail:
         from ..mail import forms
         from ..mail.compose import MAX_TITLE
 
-        form = forms.get_form(form_id)
+        form = self._form(form_id)
         found = forms.problems(form, values)
         if found:
             return {"problems": found}
+        if form is forms.PASTE_STRIP:
+            # Pasting is the first of two steps: the strip's questions are next.
+            return {"problems": [], "next_form": self.STRIP_KEY + forms.find_strip(values["strip"])}
         subject, body = forms.render(form, values)
         # BPQMail cuts a title at 60; cut it at a word so no half-number is left.
         if len(subject) > MAX_TITLE:
@@ -927,7 +968,8 @@ class Mail:
         return {"rows": forms.mail_log_rows(field, self.mail_log_entries(), when), "problem": ""}
 
     def write_form(self, *, form_id: str, values: dict, to: str, at: str = "", title: str,
-                   body: str, send_type: str = "P") -> tuple[list[str], str, str]:
+                   body: str, send_type: str = "P",
+                   reply_to: str = "") -> tuple[list[str], str, str]:
         """File a message written on a form: (problems, folder, note). The
         form's id is kept as the `Form:` header, what the station half
         remembers is kept for next time, and a Winlink message on a form
@@ -937,8 +979,9 @@ class Mail:
         from ..mail import form_xml, forms
         from ..mail.compose import SEND_WINLINK
 
-        form = forms.get_form(form_id)
-        problems, message = self._prepare(to, at, title, body, send_type, "", form_id=form.id)
+        form = self._form(form_id)
+        problems, message = self._prepare(to, at, title, body, send_type, reply_to,
+                                          form_id=form.id)
         if problems:
             return problems, "", ""
         remembered, grid = self._form_ctx()

@@ -27,6 +27,9 @@ class FormPage:
         self.view = view
         self.app = view.app
         self.form = start["form"]
+        #: What the station knows the form by: its id, or `strip:` and the
+        #: strip's text, so a pasted or received strip checks and files.
+        self.key = start.get("key") or self.form["id"]
         self.values: dict = dict(start["values"])
         self.on_next = on_next
         self.problems = ft.Text("", color=ft.Colors.ERROR)
@@ -205,7 +208,7 @@ class FormPage:
 
     async def _next(self, _e) -> None:
         values = self.collect()
-        result = await self.app.command("form_check", form=self.form["id"], values=values)
+        result = await self.app.command("form_check", form=self.key, values=values)
         if not result:
             return
         if result.get("problems"):
@@ -214,7 +217,7 @@ class FormPage:
             self.problems.value = "\n".join(found[:3]) + more
             self.app.page.update()
             return
-        await self.on_next(self.form, values, result)
+        await self.on_next(self.form, values, result, self.key)
 
     async def _close(self, _e) -> None:
         await self.view._back(None)

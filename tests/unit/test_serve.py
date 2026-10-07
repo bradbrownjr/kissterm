@@ -437,8 +437,15 @@ async def test_a_client_writes_replies_deletes_and_restores_mail():
     client = await _join(server)
     await client.next()
     read = (await client.command("r1", "mail_read", ref=ref))["value"]
-    assert read["reply_all"] is True
-    start = (await client.command("r2", "mail_reply_start", ref=ref, all=True))["value"]
+    assert read["reply_all"] is True and read["reply_on"] == {"form": False, "strip": ""}
+    strip = "GYX WEATHER/Location/Sky//"
+    asked = core.mail.store.add("Mail/BBS/Inbox", Message(
+        sender="W1BKW", to=str(MYCALL), subject="Wx", source="BBS WS1EC", body=f"Answer:\n{strip}\n"))
+    key = (await client.command("r1a", "mail_read", ref=asked))["value"]["reply_on"]["strip"]
+    assert key == "strip:" + strip
+    opened = (await client.command("r1b", "form_start", form=key))["value"]
+    assert opened["key"] == key and opened["form"]["fields"]
+    start =(await client.command("r2", "mail_reply_start", ref=ref, all=True))["value"]
     assert start["to"] == "W1AW, K1XYZ" and start["send_type"] == "W"
     bad = (await client.command("r3", "mail_write", to="", title="x", body="y"))["value"]
     assert bad["folder"] == "" and bad["problems"]

@@ -636,6 +636,21 @@ class MailView:
                                              on_click=reply(None, everyone=True)))
             actions.append(ft.IconButton(icon=ft.Icons.FORMAT_QUOTE, tooltip="Reply with quote",
                                          on_click=reply(True)))
+            on = message.get("reply_on") or {}
+
+            def answer(form_id: str):
+                async def go(_e) -> None:
+                    await self.show_form(form_id, reply_to=ref)
+                return go
+
+            if on.get("form"):
+                # The terminal's Reply on form: the ICS-213 reply, the original's blocks read-only.
+                actions.append(ft.IconButton(icon=ft.Icons.ASSIGNMENT_RETURN,
+                                             tooltip="Reply on form", on_click=answer("")))
+            if on.get("strip"):
+                # The terminal's Answer strip: the request strip as a form.
+                actions.append(ft.IconButton(icon=ft.Icons.FACT_CHECK, tooltip="Answer strip",
+                                             on_click=answer(on["strip"])))
         if in_deleted(self.folder):
             actions.append(ft.IconButton(icon=ft.Icons.RESTORE_FROM_TRASH, tooltip="Restore",
                                          on_click=discard))
@@ -714,7 +729,8 @@ class MailView:
             if written_on:
                 # A form's message: its XML goes with it for Winlink (`Mail.write_form`).
                 result = await self.app.command("form_write", form=written_on["id"],
-                                                values=written_on["values"], **args)
+                                                values=written_on["values"],
+                                                reply_to=written_on.get("reply_to", ""), **args)
             else:
                 result = await self.app.command("mail_write", reply_to=reply_to, **args)
             if not result:
@@ -763,21 +779,38 @@ class MailView:
         else:
             await self.show_form(form)
 
-    async def show_form(self, form_id: str) -> None:
+    async def show_form(self, form_id: str, reply_to: str = "") -> None:
         """A form, in the writer's place (`forms.py`); Next opens the writer
-        with what it made."""
+        with what it made. `form_id` may be `strip:` and a strip's text.
+        With `reply_to`, that message's reply form (the ICS-213 reply) or
+        its strip answered: Next opens the writer as a reply to it."""
         from .forms import FormPage
 
-        start = await self.app.command("form_start", form=form_id)
+        start = await self.app.command("form_start", form=form_id,
+                                       reply_to=reply_to if not form_id.startswith("strip:")
+                                       else "")
         if start is None:
             return
 
-        async def next_(form: dict, values: dict, made: dict) -> None:
-            self.show_writer({
+        async def next_(form: dict, values: dict, made: dict, key: str) -> None:
+            if made.get("next_form"):
+                # A pasted strip is two forms: the paste, then its questions.
+                await self.show_form(made["next_form"])
+                return
+            start = {
                 "to": made["to"], "at": made["at"], "title": made["title"],
                 "body": made["body"], "send_type": made["send_type"],
                 "heading": form["title"], "by_number": False, "note": "",
-                "form": {"id": form["id"], "values": values}}, "")
+                "form": {"id": key, "values": values, "reply_to": reply_to}}
+            if reply_to:
+                # Addressed and titled as any reply (SR to a BBS message number).
+                reply = await self.app.command("mail_reply_start", ref=reply_to,
+                                               quoted=False, all=False)
+                if reply:
+                    start.update(to=reply["to"], title=reply["title"], send_type=reply["send_type"],
+                                 by_number=reply["by_number"], note=reply["note"],
+                                 heading=reply["heading"])
+            self.show_writer(start, reply_to)
 
         page = FormPage(self, start, next_)
         self._writing = {"form": page}

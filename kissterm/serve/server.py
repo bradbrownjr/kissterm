@@ -695,6 +695,9 @@ class RemoteServer:
 
         message["reply_all"] = has_others(self.core.mail.store.read(str(ref)),
                                           str(self.core.config.mycall or ""))
+        # Answering on its form, or on the strip it carries (the terminal's
+        # Reply on form and Answer strip).
+        message["reply_on"] = self.core.mail.reply_choices(str(ref))
         return message
 
     async def cmd_mail_reply_start(self, ref: str, quoted: bool | None = None,
@@ -717,10 +720,11 @@ class RemoteServer:
         """The forms a new message can be written on (`Mail.forms_list`)."""
         return self.core.mail.forms_list()
 
-    async def cmd_form_start(self, form: str) -> dict:
-        """A form's fields and the values it opens with (`Mail.form_start`)."""
+    async def cmd_form_start(self, form: str, reply_to: str = "") -> dict:
+        """A form's fields and the values it opens with (`Mail.form_start`);
+        with `reply_to`, a message's reply form with its blocks filled in."""
         try:
-            return wire.jsonable(self.core.mail.form_start(str(form)))
+            return wire.jsonable(self.core.mail.form_start(str(form), str(reply_to)))
         except (ValueError, KeyError, StopIteration) as exc:
             raise CommandError(f"No form {form!r}.") from exc
 
@@ -740,13 +744,14 @@ class RemoteServer:
             raise CommandError(f"No such form field {form}/{field}.") from exc
 
     async def cmd_form_write(self, form: str, values: dict, to: str, title: str, body: str,
-                             at: str = "", send_type: str = "P") -> dict:
+                             at: str = "", send_type: str = "P", reply_to: str = "") -> dict:
         """File a message written on a form in its Outbox (`Mail.write_form`):
         `problems` (nothing filed), or `folder` and a `note`. Nothing transmits."""
         try:
             problems, folder, note = self.core.mail.write_form(
                 form_id=str(form), values=dict(values or {}), to=str(to), at=str(at),
-                title=str(title), body=str(body), send_type=str(send_type))
+                title=str(title), body=str(body), send_type=str(send_type),
+                reply_to=str(reply_to))
         except (ValueError, KeyError, StopIteration) as exc:
             raise CommandError(f"No form {form!r}.") from exc
         return {"problems": problems, "folder": folder, "note": note}
