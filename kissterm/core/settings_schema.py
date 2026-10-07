@@ -254,6 +254,37 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 placeholder="the last three of your callsign",
             ),
             Field(
+                "receipt_request_delivery",
+                "Ask for delivery receipts",
+                "bool",
+                "On: private BBS messages you write ask an Outpost station to tell "
+                "you when it downloaded them. Another client just sees the text.",
+                apply="live",
+            ),
+            Field(
+                "receipt_request_read",
+                "Ask for read receipts",
+                "bool",
+                "On: private BBS messages you write ask to be told when they are opened.",
+                apply="live",
+            ),
+            Field(
+                "receipt_answer_delivery",
+                "Answer delivery requests",
+                "bool",
+                "On: a private message that asks for a delivery receipt gets one, "
+                "waiting in the Outbox until your next Send/Receive. Never sent by itself.",
+                apply="live",
+            ),
+            Field(
+                "receipt_answer_read",
+                "Answer read requests",
+                "bool",
+                "On: opening a private message that asks for a read receipt queues one "
+                "in the Outbox for your next Send/Receive, once per message.",
+                apply="live",
+            ),
+            Field(
                 "home_bbs.route",
                 "BBS contact",
                 "contact",

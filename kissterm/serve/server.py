@@ -700,6 +700,7 @@ class RemoteServer:
         # Answering on its form, or on the strip it carries (the terminal's
         # Reply on form and Answer strip).
         message["reply_on"] = self.core.mail.reply_choices(str(ref))
+        self.core.mail.opened(str(ref))  # read, as the terminal marks it; a receipt request
         return message
 
     async def cmd_mail_reply_start(self, ref: str, quoted: bool | None = None,

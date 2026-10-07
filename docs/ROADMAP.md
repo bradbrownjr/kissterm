@@ -692,15 +692,6 @@ everything that was here.
       layered on top of (not replacing) the real MYCALL the state machine
       still identifies with. Needs scoping against `ax25/session.py`'s
       handling of `mycall` before estimating size. Medium-large.
-- [ ] **Delivery and read receipts.** Outpost can request, and
-      auto-answer, a Delivery Receipt (message was retrieved) and a Read
-      Receipt (message was opened) between two Outpost stations. A useful
-      mailbox feature independent of forms -- a net controller wants to
-      know traffic actually reached someone, not just that it left the
-      BBS. Fold into the P9/P10 mailbox item as an outgoing-message option
-      and an auto-reply rule, following the same "never silently suppress,
-      log what was sent" discipline as every other auto-transmission in
-      this file. Small-medium once the mailbox exists.
 
 ### Adjacent nuance for the existing BBS/mailbox items above
 

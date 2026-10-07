@@ -48,6 +48,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -744,6 +745,8 @@ class Mail:
         if self.cancel_requested and result.stopped:
             result.stopped = "cancelled"
         sent = f"{len(result.sent)} sent, " if result.sent else ""
+        if not files and not bulletins:
+            self.answer_receipts(list(result.filed))
         if files:
             got = len(result.downloaded)
             if result.stopped:
@@ -1075,6 +1078,94 @@ class Mail:
             return problems, ""
         return [], self.file_outbox(radiogram_message(gram, str(self.config.mycall or "")))
 
+    def _request_receipts(self, message) -> None:
+        """Mark a private BBS message the operator wrote as asking for a
+        Delivery and/or Read Receipt, as Settings > Mail says; the flags
+        are put on the first line when it is sent (`mail/collect.py`).
+        Not a form, a reply by number, or a receipt itself."""
+        from ..mail import receipts
+
+        cfg = self.config
+        if message.extra.get("Send-Type") != "P" or message.extra.get("Form") \
+                or message.extra.get(receipts.HEADER_RECEIPT):
+            return
+        if cfg.receipt_request_delivery:
+            message.extra[receipts.HEADER_DR] = "Y"
+        if cfg.receipt_request_read:
+            message.extra[receipts.HEADER_RR] = "Y"
+
+    def _queue_receipt(self, original, ref: str, kind: str) -> bool:
+        """File the Delivery (`kind` "DR") or Read ("RR") Receipt for
+        `original` in the BBS Outbox, and note on the original that it was
+        answered so it never is again. False when there is no one to answer."""
+        from ..mail import numbering, receipts
+        from ..mail.compose import outbox_message
+
+        sender = original.sender.strip().upper()
+        mycall = str(self.config.mycall or "")
+        if not sender or not re.fullmatch(r"[A-Z0-9]{3,}(-\d{1,2})?", sender) or not mycall:
+            return False
+        now = datetime.now()
+        if kind == "DR":
+            prefix = numbering.clean_prefix(self.config.message_prefix, mycall)
+            number = original.extra.get("Bbs-Number", "") or original.message_id.replace("!", "")
+            title, body = receipts.delivery_receipt(
+                local_id=f"{prefix}-{number or 'x'}P", to=original.to, subject=original.subject,
+                when=now)
+        else:
+            title, body = receipts.read_receipt(to=original.to, subject=original.subject, when=now)
+        message = outbox_message(sender=mycall, to=sender, at="", title=title, body=body)
+        message.extra[receipts.HEADER_RECEIPT] = "delivered" if kind == "DR" else "read"
+        self.file_outbox(message)
+        answered = set(original.extra.get(receipts.HEADER_ANSWERED, "").split()) | {kind}
+        original.extra[receipts.HEADER_ANSWERED] = " ".join(sorted(answered))
+        self.store.update(ref, original)
+        return True
+
+    def answer_receipts(self, refs: list[str]) -> int:
+        """After a Send/Receive: queue a Delivery Receipt for each newly
+        downloaded private message that asked for one (Settings > Mail >
+        Answer delivery requests). Waits in the Outbox; nothing transmits
+        here (`mail/receipts.py`). Returns how many were queued."""
+        from ..mail import receipts
+
+        if not self.config.receipt_answer_delivery:
+            return 0
+        queued = 0
+        for ref in refs:
+            try:
+                original = self.store.read(ref)
+            except (OSError, ValueError):
+                continue
+            if original.extra.get(receipts.HEADER_DR) and not original.extra.get(
+                    receipts.HEADER_RECEIPT) and "DR" not in original.extra.get(
+                    receipts.HEADER_ANSWERED, "").split():
+                queued += self._queue_receipt(original, ref, "DR")
+        if queued:
+            self._notice(f"{queued} delivery receipt(s) waiting in the Outbox.")
+        return queued
+
+    def opened(self, ref: str) -> None:
+        """A message was opened in a front end: mark it read, and when it
+        asked for a Read Receipt and Settings > Mail > Answer read requests
+        is on, queue one (once). Nothing transmits."""
+        from ..mail import receipts
+
+        try:
+            message = self.store.read(ref)
+        except (OSError, ValueError):
+            return
+        if not message.is_read:
+            self.store.set_read(ref)
+            self._publish(MailChanged())
+        if (self.config.receipt_answer_read and message.extra.get(receipts.HEADER_RR)
+                and not message.extra.get(receipts.HEADER_RECEIPT)
+                and "RR" not in message.extra.get(receipts.HEADER_ANSWERED, "").split()
+                and ref.split("/")[:2] == ["Mail", "BBS"] and "/Inbox/" in ref):
+            message = self.store.read(ref)
+            if self._queue_receipt(message, ref, "RR"):
+                self._notice("A read receipt is waiting in the Outbox.")
+
     def _number(self, message) -> None:
         """Title a BBS message the operator wrote as `ABC-12P: title` when
         Settings > Mail > Number my BBS messages is on (`mail/numbering.py`):
@@ -1100,6 +1191,7 @@ class Mail:
 
         folder = WINLINK_OUTBOX if message.extra.get("Send-Type") == SEND_WINLINK else BBS_OUTBOX
         self._number(message)
+        self._request_receipts(message)
         self.store.add(folder, message, raw=raw, raw_suffix=raw_suffix)
         self._publish(MailChanged())
         return folder

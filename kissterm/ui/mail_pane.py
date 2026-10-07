@@ -636,6 +636,9 @@ class MessageBrowser(Horizontal):
             reader.write(Text(sanitize(message.body.encode("utf-8"))))
         if not message.is_read:
             self.store.set_read(ref)
+            core = getattr(self.app, "core", None)
+            if core is not None:
+                core.mail.opened(ref)  # a read-receipt request, if it asked and Settings says
             self._mark_row_read()
 
     def showing_form_message(self) -> bool:

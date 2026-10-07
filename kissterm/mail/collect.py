@@ -101,7 +101,7 @@ from .bulletins import (
     window_command,
 )
 from .compose import BBS_OUTBOX, ends_text_early, send_command
-from .message import KIND_BULLETIN
+from .message import KIND_BULLETIN, Message
 from .store import BULLETINS, INBOX, MAIL, SENT, MessageStore
 
 #: Where BBS private mail is filed.
@@ -381,6 +381,12 @@ class BbsCollector:
         message = self.store.read(ref)
         command, _asks_title = send_command(message, source)
         body = message.body.rstrip("\n").split("\n")
+        from .receipts import HEADER_DR, HEADER_RR, request_flags
+
+        # Outpost's receipt requests ride at the start of the first line.
+        flags = request_flags(HEADER_DR in message.extra, HEADER_RR in message.extra)
+        if flags:
+            body[0] = flags + body[0]
         if any(ends_text_early(line) for line in body):
             # Checked when it was saved; a file edited by hand since then
             # must still never end the text early on air.
@@ -783,6 +789,24 @@ class BbsCollector:
             raise CollectStopped("the BBS did not say its latest message number (LL 1)")
         return max(e.number for e in entries)
 
+    @staticmethod
+    def _note_receipts(message: Message) -> None:
+        """Outpost's receipt requests (`!RDR!`, `!RRR!`) leave the body and
+        become headers; a receipt from such a station is marked
+        (`mail/receipts.py`). Answering is `Mail.answer_receipts`'s call."""
+        from . import receipts
+
+        delivery, read, body = receipts.split_requests(message.body)
+        if delivery or read:
+            message.body = body
+            if delivery:
+                message.extra[receipts.HEADER_DR] = "Y"
+            if read:
+                message.extra[receipts.HEADER_RR] = "Y"
+        kind = receipts.receipt_kind(message.subject, message.body)
+        if kind:
+            message.extra[receipts.HEADER_RECEIPT] = kind
+
     async def _read_entries(
         self, new: list[bpqmail.ListEntry], result: CollectResult, bbs_call: str
     ) -> None:
@@ -805,6 +829,8 @@ class BbsCollector:
                     f"the reply to R {entry.number} was not a complete message; nothing saved"
                 )
             message = bpqmail.to_message(read, bbs_call)
+            if message.kind != KIND_BULLETIN:
+                self._note_receipts(message)
             if message.message_id and self.store.find(message.message_id):
                 self._note(f"#{entry.number} ({message.message_id}) is already here.")
                 result.already_had += 1

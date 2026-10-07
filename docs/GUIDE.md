@@ -148,6 +148,19 @@ and is never reused. Winlink messages, forms, radiograms and replies sent
 by number are not numbered, and BPQMail's 60-character title gives way
 before the number does.
 
+**Receipts** (Settings > Mail, all off by default) work the way Outpost's
+do. **Ask for delivery receipts** and **Ask for read receipts** put
+Outpost's request flags at the start of every private BBS message you
+write (another client just sees `!RDR!`-less text, since the station
+removes the flag from what it shows when it receives one). **Answer
+delivery requests** queues a `DELIVERED: <title>` message to the sender
+for each downloaded message that asked; **Answer read requests** queues a
+`READ: <title>` the first time you open one that asked. A receipt waits in
+the Outbox, so you can read or delete it, and goes with your next
+Send/Receive: nothing is sent by itself. A receipt is never answered with
+another. Opening a message on the phone now marks it read, as the
+terminal does.
+
 **Type: NTS radiogram** opens an ARRL radiogram form. Each word converts to
 its radiogram form as you finish it (a period becomes X, `ARL 46` becomes
 ARL FORTY SIX, with its meaning shown), the Check field counts the groups,

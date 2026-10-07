@@ -5,6 +5,29 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Delivery and read receipts (P11)
+
+### New Features
+
+- **Outpost-style receipts** (Settings > Mail, four switches, off by
+  default): ask for a Delivery and/or Read Receipt on private BBS messages
+  you write (`!RDR!`/`!RRR!` at the start of the first line when sent; the
+  stored text stays clean), and answer such a request by queueing
+  `DELIVERED: <title>` (after a Send/Receive downloaded it) or `READ:
+  <title>` (the first time it is opened) in the BBS Outbox. Nothing is
+  sent unattended: the operator's next Send/Receive sends it. Received
+  flags become `Request-DR`/`Request-RR` headers; a receipt from such a
+  station is marked and never answered. Wire text from the Outpost 3.7
+  guide and rothskeller/packet's `message/receipt` (read; no live capture
+  yet, so the on-air check is in ON-AIR-TESTS). Opening a message on the
+  phone now marks it read, as the terminal does (`Mail.opened`).
+
+**Files:** `kissterm/mail/receipts.py`, `kissterm/mail/collect.py`,
+`kissterm/mail/numbering.py`, `kissterm/core/mail.py`, `kissterm/config.py`,
+`kissterm/core/settings_schema.py`, `kissterm/serve/server.py`,
+`kissterm/ui/mail_pane.py`, `config.toml.example`, `docs/GUIDE.md`,
+`docs/SOURCES.md`, `docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`
+
 ## [2026-10-07] — Numbered BBS messages (P11)
 
 ### New Features

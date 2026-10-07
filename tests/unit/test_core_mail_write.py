@@ -249,12 +249,12 @@ def test_bbs_messages_are_numbered_when_asked_and_a_number_is_never_reused_or_do
     def titles() -> list[str]:
         store = core.mail.store
         return sorted(m.subject for m in (store.read(x.ref) for x in store.list("Mail/BBS/Outbox"))
-                      if "Dam status" in m.subject)
+                      if "Gauge reading" in m.subject)
 
-    assert core.mail.write(to="W1BKW", title="Dam status", body="x")[0] == []
-    assert titles() == ["JMH-1P: Dam status"]
-    assert core.mail.write(to="W1BKW", title="Dam status", body="x")[0] == []
-    assert titles() == ["JMH-1P: Dam status", "JMH-2P: Dam status"], "the number counts on"
+    assert core.mail.write(to="W1BKW", title="Gauge reading", body="x")[0] == []
+    assert titles() == ["JMH-1P: Gauge reading"]
+    assert core.mail.write(to="W1BKW", title="Gauge reading", body="x")[0] == []
+    assert titles() == ["JMH-1P: Gauge reading", "JMH-2P: Gauge reading"], "the number counts on"
     bulletin = core.mail.write(to="ALL", at="USA", title="Net tonight", body="x", send_type="B")
     assert bulletin[0] == []
     assert any(m.startswith("JMH-3B: Net tonight") for m in [

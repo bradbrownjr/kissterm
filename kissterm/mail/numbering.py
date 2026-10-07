@@ -15,7 +15,7 @@ protocol field, so nothing here changes how a message is sent.
 What is numbered: a **BBS message the operator wrote** (private or
 bulletin). Not a Winlink message (it has its own MID), not a form or a
 radiogram (their standards carry their own numbering), not a reply by
-number (the BBS titles it: `SR n`), and not a title already numbered.
+number (the BBS titles it: `SR n`), not a receipt (`receipts.py`), and not a title already numbered.
 BPQMail cuts a title at 60 characters, so the title gives way, never the
 number.
 """
@@ -50,7 +50,8 @@ def clean_prefix(prefix: str, mycall: str) -> str:
 def applies(extra: dict[str, str], subject: str) -> bool:
     """Whether a filed message gets a number (see the module docstring)."""
     return (extra.get("Send-Type") in _TYPE_LETTERS and not extra.get("Form")
-            and not extra.get("Reply-Number") and not _NUMBERED.match(subject))
+            and not extra.get("Reply-Number") and not extra.get("Receipt")
+            and not _NUMBERED.match(subject))
 
 
 def numbered_title(prefix: str, number: int, send_type: str, title: str) -> str:

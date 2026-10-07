@@ -125,3 +125,15 @@ Sessions from real nodes, kept in the operator's transcripts
 **Still to capture** (each a checkbox in [ON-AIR-TESTS.md](ON-AIR-TESTS.md)
 or a ROADMAP item): a JNOS mailbox session (KC1UIX), a BPQChat session, and
 the node's APRS command.
+
+## Outpost receipts (2026-10-07)
+
+- Outpost Packet Message Manager 3.7 Users Guide, "Basics", sections 6.8
+  (requesting receipts) and 8.5 (receipt settings):
+  outpostpm.org/docs/OutpostUserBasics.pdf.
+- github.com/rothskeller/packet (branch v4), a client built to interoperate
+  with Outpost: `message/payload/outpost.go` (the `!RDR!`, `!RRR!`, `!URG!`,
+  `!B64!` flags), `message/receipt/delivrcpt.go` and `readrcpt.go` (the
+  `DELIVERED:` and `READ:` titles and bodies), and
+  `wppsvr/analyze/testdata/invalid/delivrcpt.yaml` (a sample message). Used
+  by `kissterm/mail/receipts.py`. No capture from Outpost itself.

@@ -164,6 +164,16 @@ reply_quote = false
 message_numbering = false
 message_prefix = ""
 
+# Mail: Outpost-style receipts. The first two ask for a Delivery Receipt
+# (the message was downloaded) and a Read Receipt (it was opened) on every
+# private BBS message you write. The last two answer such a request from
+# another station: the receipt waits in the Outbox until your next
+# Send/Receive, never sent by itself. All off by default (airtime).
+receipt_request_delivery = false
+receipt_request_read = false
+receipt_answer_delivery = false
+receipt_answer_read = false
+
 # Every color in kissterm is a Textual theme variable, so this repaints the
 # whole app instantly -- nothing to restart, and no CSS to touch. Pick one of
 # the built-in ids below, or "custom" for the [custom_theme] table further

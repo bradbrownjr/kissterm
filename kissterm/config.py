@@ -633,6 +633,15 @@ class Config:
     #: characters. `message_prefix` empty means the callsign's last three.
     message_numbering: bool = False
     message_prefix: str = ""
+    #: Outpost-style receipts (`kissterm/mail/receipts.py`). The first two
+    #: ask for a Delivery and a Read Receipt on every private BBS message
+    #: written here; the last two answer such a request from another
+    #: station, by queueing the receipt in the Outbox for the next
+    #: Send/Receive. All off by default: each is airtime.
+    receipt_request_delivery: bool = False
+    receipt_request_read: bool = False
+    receipt_answer_delivery: bool = False
+    receipt_answer_read: bool = False
     aprs: AprsConfig = field(default_factory=AprsConfig)
     beacon: BeaconConfig = field(default_factory=BeaconConfig)
     home_bbs: HomeBbsConfig = field(default_factory=HomeBbsConfig)
@@ -1033,6 +1042,9 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
     cfg.reply_quote = _load_bool(raw, "reply_quote", cfg.reply_quote, warnings)
     cfg.message_numbering = _load_bool(raw, "message_numbering", cfg.message_numbering, warnings)
     cfg.message_prefix = _load_str(raw, "message_prefix", cfg.message_prefix, warnings)
+    for name in ("receipt_request_delivery", "receipt_request_read",
+                 "receipt_answer_delivery", "receipt_answer_read"):
+        setattr(cfg, name, _load_bool(raw, name, getattr(cfg, name), warnings))
     cfg.aprs = _load_aprs(raw.get("aprs", {}), warnings)
     cfg.beacon = _load_beacon(raw.get("beacon", {}), warnings)
     cfg.home_bbs = _load_home_bbs(raw.get("home_bbs", {}), warnings)

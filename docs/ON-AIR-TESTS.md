@@ -39,6 +39,21 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   `ABC-1P: <your title>` with ABC the last three of your call, BPQMail
   keeps it whole, and the next message is `ABC-2P`. Bulletins use `B`.
 
+## Delivery and read receipts (2026-10-07)
+
+- [ ] **Ask and answer between two stations.** Station A: Settings > Mail
+  > Ask for delivery receipts and Ask for read receipts on, write a
+  private message to B, Send/Receive. Station B: Answer delivery requests
+  and Answer read requests on, Send/Receive (the message arrives without
+  `!RDR!!RRR!` in its text, a `DELIVERED: ...` message waits in B's
+  Outbox), Send/Receive again to send it, then open the message (a
+  `READ: ...` waits), Send/Receive. A should receive both. Also try with
+  B running Outpost: it should answer A's request itself and A should
+  show its `DELIVERED:` receipt marked as a receipt.
+- [ ] **A plain BBS shows the flags.** Sending with the request on to a
+  station that is not Outpost or kissterm shows `!RDR!` at the start of the
+  text: expected, and why both are off by default.
+
 ## Adaptive frame size (2026-10-07)
 
 - [x] **Resend the reply to Brian through WS1EC-2.** Passed 2026-10-07
