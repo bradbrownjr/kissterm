@@ -720,6 +720,10 @@ and do not apply there; these do.
 - **One sheet shape** (`sheets.sheet`): drag handle, title, body,
   buttons at the right with the commitment last and filled. Dragging a
   sheet away is Cancel. A question from the station is the same sheet.
+  **A list in a sheet scrolls in its own box** (about 320 px at most),
+  so the title and the buttons stay on screen; a form sheet taller than
+  the phone scrolls as a whole (operator, 2026-10-07: "I can't seem to
+  scroll the category list").
 - **Notices are floating snack bars**, red for an error, never a dialog
   that blocks the page.
 - **Session text is the 0xProto mono font**, Regular and its own Bold

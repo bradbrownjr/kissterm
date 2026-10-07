@@ -100,6 +100,10 @@ def when(iso: str | None) -> str:
         return str(iso)
 
 
+#: One checkbox row in a sheet, for sizing a list that scrolls in its own box.
+CHECKBOX_ROW = 48
+
+
 def size_text(m: dict) -> str:
     """A file's size under Files ("" for a message)."""
     return f"{m['size']:,} bytes" if m.get("file") and isinstance(m.get("size"), int) else ""
@@ -349,7 +353,12 @@ class MailView:
                                    all=bool(every.value))
 
         sheets.form(self.app.page, f"Bulletins from {choice.get('bbs', 'the Home BBS')}",
-                    [every, ft.Column(tight=True, spacing=0, controls=boxes)],
+                    # The list scrolls in its own box, so Save stays on screen:
+                    # WS1EC's 14 categories ran past the phone's bottom edge
+                    # with nothing to scroll (operator, 2026-10-07).
+                    [every, ft.Column(tight=True, spacing=0, scroll=ft.ScrollMode.AUTO,
+                                      height=min(CHECKBOX_ROW * len(boxes), 320),
+                                      controls=boxes)],
                     "Save", save,
                     detail="Ticked categories are collected by Get bulletins. Nothing is "
                            "asked of the BBS to change this.")

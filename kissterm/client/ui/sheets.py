@@ -23,12 +23,17 @@ SHEET_WIDTH = 640
 
 def sheet(controls: list[ft.Control], *, scrollable: bool = False,
           on_dismiss=None) -> ft.BottomSheet:
-    """The one sheet shape: a drag handle, padded content, full width."""
+    """The one sheet shape: a drag handle, padded content, full width.
+
+    `scrollable` lets the sheet grow to the screen's height, and its
+    content then scrolls: Flet's own `scrollable` only does the first, so
+    a form taller than the phone ran off the bottom with its button."""
     return ft.BottomSheet(
         show_drag_handle=True, scrollable=scrollable, on_dismiss=on_dismiss,
         content=ft.Container(
             width=SHEET_WIDTH, padding=ft.Padding.only(left=24, right=24, bottom=24),
             content=ft.Column(tight=True, spacing=12, controls=controls,
+                              scroll=ft.ScrollMode.AUTO if scrollable else None,
                               horizontal_alignment=ft.CrossAxisAlignment.STRETCH)))
 
 

@@ -855,8 +855,12 @@ async def test_categories_on_a_bulletins_folder_save_offline():
                                           "chosen": ["WX"], "all": False}
     await view._categories(None)
     [sheet] = app.page.dialogs
-    boxes = [c for c in sheet.content.content.controls[3].controls]
+    listing = sheet.content.content.controls[3]
+    boxes = list(listing.controls)
     assert [(b.data, b.value) for b in boxes] == [("ARES", False), ("WX", True)]
+    # Operator, 2026-10-07: 14 categories ran off the screen with Save.
+    assert listing.scroll and listing.height, "the list scrolls in its own box"
+    assert sheet.content.content.scroll, "a long form scrolls as a whole"
     boxes[0].value = True
     await _button(sheet, "Save").on_click(None)
     assert app.commands[-1] == ("bulletin_categories_save",

@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Phone: the bulletin category list scrolls
+
+### Improvements
+
+- **Categories on the phone scrolls again**: WS1EC's 14 categories ran
+  past the bottom of the screen with Save, and nothing scrolled (Flet's
+  scrollable sheet only grows). The list scrolls in its own box, and any
+  form sheet taller than the screen scrolls as a whole.
+
+**Files:** `kissterm/client/ui/mail.py`, `kissterm/client/ui/sheets.py`,
+`DESIGN.md`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — Files folders list on the phone
 
 ### Improvements
