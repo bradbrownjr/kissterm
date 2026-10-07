@@ -387,6 +387,25 @@ net publishes; paste it.
   later and separate, and is sourced from PackItForms' published templates
   or a captured real message. Plain text is readable by every client and
   comes first.
+  **Researched 2026-10-07, not started** (no named use case: no
+  Maine net is known to run Outpost). What exists is PacFORMS/PackItForms'
+  *SCCo* ICS-213, a different form from the Winlink ICS-213 shipped here:
+  a `!PACF! <msgno>_<O|R>_ICS213_<subject>` line, `#` comment lines
+  (`# JS-ver. PR-3.9-2.6`, `# FORMFILENAME: Message.html`), then
+  `key: [value]` lines (`MsgNo`, `1a.` date, `1b.` time, `4.` severity,
+  `5.` handling, `6a.`-`6d.` action/reply, `7.`/`8.` to/from position,
+  `9a.`/`9b.` locations, `10.` subject, `12.` message, `13.` action taken,
+  `CC*`, `Rec-Sent`, `Method`, `Op*`) and `#EOF`; a backtick escapes
+  `` ` ] # ! `` in values and `` ` : # ! `` in keys; Outpost may add a
+  `!OUTPOST! k=v, ...` envelope line. Sources, all read: the
+  `pack-it-forms/msgfmt` parser (`src/PackItForms/MsgFmt.hs`, `ICS213.hs`,
+  `tests/PackItForms/data/msgs/`: four real messages) and the
+  `pack-it-forms/pack-it-forms` README. UNVERIFIED: the newer
+  `#T:`/`#V:` header form of PackItForms 3.x (not in those sources), and
+  how a BBS/Outpost round trip treats the line endings (`\r\n` written by
+  msgfmt). Building it means a new SCCo ICS-213 form definition, an
+  encoder and parser, and the front-end parity work; reading incoming
+  ones as a recognised form is the useful half.
 
 ---
 
