@@ -1435,3 +1435,64 @@ async def test_sending_a_file_asks_first_and_names_the_session_and_protocol():
     quiet = MailApp({})
     transfer.ask(quiet, ref="Files/x", name="x")
     assert quiet.commands == [] and all(isinstance(d, ft.SnackBar) for d in quiet.page.dialogs)
+
+
+def _every_form_start():
+    from kissterm.config import Config
+    from kissterm.core import Core
+    from kissterm.serve import wire
+
+    core = Core(Config(mycall="KC1JMH-7"), None)
+    return [wire.jsonable(core.mail.form_start(f["id"])) for f in core.mail.forms_list()]
+
+
+def test_every_shipped_form_lays_out_without_a_missing_key():
+    from kissterm.client.ui.forms import FormPage
+
+    starts = _every_form_start()
+    assert len(starts) >= 10
+    for start in starts:
+        page = FormPage(type("V", (), {"app": FakeApp()})(), start, None)
+        assert page.body, start["form"]["id"]
+        assert page.collect().keys() >= {f["id"] for f in start["form"]["fields"]
+                                         if f["kind"] == "rows"}
+
+
+@pytest.mark.asyncio
+async def test_next_checks_the_form_and_opens_the_writer_filled_in_and_saving_writes_the_form():
+    from kissterm.client.ui.mail import MailView
+
+    start = next(s for s in _every_form_start() if s["form"]["id"] == "ics213")
+    made = {"problems": [], "to": "W1AW", "at": "", "title": "ICS-213: x", "body": "GENERAL MESSAGE\n",
+            "send_type": "P"}
+    app = MailApp({"form_start": start, "form_check": made,
+                   "form_write": {"problems": [], "folder": "Mail/BBS/Outbox", "note": ""},
+                   "mail_folders": [], "mail_list": [], "forms": []})
+    view = MailView(app)
+    await view.show_form("ics213")
+    page = view._writing["form"]
+    first = next(iter(page.inputs.values()))
+    await first.on_change(type("E", (), {"control": type("C", (), {"value": "hello"})()})())
+    await page._next(None)
+    assert app.commands[-1][0] == "form_check" and app.commands[-1][1]["form"] == "ics213"
+    writer = view._writing
+    assert writer["title"].value == "ICS-213: x" and writer["to"].value == "W1AW"
+    assert writer["body"].value == "GENERAL MESSAGE\n"
+    await writer["save"](None)
+    [args] = [a for n, a in app.commands if n == "form_write"]
+    assert args["form"] == "ics213" and args["title"] == "ICS-213: x"
+    assert args["values"]  # the form's own values travel for its XML
+
+
+@pytest.mark.asyncio
+async def test_a_form_with_problems_stays_on_its_page_and_says_what_is_needed():
+    from kissterm.client.ui.mail import MailView
+
+    start = next(s for s in _every_form_start() if s["form"]["id"] == "ics213")
+    app = MailApp({"form_start": start, "forms": [],
+                   "form_check": {"problems": ["Subject is needed.", "To is needed."]}})
+    view = MailView(app)
+    await view.show_form("ics213")
+    page = view._writing["form"]
+    await page._next(None)
+    assert "Subject is needed." in page.problems.value and view._writing == {"form": page}

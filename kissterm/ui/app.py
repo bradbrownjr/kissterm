@@ -2246,20 +2246,8 @@ class KissTermApp(App):
         self.notify(f"Saved to the {where}: {message.subject}.{note}")
 
     def _mail_log_entries(self) -> list:
-        """Every dated message in a Mail Inbox or Sent folder (BBS,
-        Winlink, and their subfolders): what an ICS-309 logs."""
-        from ..mail import forms
-
-        entries = []
-        for folder in self.mail_store.folders():
-            parts = folder.split("/")
-            if parts[0] != MAIL or not {INBOX, SENT} & set(parts):
-                continue
-            for summary in self.mail_store.list(folder):
-                if summary.date is not None:
-                    entries.append(forms.MailEntry(summary.date, summary.sender, summary.to,
-                                                   summary.subject))
-        return entries
+        """What an ICS-309 logs (`Mail.mail_log_entries`)."""
+        return self.core.mail.mail_log_entries()
 
     @work(exclusive=False)
     async def action_get_mail(self) -> None:

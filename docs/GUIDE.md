@@ -718,7 +718,8 @@ own client.
     files as a list, a tap opening one a level deeper (a zip in a zip
     too), Markdown and HTML formatted, and other text; links are shown
     and never followed, images are never loaded, and nothing in the file
-    runs. **Send over the radio** (S in the terminal) sends the file by
+    runs. A PKTNET form page has **Fill in** (Enter in the terminal), which
+    opens that form. **Send over the radio** (S in the terminal) sends the file by
     YAPP or AutoBIN over a connected session after asking (a phone's own
     files are not uploaded: the file is one already in the station's
     Files); it is experimental until tried on the air. Delete and swipe
@@ -745,8 +746,15 @@ own client.
     new message's Type for the radiogram form, with the terminal's rules.
     The text converts as you type (a period becomes X), and the check,
     the `ST <zip> @ NTS<state>` routing and the title follow every change.
-    Save to Outbox files it; Send/Receive sends it. Winlink forms are
-    written at the terminal for now.
+    Save to Outbox files it; Send/Receive sends it. **Forms** (ICS-213,
+    ICS-205, ICS-214, ICS-309 with its **Fill from mail**, the Winlink
+    check-in, damage assessment, severe weather and the rest, "(form)" in
+    the Type list) open on their own page, laid out as the terminal's are;
+    **Next** checks the form and opens the writer with its text, title and
+    To filled in, to be addressed and saved. A Winlink message carries the
+    form's XML unless you change the text after the form. Replying on a
+    form and answering an information strip are the terminal's alone for
+    now.
   - **Messages** (titled APRS messages) is APRS as conversations, in
     bubbles, with a new message limited to the 67 characters APRS
     carries. **Templates**, beside the message box in a conversation (the
@@ -832,6 +840,8 @@ own client.
 ![The APRS map on the phone: stations, an object and this station over roads, county lines, a lake and the coast; then a tapped station's distance, bearing and comment](../assets/screenshot-phone-map.png)
 
 ![BBS Mail's Inbox with the Write pencil over Send/Receive, a Winlink message with Reply, Reply all, Reply with quote and Delete, then Reply all being written](../assets/screenshot-phone-mail.png)
+
+![Mail > Write > Type > ICS-213 General Message: the form, then the writer with what Next made](../assets/screenshot-phone-forms.png)
 
 ![Files: a zip's members, then one HTML page shown formatted](../assets/screenshot-phone-files.png)
 

@@ -36,11 +36,21 @@ class FileViewer:
         if not data:
             return
         body = self._body(data)
+        fill = []
+        if data.get("form"):
+            # A PKTNET page is a form kissterm has (the terminal's Enter on it):
+            # filled in on its own page and saved to the Outbox.
+            async def fill_in(_e) -> None:
+                await self.view.fill_in(data["form"])
+
+            fill = [ft.FilledTonalButton(content="Fill in", icon=ft.Icons.EDIT_NOTE,
+                                         on_click=fill_in)]
         self.control.controls = [
             ft.Row(controls=[
                 ft.IconButton(icon=ft.Icons.ARROW_BACK, tooltip="Back", on_click=self._back),
                 ft.Text(data["name"], expand=True, max_lines=2, overflow=ft.TextOverflow.ELLIPSIS,
                         theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
+                *fill,
                 ft.Text(f"{data['size']:,} bytes", size=11, color=ft.Colors.OUTLINE),
                 ft.Container(width=8)]),
             ft.Container(expand=True, padding=ft.Padding.all(16), content=body)]

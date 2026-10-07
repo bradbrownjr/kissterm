@@ -470,11 +470,11 @@ back end, so a protocol fix or a new transport lands everywhere at once.
 
 - [ ] **Parity: what the terminal does that the remote client cannot
   yet** (AGENTS.md section 7, operator 2026-10-06). These need protocol
-  commands first: writing Winlink forms; uploading a file from the phone's own storage (a
+  commands first: replying on a form (the ICS-213 reply) and answering an information
+  strip from a message, and pasting a strip; uploading a file from the phone's own storage (a
   file already in the station's Files can be sent);
   the reference's BBS mail helpers (macros for a BBS's mail commands);
-  A PKTNET page's Fill in (from the Files viewer) waits on
-  writing Winlink forms.
+  
 - Decided 2026-10-07: the web client in a browser (Chrome) is the
   desktop front end; no native desktop GUI and no separate binaries of it.
 

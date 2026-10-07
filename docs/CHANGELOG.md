@@ -5,6 +5,33 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Message forms on the web and phone
+
+### New Features
+
+- **Forms in Mail > Write > Type** (ICS-213, ICS-205, ICS-214, ICS-309,
+  the Winlink check-in, damage assessment, severe weather and the rest):
+  each on its own page laid out from the station's description of it
+  (text, multi-line, choices, dates, ticks, tables of lines with Add and
+  Remove, fields beside one another, the ICS-309's Fill from mail).
+  **Next** checks it and opens the writer with the text, title and To it
+  made; Save files it, and a Winlink message carries the form's XML unless
+  the text was changed after. **Fill in** on a PKTNET page in the Files
+  viewer opens that form. Replying on a form, answering a strip and
+  pasting one are still the terminal's.
+- Station side: `Mail.forms_list`, `form_start`, `form_check`,
+  `form_mail_log`, `write_form` (commands `forms`, `form_start`,
+  `form_check`, `form_mail_log`, `form_write`); the terminal's mail-log
+  entries moved to `Mail.mail_log_entries`. A new scene in the phone
+  screenshots.
+
+**Files:** `kissterm/core/mail.py`, `kissterm/ui/app.py`,
+`kissterm/serve/server.py`, `kissterm/client/ui/forms.py`,
+`kissterm/client/ui/mail.py`, `kissterm/client/ui/files.py`,
+`scripts/generate_phone_screenshots.py`, `assets/screenshot-phone-forms.png`,
+`docs/PROTOCOL.md`, `docs/GUIDE.md`, `docs/ROADMAP.md`,
+`tests/unit/test_core_mail_write.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — Send and receive files on the web and phone
 
 ### New Features

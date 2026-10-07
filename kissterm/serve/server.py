@@ -705,6 +705,44 @@ class RemoteServer:
             send_type=str(send_type), reply_to=str(reply_to))
         return {"problems": problems, "folder": folder}
 
+    async def cmd_forms(self) -> list:
+        """The forms a new message can be written on (`Mail.forms_list`)."""
+        return self.core.mail.forms_list()
+
+    async def cmd_form_start(self, form: str) -> dict:
+        """A form's fields and the values it opens with (`Mail.form_start`)."""
+        try:
+            return wire.jsonable(self.core.mail.form_start(str(form)))
+        except (ValueError, KeyError, StopIteration) as exc:
+            raise CommandError(f"No form {form!r}.") from exc
+
+    async def cmd_form_check(self, form: str, values: dict) -> dict:
+        """What stops the form being finished, or the message it makes
+        (`Mail.form_check`); files nothing."""
+        try:
+            return self.core.mail.form_check(str(form), dict(values or {}))
+        except (ValueError, KeyError, StopIteration) as exc:
+            raise CommandError(f"No form {form!r}.") from exc
+
+    async def cmd_form_mail_log(self, form: str, field: str, since: str) -> dict:
+        """The lines a form's mail log takes (`Mail.form_mail_log`)."""
+        try:
+            return self.core.mail.form_mail_log(str(form), str(field), str(since))
+        except (ValueError, KeyError, StopIteration) as exc:
+            raise CommandError(f"No such form field {form}/{field}.") from exc
+
+    async def cmd_form_write(self, form: str, values: dict, to: str, title: str, body: str,
+                             at: str = "", send_type: str = "P") -> dict:
+        """File a message written on a form in its Outbox (`Mail.write_form`):
+        `problems` (nothing filed), or `folder` and a `note`. Nothing transmits."""
+        try:
+            problems, folder, note = self.core.mail.write_form(
+                form_id=str(form), values=dict(values or {}), to=str(to), at=str(at),
+                title=str(title), body=str(body), send_type=str(send_type))
+        except (ValueError, KeyError, StopIteration) as exc:
+            raise CommandError(f"No form {form!r}.") from exc
+        return {"problems": problems, "folder": folder, "note": note}
+
     async def cmd_radiogram_start(self, ics213: bool = False) -> dict:
         """A new radiogram's defaults and choices (`Mail.radiogram_start`)."""
         return self.core.mail.radiogram_start(bool(ics213))

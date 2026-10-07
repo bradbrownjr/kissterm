@@ -87,6 +87,8 @@ def routing_section(routes: list[str]) -> list[ft.Control]:
 #: two open the radiogram form (`radiogram.py`); Winlink forms are the
 #: terminal's for now.
 RADIOGRAM, RADIOGRAM_ICS213 = "radiogram", "radiogram-ics213"
+#: A form chosen as the Type is `FORM_PREFIX` + its id (the terminal's `ui/compose.py`).
+FORM_PREFIX = "form:"
 TYPES = (("P", "Private (BBS)"), ("B", "Bulletin (BBS)"), ("W", "Winlink"),
          (RADIOGRAM, "NTS radiogram (ST)"), (RADIOGRAM_ICS213, "Radiogram-ICS213 (ST)"))
 _TO_HINT = {"P": "Callsign, e.g. W1BKW", "B": "Category, e.g. WX",
@@ -679,8 +681,22 @@ class MailView:
         body = ft.TextField(label="Message", value=start.get("body", ""), multiline=True,
                             min_lines=8, expand=True)
         problems = ft.Text("", color=ft.Colors.ERROR)
+        written_on = start.get("form")  # {"id", "values"} when a form made this text
+
+        async def add_forms() -> None:
+            """The station's forms, after the radiograms in Type."""
+            found = await self.app.command("forms") or []
+            kind.options += [ft.DropdownOption(key=FORM_PREFIX + f["id"], text=f"{f['title']} (form)")
+                             for f in found]
+            self.app.page.update()
+
+        if new and not written_on:
+            self.app.page.run_task(add_forms)
 
         def kind_changed(_e) -> None:
+            if str(kind.value).startswith(FORM_PREFIX):
+                self.app.page.run_task(self.show_form, kind.value.removeprefix(FORM_PREFIX))
+                return
             if kind.value in (RADIOGRAM, RADIOGRAM_ICS213):
                 self.app.page.run_task(self.show_radiogram, kind.value == RADIOGRAM_ICS213)
                 return
@@ -693,9 +709,14 @@ class MailView:
         kind.on_select = kind_changed
 
         async def save(_e) -> None:
-            result = await self.app.command(
-                "mail_write", to=to.value or "", at=at.value or "", title=title.value or "",
-                body=body.value or "", send_type=kind.value or send_type, reply_to=reply_to)
+            args = dict(to=to.value or "", at=at.value or "", title=title.value or "",
+                        body=body.value or "", send_type=kind.value or send_type)
+            if written_on:
+                # A form's message: its XML goes with it for Winlink (`Mail.write_form`).
+                result = await self.app.command("form_write", form=written_on["id"],
+                                                values=written_on["values"], **args)
+            else:
+                result = await self.app.command("mail_write", reply_to=reply_to, **args)
             if not result:
                 return
             if result.get("problems"):
@@ -703,7 +724,8 @@ class MailView:
                 self.app.page.update()
                 return
             where = result["folder"].removeprefix("Mail/").replace("/", " ")
-            sheets.snack(self.app.page, f"Saved to {where}. Send/Receive sends it.")
+            sheets.snack(self.app.page, f"Saved to {where}. Send/Receive sends it."
+                         + (f" {result['note']}" if result.get("note") else ""))
             await self._back(None)
 
         async def close(_e) -> None:
@@ -731,6 +753,36 @@ class MailView:
                              *([ft.Text(start["note"], color=ft.Colors.OUTLINE, size=12)]
                                if start.get("note") else []),
                              kind, to, at, title, body, problems]))])
+        self.app.page.floating_action_button = None
+        self.app.page.update()
+
+    async def fill_in(self, form: str) -> None:
+        """The form a PKTNET page is (`file_open`'s `form`), on its own page."""
+        if form == RADIOGRAM:
+            await self.show_radiogram(False)
+        else:
+            await self.show_form(form)
+
+    async def show_form(self, form_id: str) -> None:
+        """A form, in the writer's place (`forms.py`); Next opens the writer
+        with what it made."""
+        from .forms import FormPage
+
+        start = await self.app.command("form_start", form=form_id)
+        if start is None:
+            return
+
+        async def next_(form: dict, values: dict, made: dict) -> None:
+            self.show_writer({
+                "to": made["to"], "at": made["at"], "title": made["title"],
+                "body": made["body"], "send_type": made["send_type"],
+                "heading": form["title"], "by_number": False, "note": "",
+                "form": {"id": form["id"], "values": values}}, "")
+
+        page = FormPage(self, start, next_)
+        self._writing = {"form": page}
+        self.reader = None
+        self.control.content = page.control()
         self.app.page.floating_action_button = None
         self.app.page.update()
 

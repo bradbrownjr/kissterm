@@ -457,6 +457,28 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(600)
     await phone.frame()
 
+    # Mail > Write > Type > a form: the form's page, then what Next made.
+    await phone.tab("Mail")
+    # The reply written above is still open: discard it.
+    await phone.tap(phone.button("Close"))
+    await phone.tap(phone.button("Discard"))
+    await phone.tap(phone.button("Write"))
+    await phone.page.wait_for_timeout(1000)
+    await phone.page.mouse.click(170, 127)  # the Type dropdown (its label is not in the tree)
+    await phone.page.wait_for_timeout(800)
+    await phone.page.screenshot(path="/tmp/claude-1000/dbg.png")
+    await phone.tap(phone.page.get_by_text("ICS-213 General Message (form)").last)
+    await phone.shown("Next")
+    await phone.frame()
+    await phone.enter_field("2. To *", "J SMITH, EOC")
+    await phone.enter_field("4. Subject *", "Shelter status")
+    await phone.enter_field("7. Message *", "Cots set up for 40. Need blankets.")
+    await phone.enter_field("8. Approved by *", "A JONES, SHELTER MANAGER")
+    await phone.tap(phone.button("Next"))
+    await phone.shown("Save to Outbox")
+    await phone.frame()
+    await phone.tap(phone.button("Close"))
+
     # Terminal > Commands: what the node in effect understands, from the
     # station; then suggestions as a command is typed. Neither sends.
     # Mail > Files: a zip of a bulletin, its members, then one formatted.
@@ -469,9 +491,6 @@ async def drive(phone: Phone, core, tb) -> None:
         archive.writestr("roster.txt", "W1AW-7\nN1ABC-1\n")
     (core.mail.downloads_dir() / "bulletins.zip").write_bytes(pack.getvalue())
     await phone.tab("Mail")
-    # The reply written above is still open: discard it.
-    await phone.tap(phone.button("Close"))
-    await phone.tap(phone.button("Discard"))
     # The segments' labels are not in the accessibility tree: tapped where drawn.
     await phone.page.mouse.click(302, 91)
     await phone.page.wait_for_timeout(800)
@@ -537,8 +556,9 @@ async def main() -> int:
         await shot("screenshot-phone-map", phone.frames[4:7])
         await shot("screenshot-phone-mail", phone.frames[7:11])
         await shot("screenshot-phone-monitor", phone.frames[13:15])
-        await shot("screenshot-phone-commands", phone.frames[17:19])
-        await shot("screenshot-phone-files", phone.frames[15:17])
+        await shot("screenshot-phone-commands", phone.frames[19:21])
+        await shot("screenshot-phone-forms", phone.frames[15:17])
+        await shot("screenshot-phone-files", phone.frames[17:19])
         await shot("screenshot-phone-templates", phone.frames[11:13])
         await shot("screenshot-desktop", desktop.frames)
     finally:

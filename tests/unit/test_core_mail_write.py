@@ -133,3 +133,46 @@ def test_a_radiogram_is_filed_in_the_bbs_outbox_or_says_why_not():
     assert message.to == "00789" and message.extra["Send-At"] == "NTSMD"
     assert message.extra["Send-Type"] == "T" and any(isinstance(e, MailChanged) for e in seen)
     assert int(core.mail.radiogram_start()["number"]) >= 8, "the next one counts on"
+
+
+def test_a_form_opens_checks_and_files_with_its_xml_for_winlink_and_without_for_text_changes():
+    core, _ = _core()
+    assert {"ics213", "winlink_checkin"} <= {f["id"] for f in core.mail.forms_list()}
+    start = core.mail.form_start("ics213")
+    assert start["form"].id == "ics213" and start["form"].fields
+    values = start["values"]
+    # Nothing filled in: the form says what is needed and files nothing.
+    found = core.mail.form_check("ics213", values)
+    assert found["problems"] and "title" not in found
+    needed = [f for f in start["form"].fields if f.required and f.kind != "rows"]
+    for f in needed:
+        values[f.id] = f.choices[0] if f.kind == "choice" else "W1AW" if f.id == "to" else "x"
+    checked = core.mail.form_check("ics213", values)
+    if checked["problems"]:  # a rule beyond "required": fill what it names
+        raise AssertionError(checked["problems"])
+    assert checked["body"].strip() and checked["title"]
+    problems, folder, note = core.mail.write_form(
+        form_id="ics213", values=values, to="KC1JMH", title=checked["title"],
+        body=checked["body"], send_type="W")
+    assert problems == [] and folder.endswith("Outbox") and note == ""
+    store = core.mail.store
+    mine = [x for x in store.list("Mail/Winlink/Outbox")
+            if store.read(x.ref).extra.get("Form") == "ics213"]
+    assert mine, "the form's id is kept as the Form header"
+    assert any(p.suffix == ".xml" for x in mine for p in store.raw_files(x.ref))
+    # The text edited after the form: it goes as text only, and says so.
+    problems, folder, note = core.mail.write_form(
+        form_id="ics213", values=values, to="KC1JMH", title=checked["title"],
+        body=checked["body"] + "extra", send_type="W")
+    assert problems == [] and "text only" in note
+    # A problem with the message itself files nothing.
+    problems, folder, note = core.mail.write_form(
+        form_id="ics213", values=values, to="", title="", body="", send_type="W")
+    assert problems and folder == ""
+
+
+def test_the_mail_log_takes_the_mail_since_a_time_and_refuses_a_bad_time():
+    core, _ = _core()
+    bad = core.mail.form_mail_log("ics309", "log", "yesterday")
+    assert bad["rows"] == [] and bad["problem"]
+    assert core.mail.form_mail_log("ics309", "log", "2000-01-01")["problem"] == ""

@@ -65,7 +65,7 @@ from ..config import (
 from ..config import login_text as saved_login_text
 from ..mail import MessageStore
 from ..mail.bulletins import SubscriptionBook
-from ..mail.store import ALL_INBOXES, FILES
+from ..mail.store import ALL_INBOXES, FILES, INBOX, MAIL, SENT
 from ..mail.winlink_collect import WINLINK_FOLDER
 from ..monitor import sanitize
 from ..session_log import SessionLog
@@ -815,12 +815,10 @@ class Mail:
                   "addresses and titles it.") if by_number else "",
         )
 
-    def write(self, *, to: str, at: str = "", title: str, body: str,
-              send_type: str = "P", reply_to: str = "") -> tuple[list[str], str]:
-        """Check a message and file it in its Outbox: (problems, folder).
-        Nothing is filed while there is a problem, and nothing transmits:
-        the message waits for Send/Receive. The checks are the terminal's
-        compose screen's (`mail/compose.py`), BPQMail's and Winlink's own."""
+    def _prepare(self, to: str, at: str, title: str, body: str, send_type: str,
+                 reply_to: str, form_id: str = ""):
+        """The checks and the message for `write` and `write_form`:
+        (problems, message); no message while there is a problem."""
         from ..mail.compose import (
             SEND_BULLETIN, SEND_PRIVATE, SEND_WINLINK, can_reply_by_number, check,
             check_winlink, is_winlink, outbox_message,
@@ -831,18 +829,131 @@ class Mail:
             # A reply goes as its original's kind, whatever was asked.
             send_type = SEND_WINLINK if is_winlink(original) else SEND_PRIVATE
         if send_type not in (SEND_PRIVATE, SEND_BULLETIN, SEND_WINLINK):
-            return [f"Unknown message type {send_type!r}."], ""
+            return [f"Unknown message type {send_type!r}."], None
         if send_type == SEND_WINLINK:
             problems = check_winlink(to, title, body)
         else:
             by_number = original is not None and can_reply_by_number(original)
             problems = check(to, at, title, body, reply_by_number=by_number)
         if problems:
+            return problems, None
+        return [], outbox_message(sender=str(self.config.mycall or ""), to=to, at=at,
+                                  title=title, body=body, send_type=send_type,
+                                  reply_to=original, form_id=form_id)
+
+    def write(self, *, to: str, at: str = "", title: str, body: str,
+              send_type: str = "P", reply_to: str = "") -> tuple[list[str], str]:
+        """Check a message and file it in its Outbox: (problems, folder).
+        Nothing is filed while there is a problem, and nothing transmits:
+        the message waits for Send/Receive. The checks are the terminal's
+        compose screen's (`mail/compose.py`), BPQMail's and Winlink's own."""
+        problems, message = self._prepare(to, at, title, body, send_type, reply_to)
+        if problems:
             return problems, ""
-        message = outbox_message(sender=str(self.config.mycall or ""), to=to, at=at,
-                                 title=title, body=body, send_type=send_type,
-                                 reply_to=original)
         return [], self.file_outbox(message)
+
+    # -- forms (the terminal's Type > a form, the phone's) -----------------
+    def forms_list(self) -> list[dict]:
+        """The forms a new message can be written on (`mail/forms.py`)."""
+        from ..mail import forms
+
+        return [{"id": f.id, "title": f.title} for f in forms.load_forms() if not f.hidden]
+
+    def _form_ctx(self) -> tuple[Path, str]:
+        from ..config import state_path
+        from ..locator import to_grid
+
+        aprs = self.config.aprs
+        grid = to_grid(aprs.latitude, aprs.longitude) if aprs.latitude or aprs.longitude else ""
+        return state_path() / "forms.json", grid
+
+    def form_start(self, form_id: str) -> dict:
+        """A form and the values it opens with: dates now, this station's
+        call and grid, and what was kept from the last time (the station
+        half, never the message half). ValueError for an unknown form."""
+        from ..mail import forms
+
+        form = forms.get_form(form_id)
+        remembered, grid = self._form_ctx()
+        return {"form": form, "values": forms.defaults(
+            form, mycall=str(self.config.mycall or ""), grid=grid,
+            remembered=forms.load_remembered(remembered, form.id))}
+
+    def form_check(self, form_id: str, values: dict) -> dict:
+        """What stops the form being finished (`problems`), and when none,
+        the message it makes: `to`, `at`, `title`, `body`, `send_type`, to
+        go in the writer for addressing. Files nothing."""
+        from ..mail import forms
+        from ..mail.compose import MAX_TITLE
+
+        form = forms.get_form(form_id)
+        found = forms.problems(form, values)
+        if found:
+            return {"problems": found}
+        subject, body = forms.render(form, values)
+        # BPQMail cuts a title at 60; cut it at a word so no half-number is left.
+        if len(subject) > MAX_TITLE:
+            subject = subject[:MAX_TITLE + 1].rsplit(" ", 1)[0]
+        to = values.get(form.to_field, "") if form.to_field else form.to
+        return {"problems": [], "to": to, "at": form.at, "title": subject, "body": body,
+                "send_type": form.send_type}
+
+    def mail_log_entries(self) -> list:
+        """Every dated message in a Mail Inbox or Sent folder (BBS,
+        Winlink, and their subfolders): what an ICS-309 logs."""
+        from ..mail import forms
+
+        entries = []
+        for folder in self.store.folders():
+            parts = folder.split("/")
+            if parts[0] != MAIL or not {INBOX, SENT} & set(parts):
+                continue
+            for summary in self.store.list(folder):
+                if summary.date is not None:
+                    entries.append(forms.MailEntry(summary.date, summary.sender, summary.to,
+                                                   summary.subject))
+        return entries
+
+    def form_mail_log(self, form_id: str, field_id: str, since: str) -> dict:
+        """The lines a form's mail log would take (the ICS-309) for the
+        mail since `since` (`2026-09-26 14:00` or a date): `rows`, or
+        `problem` when the time is not one."""
+        from ..mail import forms
+
+        when = forms.parse_since(since)
+        if when is None:
+            return {"rows": [], "problem": "Time as 2026-09-26 14:00 or 2026-09-26."}
+        field = forms.get_form(form_id).field(field_id)
+        return {"rows": forms.mail_log_rows(field, self.mail_log_entries(), when), "problem": ""}
+
+    def write_form(self, *, form_id: str, values: dict, to: str, at: str = "", title: str,
+                   body: str, send_type: str = "P") -> tuple[list[str], str, str]:
+        """File a message written on a form: (problems, folder, note). The
+        form's id is kept as the `Form:` header, what the station half
+        remembers is kept for next time, and a Winlink message on a form
+        with a Winlink viewer carries its XML, unless the text was changed
+        after the form (the XML would show a viewer something other than
+        what was sent). Nothing transmits."""
+        from ..mail import form_xml, forms
+        from ..mail.compose import SEND_WINLINK
+
+        form = forms.get_form(form_id)
+        problems, message = self._prepare(to, at, title, body, send_type, "", form_id=form.id)
+        if problems:
+            return problems, "", ""
+        remembered, grid = self._form_ctx()
+        forms.save_remembered(remembered, form.id, forms.to_remember(form, values))
+        xml, note = None, ""
+        if message.extra.get("Send-Type") == SEND_WINLINK and form.winlink_viewer:
+            if body.rstrip() == forms.render(form, values)[1].rstrip():
+                try:
+                    xml = form_xml.build(form, values, callsign=str(self.config.mycall or ""),
+                                         grid=grid)
+                except form_xml.TooManyRows as exc:
+                    note = f"{exc}, so it goes as text only."
+            else:
+                note = "The text was changed after the form, so it goes as text only."
+        return [], self.file_outbox(message, raw=xml, raw_suffix=".xml"), note
 
     # -- radiograms (the terminal's radiogram form, the phone's) ----------
     def radiogram_start(self, ics213: bool = False) -> dict:
