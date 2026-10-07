@@ -380,6 +380,8 @@ def test_cli_opens_the_ui_when_callsign_exists_but_no_transport_is_configured(
             seen["config"] = config
             seen["station"] = station
             seen["session_transport"] = session_transport
+            # `_amain` reads `app.core.restarter.restarting` after the run.
+            self.core = type("C", (), {"restarter": type("R", (), {"restarting": False})()})()
 
         async def run_async(self):
             seen["ran"] = True
@@ -406,6 +408,8 @@ def test_cli_leaves_a_fresh_install_for_gui_onboarding(tmp_path, monkeypatch):
             seen["config"] = config
             seen["station"] = station
             seen["session_transport"] = session_transport
+            # `_amain` reads `app.core.restarter.restarting` after the run.
+            self.core = type("C", (), {"restarter": type("R", (), {"restarting": False})()})()
 
         async def run_async(self):
             seen["ran"] = True

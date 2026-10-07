@@ -236,6 +236,24 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 apply="live",
             ),
             Field(
+                "message_numbering",
+                "Number my BBS messages",
+                "bool",
+                "On: a BBS message you write is titled like ABC-12P: your title "
+                "(prefix, number, P private or B bulletin), so it can be followed "
+                "across BBS forwarding. Winlink, forms and radiograms are not numbered. "
+                "It uses title characters: BPQMail keeps 60.",
+                apply="live",
+            ),
+            Field(
+                "message_prefix",
+                "Number prefix",
+                "text",
+                "Up to six letters or digits. Empty: the last three of your callsign.",
+                apply="live",
+                placeholder="the last three of your callsign",
+            ),
+            Field(
                 "home_bbs.route",
                 "BBS contact",
                 "contact",

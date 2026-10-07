@@ -382,30 +382,11 @@ the radiogram form rather than as a form file) shipped 2026-09-26.
 ROSTER is not shipped: it is bpq-apps' README example, not a form any
 net publishes; paste it.
 
-- [ ] **PackItForms/Outpost wire compatibility**, so an Outpost or Winlink
-  Express operator sees a recognised form rather than plain text. It is
-  later and separate, and is sourced from PackItForms' published templates
-  or a captured real message. Plain text is readable by every client and
-  comes first.
-  **Researched 2026-10-07, not started** (no named use case: no
-  Maine net is known to run Outpost). What exists is PacFORMS/PackItForms'
-  *SCCo* ICS-213, a different form from the Winlink ICS-213 shipped here:
-  a `!PACF! <msgno>_<O|R>_ICS213_<subject>` line, `#` comment lines
-  (`# JS-ver. PR-3.9-2.6`, `# FORMFILENAME: Message.html`), then
-  `key: [value]` lines (`MsgNo`, `1a.` date, `1b.` time, `4.` severity,
-  `5.` handling, `6a.`-`6d.` action/reply, `7.`/`8.` to/from position,
-  `9a.`/`9b.` locations, `10.` subject, `12.` message, `13.` action taken,
-  `CC*`, `Rec-Sent`, `Method`, `Op*`) and `#EOF`; a backtick escapes
-  `` ` ] # ! `` in values and `` ` : # ! `` in keys; Outpost may add a
-  `!OUTPOST! k=v, ...` envelope line. Sources, all read: the
-  `pack-it-forms/msgfmt` parser (`src/PackItForms/MsgFmt.hs`, `ICS213.hs`,
-  `tests/PackItForms/data/msgs/`: four real messages) and the
-  `pack-it-forms/pack-it-forms` README. UNVERIFIED: the newer
-  `#T:`/`#V:` header form of PackItForms 3.x (not in those sources), and
-  how a BBS/Outpost round trip treats the line endings (`\r\n` written by
-  msgfmt). Building it means a new SCCo ICS-213 form definition, an
-  encoder and parser, and the front-end parity work; reading incoming
-  ones as a recognised form is the useful half.
+- Decided 2026-10-07: **no PackItForms/PacFORMS wire compatibility**
+  (operator: the team uses the standard ARRL, RRI and SKYWARN forms; the
+  PacFORMS ICS-213 is a Santa Clara County form, not a standard). Dropped,
+  not deferred. The format notes are in git history at the commit that
+  added them (`0b31a4a`) if an Outpost-using partner ever asks.
 
 ---
 
@@ -711,17 +692,6 @@ everything that was here.
       layered on top of (not replacing) the real MYCALL the state machine
       still identifies with. Needs scoping against `ax25/session.py`'s
       handling of `mycall` before estimating size. Medium-large.
-- [ ] **Message-ID numbering convention.** Outpost tags every outbound
-      subject line with a short prefix (3 characters, defaulting to the
-      last 3 of the callsign, or a tactical-call-derived prefix when one is
-      active), a sequence number, and an optional type-suffix letter (e.g.
-      `P` for Private), e.g. `6PE-2032P: Stevens Creek Dam Status` -- purely
-      a subject-line convention for human traceability across relays and
-      BBS forwarding, not a protocol field. Belongs in the P9/P10 mailbox
-      work as a formatting rule on outgoing mail (forms and radiograms
-      above need their own numbering fields regardless, per their own
-      standards) rather than a new subsystem. Small once the mailbox
-      exists.
 - [ ] **Delivery and read receipts.** Outpost can request, and
       auto-answer, a Delivery Receipt (message was retrieved) and a Read
       Receipt (message was opened) between two Outpost stations. A useful

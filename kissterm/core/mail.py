@@ -1075,6 +1075,23 @@ class Mail:
             return problems, ""
         return [], self.file_outbox(radiogram_message(gram, str(self.config.mycall or "")))
 
+    def _number(self, message) -> None:
+        """Title a BBS message the operator wrote as `ABC-12P: title` when
+        Settings > Mail > Number my BBS messages is on (`mail/numbering.py`):
+        the one place every front end files from."""
+        from ..config import state_path
+        from ..mail import numbering
+
+        if not self.config.message_numbering or not numbering.applies(
+                message.extra, message.subject):
+            return
+        prefix = numbering.clean_prefix(self.config.message_prefix, str(self.config.mycall or ""))
+        if not prefix:
+            return
+        number = numbering.Counter(state_path() / "numbering.json").take()
+        message.subject = numbering.numbered_title(
+            prefix, number, message.extra["Send-Type"], message.subject)
+
     def file_outbox(self, message, *, raw: bytes | None = None, raw_suffix: str = ".xml") -> str:
         """File a written message in Mail/BBS/Outbox, or Mail/Winlink/Outbox
         for a Winlink one; returns the folder. One place for every front end."""
@@ -1082,6 +1099,7 @@ class Mail:
         from ..mail.winlink_collect import WINLINK_OUTBOX
 
         folder = WINLINK_OUTBOX if message.extra.get("Send-Type") == SEND_WINLINK else BBS_OUTBOX
+        self._number(message)
         self.store.add(folder, message, raw=raw, raw_suffix=raw_suffix)
         self._publish(MailChanged())
         return folder

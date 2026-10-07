@@ -628,6 +628,11 @@ class Config:
     #: default: every quoted line is airtime. Q always quotes. See
     #: `kissterm/mail/compose.py`.
     reply_quote: bool = False
+    #: Number the BBS messages written here: `ABC-12P: title`
+    #: (`kissterm/mail/numbering.py`). Off by default: it spends title
+    #: characters. `message_prefix` empty means the callsign's last three.
+    message_numbering: bool = False
+    message_prefix: str = ""
     aprs: AprsConfig = field(default_factory=AprsConfig)
     beacon: BeaconConfig = field(default_factory=BeaconConfig)
     home_bbs: HomeBbsConfig = field(default_factory=HomeBbsConfig)
@@ -1026,6 +1031,8 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
         raw, "slideouts_auto_open", cfg.slideouts_auto_open, warnings
     )
     cfg.reply_quote = _load_bool(raw, "reply_quote", cfg.reply_quote, warnings)
+    cfg.message_numbering = _load_bool(raw, "message_numbering", cfg.message_numbering, warnings)
+    cfg.message_prefix = _load_str(raw, "message_prefix", cfg.message_prefix, warnings)
     cfg.aprs = _load_aprs(raw.get("aprs", {}), warnings)
     cfg.beacon = _load_beacon(raw.get("beacon", {}), warnings)
     cfg.home_bbs = _load_home_bbs(raw.get("home_bbs", {}), warnings)

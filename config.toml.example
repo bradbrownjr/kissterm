@@ -157,6 +157,13 @@ log_dir = ""
 # Off by default, since every quoted line is airtime; Q always quotes.
 reply_quote = false
 
+# Mail: number the BBS messages you write, "ABC-12P: title" (prefix, number,
+# P private or B bulletin), as Outpost does, so a message can be followed
+# across BBS forwarding. Winlink messages, forms and radiograms are never
+# numbered. The prefix is the last three of your callsign unless set here.
+message_numbering = false
+message_prefix = ""
+
 # Every color in kissterm is a Textual theme variable, so this repaints the
 # whole app instantly -- nothing to restart, and no CSS to touch. Pick one of
 # the built-in ids below, or "custom" for the [custom_theme] table further

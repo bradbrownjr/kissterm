@@ -139,6 +139,15 @@ answers by Winlink. **A replies to all**: on a Winlink message sent to
 others besides you, the sender and every other recipient (the Footer
 shows A only then).
 
+**Numbered messages** (Settings > Mail > Number my BBS messages, off by
+default): a BBS message you write is titled `ABC-12P: your title` (a
+prefix, the station's next number, P for private or B for a bulletin) as
+Outpost does, so you can follow it across BBS forwarding. The prefix is
+the last three of your callsign unless you set one. The number counts on
+and is never reused. Winlink messages, forms, radiograms and replies sent
+by number are not numbered, and BPQMail's 60-character title gives way
+before the number does.
+
 **Type: NTS radiogram** opens an ARRL radiogram form. Each word converts to
 its radiogram form as you finish it (a period becomes X, `ARL 46` becomes
 ARL FORTY SIX, with its meaning shown), the Check field counts the groups,

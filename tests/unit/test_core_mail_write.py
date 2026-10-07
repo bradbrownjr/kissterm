@@ -236,3 +236,46 @@ def test_an_upload_is_kept_in_files_uploads_cleaned_and_never_replaces_a_file():
         core.mail.save_upload("x", b"")
     with pytest.raises(ValueError):
         core.mail.save_upload("x", b"y" * (core.mail.MAX_UPLOAD + 1))
+
+
+def test_bbs_messages_are_numbered_when_asked_and_a_number_is_never_reused_or_doubled():
+    from kissterm.mail import numbering
+
+    assert numbering.default_prefix("K6PE-7") == "6PE" and numbering.clean_prefix("a b-c!", "W1AW") == "ABC"
+    core, _ = _core()
+    core.config.message_numbering = True
+    core.config.message_prefix = ""
+
+    def titles() -> list[str]:
+        store = core.mail.store
+        return sorted(m.subject for m in (store.read(x.ref) for x in store.list("Mail/BBS/Outbox"))
+                      if "Dam status" in m.subject)
+
+    assert core.mail.write(to="W1BKW", title="Dam status", body="x")[0] == []
+    assert titles() == ["JMH-1P: Dam status"]
+    assert core.mail.write(to="W1BKW", title="Dam status", body="x")[0] == []
+    assert titles() == ["JMH-1P: Dam status", "JMH-2P: Dam status"], "the number counts on"
+    bulletin = core.mail.write(to="ALL", at="USA", title="Net tonight", body="x", send_type="B")
+    assert bulletin[0] == []
+    assert any(m.startswith("JMH-3B: Net tonight") for m in [
+        core.mail.store.read(x.ref).subject for x in core.mail.store.list("Mail/BBS/Outbox")])
+    # Never numbered: a title already numbered, a Winlink message, a long title is cut.
+    assert numbering.applies({"Send-Type": "P"}, "JMH-2P: x") is False
+    assert numbering.applies({"Send-Type": "W"}, "x") is False
+    assert numbering.applies({"Send-Type": "P", "Form": "ics213"}, "x") is False
+    assert numbering.applies({"Send-Type": "P", "Reply-Number": "3"}, "x") is False
+    cut = numbering.numbered_title("JMH", 12, "P", "y" * 60)
+    assert cut.startswith("JMH-12P: ") and len(cut) == 60
+
+
+def test_numbering_is_off_by_default_and_a_bad_counter_file_never_blocks_filing(tmp_path):
+    from kissterm.mail.numbering import Counter
+
+    core, _ = _core()
+    problems, folder = core.mail.write(to="W1BKW", title="Plain", body="x")
+    assert problems == [] and [s.subject for s in core.mail.store.list(folder)
+                               if s.subject == "Plain"]
+    bad = tmp_path / "n.json"
+    bad.write_text("not json")
+    counter = Counter(bad)
+    assert counter.take() == 1 and counter.take() == 2

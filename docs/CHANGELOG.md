@@ -5,6 +5,30 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Numbered BBS messages (P11)
+
+### New Features
+
+- **Number my BBS messages** (Settings > Mail, off by default): a private
+  or bulletin message written in either front end is titled
+  `ABC-12P: title`, with a prefix (the callsign's last three, or
+  Settings' own), a counter kept across restarts and never reused, and
+  the P or B type letter. Not numbered: Winlink, forms, radiograms,
+  replies by number, a title already numbered. The title gives way to a
+  60-character BPQMail limit, never the number. Done once in
+  `Mail.file_outbox`, so both front ends get it.
+
+### Fixed
+
+- `tests/unit/test_config.py`'s two CLI tests had a fake app without the
+  `core.restarter` that `_amain` reads after a run (broken since the
+  Restart work).
+
+**Files:** `kissterm/mail/numbering.py`, `kissterm/core/mail.py`,
+`kissterm/config.py`, `kissterm/core/settings_schema.py`,
+`config.toml.example`, `docs/GUIDE.md`, `docs/ROADMAP.md`,
+`docs/ON-AIR-TESTS.md`
+
 ## [2026-10-07] — Add a file from the phone's own storage
 
 ### New Features

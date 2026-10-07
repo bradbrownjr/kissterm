@@ -31,6 +31,14 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   Expected: the answer goes as `SR <number>` and the BBS addresses and
   titles it; the phone sends nothing until Send/Receive.
 
+## Numbered BBS messages (2026-10-07)
+
+- [ ] **A numbered message reaches the BBS with its title intact.** Turn
+  on Settings > Mail > Number my BBS messages, write a private message to
+  yourself, Send/Receive, then read it. Expected: the title is
+  `ABC-1P: <your title>` with ABC the last three of your call, BPQMail
+  keeps it whole, and the next message is `ABC-2P`. Bulletins use `B`.
+
 ## Adaptive frame size (2026-10-07)
 
 - [x] **Resend the reply to Brian through WS1EC-2.** Passed 2026-10-07
