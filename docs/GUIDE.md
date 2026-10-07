@@ -718,7 +718,11 @@ own client.
     files as a list, a tap opening one a level deeper (a zip in a zip
     too), Markdown and HTML formatted, and other text; links are shown
     and never followed, images are never loaded, and nothing in the file
-    runs. Delete and swipe work as on messages.
+    runs. **Send over the radio** (S in the terminal) sends the file by
+    YAPP or AutoBIN over a connected session after asking (a phone's own
+    files are not uploaded: the file is one already in the station's
+    Files); it is experimental until tried on the air. Delete and swipe
+    work as on messages.
     A message from a BBS has one small **Routing** line under the date,
     an arrow that unfolds; tap it
     for the `R:` line each BBS added, the latest first. A number@BBS there is that BBS's message number,
@@ -777,7 +781,8 @@ own client.
     type, matching commands appear over the line (the terminal's
     suggestion strip); tap one to fill it. **Learn from node** asks the
     node for its own list, once, after showing its airtime, and **Forget
-    learned** drops it.
+    learned** drops it. **Receive file** starts receiving one by AutoBIN
+    or YAPP, after asking; it is saved in Files > Downloads.
     A connect brings Terminal to the front at once: while
     the station is calling, an hourglass shows over the session with
     **Cancel**, which stops the attempt without asking (it only stops

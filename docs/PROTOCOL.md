@@ -157,6 +157,7 @@ lighter path around a rule the terminal follows.
 | `session_reference` `{key}` / `session_suggest` `{key, text}` / `glossary` `{needle}` | `Sessions.reference_view` (the command sets in effect and reachable from this session, each command with `name`, `aliases`, `usage`, `summary`, `detail`, `context`, `sysop`, `source`; `can_harvest`, `peer`, `context`, `learned`, `airtime` low and high) / `Sessions.suggest` (the terminal's suggestion strip: sysop commands left out) / `glossary.search`. Nothing here sends | no |
 | `session_harvest` `{key, context}` / `session_forget_learned` `{key}` | `Sessions.harvest_commands` (asks the node's `?` once, opt-in: a client shows `airtime` and asks first; sent through the gate, which it does not arm; returns `learned`, `captured`, `text`) / `Sessions.forget_learned` | no |
 | `rms_gateways` `{mode}` / `rms_refresh` / `rms_use` `{callsign, frequency, modes, grid}` | `Mail.rms_gateways` (the saved Winlink gateway list in that mode, nearest first, with `note`, `can_refresh`, `modes`; reads the file only) / `Mail.rms_refresh` (an Internet request to winlink.org, only when asked, and only with kissterm's Winlink API key; returns "" or why not) / `Mail.use_gateway` (the Address Book entry and the Winlink Dial) | no |
+| `transfer_start` `{key, protocol, mode, ref}` | `Transfers.begin`: one YAPP or AutoBIN transfer on session `key` (`protocol` `yapp` or `autobin`; `mode` `upload` of the file `ref` under Files, or `download` into Files > Downloads); refused when the session is not connected, cannot carry binary (SSH) or already runs one; answers at once, the outcome is a notice | yes, a committed send |
 | `beacon_now` | `Aprs.beacon_now` | no (refused while closed) |
 | `send_receive` `{folder, internet}` | `Mail.send_receive` | through its connect |
 | `get_bulletins` `{internet}` / `get_files` | `Mail` | through its connect |
@@ -186,8 +187,9 @@ renaming), so a script it never saw survives, and refuses a field it does
 not know. A successful `settings_save` is followed by `ConfigChanged`, so
 every client refreshes.
 
-File transfers (upload from a phone) and compose-with-attachments are
-not in v1.
+A file from a phone's own storage cannot be uploaded and compose-with-
+attachments is not in v1; a transfer sends a file already in the
+station's Files (`transfer_start`).
 
 ## 5. Reconnecting and history
 

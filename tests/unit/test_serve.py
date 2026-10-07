@@ -493,6 +493,11 @@ async def test_a_files_folder_lists_its_files_and_reads_a_preview():
     assert inner["kind"] == "html" and "x" in inner["markdown"]
     notes = (await client.command("f6", "file_open", ref="Files/Downloads/notes.md"))["value"]
     assert notes["kind"] == "markdown" and notes["markdown"].startswith("# Net")
+    # A transfer is refused (nothing is connected), and a path outside Files too.
+    for args in ({"key": "W1AW-7", "protocol": "yapp", "mode": "upload", "ref": zipped["ref"]},
+                 {"key": "W1AW-7", "protocol": "yapp", "mode": "upload", "ref": "Files/../x"}):
+        refused = await client.command("f8", "transfer_start", **args)
+        assert refused.get("error") and not refused.get("ok", False)
     for bad in ({"ref": "Files/../config.toml"}, {"ref": zipped["ref"], "member": ["nope"]}):
         refused = await client.command("f7", "file_open", **bad)
         assert refused.get("error") and not refused.get("ok", False)

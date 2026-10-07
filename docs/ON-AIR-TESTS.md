@@ -10,6 +10,22 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## The web and phone client's parity features (2026-10-07)
+
+- [ ] **Send a file from the phone (Files > a file > Send over the
+  radio).** Connect by radio to a BPQ BBS from the phone, open a small
+  file in Files, press Send over the radio, pick the session and YAPP,
+  and confirm. Expected: transmit comes on (noticed), the file goes
+  across, a notice says "YAPP upload complete: <name>", the transcript
+  has the "YAPP upload starting/complete" notes. AutoBIN is untried the
+  same way.
+- [ ] **Receive a file from the phone (Terminal > Commands > Receive
+  file).** With a sender waiting for the receiver (AutoBIN), start it
+  and expect the file in Files > Downloads and a notice.
+- [ ] **Learn from node on the phone (Terminal > Commands > Learn from
+  node).** Shows the airtime range first, asks only on Ask, learns the
+  names and shows them in the list with "harvested only" until forgotten.
+
 ## Adaptive frame size (2026-10-07)
 
 - [x] **Resend the reply to Brian through WS1EC-2.** Passed 2026-10-07

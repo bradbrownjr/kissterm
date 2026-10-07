@@ -64,6 +64,7 @@ class ReferenceSheet:
     def _button_row(self) -> list[ft.Control]:
         buttons: list[ft.Control] = [ft.TextButton(content="Close", on_click=self._close)]
         if self.mode == "commands":
+            buttons.append(ft.OutlinedButton(content="Receive file", on_click=self._receive))
             if self.data.get("learned"):
                 buttons.append(ft.OutlinedButton(content="Forget learned", on_click=self._forget))
             if self.data.get("can_harvest"):
@@ -126,6 +127,14 @@ class ReferenceSheet:
             self.search.label = "Search glossary" if self.mode == "glossary" else "Search"
             await self._paint()
             self.page.update()
+
+    async def _receive(self, _e) -> None:
+        """The terminal's File transfer dialog, in download mode
+        (`transfer.py`): asks first."""
+        from . import transfer
+
+        self.page.pop_dialog()
+        transfer.ask(self.view.app, current=self.key)
 
     async def _close(self, _e=None) -> None:
         self.page.pop_dialog()

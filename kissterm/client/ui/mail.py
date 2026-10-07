@@ -615,6 +615,17 @@ class MailView:
             actions.append(ft.IconButton(
                 icon=ft.Icons.OPEN_IN_FULL, on_click=open_file,
                 tooltip="Open as a list" if message.get("kind") == "zip" else "Open formatted"))
+        if message.get("file"):
+            # The terminal's S on the Files tab: over a connected session, asked first.
+            async def send_file(_e) -> None:
+                from . import transfer
+                from .shell import TERMINAL
+
+                transfer.ask(self.app, ref=ref, name=message.get("subject", ""),
+                             current=self.app.views[TERMINAL].current)
+
+            actions.append(ft.IconButton(icon=ft.Icons.UPLOAD_FILE, tooltip="Send over the radio",
+                                         on_click=send_file))
         if not self.folder.startswith("Files"):
             actions.append(ft.IconButton(icon=ft.Icons.REPLY, tooltip="Reply",
                                          on_click=reply(None)))

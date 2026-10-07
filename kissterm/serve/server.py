@@ -529,6 +529,24 @@ class RemoteServer:
         return [{"name": t.name, "definition": t.definition}
                 for t in glossary.search(str(needle))]
 
+    async def cmd_transfer_start(self, key: str, protocol: str, mode: str, ref: str = "") -> bool:
+        """`Transfers.begin`: one YAPP or AutoBIN transfer on session `key`,
+        as the terminal's S on the Files tab (an upload of the file `ref`
+        under Files) or its File transfer dialog (a download). The
+        operator-named request arms the gate; it answers at once and the
+        outcome is a notice."""
+        path = None
+        if str(mode) == "upload":
+            try:
+                path = self.core.mail.store.file_path(str(ref))
+            except ValueError as exc:
+                raise CommandError(wire.clean(str(exc))) from None
+        try:
+            self.core.transfers.begin(str(key), str(protocol), str(mode), path)
+        except ValueError as exc:
+            raise CommandError(str(exc)) from None
+        return True
+
     async def cmd_rms_gateways(self, mode: str = "packet") -> dict:
         """`Mail.rms_gateways`: the saved Winlink gateway list in `mode`,
         nearest first. Reads the saved file; nothing is fetched or sent."""

@@ -157,12 +157,31 @@ class Transfers:
             return NO_BINARY + " Connect by radio to send a file."
         return ""
 
+    def begin(self, key: str, protocol: str, mode: str, path=None) -> None:
+        """`start` in the background, for a client whose command must answer
+        at once (a transfer takes minutes): checked now, the outcome comes
+        as notices. ValueError, saying why, if it cannot be started."""
+        if protocol not in ("yapp", "autobin") or mode not in ("upload", "download"):
+            raise ValueError("A transfer is YAPP or AutoBIN, an upload or a download.")
+        why = self.refusal(key)
+        if why:
+            raise ValueError(why)
+        if key in self.active:
+            raise ValueError("A transfer is already running on this session.")
+        if mode == "upload" and path is None:
+            raise ValueError("Choose a file to send.")
+        self.active.add(key)
+        task = asyncio.get_running_loop().create_task(self.start(key, protocol, mode, path))
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
     async def start(self, key: str, protocol: str, mode: str, path) -> None:
         """One explicit transfer the operator chose: `protocol` "yapp" or
         "autobin", `mode` "upload" (of `path`) or "download". Arms the gate
         as a committed send."""
         session = self.core.sessions.get(key)
         if session is None or session.link is None:
+            self.active.discard(key)
             return
         if not self.core.gate.enabled:
             self.core.connector.arm_for(f"{protocol.upper()} {mode}")

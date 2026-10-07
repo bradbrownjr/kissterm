@@ -185,3 +185,24 @@ async def test_the_reference_and_suggestions_come_from_the_node_in_effect_and_se
     assert core.sessions.reference_view("nobody") == {} and core.sessions.suggest("nobody", "n") == []
     station.close()
     peer.close()
+
+
+@pytest.mark.asyncio
+async def test_a_background_transfer_is_checked_at_once_and_one_at_a_time(tmp_path):
+    core, operator, station, peer, events = await _setup()
+    with pytest.raises(ValueError, match="Connect before"):
+        core.transfers.begin("WS1EC-7", "yapp", "upload", tmp_path / "x")
+    core.gate.set(True)
+    link = await station.connect(AX25Path(PEER, MYCALL))
+    key = core.sessions.bind(link)
+    with pytest.raises(ValueError, match="YAPP or AutoBIN"):
+        core.transfers.begin(key, "zmodem", "upload", tmp_path / "x")
+    with pytest.raises(ValueError, match="Choose a file"):
+        core.transfers.begin(key, "yapp", "upload")
+    core.transfers.active.add(key)
+    with pytest.raises(ValueError, match="already running"):
+        core.transfers.begin(key, "yapp", "download")
+    core.transfers.active.discard(key)
+    core.transfers.shutdown()
+    station.close()
+    peer.close()

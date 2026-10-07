@@ -1416,3 +1416,22 @@ async def test_a_gateway_is_used_only_after_asking_and_sends_nothing_on_the_air(
     await _button(app.page.dialogs[-1], "Use").on_click(None)
     assert app.commands[-1] == ("rms_use", {"callsign": "W1AW-10", "frequency": "145.050 MHz",
                                             "modes": "Packet 1200", "grid": "FN31pr"})
+
+
+@pytest.mark.asyncio
+async def test_sending_a_file_asks_first_and_names_the_session_and_protocol():
+    from kissterm.client.ui import transfer
+
+    app = MailApp({"transfer_start": True})
+    session = app.state.session("WS1EC-2")
+    session.connected = True
+    transfer.ask(app, ref="Files/Downloads/notes.md", name="notes.md", current="WS1EC-2")
+    asked = app.page.dialogs[-1]
+    assert [n for n, _ in app.commands if n == "transfer_start"] == []
+    await _button(asked, "Send").on_click(None)
+    assert app.commands[-1] == ("transfer_start", {
+        "key": "WS1EC-2", "protocol": "yapp", "mode": "upload", "ref": "Files/Downloads/notes.md"})
+    # No connected session: nothing to ask, and nothing started.
+    quiet = MailApp({})
+    transfer.ask(quiet, ref="Files/x", name="x")
+    assert quiet.commands == [] and all(isinstance(d, ft.SnackBar) for d in quiet.page.dialogs)

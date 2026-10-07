@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Send and receive files on the web and phone
+
+### New Features
+
+- **Send over the radio** on a file in Files (the terminal's S) and
+  **Receive file** in Terminal > Commands (its File transfer dialog, in
+  download mode): YAPP or AutoBIN over a connected session, after asking
+  which session and protocol. The station runs it (`Transfers.begin`,
+  command `transfer_start`, which answers at once; the outcome is a
+  notice) and arms the gate for the named request. A file from the
+  phone's own storage is not uploaded. On-air tests listed.
+
+**Files:** `kissterm/core/transfers.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/transfer.py`, `kissterm/client/ui/mail.py`,
+`kissterm/client/ui/reference.py`, `docs/PROTOCOL.md`, `docs/GUIDE.md`,
+`docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`, `tests/unit/test_core_sessions.py`,
+`tests/unit/test_serve.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — RMS gateways on the web and phone
 
 ### New Features
