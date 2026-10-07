@@ -52,6 +52,15 @@ size. The two genuinely separable concerns are already extracted into
 recovery. Rationale and the measurement behind it are in the comment there.
 Do not revert it without a test showing it makes a link cling to a dead peer.
 
+The frame size adapts (`_shrink_paclen`, `_note_clean_ack`): `params.paclen` is
+a ceiling, `paclen_now` what `_pump` cuts to. After two polls answered with the
+same N(R) = V(A), the unacked bytes are taken back (`SlidingWindow.reclaim`) and
+re-cut at half size; clean acks double it back. Never re-cut on one answer: a
+late frame arriving after the re-cut would corrupt the stream. The 2026-09-25
+and 2026-10-07 WS1EC-2 sessions (a 180-byte frame retried 30+ times while
+polls and 8-byte frames got through) are the cases; the tests are in
+`test_ax25_link.py`.
+
 ## Testing
 
 ```bash

@@ -107,6 +107,16 @@ DEFAULT_RETRIES = 10
 #: without shortening N2 on an established link.
 DEFAULT_CONNECT_RETRIES = 10
 
+#: Adaptive frame size (`AX25Link._shrink_paclen`, `_note_clean_ack`). The
+#: floor: below this a frame is mostly header and cutting further only costs
+#: airtime. Consecutive unanswered-data poll rounds before one halving. Clean
+#: frames needed before doubling back, which itself doubles after each shrink
+#: (up to the cap) so a path that cannot hold a size is not retried every time.
+MIN_ADAPTIVE_PACLEN = 32
+SHRINK_AFTER_STUCK_POLLS = 2
+GROW_AFTER_CLEAN_FRAMES = 8
+GROW_AFTER_CAP = 64
+
 FrameSender = Callable[[AX25Frame], Awaitable[None]]
 
 
@@ -156,6 +166,8 @@ class LinkStats:
     rej_received: int = 0
     rej_sent: int = 0
     t1_expiries: int = 0
+    paclen_shrinks: int = 0
+    paclen_grows: int = 0
     connected_at: float | None = None
 
     @property
@@ -193,6 +205,14 @@ class AX25Link:
         # every comparison in it is a modular walk rather than a magnitude test.
         self._win = SlidingWindow(modulo=self.params.modulo, k=self.params.window)
         self.rc = 0  # retry count
+        # Adaptive frame size: `params.paclen` is the ceiling, this is what
+        # `_pump` cuts frames to right now. See `_shrink_paclen`.
+        self._paclen_now = self.params.paclen
+        self._stuck_va: int | None = None
+        self._stuck_polls = 0
+        self._trouble_since_ack = False
+        self._clean_frames = 0
+        self._grow_after = GROW_AFTER_CLEAN_FRAMES
         #: Why the link last failed, in operator-readable words. Empty until
         #: something goes wrong.
         self.last_error: str = ""
@@ -255,6 +275,12 @@ class AX25Link:
         answered every poll, 2026-09-25).
         """
         return [len(info) for info in self._win.sent.values()]
+
+    @property
+    def paclen_now(self) -> int:
+        """The frame size in use: `params.paclen` on a good path, less when
+        the link has backed off (see `_shrink_paclen`)."""
+        return self._paclen_now
 
     @property
     def connected(self) -> bool:
@@ -537,7 +563,7 @@ class AX25Link:
         if not self.connected or self.peer_busy:
             return
         while self._outbound and self._win.is_open:
-            chunk = bytes(self._outbound[: self.params.paclen])
+            chunk = bytes(self._outbound[: self._paclen_now])
             del self._outbound[: len(chunk)]
             await self._send_i(chunk)
 
@@ -620,7 +646,9 @@ class AX25Link:
 
     def _ack_upto(self, nr: int) -> None:
         """Advance V(A) to N(R). The modular walk itself lives in `SlidingWindow`."""
+        outstanding = self._win.outstanding
         if self._win.ack_upto(nr):
+            self._note_clean_ack(outstanding - self._win.outstanding)
             # DELIBERATE DEVIATION from the 2.2 SDL, which only clears RC on
             # leaving timer recovery. Any forward progress proves the peer is
             # alive and hearing us, so the retry budget starts over. Without
@@ -749,10 +777,78 @@ class AX25Link:
         self.rc = 0
         self._emit_state()
         if self.va != self.vs:
+            if self._stuck_on_va() and self._shrink_paclen():
+                return  # the data is back in the buffer; `_pump` resends it smaller
             await self._retransmit_from(self.va)
         else:
+            self._stuck_va = None
+            self._stuck_polls = 0
             self._stop_t1()
             self._start_t3()
+
+    # ------------------------------------------------------------------
+    # Adaptive frame size
+    # ------------------------------------------------------------------
+    def _stuck_on_va(self) -> bool:
+        """True once the peer has answered SHRINK_AFTER_STUCK_POLLS polls in a
+        row still wanting the same frame: it hears our polls but not our data."""
+        self._trouble_since_ack = True
+        self._clean_frames = 0
+        if self._stuck_va != self.va:
+            self._stuck_va = self.va
+            self._stuck_polls = 1
+            return False
+        self._stuck_polls += 1
+        return self._stuck_polls >= SHRINK_AFTER_STUCK_POLLS
+
+    def _shrink_paclen(self) -> bool:
+        """Halve the frame size and re-cut the stuck data. False if nothing to do.
+
+        DELIBERATE DEVIATION: the spec retransmits an I frame unchanged. On
+        a marginal path (WS1EC-2, 2026-10-07) a 180-byte frame was resent
+        30 times while 8-byte frames and polls got through: a long frame
+        has far more bits to corrupt. The peer's answers to several polls
+        in a row said N(R) = V(A), so it holds none of the unacknowledged
+        frames, and the bytes can be re-sent under the same N(S)s in
+        smaller pieces without a gap or a duplicate. Needs the repeated
+        answers (never one) so a late frame cannot arrive after the re-cut.
+        `_note_clean_ack` doubles the size back as the path recovers.
+        """
+        largest = max((len(i) for i in self._win.sent.values()), default=0)
+        target = max(MIN_ADAPTIVE_PACLEN, min(self._paclen_now, largest) // 2)
+        if largest <= MIN_ADAPTIVE_PACLEN or target >= largest:
+            return False
+        data = self._win.reclaim()
+        self._outbound[:0] = data
+        log.info(
+            "link %s: %d-byte frames are not getting through (peer answers polls); "
+            "frame size %d -> %d",
+            self.peer, largest, self._paclen_now, target,
+        )
+        self._paclen_now = target
+        self._stuck_va = None
+        self._stuck_polls = 0
+        self._grow_after = min(self._grow_after * 2, GROW_AFTER_CAP)
+        self.stats.paclen_shrinks += 1
+        self._stop_t1()
+        return True
+
+    def _note_clean_ack(self, frames: int) -> None:
+        """Count frames acknowledged with no trouble; double the size back."""
+        self._stuck_va = None
+        self._stuck_polls = 0
+        if self._trouble_since_ack:
+            self._trouble_since_ack = False
+            self._clean_frames = 0
+            return
+        self._clean_frames += max(0, frames)
+        if self._clean_frames >= self._grow_after and self._paclen_now < self.params.paclen:
+            new = min(self.params.paclen, self._paclen_now * 2)
+            log.info("link %s: path is carrying frames again; frame size %d -> %d",
+                     self.peer, self._paclen_now, new)
+            self._paclen_now = new
+            self._clean_frames = 0
+            self.stats.paclen_grows += 1
 
     async def _reestablish(self) -> None:
         self._reset_sequences()
@@ -772,6 +868,12 @@ class AX25Link:
         self._win.modulo = self.params.modulo
         self._win.k = self.params.window
         self._win.reset()
+        self._paclen_now = self.params.paclen
+        self._stuck_va = None
+        self._stuck_polls = 0
+        self._trouble_since_ack = False
+        self._clean_frames = 0
+        self._grow_after = GROW_AFTER_CLEAN_FRAMES
         self.rc = 0
         self.peer_busy = self.own_busy = False
         self.reject_sent = self.ack_pending = False

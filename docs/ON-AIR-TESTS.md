@@ -10,6 +10,17 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## Adaptive frame size (2026-10-07)
+
+- [ ] **Resend the reply to Brian through WS1EC-2.** Mail > Send/Receive
+  with the Outbox reply ("Re:Hello from kissterm") still waiting.
+  Expected: if the long body frame is not taken, kissterm.log shows
+  "frame size 256 -> 128" (then 64, 32) within about 10 s per step, the
+  message goes through in shorter frames, and the Outbox entry moves to
+  Sent. On a good path nothing changes and no "frame size" line appears.
+  A later connect on a clean path should log "frame size ... -> ..."
+  back up toward 256.
+
 ## Restart (0.1.454, 2026-10-07)
 
 - [x] **The phone's page comes back by itself (0.1.457).** Passed 2026-10-07 (restart and shut down). The first

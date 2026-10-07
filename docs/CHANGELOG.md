@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — The link backs off to shorter frames on a weak path
+
+### Improvements
+
+- **A stuck long frame no longer retries forever.** Sending a reply to
+  Brian through WS1EC-2 put the whole message in one 180-byte frame; the
+  node answered every poll but never took it (30 resends in 10 minutes,
+  as on 2026-09-25). Now, when two polls in a row show the far end still
+  wants the same frame, the link halves its frame size (floor 32 bytes),
+  re-cuts the waiting data and sends it again, and doubles back up after
+  clean frames. The configured paclen is the ceiling, so a good path
+  still uses full frames. Logged in kissterm.log.
+
+**Files:** `kissterm/ax25/session.py`, `kissterm/ax25/window.py`,
+`kissterm/ax25/AGENTS.md`, `tests/loopback.py`,
+`tests/unit/test_ax25_link.py`, `docs/GUIDE.md`, `docs/ON-AIR-TESTS.md`
+
 ## [2026-10-07] — The phone's mail folders are a tree
 
 ### Improvements

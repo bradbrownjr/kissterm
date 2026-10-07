@@ -92,6 +92,17 @@ class SlidingWindow:
                 yield seq, info
             seq = (seq + 1) % self.modulo
 
+    def reclaim(self) -> bytes:
+        """Take back every unacknowledged frame's payload and rewind V(S) to V(A).
+
+        The caller has proof the peer holds none of it (its N(R) equals V(A)),
+        so the bytes can be cut into new frames under the same N(S) numbers.
+        """
+        data = b"".join(info for _, info in self.pending_from(self.va))
+        self.sent.clear()
+        self.vs = self.va
+        return data
+
     def pending_one(self, nr: int) -> bytes | None:
         """Selective reject: just the one frame the peer asked for."""
         return self.sent.get(nr % self.modulo)

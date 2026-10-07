@@ -27,6 +27,9 @@ class LoopbackTransport(FrameTransport):
         self.peer: LoopbackTransport | None = None
         self.loss = 0.0
         self.delay = 0.0
+        #: Drop any frame whose payload is longer than this: a path that
+        #: carries polls and short frames but not long ones (WS1EC-2, 2026-10-07).
+        self.max_info: int | None = None
         self.sent: list[AX25Frame] = []
         self.dropped = 0
         self._rng = random.Random(1234)
@@ -44,6 +47,9 @@ class LoopbackTransport(FrameTransport):
     async def _send_frame(self, frame: AX25Frame, port: int = 0) -> None:
         self.sent.append(frame)
         if self.peer is None:
+            return
+        if self.max_info is not None and len(frame.info) > self.max_info:
+            self.dropped += 1
             return
         if self.loss and self._rng.random() < self.loss:
             self.dropped += 1

@@ -387,6 +387,14 @@ Connect retries and the link's retry limit (N2) are separate settings, both
 10 by default: retrying a connect is one keystroke, and dropping a live
 session over a fade is the expensive mistake.
 
+Frame size adapts to the path. Frame size (paclen, Settings) is the
+largest the link will send, and it starts there. If the far end answers
+our polls but twice in a row still has not received a data frame, the
+link halves the frame size (down to 32 bytes), cuts the waiting data
+into smaller frames and sends it again; after a few clean frames it
+doubles back up toward your setting. kissterm.log says
+when it changes. A per-entry paclen in the Address Book still caps it.
+
 ## The Address Book
 
 `Ctrl+G` on the Terminal, Mail, Bulletins or Files tab opens the Address

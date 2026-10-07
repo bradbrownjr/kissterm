@@ -430,3 +430,73 @@ async def test_with_sabm_on_poll_off_a_poll_while_connecting_is_ignored():
 
 def _kinds(transport) -> list[str]:
     return [f.control_name for f in transport.sent]
+
+
+async def _connected_pair(**params):
+    a, b, ta, tb = await _pair(_params(**params))
+    incoming: list = []
+    b.on_incoming.append(incoming.append)
+    link_a = await a.connect(AX25Path(CALL_B, CALL_A))
+    await asyncio.sleep(0.05)
+    return a, b, ta, tb, link_a, incoming[0]
+
+
+@pytest.mark.asyncio
+async def test_a_path_that_drops_long_frames_gets_shorter_ones():
+    """The WS1EC-2 failure (2026-10-07): polls and an 8-byte frame got through,
+    a 180-byte frame was resent 30 times and never did. The link must
+    re-cut the stuck data smaller on its own and deliver it, in order."""
+    a, b, ta, tb, link_a, link_b = await _connected_pair(paclen=128, t1=0.15)
+    ta.max_info = 40
+    payload = bytes(range(256)) * 2  # 512 bytes, nothing repeats within 256
+    await link_a.send(payload)
+    got = await asyncio.wait_for(_drain(link_b, timeout=15.0, expect=len(payload)), timeout=30)
+    assert got == payload
+    assert link_a.paclen_now <= 40
+    assert link_a.stats.paclen_shrinks >= 2
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_frame_size_grows_back_when_the_path_recovers():
+    a, b, ta, tb, link_a, link_b = await _connected_pair(paclen=128, t1=0.15)
+    ta.max_info = 40
+    await link_a.send(bytes(200))
+    await asyncio.wait_for(_drain(link_b, timeout=15.0, expect=200), timeout=30)
+    assert link_a.paclen_now <= 40
+    ta.max_info = None  # the band came back
+    sent = 0
+    while link_a.paclen_now < 128 and sent < 4000:
+        await link_a.send(bytes(100))
+        sent += 100
+        await _drain(link_b, timeout=1.0, expect=100)
+    assert link_a.paclen_now == 128, f"stayed at {link_a.paclen_now} after {sent} bytes"
+    assert link_a.stats.paclen_grows >= 2
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_a_healthy_link_keeps_its_configured_paclen():
+    a, b, ta, tb, link_a, link_b = await _connected_pair(paclen=64)
+    await link_a.send(bytes(1000))
+    assert len(await _drain(link_b, timeout=5.0, expect=1000)) == 1000
+    assert link_a.paclen_now == 64
+    assert link_a.stats.paclen_shrinks == 0
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
+async def test_an_8_byte_frame_that_is_lost_does_not_shrink_anything():
+    """Below the floor there is nothing smaller to try: polls and retries
+    carry on as before rather than cutting the data into one-byte frames."""
+    a, b, ta, tb, link_a, link_b = await _connected_pair(paclen=128, t1=0.15)
+    ta.max_info = 4
+    await link_a.send(b"SR 3105\r")
+    await asyncio.sleep(1.0)
+    assert link_a.paclen_now == 128
+    assert link_a.stats.paclen_shrinks == 0
+    a.close()
+    b.close()
