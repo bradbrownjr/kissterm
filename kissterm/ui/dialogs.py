@@ -36,7 +36,7 @@ from ..aprs_contacts import (
 from ..ax25 import parse_path
 #: Defined in the core (`kissterm/core/connect.py`), re-exported for the
 #: screens and callers that build one.
-from ..core.aprs import AprsObjectRequest  # noqa: F401 - defined by the core
+from ..core.aprs import PLACE_EXAMPLES, AprsObjectRequest, place_from  # noqa: F401 - defined by the core
 from ..core.connect import ConnectRequest  # noqa: F401
 from ..core.questions import (  # noqa: F401 - the answer types, defined by the core
     SETUP_GO,
@@ -45,7 +45,6 @@ from ..core.questions import (  # noqa: F401 - the answer types, defined by the 
     GatewayChoice,
     InternetLogin,
 )
-from ..locator import LocatorError, from_grid, from_mgrs, from_utm
 from .button_row import ButtonRow
 from .symbol_picker import SymbolPicker
 from .wraplog import WrapLog
@@ -415,17 +414,11 @@ class AprsObjectScreen(ModalScreen[AprsObjectRequest | None]):
                 latitude = float(self.query_one("#aprs-object-latitude", Input).value.strip())
                 longitude = float(self.query_one("#aprs-object-longitude", Input).value.strip())
             else:
-                reference = self.query_one("#aprs-object-reference", Input).value
-                converter = {"grid": from_grid, "mgrs": from_mgrs, "utm": from_utm}[mode]
-                latitude, longitude = converter(reference)
-        except (KeyError, LocatorError, ValueError):
-            examples = {
-                "decimal": "Latitude and longitude must be decimal numbers.",
-                "grid": "Enter a 4-, 6-, or 8-character grid square, e.g. FN31pr.",
-                "mgrs": "Enter WGS-84 MGRS, e.g. 18T WL 85664 11348.",
-                "utm": "Enter WGS-84 UTM as zone hemisphere easting northing, e.g. 18 N 691875 4576931.",
-            }
-            self.notify(examples.get(mode, "Enter a valid coordinate."), severity="warning")
+                latitude, longitude = place_from(
+                    mode, self.query_one("#aprs-object-reference", Input).value)
+        except ValueError as exc:
+            self.notify(str(exc) if mode != "decimal" else PLACE_EXAMPLES["decimal"],
+                        severity="warning")
             return
         name = self.query_one("#aprs-object-name", Input).value
         symbol = self.query_one("#aprs-object-symbol-picker", SymbolPicker).value

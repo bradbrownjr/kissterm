@@ -756,8 +756,9 @@ own client.
     **Message** to open a conversation with a station. It refreshes as
     stations are heard. A **long press** on the map opens an object
     report for that spot, and **Object** beside Map one for where you
-    are (APRS > Object in the terminal): a name, the place, a symbol, a
-    comment and where it goes, sent by Send after asking. Your objects
+    are (APRS > Object in the terminal): a name, the place (decimal
+    degrees, a grid square, MGRS or WGS-84 UTM, converted by the
+    station), a symbol, a comment and where it goes, sent by Send after asking. Your objects
     show at once; tap one for **Move** (then a long press where it goes)
     and **Kill** (after asking).
   - **Terminal** (once called Sessions) is the terminal: one page per session, swiped or tapped

@@ -56,7 +56,7 @@ from ..config import AprsConfig, BeaconConfig
 from ..geo import placemarks as marks
 from ..geo.project import describe
 from ..gps import GpsReader
-from ..locator import find_grid_in_text
+from ..locator import LocatorError, find_grid_in_text, from_grid, from_mgrs, from_utm
 from ..monitor import aprs_message_matches, sanitize
 from .events import (
     Alert,
@@ -98,6 +98,31 @@ class AprsObjectRequest:
     symbol: str
     comment: str
     scope: str = "network"
+
+
+#: How an object's place can be given. APRS has only latitude and longitude,
+#: so the others are converted (WGS-84 only) before anything is sent.
+PLACE_FORMATS = (("decimal", "Decimal latitude / longitude"), ("grid", "Maidenhead grid square"),
+                 ("mgrs", "MGRS"), ("utm", "WGS-84 UTM"))
+PLACE_EXAMPLES = {
+    "decimal": "Latitude and longitude must be decimal numbers.",
+    "grid": "Enter a 4-, 6-, or 8-character grid square, e.g. FN31pr.",
+    "mgrs": "Enter WGS-84 MGRS, e.g. 18T WL 85664 11348.",
+    "utm": "Enter WGS-84 UTM as zone hemisphere easting northing, e.g. 18 N 691875 4576931.",
+}
+
+
+def place_from(mode: str, reference: str) -> tuple[float, float]:
+    """`(latitude, longitude)` for a grid square, MGRS or UTM `reference`;
+    ValueError, saying what to enter, when it is not one. The one converter
+    both front ends use (the terminal's Send object and the client's)."""
+    converter = {"grid": from_grid, "mgrs": from_mgrs, "utm": from_utm}.get(mode)
+    if converter is None:
+        raise ValueError(PLACE_EXAMPLES["decimal"])
+    try:
+        return converter(reference)
+    except (LocatorError, ValueError) as exc:
+        raise ValueError(PLACE_EXAMPLES[mode]) from exc
 
 
 def object_problems(request: AprsObjectRequest) -> list[str]:
@@ -694,6 +719,7 @@ class Aprs:
             "symbol": (mine.symbol if mine else "") or self.config.aprs.symbol,
             "comment": mine.comment if mine else "",
             "scopes": [list(scope) for scope in OBJECT_SCOPES],
+            "formats": [list(f) for f in PLACE_FORMATS],
             "symbols": [[symbol.key, symbol.description] for symbol in aprs_symbols.SYMBOLS
                         if symbol.description],
         }

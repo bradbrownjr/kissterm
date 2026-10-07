@@ -22,6 +22,11 @@ import flet as ft
 from . import sheets
 
 
+#: An example of each way to give a place, as the terminal's dialog shows.
+PLACE_HINTS = {"grid": "FN31pr", "mgrs": "18T WL 85664 11348", "utm": "18 N 691875 4576931"}
+PLACE_LABELS = {"grid": "Grid square", "mgrs": "MGRS", "utm": "UTM"}
+
+
 class ObjectForm:
     """One object being written, as a page of `MessagesView`."""
 
@@ -39,6 +44,15 @@ class ObjectForm:
         self.longitude = ft.TextField(label="Longitude",
                                       value=f"{start.get('longitude', 0):.5f}", dense=True,
                                       expand=True, keyboard_type=ft.KeyboardType.NUMBER)
+        #: How the place is given (the terminal's coordinate format): the
+        #: station converts a grid square, MGRS or UTM (`Aprs.place_from`).
+        self.place_format = ft.Dropdown(
+            label="Place as", value="decimal", dense=True, expand=True,
+            on_select=self._format_picked,
+            options=[ft.DropdownOption(key=key, text=label)
+                     for key, label in start.get("formats") or [["decimal", "Decimal"]]])
+        self.reference = ft.TextField(label="Grid square", dense=True, visible=False,
+                                      hint_text=PLACE_HINTS["grid"])
         self.symbol = ft.Dropdown(
             label="Symbol", value=start.get("symbol") or None, dense=True, expand=True,
             enable_filter=True, editable=True, menu_height=320,
@@ -67,7 +81,9 @@ class ObjectForm:
                                  # Room for the first field's floating label.
                                  ft.Container(height=6),
                                  self.name,
+                                 ft.Row(controls=[self.place_format]),
                                  ft.Row(controls=[self.latitude, self.longitude]),
+                                 self.reference,
                                  ft.Row(controls=[self.symbol]),
                                  self.comment,
                                  ft.Row(controls=[self.scope]),
@@ -75,6 +91,15 @@ class ObjectForm:
                                          "Nothing repeats it.", size=12,
                                          color=ft.Colors.OUTLINE),
                                  self.problems]))])
+
+    async def _format_picked(self, _e) -> None:
+        mode = self.place_format.value or "decimal"
+        self.latitude.visible = self.longitude.visible = mode == "decimal"
+        self.reference.visible = mode != "decimal"
+        if mode != "decimal":
+            self.reference.label = PLACE_LABELS[mode]
+            self.reference.hint_text = PLACE_HINTS[mode]
+        self.app.page.update()
 
     def values(self) -> dict:
         return {"name": (self.name.value or "").strip().upper(), "alive": True,
@@ -84,13 +109,19 @@ class ObjectForm:
 
     async def send(self, _e) -> None:
         values = self.values()
-        try:
-            values["latitude"] = float(str(values["latitude"]).strip())
-            values["longitude"] = float(str(values["longitude"]).strip())
-        except ValueError:
-            self.problems.value = "Latitude and longitude must be decimal numbers."
-            self.app.page.update()
-            return
+        mode = self.place_format.value or "decimal"
+        if mode == "decimal":
+            try:
+                values["latitude"] = float(str(values["latitude"]).strip())
+                values["longitude"] = float(str(values["longitude"]).strip())
+            except ValueError:
+                self.problems.value = "Latitude and longitude must be decimal numbers."
+                self.app.page.update()
+                return
+        else:
+            # The station converts it, and says what to enter if it cannot.
+            values.update(format=mode, reference=self.reference.value or "")
+            del values["latitude"], values["longitude"]
         name = values["name"] or "this object"
 
         async def go() -> None:

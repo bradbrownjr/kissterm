@@ -1276,3 +1276,23 @@ async def test_a_saved_message_is_saved_and_forgotten_through_the_station():
     assert ("aprs_template_save", {"name": "Hi", "text": "QRV", "gateway": "winlink"}) in app.commands
     await shown._forgetter(TEMPLATES["saved"][0])(None)
     assert app.commands[-2][0] == "aprs_template_forget"
+
+
+@pytest.mark.asyncio
+async def test_an_object_placed_by_grid_square_sends_the_reference_for_the_station_to_convert():
+    from kissterm.client.ui.aprs_object import ObjectForm
+    from kissterm.client.ui.messages import MessagesView
+
+    sent = []
+    app = MailApp({"aprs_object": lambda **a: sent.append(a) or {"problems": [], "sent": True}})
+    messages = MessagesView(app)
+    form = ObjectForm(messages, dict(OBJECT_START, formats=[["decimal", "Decimal"], ["grid", "Grid"]]))
+    form.name.value = "drill"
+    form.place_format.value = "grid"
+    await form._format_picked(None)
+    assert form.reference.visible and not form.latitude.visible
+    form.reference.value = "FN43"
+    await form.send(None)
+    await _button(app.page.dialogs[-1], "Send").on_click(None)
+    assert sent[0]["format"] == "grid" and sent[0]["reference"] == "FN43"
+    assert "latitude" not in sent[0] and sent[0]["name"] == "DRILL"

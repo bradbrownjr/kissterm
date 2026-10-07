@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — An object's place as a grid square, MGRS or UTM on the web and phone
+
+### Improvements
+
+- **The object form has "Place as"**, as the terminal's: decimal degrees,
+  a Maidenhead grid square, MGRS or WGS-84 UTM. The station converts it
+  (`core.aprs.place_from`, now the one converter for both front ends) and
+  answers a bad reference with what to enter, sending nothing.
+
+**Files:** `kissterm/core/aprs.py`, `kissterm/serve/server.py`,
+`kissterm/ui/dialogs.py`, `kissterm/client/ui/aprs_object.py`,
+`assets/screenshot-phone-map.png`, `docs/PROTOCOL.md`, `docs/GUIDE.md`,
+`docs/ROADMAP.md`, `tests/unit/test_core_aprs.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — APRS templates in the web and phone client
 
 ### New Features

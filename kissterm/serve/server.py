@@ -417,13 +417,22 @@ class RemoteServer:
             None if latitude is None else float(latitude),
             None if longitude is None else float(longitude), str(name or ""))
 
-    async def cmd_aprs_object(self, name: str, alive: bool, latitude: float, longitude: float,
-                              symbol: str, comment: str = "", scope: str = "network") -> dict:
+    async def cmd_aprs_object(self, name: str, alive: bool, latitude: float | None = None,
+                              longitude: float | None = None, symbol: str = "/.",
+                              comment: str = "", scope: str = "network",
+                              format: str = "decimal", reference: str = "") -> dict:
         """Send one object report, as the terminal's Send object does: checked
         first (nothing sent with a problem), then the gate armed by this
-        operator-named request (`Aprs.send_object_now`)."""
-        from ..core.aprs import AprsObjectRequest, object_problems
+        operator-named request (`Aprs.send_object_now`). The place is the
+        decimal `latitude`/`longitude`, or for `format` grid, mgrs or utm the
+        `reference`, converted here (`place_from`)."""
+        from ..core.aprs import AprsObjectRequest, object_problems, place_from
 
+        if format != "decimal":
+            try:
+                latitude, longitude = place_from(str(format), str(reference))
+            except ValueError as exc:
+                return {"problems": [str(exc)], "sent": False}
         try:
             request = AprsObjectRequest(str(name), bool(alive), float(latitude),
                                         float(longitude), str(symbol), str(comment or ""),

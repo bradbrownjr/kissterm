@@ -158,3 +158,18 @@ async def test_saved_messages_are_scoped_validated_replaced_and_forgotten():
     assert not core.aprs.template_forget("List", "L", "winlink")
     assert len(core.config.aprs_templates) == 1
     station.close()
+
+
+def test_an_objects_place_can_be_a_grid_square_mgrs_or_utm():
+    from kissterm.core.aprs import place_from
+    from kissterm.locator import from_utm
+
+    lat, lon = place_from("grid", "FN31pr")
+    assert 41 < lat < 42 and -73 < lon < -72
+    assert place_from("mgrs", "18T WL 85664 11348") == pytest.approx((40.7486, -73.9853), abs=0.001)
+    assert place_from("utm", "18 N 691875 4576931") == from_utm("18 N 691875 4576931")
+    for mode in ("grid", "mgrs", "utm"):
+        with pytest.raises(ValueError, match="Enter"):
+            place_from(mode, "nonsense")
+    with pytest.raises(ValueError):
+        place_from("decimal", "43 -70")
