@@ -1217,3 +1217,62 @@ async def test_the_web_page_moves_to_the_waiting_page_when_the_station_stops(
     label = "Restart" if command == "restart" else "Shut down"
     await _button(app.page.dialogs[-1], label).on_click(None)
     assert opened == [(url, {"web_only_window_name": "_self"})]
+
+
+TEMPLATES = {"addressee": "WLNK-1",
+             "service": {"id": "winlink", "callsign": "WLNK-1", "name": "Winlink APRSLink",
+                         "summary": "s", "note": "Mail by APRS.", "region": "", "source": "https://x",
+                         "checked": "2026-09-01",
+                         "commands": [{"name": "L", "summary": "List mail", "text": "L",
+                                       "confidence": "recalled"},
+                                      {"name": "SP", "summary": "Send", "text": "SP <to> <subject>",
+                                       "confidence": "documented"}]},
+             "saved": [{"name": "Mine", "text": "L 5", "gateway": "winlink"}]}
+
+
+@pytest.mark.asyncio
+async def test_a_template_fills_the_message_box_and_sends_nothing():
+    from kissterm.client.ui.messages import MessagesView
+
+    app = MailApp({"aprs_thread": [], "aprs_templates": TEMPLATES})
+    messages = MessagesView(app)
+    await messages.open("WLNK-1")
+    await messages._templates(None)
+    assert app.commands[-1] == ("aprs_templates", {"callsign": "WLNK-1"})
+    sheet = app.page.dialogs[-1]
+    titles = []
+    todo = [sheet.content]
+    tiles = []
+    while todo:
+        c = todo.pop()
+        if isinstance(c, ft.ListTile):
+            tiles.append(c)
+        for name in ("content", "controls"):
+            child = getattr(c, name, None)
+            todo.extend(child if isinstance(child, list) else [child] if child is not None else [])
+    assert [t.title.value for t in tiles][::-1] == ["Mine", "L", "SP"]
+    sp = next(t for t in tiles if t.title.value == "SP")
+    await sp.on_click(None)
+    assert messages.compose.value == "SP <to> <subject>"
+    assert [n for n, _ in app.commands if n.startswith("aprs_send")] == []
+
+
+@pytest.mark.asyncio
+async def test_a_saved_message_is_saved_and_forgotten_through_the_station():
+    from kissterm.client.ui.templates import TemplatesSheet
+    from kissterm.client.ui.messages import MessagesView
+
+    app = MailApp({"aprs_thread": [], "aprs_templates": TEMPLATES,
+                   "aprs_template_save": {"problems": [], "saved": True},
+                   "aprs_template_forget": True})
+    messages = MessagesView(app)
+    await messages.open("WLNK-1")
+    shown = TemplatesSheet(messages, "WLNK-1", TEMPLATES)
+    shown.edit(None)
+    form = app.page.dialogs[-1]
+    fields = [c for c in form.content.content.controls if isinstance(c, ft.TextField)]
+    fields[0].value, fields[1].value = "Hi", "QRV"
+    await _button(form, "Save").on_click(None)
+    assert ("aprs_template_save", {"name": "Hi", "text": "QRV", "gateway": "winlink"}) in app.commands
+    await shown._forgetter(TEMPLATES["saved"][0])(None)
+    assert app.commands[-2][0] == "aprs_template_forget"

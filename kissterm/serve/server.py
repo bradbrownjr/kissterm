@@ -392,6 +392,20 @@ class RemoteServer:
     async def cmd_aprs_send(self, to: str, text: str) -> str:
         return await self.core.aprs.compose(str(to), str(text))
 
+    async def cmd_aprs_templates(self, callsign: str = "") -> dict:
+        """`Aprs.templates`: the gateway service for `callsign` with its
+        commands, and the saved messages for it. Never sends."""
+        return self.core.aprs.templates(str(callsign))
+
+    async def cmd_aprs_template_save(self, name: str, text: str, gateway: str = "",
+                                     old: dict | None = None) -> dict:
+        problems = self.core.aprs.template_save(str(name), str(text), str(gateway or ""),
+                                                old if isinstance(old, dict) else None)
+        return {"problems": problems, "saved": not problems}
+
+    async def cmd_aprs_template_forget(self, name: str, text: str, gateway: str = "") -> bool:
+        return self.core.aprs.template_forget(str(name), str(text), str(gateway or ""))
+
     async def cmd_aprs_position(self) -> None:
         await self.core.aprs.send_position_now()
 

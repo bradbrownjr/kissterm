@@ -36,7 +36,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from .. import aprs
+from .. import aprs, aprs_services
 from ..aprs import symbols as aprs_symbols
 from ..aprs_beacon import AprsBeaconer
 from ..aprs_conversations import ConversationStore, MessageDeduplicator, PendingAcks
@@ -44,7 +44,13 @@ from ..aprs_is import AprsIsWatch
 from ..aprs_notify import Cooldown, evaluate_packet
 from ..ax25 import parse_path
 from ..ax25.address import AX25Address, AX25AddressError
-from ..aprs_contacts import Contact, build_message_body
+from ..aprs_contacts import (
+    CannedMessage,
+    Contact,
+    build_message_body,
+    canned_messages_for,
+    validate_canned_message,
+)
 from ..beacon import Beaconer
 from ..config import AprsConfig, BeaconConfig
 from ..geo import placemarks as marks
@@ -497,6 +503,69 @@ class Aprs:
             if str(raw.get("callsign", "")).strip().upper() == callsign:
                 return Contact.from_dict(raw)
         return None
+
+    def templates(self, addressee: str) -> dict:
+        """What to say to `addressee`: the shipped gateway service it is
+        (the contact's own `gateway` first, then the directory by callsign),
+        with its commands, and the operator's saved messages for it. The
+        terminal's template picker (`AprsServiceScreen`); **nothing here
+        transmits**, a client puts the text in its compose box and Send is
+        the commitment."""
+        addressee = addressee.strip().upper()
+        contact = self.contact_for(addressee)
+        service = None
+        if contact is not None and contact.gateway:
+            service = aprs_services.lookup(contact.gateway)
+        if service is None:
+            service = aprs_services.lookup_callsign(addressee)
+        saved = canned_messages_for(self.config.aprs_templates,
+                                    service.id if service is not None else "")
+        return {
+            "addressee": addressee,
+            "service": None if service is None else {
+                "id": service.id, "callsign": service.callsign, "name": service.name,
+                "summary": service.summary, "note": " ".join(service.note.split()),
+                "region": service.region, "source": service.source,
+                "checked": service.checked,
+                "commands": [{"name": c.name, "summary": c.summary, "text": c.insert_text,
+                              "confidence": c.confidence} for c in service.commands]},
+            "saved": [m.to_dict() for m in saved],
+        }
+
+    def template_save(self, name: str, text: str, gateway: str = "",
+                      old: dict | None = None) -> list[str]:
+        """Add a saved message, or replace `old` (matched on its content, as
+        the terminal's editor does: a client's list is scoped and reordered,
+        so a position is not a place in the config). Returns the problems
+        (nothing saved), or an empty list."""
+        problem = validate_canned_message(name, text)
+        if problem:
+            return [problem]
+        new = CannedMessage(name.strip(), text, gateway.strip()).to_dict()
+        raw = self.config.aprs_templates
+        if old:
+            wanted = CannedMessage.from_dict(old)
+            for i, entry in enumerate(raw):
+                if CannedMessage.from_dict(entry) == wanted:
+                    raw[i] = new
+                    break
+            else:
+                raw.append(new)
+        else:
+            raw.append(new)
+        self.core.save_config()
+        return []
+
+    def template_forget(self, name: str, text: str, gateway: str = "") -> bool:
+        """Delete the saved message equal to this one; False if none is."""
+        wanted = CannedMessage(name.strip(), text, gateway.strip())
+        raw = self.config.aprs_templates
+        for i, entry in enumerate(raw):
+            if CannedMessage.from_dict(entry) == wanted:
+                del raw[i]
+                self.core.save_config()
+                return True
+        return False
 
     async def compose(self, addressee: str, text: str) -> str:
         """Send a message the operator typed to `addressee`.

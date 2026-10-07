@@ -428,6 +428,24 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.enter_field("Message", "I'll be there, with the 2 m rig.")
     await phone.frame()
 
+    # Templates: a conversation with a gateway (the object form still open
+    # from the map is closed first), the sheet of its commands, one picked
+    # into the message box and not sent.
+    await phone.tab("Messages")
+    await phone.tap(phone.button("Close"))
+    await phone.tap(phone.button("All messages"))
+    await phone.tap(phone.button("New message"))
+    await phone.enter_field("To", "WLNK-1")
+    await phone.enter_field("Message", "L")
+    await phone.tap(phone.button("Send"))
+    await phone.shown("Templates")
+    await phone.tap(phone.button("Templates"))
+    await phone.shown("Winlink APRSLink (WLNK-1)")
+    await phone.frame()
+    await phone.tap(phone.page.get_by_role("button", name=re.compile(r"^SP\b")).first)
+    await phone.page.wait_for_timeout(600)
+    await phone.frame()
+
     # More > Monitor: every frame, then narrowed by the filter box and the
     # Supervisory switch, as the terminal's Monitor bar does.
     await phone.tab("More")
@@ -472,7 +490,8 @@ async def main() -> int:
         await shot("screenshot-phone", phone.frames[2:4])
         await shot("screenshot-phone-map", phone.frames[4:7])
         await shot("screenshot-phone-mail", phone.frames[7:11])
-        await shot("screenshot-phone-monitor", phone.frames[11:13])
+        await shot("screenshot-phone-monitor", phone.frames[13:15])
+        await shot("screenshot-phone-templates", phone.frames[11:13])
         await shot("screenshot-desktop", desktop.frames)
     finally:
         await server.stop()

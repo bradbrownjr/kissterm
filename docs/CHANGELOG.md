@@ -5,6 +5,24 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — APRS templates in the web and phone client
+
+### New Features
+
+- **Templates beside the message box in a conversation** (the terminal's
+  Ctrl+R). The sheet shows the gateway the callsign is (the contact's own
+  setting first, then the shipped directory) with its note, source and
+  each command's confidence, and your saved messages, which can be added,
+  edited and forgotten. A choice fills the message box and sends nothing.
+  Three protocol commands on `Aprs.templates`, `template_save`,
+  `template_forget`; a new scene in the phone screenshots.
+
+**Files:** `kissterm/core/aprs.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/templates.py`, `kissterm/client/ui/messages.py`,
+`scripts/generate_phone_screenshots.py`, `assets/screenshot-phone-templates.png`,
+`docs/PROTOCOL.md`, `docs/GUIDE.md`, `docs/ROADMAP.md`,
+`tests/unit/test_core_aprs.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-07] — The web and phone Monitor filters like the terminal's
 
 ### Improvements

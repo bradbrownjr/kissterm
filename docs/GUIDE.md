@@ -743,7 +743,11 @@ own client.
     written at the terminal for now.
   - **Messages** (titled APRS messages) is APRS as conversations, in
     bubbles, with a new message limited to the 67 characters APRS
-    carries. **Position** above the conversations sends one
+    carries. **Templates**, beside the message box in a conversation (the
+    terminal's `Ctrl+R`), lists what to say to that gateway, with how far
+    to trust each line, and your saved messages (New, edit, forget); a
+    choice fills the message box and nothing is sent until Send.
+    **Position** above the conversations sends one
     position report (APRS > Send position in the terminal), after asking.
     **Map** beside it shows the APRS map (APRS > Map in the terminal):
     drag to pan, pinch or the mouse wheel to zoom, + and - and a button
@@ -807,6 +811,8 @@ own client.
 ![The APRS map on the phone: stations, an object and this station over roads, county lines, a lake and the coast; then a tapped station's distance, bearing and comment](../assets/screenshot-phone-map.png)
 
 ![BBS Mail's Inbox with the Write pencil over Send/Receive, a Winlink message with Reply, Reply all, Reply with quote and Delete, then Reply all being written](../assets/screenshot-phone-mail.png)
+
+![A conversation with WLNK-1: the Templates sheet with the gateway's commands, then SP chosen into the message box, unsent](../assets/screenshot-phone-templates.png)
 
 ![More > Monitor with its filters, then narrowed to one callsign with Supervisory frames hidden](../assets/screenshot-phone-monitor.png)
 

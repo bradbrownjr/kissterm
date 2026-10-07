@@ -129,3 +129,32 @@ async def test_a_retry_with_the_gate_closed_sends_nothing_and_arms_nothing():
     assert ta.sent == []
     assert core.gate.enabled is False
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_templates_are_the_gateway_service_and_the_saved_messages_and_send_nothing():
+    core, operator, station, ta, events = await _core()
+    core.gate.set(True)
+    found = core.aprs.templates("wlnk-1")
+    assert found["service"]["id"] == "winlink" and found["service"]["commands"]
+    assert {"name", "summary", "text", "confidence"} <= set(found["service"]["commands"][0])
+    assert core.aprs.templates("W1AW-9")["service"] is None
+    assert ta.sent == []
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_saved_messages_are_scoped_validated_replaced_and_forgotten():
+    core, operator, station, ta, events = await _core()
+    assert core.aprs.template_save("", "x") and core.aprs.template_save("n", " ")
+    assert core.aprs.template_save("Check in", "QRV 146.52") == []
+    assert core.aprs.template_save("List", "L", "winlink") == []
+    assert [m["name"] for m in core.aprs.templates("W1AW-9")["saved"]] == ["Check in"]
+    assert [m["name"] for m in core.aprs.templates("WLNK-1")["saved"]] == ["List", "Check in"]
+    old = {"name": "Check in", "text": "QRV 146.52", "gateway": ""}
+    assert core.aprs.template_save("Check in", "QRV 147.09", "", old) == []
+    assert core.aprs.templates("W1AW-9")["saved"][0]["text"] == "QRV 147.09"
+    assert core.aprs.template_forget("List", "L", "winlink")
+    assert not core.aprs.template_forget("List", "L", "winlink")
+    assert len(core.config.aprs_templates) == 1
+    station.close()

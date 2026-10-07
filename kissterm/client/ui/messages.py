@@ -12,6 +12,9 @@ terminal's APRS > Map), and **Object** an object report to send
 **Send is the commitment** (the station arms the gate for it, as the
 terminal's Send does: `Aprs.compose`); opening, scrolling or swiping a
 thread never sends. Retries are the station's, never this client's.
+
+**Templates** beside the message box (the terminal's Ctrl+R) fill it and never
+send (`templates.py`).
 """
 
 from __future__ import annotations
@@ -184,10 +187,27 @@ class MessagesView:
                              ft.Text(callsign, theme_style=ft.TextThemeStyle.TITLE_MEDIUM)]),
             self.thread,
             ft.Container(padding=ft.Padding.all(8), content=ft.Row(controls=[
+                # The terminal's Ctrl+R: what to say to a gateway, and saved messages.
+                ft.IconButton(icon=ft.Icons.LIST_ALT, tooltip="Templates",
+                              on_click=self._templates),
                 self.compose, ft.IconButton(icon=ft.Icons.SEND, tooltip="Send",
                                             on_click=self._send)]))])
         self.app.page.floating_action_button = None
         self.app.page.update()
+
+    async def _templates(self, _e) -> None:
+        await self.open_templates()
+
+    async def open_templates(self) -> None:
+        """The templates sheet for the open conversation; a pick fills the
+        compose box and sends nothing (`templates.py`)."""
+        from .templates import TemplatesSheet
+
+        if self.thread_of is None:
+            return
+        data = await self.app.command("aprs_templates", callsign=self.thread_of)
+        if data:
+            TemplatesSheet(self, self.thread_of, data).show()
 
     async def _load_thread(self) -> None:
         messages = await self.app.command("aprs_thread", callsign=self.thread_of) or []

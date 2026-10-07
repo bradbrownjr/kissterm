@@ -153,6 +153,7 @@ lighter path around a rule the terminal follows.
 | `aprs_conversations` / `aprs_thread` `{callsign}` | `Aprs.conversations` | no |
 | `aprs_object_start` `{latitude, longitude, name}` | `Aprs.object_start`: a new object's form, at here or the place given (a long press on the map), with `symbol`, `comment`, `scopes` and `symbols` (key, description); `name` one of this station's objects fills in its symbol and comment (Move, Kill) | no |
 | `aprs_object` `{name, alive, latitude, longitude, symbol, comment, scope}` | `Aprs.send_object_now`, after `object_problems`: returns `problems` (nothing sent) and `sent`; the object is on this station's map at once, `mine` true. `alive` false kills it | yes |
+| `aprs_templates` `{callsign}` / `aprs_template_save` `{name, text, gateway, old}` / `aprs_template_forget` `{name, text, gateway}` | `Aprs.templates` (the shipped gateway service for that callsign, or the contact's own, with `commands` (`name`, `summary`, `text`, `confidence`), `note`, `source`, `checked`; and the saved messages for it) / `template_save` (returns `problems`; `old` replaces that saved message, matched on its content) / `template_forget`. A client puts a chosen `text` in its message box; nothing here sends | no |
 | `beacon_now` | `Aprs.beacon_now` | no (refused while closed) |
 | `send_receive` `{folder, internet}` | `Mail.send_receive` | through its connect |
 | `get_bulletins` `{internet}` / `get_files` | `Mail` | through its connect |
