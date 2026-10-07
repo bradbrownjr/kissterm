@@ -338,6 +338,10 @@ def test_the_pairing_link_carries_the_token_in_the_fragment():
     local = ServeConfig(listen="127.0.0.1", port=7425)
     assert pairing.websocket_url(local) == "ws://127.0.0.1:7425/v1"
     assert TOKEN in pairing_text(local, TOKEN)
+    from kissterm import __version__
+    from kissterm.serve.headless import banner
+
+    assert banner(Config(mycall="N1ABC-1")) == f"kissterm {__version__} serving N1ABC-1"
 
 
 @pytest.mark.asyncio

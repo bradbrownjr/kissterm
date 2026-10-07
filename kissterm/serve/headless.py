@@ -29,6 +29,7 @@ import os
 import signal
 import sys
 
+from .. import __version__
 from ..core import MAX_LINKS, Core
 from ..core.restart import RESTART_EXIT
 from . import pairing
@@ -133,6 +134,13 @@ def _watch_windows_keys(stop: asyncio.Event):
     return task.cancel
 
 
+def banner(config) -> str:
+    """`--serve`'s first line: which kissterm is running, as what. After a
+    Restart it is how the console shows the new code is in (operator,
+    2026-10-07: "doesn't tell me what version is running")."""
+    return f"kissterm {__version__} serving {config.mycall or '(no callsign set)'}"
+
+
 def pairing_text(serve, token: str) -> str:
     """What `--serve` prints: the link, and its QR code when segno is there."""
     url = pairing.pairing_url(serve, token)
@@ -165,6 +173,7 @@ async def run(config, station=None, session_transport=None, transport_problem=No
               file=sys.stderr)
         await _shutdown(core, server)
         return 3
+    print(banner(config), file=stream)
     print(pairing_text(config.serve, server.token), file=stream, flush=True)
     stop = asyncio.Event()
     core.restarter.on_restart = stop.set

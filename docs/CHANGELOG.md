@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — `--serve` says which version is running
+
+### Improvements
+
+- **`kissterm --serve` prints "kissterm <version> serving <callsign>"
+  first**, so the console shows the version, and after a Restart that
+  the new code is in. The phone's More already showed it.
+
+**Files:** `kissterm/serve/headless.py`, `docs/GUIDE.md`,
+`tests/unit/test_serve.py`
+
 ## [2026-10-07] — Shut down from the phone
 
 ### New Features
