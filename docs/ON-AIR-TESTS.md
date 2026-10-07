@@ -279,11 +279,16 @@ change on screen. Worth one session on the air to confirm.
   first untouched. **Passed 2026-10-07** over RF by Get files from the
   phone (`20261007-003349_KC1JMH_WS1EC-2.log`: "Saved
   bulletin.html-1.zip (2286 bytes)"; the 3 October copy unchanged).
-- [ ] **Files folders list on the phone** (0.1.450). Mail > Files >
+- [x] **Files folders list on the phone** (0.1.450). Mail > Files >
   Downloads: `bulletin.html.zip` and `bulletin.html-1.zip`, each with
-  2,286 bytes and its date; tapping one shows the zip's contents. Swipe
-  one away: it moves to Files > Deleted, and Undo brings it back.
-  (Before 0.1.450 every Files folder on the phone was empty.)
+  2,286 bytes and its date, newest first; delete moves one to Files >
+  Deleted. **Passed 2026-10-07** (operator's screenshot: both listed
+  with size and date; "delete works"). Before 0.1.450 every Files
+  folder on the phone was empty.
+- [ ] **A file's preview and Undo on the phone** (0.1.450). Tap a zip
+  in Files > Downloads: the reader shows its contents (`bulletin.html`
+  and its size). Swipe one away, then Undo: it is back in Downloads
+  under its own name. (Not reported with the listing above.)
 - [ ] **Over WS1EC's SSH login, YAPP is refused before it goes out.**
   (`BBS`, then `YAPP bulletin.html.zip`.) Expected: a notice "File
   transfers are not supported over SSH...", the line still in the send
