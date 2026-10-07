@@ -93,6 +93,30 @@ def zip_read(data: bytes, name: str) -> bytes:
         raise ValueError(f"cannot read {name}: {exc}") from exc
 
 
+#: The most of a text file the reader shows before "[preview ends here]".
+PREVIEW_BYTES = 16 * 1024
+
+
+def preview(path) -> tuple[str, str, bool]:
+    """What a reader shows for one file before it is opened: (kind, text,
+    cut short). A zip is its member list ("broken" with the reason when
+    it cannot be read); a binary file one line saying so; anything else its first `PREVIEW_BYTES`, sanitized. The terminal's
+    reader and the remote `mail_read` both show this."""
+    with open(path, "rb") as handle:
+        data = handle.read(PREVIEW_BYTES + 1)
+    kind = kind_of(path.name, data)
+    if kind == "zip":
+        try:
+            members = zip_members(path.read_bytes())
+        except (OSError, ValueError) as exc:
+            return "broken", f"{path.name}: {exc}", False
+        listing = "\n".join(f"{size:>10,}  {name}" for name, size in members)
+        return kind, sanitize(listing.encode()) or "(empty zip)", False
+    if kind == "binary":
+        return kind, f"{path.name}: not a text file ({path.stat().st_size:,} bytes).", False
+    return kind, sanitize(data[:PREVIEW_BYTES]), len(data) > PREVIEW_BYTES
+
+
 def text_of(data: bytes) -> str:
     """Remote bytes as text a widget may show (`monitor.sanitize`)."""
     return sanitize(data)

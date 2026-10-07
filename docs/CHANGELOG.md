@@ -5,6 +5,23 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Files folders list on the phone
+
+### Improvements
+
+- **The phone's Files folders were always empty**: `mail_list` asked
+  the message index, which holds no files. A Files folder now lists its
+  files (name, size, date) from the same `MailStore.list_files` as the
+  terminal, and tapping one shows the terminal's preview
+  (`files_view.preview`). Opening a zip member or a formatted view stays
+  terminal-only (ROADMAP P7a).
+- On-air tests: a second YAPP download kept beside the first, ticked.
+
+**Files:** `kissterm/mail/store.py`, `kissterm/files_view.py`,
+`kissterm/serve/server.py`, `kissterm/ui/mail_pane.py`,
+`kissterm/client/ui/mail.py`, `docs/GUIDE.md`, `docs/PROTOCOL.md`,
+`docs/ROADMAP.md`, `docs/ON-AIR-TESTS.md`, tests
+
 ## [2026-10-06] — Bulletins: ask before a long read; small categories in one listing
 
 ### Improvements

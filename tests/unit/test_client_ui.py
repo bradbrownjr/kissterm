@@ -634,6 +634,27 @@ async def test_a_swipe_deletes_with_undo_and_restores_in_deleted():
     assert "Restored to BBS/Inbox" in app.page.dialogs[-1].content.value
 
 
+@pytest.mark.asyncio
+async def test_a_file_shows_its_size_and_opens_its_preview():
+    from kissterm.client.ui.mail import MailView
+
+    ref = "Files/Downloads/bulletin.html.zip"
+    entry = {"ref": ref, "subject": "bulletin.html.zip", "size": 2286, "file": True,
+             "date": "2026-10-07T04:37:13+00:00"}
+    app = MailApp({"mail_folders": ["Files/Downloads"], "mail_list": [entry],
+                   "mail_read": {**entry, "body": "      9,120  bulletin.html", "kind": "zip"}})
+    view = MailView(app)
+    view.set_section("Files")
+    await view.reload()
+    [row] = view.list.controls
+    assert "2,286 bytes" in row.content.subtitle.value
+    await view.open(ref)
+    texts = [str(getattr(c, "value", "")) for c in _walk(view.reader)]
+    assert any("Size: 2,286 bytes" in t for t in texts)
+    assert any("bulletin.html" in t for t in texts)
+    assert _icons(view.reader_actions(ref, {})) == ["Delete"], "no Reply on a file"
+
+
 def test_the_reader_offers_reply_all_only_with_others_and_restore_in_deleted():
     from kissterm.client.ui.mail import MailView
 

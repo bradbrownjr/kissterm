@@ -274,9 +274,16 @@ change on screen. Worth one session on the air to confirm.
   (F4)", the file is listed there and unzips. **Passed 2026-10-03**
   (operator: "File download worked great!"; the zip opened in the Files
   viewer). Failed before that day's YAPP framing fix.
-- [ ] **A second download of the same file is kept beside the first.**
+- [x] **A second download of the same file is kept beside the first.**
   `YAPP bulletin.html.zip` again: saved as `bulletin.html-1.zip`, the
-  first untouched. (Not reported with the download above.)
+  first untouched. **Passed 2026-10-07** over RF by Get files from the
+  phone (`20261007-003349_KC1JMH_WS1EC-2.log`: "Saved
+  bulletin.html-1.zip (2286 bytes)"; the 3 October copy unchanged).
+- [ ] **Files folders list on the phone** (0.1.450). Mail > Files >
+  Downloads: `bulletin.html.zip` and `bulletin.html-1.zip`, each with
+  2,286 bytes and its date; tapping one shows the zip's contents. Swipe
+  one away: it moves to Files > Deleted, and Undo brings it back.
+  (Before 0.1.450 every Files folder on the phone was empty.)
 - [ ] **Over WS1EC's SSH login, YAPP is refused before it goes out.**
   (`BBS`, then `YAPP bulletin.html.zip`.) Expected: a notice "File
   transfers are not supported over SSH...", the line still in the send

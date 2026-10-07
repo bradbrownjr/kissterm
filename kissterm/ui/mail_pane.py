@@ -45,7 +45,7 @@ from textual.containers import Horizontal, Vertical
 from textual.coordinate import Coordinate
 from textual.widgets import DataTable, Tree
 
-from ..files_view import kind_of, zip_members
+from ..files_view import preview
 from ..mail import MessageStore, form_parse, form_xml
 from ..mail.bpqmail import route_bbses, routes_of
 from ..mail.compose import has_others
@@ -60,7 +60,6 @@ from .wraplog import WrapLog
 _RANK = {"Inbox": 0, "Outbox": 0.1, "Sent": 0.2, DELETED: 2}
 
 #: How much of a file the Files tab previews.
-_PREVIEW_BYTES = 16 * 1024
 
 
 def _short_date(value: datetime | None) -> str:
@@ -521,7 +520,7 @@ class MessageBrowser(Horizontal):
             return
         if self.files:
             table.add_columns("Name", "Size", "Modified")
-            for path in self._files_in(folder):
+            for path in self.store.list_files(folder):
                 stat = path.stat()
                 table.add_row(
                     path.name,
@@ -546,17 +545,6 @@ class MessageBrowser(Horizontal):
             table.add_row(*row)
             self._rows.append(s.ref)
         self.refresh_bindings()
-
-    def _files_in(self, folder: str) -> list[Path]:
-        directory = self.store.root.joinpath(*check_folder(folder).split("/"))
-        if not directory.is_dir():
-            return []
-        return sorted(
-            (p for p in directory.iterdir()
-             if p.is_file() and not p.is_symlink() and not p.name.startswith(".")),
-            key=lambda p: p.stat().st_mtime,
-            reverse=True,
-        )
 
     def selected_ref(self) -> str:
         """The highlighted message's store ref, or "" (none, or a file)."""
@@ -597,25 +585,11 @@ class MessageBrowser(Horizontal):
         reader.clear()
         reader.scroll_home(animate=False)
         if self.files:
-            path = self.store.root / ref
-            with open(path, "rb") as handle:
-                data = handle.read(_PREVIEW_BYTES + 1)
-            kind = kind_of(path.name, data)
+            kind, text, cut = preview(self.store.root / ref)
+            reader.write(Text(text))
             if kind == "zip":
-                try:
-                    members = zip_members(path.read_bytes())
-                except (OSError, ValueError) as exc:
-                    reader.write(Text(f"{path.name}: {exc}"))
-                    return
-                listing = "\n".join(f"{size:>10,}  {name}" for name, size in members)
-                reader.write(Text(sanitize(listing.encode()) or "(empty zip)"))
                 reader.write(Text("Enter opens the zip to read its files.", style="dim"))
-                return
-            if kind == "binary":
-                reader.write(Text(f"{path.name}: not a text file ({path.stat().st_size:,} bytes)."))
-                return
-            reader.write(Text(sanitize(data[:_PREVIEW_BYTES])))
-            if len(data) > _PREVIEW_BYTES:
+            if cut:
                 reader.write(Text("[preview ends here]", style="dim"))
             if kind in ("markdown", "html"):
                 reader.write(Text("Enter shows it formatted.", style="dim"))

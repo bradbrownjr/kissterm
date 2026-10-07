@@ -671,6 +671,12 @@ own client.
     folder, **Categories** (S in the terminal) ticks which categories Get
     bulletins collects, from the list the Home BBS gave last; nothing is
     asked of the BBS to change it.
+    A Files folder lists its files, newest first, with each one's size
+    and date. Tapping one shows what the terminal's reader shows before
+    Enter: a zip's contents, the start of a text file, or that a file is
+    not text. Opening a file inside a zip, or seeing HTML or Markdown
+    formatted, is the terminal's alone for now. Delete and swipe work as
+    on messages.
     A message from a BBS has one small **Routed** line under the date,
     the BBSes it passed through in order ("Routed W1BKW > WS1EC"); tap it
     for the `R:` line each BBS added, the latest first. A number@BBS there is that BBS's message number,

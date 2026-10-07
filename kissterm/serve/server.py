@@ -554,16 +554,24 @@ class RemoteServer:
 
     async def cmd_mail_list(self, folder: str) -> list:
         """A folder's messages; "All Inboxes" is the terminal's combined
-        view of every Inbox under Mail (`MailStore.list_inboxes`)."""
-        from ..mail.store import ALL_INBOXES
+        view of every Inbox under Mail (`MailStore.list_inboxes`). A Files
+        folder holds files, not messages: each is `{ref, subject (its
+        name), size, date (modified), file: true}` (`MailStore.list_files`)."""
+        from ..mail.store import ALL_INBOXES, FILES
 
         store = self.core.mail.store
+        if str(folder).split("/", 1)[0] == FILES:
+            return [_file_entry(store.root, path) for path in store.list_files(str(folder))]
         items = store.list_inboxes() if folder == ALL_INBOXES else store.list(str(folder))
         return [{k: wire.clean(v) if isinstance(v, str) else v
                  for k, v in wire.jsonable(s).items()}
                 for s in items]
 
     async def cmd_mail_read(self, ref: str) -> dict:
+        from ..mail.store import FILES
+
+        if str(ref).split("/", 1)[0] == FILES:
+            return self._file_read(str(ref))
         message = wire.jsonable(self.core.mail.store.read(str(ref)))
         message = {k: wire.clean(v) if isinstance(v, str) else v for k, v in message.items()}
         # The BBSes it passed through, for a reader that wants to show them.
@@ -608,12 +616,34 @@ class RemoteServer:
         problems, folder = self.core.mail.write_radiogram(dict(fields or {}), bool(ics213))
         return {"problems": problems, "folder": folder}
 
+    def _file_read(self, ref: str) -> dict:
+        """A file under Files as the reader shows it: the terminal's
+        preview (`files_view.preview`), never the file itself."""
+        from ..files_view import preview
+
+        store = self.core.mail.store
+        path = store.file_path(ref)
+        kind, text, cut = preview(path)
+        if cut:
+            text += "\n[preview ends here]"
+        return {**_file_entry(store.root, path), "body": text, "kind": kind}
+
     async def cmd_mail_delete(self, ref: str) -> str:
         return self.core.mail.delete(str(ref))
 
     async def cmd_mail_restore(self, ref: str) -> str:
         return self.core.mail.restore(str(ref))
 
+
+
+def _file_entry(root, path) -> dict:
+    """One file under Files for `mail_list` and `mail_read`."""
+    from datetime import datetime, timezone
+
+    stat = path.stat()
+    return {"ref": path.relative_to(root).as_posix(), "subject": wire.clean(path.name),
+            "size": stat.st_size, "file": True,
+            "date": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()}
 
 COMMANDS: dict[str, Any] = {
     name[4:]: getattr(RemoteServer, name)

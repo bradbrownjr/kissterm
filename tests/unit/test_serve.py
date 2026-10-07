@@ -455,6 +455,38 @@ async def test_a_client_writes_replies_deletes_and_restores_mail():
 
 
 @pytest.mark.asyncio
+async def test_a_files_folder_lists_its_files_and_reads_a_preview():
+    """The phone showed an empty Files > Downloads with two YAPP downloads
+    in it (2026-10-07): `mail_list` asked the message index, which covers
+    no files. A Files folder is now the directory, as the terminal lists
+    it, and a read is the terminal's preview, never a path outside Files."""
+    import io
+    import zipfile
+
+    core, server, ta, peer = await _serve()
+    folder = core.mail.downloads_dir()
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("bulletin.html", "<p>x</p>")
+    (folder / "bulletin.html.zip").write_bytes(buffer.getvalue())
+    (folder / "notes.md").write_text("# Net\n")
+    (folder / ".bulletin.html.zip.from").write_text("hidden")
+    client = await _join(server)
+    await client.next()
+    listed = (await client.command("f1", "mail_list", folder="Files/Downloads"))["value"]
+    assert {f["subject"] for f in listed} == {"bulletin.html.zip", "notes.md"}
+    zipped = next(f for f in listed if f["subject"] == "bulletin.html.zip")
+    assert zipped["file"] is True and zipped["size"] == len(buffer.getvalue())
+    read = (await client.command("f2", "mail_read", ref=zipped["ref"]))["value"]
+    assert read["kind"] == "zip" and "bulletin.html" in read["body"]
+    escape = await client.command("f3", "mail_read", ref="Files/../config.toml")
+    assert escape.get("error") or not escape.get("value")
+    await client.ws.close()
+    await server.stop()
+    core.sessions.shutdown()
+
+
+@pytest.mark.asyncio
 async def test_a_client_checks_and_files_a_radiogram():
     """The phone's radiogram form: the station's rules, nothing transmits."""
     core, server, ta, peer = await _serve()

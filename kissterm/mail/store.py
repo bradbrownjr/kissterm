@@ -604,6 +604,22 @@ class MessageStore:
 
     # -- files (the Files tab) ----------------------------------------------
 
+    def list_files(self, folder: str) -> list[Path]:
+        """The files in a Files folder, newest first: the index covers only
+        messages, so this reads the directory itself. Dot-files (a deleted
+        file's `.from` note) and symlinks are left out. Both front ends list
+        a Files folder from here (the phone's showed nothing while it asked
+        `list`, 2026-10-07)."""
+        directory = self.root.joinpath(*check_folder(folder).split("/"))
+        if not directory.is_dir():
+            return []
+        return sorted(
+            (p for p in directory.iterdir()
+             if p.is_file() and not p.is_symlink() and not p.name.startswith(".")),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+
     def delete_file(self, ref: str) -> str:
         """Move a file from a Files folder to Files/Deleted; returns its new
         ref. Where it came from, and its name, are kept beside it in a
@@ -611,7 +627,7 @@ class MessageStore:
         `restore_file` can put it back as it was; a name already in Deleted
         gets `-1`, `-2` ... ."""
         root = self.root.resolve()
-        source = self._file_path(ref)
+        source = self.file_path(ref)
         folder = source.parent.relative_to(root).as_posix()
         if is_deleted_folder(folder):
             raise ValueError("already in Deleted")
@@ -626,7 +642,7 @@ class MessageStore:
         """Put a file in Files/Deleted back where it was deleted from
         (Downloads if that is not recorded); returns its new ref."""
         root = self.root.resolve()
-        source = self._file_path(ref)
+        source = self.file_path(ref)
         if source.parent != root / FILES / DELETED:
             raise ValueError("only a file in Files/Deleted can be restored")
         note = source.with_name(f".{source.name}.from")
@@ -649,7 +665,7 @@ class MessageStore:
         note.unlink(missing_ok=True)
         return target.relative_to(root).as_posix()
 
-    def _file_path(self, ref: str) -> Path:
+    def file_path(self, ref: str) -> Path:
         unresolved = self.root / ref
         path = unresolved.resolve()
         if not path.is_relative_to((self.root / FILES).resolve()) or not path.is_file() \

@@ -100,6 +100,11 @@ def when(iso: str | None) -> str:
         return str(iso)
 
 
+def size_text(m: dict) -> str:
+    """A file's size under Files ("" for a message)."""
+    return f"{m['size']:,} bytes" if m.get("file") and isinstance(m.get("size"), int) else ""
+
+
 #: The three kinds of folder, as the terminal's Mail, Bulletins and Files
 #: tabs: (top folder, title, icon, selected icon).
 SECTIONS = (
@@ -365,7 +370,8 @@ class MailView:
                 title=ft.Text(m.get("subject", "") or "(no subject)", max_lines=1,
                               overflow=ft.TextOverflow.ELLIPSIS),
                 subtitle=ft.Text("  ".join(part for part in (
-                    m.get("sender") or "", when(m.get("date")), self._via(m)) if part), size=12),
+                    m.get("sender") or "", size_text(m), when(m.get("date")), self._via(m))
+                    if part), size=12),
                 on_click=self._opener(ref)))
 
     def _via(self, m: dict) -> str:
@@ -447,7 +453,7 @@ class MailView:
             return
         head = [f"{name}: {value}" for name, value in
                 (("From", message.get("sender")), ("To", message.get("to")),
-                 ("Date", when(message.get("date")))) if value]
+                 ("Size", size_text(message)), ("Date", when(message.get("date")))) if value]
         self.reader = ft.Column(expand=True, spacing=0, controls=[
             ft.Row(controls=[ft.IconButton(icon=ft.Icons.ARROW_BACK, tooltip="Back to the list",
                                            on_click=self._back),
