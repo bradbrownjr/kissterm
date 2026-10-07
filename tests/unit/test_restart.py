@@ -122,3 +122,43 @@ def test_restart_is_in_the_session_menu_with_no_key():
 
     command = next(c for c in cmdreg.COMMANDS if c.action == "restart")
     assert (command.group, command.mnemonic, command.key) == ("Session", "K", "")
+
+
+@pytest.mark.asyncio
+async def test_a_remote_shutdown_stops_without_starting_again():
+    """Operator, 2026-10-07: "so we have the option of not restarting"."""
+    core, server, ta, peer = await _serve()
+    link = await _connected(core)
+    fired: list = []
+    _quick(core, fired)
+    client = await _join(server)
+    await client.next()
+    assert (await client.command("s1", "shutdown"))["value"] is True
+    for _ in range(60):
+        if fired:
+            break
+        await asyncio.sleep(0.05)
+    core.restarter.cancel_watchdog()
+    assert fired == ["stop"]
+    assert core.restarter.requested and not core.restarter.restarting
+    assert not link.connected, "disconnected first, as a restart does"
+    await client.ws.close()
+    await server.stop()
+    core.sessions.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_a_hung_shutdown_exits_rather_than_restarting():
+    core, server, ta, peer = await _serve()
+    halted, forced = threading.Event(), threading.Event()
+    core.restarter.shutdown_wait = 0.2
+    core.restarter.force, core.restarter.halt = forced.set, halted.set
+    core.restarter.on_restart = lambda: None
+    await core.restarter.restart("a test", again=False)
+    assert await asyncio.to_thread(halted.wait, 3) and not forced.is_set()
+    await server.stop()
+    core.sessions.shutdown()
+
+
+def test_the_shutdown_words_say_it_stays_stopped():
+    assert "stays stopped" in describe({"sessions": []}, again=False)

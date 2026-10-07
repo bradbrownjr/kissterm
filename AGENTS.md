@@ -373,7 +373,8 @@ changes.
   stops the unattended transmitters, disconnects every session, forces a
   DISC unanswered after `DISCONNECT_WAIT`, and a watchdog re-executes
   after `SHUTDOWN_WAIT` if the shutdown hangs. It is the station's
-  remote reset; never make it wait on a live link.
+  remote reset; never make it wait on a live link. Shut down (the
+  phone's) is the same sequence without starting again.
 - **Remote control is off by default**, and while its server runs inside
   the terminal the status bar shows `REMOTE` (`ui/remote.py`): another
   screen can key this radio.

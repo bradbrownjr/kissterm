@@ -26,6 +26,11 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   happens by itself (a weak path, the antenna down): the restart still
   completes about 5 s after the DISC, and kissterm.log says "no answer
   to DISC from ... closing the link without it".
+- [ ] **Shut down from the phone** (0.1.455). More > Shut down > Shut
+  down. Expected: the sheet says nothing remote can start it again; the
+  station disconnects anything connected, exits, and the page keeps
+  trying to reconnect. kissterm.log: "Shutdown requested from a remote
+  client". (Tried on a test station before shipping: exit code 0.)
 - [ ] **F10 > Session > Restart kissterm in the terminal.** Expected: the
   question with Cancel focused; Restart clears the screen and kissterm
   comes back in the same terminal window.

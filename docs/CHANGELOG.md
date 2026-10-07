@@ -5,6 +5,20 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — Shut down from the phone
+
+### New Features
+
+- **Shut down on the phone's More**, beside Restart station: the same
+  disconnect-first sequence (forced after 5 s, watchdog after 15 s),
+  but the station stays stopped; its confirmation says nothing remote
+  can start it again. The terminal's Quit already does this locally.
+
+**Files:** `kissterm/core/restart.py`, `kissterm/serve/headless.py`,
+`kissterm/serve/server.py`, `kissterm/__main__.py`,
+`kissterm/client/ui/more.py`, `kissterm/core/AGENTS.md`, `AGENTS.md`,
+`docs/GUIDE.md`, `docs/PROTOCOL.md`, `docs/ON-AIR-TESTS.md`, tests
+
 ## [2026-10-07] — Restart kissterm, from the menu or the phone
 
 ### New Features

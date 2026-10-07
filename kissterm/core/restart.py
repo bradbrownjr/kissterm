@@ -1,4 +1,5 @@
-"""Restart kissterm in place, from the keyboard or a remote client.
+"""Restart kissterm in place, or shut it down, from the keyboard or a
+remote client.
 
 Asked for by the operator (2026-10-07) for two reasons: to pick up new
 code while testing away from the station, and as the remote control a
@@ -34,6 +35,11 @@ safe for the radio:
 What it cannot do: unkey a TNC whose PTT is stuck in hardware. Closing
 the serial or TCP connection is all software can do; whether that clears
 the TNC is the TNC's business.
+
+**Shut down is the same sequence without step 4's start** (operator,
+2026-10-07: "so we have the option of not restarting"); its watchdog
+ends the process instead (`halt`). Nothing remote can start it again,
+which the phone's confirmation says.
 
 The restart is logged at WARNING (kissterm.log keeps a record of who
 asked: "the keyboard" or "a remote client"), and the station comes back
@@ -86,8 +92,9 @@ def reexec() -> None:
     os.execv(sys.executable, command_line())
 
 
-def describe(plan: dict) -> str:
-    """The confirmation's words for `Restarter.plan()`."""
+def describe(plan: dict, *, again: bool = True) -> str:
+    """The confirmation's words for `Restarter.plan()`: a restart, or with
+    `again` false a shutdown."""
     parts = []
     sessions = plan.get("sessions") or []
     if sessions:
@@ -98,8 +105,16 @@ def describe(plan: dict) -> str:
         parts.append(f"{unacked} APRS message{'s' if unacked != 1 else ''} still waiting "
                      "for an ack will not be resent.")
     parts.append("kissterm starts again with the same settings, transmit off; a paired "
-                 "phone reconnects by itself.")
+                 "phone reconnects by itself." if again else
+                 "kissterm stops and stays stopped: nothing remote can start it again.")
     return " ".join(parts)
+
+
+def halt() -> None:
+    """End this process now, for a shutdown whose clean exit hung."""
+    log.warning("Shutting down without a clean exit")
+    logging.shutdown()
+    os._exit(0)
 
 
 class Restarter:
@@ -107,16 +122,19 @@ class Restarter:
 
     def __init__(self, core) -> None:
         self.core = core
-        #: Set once a restart is under way; `__main__` re-executes on it.
+        #: Set once a restart or shutdown is under way.
         self.requested = False
+        #: False for a shutdown: `__main__` re-executes only when this holds.
+        self.again = True
         #: The front end's stop (`KissTermApp.exit`, the headless loop's
         #: stop event), set when it starts.
         self.on_restart: Callable[[], None] | None = None
         #: Seconds, overridable by tests.
         self.disconnect_wait = DISCONNECT_WAIT
         self.shutdown_wait = SHUTDOWN_WAIT
-        #: The watchdog's action; tests replace it.
+        #: The watchdog's actions, restart and shutdown; tests replace them.
         self.force = reexec
+        self.halt = halt
         self._watchdog: threading.Timer | None = None
         self._task: asyncio.Task | None = None
 
@@ -132,22 +150,30 @@ class Restarter:
                     live.append(str(getattr(session.link, "peer", "") or key or "the session"))
         return {"sessions": live, "aprs_unacked": len(core.aprs.pending)}
 
-    def start(self, by: str) -> asyncio.Task:
+    @property
+    def restarting(self) -> bool:
+        """A restart (not a shutdown) is under way: `__main__` re-executes."""
+        return self.requested and self.again
+
+    def start(self, by: str, *, again: bool = True) -> asyncio.Task:
         """`restart` as a task of its own: a remote command answers at once
-        and is not cancelled with the server's tasks as the station stops."""
+        and is not cancelled with the server's tasks as the station stops.
+        `again` false shuts down instead."""
         if self._task is None:
-            self._task = asyncio.get_running_loop().create_task(self.restart(by))
+            self._task = asyncio.get_running_loop().create_task(self.restart(by, again=again))
         return self._task
 
-    async def restart(self, by: str) -> None:
+    async def restart(self, by: str, *, again: bool = True) -> None:
         """Stop, disconnect, and hand over to the front end to exit."""
         if self.requested:
             return
-        self.requested = True
+        self.requested, self.again = True, again
         core = self.core
-        log.warning("Restart requested from %s", by)
-        core.operator.notice(Notice(f"Restarting kissterm (asked from {by}).",
-                                    Severity.WARNING))
+        what = "Restart" if again else "Shutdown"
+        log.warning("%s requested from %s", what, by)
+        core.operator.notice(Notice(
+            f"{'Restarting' if again else 'Shutting down'} kissterm (asked from {by}).",
+            Severity.WARNING))
         self._start_watchdog()
         core.aprs.shutdown()
         core.transfers.shutdown()
@@ -171,7 +197,7 @@ class Restarter:
             await asyncio.sleep(0.1)
         for link in self._still_up():
             peer = getattr(link, "peer", "?")
-            log.warning("Restart: no answer to DISC from %s in %.0f s; closing the link "
+            log.warning("Stopping: no answer to DISC from %s in %.0f s; closing the link "
                         "without it", peer, self.disconnect_wait)
             link.close(reason="restart: disconnect not answered")
             if core.station is not None:
@@ -186,9 +212,9 @@ class Restarter:
 
     def _start_watchdog(self) -> None:
         def fire() -> None:
-            log.warning("Restart: shutdown did not finish in %.0f s; restarting anyway",
-                        self.shutdown_wait)
-            self.force()
+            log.warning("Shutdown did not finish in %.0f s; %s anyway", self.shutdown_wait,
+                        "restarting" if self.again else "exiting")
+            (self.force if self.again else self.halt)()
 
         self._watchdog = threading.Timer(self.shutdown_wait, fire)
         self._watchdog.daemon = True

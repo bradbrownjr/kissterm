@@ -182,7 +182,7 @@ async def run(config, station=None, session_transport=None, transport_problem=No
             undo()
         await _shutdown(core, server)
         await _close_opened_here(core, station, session_transport)
-    return RESTART_EXIT if core.restarter.requested else 0
+    return RESTART_EXIT if core.restarter.restarting else 0
 
 
 async def _close_opened_here(core, station, session_transport) -> None:

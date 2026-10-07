@@ -158,6 +158,7 @@ lighter path around a rule the terminal follows.
 | `get_bulletins` `{internet}` / `get_files` | `Mail` | through its connect |
 | `restart_plan` | `Restarter.plan`: `{sessions, aprs_unacked}`, what a restart would end (for the confirmation) | no |
 | `restart` | `Restarter.start`: answers `true` at once, then stops beacons and runs, disconnects every session (forced after 5 s), and starts the station again with the same command line; the client's connection drops and reconnects with the same token | a DISC per connected link |
+| `shutdown` | `Restarter.start(again=False)`: as `restart`, but the station stays stopped (nothing remote can start it again) | a DISC per connected link |
 | `mail_cancel` | `Mail.cancel`: the run's session is disconnected (or its SABMs stopped), an Internet run stopped; false if none was running | a DISC, if its link is up |
 | `settings_schema` | `SETTINGS_SCHEMA`, each field with its `value` (a secret's is null) | no |
 | `settings_save` `{draft, active_transport}` | `Settings.save`; a new transport is opened | no |

@@ -48,7 +48,9 @@ class MoreView:
                         # Session > Restart kissterm in the terminal.
                         ft.OutlinedButton(content="Restart station",
                                           icon=ft.Icons.RESTART_ALT,
-                                          on_click=self._restart)])]))),
+                                          on_click=self._restart),
+                        ft.OutlinedButton(content="Shut down", icon=ft.Icons.POWER_SETTINGS_NEW,
+                                          on_click=self._shutdown)])]))),
             ft.ExpansionTile(title=ft.Text("Monitor"), subtitle=ft.Text(
                 "Every frame the station hears or sends", size=12),
                 controls=[self.monitor]),
@@ -172,6 +174,15 @@ class MoreView:
         testing away from it, and as a remote control): it disconnects
         first, forced after a few seconds, and this page reconnects by
         itself (`connection.BACKOFF`)."""
+        await self._stop(again=True)
+
+    async def _shutdown(self, _e) -> None:
+        """Shut the station down, the same way but not started again
+        (operator, 2026-10-07: "so we have the option of not restarting");
+        the terminal's Quit."""
+        await self._stop(again=False)
+
+    async def _stop(self, *, again: bool) -> None:
         plan = await self.app.command("restart_plan") or {}
         sessions = plan.get("sessions") or []
         unacked = int(plan.get("aprs_unacked") or 0)
@@ -183,15 +194,22 @@ class MoreView:
             detail.append(f"{unacked} APRS message{'s' if unacked != 1 else ''} still "
                           "waiting for an ack will not be resent.")
         detail.append("kissterm starts again with the same settings, transmit off. "
-                      "This page reconnects by itself.")
+                      "This page reconnects by itself." if again else
+                      "kissterm stops and stays stopped: nothing on this page can start "
+                      "it again. Someone at the station has to.")
 
         async def go() -> None:
-            await self.app.command("restart")
-            sheets.snack(self.app.page, "The station is restarting; this page "
-                                        "reconnects by itself.")
+            await self.app.command("restart" if again else "shutdown")
+            sheets.snack(self.app.page, "The station is restarting; this page reconnects "
+                                        "by itself." if again else
+                                        "The station is shutting down.")
 
-        sheets.confirm(self.app.page, "Restart the station?", " ".join(detail),
-                       "Restart", go, danger=True)
+        if again:
+            sheets.confirm(self.app.page, "Restart the station?", " ".join(detail),
+                           "Restart", go, danger=True)
+        else:
+            sheets.confirm(self.app.page, "Shut down the station?", " ".join(detail),
+                           "Shut down", go, danger=True)
 
     async def _settings_opened(self, e) -> None:
         if e.control.expanded if hasattr(e.control, "expanded") else True:

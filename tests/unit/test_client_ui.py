@@ -1134,3 +1134,21 @@ async def test_move_and_kill_are_offered_only_on_this_stations_objects():
     page.selected = "SHELTER"
     page._move(None)
     assert page.banner.visible and page.moving == "SHELTER"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("label, command", [("Restart", "restart"), ("Shut down", "shutdown")])
+async def test_more_restarts_or_shuts_down_the_station_after_asking(label, command):
+    from kissterm.client.ui.more import MoreView
+
+    app = MailApp({"restart_plan": {"sessions": ["WS1EC-2"], "aprs_unacked": 0},
+                   "restart": True, "shutdown": True})
+    more = MoreView(app)
+    await (more._restart if command == "restart" else more._shutdown)(None)
+    sheet = app.page.dialogs[-1]
+    texts = " ".join(str(getattr(c, "value", "")) for c in _walk(sheet))
+    assert "WS1EC-2" in texts
+    assert ("reconnects by itself" in texts) == (command == "restart")
+    assert app.commands[-1] == ("restart_plan", {}), "nothing happens before the button"
+    await _button(sheet, label).on_click(None)
+    assert app.commands[-1] == (command, {})

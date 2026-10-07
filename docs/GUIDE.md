@@ -639,6 +639,9 @@ own client.
   itself. kissterm.log records each restart and who asked. A TNC whose
   transmitter is stuck on in hardware may need more than this: kissterm
   can only close its connection to the TNC.
+- **Shut down** (the phone's More, beside Restart station) does the same
+  without starting again, as Quit does at the keyboard. Nothing remote
+  can start the station after that; someone at it has to.
 
 ![Remote pairing](../assets/screenshot-remote-pairing.png)
 
@@ -749,7 +752,7 @@ own client.
     **Packet beacon** sends the beacon text once, as Session > Send
     beacon does, and needs transmit already on; **APRS position** sends
     one position report, as APRS > Send position does, and **Restart
-    station**, which asks first: see Restart above),
+    station** and **Shut down**, which ask first: see Restart above),
     the Monitor, **Transcripts** (past sessions, newest first, searched
     by callsign or by what was said, and read in the terminal's look), recent notices, Terminal,
     and Settings (the station's own, checked by the station as the

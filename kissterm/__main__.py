@@ -758,7 +758,7 @@ async def _amain(args) -> int:
             check_updates=not args.no_update_check,
         )
         await app.run_async()
-        if app.core.restarter.requested:
+        if app.core.restarter.restarting:
             from .core.restart import RESTART_EXIT
 
             return RESTART_EXIT

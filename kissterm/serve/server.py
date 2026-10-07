@@ -437,6 +437,12 @@ class RemoteServer:
         self.core.restarter.start("a remote client")
         return True
 
+    async def cmd_shutdown(self) -> bool:
+        """Shut the station down (`core.restart`, not started again): the
+        same disconnect-first sequence; nothing remote can start it again."""
+        self.core.restarter.start("a remote client", again=False)
+        return True
+
     async def cmd_mail_cancel(self) -> bool:
         return await self.core.mail.cancel()
 

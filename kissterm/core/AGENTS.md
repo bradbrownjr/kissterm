@@ -26,7 +26,7 @@ same tests passing unchanged.
 | `settings.py` | `Settings` (`core.settings`): `save(draft)` -- all or nothing -- and applying it to the station and what runs on its own. |
 | `transfers.py` | `Transfers` (`core.transfers`): YAPP/AutoBIN on a session -- the requested-download window, the byte interceptor, explicit transfers (which arm). |
 | `questions.py` | The typed questions: `RadioReminder`, `TrustHostKey`, `ChooseSessionTransport`, `CallsignAsk`; Send/Receive's `HomeBbsRoute`, `WinlinkGateway`, `LoginAsk`, `InternetLoginAsk`, `ChooseCategories`, `HowManyBulletins`, `PickFiles`; their answer types (`Credential`, `GatewayChoice`, `InternetLogin`, `SETUP_SKIP`, `SETUP_GO`). |
-| `restart.py` | `Restarter` (`core.restarter`): Restart from either front end -- stop the unattended transmitters, disconnect every session, force an unanswered DISC after `DISCONNECT_WAIT`, then the front end's `on_restart`; `__main__` re-executes on `RESTART_EXIT`, a watchdog after `SHUTDOWN_WAIT`. Never refuses. |
+| `restart.py` | `Restarter` (`core.restarter`): Restart from either front end -- stop the unattended transmitters, disconnect every session, force an unanswered DISC after `DISCONNECT_WAIT`, then the front end's `on_restart`; `__main__` re-executes on `RESTART_EXIT`, a watchdog after `SHUTDOWN_WAIT`. `again=False` is Shut down (no re-exec; the watchdog `halt`s). Never refuses. |
 | `hops.py` | `HopConfirmation` and `HOP_TIMEOUT`: the one definition of "the hop came up". |
 | `wording.py` | Key and view tokens in notice text, and their neutral rendering (`neutral`); `TRANSMIT_DISABLED`. |
 | `links.py` | `SessionLinkAdapter`: a session-tier `Session` in `AX25Link`'s shape. |
