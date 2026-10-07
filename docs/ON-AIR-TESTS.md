@@ -21,7 +21,7 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   the page says it was shut down, the console says so, and starting
   kissterm again brings the page back.
 
-- [ ] **Restart station from the phone, nothing connected.** More >
+- [x] **Restart station from the phone, nothing connected.** More > Passed 2026-10-07 (page and console checked; TX-off and log line not reported).
   Restart station > Restart. Expected: "The station is restarting", the
   page drops and reconnects by itself within about 30 s, TX shows off,
   and kissterm.log has "Restart requested from a remote client". (Tried
