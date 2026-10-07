@@ -776,7 +776,9 @@ own client.
     beacon does, and needs transmit already on; **APRS position** sends
     one position report, as APRS > Send position does, and **Restart
     station** and **Shut down**, which ask first: see Restart above),
-    the Monitor, **Transcripts** (past sessions, newest first, searched
+    the Monitor (a filter box for a callsign or text, a port picker and
+    switches for Supervisory, Unnumbered, Information and UI frames, kept
+    on this device), **Transcripts** (past sessions, newest first, searched
     by callsign or by what was said, and read in the terminal's look), recent notices, Terminal,
     and Settings (the station's own, checked by the station as the
     terminal checks them; a password field left empty keeps the saved

@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-07] — The web and phone Monitor filters like the terminal's
+
+### Improvements
+
+- **More > Monitor has the terminal's filters.** A box for a callsign or
+  text, a port picker, and switches for Supervisory, Unnumbered,
+  Information and UI frames; loosening a filter brings back the frames it
+  hid. The station's `FrameSeen` now carries each frame's type, calls and
+  payload text so the client never parses AX.25, and a test checks that
+  the two filters agree frame for frame.
+
+### Housekeeping
+
+- Closed the web-remote reload bug (operator, 2026-10-07: reloads fine
+  after many returns to the browser). The browser client is the desktop
+  front end: the native desktop GUI and its binaries are off the roadmap.
+
+**Files:** `kissterm/client/monitorfilter.py`, `kissterm/client/ui/more.py`,
+`kissterm/client/state.py`, `kissterm/serve/wire.py`, `docs/PROTOCOL.md`,
+`docs/GUIDE.md`, `docs/ROADMAP.md`, `tests/unit/test_client_monitorfilter.py`
+
 ## [2026-10-07] — The link backs off to shorter frames on a weak path
 
 ### Improvements

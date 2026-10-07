@@ -127,18 +127,6 @@ CHANGELOG only. As of 2026-10-04: one item open outside the code
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
 
-- **Web remote dead after returning to it** (2026-10-06, `awaiting
-  confirmation`): "I returned to the web app and it reloaded and is
-  unable to connect to the server. This isn't uncommon." Evidence: the
-  station's log had one `TimeoutException ... SharedPreferences(9).get`
-  at 12:58, which ended the page's start with nothing on screen; and,
-  reproduced under headless Chromium by closing Flet's socket, a page
-  that rejoins its dropped Flet session has no station connection (we
-  closed it on the drop) and does not redraw (Flet 1.0.3). Fix: a drop
-  now deletes the session, so the browser's return starts fresh and
-  reconnects; reading the kept key is retried, then the page says so
-  with Try again (`kissterm/client/ui/web.py`).
-
 - **A screenshot test failed once under full-suite load** (2026-10-05,
   `open`; found by the suite). `tests/pilot/test_app_mounts.py::
   test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filters`
@@ -480,24 +468,16 @@ a desktop GUI for those who are not, and a browser version for a shelter
 laptop, a tablet or a station run from another room. All three drive one
 back end, so a protocol fix or a new transport lands everywhere at once.
 
-- [ ] **Web front end.** `textual-serve` runs the existing UI in a
-  browser (checked 2026-10-06, GUIDE; it has no login). A real web client talks to
-  the core over the WebSocket API (`kissterm --serve`,
-  `docs/PROTOCOL.md`), which **listens on the LAN by default and admits
-  only a client holding the pairing token** (operator, 2026-10-05),
-  because it can key a transmitter.
 - [ ] **Parity: what the terminal does that the remote client cannot
   yet** (AGENTS.md section 7, operator 2026-10-06). These need protocol
   commands first: writing Winlink forms; sending a file (YAPP);
   the node's command help and suggestions; APRS templates; an object's
   place as a grid square, MGRS or UTM (the phone takes a long press or
-  decimal degrees); RMS gateways; Monitor filters; opening a file
+  decimal degrees); RMS gateways; opening a file
   inside a zip, or HTML and Markdown formatted, from Files (the phone
   shows the reader's preview only).
-- [ ] **Desktop GUI** for Windows, macOS and Linux, on the same core.
-  Toolkit to be chosen when this starts (for example Qt, or the web
-  client in a native window so the two share one UI).
-- [ ] **Binaries of each** (P7's standalone binaries).
+- Decided 2026-10-07: the web client in a browser (Chrome) is the
+  desktop front end; no native desktop GUI and no separate binaries of it.
 
 ## P8 — Node references (beyond the 1.0 set)
 

@@ -214,7 +214,7 @@ it as history, if at all, and never raises it again.
 | `AprsMessage`, `AprsAcked`, `AprsBulletinHeard`, `AprsRetried` | as in `events.py` |
 | `AprsPacketHeard` | `line, at` (the decoded packet stays on the station) |
 | `Alert` | `title, body, urgent, topic` |
-| `FrameSeen` | `port, outgoing, line` (`monitor.format_frame`), `raw` (base64) |
+| `FrameSeen` | `port, outgoing, line` (`monitor.format_frame`), `raw` (base64), and for a client's Monitor filter `kind` (`I`, `S`, `U`), `ui`, `calls` (source, destination, digipeaters), `text` (payload, filtered) |
 | `MailChanged`, `ConfigChanged`, `AddressBookChanged`, `KnownNodesChanged` | none: re-read |
 | `SetupRequested` | `place` |
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 import flet as ft
 
 from . import sheets
+from ..monitorfilter import MonitorFilter
 from .transcripts import TranscriptsSection
 from .settings import SettingsEditor
 from .text import MONO, MONO_BOLD, TEXT_COLOURS, Look
@@ -29,6 +30,20 @@ class MoreView:
         self.settings = SettingsEditor(app)
         self.station = ft.Column(tight=True, spacing=4)
         self.monitor = ft.ListView(height=260, auto_scroll=True, spacing=0)
+        #: The terminal's Monitor filters (Supervisory, port, query), on this device.
+        self.filter = MonitorFilter()
+        self.monitor_ports = ft.Dropdown(value="all", dense=True, on_select=self._port_picked,
+                                         options=[ft.DropdownOption(key="all", text="All ports")])
+        self.monitor_controls = ft.Column(tight=True, spacing=4, controls=[
+            ft.TextField(label="Filter", hint_text="Callsign or text", dense=True,
+                         on_change=self._query_changed),
+            self.monitor_ports,
+            ft.Row(wrap=True, spacing=8, controls=[
+                ft.Checkbox(label=label, value=True, on_change=self._type_toggled(attr))
+                for label, attr in (("Supervisory", "show_supervisory"),
+                                    ("Unnumbered", "show_unnumbered"),
+                                    ("Information", "show_information"),
+                                    ("UI", "show_ui"))])])
         self.notices = ft.Column(tight=True, spacing=4)
         self.background = ft.SegmentedButton(
             selected=[app.look.background], on_change=self._background_changed,
@@ -53,7 +68,8 @@ class MoreView:
                                           on_click=self._shutdown)])]))),
             ft.ExpansionTile(title=ft.Text("Monitor"), subtitle=ft.Text(
                 "Every frame the station hears or sends", size=12),
-                controls=[self.monitor]),
+                controls=[ft.Container(padding=ft.Padding.symmetric(horizontal=16),
+                                       content=self.monitor_controls), self.monitor]),
             ft.ExpansionTile(title=ft.Text("Notices"), controls=[self.notices]),
             self.transcripts.tile,
             ft.ExpansionTile(title=ft.Text("Terminal"), subtitle=ft.Text(
@@ -90,15 +106,48 @@ class MoreView:
         if kind in ("station", "transport", "gate", "activity"):
             self._paint()
         elif kind == "monitor":
-            self.monitor.controls.append(ft.Text(data.get("line", ""), font_family=MONO,
-                                                 size=11, selectable=True,
-                                                 color=ft.Colors.PRIMARY if data.get("outgoing") else None))
-            del self.monitor.controls[:-MONITOR_SHOWN]
+            self._note_port(data)
+            if self.filter.allows(data):
+                self.monitor.controls.append(self._monitor_line(data))
+                del self.monitor.controls[:-MONITOR_SHOWN]
         elif kind == "notice":
             self.notices.controls.insert(0, ft.Text(data.get("text", ""), size=12))
             del self.notices.controls[20:]
         elif kind == "stale" and data == "config":
             self.app.page.run_task(self.settings.load)
+
+    @staticmethod
+    def _monitor_line(data: dict) -> ft.Control:
+        return ft.Text(data.get("line", ""), font_family=MONO, size=11, selectable=True,
+                       color=ft.Colors.PRIMARY if data.get("outgoing") else None)
+
+    def _note_port(self, data: dict) -> None:
+        """A port is offered once a frame has come from it."""
+        key = str(data.get("port", 0))
+        if all(o.key != key for o in self.monitor_ports.options):
+            self.monitor_ports.options.append(ft.DropdownOption(key=key, text=f"Port {key}"))
+
+    def _refilter(self) -> None:
+        """Redraw from the frames the model kept, so loosening a filter
+        brings back what it hid."""
+        shown = [d for d in self.app.state.monitor if self.filter.allows(d)]
+        self.monitor.controls = [self._monitor_line(d) for d in shown[-MONITOR_SHOWN:]]
+        self.app.page.update()
+
+    async def _query_changed(self, e) -> None:
+        self.filter.set_query(e.control.value or "")
+        self._refilter()
+
+    async def _port_picked(self, e) -> None:
+        value = e.control.value or "all"
+        self.filter.ports = () if value == "all" else (int(value),)
+        self._refilter()
+
+    def _type_toggled(self, attr: str):
+        async def toggled(e) -> None:
+            setattr(self.filter, attr, bool(e.control.value))
+            self._refilter()
+        return toggled
 
     def look_changed(self) -> None:
         """Show the app's current `Look` as chosen, with a sample."""

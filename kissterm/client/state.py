@@ -249,7 +249,7 @@ class StationState:
             if self.sessions.pop(key, None) is not None:
                 self._tell("session_closed", key)
         elif name == "FrameSeen":
-            self.monitor.append(data.get("line", ""))
+            self.monitor.append(data)
             self._tell("monitor", data)
             self._tell("stale", "heard")
         elif name == "AprsPacketHeard":

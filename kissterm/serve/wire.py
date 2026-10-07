@@ -24,6 +24,7 @@ from .. import ansi
 from ..core import events as ev
 from ..core import questions as q
 from ..core import wording
+from ..ax25.frame import UType
 from ..monitor import format_frame, sanitize
 
 #: The protocol version this module speaks (`/v1`).
@@ -94,7 +95,14 @@ def event(core, seq: int, event: ev.Event) -> dict:
                 "raw": base64.b64encode(event.data).decode("ascii")}
     elif isinstance(event, ev.FrameSeen):
         line = format_frame(event.frame, event.port, outgoing=event.outgoing)
+        frame = event.frame
+        # What a client's Monitor filter needs, so it never parses AX.25
+        # (`MonitorFilter.allows` in `monitor.py` is the terminal's twin).
+        calls = [str(frame.path.source), str(frame.path.destination),
+                 *(str(r) for r in frame.path.repeaters)]
         data = {"port": event.port, "outgoing": event.outgoing,
+                "kind": frame.kind, "ui": frame.kind == "U" and frame.utype is UType.UI,
+                "calls": [clean(c) for c in calls], "text": clean(sanitize(frame.info, False)),
                 "line": clean(line.as_text(show_time=False)),
                 "raw": base64.b64encode(event.frame.encode()).decode("ascii")}
     elif isinstance(event, ev.AprsPacketHeard):
