@@ -151,8 +151,8 @@ before the number does.
 **Receipts** (Settings > Mail, all off by default) work the way Outpost's
 do. **Ask for delivery receipts** and **Ask for read receipts** put
 Outpost's request flags at the start of every private BBS message you
-write (another client just sees `!RDR!`-less text, since the station
-removes the flag from what it shows when it receives one). **Answer
+write (a plain BBS or another client shows the flag at the start of the
+text; kissterm and Outpost hide it). **Answer
 delivery requests** queues a `DELIVERED: <title>` message to the sender
 for each downloaded message that asked; **Answer read requests** queues a
 `READ: <title>` the first time you open one that asked. A receipt waits in
