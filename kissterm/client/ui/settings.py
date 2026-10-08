@@ -53,6 +53,8 @@ class SettingsEditor:
         self.inputs: dict[str, ft.Control] = {}
         #: A field's whole row (control, help), shown or hidden by `only_when`.
         self.rows: dict[str, ft.Control] = {}
+        #: A contact field's "Edit contact" button, by path.
+        self.contact_edit: dict[str, ft.Control] = {}
         self.column = ft.Column(spacing=0)
         #: The terminal's two hand-built sections (`radio.py`): the radio
         #: comes straight after Station, logins and scripts last.
@@ -149,6 +151,8 @@ class SettingsEditor:
             control, extra = self._custom_choice(field)
         elif kind in ("choice", "contact", "login", "filtered_choice"):
             control = self._dropdown(field)
+            if path in self.contact_edit:
+                extra = [ft.Row(controls=[self.contact_edit[path]])]
         else:
             async def typed(e, path=path) -> None:
                 self._changed(path, e.control.value or "")
@@ -253,23 +257,61 @@ class SettingsEditor:
             chosen[0] = e.control.value
             self._changed(path, pairs[int(e.control.value)][1])
         dropdown.on_select = picked
+        if kind == "contact":
+            internet = field.get("contacts") == "internet"
+
+            async def edit(_e) -> None:
+                value = pairs[int(chosen[0])][1] if chosen[0] is not None else ""
+                if value:
+                    await self._edit_contact(value, internet, renamed)
+            self.contact_edit[path] = ft.TextButton(content="Edit contact", icon=ft.Icons.EDIT,
+                                                    on_click=edit)
+
+        def renamed(name: str) -> None:
+            """An edit that renamed the contact: the list and the field follow."""
+            old = pairs[int(chosen[0])]
+            pairs[int(chosen[0])] = (name, name)
+            dropdown.options[int(chosen[0])].text = name
+            self._changed(path, name)
         return dropdown
 
     def _new_contact(self, internet: bool, done) -> None:
-        """A contact made from the dropdown that asked for one: the radio
-        kind is a station, the Internet kind a host (Telnet or SSH)."""
-        name = ft.TextField(label="Name" if internet else "Station", autofocus=True,
+        self._contact_sheet({}, internet, done)
+
+    async def _edit_contact(self, target: str, internet: bool, done) -> None:
+        """The selected contact's own form (the Address Book's editor)."""
+        book = await self.app.command("addressbook") or []
+        entry = next((e for e in book if e.get("target") == target), None)
+        if entry is None:
+            sheets.snack(self.app.page, f"{target} is not in the Address Book.", error=True)
+            return
+        self._contact_sheet(entry, internet, done)
+
+    def _contact_sheet(self, entry: dict, internet: bool, done) -> None:
+        """Make or edit a contact: the radio kind is a station (frequency,
+        hops, note), the Internet kind a host (Telnet or SSH)."""
+        original = entry.get("target", "")
+        name = ft.TextField(label="Name" if internet else "Station", value=original,
+                            autofocus=not original,
                             capitalization=None if internet else ft.TextCapitalization.CHARACTERS)
         fields: list[ft.Control] = [name]
-        kind = host = port = None
+        kind = host = port = frequency = hops = note = None
         if internet:
-            kind = ft.Dropdown(label="Connect by", value="telnet", options=[
-                ft.DropdownOption(key="telnet", text="Telnet"),
-                ft.DropdownOption(key="ssh", text="SSH")])
-            host = ft.TextField(label="Host", hint_text="e.g. bbs.example.org")
-            port = ft.TextField(label="Port", hint_text="23 for Telnet, 22 for SSH",
+            kind = ft.Dropdown(label="Connect by", value=entry.get("connect_by") or "telnet",
+                               options=[ft.DropdownOption(key="telnet", text="Telnet"),
+                                        ft.DropdownOption(key="ssh", text="SSH")])
+            host = ft.TextField(label="Host", value=entry.get("host", ""),
+                                hint_text="e.g. bbs.example.org")
+            port = ft.TextField(label="Port", value=str(entry.get("port", "") or ""),
+                                hint_text="23 for Telnet, 22 for SSH",
                                 keyboard_type=ft.KeyboardType.NUMBER)
             fields += [kind, host, port]
+        else:
+            frequency = ft.TextField(label="Frequency", value=entry.get("frequency", ""))
+            hops = ft.TextField(label="Node hops", value=entry.get("hops", ""),
+                                hint_text="e.g. N1QFY, AB1KI-15")
+            note = ft.TextField(label="Note", value=entry.get("note", ""))
+            fields += [frequency, hops, note]
 
         async def go() -> None:
             target = (name.value or "").strip()
@@ -278,13 +320,19 @@ class SettingsEditor:
                 sheets.snack(self.app.page, "Fill in the name" + (" and host." if internet else "."),
                              error=True)
                 return
-            entry = {"target": target}
+            data = {"target": target, "original_target": original}
             if internet:
-                entry.update(connect_by=kind.value, host=host.value.strip(), port=port.value or "")
-            if await self.app.command("addressbook_save", entry=entry):
+                data.update(connect_by=kind.value, host=host.value.strip(), port=port.value or "")
+            else:
+                data.update(frequency=frequency.value or "", hops=hops.value or "",
+                            note=note.value or "")
+            if not original:
+                data.pop("original_target")
+            if await self.app.command("addressbook_save", entry=data):
                 done(target)
 
-        sheets.form(self.app.page, "New contact", fields, "Save", go)
+        sheets.form(self.app.page, "Edit contact" if original else "New contact", fields,
+                    "Save", go)
 
     def _new_login(self, done) -> None:
         name = ft.TextField(label="Name", autofocus=True)

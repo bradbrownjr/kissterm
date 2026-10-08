@@ -474,8 +474,7 @@ back end, so a protocol fix or a new transport lands everywhere at once.
   pane still edits `config.transports`, `credentials` and `scripts` itself;
   move it onto `core.radio` so the two cannot drift. On the phone: the APRS symbol is a searchable dropdown and not the terminal's
   picker, Test cannot probe a serial or Bluetooth TNC (the terminal cannot
-  either), and an Address Book contact's own editor is not reached from
-  Settings.
+  either).
 
 ## P8 — Node references (beyond the 1.0 set)
 

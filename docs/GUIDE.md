@@ -944,7 +944,8 @@ Settings > APRS > GPS device has a Scan button as the terminal does: it lists
 the station's local serial ports, GPS first, and a pick fills the field.
 Settings > Appearance > Open on > Monitor opens More with the Monitor
 section expanded. A contact or login list in Settings ends "New contact..."
-or "New login...": a short form makes one and picks it.
+or "New login...": a short form makes one and picks it, and Edit contact
+opens the selected contact's own form.
 
 ![More > Monitor with its filters, then narrowed to one callsign with Supervisory frames hidden](../assets/screenshot-phone-monitor.png)
 

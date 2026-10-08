@@ -14,6 +14,8 @@ you need the history of a specific change.
   or SSH, host and port for an Internet contact; a login's name, user and
   password) saves through `addressbook_save` / `login_save` and picks the new
   entry. Cancelling leaves the field as it was.
+- **A contact field has Edit contact**: the same form for the selected
+  contact, so its frequency, hops, note or host are reachable from Settings.
 
 **Files:** `kissterm/client/ui/settings.py`, `tests/unit/test_client_ui.py`
 

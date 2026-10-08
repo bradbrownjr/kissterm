@@ -2019,7 +2019,8 @@ async def test_contact_and_login_dropdowns_end_in_new_and_pick_what_they_make(mo
     assert title == "New contact" and dropdown.value == "0", "cancelling leaves the pick alone"
     fields[0].value = "w1aw-7"
     await go()
-    assert app.commands[-1] == ("addressbook_save", {"entry": {"target": "W1AW-7"}})
+    assert app.commands[-1] == ("addressbook_save", {"entry": {"target": "W1AW-7", "frequency": "",
+                                                      "hops": "", "note": ""}})
     assert editor.draft["home_bbs"] == "W1AW-7" and dropdown.options[-2].text == "W1AW-7"
 
     row = editor._field({"path": "winlink.login", "kind": "login", "label": "Login",
@@ -2032,3 +2033,30 @@ async def test_contact_and_login_dropdowns_end_in_new_and_pick_what_they_make(mo
     fields[0].value = "bbs"
     await go()
     assert editor.draft["winlink.login"] == "bbs"
+
+
+@pytest.mark.asyncio
+async def test_contact_field_edits_the_selected_contact(monkeypatch):
+    from kissterm.client.ui import settings as settings_ui
+    from kissterm.client.ui.settings import SettingsEditor
+
+    seen = []
+    monkeypatch.setattr(settings_ui.sheets, "form",
+                        lambda page, title, fields, label, go, detail="": seen.append(
+                            (title, fields, go)))
+    app = MailApp({"addressbook": [{"target": "N1QFY", "frequency": "145.01", "hops": "",
+                                    "note": "home"}],
+                   "addressbook_save": {"target": "N1QFY"}})
+    editor = SettingsEditor(app)
+    row = editor._field({"path": "home_bbs", "kind": "contact", "label": "Home BBS",
+                         "contacts": "radio", "value": "N1QFY",
+                         "options": [["(none)", ""], ["N1QFY", "N1QFY"]]})
+    edit = next(c for c in _walk(row) if getattr(c, "content", None) == "Edit contact")
+    await edit.on_click(None)
+    title, fields, go = seen[-1]
+    assert title == "Edit contact" and fields[1].value == "145.01"
+    fields[3].value = "club"
+    await go()
+    assert app.commands[-1] == ("addressbook_save", {"entry": {
+        "target": "N1QFY", "original_target": "N1QFY", "frequency": "145.01",
+        "hops": "", "note": "club"}})
