@@ -26,6 +26,8 @@ confirming: stopping never transmits more.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 import flet as ft
 
 from . import sheets
@@ -142,10 +144,48 @@ class Terminal:
         self._tail_text, self._tail_spans, self._tail_control = "", [], None
 
 
+class BroadcastPage:
+    """The Broadcast tab: the first page, always there (the terminal's
+    Broadcast tab). What the station heard to CQ, QST, ALL and the like,
+    and what this station sent; a tap on a callsign fills the Connect
+    sheet with it and sends nothing (`SessionsView._connect_sheet`)."""
+
+    def __init__(self, view) -> None:
+        self.view = view
+        self.list = ft.ListView(expand=True, auto_scroll=True, spacing=0,
+                                padding=ft.Padding.all(10))
+        self.control = ft.Container(expand=True, content=self.list,
+                                    bgcolor=view.app.look.bgcolor)
+
+    def paint(self, heard: list[dict]) -> None:
+        look = self.view.app.look
+        self.control.bgcolor = look.bgcolor
+        rows = []
+        for h in heard[-200:]:
+            stamp = datetime.fromtimestamp(h["at"]).strftime("%H:%M")
+            spans = [ft.TextSpan(f"{stamp} ")]
+            if h["own"]:
+                spans.append(ft.TextSpan("you", ft.TextStyle(font_family=MONO_BOLD)))
+            else:
+                spans.append(ft.TextSpan(
+                    h["source"], ft.TextStyle(decoration=ft.TextDecoration.UNDERLINE),
+                    on_click=self.view.dial_filler(h["source"])))
+            spans.append(ft.TextSpan(f" > {h['to']}: {h['text']}"))
+            rows.append(ft.Text(spans=spans, font_family=MONO, size=13, color=look.color))
+        self.list.controls = rows or [ft.Text(
+            "Nothing heard yet. A line typed below goes to ALL once (CQ: or QST: first "
+            "to address it elsewhere); nothing is sent until you press Send.",
+            size=12, color=ft.Colors.OUTLINE)]
+
+
 class SessionsView:
     def __init__(self, app) -> None:
         self.app = app
         self.terminals: dict[str, Terminal] = {}
+        self.broadcast = BroadcastPage(self)
+        #: False until the operator picks a tab: until then a session that
+        #: appears (a late join's replay, an incoming call) comes forward.
+        self._chose = False
         self.keys: list[str] = []
         self.selected = 0
         self.input = ft.TextField(
@@ -172,7 +212,18 @@ class SessionsView:
         return None
 
     async def shown(self) -> None:
-        pass
+        await self.refresh_broadcast()
+
+    async def refresh_broadcast(self) -> None:
+        info = await self.app.command("broadcast_info", text="")
+        if info:
+            self.broadcast.paint(info["heard"])
+            self.app.page.update()
+
+    def dial_filler(self, call: str):
+        async def handler(_e) -> None:
+            await self._connect_sheet(None, target=call)
+        return handler
 
     def restyle(self) -> None:
         """Every session again in the app's current `Look`."""
@@ -183,6 +234,7 @@ class SessionsView:
 
     @property
     def current(self) -> str | None:
+        """The shown page's key; "" is the Broadcast tab."""
         return self.keys[self.selected] if self.keys and self.selected < len(self.keys) else None
 
     @property
@@ -199,49 +251,43 @@ class SessionsView:
                 # The session this client just asked for comes to the front.
                 self.app.follow_next_session = False
             if data.key not in self.terminals or follow:
-                self._rebuild(select=data.key if follow else None)
+                forward = follow or (data.key not in self.terminals and not self._chose)
+                self._rebuild(select=data.key if forward else None)
             self.terminals[data.key].sync(data)
             self.terminals[data.key].show_connecting(data, self._canceller(data.key))
             self._paint_tabs()
         elif kind in ("session_closed", "station"):
             self._rebuild()
+        elif kind == "stale" and data == "broadcast":
+            self.app.page.run_task(self.refresh_broadcast)
 
     def _rebuild(self, select: str | None = None) -> None:
         sessions = self.app.state.sessions
-        current = select or self.current
-        self.keys = list(sessions)
-        for key in self.keys:
+        current = select if select is not None else self.current
+        #: Broadcast ("") is always the first page; sessions follow it.
+        self.keys = [""] + list(sessions)
+        for key in sessions:
             terminal = self.terminals.setdefault(key, Terminal(key, self.app.look))
             terminal.sync(sessions[key])
             terminal.show_connecting(sessions[key], self._canceller(key))
         for key in [k for k in self.terminals if k not in sessions]:
             del self.terminals[key]
-        self.selected = self.keys.index(current) if current in self.keys else max(0, len(self.keys) - 1)
-        self.send_row.visible = bool(self.keys)
-        if not self.keys:
-            self.tab_bar = None
-            self.pages.content = ft.Container(
-                alignment=ft.Alignment.CENTER, padding=ft.Padding.all(24),
-                content=ft.Column(tight=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                                  controls=[
-                    ft.Icon(ft.Icons.TERMINAL, size=48, color=ft.Colors.OUTLINE),
-                    ft.Text("No session. Connect to a node or BBS.", text_align=ft.TextAlign.CENTER),
-                    ft.FilledButton(content="Connect", icon=ft.Icons.ADD_LINK,
-                                    on_click=self._connect_sheet)]))
-        else:
-            self.tab_bar = ft.TabBar(scrollable=True, tabs=[], expand=True,
-                                     tab_alignment=ft.TabAlignment.START)
-            self.pages.content = ft.Tabs(
-                length=len(self.keys), selected_index=self.selected, expand=True,
-                on_change=self._tab_changed,
-                content=ft.Column(expand=True, spacing=0, controls=[
-                    ft.Row(spacing=0, controls=[
-                        self.tab_bar,
-                        ft.IconButton(icon=ft.Icons.ADD_LINK, tooltip="Connect",
-                                      on_click=self._connect_sheet)]),
-                    ft.TabBarView(expand=True, controls=[
-                        self.terminals[k].control for k in self.keys])]))
-            self._paint_tabs()
+        self.selected = self.keys.index(current) if current in self.keys else len(self.keys) - 1
+        self.send_row.visible = True
+        self.tab_bar = ft.TabBar(scrollable=True, tabs=[], expand=True,
+                                 tab_alignment=ft.TabAlignment.START)
+        self.pages.content = ft.Tabs(
+            length=len(self.keys), selected_index=self.selected, expand=True,
+            on_change=self._tab_changed,
+            content=ft.Column(expand=True, spacing=0, controls=[
+                ft.Row(spacing=0, controls=[
+                    self.tab_bar,
+                    ft.IconButton(icon=ft.Icons.ADD_LINK, tooltip="Connect",
+                                  on_click=self._connect_sheet)]),
+                ft.TabBarView(expand=True, controls=[
+                    self.broadcast.control if k == "" else self.terminals[k].control
+                    for k in self.keys])]))
+        self._paint_tabs()
         self.app.paint_actions()
 
     def _paint_tabs(self) -> None:
@@ -252,11 +298,13 @@ class SessionsView:
         # The icon beside the name, not above it: a taller strip is the
         # height the terminal was given back.
         self.tab_bar.tabs = [ft.Tab(label=ft.Row(tight=True, spacing=6, controls=[
-            ft.Icon(_state_icon(sessions[k]), size=16), ft.Text(sessions[k].title)]))
+            ft.Icon(ft.Icons.CAMPAIGN if k == "" else _state_icon(sessions[k]), size=16),
+            ft.Text("Broadcast" if k == "" else sessions[k].title)]))
             for k in self.keys]
         self.app.paint_actions()
 
     async def _tab_changed(self, e) -> None:
+        self._chose = True
         self.selected = int(e.control.selected_index)
         self.app.paint_actions()
         self.app.page.update()
@@ -269,12 +317,17 @@ class SessionsView:
 
     # ------------------------------------------------------------------
     async def _typed(self, e) -> None:
+        if not self.current:
+            # Broadcast has no node command list to suggest from.
+            self.suggestions.column.visible = False
+            self.app.page.update()
+            return
         await self.suggestions.typed(e.control.value or "")
 
     async def _commands(self, _e) -> None:
         key = self.current
-        if key is None:
-            sheets.snack(self.app.page, "No session. Connect first.")
+        if not key:
+            sheets.snack(self.app.page, "Broadcast has no command list. Connect to a node first.")
             return
         data = await self.app.command("session_reference", key=key)
         if data:
@@ -284,7 +337,15 @@ class SessionsView:
         key = self.current
         text = self.input.value or ""
         if key is None:
-            sheets.snack(self.app.page, "No session to send to. Connect first.")
+            return
+        if key == "":
+            # Broadcast: the station reads a QST:/ALL: prefix; Send is the commitment.
+            result = await self.app.command("broadcast_send", to="", text=text)
+            if result and result.get("error"):
+                sheets.snack(self.app.page, result["error"], error=True)
+            elif result:
+                self.input.value = ""
+            self.app.page.update()
             return
         if await self.app.command("send_line", key=key, text=text):
             self.input.value = ""
@@ -294,7 +355,7 @@ class SessionsView:
     async def disconnect(self, _e=None) -> None:
         """The Disconnect chip beside the transmit switch (`shell.py`)."""
         key = self.current
-        if key is None:
+        if not key:
             return
 
         async def go() -> None:
@@ -318,16 +379,16 @@ class SessionsView:
                        "The station dials it again the same way: route, port and login.",
                        "Reconnect", go)
 
-    async def _connect_sheet(self, _e) -> None:
+    async def _connect_sheet(self, _e, target: str = "") -> None:
         contacts = await self.app.command("addressbook") or []
-        target = ft.TextField(label="Station, node or BBS", hint_text="e.g. W1AW-7",
-                              capitalization=ft.TextCapitalization.CHARACTERS,
-                              autocorrect=False, enable_suggestions=False, autofocus=True)
+        field = ft.TextField(label="Station, node or BBS", hint_text="e.g. W1AW-7", value=target,
+                             capitalization=ft.TextCapitalization.CHARACTERS,
+                             autocorrect=False, enable_suggestions=False, autofocus=True)
         by_target = {c.get("target", "").upper(): c for c in contacts if c.get("target")}
 
         def fill(name: str):
             async def handler(_e) -> None:
-                target.value = name
+                field.value = name
                 self.app.page.update()
             return handler
 
@@ -335,7 +396,7 @@ class SessionsView:
             ft.Chip(label=name, on_click=fill(name)) for name in list(by_target)[:12]])
 
         async def go() -> None:
-            name = (target.value or "").strip().upper()
+            name = (field.value or "").strip().upper()
             if not name:
                 return
             if name in by_target:
@@ -343,5 +404,5 @@ class SessionsView:
             else:
                 self.app.start_connect(target=name)
 
-        sheets.form(self.app.page, "Connect", [target, chips] if contacts else [target],
+        sheets.form(self.app.page, "Connect", [field, chips] if contacts else [field],
                     "Connect", go, detail="The station asks first if a contact has a reminder.")

@@ -337,8 +337,7 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.frame()
     await phone.tap(phone.button("Connect"))
 
-    # The session, with transmit now on, after asking the node for help.
-    await phone.shown("Disconnect")
+    await phone.page.get_by_role("tab", name="W1AW-7").wait_for()
     await phone.enter("?")
     await until(lambda: NODE_ASKED)
     await phone.page.wait_for_timeout(1500)
@@ -466,7 +465,6 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(1000)
     await phone.page.mouse.click(170, 127)  # the Type dropdown (its label is not in the tree)
     await phone.page.wait_for_timeout(800)
-    await phone.page.screenshot(path="/tmp/claude-1000/dbg.png")
     await phone.tap(phone.page.get_by_text("ICS-213 General Message (form)").last)
     await phone.shown("Next")
     await phone.frame()
@@ -516,18 +514,21 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(800)
     await phone.frame()
 
-    # More > Broadcast: free text with no connection, the cost, and what was
-    # heard. A station answers on CQ before the sheet opens; nothing is sent
-    # until Send.
+    # Terminal > Broadcast tab (first, always there): what was heard to CQ
+    # and the like, with callsigns to tap, and a line typed ready to send;
+    # nothing is sent until Send.
     heard = AX25Frame.u_frame(
         AX25Path(AX25Address.parse("CQ"), AX25Address.parse("W1BKW"), ()), UType.UI,
         command=False, info=b"Net control standing by on 147.09, anyone hear me?")
     core.broadcast.on_frame(heard)
-    await phone.tab("More")
-    await phone.tap(phone.button("Broadcast"))
-    await phone.shown("Heard and sent")
-    await phone.enter_field("Text to send to everyone listening", "KC1JMH here, 7 PM net check-in")
-    await phone.page.wait_for_timeout(600)
+    await phone.tab("Terminal")
+    await phone.tap(phone.page.get_by_role("tab", name="Broadcast"))
+    # The Commands scene left "nod" in the field; clear it first.
+    await phone.tap(phone.page.get_by_role("textbox").filter(visible=True).last, settle=300)
+    await phone.page.keyboard.press("Control+a")
+    await phone.page.keyboard.press("Backspace")
+    await phone.page.keyboard.type("KC1JMH here, 7 PM net check-in", delay=30)
+    await phone.page.wait_for_timeout(800)
     await phone.frame()
 
 

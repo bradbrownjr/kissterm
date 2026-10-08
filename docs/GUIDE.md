@@ -514,7 +514,7 @@ first transmission; F10 > Session > Send beacon sends one now.
 your connections (F10 > Session > Broadcast jumps to it). It is for a line
 you type now, with nobody connected: an announcement, a test, an ad hoc
 chat on a frequency. Type a line and press Enter: one unproto frame goes
-out once to CQ, with no acknowledgement. Start the line with `QST:`, `ALL:`,
+out once to ALL, with no acknowledgement. Start the line with `CQ:`, `QST:`,
 `TEST:`, `BEACON:`, `ID:` or `MAIL:` to address it elsewhere. The tab lists
 the plain-text broadcasts heard to those addresses, including "you have
 mail" notices, and the ones you sent (APRS reports stay on the APRS tab).
@@ -836,7 +836,10 @@ own client.
     station), a symbol, a comment and where it goes, sent by Send after asking. Your objects
     show at once; tap one for **Move** (then a long press where it goes)
     and **Kill** (after asking).
-  - **Terminal** (once called Sessions) is the terminal: one page per session, swiped or tapped
+  - **Terminal** (once called Sessions) is the terminal: a first **Broadcast** page, always there
+    (what was heard to ALL, CQ, QST and the like, with the callsigns underlined: tap one to open
+    Connect filled in; a line typed there goes out once to ALL, or to the address you prefix,
+    only when you press Send), then one page per session, swiped or tapped
     across the top, and a line to type. A line goes only when you press
     Send. Connect is at the end of the session tabs; **Disconnect** sits
     beside the transmit switch while the session shown is connected.
@@ -865,9 +868,7 @@ own client.
     choosing one, after asking, puts it in the Address Book as the Winlink
     Dial and sends nothing. **Refresh** fetches the list from winlink.org
     over the Internet and waits on kissterm's Winlink API key.
-  - **More** has **Broadcast** (the terminal's Session > Broadcast: free
-    text to CQ, QST or ALL with no connection, what it costs, and what was
-    heard; Send is what transmits), and shows the station (with **Send beacon**, which asks which:
+  - **More** shows the station (with **Send beacon**, which asks which:
     **Packet beacon** sends the beacon text once, as Session > Send
     beacon does, and needs transmit already on; **APRS position** sends
     one position report, as APRS > Send position does, and **Restart
@@ -912,7 +913,7 @@ own client.
 
 ![A conversation with WLNK-1: the Templates sheet with the gateway's commands, then SP chosen into the message box, unsent](../assets/screenshot-phone-templates.png)
 
-![More > Broadcast: the destination, the text, what it costs the channel, and a broadcast heard from W1BKW](../assets/screenshot-phone-broadcast.png)
+![Terminal > Broadcast: broadcasts heard, a line typed ready to send](../assets/screenshot-phone-broadcast.png)
 
 ![More > Monitor with its filters, then narrowed to one callsign with Supervisory frames hidden](../assets/screenshot-phone-monitor.png)
 

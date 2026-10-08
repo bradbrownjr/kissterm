@@ -203,7 +203,7 @@ _BUFFER_LINES = 5000
 BROADCAST_TAB = "broadcast-tab"
 
 #: What the send line says on the Broadcast tab.
-BROADCAST_PLACEHOLDER = "broadcast to CQ (QST: ... to change) -- Ctrl+N to connect"
+BROADCAST_PLACEHOLDER = "broadcast to ALL (QST: ... to change) -- Ctrl+N to connect"
 
 
 def _tab_id(session_key: str) -> str:

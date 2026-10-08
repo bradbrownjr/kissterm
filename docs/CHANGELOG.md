@@ -9,10 +9,10 @@ you need the history of a specific change.
 
 ### New Features
 
-- **A Broadcast tab, first in the Terminal's session strip**, and
-  **More > Broadcast** on the phone and web client: type a line (prefix
-  `QST:`, `ALL:`, `TEST:`, `BEACON:`, `ID:` or `MAIL:` to pick the
-  address, CQ otherwise), and Enter sends it once as an unproto frame with nobody
+- **A Broadcast tab, first in the Terminal's session strip**, in the
+  terminal and on the phone and web client: type a line (prefix `CQ:`,
+  `QST:`, `TEST:`, `BEACON:`, `ID:` or `MAIL:` to pick the address, ALL
+  otherwise; there is no standard, ALL is the neutral choice), and Enter sends it once as an unproto frame with nobody
   connected: an announcement, a test, an ad hoc chat on a frequency
   (operator, 2026-10-08). The tab lists the plain-text broadcasts heard to those addresses (APRS reports
   are left to the APRS tab) and the ones sent. Enter is the commitment and
@@ -25,7 +25,7 @@ you need the history of a specific change.
 **Files:** `kissterm/core/broadcast.py`, `kissterm/core/events.py`,
 `kissterm/core/service.py`, `kissterm/serve/server.py`,
 `kissterm/core/sessions.py`, `kissterm/ui/terminal_pane.py`,
-`kissterm/ui/commands.py`, `kissterm/ui/app.py`, `kissterm/client/ui/broadcast.py`,
+`kissterm/ui/commands.py`, `kissterm/ui/app.py`, `kissterm/client/ui/sessions.py`,
 `kissterm/client/ui/more.py`, `kissterm/client/state.py`,
 `scripts/generate_phone_screenshots.py`,
 `assets/screenshot-phone-broadcast.png`, `docs/GUIDE.md`,

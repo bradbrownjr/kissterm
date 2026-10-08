@@ -1615,8 +1615,8 @@ async def test_add_file_sends_a_picked_file_up_in_pieces_and_never_transmits():
 
 
 @pytest.mark.asyncio
-async def test_broadcast_sends_only_on_send_shows_the_cost_and_the_heard_list():
-    from kissterm.client.ui.broadcast import BroadcastSheet
+async def test_the_broadcast_tab_is_first_sends_only_on_send_and_a_tap_fills_connect():
+    from kissterm.client.ui.sessions import SessionsView
 
     info = {"destinations": ["CQ", "QST"], "cost": "about 2 seconds of channel", "heard": [
         {"source": "W1BKW", "to": "CQ", "text": "Anyone on?", "at": 0.0, "own": False}]}
@@ -1626,20 +1626,32 @@ async def test_broadcast_sends_only_on_send_shows_the_cost_and_the_heard_list():
         sent.append(a)
         return {"error": ""}
 
-    app = MailApp({"broadcast_info": info, "broadcast_send": send})
-    view = type("V", (), {"app": app})()
-    sheet = BroadcastSheet(view)
-    await sheet.show()
-    assert sent == [] and "about 2 seconds" in sheet.cost.value, "opening transmits nothing"
-    assert [o.key for o in sheet.to.options] == ["CQ", "QST"] and sheet.open
-    assert "W1BKW > CQ: Anyone on?" in sheet.heard.controls[0].value
-    sheet.to.value = "QST"
-    sheet.text.value = "Net at 7"
-    await sheet._edited(None)
-    assert sent == [], "typing and choosing do not send"
-    await sheet._send(None)
-    assert sent == [{"to": "QST", "text": "Net at 7"}] and sheet.text.value == ""
+    app = MailApp({"broadcast_info": info, "broadcast_send": send, "addressbook": []})
+    view = SessionsView(app)
+    assert view.keys == [""] and view.current == "", "Broadcast is the first page, with no session"
+    assert view.send_row.visible
+    await view.shown()
+    assert sent == [], "opening it transmits nothing"
+    text = view.broadcast.list.controls[0]
+    assert "Anyone on?" in "".join(sp.text for sp in text.spans)
+    view.input.value = "QST: Net at 7"
+    await view._send(None)
+    assert sent == [{"to": "", "text": "QST: Net at 7"}] and view.input.value == ""
     app.answers["broadcast_send"] = lambda **a: {"error": "Send to one of: CQ."}
-    sheet.text.value = "again"
-    await sheet._send(None)
-    assert sheet.text.value == "again", "a refusal keeps the text"
+    view.input.value = "again"
+    await view._send(None)
+    assert view.input.value == "again", "a refusal keeps the text"
+    # A tap on the callsign opens Connect with it filled in; nothing is dialled.
+    started: list = []
+    app.start_connect = lambda **a: started.append(a)
+    await text.spans[1].on_click(None)
+    assert started == [] and len(app.page.dialogs) == 2, "a sheet opened, nothing dialled"
+
+    def fields(c):
+        yield c
+        for sub in (getattr(c, "controls", None) or []) + [getattr(c, "content", None)]:
+            if sub is not None and not isinstance(sub, str):
+                yield from fields(sub)
+
+    assert any(getattr(c, "value", None) == "W1BKW"
+               for c in fields(app.page.dialogs[-1])), "the call is filled in"

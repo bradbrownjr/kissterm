@@ -463,9 +463,15 @@ class RemoteServer:
 
     async def cmd_broadcast_send(self, to: str, text: str) -> dict:
         """`Broadcast.send`: one unproto text to `to`, now. The operator's
-        Send press is the commitment that arms the gate. `error` is "" when
-        it went out."""
-        return {"error": await self.core.broadcast.send(str(to), str(text))}
+        Send press is the commitment that arms the gate. An empty `to`
+        reads the destination from a `QST:` prefix on `text`, as the
+        terminal's Broadcast tab does. `error` is "" when it went out."""
+        to, text = str(to), str(text)
+        if not to:
+            from ..core import broadcast
+
+            to, text = broadcast.split_destination(text)
+        return {"error": await self.core.broadcast.send(to, text)}
 
     async def cmd_beacon_now(self) -> None:
         await self.core.aprs.beacon_now()

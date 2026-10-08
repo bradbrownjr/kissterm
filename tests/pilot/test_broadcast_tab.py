@@ -65,7 +65,7 @@ async def test_a_typed_line_is_broadcast_on_enter_and_a_prefix_picks_the_address
         field.focus()
         await pilot.press("enter")
         await wait_for(lambda: len([f for f in ta.sent if f.utype is UType.UI]) == 1, "the broadcast")
-        assert str(ta.sent[0].path.destination) == "CQ" and ta.sent[0].info == b"Net check, 7 PM"
+        assert str(ta.sent[0].path.destination) == "ALL" and ta.sent[0].info == b"Net check, 7 PM"
         assert field.value == "" and app.gate.enabled
         field.value = "QST: Net at 7"
         await pilot.press("enter")

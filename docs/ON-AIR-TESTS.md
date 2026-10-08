@@ -42,8 +42,8 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 ## Broadcast (2026-10-08)
 
 - [ ] **Send a broadcast and hear one.** Transmit on, Terminal > Broadcast tab
-  (or More > Broadcast on the phone), type a line, Enter.
-  Expected: one UI frame from your callsign to `CQ` with that text in the
+  (first tab on the phone too), type a line, Enter.
+  Expected: one UI frame from your callsign to `ALL` with that text in the
   Monitor, the gate armed with a notice, and the line listed as sent. A
   second station should see it in its Monitor (and in its Broadcast list
   if it runs kissterm). Have that station send one back to CQ: it should

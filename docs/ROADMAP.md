@@ -470,10 +470,6 @@ back end, so a protocol fix or a new transport lands everywhere at once.
 
 - Decided 2026-10-07: the web client in a browser (Chrome) is the
   desktop front end; no native desktop GUI and no separate binaries of it.
-- Parity gap (2026-10-08): the terminal's Terminal pane has Broadcast as its
-  permanent first tab, with tappable callsigns that open Connect. The phone
-  client still has Broadcast only as a sheet under More; give its Terminal a
-  first Broadcast tab the same way.
 
 ## P8 — Node references (beyond the 1.0 set)
 

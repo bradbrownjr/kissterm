@@ -61,7 +61,7 @@ class Heard:
 
 
 #: Where a typed line goes when it names no address.
-DEFAULT_TO = "CQ"
+DEFAULT_TO = "ALL"
 
 
 def split_destination(text: str) -> tuple[str, str]:
@@ -156,7 +156,7 @@ class Broadcast:
         return ""
 
     async def send_line(self, text: str, before_send=None) -> bool:
-        """A line typed on the Terminal's Broadcast tab: to CQ, or to the
+        """A line typed on the Terminal's Broadcast tab: to ALL, or to the
         address it starts with (`QST: net at 7`). `before_send` runs once it
         has gone (the terminal clears its input), so a refused line stays
         in the field. True if it went out."""
