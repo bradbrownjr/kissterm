@@ -124,6 +124,7 @@ class ClientApp:
         #: moves this one.
         self.follow_next_session = False
         self.look = Look()
+        self._opened_on_start = False
         self.questions = QuestionSheets(self)
         self.gate_button = ft.Container(on_click=self._gate_clicked, border_radius=16,
                                         padding=ft.Padding.symmetric(horizontal=12, vertical=6))
@@ -187,6 +188,20 @@ class ClientApp:
             return
         self.apply_look(Look(str(background or "") or "theme", str(text or "") or "theme",
                              self.look.palette))
+
+    #: Settings > Appearance > Open on, as this client's places. The terminal's
+    #: Monitor is More's Monitor section here.
+    START_PLACE = {"terminal": TERMINAL, "aprs": MESSAGES, "monitor": MORE}
+
+    async def open_on_start_tab(self) -> None:
+        """Once, on the first connect: the place the station says to open
+        on, unless the operator has already moved."""
+        if self._opened_on_start or self.index != MAIL:
+            return
+        self._opened_on_start = True
+        place = self.START_PLACE.get(await self.command("start_tab") or "")
+        if place is not None and self.index == MAIL:
+            self.go(place)
 
     async def load_theme(self) -> None:
         """The station's theme (Settings > Appearance), drawn here too: the
@@ -363,6 +378,7 @@ class ClientApp:
             # (again) from the station, and so does its theme.
             self.page.run_task(self.views[self.index].shown)
             self.page.run_task(self.load_theme)
+            self.page.run_task(self.open_on_start_tab)
         self.page.update()
 
     def _on_state(self, kind: str, data) -> None:

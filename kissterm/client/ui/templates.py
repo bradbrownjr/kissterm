@@ -98,7 +98,7 @@ class TemplatesSheet:
     def _picker(self, text: str):
         async def pick(_e) -> None:
             self.view.app.page.pop_dialog()
-            self.view.compose.value = text
+            self.view.compose.fill(text)
             self.view.app.page.update()
         return pick
 

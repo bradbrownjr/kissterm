@@ -17,6 +17,14 @@ you need the history of a specific change.
   for session text only, defaulting to Theme. (`themes.palette`, command
   `theme`, `client/ui/theme.py`.)
 - **A colour picker** for colour settings (palette, RGB sliders, hex).
+- **Radio, Logins and Scripts on the phone and browser**: choose the radio
+  in use, Scan for hardware, New, Edit, Test and Forget a transport, and
+  save logins and scripts (a password and a script's text never leave the
+  station; an empty field on an edit keeps what is saved). One core class,
+  `core/radio.py`, with `build_transport` proving a transport before it is
+  saved; the transport form table moved to `transport/forms.py`.
+- **Open on** (Settings > Appearance) opens the phone on that place.
+- **A Clear button** on the Terminal strip (the terminal's `Ctrl+L`).
 
 ### Improvements
 
@@ -26,6 +34,9 @@ you need the history of a specific change.
   headings, number limits, and "Needs a restart" notes. The theme list is
   served by a headless station too (it was empty, which is why Theme was a
   text box).
+- **The message count sits inside the field** (`0/67` at its right end),
+  not under it, where it pushed the box out of line with the buttons beside
+  it (operator, 2026-10-08).
 - **Settings only the terminal draws are not offered to the phone**
   (`Field.tui_only`: clocks, ASCII-safe, slide-outs, remote-control server,
   default monitor filter).
@@ -33,7 +44,8 @@ you need the history of a specific change.
 **Files:** `kissterm/themes.py` (moved from `ui/themes.py`, which re-exports),
 `kissterm/core/settings_schema.py`, `kissterm/serve/server.py`,
 `kissterm/client/ui/settings.py`, `colourpicker.py`, `theme.py`, `text.py`,
-`shell.py`, `more.py`, `docs/GUIDE.md`, `docs/PROTOCOL.md`
+`shell.py`, `more.py`, `radio.py`, `messages.py`, `kissterm/core/radio.py`,
+`kissterm/transport/forms.py`, `docs/GUIDE.md`, `docs/PROTOCOL.md`
 
 ## [2026-10-08] — Phone and web: Clear
 

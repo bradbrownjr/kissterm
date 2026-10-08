@@ -26,6 +26,7 @@ from __future__ import annotations
 import flet as ft
 
 from . import colourpicker, sheets
+from .radio import LoginsSection, RadioSection
 
 #: Added under a field's help only where Save alone is not the whole story
 #: (the terminal's `APPLY_NOTE`).
@@ -52,6 +53,13 @@ class SettingsEditor:
         #: A field's whole row (control, help), shown or hidden by `only_when`.
         self.rows: dict[str, ft.Control] = {}
         self.column = ft.Column(spacing=0)
+        #: The terminal's two hand-built sections (`radio.py`): the radio
+        #: comes straight after Station, logins and scripts last.
+        self.radio = RadioSection(app)
+        self.logins = LoginsSection(app)
+        #: Sections left open, so a reload (the station saved something, in
+        #: Radio say) does not fold them shut under the operator.
+        self.open: set[str] = set()
         self.save_button = ft.FilledButton(content="Save", icon=ft.Icons.SAVE,
                                            on_click=self._save, disabled=True)
 
@@ -61,9 +69,31 @@ class SettingsEditor:
         self.inputs.clear()
         self.rows.clear()
         self.fields = {f["path"]: f for section in schema for f in section["fields"]}
-        self.column.controls = [self._section(section) for section in schema]
+        await self.radio.load()
+        await self.logins.load()
+        tiles = [self._section(section) for section in schema]
+        radio = self._tile("Radio", [self.radio.control])
+        logins = self._tile("Logins", [self.logins.control])
+        after = next((i for i, sec in enumerate(schema) if sec["title"] == "Station"), -1)
+        tiles.insert(after + 1, radio)
+        self.column.controls = tiles + [logins]
         self._show_conditional()
         self.save_button.disabled = True
+
+    async def refresh(self) -> None:
+        """The station's settings changed (a save here or on another screen):
+        draw them again, unless something here is typed and not saved, which
+        a reload would throw away."""
+        if not self.draft:
+            await self.load()
+
+    def _tile(self, title: str, controls: list, key: str = "", **more) -> ft.ExpansionTile:
+        key = key or title
+
+        async def toggled(e) -> None:
+            (self.open.add if e.control.expanded else self.open.discard)(key)
+        return ft.ExpansionTile(title=ft.Text(title), controls=controls,
+                                expanded=key in self.open, on_change=toggled, **more)
 
     def _section(self, section: dict) -> ft.Control:
         plain: list[ft.Control] = []
@@ -77,14 +107,12 @@ class SettingsEditor:
                 self.rows[field["path"]] = row
             (advanced if field.get("advanced") else plain).append(row)
         if advanced:
-            plain.append(ft.ExpansionTile(
-                title=ft.Text("Advanced"), subtitle=ft.Text(
-                    "Tuning the defaults already suit most stations", size=12),
-                controls=advanced, dense=True,
+            plain.append(self._tile(
+                "Advanced", advanced, key=f"{section['title']}/Advanced", dense=True,
+                subtitle=ft.Text("Tuning the defaults already suit most stations", size=12),
                 controls_padding=ft.Padding.symmetric(horizontal=8)))
-        return ft.ExpansionTile(
-            title=ft.Text(section["title"]), controls=plain,
-            controls_padding=ft.Padding.symmetric(horizontal=16, vertical=4))
+        return self._tile(section["title"], plain,
+                          controls_padding=ft.Padding.symmetric(horizontal=16, vertical=4))
 
     # ------------------------------------------------------------------
     def value_of(self, path: str):

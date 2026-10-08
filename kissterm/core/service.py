@@ -151,10 +151,12 @@ class Core:
         self.mail = Mail(self)
         self.transfers = Transfers(self)
         from .channel import Channel
+        from .radio import Radio
         from .settings import Settings
 
         #: Saving and applying settings (`settings.py`).
         self.settings = Settings(self)
+        self.radio = Radio(self)
 
         #: The heard list, NET/ROM claims, mail-for beacons and watched
         #: callsigns (`channel.py`). First on the fan-out, so the heard list

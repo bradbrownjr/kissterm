@@ -531,6 +531,31 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(800)
     await phone.frame()
 
+    # More > Settings: Appearance (the theme dropdown and, for Custom, the
+    # colour picker), then Radio: the transports, with Scan, New, Edit,
+    # Test and Forget. Nothing here transmits.
+    await phone.tab("More")
+    # Monitor is still open from its scene: fold it so Settings is in reach.
+    await phone.tap(phone.page.get_by_text("Monitor").first)
+    await phone.tap(phone.page.get_by_role("button", name=re.compile(r"^Settings")).first)
+    await phone.page.wait_for_timeout(1200)
+    # The list is lazy: what is below the fold is not in the accessibility
+    # tree until it is scrolled to.
+    await phone.page.mouse.move(195, 600)
+    await phone.page.mouse.wheel(0, 700)
+    await phone.page.wait_for_timeout(800)
+    await phone.tap(phone.page.get_by_text("Appearance").first)
+    await phone.page.wait_for_timeout(600)
+    await phone.page.mouse.wheel(0, 1100)
+    await phone.page.wait_for_timeout(600)
+    await phone.frame()
+    await phone.page.mouse.wheel(0, -5000)
+    await phone.page.wait_for_timeout(600)
+    await phone.tap(phone.page.get_by_text("Radio").first)
+    await phone.page.mouse.wheel(0, 420)
+    await phone.page.wait_for_timeout(700)
+    await phone.frame()
+
 
 FILE_HTML = ("<html><head><title>Net bulletin</title></head><body><h1>Weekly net</h1>"
              "<p>Thursday 7 PM on <b>147.09</b> MHz. Bring a <i>go kit</i> and a pencil.</p>"
@@ -576,6 +601,7 @@ async def main() -> int:
         await shot("screenshot-phone-files", phone.frames[17:19])
         await shot("screenshot-phone-templates", phone.frames[11:13])
         await shot("screenshot-phone-broadcast", phone.frames[21:22])
+        await shot("screenshot-phone-settings", phone.frames[22:24])
         await shot("screenshot-desktop", desktop.frames)
     finally:
         await server.stop()

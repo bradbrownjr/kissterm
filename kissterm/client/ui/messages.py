@@ -57,6 +57,34 @@ def bubble(message: dict) -> ft.Control:
                                       color=ft.Colors.OUTLINE), *status])]))])
 
 
+def counted_field(limit: int, **kwargs) -> ft.TextField:
+    """A text field that stops at `limit` and shows "n/limit" inside its
+    right end. Flet's own counter sits under the box, which pushed the
+    field up out of line with the buttons beside it (operator, 2026-10-08:
+    "does not look polished")."""
+    count = ft.Text(f"0/{limit}", size=11, color=ft.Colors.OUTLINE)
+    user_change = kwargs.pop("on_change", None)
+
+    async def changed(e) -> None:
+        count.value = f"{len(e.control.value or '')}/{limit}"
+        if user_change is not None:
+            await user_change(e)
+        try:
+            count.update()
+        except RuntimeError:  # not on a page yet (a test, a sheet still opening)
+            pass
+
+    field = ft.TextField(max_length=limit, counter="", suffix=count, on_change=changed, **kwargs)
+
+    def fill(text: str) -> None:
+        """Set the text from code (a template, a send): the count follows."""
+        field.value = text
+        count.value = f"{len(text)}/{limit}"
+
+    field.fill = fill
+    return field
+
+
 class MessagesView:
     def __init__(self, app) -> None:
         self.app = app
@@ -67,8 +95,8 @@ class MessagesView:
         self.object_form = None
         self.list = ft.ListView(expand=True)
         self.thread = ft.ListView(expand=True, auto_scroll=True, padding=ft.Padding.all(8))
-        self.compose = ft.TextField(expand=True, hint_text="Message", dense=True,
-                                    on_submit=self._send, max_length=67)
+        self.compose = counted_field(67, expand=True, hint_text="Message", dense=True,
+                                     on_submit=self._send)
         #: APRS > Send position, the terminal's P on its APRS tab.
         self.toolbar = ft.Container(
             padding=ft.Padding.symmetric(horizontal=12, vertical=6),
@@ -230,7 +258,7 @@ class MessagesView:
             return
         result = await self.app.command("aprs_send", to=self.thread_of, text=text)
         if result:
-            self.compose.value = ""
+            self.compose.fill("")
             await self._load_thread()
         self.app.page.update()
 
@@ -245,7 +273,7 @@ class MessagesView:
     async def _new(self, _e) -> None:
         to = ft.TextField(label="To", hint_text="Callsign, e.g. W1AW-7", autofocus=True,
                           capitalization=ft.TextCapitalization.CHARACTERS)
-        text = ft.TextField(label="Message", max_length=67, multiline=True)
+        text = counted_field(67, label="Message", multiline=True)
 
         async def go() -> None:
             call = (to.value or "").strip().upper()

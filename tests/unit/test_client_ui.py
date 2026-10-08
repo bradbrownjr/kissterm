@@ -1022,7 +1022,8 @@ def test_the_place_in_front_loads_once_the_station_is_connected():
     assert page.tasks == [], "asked the station before it was connected"
     conn.status = "connected"
     app.on_status("connected")
-    assert page.tasks == [app.views[MAIL].shown, app.load_theme], "and the station's theme with it"
+    assert page.tasks == [app.views[MAIL].shown, app.load_theme, app.open_on_start_tab], \
+        "and the station's theme with it"
 
 
 def test_mail_and_messages_reload_only_while_in_front():
@@ -1700,7 +1701,9 @@ def _controls(root) -> list:
     return out
 
 
-_SCHEMA = [{"title": "Appearance", "fields": [
+_SCHEMA = [{"title": "Station", "fields": [
+    {"path": "mycall", "label": "Callsign", "kind": "callsign", "value": "N1ABC-1",
+     "apply": "connect"}]}, {"title": "Appearance", "fields": [
     {"path": "theme", "label": "Theme", "kind": "choice", "value": "tokyo-night", "apply": "live",
      "choices": [["Nord (dark)", "nord"], ["Tokyo Night (dark)", "tokyo-night"]]},
     {"path": "custom_theme.primary", "label": "Primary", "kind": "color", "value": "#BB9AF7",
@@ -1728,6 +1731,8 @@ async def test_settings_draws_each_kind_hides_what_waits_on_another_and_folds_ad
     assert kinds["theme"] == "Dropdown", "a choice is a dropdown, not a text box"
     assert kinds["home_bbs.route"] == "Dropdown" and kinds["aprs.path"] == "Dropdown"
     assert kinds["custom_theme.primary"] == "TextField" and not editor.rows["custom_theme.primary"].visible
+    assert [t.title.value for t in editor.column.controls if isinstance(t, ft.ExpansionTile)] == [
+        "Station", "Radio", "Appearance", "Logins"], "Radio follows Station; Logins come last"
     assert any(isinstance(c, ft.ExpansionTile) and c.title.value == "Advanced"
                for c in _controls(editor.column)), "advanced fields fold away"
     texts = [c.value for c in _controls(editor.column) if isinstance(c, ft.Text)]
@@ -1799,3 +1804,142 @@ def test_a_device_that_chose_nothing_follows_the_stations_theme():
     assert page.theme_mode == ft.ThemeMode.LIGHT, "the page follows the theme, not the browser"
     theme.apply(page, {**palette, "dark": True})
     assert page.theme_mode == ft.ThemeMode.DARK and page.theme is page.dark_theme
+
+
+_RADIO = {"active": "tnc", "logins": ["bbs"], "scripts": ["hop"],
+          "transports": [{"name": "tnc", "kind": "tcp", "host": "10.0.0.5", "port": 8001}],
+          "kinds": [
+              {"kind": "tcp", "label": "TCP KISS", "experimental": False, "session_tier": False,
+               "fields": [{"key": "host", "label": "Host", "placeholder": "", "default": "",
+                           "numeric": False, "password": False, "optional": False},
+                          {"key": "port", "label": "Port", "placeholder": "", "default": "8001",
+                           "numeric": True, "password": False, "optional": False}]},
+              {"kind": "vara", "label": "VARA HF", "experimental": True, "session_tier": True,
+               "fields": [{"key": "host", "label": "Host", "placeholder": "", "default": "",
+                           "numeric": False, "password": False, "optional": False}]}]}
+
+
+@pytest.mark.asyncio
+async def test_radio_saves_through_the_station_and_a_refusal_keeps_the_form():
+    from kissterm.client.ui.radio import RadioSection
+
+    saved: list = []
+    result = {"error": ""}
+    app = MailApp({"radio_info": _RADIO,
+                   "radio_save": lambda **a: saved.append(a) or result,
+                   "radio_forget": True})
+    section = RadioSection(app)
+    await section.load()
+    assert section.picker.value == "tnc" and "host = 10.0.0.5" in section.detail.value
+    await section._edit(None)
+    [form] = app.page.dialogs
+    fields = {c.label: c for c in _controls(form) if isinstance(c, (ft.TextField, ft.Dropdown))}
+    assert fields["Name"].value == "tnc" and fields["Host"].value == "10.0.0.5"
+    def auto_shown(root) -> bool:
+        [col] = [c for c in _controls(root) if isinstance(c, ft.Column)
+                 and any(getattr(x, "label", "") == "Saved login" for x in c.controls)]
+        return bool(col.visible)
+
+    assert not auto_shown(form), "auto-login is for session-tier kinds only"
+    fields["Port"].value = "9000"
+    [go] = [c for c in _controls(form) if isinstance(c, ft.FilledButton)]
+    await go.on_click(None)
+    assert saved == [{"entry": {"name": "tnc", "kind": "tcp", "host": "10.0.0.5", "port": "9000"},
+                      "original": "tnc"}]
+    # Changing the kind starts that kind's form fresh, with its login pickers.
+    app.page.dialogs.clear()
+    await section._new(None)
+    [form] = app.page.dialogs
+    kind = [c for c in _controls(form) if isinstance(c, ft.Dropdown) and c.label == "Kind"][0]
+    await kind.on_select(type("E", (), {"control": type("C", (), {"value": "vara"})()})())
+    labels = [c.label for c in _controls(form) if isinstance(c, (ft.TextField, ft.Dropdown))]
+    assert auto_shown(form) and "Port" not in labels
+    # A refusal is shown and the form comes back, not lost.
+    result["error"] = "Port must be a number."
+    app.page.dialogs.clear()
+    await section._edit_sheet(None) if False else section._edit_sheet(None)
+    [form] = app.page.dialogs
+    [go] = [c for c in _controls(form) if isinstance(c, ft.FilledButton)]
+    await go.on_click(None)
+    assert app.page.dialogs[-1] is not form and len(app.page.dialogs) >= 1
+
+
+@pytest.mark.asyncio
+async def test_logins_and_scripts_never_show_a_secret_and_keep_it_on_an_empty_edit():
+    from kissterm.client.ui.radio import LoginsSection
+
+    saved: list = []
+    app = MailApp({"logins": [{"name": "bbs", "username": "n1abc", "has_password": True,
+                               "where": "keyring"}],
+                   "scripts": [{"name": "hop", "lines": 2}],
+                   "login_save": lambda **a: saved.append(("login", a)) or {"error": ""},
+                   "script_save": lambda **a: saved.append(("script", a)) or {"error": ""}})
+    section = LoginsSection(app)
+    await section.load()
+    tiles = [c for c in _controls(section.control) if isinstance(c, ft.ListTile)]
+    texts = " ".join(t.subtitle.value for t in tiles)
+    assert "system keyring" in texts and "2 line(s) saved." in texts and "n1abc" in texts
+    section._login_sheet({"name": "bbs", "username": "n1abc", "has_password": True})
+    [form] = app.page.dialogs
+    pw = [c for c in _controls(form) if isinstance(c, ft.TextField) and c.password][0]
+    assert pw.value in (None, "") and pw.hint_text == "(unchanged)"
+    [go] = [c for c in _controls(form) if isinstance(c, ft.FilledButton)]
+    await go.on_click(None)
+    assert saved[-1] == ("login", {"name": "bbs", "username": "n1abc", "password": "",
+                                   "original": "bbs"})
+    app.page.dialogs.clear()
+    section._script_sheet({"name": "hop", "lines": 2})
+    [form] = app.page.dialogs
+    box = [c for c in _controls(form) if isinstance(c, ft.TextField) and c.multiline][0]
+    assert not box.value and box.hint_text == "(unchanged)"
+
+
+@pytest.mark.asyncio
+async def test_the_phone_opens_on_the_place_the_station_says_once():
+    from kissterm.client.ui.shell import MAIL, MESSAGES, ClientApp
+
+    for said, place in (("aprs", MESSAGES), ("", MAIL)):
+        app = ClientApp(FakePage(), FakeConn(), StationState())
+        app.page.appbar = ft.AppBar()
+        app.command = lambda name, **a: _later(said)
+        await app.open_on_start_tab()
+        assert app.index == place
+        app.go(MAIL)
+        await app.open_on_start_tab()
+        assert app.index == MAIL, "only on the first connect"
+
+
+async def _later(value):
+    return value
+
+
+@pytest.mark.asyncio
+async def test_the_message_count_sits_inside_the_field_and_follows_text_set_by_code():
+    from kissterm.client.ui.messages import counted_field
+
+    field = counted_field(67, hint_text="Message")
+    assert field.counter == "" and field.suffix.value == "0/67", \
+        "inside the box, not under it where it pushed the field out of line"
+    field.value = "hello"
+    await field.on_change(type("E", (), {"control": field})())
+    assert field.suffix.value == "5/67"
+    field.fill("SP <to> <subject>")
+    assert field.suffix.value == "17/67"
+    field.fill("")
+    assert field.suffix.value == "0/67"
+
+
+@pytest.mark.asyncio
+async def test_a_change_elsewhere_does_not_throw_away_what_is_typed_here():
+    from kissterm.client.ui.settings import SettingsEditor
+
+    app = MailApp({"settings_schema": _SCHEMA})
+    editor = SettingsEditor(app)
+    await editor.load()
+    editor._changed("paclen", "64")
+    before = editor.column.controls
+    await editor.refresh()
+    assert editor.column.controls is before and editor.draft == {"paclen": "64"}
+    editor.draft.clear()
+    await editor.refresh()
+    assert editor.column.controls is not before

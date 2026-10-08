@@ -45,6 +45,8 @@ from ..core.questions import (  # noqa: F401 - the answer types, defined by the 
     GatewayChoice,
     InternetLogin,
 )
+from ..transport.forms import TRANSPORT_FORMS as _TRANSPORT_KINDS
+from ..transport.forms import TransportField as _TransportField  # noqa: F401
 from .button_row import ButtonRow
 from .symbol_picker import SymbolPicker
 from .wraplog import WrapLog
@@ -2332,76 +2334,6 @@ class AprsContactScreen(ModalScreen[Contact | None]):
                 gateway=self._selected_gateway(),
             )
         )
-
-
-@dataclass(frozen=True)
-class _TransportField:
-    """One kind-specific input. `key` is exactly the config key it fills --
-    the same name `build_transport` forwards to that kind's constructor."""
-
-    key: str
-    label: str
-    placeholder: str = ""
-    default: str = ""
-    numeric: bool = False
-    password: bool = False
-    optional: bool = False
-
-
-#: Which fields each kind needs, and whether it is a session transport --
-#: that decides whether the auto-login section applies at all (`Transport.
-#: script`/`credential` are meaningful only to a `SessionTransport`; see
-#: that field's docstring in `transport/base.py`). This is each kind's
-#: REQUIRED constructor arguments, not its full parameter list -- an
-#: advanced knob like serial's `kiss_params` or vara's `bandwidth` stays
-#: something only `config.toml.example` documents, same as before this
-#: dialog existed. Editing an entry that already has one of those set
-#: preserves it rather than dropping it -- see `TransportEntryScreen._save`.
-_TRANSPORT_KINDS: dict[str, tuple[bool, tuple[_TransportField, ...]]] = {
-    "tcp": (False, (
-        _TransportField("host", "Host", "e.g. 192.168.1.50"),
-        _TransportField("port", "Port", default="8001", numeric=True),
-    )),
-    "agwpe": (False, (
-        _TransportField("host", "Host", "e.g. 192.168.1.50"),
-        _TransportField("port", "Port", default="8000", numeric=True),
-    )),
-    "serial": (False, (
-        _TransportField("device", "Serial device", "e.g. /dev/ttyUSB0 or COM3"),
-        _TransportField("baud", "Baud rate", default="9600", numeric=True),
-    )),
-    "bluetooth": (False, (
-        _TransportField("address", "Bluetooth address", "e.g. 00:11:22:33:44:55"),
-        _TransportField("channel", "RFCOMM channel", default="1", numeric=True),
-    )),
-    "ble": (False, (
-        _TransportField("address", "Bluetooth address", "e.g. 00:11:22:33:44:55"),
-    )),
-    "kernel": (True, (
-        _TransportField("ax25_port", "AX.25 port", "e.g. radio0, from /etc/ax25/axports"),
-        _TransportField("mycall", "Callsign for this port", "e.g. N1ABC-1"),
-    )),
-    "vara": (True, (
-        _TransportField("host", "Host", "e.g. 127.0.0.1"),
-        _TransportField("mycall", "Callsign", "e.g. N1ABC-1"),
-        _TransportField("cmd_port", "Command port", default="8300", numeric=True),
-        _TransportField("data_port", "Data port", default="8301", numeric=True),
-    )),
-    "varafm": (True, (
-        _TransportField("host", "Host", "e.g. 127.0.0.1"),
-        _TransportField("mycall", "Callsign", "e.g. N1ABC-1"),
-        _TransportField("cmd_port", "Command port", default="8300", numeric=True),
-        _TransportField("data_port", "Data port", default="8301", numeric=True),
-    )),
-    "mercury": (True, (
-        _TransportField("host", "Host", "e.g. 127.0.0.1"),
-        _TransportField("port", "Port", default="8300", numeric=True),
-        _TransportField("mycall", "Callsign", "e.g. N1ABC-1"),
-    )),
-    # No Telnet or SSH: those are Address Book contacts, By Telnet or SSH
-    # (ROADMAP P2, every contact in the Address Book), dialed beside the
-    # radio rather than in its place.
-}
 
 
 class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):

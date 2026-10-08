@@ -118,7 +118,7 @@ class MoreView:
             self.notices.controls.insert(0, ft.Text(data.get("text", ""), size=12))
             del self.notices.controls[20:]
         elif kind == "stale" and data == "config":
-            self.app.page.run_task(self.settings.load)
+            self.app.page.run_task(self.settings.refresh)
 
     @staticmethod
     def _monitor_line(data: dict) -> ft.Control:

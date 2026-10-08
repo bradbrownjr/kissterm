@@ -382,6 +382,54 @@ async def test_a_phone_is_not_shown_what_only_the_terminal_draws_and_gets_the_li
 
 
 @pytest.mark.asyncio
+async def test_radio_logins_and_scripts_are_kept_by_the_station_and_secrets_stay_there():
+    core, server, ta, peer = await _serve()
+    client = await _join(server)
+    await client.next()
+
+    async def run(cmd, /, **args):
+        cid = f"c-{cmd}"
+        await client.send({"type": "command", "id": cid, "name": cmd, "args": args})
+        reply = await client.next(lambda m: m.get("type") == "result" and m.get("id") == cid)
+        return reply["value"]
+
+    info = await run("radio_info")
+    assert {k["kind"] for k in info["kinds"]} >= {"tcp", "serial", "vara"}
+    assert [k for k in info["kinds"] if k["kind"] == "vara"][0]["session_tier"] is True
+    bad = await run("radio_save", entry={"name": "tnc", "kind": "tcp", "host": "10.0.0.5", "port": "x"})
+    assert "must be a number" in bad["error"]
+    assert "Not a kind" in (await run("radio_save", entry={"name": "t", "kind": "nope"}))["error"]
+    ok = await run("radio_save", entry={"name": "tnc", "kind": "tcp", "host": "10.0.0.5", "port": "8001"})
+    assert ok["error"] == ""
+    saved = [t for t in core.config.transports if t["name"] == "tnc"]
+    assert saved and saved[0]["port"] == 8001
+    assert "already in use" in (await run("radio_save", entry={
+        "name": "tnc", "kind": "tcp", "host": "h", "port": "1"}))["error"]
+    renamed = await run("radio_save", original="tnc", entry={
+        "name": "tnc2", "kind": "tcp", "host": "10.0.0.5", "port": "8001"})
+    assert renamed["error"] == "" and [t["name"] for t in core.config.transports if t["name"].startswith("tnc")] == ["tnc2"]
+    assert core.config.active_transport in ("tnc2", core.config.active_transport)
+    assert await run("radio_forget", name="tnc2") is True
+
+    assert (await run("login_save", name="bbs", username="n1abc", password="s3cret"))["error"] == ""
+    [login] = [l for l in await run("logins") if l["name"] == "bbs"]
+    assert login["username"] == "n1abc" and login["has_password"] and "s3cret" not in str(login)
+    assert (await run("login_save", name="bbs2", username="n1abc", original="bbs"))["error"] == "", \
+        "an empty password on an edit keeps the saved one"
+    assert [l["has_password"] for l in await run("logins") if l["name"] == "bbs2"] == [True]
+    assert "Name this login" in (await run("login_save", name=" "))["error"]
+    assert await run("login_forget", name="bbs2") is True
+
+    assert (await run("script_save", name="hop", text="C NODE\nBBS"))["error"] == ""
+    assert await run("scripts") == [{"name": "hop", "lines": 2}], "the text never leaves"
+    assert (await run("script_save", name="hop", text="", original="hop"))["error"] == ""
+    assert [x["text"] for x in core.config.scripts if x["name"] == "hop"] == ["C NODE\nBBS"]
+    assert await run("script_forget", name="hop") is True
+    await client.ws.close()
+    await server.stop()
+
+
+@pytest.mark.asyncio
 async def test_aprs_threads_are_read_with_off_air_text_filtered():
     core, server, ta, peer = await _serve()
     core.aprs.conversations.record_incoming("W1AW-7", "net \x1b[31mstarts\x9b now", number="7")

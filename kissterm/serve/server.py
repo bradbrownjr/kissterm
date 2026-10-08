@@ -664,6 +664,11 @@ class RemoteServer:
                 sections.append({"title": section.title, "fields": fields})
         return sections
 
+    async def cmd_start_tab(self) -> str:
+        """Settings > Appearance > Open on: "", "terminal", "aprs" or
+        "monitor" ("" is Mail). A client opens on it, as the terminal does."""
+        return str(getattr(self.core.config, "start_tab", "") or "")
+
     async def cmd_theme(self) -> dict:
         """What the phone and browser draw in: the station's `theme` as one
         palette (hex colours and whether it is dark). The terminal-ANSI
@@ -693,6 +698,59 @@ class RemoteServer:
         if await core.switch_frame_transport(str(active_transport)) and core.station is not None:
             core.aprs.follow_station()
         return dataclasses.asdict(result)
+
+    # -- Settings > Radio, Logins, Scripts (`core/radio.py`) ----------------
+    async def cmd_radio_info(self) -> dict:
+        """The transports, which is in use, what each kind asks for, and the
+        names of the saved logins and scripts."""
+        return self.core.radio.info()
+
+    async def cmd_radio_save(self, entry: dict, original: str = "") -> dict:
+        """`Radio.save_transport`: proven with `build_transport` first.
+        `error` is "" when it was saved."""
+        if not isinstance(entry, dict):
+            raise CommandError("entry must be an object")
+        return {"error": self.core.radio.save_transport(entry, str(original))}
+
+    async def cmd_radio_forget(self, name: str) -> bool:
+        return self.core.radio.forget_transport(str(name))
+
+    async def cmd_radio_use(self, name: str) -> dict:
+        """Open `name` as the radio in use, as choosing it in the terminal's
+        Settings and saving does. Refused while a link is connected."""
+        result = await self.cmd_settings_save({}, str(name))
+        return {"errors": result.get("errors") or {}, "opened": self.core.transport is not None}
+
+    async def cmd_radio_scan(self) -> dict:
+        """Look for TNCs and add what is found: only when asked, never on a
+        timer (AGENTS.md). Nothing is transmitted."""
+        return await self.core.radio.scan()
+
+    async def cmd_radio_test(self, name: str) -> dict:
+        return await self.core.radio.test(str(name))
+
+    async def cmd_logins(self) -> list:
+        """Saved logins by name and username; a password never leaves."""
+        return self.core.radio.logins()
+
+    async def cmd_login_save(self, name: str, username: str = "", password: str = "",
+                             original: str = "") -> dict:
+        return {"error": self.core.radio.save_login(str(name), str(username), str(password),
+                                                    str(original))}
+
+    async def cmd_login_forget(self, name: str) -> bool:
+        return self.core.radio.forget_login(str(name))
+
+    async def cmd_scripts(self) -> list:
+        """Saved scripts by name and line count; their text may hold a
+        password and never leaves."""
+        return self.core.radio.scripts()
+
+    async def cmd_script_save(self, name: str, text: str = "", original: str = "") -> dict:
+        return {"error": self.core.radio.save_script(str(name), str(text), str(original))}
+
+    async def cmd_script_forget(self, name: str) -> bool:
+        return self.core.radio.forget_script(str(name))
 
     async def cmd_addressbook(self) -> list:
         """Every contact. A login script is literal text sent after the

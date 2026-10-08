@@ -127,38 +127,7 @@ def section_titles() -> list[str]:
     return titles
 
 
-#: What "Test" prints for each `discovery.Identity.verdict`. An
-#: operator pressing this button wants OK or FAILED, not the paragraph
-#: `identity.summary` carries for the scan results list -- that wording stays
-#: in `discovery.py` for the audience that has never seen a silent KISS port
-#: before. This button's audience just asked a specific transport a direct
-#: question and wants a direct answer.
-_TEST_LABEL = {
-    "agwpe": "OK",
-    "kiss": "OK",
-    "not-a-tnc": "FAILED",
-    "unreachable": "FAILED",
-    # Silence is normal for an idle KISS TNC.  Calling it UNKNOWN sounded like
-    # a failed setup, even though the TCP connection itself is open.
-    "unknown": "OPEN",
-}
-
-
-def _test_result_line(host: str, port: int, identity) -> str:
-    label = _TEST_LABEL.get(identity.verdict, "UNKNOWN")
-    if identity.is_tnc:
-        reason = identity.summary.removeprefix("Confirmed: ").rstrip(".")
-    elif identity.verdict in ("not-a-tnc", "unreachable"):
-        # Already one short sentence, and the wording ("Not a TNC", what
-        # answered) is exactly what an operator needs to fix config.toml.
-        reason = identity.summary.rstrip(".")
-    else:
-        # Silence is inconclusive, not a failure -- an idle KISS TNC looks
-        # exactly like this. Say so in five words, not a paragraph.
-        reason = "open, identity unconfirmed (silent KISS is normal)"
-    return f"{host}:{port}  {label}  --  {reason}"
-
-
+from ..core.radio import test_result_line as _test_result_line  # noqa: E402
 
 
 #: Field path -> its schema entry, and the title of its section.

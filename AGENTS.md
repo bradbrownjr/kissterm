@@ -245,6 +245,12 @@ changes.
   front end's own idiom (a key and the Footer; a tap and a sheet), built
   on one core method. A gap that cannot close yet (the protocol lacks
   it) is named in the reply and in ROADMAP P7a.
+- **A setting the phone and browser cannot use is marked `tui_only=True`
+  in `core/settings_schema.py`** (clocks, ASCII-safe, slide-outs, the
+  remote-control server); every other `Field` appears there, so a new one
+  needs a control for its `kind` in `client/ui/settings.py`. The theme is
+  the station's, one setting for every front end (operator, 2026-10-08:
+  "resolve these parity issues").
 - **Screenshots ship with the change too.** If a change alters a screen
   that `assets/` shows, re-run `scripts/generate_screenshot.py` (or, for
   the phone client, `scripts/generate_phone_screenshots.py`), look at

@@ -887,7 +887,11 @@ own client.
     Tuning most stations never need is folded under **Advanced**, and a
     setting that waits for a restart or the next connection says so. What
     only the terminal draws (the status-bar clock, ASCII-safe symbols,
-    slide-outs, the remote-control server) is not offered here.
+    slide-outs, the remote-control server) is not offered here. **Radio**
+    (after Station) chooses the radio in use and has Scan for hardware, New,
+    Edit, Test and Forget (nothing there transmits); **Logins** (last) saves
+    logins and scripts that a contact or transport can name. A password and
+    a script's text are never shown back: leaving one empty keeps it.
     **The theme is the station's**: Settings > Appearance > Theme restyles
     the terminal and this page together, light or dark as the theme is
     (the ANSI themes, which borrow a terminal's own colours, are drawn as
@@ -926,6 +930,8 @@ own client.
 ![A conversation with WLNK-1: the Templates sheet with the gateway's commands, then SP chosen into the message box, unsent](../assets/screenshot-phone-templates.png)
 
 ![Terminal > Broadcast: broadcasts heard, a line typed ready to send](../assets/screenshot-phone-broadcast.png)
+
+![More > Settings: Appearance with the theme list, then Radio with its transports](../assets/screenshot-phone-settings.png)
 
 ![More > Monitor with its filters, then narrowed to one callsign with Supervisory frames hidden](../assets/screenshot-phone-monitor.png)
 
