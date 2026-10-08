@@ -428,6 +428,12 @@ tab and not a modal.
   on a pick would be taking away something they never asked for. One flag
   (`SlideOut.summoned`) decides which, so the two panes cannot disagree.
 
+### The Terminal's session strip
+
+Broadcast is the first tab, always present and never closable; each connection
+adds a tab after it. A callsign shown in it is underlined and clickable (it
+opens Connect, never transmits).
+
 ### A second tab strip inside a pane
 
 The APRS pane carries one conversation per tab, plus an "All" tab

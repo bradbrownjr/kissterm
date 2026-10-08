@@ -187,7 +187,6 @@ from .dialogs import (
     TranscriptsScreen,
     FileTransferScreen,
     RemotePairingScreen,
-    BroadcastScreen,
     RestartScreen,
     UpdateScreen,
 )
@@ -657,8 +656,8 @@ class KissTermApp(App):
         elif isinstance(event, FrameSeen):
             self._monitor(event.frame, event.port, event.outgoing)
         elif isinstance(event, BroadcastHeard):
-            if isinstance(self.screen, BroadcastScreen):
-                self.screen.refresh_heard()
+            for pane in self._base_query(TerminalPane):
+                pane.note_broadcast(event.source, event.to, event.text, event.at, event.own)
         elif isinstance(event, KnownNodesChanged):
             for pane in self._base_query(TerminalPane):
                 pane.refresh_known_nodes()
@@ -984,9 +983,19 @@ class KissTermApp(App):
         await self.remote.reconcile()
 
     def action_broadcast(self) -> None:
-        """Session > Broadcast: free text to the channel, no connection
-        (`core/broadcast.py`). Opens the sheet; only its Send button transmits."""
-        self.push_screen(BroadcastScreen(self.core.broadcast))
+        """Session > Broadcast: go to the Terminal's Broadcast tab and its
+        send line (`core/broadcast.py`). Nothing is sent by going there; a
+        line typed there and committed with Enter is."""
+        self.action_show_tab("terminal")
+        pane = self.query_one(TerminalPane)
+        pane.activate_tab("")
+        pane.focus_input()
+
+    def action_connect_to(self, call: str) -> None:
+        """A callsign clicked on the Broadcast tab: the Connect dialog on it
+        (`action_connect`'s `target`). Prefills only; connecting is the
+        dialog's Connect button, behind the radio reminder and the gate."""
+        self.action_connect(target=call)
 
     def action_remote_pairing(self) -> None:
         """Session > Remote pairing: the link and QR code, and Rotate."""

@@ -435,6 +435,10 @@ class Sessions:
         (file-transfer commands over SSH); `before_send` runs once the line
         is certain to go (the terminal clears its input). True if sent.
         """
+        if not key:
+            # No session: the Terminal's Broadcast tab. A line typed there
+            # is an unproto broadcast, sent once (`core/broadcast.py`).
+            return await self.core.broadcast.send_line(text, before_send)
         link = self.link(key)
         if link is None or not link.connected:
             self._notice("Not connected.", Severity.WARNING)

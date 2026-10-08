@@ -41,16 +41,20 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
 ## Broadcast (2026-10-08)
 
-- [ ] **Send a broadcast and hear one.** Transmit on, F10 > Session >
-  Broadcast (or More > Broadcast on the phone), To CQ, type a line, Send.
+- [ ] **Send a broadcast and hear one.** Transmit on, Terminal > Broadcast tab
+  (or More > Broadcast on the phone), type a line, Enter.
   Expected: one UI frame from your callsign to `CQ` with that text in the
   Monitor, the gate armed with a notice, and the line listed as sent. A
   second station should see it in its Monitor (and in its Broadcast list
   if it runs kissterm). Have that station send one back to CQ: it should
   list under Heard.
 - [ ] **No connection is needed, and nothing is sent by opening it.**
-  Open the sheet, type, change To: the Monitor shows no transmission
-  until Send.
+  Open the Broadcast tab and type: the Monitor shows no transmission
+  until Enter.
+
+- [ ] **Click a heard callsign.** With a broadcast listed, click the
+  callsign: Connect opens filled in and nothing transmits until you
+  confirm.
 
 ## Tactical call (2026-10-08)
 

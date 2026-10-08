@@ -60,6 +60,19 @@ class Heard:
     own: bool = False
 
 
+#: Where a typed line goes when it names no address.
+DEFAULT_TO = "CQ"
+
+
+def split_destination(text: str) -> tuple[str, str]:
+    """`(to, text)` from a typed line: `QST: net at 7` goes to QST, anything
+    else to `DEFAULT_TO`."""
+    head, colon, rest = text.partition(":")
+    if colon and head.strip().upper() in DESTINATIONS:
+        return head.strip().upper(), rest.strip()
+    return DEFAULT_TO, text.strip()
+
+
 def cost(text: str) -> str:
     """What sending `text` costs the channel, in words."""
     payload = normalize_text(text).encode("latin-1", "replace")[:MAX_BEACON_BYTES]
@@ -141,6 +154,18 @@ class Broadcast:
         self._notice(f"Broadcast sent to {to}.")
         await self.core.identifier.send(reason="after the broadcast")
         return ""
+
+    async def send_line(self, text: str, before_send=None) -> bool:
+        """A line typed on the Terminal's Broadcast tab: to CQ, or to the
+        address it starts with (`QST: net at 7`). `before_send` runs once it
+        has gone (the terminal clears its input), so a refused line stays
+        in the field. True if it went out."""
+        to, body = split_destination(text)
+        if await self.send(to, body):
+            return False
+        if before_send is not None:
+            before_send()
+        return True
 
     def _notice(self, text: str, severity: Severity = Severity.INFORMATION) -> None:
         self.core.operator.notice(Notice(text, severity))

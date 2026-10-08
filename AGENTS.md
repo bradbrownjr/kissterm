@@ -308,6 +308,8 @@ changes.
   pane, and it sends through the core's `Sessions.send_line`; the pane has no
   `link.send(` at all, and in `core/sessions.py` only `send_line`,
   `send_banner` and `harvest_commands` send (`tests/pilot/test_terminal_ux.py`).
+  With no session the key is `""`, the Broadcast tab: `Sessions.send_line`
+  hands the line to `core.broadcast.send_line` (one UI frame, arms the gate).
 - **Suggestions and completions fill the input; they never send.** Use
   `TerminalPane.suggest`; never complete-on-enter.
 - **The APRS template picker never transmits on selection**

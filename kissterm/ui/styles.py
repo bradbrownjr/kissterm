@@ -301,17 +301,6 @@ AprsIsWatchScreen { align: center middle; }
 #aprs-object-reference { width: 100%; margin-top: 1; }
 #aprs-object-hint { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
 
-/* Broadcast: a line to everyone listening, and what was heard. */
-BroadcastScreen { align: center middle; }
-#broadcast-box {
-    width: 80; height: auto; max-height: 100%; overflow-y: auto; padding: 1 2;
-    border: thick $primary; background: $surface;
-}
-#broadcast-to, #broadcast-text { width: 100%; margin-top: 1; }
-#broadcast-cost { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
-#broadcast-heard-title { margin-top: 1; text-style: bold; }
-#broadcast-heard { width: 100%; height: auto; max-height: 12; }
-
 /* Connect dialog */
 ConnectScreen { align: center middle; }
 #connect-box {

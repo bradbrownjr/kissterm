@@ -92,6 +92,15 @@ callsign guard is the same trick APRS's `_tab_id` uses, and for the same
 reason -- `2E0ABC` is a real UK callsign and an unprefixed widget id raises
 `BadIdentifier`).
 
+**The first tab is Broadcast** (operator, 2026-10-08: "a broadcast tab on the
+terminal, like another station"), and it is the pre-connection view below: what
+is heard and sent to CQ, QST and the other broadcast addresses (the "you have
+mail" beacons among them) with no connection, a line typed there is
+broadcast, and the station that sent each line is a link: clicking it opens
+the Connect dialog on that callsign (`KissTermApp.action_connect_to`, which
+only prefills; the dialog is the commitment). The strip is therefore always
+shown, with Broadcast first and never closable.
+
 **Session identity is the empty string until something is connected.**
 `""` is a real, permanent key in every per-session dict here (never a real
 tab, never counted against `MAX_TERMINAL_TABS`) -- it is the pre-connection
@@ -188,6 +197,13 @@ MAX_TERMINAL_TABS = MAX_LINKS
 #: `max_lines` -- a session left running in the background for hours must
 #: not grow an unbounded buffer nothing ever trims.
 _BUFFER_LINES = 5000
+
+
+#: The Broadcast tab's id: the permanent first tab, standing for session key "".
+BROADCAST_TAB = "broadcast-tab"
+
+#: What the send line says on the Broadcast tab.
+BROADCAST_PLACEHOLDER = "broadcast to CQ (QST: ... to change) -- Ctrl+N to connect"
 
 
 def _tab_id(session_key: str) -> str:
@@ -378,7 +394,7 @@ class TerminalPane(Container):
         # the order `#session-log` last saw them. `""` is seeded here so
         # every write method always has somewhere to go, connected or not.
         self._buffers: dict[str, list[tuple[object, bool]]] = {"": []}
-        self._placeholders: dict[str, str] = {"": "not connected -- Ctrl+N to connect"}
+        self._placeholders: dict[str, str] = {"": BROADCAST_PLACEHOLDER}
         # Incoming bytes not yet written to a session's log -- see
         # `_flush_incoming` for why a chunk boundary must never become a
         # visible line break. Kept per session so a background connection's
@@ -433,7 +449,8 @@ class TerminalPane(Container):
                 # "Disconnect" while the tab is still live, because that is
                 # what it does first.
                 with Horizontal(id="terminal-session-row"):
-                    yield _SessionTabs(id="terminal-session-tabs")
+                    yield _SessionTabs(Tab("Broadcast", id=BROADCAST_TAB),
+                                       id="terminal-session-tabs")
                     yield CloseTabX(id="session-close")
                 # Hidden until Ctrl+F -- see `open_find`/`action_close_find`.
                 # Sits above the scrollback, not the send row, so it never
@@ -469,7 +486,7 @@ class TerminalPane(Container):
                 yield Static("", id="suggestion-strip")
                 with Horizontal(id="session-send-row"):
                     yield _SendInput(
-                        placeholder="not connected -- Ctrl+N to connect",
+                        placeholder=BROADCAST_PLACEHOLDER,
                         id="session-input",
                     )
                     yield Button("Send", id="session-send", variant="primary")
@@ -480,6 +497,12 @@ class TerminalPane(Container):
         # The whole row, X included: hiding only the strip left the X showing
         # with no session open (0.1.224, reported from a real screen).
         self._sync_strip_visibility()
+        # What was heard before this pane existed (a front end attached late).
+        core = getattr(self.app, "core", None)
+        if core is not None and getattr(core, "broadcast", None) is not None:
+            for h in core.broadcast.recent():
+                self.note_broadcast(h["source"], h["to"], h["text"], h["at"], h["own"])
+            self._unread.discard("")
         self._slideout = slideouts.SlideOut(
             self.query_one("#terminal-addressbook-column"),
             self.query_one("#terminal-main-column"),
@@ -568,10 +591,11 @@ class TerminalPane(Container):
         An asterisk rather than colour alone -- see `aprs_pane._label`,
         which this mirrors exactly, including the reasoning.
         """
-        return f"*{session_key}" if session_key in self._unread else session_key
+        name = session_key or "Broadcast"
+        return f"*{name}" if session_key in self._unread else name
 
     def _relabel(self, session_key: str) -> None:
-        tab = self._tabs().get_tab(_tab_id(session_key))
+        tab = self._tabs().get_tab(_tab_id(session_key) if session_key else BROADCAST_TAB)
         if tab is not None:
             tab.label = self._label(session_key)
             tab.set_class(session_key in self._unread, "-unread")
@@ -580,16 +604,15 @@ class TerminalPane(Container):
         """A session got data (or a call) while some other tab was on
         screen. Marked, not shown -- see the module docstring's "never
         steal the view" rule."""
-        if session_key and session_key not in self._unread:
+        if session_key not in self._unread:
             self._unread.add(session_key)
             self._relabel(session_key)
 
     def _sync_strip_visibility(self) -> None:
-        # No strip at all below two sessions -- a single connection must
-        # look exactly like it always has. See the module docstring.
-        shown = self.session_count > 1
-        self._tabs().display = shown
-        self.query_one("#terminal-session-row").display = shown
+        # Always shown: the Broadcast tab is first and is what the Terminal
+        # opens on. See the module docstring.
+        self._tabs().display = True
+        self.query_one("#terminal-session-row").display = True
 
     def open_tab(self, session_key: str, *, activate: bool) -> bool:
         """Make sure `session_key` has a tab. Returns False only when it
@@ -662,7 +685,8 @@ class TerminalPane(Container):
         disconnect-vs-close -- see the module docstring."""
         key = self.active_session_key
         if not key:
-            self.app.notify("No session tab is open.", severity="warning")
+            self.app.notify("The Broadcast tab stays open; there is no session to close.",
+                            severity="warning")
             return
         handler = getattr(self.app, "disconnect_or_close_tab", None)
         if handler is not None:
@@ -680,8 +704,8 @@ class TerminalPane(Container):
             self._unread.discard(session_key)
             self._relabel(session_key)
         tabs = self._tabs()
-        tab_id = _tab_id(session_key) if session_key else ""
-        if tabs.active != tab_id and tab_id in self._tab_session_keys:
+        tab_id = _tab_id(session_key) if session_key else BROADCAST_TAB
+        if tabs.active != tab_id and (tab_id == BROADCAST_TAB or tab_id in self._tab_session_keys):
             tabs.active = tab_id  # posts TabActivated; harmless if it also repaints
         self._replay(self.query_one("#session-log", RichLog), session_key)
         self.sync_close_button()
@@ -702,7 +726,8 @@ class TerminalPane(Container):
     @on(Tabs.TabActivated, "#terminal-session-tabs")
     def _session_tab_activated(self, event: Tabs.TabActivated) -> None:
         event.stop()
-        key = self._tab_session_keys.get(event.tab.id or "")
+        tab_id = event.tab.id or ""
+        key = "" if tab_id == BROADCAST_TAB else self._tab_session_keys.get(tab_id)
         if key is not None and key != self.active_session_key:
             self.activate_tab(key)
 
@@ -779,6 +804,26 @@ class TerminalPane(Container):
                 )
         else:
             self.mark_unread(session_key)
+
+    def note_broadcast(self, source: str, to: str, text: str, at: float, own: bool) -> None:
+        """One broadcast, heard or sent, on the Broadcast tab. The sender's
+        callsign is a link that opens the Connect dialog on it (`@click`
+        meta, handled by `KissTermApp.action_connect_to`); the callsign is
+        sanitized text from the air and is only ever put in a prefilled
+        dialog, never dialled. Our own lines are not links."""
+        from datetime import datetime
+
+        from rich.style import Style
+
+        line = Text(f"{datetime.fromtimestamp(at).strftime('%H:%M')} ")
+        if own:
+            line.append("you", style="bold")
+        else:
+            call = re.sub(r"[^A-Za-z0-9-]", "", source)
+            line.append(source, style=Style(
+                underline=True, meta={"@click": f"app.connect_to({call!r})"}))
+        line.append(f" > {to}: {text}")
+        self._append("", line, expand=True)
 
     def write_note(self, session_key: str, text: str) -> None:
         """Write what was sent to the far end (typed, login-script, hop and

@@ -83,12 +83,7 @@ async def test_ctrl_t_toggles_and_the_send_line_follows_it():
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         pane = app.query_one(TerminalPane)
-        pane.query_one("#session-input").value = "L"
-        await pane.send_line("L")
-        assert ta.sent == []
-        # The text stays in the field: clearing it would look exactly like a
-        # successful send, which is the worst feedback for "nothing went out".
-        assert pane.query_one("#session-input").value == "L"
+        assert app.gate.enabled is False
 
         await pilot.press("ctrl+t")
         await pilot.pause()
@@ -421,17 +416,18 @@ async def test_sending_a_line_with_a_closed_gate_arms_it_instead_of_refusing():
 
 
 @pytest.mark.asyncio
-async def test_sending_a_line_while_disconnected_never_touches_the_gate():
-    """Arming for a send that has nothing to go out on would open the gate
-    for nothing -- `send_line` checks `link.connected` before it ever looks
-    at the gate, the same guard `AprsPane._send_compose` applies against
-    `self.app.station`."""
+async def test_a_line_on_the_broadcast_tab_arms_the_gate_and_goes_out_once():
+    """With nothing connected the Terminal's Broadcast tab is the only place a
+    typed line can go: Enter there is a deliberate, operator-named send, so it
+    arms the gate (announced) and transmits one UI frame to CQ. Opening the
+    tab or typing never transmits."""
     app, station, ta = await _app(tx_armed_at_start=False)
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
         pane = app.query_one(TerminalPane)
+        assert app.gate.enabled is False and ta.sent == []
         await pane.send_line("hello")
         await pilot.pause()
-        assert app.gate.enabled is False, "a send with nothing connected armed the gate anyway"
-        assert ta.sent == []
+        assert app.gate.enabled is True
+        assert len(ta.sent) == 1
     station.close()

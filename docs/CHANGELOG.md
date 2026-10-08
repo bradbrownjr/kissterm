@@ -9,22 +9,23 @@ you need the history of a specific change.
 
 ### New Features
 
-- **Session > Broadcast** (F10) in the terminal and **More > Broadcast**
-  on the phone and web client: type a line, pick CQ, QST, ALL, TEST,
-  BEACON, ID or MAIL, and Send it once as an unproto frame with nobody
+- **A Broadcast tab, first in the Terminal's session strip**, and
+  **More > Broadcast** on the phone and web client: type a line (prefix
+  `QST:`, `ALL:`, `TEST:`, `BEACON:`, `ID:` or `MAIL:` to pick the
+  address, CQ otherwise), and Enter sends it once as an unproto frame with nobody
   connected: an announcement, a test, an ad hoc chat on a frequency
-  (operator, 2026-10-08). The sheet shows what it costs the channel and
-  lists the plain-text broadcasts heard to those addresses (APRS reports
-  are left to the APRS tab) and the ones sent. Send is the commitment and
-  arms the transmit gate; opening it, typing or choosing a destination
-  transmits nothing. Under a tactical call the licensed call is
+  (operator, 2026-10-08). The tab lists the plain-text broadcasts heard to those addresses (APRS reports
+  are left to the APRS tab) and the ones sent. Enter is the commitment and
+  arms the transmit gate; opening it or typing transmits nothing. A
+  callsign in the list is clickable and opens Connect filled in, to send
+  a file or mail drop (operator, 2026-10-08). Under a tactical call the licensed call is
   identified after it. (`core/broadcast.py`, commands `broadcast_info`
-  and `broadcast_send`, event `BroadcastHeard`, `BroadcastScreen`.)
+  and `broadcast_send`, event `BroadcastHeard`, `TerminalPane.note_broadcast`.)
 
 **Files:** `kissterm/core/broadcast.py`, `kissterm/core/events.py`,
 `kissterm/core/service.py`, `kissterm/serve/server.py`,
-`kissterm/ui/dialogs.py`, `kissterm/ui/commands.py`, `kissterm/ui/app.py`,
-`kissterm/ui/styles.py`, `kissterm/client/ui/broadcast.py`,
+`kissterm/core/sessions.py`, `kissterm/ui/terminal_pane.py`,
+`kissterm/ui/commands.py`, `kissterm/ui/app.py`, `kissterm/client/ui/broadcast.py`,
 `kissterm/client/ui/more.py`, `kissterm/client/state.py`,
 `scripts/generate_phone_screenshots.py`,
 `assets/screenshot-phone-broadcast.png`, `docs/GUIDE.md`,

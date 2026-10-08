@@ -60,9 +60,9 @@ async def _bare_app(max_links: int = MAX_TERMINAL_TABS):
 
 
 @pytest.mark.asyncio
-async def test_a_single_session_shows_no_tab_strip():
-    """Today's exact look, untouched -- the strip only earns its place once
-    there is something for it to distinguish."""
+async def test_a_single_session_shows_the_broadcast_tab_beside_it():
+    """The strip is always there now: Broadcast is first and stays
+    (operator, 2026-10-08), and a session gets its own tab after it."""
     app, station, ta = await _bare_app()
     async with app.run_test(size=(110, 32)) as pilot:
         await pilot.pause()
@@ -71,7 +71,7 @@ async def test_a_single_session_shows_no_tab_strip():
 
         pane = app.query_one(TerminalPane)
         assert pane.session_count == 1
-        assert pane._tabs().display is False
+        assert pane._tabs().display is True and pane._tabs().tab_count == 2
     station.close()
 
 
@@ -305,7 +305,7 @@ async def test_a_session_tab_closes_from_ctrl_w_and_its_x(monkeypatch):
         await pilot.pause()
         pane = app.query_one(TerminalPane)
         row = app.query_one("#terminal-session-row")
-        assert not row.display, "no sessions: no tab row and no X"
+        assert row.display and pane._tabs().tab_count == 1, "the Broadcast tab, alone"
         assert "close_tab" not in await _footer_actions(app, pilot), "nothing to close"
         from tests.pilot.test_terminal_ux import _status_parts
 
@@ -327,7 +327,7 @@ async def test_a_session_tab_closes_from_ctrl_w_and_its_x(monkeypatch):
 
         await pilot.click("#session-close")
         await wait_for(lambda: pane.session_count == 1, "the close")
-        assert not row.display, "one session left: no tab row, as before"
+        assert row.display, "the strip stays: Broadcast is first"
     station.close()
 
 

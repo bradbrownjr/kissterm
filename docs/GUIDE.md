@@ -510,15 +510,19 @@ it on, never sent empty, with a ten-minute floor. Settings shows what your
 interval costs the channel. The timer waits a full interval before its
 first transmission; F10 > Session > Send beacon sends one now.
 
-**Broadcast** (F10 > Session > Broadcast) is for a line you type now, with
-nobody connected: an announcement, a test, an ad hoc chat on a frequency.
-Pick CQ, QST, ALL, TEST, BEACON, ID or MAIL, type up to 200 characters, and
-press Send: one unproto frame goes out once, with no acknowledgement. The
-box says what it costs the channel, and lists the plain-text broadcasts
-heard to those addresses and the ones you sent (APRS reports stay on the
-APRS tab). Send arms transmit, as a connect does; opening it, typing or
-choosing an address sends nothing. While operating as a tactical call your
-own callsign is identified after it.
+**Broadcast** is the Terminal's first tab, always there beside the tabs of
+your connections (F10 > Session > Broadcast jumps to it). It is for a line
+you type now, with nobody connected: an announcement, a test, an ad hoc
+chat on a frequency. Type a line and press Enter: one unproto frame goes
+out once to CQ, with no acknowledgement. Start the line with `QST:`, `ALL:`,
+`TEST:`, `BEACON:`, `ID:` or `MAIL:` to address it elsewhere. The tab lists
+the plain-text broadcasts heard to those addresses, including "you have
+mail" notices, and the ones you sent (APRS reports stay on the APRS tab).
+**Click a callsign in the list** to open the Connect dialog filled in with
+it, then connect to send a file or drop mail. Nothing is sent until you
+confirm. Enter on the tab arms transmit, as a connect does; opening it or
+typing sends nothing. While operating as a tactical call your own callsign
+is identified after it. The tab cannot be closed.
 
 ## Operating as a tactical call
 
