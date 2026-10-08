@@ -141,8 +141,9 @@ def test_both_weights_of_the_terminal_font_are_bundled():
 
 
 def test_the_terminal_is_dark_with_grey_text_unless_chosen_otherwise():
-    assert Look() == Look("dark", "grey")
-    assert Look("purple", "plaid") == Look(), "an unknown choice is the default, not an error"
+    assert Look().bgcolor == Look("dark", "grey").bgcolor and Look().color == Look("dark", "grey").color
+    assert Look().text == "theme", "a device that chose nothing follows the station"
+    assert Look("purple", "plaid") == Look("dark", "grey"), "an unknown choice is the default, not an error"
     assert Look().color == TEXT_COLOURS["grey"][0]
     assert Look("light", "green").color == TEXT_COLOURS["green"][1]
     assert Look("light").outgoing == OUTGOING["light"]
@@ -1021,7 +1022,7 @@ def test_the_place_in_front_loads_once_the_station_is_connected():
     assert page.tasks == [], "asked the station before it was connected"
     conn.status = "connected"
     app.on_status("connected")
-    assert page.tasks == [app.views[MAIL].shown]
+    assert page.tasks == [app.views[MAIL].shown, app.load_theme], "and the station's theme with it"
 
 
 def test_mail_and_messages_reload_only_while_in_front():
@@ -1689,3 +1690,112 @@ async def test_the_broadcast_tab_is_first_sends_only_on_send_and_a_tap_fills_con
 
     assert any(getattr(c, "value", None) == "W1BKW"
                for c in fields(app.page.dialogs[-1])), "the call is filled in"
+
+
+def _controls(root) -> list:
+    out = [root]
+    for sub in (getattr(root, "controls", None) or []) + [getattr(root, "content", None)]:
+        if sub is not None and not isinstance(sub, str):
+            out += _controls(sub)
+    return out
+
+
+_SCHEMA = [{"title": "Appearance", "fields": [
+    {"path": "theme", "label": "Theme", "kind": "choice", "value": "tokyo-night", "apply": "live",
+     "choices": [["Nord (dark)", "nord"], ["Tokyo Night (dark)", "tokyo-night"]]},
+    {"path": "custom_theme.primary", "label": "Primary", "kind": "color", "value": "#BB9AF7",
+     "only_when": ["theme", "custom"], "rule_before": "Custom theme colours", "apply": "live"},
+    {"path": "paclen", "label": "Packet length", "kind": "int", "value": 128, "minimum": 32,
+     "maximum": 256, "apply": "connect"},
+    {"path": "aprs.path", "label": "Path", "kind": "custom_choice", "value": "WIDE2-2",
+     "choices": [["None", ""], ["WIDE1-1", "WIDE1-1"]], "apply": "live"},
+    {"path": "home_bbs.route", "label": "Route", "kind": "contact", "value": "W1AW",
+     "options": [["(none)", ""], ["N1ABC", "N1ABC"]], "apply": "live"},
+    {"path": "retries", "label": "Retries", "kind": "int", "value": 10, "advanced": True,
+     "apply": "restart"}]}]
+
+
+@pytest.mark.asyncio
+async def test_settings_draws_each_kind_hides_what_waits_on_another_and_folds_advanced():
+    from kissterm.client.ui.settings import SettingsEditor
+
+    saved: list = []
+    app = MailApp({"settings_schema": _SCHEMA,
+                   "settings_save": lambda **a: saved.append(a) or {"errors": {}, "saved": True}})
+    editor = SettingsEditor(app)
+    await editor.load()
+    kinds = {p: type(c).__name__ for p, c in editor.inputs.items()}
+    assert kinds["theme"] == "Dropdown", "a choice is a dropdown, not a text box"
+    assert kinds["home_bbs.route"] == "Dropdown" and kinds["aprs.path"] == "Dropdown"
+    assert kinds["custom_theme.primary"] == "TextField" and not editor.rows["custom_theme.primary"].visible
+    assert any(isinstance(c, ft.ExpansionTile) and c.title.value == "Advanced"
+               for c in _controls(editor.column)), "advanced fields fold away"
+    texts = [c.value for c in _controls(editor.column) if isinstance(c, ft.Text)]
+    assert "Needs a restart." in texts and "Used from the next connection." in texts
+    # The route held by a contact no longer there is not lost: it is offered
+    # by the station and a custom path shows its text field.
+    custom = [c for c in _controls(editor.rows["aprs.path"]) if isinstance(c, ft.TextField)][0]
+    assert custom.visible and custom.value == "WIDE2-2"
+    # Choosing Custom theme shows the colours; nothing was sent yet.
+    await editor.inputs["theme"].on_select(type("E", (), {"control": type("C", (), {"value": "0"})()})())
+    assert editor.draft == {"theme": "nord"}
+    editor.draft["theme"] = "custom"
+    editor._show_conditional()
+    assert editor.rows["custom_theme.primary"].visible
+    assert [n for n, _ in app.commands if n == "settings_save"] == []
+    await editor._save(None)
+    assert saved == [{"draft": {"theme": "custom"}}]
+
+
+def test_the_colour_picker_reads_and_writes_hex():
+    from kissterm.client.ui import colourpicker as cp
+
+    assert cp.parse("#1a1b26") == (0x1A, 0x1B, 0x26) and cp.parse("fff") == (255, 255, 255)
+    assert cp.parse("#12") is None and cp.parse("red") is None
+    assert cp.to_hex(26, 27, 38) == "#1A1B26"
+
+
+@pytest.mark.asyncio
+async def test_a_colour_picked_goes_into_the_form_and_is_sent_only_by_save():
+    from kissterm.client.ui import colourpicker as cp
+    from kissterm.client.ui.settings import SettingsEditor
+
+    app = MailApp({"settings_schema": _SCHEMA})
+    editor = SettingsEditor(app)
+    await editor.load()
+    [swatch] = [c for c in _controls(editor.rows["custom_theme.primary"])
+                if getattr(c, "tooltip", "") == "Pick a colour"]
+    await swatch.on_click(None)
+    [picker] = app.page.dialogs
+    buttons = [c for c in _controls(picker) if isinstance(c, ft.FilledButton)]
+    tiles = [c for c in _controls(picker) if isinstance(c, ft.Container) and c.on_click and c.width == 34]
+    await tiles[0].on_click(None)
+    await buttons[0].on_click(None)
+    assert editor.draft == {"custom_theme.primary": "#000000"}
+    assert editor.inputs["custom_theme.primary"].value == "#000000"
+    assert [n for n, _ in app.commands if n == "settings_save"] == []
+    assert cp.PALETTE[0] == "#000000"
+
+
+def test_a_device_that_chose_nothing_follows_the_stations_theme():
+    from kissterm.client.ui import theme
+
+    palette = {"id": "catppuccin-latte", "dark": False, "background": "#EFF1F5",
+               "foreground": "#4C4F69", "primary": "#8839EF", "secondary": "#1E66F5",
+               "accent": "#FE640B", "error": "#D20F39", "surface": "#E6E9EF", "panel": "#CCD0DA"}
+    look = Look(palette=Look.pack(palette))
+    assert look.bgcolor == "#EFF1F5" and look.color == "#4C4F69" and look.light
+    assert look.outgoing == "#8839EF"
+    assert Look("dark", "theme", Look.pack(palette)).bgcolor == Look("dark").bgcolor, \
+        "a device that picked Dark keeps Dark"
+    scheme = theme.scheme(palette)
+    assert scheme.surface == "#EFF1F5" and scheme.primary == "#8839EF"
+    assert scheme.on_primary == "#FFFFFF" and theme.on("#FFFF55") == "#000000"
+    dark = theme.scheme({**palette, "dark": True, "background": "#1A1B26", "surface": "#1A1B26",
+                         "foreground": "#A9B1D6", "panel": "#1A1B26"})
+    assert dark.surface_container != dark.surface, "bars and cards stand off a page of the same colour"
+    page = FakePage()
+    theme.apply(page, palette)
+    assert page.theme_mode == ft.ThemeMode.LIGHT, "the page follows the theme, not the browser"
+    theme.apply(page, {**palette, "dark": True})
+    assert page.theme_mode == ft.ThemeMode.DARK and page.theme is page.dark_theme

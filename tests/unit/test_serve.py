@@ -359,6 +359,29 @@ async def test_the_settings_a_phone_gets_name_no_keys_and_no_secrets():
 
 
 @pytest.mark.asyncio
+async def test_a_phone_is_not_shown_what_only_the_terminal_draws_and_gets_the_lists():
+    core, server, ta, peer = await _serve()
+    client = await _join(server)
+    await client.next()
+    sections = (await client.command("c1", "settings_schema"))["value"]
+    fields = {f["path"]: f for s in sections for f in s["fields"]}
+    for path in ("ascii_safe", "show_utc_time", "clock_24h", "serve.port", "monitor_filter"):
+        assert path not in fields, f"{path} means nothing off the terminal"
+    assert "Remote" not in [s["title"] for s in sections], "a section with nothing left is dropped"
+    theme = fields["theme"]
+    assert ["Tokyo Night (dark)", "tokyo-night"] in [list(c) for c in theme["choices"]], \
+        "a headless station still offers the themes"
+    assert fields["aprs.symbol"]["options"], "the map symbols come with the field"
+    assert fields["home_bbs.route"]["options"][0] == ["(none)", ""]
+    saved = await client.command("c2", "settings_save", draft={"theme": "nord"})
+    assert saved["value"]["errors"] == {} and core.config.theme == "nord"
+    palette = (await client.command("c3", "theme"))["value"]
+    assert palette["id"] == "nord" and palette["dark"] and palette["background"].startswith("#")
+    await client.ws.close()
+    await server.stop()
+
+
+@pytest.mark.asyncio
 async def test_aprs_threads_are_read_with_off_air_text_filtered():
     core, server, ta, peer = await _serve()
     core.aprs.conversations.record_incoming("W1AW-7", "net \x1b[31mstarts\x9b now", number="7")

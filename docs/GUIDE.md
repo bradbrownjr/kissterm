@@ -879,10 +879,22 @@ own client.
     by callsign or by what was said, and read in the terminal's look), recent notices, Terminal,
     and Settings (the station's own, checked by the station as the
     terminal checks them; a password field left empty keeps the saved
-    one). **Terminal** sets how session text looks on this phone or
-    browser only: a dark panel (the default) or a light one for
-    sunlight, and the text colour (Grey, Contrast, Green, Amber or Cyan),
-    with a sample.
+    one). Each setting has the control it needs: a switch, a dropdown
+    (themes, Address Book contacts, saved logins, the APRS path and map
+    symbol, searchable), a number box that says its limits, and a **colour
+    picker** (a palette, red, green and blue sliders, and the hex value) for
+    the custom theme's colours; those show only while Theme is Custom.
+    Tuning most stations never need is folded under **Advanced**, and a
+    setting that waits for a restart or the next connection says so. What
+    only the terminal draws (the status-bar clock, ASCII-safe symbols,
+    slide-outs, the remote-control server) is not offered here.
+    **The theme is the station's**: Settings > Appearance > Theme restyles
+    the terminal and this page together, light or dark as the theme is
+    (the ANSI themes, which borrow a terminal's own colours, are drawn as
+    Textual's dark and light). **Terminal**, in More, is this phone or
+    browser's own choice for session text only: **Theme** (the default,
+    following the station), or a dark or light panel, and the text colour
+    (Theme, Grey, Contrast, Green, Amber or Cyan), with a sample.
   - A **question** (the radio reminder, a login) slides up from the
     bottom. Swiping it away is Cancel.
   - `kissterm --client LINK` opens the same remote control in a window

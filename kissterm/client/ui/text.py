@@ -51,7 +51,7 @@ TEXT_COLOURS = {
 }
 #: The operator's own lines, in an accent that is neither text colour.
 OUTGOING = {"dark": "#8ab4f8", "light": "#1a56db"}
-DEFAULT_BACKGROUND, DEFAULT_TEXT = "dark", "grey"
+DEFAULT_BACKGROUND, DEFAULT_TEXT = "dark", "grey"  # what THEME is without a palette
 #: ANSI colours a node sends for a dark screen that vanish on a light one,
 #: drawn darker there.
 _ON_LIGHT = {"#e5e5e5": "#57606a", "#ffffff": "#24292f", "#cdcd00": "#7d6b00",
@@ -59,35 +59,71 @@ _ON_LIGHT = {"#e5e5e5": "#57606a", "#ffffff": "#24292f", "#cdcd00": "#7d6b00",
              "#00ffff": "#0e6b72"}
 
 
+#: A device that has chosen nothing follows the station's theme
+#: (`Look.palette`); "dark" and "light" and the named text colours are
+#: this device's own override of it.
+THEME = "theme"
+
+
 @dataclass(frozen=True, slots=True)
 class Look:
-    """How session text is drawn: `background` and `text` are names from
-    `BACKGROUNDS` and `TEXT_COLOURS`; an unknown name is the default."""
+    """How session text is drawn: `background` and `text` are `THEME` or
+    names from `BACKGROUNDS` and `TEXT_COLOURS`; an unknown name is the
+    default. `palette` is the station's theme as sorted `(name, value)`
+    pairs (`themes.palette`), which `THEME` follows; without one (not yet
+    asked, an old station) `THEME` is the dark panel with grey text."""
 
-    background: str = DEFAULT_BACKGROUND
-    text: str = DEFAULT_TEXT
+    background: str = THEME
+    text: str = THEME
+    palette: tuple = ()
 
     def __post_init__(self) -> None:
-        if self.background not in BACKGROUNDS:
+        if self.background != THEME and self.background not in BACKGROUNDS:
             object.__setattr__(self, "background", DEFAULT_BACKGROUND)
-        if self.text not in TEXT_COLOURS:
+        if self.text != THEME and self.text not in TEXT_COLOURS:
             object.__setattr__(self, "text", DEFAULT_TEXT)
+
+    @staticmethod
+    def pack(palette: dict | None) -> tuple:
+        return tuple(sorted((k, v) for k, v in (palette or {}).items()
+                            if isinstance(v, (str, bool)))) if palette else ()
+
+    def _theme(self, name: str, default=None):
+        return dict(self.palette).get(name, default)
+
+    @property
+    def following(self) -> bool:
+        """Background taken from the station's theme."""
+        return self.background == THEME and bool(self.palette)
 
     @property
     def light(self) -> bool:
+        if self.background == THEME:
+            return bool(self.palette) and not self._theme("dark", True)
         return self.background == "light"
 
     @property
+    def _key(self) -> str:
+        return "light" if self.light else "dark"
+
+    @property
     def bgcolor(self) -> str:
-        return BACKGROUNDS[self.background]
+        if self.following:
+            return self._theme("background") or BACKGROUNDS[self._key]
+        return BACKGROUNDS[self._key]
 
     @property
     def color(self) -> str:
-        return TEXT_COLOURS[self.text][1 if self.light else 0]
+        if self.text == THEME and self.following:
+            return self._theme("foreground") or TEXT_COLOURS[DEFAULT_TEXT][self.light]
+        name = DEFAULT_TEXT if self.text == THEME else self.text
+        return TEXT_COLOURS[name][1 if self.light else 0]
 
     @property
     def outgoing(self) -> str:
-        return OUTGOING[self.background]
+        if self.following:
+            return self._theme("primary") or OUTGOING[self._key]
+        return OUTGOING[self._key]
 
     def ansi(self, color: str | None) -> str | None:
         """A colour the station sent, readable on this background."""

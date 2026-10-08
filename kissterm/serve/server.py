@@ -598,15 +598,57 @@ class RemoteServer:
     async def cmd_get_files(self) -> None:
         await self.core.mail.get_files()
 
-    async def cmd_settings_schema(self) -> list:
-        """The schema with each field's current value; a secret's value is
-        never sent (an empty field keeps what is saved)."""
+    def _register_themes(self) -> None:
+        """The theme list is Textual's, registered by whoever draws themes
+        (`ui/settings_schema.py`); a headless station draws none itself but
+        serves the list, so the phone's Theme dropdown and the save's
+        validation have it (`kissterm/themes.py`, no UI import)."""
+        from ..core import settings_schema as schema
+        from .. import themes
+
+        spec = next(f for sec in schema.SETTINGS_SCHEMA for f in sec.fields if f.path == "theme")
+        if not spec.choices:
+            schema.register_choices("theme", themes.choices())
+
+    def _field_options(self, spec) -> list | None:
+        """`[label, value]` pairs for the kinds whose list is the station's
+        own: Address Book contacts, saved logins, APRS map symbols. The
+        current value stays in the list even when it is gone (a list without
+        it would clear it on Save), as in the terminal's Settings."""
+        from ..aprs import symbols
         from ..core import settings_schema as schema
 
+        current = str(schema.get_value(self.core.config, spec.path) or "")
+        if spec.kind == "contact":
+            internet = spec.contacts == "internet"
+            targets = [e.target for e in self.core.addressbook.entries if e.is_internet == internet]
+            options = [["(none)", ""]] + [[t, t] for t in targets]
+            if current and current not in targets:
+                options.append([f"{current} (not in the Address Book)", current])
+            return options
+        if spec.kind == "login":
+            names = [n for c in self.core.config.credentials if (n := c.get("name"))]
+            options = [["(none)", ""]] + [[n, n] for n in names]
+            if current and current not in names:
+                options.append([f"{current} (not a saved login)", current])
+            return options
+        if spec.kind == "filtered_choice":
+            return [[sym.display_label(ascii_safe=False), sym.key] for sym in symbols.SYMBOLS]
+        return None
+
+    async def cmd_settings_schema(self) -> list:
+        """The schema with each field's current value; a secret's value is
+        never sent (an empty field keeps what is saved). What only the
+        terminal draws (`Field.tui_only`) is left out."""
+        from ..core import settings_schema as schema
+
+        self._register_themes()
         sections = []
         for section in schema.SETTINGS_SCHEMA:
             fields = []
             for spec in section.fields:
+                if spec.tui_only:
+                    continue
                 data = wire.jsonable(spec)
                 data["help"] = wording.neutral(spec.help)
                 try:
@@ -614,14 +656,29 @@ class RemoteServer:
                 except AttributeError:
                     value = None
                 data["value"] = None if spec.kind == "secret" else wire.jsonable(value)
+                options = self._field_options(spec)
+                if options is not None:
+                    data["options"] = options
                 fields.append(data)
-            sections.append({"title": section.title, "fields": fields})
+            if fields:
+                sections.append({"title": section.title, "fields": fields})
         return sections
+
+    async def cmd_theme(self) -> dict:
+        """What the phone and browser draw in: the station's `theme` as one
+        palette (hex colours and whether it is dark). The terminal-ANSI
+        themes have no palette of their own, so they are drawn as Textual's
+        dark and light; an unknown name is the default
+        (`themes.resolve_theme_id`), never an unstyled page."""
+        from .. import themes
+
+        return themes.palette(self.core.config)
 
     async def cmd_settings_save(self, draft: dict, active_transport: str = "") -> dict:
         if not isinstance(draft, dict):
             raise CommandError("draft must be an object")
         core = self.core
+        self._register_themes()
         before = getattr(core.config, "active_transport", "")
         result = core.settings.save(draft, str(active_transport))
         if not result.errors:

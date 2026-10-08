@@ -81,6 +81,11 @@ class Field:
     #: For kind "contact": "radio" lists contacts reached by radio,
     #: "internet" those reached by Telnet or SSH.
     contacts: str = ""
+    #: Means something only in the terminal UI (a status-bar clock, ASCII-safe
+    #: glyphs, slide-outs): the phone and browser are not shown it
+    #: (`serve/server.py` `cmd_settings_schema`). A setting both draw is never
+    #: marked, so the two keep parity (operator, 2026-10-08).
+    tui_only: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -893,25 +898,25 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                   "and QR code: the Pairing link button below, or "
                   "{key:remote_pairing}. kissterm --serve does the same with no "
                   "screen.",
-                  apply="live"),
+                  apply="live", tui_only=True),
             Field("serve.port", "Port", "int",
                   "The TCP port remote clients connect to.", minimum=1, maximum=65535,
-                  apply="live"),
+                  apply="live", tui_only=True),
             Field("serve.listen", "Listen on", "choice",
                   "The LAN lets other devices on your network connect; this machine "
                   "only needs Tailscale or an SSH tunnel to reach it from elsewhere. "
                   "Either way a client needs the pairing token.",
                   apply="live",
-                  choices=(("The LAN", "0.0.0.0"), ("This machine only", "127.0.0.1"))),
+                  choices=(("The LAN", "0.0.0.0"), ("This machine only", "127.0.0.1")), tui_only=True),
             Field("serve.public_url", "Public URL", "text",
                   "Only behind a reverse proxy that adds TLS (Caddy, nginx): the address "
                   "clients use, which the pairing link then shows. Leave empty otherwise.",
-                  apply="live", placeholder="https://kissterm.example.org", advanced=True),
+                  apply="live", placeholder="https://kissterm.example.org", advanced=True, tui_only=True),
             Field("serve.tls_cert", "TLS certificate", "text",
                   "A certificate file (PEM) to serve wss:// directly, without a proxy. "
-                  "Needs the key below too.", apply="live", advanced=True),
+                  "Needs the key below too.", apply="live", advanced=True, tui_only=True),
             Field("serve.tls_key", "TLS key", "text",
-                  "The certificate's private key file (PEM).", apply="live", advanced=True),
+                  "The certificate's private key file (PEM).", apply="live", advanced=True, tui_only=True),
         ),
     ),
     Section(
@@ -1040,7 +1045,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "bool",
                 "Shown unmarked, the same convention a paper log uses. On by "
                 "default.",
-                apply="live",
+                apply="live", tui_only=True,
             ),
             Field(
                 "show_utc_time",
@@ -1048,7 +1053,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "bool",
                 "Always marked: Z on a 24-hour clock, UTC on a 12-hour one. "
                 "Turn both this and local time on to see each side by side.",
-                apply="live",
+                apply="live", tui_only=True,
             ),
             Field(
                 "clock_24h",
@@ -1056,7 +1061,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "bool",
                 "On by default: 24-hour is the amateur radio convention, "
                 "especially for anything logged in UTC.",
-                apply="live",
+                apply="live", tui_only=True,
             ),
             Field(
                 "show_date",
@@ -1066,7 +1071,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "March 4th in the US and April 3rd almost everywhere else. "
                 "With both times shown, each gets its own date on the nights "
                 "they differ.",
-                apply="live",
+                apply="live", tui_only=True,
             ),
             Field(
                 "ascii_safe",
@@ -1074,7 +1079,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "bool",
                 "Plain ASCII instead of Unicode box-drawing, for a terminal "
                 "that mangles anything past code page 437.",
-                apply="restart",
+                apply="restart", tui_only=True,
             ),
             Field(
                 "remote_color",
@@ -1086,7 +1091,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "this is a readability choice, not a safety one. Turn it off "
                 "on a terminal that renders colour badly.",
                 apply="live",
-                advanced=True,
+                advanced=True, tui_only=True,
             ),
             Field(
                 "slideouts_auto_open",
@@ -1098,7 +1103,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "{key:toggle_contacts} still opens and closes either at any width, and doing "
                 "so takes the decision away from this setting until restart.",
                 apply="restart",
-                advanced=True,
+                advanced=True, tui_only=True,
             ),
         ),
     ),
@@ -1131,7 +1136,7 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "Starting filter for the Monitor pane: a callsign, or text to "
                 "match in the payload.",
                 apply="live",
-                placeholder='a callsign or text; empty shows all',
+                placeholder='a callsign or text; empty shows all', tui_only=True,
             ),
             Field(
                 "aprs_is_watch_debug",

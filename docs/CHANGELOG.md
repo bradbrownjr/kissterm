@@ -5,6 +5,36 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-08] — Phone and web: the station's theme and a real Settings form
+
+### New Features
+
+- **The phone and browser are drawn in the station's theme.** Settings >
+  Appearance > Theme (and the custom colours and Dark flag) now restyles the
+  web client as well as the terminal, light or dark as the theme is, instead
+  of a fixed indigo page that ignored it (operator, 2026-10-08: "I turned off
+  dark mode and it's still dark"). More > Terminal keeps a per-device choice
+  for session text only, defaulting to Theme. (`themes.palette`, command
+  `theme`, `client/ui/theme.py`.)
+- **A colour picker** for colour settings (palette, RGB sliders, hex).
+
+### Improvements
+
+- **Settings on the phone uses the schema in full**: dropdowns for choices,
+  contacts, logins and the map symbol, the Custom option for the APRS path,
+  `only_when` (custom colours only while Theme is Custom), an Advanced fold,
+  headings, number limits, and "Needs a restart" notes. The theme list is
+  served by a headless station too (it was empty, which is why Theme was a
+  text box).
+- **Settings only the terminal draws are not offered to the phone**
+  (`Field.tui_only`: clocks, ASCII-safe, slide-outs, remote-control server,
+  default monitor filter).
+
+**Files:** `kissterm/themes.py` (moved from `ui/themes.py`, which re-exports),
+`kissterm/core/settings_schema.py`, `kissterm/serve/server.py`,
+`kissterm/client/ui/settings.py`, `colourpicker.py`, `theme.py`, `text.py`,
+`shell.py`, `more.py`, `docs/GUIDE.md`, `docs/PROTOCOL.md`
+
 ## [2026-10-08] — Phone and web: Clear
 
 ### Improvements

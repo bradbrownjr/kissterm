@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import replace
 
 import flet as ft
 
@@ -57,6 +58,7 @@ from .more import MoreView
 from .questions import QuestionSheets
 from .sessions import SessionsView
 from .stations import StationsView
+from . import theme
 from .text import Look
 
 log = logging.getLogger(__name__)
@@ -183,7 +185,21 @@ class ClientApp:
         except Exception:  # noqa: BLE001 - no storage: the default look
             log.debug("terminal look not loaded", exc_info=True)
             return
-        self.apply_look(Look(str(background or ""), str(text or "")))
+        self.apply_look(Look(str(background or "") or "theme", str(text or "") or "theme",
+                             self.look.palette))
+
+    async def load_theme(self) -> None:
+        """The station's theme (Settings > Appearance), drawn here too: the
+        page's colour scheme, and the terminal panel where this device has
+        not chosen its own look (`Look`)."""
+        palette = await self.command("theme")
+        if palette:
+            self.apply_theme(palette)
+
+    def apply_theme(self, palette: dict) -> None:
+        theme.apply(self.page, palette)
+        self.apply_look(replace(self.look, palette=Look.pack(palette)))
+        self.page.update()
 
     async def set_look(self, look: Look) -> None:
         """Use `look` on this device and remember it."""
@@ -344,14 +360,17 @@ class ClientApp:
         self.status.visible = bool(text)
         if status == "connected":
             # First connect or back after a drop: the place in front loads
-            # (again) from the station.
+            # (again) from the station, and so does its theme.
             self.page.run_task(self.views[self.index].shown)
+            self.page.run_task(self.load_theme)
         self.page.update()
 
     def _on_state(self, kind: str, data) -> None:
         if kind in ("gate", "station"):
             self._paint_gate()
             self.page.appbar.title = ft.Text(self._title())
+        if kind == "stale" and data == "config":
+            self.page.run_task(self.load_theme)
         if kind == "notice":
             sheets.snack(self.page, data.get("text", ""),
                          error=data.get("severity") == "error",

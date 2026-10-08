@@ -169,7 +169,8 @@ lighter path around a rule the terminal follows.
 | `restart` | `Restarter.start`: answers `true` at once, then stops beacons and runs, disconnects every session (forced after 5 s), and starts the station again with the same command line; the client's connection drops and reconnects with the same token | a DISC per connected link |
 | `shutdown` | `Restarter.start(again=False)`: as `restart`, but the station stays stopped (nothing remote can start it again) | a DISC per connected link |
 | `mail_cancel` | `Mail.cancel`: the run's session is disconnected (or its SABMs stopped), an Internet run stopped; false if none was running | a DISC, if its link is up |
-| `settings_schema` | `SETTINGS_SCHEMA`, each field with its `value` (a secret's is null) | no |
+| `settings_schema` | `SETTINGS_SCHEMA`, each field with its `value` (a secret's is null) and, for a contact, login or map-symbol field, its `options` as `[label, value]`; fields marked `tui_only` are left out, and the Theme field's `choices` are filled | no |
+| `theme` | the station's theme as one palette: `id`, `drawn_as`, `dark` and `#rrggbb` for `primary`, `secondary`, `accent`, `foreground`, `background`, `surface`, `panel`, `warning`, `error`, `success` (the ANSI themes are drawn as Textual's dark and light) | no |
 | `settings_save` `{draft, active_transport}` | `Settings.save`; a new transport is opened | no |
 | `addressbook` / `addressbook_save` `{entry}` | `Core.addressbook` | no |
 | `heard` | `Core.heard.entries` | no |

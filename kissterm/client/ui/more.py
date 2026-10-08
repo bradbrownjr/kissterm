@@ -12,13 +12,15 @@ nothing on the station or on another phone (`shell.py`).
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import flet as ft
 
 from . import sheets
 from ..monitorfilter import MonitorFilter
 from .transcripts import TranscriptsSection
 from .settings import SettingsEditor
-from .text import MONO, MONO_BOLD, TEXT_COLOURS, Look
+from .text import MONO, MONO_BOLD, TEXT_COLOURS, THEME, Look
 
 #: Monitor lines shown (the model keeps more).
 MONITOR_SHOWN = 200
@@ -48,7 +50,8 @@ class MoreView:
         self.notices = ft.Column(tight=True, spacing=4)
         self.background = ft.SegmentedButton(
             selected=[app.look.background], on_change=self._background_changed,
-            segments=[ft.Segment(value="dark", label="Dark", icon=ft.Icons.DARK_MODE),
+            segments=[ft.Segment(value=THEME, label="Theme", icon=ft.Icons.PALETTE),
+                      ft.Segment(value="dark", label="Dark", icon=ft.Icons.DARK_MODE),
                       ft.Segment(value="light", label="Light", icon=ft.Icons.LIGHT_MODE)])
         self.swatches = ft.Row(wrap=True, spacing=12, run_spacing=8)
         self.preview = ft.Container(border_radius=8, padding=ft.Padding.all(12))
@@ -154,7 +157,7 @@ class MoreView:
         """Show the app's current `Look` as chosen, with a sample."""
         look = self.app.look
         self.background.selected = [look.background]
-        self.swatches.controls = [self._swatch(name, look) for name in TEXT_COLOURS]
+        self.swatches.controls = [self._swatch(name, look) for name in (THEME, *TEXT_COLOURS)]
         self.preview.bgcolor = look.bgcolor
         self.preview.content = ft.Column(spacing=2, controls=[
             ft.Text("W1AWND:W1AW-7} BBS CHAT NODES BYE", font_family=MONO, size=13,
@@ -162,11 +165,11 @@ class MoreView:
             ft.Text("NODES", font_family=MONO_BOLD, size=13, color=look.outgoing)])
 
     def _swatch(self, name: str, look: Look) -> ft.Control:
-        sample = Look(look.background, name)
+        sample = replace(look, text=name)
         chosen = name == look.text
 
         async def pick(_e) -> None:
-            await self.app.set_look(Look(look.background, name))
+            await self.app.set_look(replace(look, text=name))
 
         # The swatch and its name are one target: a thumb, not a pointer.
         return ft.Container(on_click=pick, border_radius=8, padding=ft.Padding.all(4),
@@ -184,7 +187,7 @@ class MoreView:
     async def _background_changed(self, e) -> None:
         selected = list(e.control.selected or [])
         if selected:
-            await self.app.set_look(Look(selected[0], self.app.look.text))
+            await self.app.set_look(replace(self.app.look, background=selected[0]))
 
     def _paint(self) -> None:
         state = self.app.state
