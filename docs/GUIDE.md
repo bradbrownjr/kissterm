@@ -841,7 +841,7 @@ own client.
     Connect filled in; a line typed there goes out once to ALL, or to the address you prefix,
     only when you press Send), then one page per session, swiped or tapped
     across the top, and a line to type. A line goes only when you press
-    Send. **Clear** (beside Connect, at the end of the session tabs) empties what the shown page displays, as `Ctrl+L` does in the terminal: the view only, the transcript stays, and nothing is sent. Connect is there too; **Disconnect** sits
+    Send. **Send beacon** (the antenna icon, F10 > Session > Send beacon) asks which: **Packet beacon** sends the beacon text once and needs transmit already on, **APRS position** sends one position report. **Clear** (beside it, at the end of the session tabs) empties what the shown page displays, as `Ctrl+L` does in the terminal: the view only, the transcript stays, and nothing is sent. Connect is there too; **Disconnect** sits
     beside the transmit switch while the session shown is connected.
     Both ask first. Once a session has dropped, **Reconnect** takes
     Disconnect's place (Ctrl+R in the terminal): after asking, the
@@ -868,11 +868,8 @@ own client.
     choosing one, after asking, puts it in the Address Book as the Winlink
     Dial and sends nothing. **Refresh** fetches the list from winlink.org
     over the Internet and waits on kissterm's Winlink API key.
-  - **More** shows the station (with **Send beacon**, which asks which:
-    **Packet beacon** sends the beacon text once, as Session > Send
-    beacon does, and needs transmit already on; **APRS position** sends
-    one position report, as APRS > Send position does, and **Restart
-    station** and **Shut down**, which ask first: see Restart above),
+  - **More** shows the station (with **Restart station** and **Shut down**,
+    which ask first: see Restart above),
     the Monitor (a filter box for a callsign or text, a port picker and
     switches for Supervisory, Unnumbered, Information and UI frames, kept
     on this device), **Transcripts** (past sessions, newest first, searched

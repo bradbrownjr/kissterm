@@ -24,6 +24,9 @@ you need the history of a specific change.
   `core/radio.py`, with `build_transport` proving a transport before it is
   saved; the transport form table moved to `transport/forms.py`.
 - **Open on** (Settings > Appearance) opens the phone on that place.
+- **Send beacon moved from More to the Terminal strip** (an icon beside Clear and
+  Connect), leaving More with the system functions, Restart and Shut down, on
+  one row on a phone (operator, 2026-10-08).
 - **A Clear button** on the Terminal strip (the terminal's `Ctrl+L`).
 
 ### Improvements

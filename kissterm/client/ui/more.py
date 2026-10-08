@@ -1,6 +1,5 @@
 """More: the station itself (callsign, transport, what it is doing, and
-Send beacon, which asks Packet (the terminal's Session > Send beacon) or
-APRS (APRS > Send position)), the
+Restart and Shut down), the
 channel as the Monitor shows it, recent notices, past sessions'
 transcripts (`transcripts.py`), the terminal's look on
 this device, and Settings.
@@ -60,10 +59,9 @@ class MoreView:
             ft.Card(content=ft.Container(padding=ft.Padding.all(16), content=ft.Column(
                 tight=True, spacing=12, controls=[
                     self.station,
-                    # Session > Send beacon or APRS > Send position in the terminal, once.
+                    # Send beacon is on Terminal (Session > Send beacon), not among
+                    # the system functions (operator, 2026-10-08).
                     ft.Row(wrap=True, controls=[
-                        ft.OutlinedButton(content="Send beacon", icon=ft.Icons.CAMPAIGN,
-                                          on_click=self._send_beacon),
                         # Session > Restart kissterm in the terminal.
                         ft.OutlinedButton(content="Restart station",
                                           icon=ft.Icons.RESTART_ALT,
@@ -205,23 +203,6 @@ class MoreView:
         self.station.controls = [ft.Row(controls=[
             ft.Text(name, width=100, color=ft.Colors.OUTLINE), ft.Text(value, expand=True)])
             for name, value in lines]
-
-    async def _send_beacon(self, _e) -> None:
-        """Which beacon: the packet beacon text (the terminal's Session >
-        Send beacon) or an APRS position (APRS > Send position); each its
-        own button, asked first (operator, 2026-10-06: "Beacon under More
-        should ask Packet or APRS")."""
-        async def packet() -> None:
-            await self.app.command("beacon_now")
-
-        async def aprs() -> None:
-            await self.app.command("aprs_position")
-
-        sheets.choose(self.app.page, "Send a beacon now?",
-                      "Packet sends the station's beacon text once, and only while "
-                      "transmit is on. APRS sends one position report. Neither "
-                      "changes a beacon timer.",
-                      [("APRS position", aprs), ("Packet beacon", packet)])
 
     async def _restart(self, _e) -> None:
         """Restart the station (operator, 2026-10-07: to restart it while

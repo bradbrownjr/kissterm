@@ -549,7 +549,7 @@ async def test_cancelling_the_mail_sheet_sends_nothing():
 @pytest.mark.asyncio
 async def test_send_position_and_send_beacon_ask_first():
     from kissterm.client.ui.messages import MessagesView
-    from kissterm.client.ui.more import MoreView
+    from kissterm.client.ui.sessions import SessionsView
 
     app = FakeApp()
     messages = MessagesView(app)
@@ -562,7 +562,7 @@ async def test_send_position_and_send_beacon_ask_first():
     assert app.commands[-1] == ("aprs_position", {})
 
     app.commands.clear()
-    more = MoreView(app)
+    more = SessionsView(app)  # Send beacon is a Terminal button, not a More one
     await more._send_beacon(None)
     await _choose(app, "Cancel")
     assert app.commands == []

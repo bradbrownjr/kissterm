@@ -300,6 +300,8 @@ class SessionsView:
             content=ft.Column(expand=True, spacing=0, controls=[
                 ft.Row(spacing=0, controls=[
                     self.tab_bar,
+                    ft.IconButton(icon=ft.Icons.RSS_FEED, tooltip="Send beacon",
+                                  on_click=self._send_beacon),
                     ft.IconButton(icon=ft.Icons.CLEAR_ALL, tooltip="Clear",
                                   on_click=self._clear),
                     ft.IconButton(icon=ft.Icons.ADD_LINK, tooltip="Connect",
@@ -328,6 +330,23 @@ class SessionsView:
         self.selected = int(e.control.selected_index)
         self.app.paint_actions()
         self.app.page.update()
+
+    async def _send_beacon(self, _e) -> None:
+        """Which beacon: the packet beacon text (the terminal's Session >
+        Send beacon) or an APRS position (APRS > Send position); each its
+        own button, asked first (operator, 2026-10-06: "Beacon ... should ask Packet or APRS"; on
+        Terminal, not More, since 2026-10-08)."""
+        async def packet() -> None:
+            await self.app.command("beacon_now")
+
+        async def aprs() -> None:
+            await self.app.command("aprs_position")
+
+        sheets.choose(self.app.page, "Send a beacon now?",
+                      "Packet sends the station's beacon text once, and only while "
+                      "transmit is on. APRS sends one position report. Neither "
+                      "changes a beacon timer.",
+                      [("APRS position", aprs), ("Packet beacon", packet)])
 
     async def _clear(self, _e) -> None:
         """Clear what this tab shows (the terminal's Ctrl+L): the view only."""
