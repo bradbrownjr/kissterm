@@ -127,8 +127,8 @@ class ClientApp:
         self.look = Look()
         self._opened_on_start = False
         self.questions = QuestionSheets(self)
-        self.gate_button = ft.Container(on_click=self._gate_clicked, border_radius=16,
-                                        padding=ft.Padding.symmetric(horizontal=12, vertical=6))
+        #: The transmit chips, one in each place's toolbar (`gate_chip`).
+        self.gate_chips: list[ft.Container] = []
         #: Every place's toolbar (`toolbar.py`), repainted when the width
         #: crosses `WIDE`, which decides whether its buttons carry words.
         self.toolbars: list = []
@@ -159,11 +159,8 @@ class ClientApp:
         page = self.page
         page.title = "kissterm"
         page.padding = 0
-        page.appbar = ft.AppBar(title=ft.Text("kissterm"), center_title=False, actions=[
-            ft.Container(padding=ft.Padding.only(right=12), content=ft.Row(
-                tight=True, spacing=8, controls=[self.gate_button]))])
+        page.appbar = ft.AppBar(title=ft.Text("kissterm"), center_title=False)
         page.on_resize = self._on_resize
-        self._paint_gate()
         self._place()
         page.run_task(self.load_look)
         page.add(ft.SafeArea(expand=True, content=ft.Column(
@@ -317,17 +314,31 @@ class ClientApp:
             sheets.snack(self.page, str(exc), error=True)
             return None
 
+    def gate_chip(self) -> ft.Container:
+        """A transmit chip for one place's toolbar. A control has one place
+        in the tree, so each toolbar gets its own, all painted together."""
+        chip = ft.Container(on_click=self._gate_clicked, border_radius=16,
+                            margin=ft.Margin.only(left=4, right=8),
+                            padding=ft.Padding.symmetric(horizontal=12, vertical=6))
+        self.gate_chips.append(chip)
+        self._paint_chip(chip)
+        return chip
+
     def _paint_gate(self) -> None:
+        for chip in self.gate_chips:
+            self._paint_chip(chip)
+
+    def _paint_chip(self, chip: ft.Container) -> None:
         on = self.state.gate
-        self.gate_button.bgcolor = ft.Colors.ERROR if on else None
-        self.gate_button.border = None if on else ft.Border.all(1, ft.Colors.OUTLINE)
-        self.gate_button.content = ft.Row(tight=True, spacing=6, controls=[
+        chip.bgcolor = ft.Colors.ERROR if on else None
+        chip.border = None if on else ft.Border.all(1, ft.Colors.OUTLINE)
+        chip.content = ft.Row(tight=True, spacing=6, controls=[
             ft.Icon(ft.Icons.CELL_TOWER if on else ft.Icons.PORTABLE_WIFI_OFF, size=18,
                     color=ft.Colors.ON_ERROR if on else None),
             ft.Text("TX ON" if on else "TX OFF", weight=ft.FontWeight.BOLD,
                     color=ft.Colors.ON_ERROR if on else None)])
-        self.gate_button.tooltip = ("Transmit is on: tap to turn it off" if on
-                                    else "Transmit is off: tap to turn it on")
+        chip.tooltip = ("Transmit is on: tap to turn it off" if on
+                        else "Transmit is off: tap to turn it on")
 
     async def _gate_clicked(self, _e) -> None:
         if self.state.gate:

@@ -709,8 +709,9 @@ and do not apply there; these do.
   offers each** (By Internet, By radio: `sheets.choose`), the usual one
   last and filled, never a second screen. Typing a line and pressing Send is
   already the deliberate commit, as Enter is in the terminal.
-- **The transmit switch is always in the top-right corner**, outlined
-  "TX OFF", filled red "TX ON". Turning it off never asks; turning it on
+- **The transmit switch ends every place's toolbar row** (the top-right
+  of the page body, never the app bar: operator, 2026-10-08, "pushes the
+  whole UI down"), outlined "TX OFF", filled red "TX ON". Turning it off never asks; turning it on
   does, with a heavy haptic. Same rule as the terminal: the gate is never
   silent.
 - **One toolbar row per place, no floating buttons** (operator,

@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-08] — Phone and web: the TX chip joins each place's toolbar row
+
+### Improvements
+
+- **TX ON / TX OFF is the last thing in every place's toolbar row**, not in
+  the app bar, which it made taller and pushed every page down (operator,
+  2026-10-08). More has a row of its own for it.
+
+**Files:** `kissterm/client/ui/shell.py`, `toolbar.py`, `more.py`, `mail.py`,
+`DESIGN.md`
+
 ## [2026-10-08] — Phone and web: New contact and New login in Settings lists
 
 ### Improvements

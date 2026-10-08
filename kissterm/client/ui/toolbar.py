@@ -13,6 +13,10 @@ primary does and the rest are icons with a tooltip. The tooltip is also the
 action's accessible name, so a test or a screen reader reaches it the same
 way at either width.
 
+**The transmit chip ends every row** (operator, 2026-10-08: it pushed the
+whole page down in the top bar): a place's primary action sits just before
+it, and the chip is always in the same corner.
+
 An action is data (`Action`); the buttons are drawn from it by `paint`, which
 the shell calls again when the width crosses `WIDE`. Hide one by setting
 `visible` and painting. Nothing here sends anything: an action only calls
@@ -41,8 +45,12 @@ class Action:
 
 
 class Toolbar:
-    def __init__(self, app, *, tabs: ft.Control | None = None, register: bool = True) -> None:
+    def __init__(self, app, *, tabs: ft.Control | None = None, register: bool = True,
+                 gate: bool = True) -> None:
         self.app = app
+        #: The transmit chip, last in the row (a reader's page has none).
+        make = getattr(app, "gate_chip", None)
+        self.gate = make() if gate and make else None
         self.actions: list[Action] = []
         #: The place's tab bar, given the room the buttons leave.
         self.tabs = tabs
@@ -72,7 +80,7 @@ class Toolbar:
         lead: list[ft.Control] = [self.tabs] if self.tabs is not None else [ft.Container(expand=True)]
         if self.tabs is not None:
             self.tabs.expand = True
-        self.row.controls = [*lead, self.buttons]
+        self.row.controls = [*lead, self.buttons, *([self.gate] if self.gate else [])]
 
     def _button(self, action: Action) -> ft.Control:
         tip = action.tooltip or action.label

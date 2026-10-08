@@ -642,7 +642,7 @@ class MailView:
 
     def _reader_toolbar(self, actions: list[Action]) -> ft.Control:
         """The reader's one row of actions (`toolbar.py`): the primary last."""
-        bar = Toolbar(self.app, register=False)
+        bar = Toolbar(self.app, register=False, gate=False)
         bar.set(actions)
         return bar.row
 

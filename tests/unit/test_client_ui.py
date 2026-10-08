@@ -922,10 +922,10 @@ async def test_transcripts_list_search_and_open_over_more():
     await row.on_click(None)
     assert app.commands[-1] == ("transcript_read",
                                 {"file": "20261006-120000_N1ABC-1_W1AW-7.log"})
-    assert more.control.content is not more.list
-    back = more.control.content.controls[0].controls[0]
+    assert more.page_slot.content is not more.list
+    back = more.page_slot.content.controls[0].controls[0]
     await back.on_click(None)
-    assert more.control.content is more.list
+    assert more.page_slot.content is more.list
 
 
 def test_all_inboxes_rows_say_which_service_each_came_by():
@@ -2060,3 +2060,24 @@ async def test_contact_field_edits_the_selected_contact(monkeypatch):
     assert app.commands[-1] == ("addressbook_save", {"entry": {
         "target": "N1QFY", "original_target": "N1QFY", "frequency": "145.01",
         "hops": "", "note": "club"}})
+
+
+def test_every_place_ends_its_toolbar_row_with_the_transmit_chip():
+    from kissterm.client.ui.toolbar import Toolbar
+
+    class Shell(FakeApp):
+        def __init__(self) -> None:
+            super().__init__()
+            self.made = []
+
+        def gate_chip(self):
+            chip = ft.Container()
+            self.made.append(chip)
+            return chip
+
+    app = Shell()
+    bar = Toolbar(app)
+    from kissterm.client.ui.toolbar import Action
+    bar.set([Action(ft.Icons.ADD, "New", None, primary=True)])
+    assert bar.row.controls[-1] is app.made[0], "the chip is the last thing in the row"
+    assert Toolbar(app, gate=False).gate is None

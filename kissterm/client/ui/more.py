@@ -19,6 +19,7 @@ from . import sheets
 from ..monitorfilter import MonitorFilter
 from .transcripts import TranscriptsSection
 from .settings import SettingsEditor
+from .toolbar import Toolbar
 from .text import MONO, MONO_BOLD, TEXT_COLOURS, THEME, Look
 
 #: Monitor lines shown (the model keeps more).
@@ -90,12 +91,17 @@ class MoreView:
                 on_change=self._settings_opened),
         ])
         #: The list, or a page over it (a transcript being read).
-        self.control = ft.Container(expand=True, content=self.list)
+        self.page_slot = ft.Container(expand=True, content=self.list)
+        #: More has no actions of its own: its one row holds the transmit chip.
+        self.toolbar = Toolbar(app)
+        self.control = ft.Column(expand=True, spacing=0, controls=[
+            ft.Container(padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+                         content=self.toolbar.row), self.page_slot])
         self._paint()
         self.look_changed()
 
     def _over(self, page: ft.Control | None) -> None:
-        self.control.content = page if page is not None else self.list
+        self.page_slot.content = page if page is not None else self.list
         self.app.page.update()
 
     def open_monitor(self) -> None:
