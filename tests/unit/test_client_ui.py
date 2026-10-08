@@ -436,8 +436,9 @@ def test_the_terminal_has_no_header_row_above_it():
 
 def test_contacts_come_before_heard():
     view = StationsView(FakeApp())
-    bar = view.control.content.controls[0]
+    [bar] = [c for c in _walk(view.control) if isinstance(c, ft.TabBar)]
     assert [t.label for t in bar.tabs] == ["Contacts", "Heard"]
+    assert [b.content for b in _walk(view.toolbar.row) if isinstance(b, ft.FilledButton)] == ["New contact"]
 
 
 def _walk(control) -> list:
@@ -465,7 +466,7 @@ async def test_a_running_send_receive_turns_counts_and_cancels_on_a_tap():
 
     app = FakeApp()
     view = MailView(app)
-    await view.button.on_click(None)
+    await view.actions["sync"].on_click(None)
     assert app.commands == [] and len(app.page.dialogs) == 1, "a new run asks first"
     app.page.dialogs.clear()
 
@@ -477,9 +478,9 @@ async def test_a_running_send_receive_turns_counts_and_cancels_on_a_tap():
     view._dots = 2
     view._paint_activity()
     assert view.activity.value == "Receiving 2 of 2.. "
-    assert "cancel" in view.button.tooltip
+    assert "cancel" in view.actions["sync"].tooltip
 
-    await view.button.on_click(None)
+    await view.actions["sync"].on_click(None)
     assert app.commands == [("mail_cancel", {})], "a tap while running cancels"
     assert all(not isinstance(d, ft.BottomSheet) for d in app.page.dialogs), \
         "cancelling never asks"
@@ -529,7 +530,7 @@ async def test_the_mail_button_does_what_g_and_i_do_for_the_folder(folder, label
     app = FakeApp()
     view = MailView(app)
     view.folder = folder
-    await view.button.on_click(None)
+    await view.actions["sync"].on_click(None)
     assert app.commands == [], "the button sent before the sheet was answered"
     await _choose(app, label)
     assert app.commands == [expected]
@@ -541,7 +542,7 @@ async def test_cancelling_the_mail_sheet_sends_nothing():
 
     app = FakeApp()
     view = MailView(app)
-    await view.button.on_click(None)
+    await view.actions["sync"].on_click(None)
     await _choose(app, "Cancel")
     assert app.commands == []
 
@@ -554,8 +555,8 @@ async def test_send_position_and_send_beacon_ask_first():
     app = FakeApp()
     messages = MessagesView(app)
     await messages.reload()
-    position = next(c for c in messages.list.controls[0].content.controls
-                    if c.content == "Position")
+    position = next(c for c in _walk(messages.toolbar.row)
+                    if getattr(c, "tooltip", "") == "Send position")
     await position.on_click(None)
     assert app.commands == [("aprs_conversations", {})], "Send position sent before asking"
     await _choose(app, "Send")
@@ -599,8 +600,9 @@ class FakeDismiss:
         self.control = control
 
 
-def _icons(controls) -> list:
-    return [c.tooltip for c in controls if isinstance(c, ft.IconButton)]
+def _icons(actions) -> list:
+    """The names of a toolbar's actions, in the order drawn (primary last)."""
+    return [a.tooltip or a.label for a in sorted(actions, key=lambda a: a.primary)]
 
 
 @pytest.mark.asyncio
@@ -658,11 +660,12 @@ def test_the_reader_offers_reply_all_only_with_others_and_restore_in_deleted():
 
     view = MailView(MailApp({}))
     assert _icons(view.reader_actions("r", {"reply_all": False})) == [
-        "Reply", "Reply with quote", "Delete"]
+        "Reply with quote", "Delete", "Reply"], "Reply is the primary, so it is last"
     assert _icons(view.reader_actions("r", {"reply_all": True})) == [
-        "Reply", "Reply all", "Reply with quote", "Delete"]
+        "Reply all", "Reply with quote", "Delete", "Reply"]
     view.folder = "Mail/Winlink/Deleted"
-    assert _icons(view.reader_actions("r", {}))[-1] == "Restore"
+    tips = _icons(view.reader_actions("r", {}))
+    assert "Restore" in tips and "Delete" not in tips
     view.folder = "Files/Downloads"
     assert _icons(view.reader_actions("r", {})) == ["Delete"]
 
@@ -678,7 +681,6 @@ async def test_writing_saves_to_the_outbox_or_shows_why_not():
     view = MailView(app)
     await view._write_new(None)
     writing = view._writing
-    assert view.fab() is None and writing["kind"].value == "P"
     writing["title"].value, writing["body"].value = "Hi", "Hello"
     await writing["save"](None)
     assert writing["problems"].value == "To is empty." and view._writing is writing, \
@@ -761,10 +763,8 @@ def test_mail_is_titled_bbs_mail_and_write_is_a_pencil_over_send_receive():
 
     assert TITLES["Mail"] == "BBS Mail"
     view = MailView(FakeApp())
-    pencil = view.write_button
-    assert isinstance(pencil, ft.FloatingActionButton) and pencil.mini
-    assert pencil.icon == ft.Icons.EDIT and not pencil.content
-    assert pencil in view.control.content.controls  # over the list, not in its toolbar
+    write = view.actions["write"]
+    assert write.primary and write.label == "Write" and write.icon == ft.Icons.EDIT
 
 
 FOLDERS = ["Bulletins", "Bulletins/ARES", "Bulletins/Deleted", "Bulletins/WX", "Files", "Mail", "Mail/BBS",
@@ -840,19 +840,19 @@ async def test_the_phone_switches_between_mail_bulletins_and_files():
     app = MailApp({"mail_folders": FOLDERS, "mail_list": []})
     view = MailView(app)
     await view.reload()
-    assert view.switch.visible and view.title() == "BBS Mail"
-    assert view.folder == "All Inboxes" and view.write_button.visible
+    assert view.toolbar.tabs is view.switch and view.title() == "BBS Mail"
+    assert view.folder == "All Inboxes" and view.actions["write"].visible
 
-    view.switch.selected = ["Bulletins"]
+    view.switch.selected_index = 1
     await view._switched(type("E", (), {"control": view.switch})())
     assert app.sections_changed == 1 and view.title() == "Bulletins"
     assert view.folder_list == ["Bulletins/ARES", "Bulletins/WX", "Bulletins/Deleted"]
-    assert view.categories_button.visible and not view.write_button.visible
-    assert view.button.tooltip == "Get bulletins"
+    assert view.actions["categories"].visible and not view.actions["write"].visible
+    assert view.actions["sync"].tooltip == "Get bulletins"
 
     view.set_section("Files")
     await view.reload()
-    assert view.folder == "Files" and view.button.tooltip == "Get files"
+    assert view.folder == "Files" and view.actions["sync"].tooltip == "Get files"
     view.set_section("Mail")
     await view.reload()
     assert view.folder == "All Inboxes", "a section forgot where it was"
@@ -872,7 +872,7 @@ def test_a_wide_screen_has_a_rail_place_per_section_and_no_switch():
     app = FakeApp()
     app.wide = True
     view = MailView(app)
-    assert not view.switch.visible
+    assert view.toolbar.tabs is None, "the rail has a place for each section"
 
 
 @pytest.mark.asyncio
@@ -884,7 +884,7 @@ async def test_categories_on_a_bulletins_folder_save_offline():
     view.set_section("Bulletins")
     view.folder = "Bulletins/WX"
     await view.reload()
-    assert view.categories_button.visible and not view.write_button.visible
+    assert view.actions["categories"].visible and not view.actions["write"].visible
     await view._categories(None)
     assert "No categories yet" in app.page.dialogs[-1].content.value
     app.page.dialogs.clear()
@@ -964,7 +964,6 @@ async def test_choosing_nts_in_a_new_message_opens_the_radiogram_form():
     form = view._writing["radiogram"]
     assert form.fields["number"].value == "3" and form.fields["origin"].value == "KC1JMH"
     assert app.commands[-1] == ("radiogram_start", {"ics213": False})
-    assert view.fab() is None
 
 
 @pytest.mark.asyncio
@@ -1069,12 +1068,13 @@ async def test_map_opens_beside_send_position_and_never_transmits():
     app = MailApp({"map_points": MAP_POINTS})
     messages = MessagesView(app)
     await messages.reload()
-    buttons = [c.content for c in messages.list.controls[0].content.controls]
-    assert buttons == ["Position", "Map", "Object"]
-    open_map = messages.list.controls[0].content.controls[1]
+    buttons = [c.tooltip for c in _controls(messages.toolbar.row) if isinstance(c, ft.IconButton)]
+    assert buttons == ["Send position", "Map", "New object"]
+    assert [c.content for c in _walk(messages.toolbar.row)
+            if isinstance(c, ft.FilledButton)] == ["New message"], "the primary is last, with a word"
+    open_map = next(c for c in _walk(messages.toolbar.row) if getattr(c, "tooltip", "") == "Map")
     await open_map.on_click(None)
     assert isinstance(messages.map, MapPage)
-    assert messages.fab() is None
     assert [name for name, _ in app.commands] == ["aprs_conversations", "map_points"]
     assert messages.map.counts.value == "1 station, 1 object"
     # New traffic redraws it, while in front, at most every few seconds.
@@ -1136,7 +1136,7 @@ async def test_a_long_press_places_an_object_and_only_send_after_asking_transmit
     assert name == "aprs_object_start"
     assert args["latitude"] == pytest.approx(43.58) and args["name"] == ""
     form = messages.object_form
-    assert form is not None and messages.fab() is None
+    assert form is not None
     form.name.value = "drill"
     await form.send(None)
     assert sent == [], "Send transmitted before asking"
@@ -1585,10 +1585,10 @@ async def test_add_file_sends_a_picked_file_up_in_pieces_and_never_transmits():
     view = MailView(app)
     view.folder = "Files/Uploads"
     view._paint_toolbar()
-    assert view.add_file_button.visible
+    assert view.actions["add_file"].visible
     view.folder = "Mail/BBS/Inbox"
     view._paint_toolbar()
-    assert not view.add_file_button.visible
+    assert not view.actions["add_file"].visible
 
     class Picker:
         async def pick_files(self, **_k):
@@ -1943,3 +1943,26 @@ async def test_a_change_elsewhere_does_not_throw_away_what_is_typed_here():
     editor.draft.clear()
     await editor.refresh()
     assert editor.column.controls is not before
+
+
+def test_every_action_has_a_word_on_a_wide_screen_and_only_the_primary_on_a_phone():
+    from kissterm.client.ui.toolbar import Action, Toolbar
+
+    async def noop(_e) -> None:
+        pass
+
+    app = FakeApp()
+    app.toolbars = []
+    bar = Toolbar(app)
+    bar.set([Action(ft.Icons.ADD, "New", noop, primary=True),
+             Action(ft.Icons.MAP, "Map", noop), Action(ft.Icons.CLOSE, "Gone", noop, visible=False)])
+    assert app.toolbars == [bar]
+    kinds = [type(c.content if isinstance(c, ft.Semantics) else c).__name__
+             for c in bar.buttons.controls]
+    assert kinds == ["IconButton", "FilledButton"], "secondary icons first, the primary last"
+    assert bar.buttons.controls[0].label == "Map", "an icon keeps its name for a screen reader"
+    assert bar.buttons.controls[0].content.tooltip == "Map"
+    app.wide = True
+    bar.paint()
+    assert [type(c).__name__ for c in bar.buttons.controls] == ["TextButton", "FilledButton"]
+    assert bar.buttons.controls[0].content == "Map"

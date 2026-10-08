@@ -789,8 +789,13 @@ own client.
     While a run is going its button turns and the progress line
     ("Receiving 2 of 2") counts dots; tap the turning button to cancel
     the run, which disconnects without asking.
-    **Write** (the small pencil above the Send/Receive button, on a Mail
-    folder, both against the screen's right edge) writes a private
+    **The toolbar** is one row at the top of each place, with its tabs at the
+    left, its actions at the right and its main action last, filled and always
+    labelled. On a phone in portrait the other actions are icons (touch and
+    hold, or hover, for the name); from a desktop-wide browser every action
+    has its word. There are no floating buttons.
+    **Write** (the filled button at the right of the toolbar, on a Mail
+    folder; Send/Receive is the icon beside it) writes a private
     BBS message, a bulletin or a Winlink message; **Save to Outbox** files
     it, with the same checks as the terminal (a To without an SSID, a
     title, nothing that ends the text early), and sends nothing until
@@ -841,8 +846,13 @@ own client.
     Connect filled in; a line typed there goes out once to ALL, or to the address you prefix,
     only when you press Send), then one page per session, swiped or tapped
     across the top, and a line to type. A line goes only when you press
-    Send. **Send beacon** (the antenna icon, F10 > Session > Send beacon) asks which: **Packet beacon** sends the beacon text once and needs transmit already on, **APRS position** sends one position report. **Clear** (beside it, at the end of the session tabs) empties what the shown page displays, as `Ctrl+L` does in the terminal: the view only, the transcript stays, and nothing is sent. Connect is there too; **Disconnect** sits
-    beside the transmit switch while the session shown is connected.
+    Send. The row of buttons at the right of the tab strip (**the toolbar**,
+    the same one on every place) has **Send beacon** (the antenna icon, F10 >
+    Session > Send beacon), which asks which: **Packet beacon** sends the beacon
+    text once and needs transmit already on, **APRS position** sends one position
+    report; **Clear** empties what the shown page displays, as `Ctrl+L` does in the
+    terminal (the view only, the transcript stays, and nothing is sent);
+    **Disconnect** while the session shown is connected; and **Connect** last.
     Both ask first. Once a session has dropped, **Reconnect** takes
     Disconnect's place (Ctrl+R in the terminal): after asking, the
     station dials it again the same way, route, port and login.

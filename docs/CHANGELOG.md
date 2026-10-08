@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-08] — Phone and web: one toolbar design
+
+### Improvements
+
+- **One interface design for every place** (operator, 2026-10-08: "3 or 4
+  competing interface designs ... we really need to settle on a design
+  scheme"): one toolbar row, tabs at the left, secondary actions, the main
+  action last and filled with a word on it; no floating buttons. Width decides
+  the labels: from a desktop-wide window every action has its word, on a phone
+  in portrait only the main one does. Replaces the outlined chip row (Messages),
+  the stacked mini and full-size FABs (Mail, Messages, Stations), the icon strip
+  at the end of Terminal's tabs, the segmented section switch (Mail's sections
+  are tabs now), Categories and Add file beside the folder picker, and the
+  Disconnect and Reconnect chips beside the transmit switch (Terminal's
+  toolbar has them). The reader's actions are the same row with Reply as the
+  main one. DESIGN.md 8a has the rule. (`client/ui/toolbar.py`.)
+
+**Files:** `kissterm/client/ui/toolbar.py`, `sessions.py`, `stations.py`,
+`messages.py`, `mail.py`, `shell.py`, `more.py`, `DESIGN.md`, `docs/GUIDE.md`
+
 ## [2026-10-08] — Phone and web: the station's theme and a real Settings form
 
 ### New Features

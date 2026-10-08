@@ -97,9 +97,6 @@ class MoreView:
         self.control.content = page if page is not None else self.list
         self.app.page.update()
 
-    def fab(self):
-        return None
-
     async def shown(self) -> None:
         self._paint()
         self.app.page.update()

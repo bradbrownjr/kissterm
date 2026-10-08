@@ -713,6 +713,27 @@ and do not apply there; these do.
   "TX OFF", filled red "TX ON". Turning it off never asks; turning it on
   does, with a heavy haptic. Same rule as the terminal: the gate is never
   silent.
+- **One toolbar row per place, no floating buttons** (operator,
+  2026-10-08: "3 or 4 competing interface designs ... we really need to
+  settle on a design scheme"; `client/ui/toolbar.py`). **Left** the
+  place's tabs, if it has any (Terminal's sessions, Stations' Contacts and
+  Heard, Mail's three sections on a phone); **right** its secondary
+  actions, then **its primary last**, a filled button that always has a
+  word on it (Connect, Write, New message, New contact, Reply). **Width
+  decides the labels** (operator, 2026-10-08): from 720 px up every action
+  has its word beside its icon; on a phone in portrait only the primary
+  does, and the rest are icons whose **tooltip is their name** (it is also
+  what a screen reader and `generate_phone_screenshots.py` find them by).
+  Never an outlined chip row above a list, an icon strip at the end of a
+  tab bar, a mini and a full-size FAB stacked, or a chip beside the
+  transmit switch: that was four designs. **The transmit switch is the
+  top bar's only button.** A place's actions are an `Action` list, hidden
+  by `visible`, never a second row; a reader (a mail message) is the same
+  row under its title with Reply as the primary. **Buttons inside a
+  section's content** (More's Restart station and Shut down, Radio's
+  Scan, New, Edit) are outlined and always labelled: the toolbar is for
+  what the place does, not for what a section does. The map's zoom
+  buttons are the one overlay, since they sit on a canvas.
 - **Five places**, in this order: Mail, Messages, Terminal (once
   Sessions), Stations, More (operator, 2026-10-06); the app opens on
   the first. Code names them (`shell.MAIL` ...), never by number. A bottom
@@ -746,10 +767,9 @@ and do not apply there; these do.
   the session repeats its name: the tab strip names each session with an
   icon for its state (linked, unlinked, hourglass) and ends in Connect,
   never a floating button, which would sit on Send where the thumb
-  already is. **Disconnect is a chip beside the transmit switch**, on
-  Terminal while the session shown is connected, and **Reconnect** takes
-  its place once that session has dropped (not while it is still
-  connecting: Cancel is on its hourglass).
+  already is. **Disconnect is in the toolbar**, while the session shown
+  is connected, and **Reconnect** takes its place once that session has
+  dropped (not while it is still connecting: Cancel is on its hourglass).
 - **A connect shows at once.** Terminal comes to the front as soon as it
   is asked for, and while the station is dialling, an hourglass lies
   over that session with Cancel. Cancel needs no confirming: it only
@@ -759,12 +779,6 @@ and do not apply there; these do.
   turns and its progress line counts dots while a run is under way, and
   a tap on the turning button cancels it without a sheet (stopping is
   always safe).
-- **A reader's actions are icons on one row under its title**: Reply,
-  Reply all (only when there is someone else), Reply with quote, then
-  Delete (Restore in Deleted), last as the one that removes. Writing is
-  a full page with the commitment, Save to Outbox, filled, at the top
-  right and close at the top left, which asks before throwing typed
-  text away.
 - **A message's routing is one small line under the date**, "Routing
   ▸" (the arrow says it unfolds, ▾ once open; no callsigns on the line, operator,
   2026-10-07; the phone draws the arrow as a Material icon, its font has no U+25B8;
@@ -782,14 +796,10 @@ and do not apply there; these do.
   "KC1JMH Messages"; the callsign is in More. Where a place's label is
   ambiguous on its own, the title says which kind: Mail is titled "BBS
   Mail" (operator, 2026-10-06).
-- **A place's second action is a mini button stacked above its main
-  one**, icon only, right edges in line so both hug the screen's edge (Mail's Write pencil over
-  Send/Receive; operator, 2026-10-06: "drop the text label"), never a
-  labelled button in the toolbar.
-- **Messages' toolbar is one row of one-word buttons**: Position (the
-  terminal's Send position), Map, Object (operator, 2026-10-06: "change
-  the send position to just position to reduce the need for the
-  wrapping"); it still wraps on a phone too narrow for them.
+- **Messages' actions**: Position (the terminal's Send position), Map,
+  Object, and New message last (operator, 2026-10-06: "change the send
+  position to just position to reduce the need for the wrapping"; icons
+  on a phone, words from 720 px).
 - **What the operator acts on comes first**: Stations opens on Contacts,
   Heard second.
 - **The map is a page of Messages** (Map beside Position; operator,

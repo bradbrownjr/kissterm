@@ -52,6 +52,7 @@ from datetime import datetime
 import flet as ft
 
 from . import sheets
+from .toolbar import Action, Toolbar
 from .text import MONO
 
 #: A piece of a file sent up to the station, and the most it will take (it
@@ -205,12 +206,6 @@ def swipe_background(restore: bool, end: bool) -> ft.Control:
         content=ft.Row(tight=True, controls=parts[::-1] if end else parts))
 
 
-# The page's button sits 16 px in from the body's corner and is 56 px
-# across; the mini (40 px) Write rides above it, its right edge on the
-# same line, both hugging the screen's edge (operator, 2026-10-06: "align
-# it right to have the buttons hug the edge of the screen").
-WRITE_RIGHT = 16
-WRITE_BOTTOM = 16 + 56 + 16
 
 
 class MailView:
@@ -223,10 +218,9 @@ class MailView:
         self._last: dict[str, str] = {}
         #: The phone's way between the sections; on a wide screen the rail
         #: has each as its own place and this is hidden.
-        self.switch = ft.SegmentedButton(
-            selected=["Mail"], show_selected_icon=False, on_change=self._switched,
-            segments=[ft.Segment(value=value, label=ft.Text(value), icon=ft.Icon(icon))
-                      for value, _title, icon, _sel in SECTIONS])
+        self.switch = ft.Tabs(
+            length=len(SECTIONS), selected_index=0, on_change=self._switched,
+            content=ft.TabBar(tabs=[ft.Tab(label=value) for value, *_ in SECTIONS]))
         #: The folder picker (operator, 2026-10-07: "more of a tree folder
         #: view", the inline panel): a row showing the folder, `Mail / BBS /
         #: Inbox`, that opens a tree under it as wide as the section switch.
@@ -248,17 +242,6 @@ class MailView:
             visible=False, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGH, border_radius=12,
             padding=ft.Padding.symmetric(horizontal=8, vertical=6),
             margin=ft.Margin.symmetric(horizontal=12), content=self.tree)
-        #: Write: the terminal's Insert, on a Mail folder. A small pencil
-        #: stacked over Send/Receive, no label (operator, 2026-10-06).
-        self.write_button = ft.FloatingActionButton(
-            icon=ft.Icons.EDIT, tooltip="Write", mini=True, on_click=self._write_new,
-            right=WRITE_RIGHT, bottom=WRITE_BOTTOM)
-        #: Categories: the terminal's S on Bulletins, on a Bulletins folder.
-        self.categories_button = ft.FilledTonalButton(
-            content="Categories", icon=ft.Icons.CHECKLIST, on_click=self._categories)
-        #: Add file: a file from this device into Files > Uploads, on a Files folder.
-        self.add_file_button = ft.FilledTonalButton(
-            content="Add file", icon=ft.Icons.UPLOAD_FILE, on_click=self._add_file)
         self._picker: ft.FilePicker | None = None
         self._writing: dict | None = None
         self._reloading = False
@@ -269,22 +252,31 @@ class MailView:
         self.activity = ft.Text("", color=ft.Colors.PRIMARY)
         self.sync_icon = ft.Icon(ft.Icons.SYNC, rotate=0,
                                  animate_rotation=ft.Animation(int(TICK * 1000), ft.AnimationCurve.LINEAR))
-        self.button = ft.FloatingActionButton(content=self.sync_icon, on_click=self._send_receive)
+        #: The one toolbar (`toolbar.py`): the section tabs on a phone, then
+        #: what this folder offers, and Write last on Mail. Send/Receive (Get
+        #: bulletins, Get files) is the icon that turns while a run is going;
+        #: on Bulletins and Files it is the primary.
+        self.actions = {
+            "sync": Action(self.sync_icon, "Send/Receive", self._send_receive),
+            "categories": Action(ft.Icons.CHECKLIST, "Categories", self._categories,
+                                 visible=False),
+            "add_file": Action(ft.Icons.UPLOAD_FILE, "Add file", self._add_file, visible=False),
+            "write": Action(ft.Icons.EDIT, "Write", self._write_new, primary=True),
+        }
+        self.toolbar = Toolbar(app)
         self._ticking = False
         self._dots = 0
         self._paint_button()
         self._show_list()
 
-    def fab(self):
-        if self.reader is not None or self._writing is not None:
-            return None
-        return self.button
-
     def _paint_button(self) -> None:
         running = self.app.state.mail_running
         what = ("Get files" if self.folder.startswith("Files")
                 else "Get bulletins" if self.folder.startswith("Bulletins") else "Send/Receive")
-        self.button.tooltip = "Running: tap to cancel" if running else what
+        sync = self.actions["sync"]
+        sync.label = what
+        sync.tooltip = "Running: tap to cancel" if running else what
+        self.toolbar.set(list(self.actions.values()))
 
     async def shown(self) -> None:
         await self.reload()
@@ -332,19 +324,16 @@ class MailView:
         self._paint_activity()
         self._paint_toolbar()
         self.paint_switch()
-        self.control.content = ft.Stack(expand=True, controls=[ft.Column(
+        self.control.content = ft.Column(
             expand=True, spacing=0, controls=[
-                ft.Container(padding=ft.Padding.only(left=12, right=12, top=6),
-                             content=ft.Row(controls=[self.switch],
-                                            alignment=ft.MainAxisAlignment.CENTER),
-                             visible=self.switch.visible),
+                ft.Container(padding=ft.Padding.symmetric(horizontal=8, vertical=2),
+                             content=self.toolbar.row),
                 ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-                             content=ft.Row(controls=[self.folders, self.categories_button,
-                                                     self.add_file_button])),
+                             content=ft.Row(controls=[self.folders])),
                 self.panel,
                 *([ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=4),
                                 content=self.activity)] if self.app.state.activity else []),
-                self.list]), self.write_button])
+                self.list])
 
     async def reload(self) -> None:
         """Load the folder list and the folder shown. One at a time: the
@@ -441,9 +430,13 @@ class MailView:
         self.app.page.update()
 
     def _paint_toolbar(self) -> None:
-        self.write_button.visible = in_section(self.folder, "Mail")
-        self.categories_button.visible = in_section(self.folder, "Bulletins")
-        self.add_file_button.visible = in_section(self.folder, "Files")
+        mail = in_section(self.folder, "Mail")
+        self.actions["write"].visible = mail
+        self.actions["categories"].visible = in_section(self.folder, "Bulletins")
+        self.actions["add_file"].visible = in_section(self.folder, "Files")
+        # Away from Mail the run is the page's main action, as Write is on Mail.
+        self.actions["sync"].primary = not mail
+        self.toolbar.paint()
 
     async def _add_file(self, _e) -> None:
         """Pick a file on this device and send it up to Files > Uploads
@@ -581,8 +574,11 @@ class MailView:
             self._show_list()
 
     def paint_switch(self) -> None:
-        self.switch.visible = not getattr(self.app, "wide", False)
-        self.switch.selected = [self.section]
+        """The section tabs lead the toolbar on a phone; a wide screen has a
+        rail place for each, so they go."""
+        self.switch.selected_index = [v for v, *_ in SECTIONS].index(self.section)
+        self.toolbar.tabs = None if getattr(self.app, "wide", False) else self.switch
+        self.toolbar.paint()
 
     def set_section(self, section: str) -> None:
         """Show Mail, Bulletins or Files, at the folder last shown there."""
@@ -596,12 +592,10 @@ class MailView:
             self._show_list()
 
     async def _switched(self, e) -> None:
-        picked = list(e.control.selected or [])
-        if not picked:  # a tap on the selected segment: stay
-            self.paint_switch()
-            self.app.page.update()
+        picked = SECTIONS[int(e.control.selected_index)][0]
+        if picked == self.section:  # a tap on the tab already shown: stay
             return
-        self.set_section(picked[0])
+        self.set_section(picked)
         self.app.section_changed()
         await self.reload()
 
@@ -622,8 +616,8 @@ class MailView:
                                            on_click=self._back),
                              ft.Text(message.get("subject", ""), expand=True, max_lines=2,
                                      theme_style=ft.TextThemeStyle.TITLE_MEDIUM)]),
-            ft.Row(spacing=0, alignment=ft.MainAxisAlignment.END,
-                   controls=self.reader_actions(ref, message)),
+            ft.Container(padding=ft.Padding.symmetric(horizontal=8), content=self._reader_toolbar(
+                self.reader_actions(ref, message))),
             ft.Container(expand=True, padding=ft.Padding.all(16), content=ft.Column(
                 scroll=ft.ScrollMode.AUTO, controls=[
                     ft.Column(spacing=2, tight=True, controls=[
@@ -632,7 +626,6 @@ class MailView:
                     ft.Divider(),
                     ft.Text(message.get("body", ""), selectable=True)]))])
         self.control.content = self.reader
-        self.app.page.floating_action_button = None
         self.app.page.update()
 
     async def open_viewer(self, ref: str) -> None:
@@ -647,9 +640,16 @@ class MailView:
         self.control.content = viewer.control
         self.app.page.update()
 
-    def reader_actions(self, ref: str, message: dict) -> list[ft.Control]:
-        """Reply, Reply all, Reply with quote, Delete or Restore: the
-        terminal's R, A, Q, Delete and U."""
+    def _reader_toolbar(self, actions: list[Action]) -> ft.Control:
+        """The reader's one row of actions (`toolbar.py`): the primary last."""
+        bar = Toolbar(self.app, register=False)
+        bar.set(actions)
+        return bar.row
+
+    def reader_actions(self, ref: str, message: dict) -> list[Action]:
+        """Reply (the primary), Reply all, Reply with quote, Delete or Restore:
+        the terminal's R, A, Q, Delete and U; on a file, Open and Send over
+        the radio."""
         def reply(quoted: bool | None, everyone: bool = False):
             async def go(_e) -> None:
                 await self.reply(ref, quoted=quoted, everyone=everyone)
@@ -659,16 +659,18 @@ class MailView:
             await self.discard(ref)
             await self._back(None)
 
-        actions: list[ft.Control] = []
+        actions: list[Action] = []
+        in_files = bool(message.get("file")) or self.folder.startswith("Files")
         if message.get("file") and message.get("kind") != "binary":
             # The terminal's Enter on a file: a zip's members, Markdown and
             # HTML formatted (`files.py`).
             async def open_file(_e) -> None:
                 await self.open_viewer(ref)
 
-            actions.append(ft.IconButton(
-                icon=ft.Icons.OPEN_IN_FULL, on_click=open_file,
-                tooltip="Open as a list" if message.get("kind") == "zip" else "Open formatted"))
+            actions.append(Action(
+                ft.Icons.OPEN_IN_FULL,
+                "Open as a list" if message.get("kind") == "zip" else "Open formatted",
+                open_file, primary=True))
         if message.get("file"):
             # The terminal's S on the Files tab: over a connected session, asked first.
             async def send_file(_e) -> None:
@@ -678,16 +680,12 @@ class MailView:
                 transfer.ask(self.app, ref=ref, name=message.get("subject", ""),
                              current=self.app.views[TERMINAL].current)
 
-            actions.append(ft.IconButton(icon=ft.Icons.UPLOAD_FILE, tooltip="Send over the radio",
-                                         on_click=send_file))
+            actions.append(Action(ft.Icons.UPLOAD_FILE, "Send over the radio", send_file))
         if not self.folder.startswith("Files"):
-            actions.append(ft.IconButton(icon=ft.Icons.REPLY, tooltip="Reply",
-                                         on_click=reply(None)))
+            actions.append(Action(ft.Icons.REPLY, "Reply", reply(None), primary=True))
             if message.get("reply_all"):
-                actions.append(ft.IconButton(icon=ft.Icons.REPLY_ALL, tooltip="Reply all",
-                                             on_click=reply(None, everyone=True)))
-            actions.append(ft.IconButton(icon=ft.Icons.FORMAT_QUOTE, tooltip="Reply with quote",
-                                         on_click=reply(True)))
+                actions.append(Action(ft.Icons.REPLY_ALL, "Reply all", reply(None, everyone=True)))
+            actions.append(Action(ft.Icons.FORMAT_QUOTE, "Reply with quote", reply(True)))
             on = message.get("reply_on") or {}
 
             def answer(form_id: str):
@@ -697,24 +695,20 @@ class MailView:
 
             if on.get("form"):
                 # The terminal's Reply on form: the ICS-213 reply, the original's blocks read-only.
-                actions.append(ft.IconButton(icon=ft.Icons.ASSIGNMENT_RETURN,
-                                             tooltip="Reply on form", on_click=answer("")))
+                actions.append(Action(ft.Icons.ASSIGNMENT_RETURN, "Reply on form", answer("")))
             if on.get("strip"):
                 # The terminal's Answer strip: the request strip as a form.
-                actions.append(ft.IconButton(icon=ft.Icons.FACT_CHECK, tooltip="Answer strip",
-                                             on_click=answer(on["strip"])))
+                actions.append(Action(ft.Icons.FACT_CHECK, "Answer strip", answer(on["strip"])))
         if in_deleted(self.folder):
-            actions.append(ft.IconButton(icon=ft.Icons.RESTORE_FROM_TRASH, tooltip="Restore",
-                                         on_click=discard))
+            actions.append(Action(ft.Icons.RESTORE_FROM_TRASH, "Restore", discard,
+                                  primary=not in_files and not any(a.primary for a in actions)))
         else:
-            actions.append(ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, tooltip="Delete",
-                                         on_click=discard))
+            actions.append(Action(ft.Icons.DELETE_OUTLINE, "Delete", discard))
         return actions
 
     async def _back(self, _e) -> None:
         self._writing = None
         self._show_list()
-        self.app.page.floating_action_button = self.fab()
         await self.reload()
 
     # -- writing ---------------------------------------------------------
@@ -821,7 +815,6 @@ class MailView:
                              *([ft.Text(start["note"], color=ft.Colors.OUTLINE, size=12)]
                                if start.get("note") else []),
                              kind, to, at, title, body, problems]))])
-        self.app.page.floating_action_button = None
         self.app.page.update()
 
     async def fill_in(self, form: str) -> None:
@@ -868,7 +861,6 @@ class MailView:
         self._writing = {"form": page}
         self.reader = None
         self.control.content = page.control()
-        self.app.page.floating_action_button = None
         self.app.page.update()
 
     async def show_radiogram(self, ics213: bool = False) -> None:
@@ -882,7 +874,6 @@ class MailView:
         self._writing = {"radiogram": form}
         self.reader = None
         self.control.content = form.control()
-        self.app.page.floating_action_button = None
         self.app.page.update()
 
     async def _send_receive(self, _e) -> None:

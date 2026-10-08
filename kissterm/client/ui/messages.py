@@ -24,6 +24,7 @@ import time
 import flet as ft
 
 from . import sheets
+from .toolbar import Action, Toolbar
 
 
 def ago(when: float, now: float | None = None) -> str:
@@ -97,25 +98,18 @@ class MessagesView:
         self.thread = ft.ListView(expand=True, auto_scroll=True, padding=ft.Padding.all(8))
         self.compose = counted_field(67, expand=True, hint_text="Message", dense=True,
                                      on_submit=self._send)
-        #: APRS > Send position, the terminal's P on its APRS tab.
-        self.toolbar = ft.Container(
-            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-            # Wraps on a narrow phone rather than pushing Object off the edge.
-            content=ft.Row(wrap=True, spacing=8, run_spacing=8, controls=[
-                ft.OutlinedButton(content="Position", icon=ft.Icons.MY_LOCATION,
-                                  on_click=self._send_position),
-                ft.OutlinedButton(content="Map", icon=ft.Icons.MAP_OUTLINED,
-                                  on_click=self._open_map),
-                ft.OutlinedButton(content="Object", icon=ft.Icons.ADD_LOCATION_ALT_OUTLINED,
-                                  on_click=self._new_object)]))
+        #: The one toolbar (`toolbar.py`): Position (the terminal's P on its
+        #: APRS tab), Map, Object, and New message last.
+        self.toolbar = Toolbar(app)
+        self.toolbar.set([
+            Action(ft.Icons.MY_LOCATION, "Position", self._send_position,
+                   tooltip="Send position"),
+            Action(ft.Icons.MAP_OUTLINED, "Map", self._open_map),
+            Action(ft.Icons.ADD_LOCATION_ALT_OUTLINED, "Object", self._new_object,
+                   tooltip="New object"),
+            Action(ft.Icons.EDIT, "New message", self._new, primary=True)])
         self.control = ft.Container(expand=True)
         self._show_list()
-
-    def fab(self):
-        if self.thread_of is not None or self.map is not None or self.object_form is not None:
-            return None
-        return ft.FloatingActionButton(icon=ft.Icons.EDIT, tooltip="New message",
-                                       on_click=self._new, mini=True)
 
     async def shown(self) -> None:
         if self.object_form is not None:
@@ -142,7 +136,8 @@ class MessagesView:
     async def reload(self) -> None:
         convos = await self.app.command("aprs_conversations") or []
         unread = self.app.state.unread_aprs
-        self.list.controls = [self.toolbar] + [ft.ListTile(
+        self.list.controls = [ft.Container(padding=ft.Padding.symmetric(horizontal=8, vertical=4),
+                                          content=self.toolbar.row)] + [ft.ListTile(
             leading=ft.CircleAvatar(content=ft.Text(c["callsign"][:2])),
             title=ft.Text(c["callsign"], weight=ft.FontWeight.BOLD if c["callsign"] in unread else None),
             subtitle=ft.Text(c.get("last", ""), max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
@@ -169,7 +164,6 @@ class MessagesView:
 
         self.map = MapPage(self)
         self.control.content = self.map.root
-        self.app.page.floating_action_button = None
         self.app.page.update()
         await self.map.reload()
 
@@ -190,7 +184,6 @@ class MessagesView:
             return
         self.object_form = ObjectForm(self, start, moving=bool(name))
         self.control.content = self.object_form.control()
-        self.app.page.floating_action_button = None
         self.app.page.update()
 
     async def close_object_form(self) -> None:
@@ -220,7 +213,6 @@ class MessagesView:
                               on_click=self._templates),
                 self.compose, ft.IconButton(icon=ft.Icons.SEND, tooltip="Send",
                                             on_click=self._send)]))])
-        self.app.page.floating_action_button = None
         self.app.page.update()
 
     async def _templates(self, _e) -> None:
@@ -243,7 +235,6 @@ class MessagesView:
 
     async def _back(self, _e) -> None:
         self._show_list()
-        self.app.page.floating_action_button = self.fab()
         await self.reload()
 
     def _show_list(self) -> None:

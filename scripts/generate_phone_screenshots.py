@@ -39,6 +39,7 @@ Needs: pip install -e ".[screenshots]"
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -58,7 +59,7 @@ import socket  # noqa: E402
 from urllib.parse import urlsplit  # noqa: E402
 
 from PIL import Image  # noqa: E402
-from playwright.async_api import async_playwright  # noqa: E402
+from playwright.async_api import TimeoutError as PlaywrightTimeout, async_playwright  # noqa: E402
 
 from datetime import datetime, timezone  # noqa: E402
 
@@ -219,20 +220,32 @@ class Phone:
         wrapper around the button rather than on the button."""
         page = self.page
         return (page.get_by_role("button", name=name)
-                .or_(page.get_by_label(name, exact=True)).filter(visible=True).last)
+                .or_(page.get_by_label(name, exact=True))
+                .or_(page.locator(f'flt-semantics[role=group][aria-label="{name}\\a {name}"]'))
+                .filter(visible=True).last)
 
     async def tap(self, target, settle: int = 600) -> None:
-        await target.click()
+        try:
+            await target.click(timeout=5000)
+        except PlaywrightTimeout:
+            # Flutter's semantics nodes can be reported under another
+            # node (the status bar's TX button, say): a click on the node
+            # itself reaches the right handler where a pointer click would
+            # toggle transmit.
+            await target.dispatch_event("click")
         await self.page.wait_for_timeout(settle)
 
     async def tab(self, name: str) -> None:
-        await self.tap(self.page.get_by_role("tab", name=name))
+        # The last: Mail's own section tabs come before the bottom bar's.
+        await self.tap(self.page.get_by_role("tab", name=name).last)
 
     async def shown(self, text: str) -> None:
         """Wait for `text` (or a control so named), then for whatever
         brought it to stop moving."""
         page = self.page
-        await page.get_by_text(text).or_(page.get_by_label(text, exact=True)).last.wait_for()
+        await (page.get_by_text(text).or_(page.get_by_label(text, exact=True))
+               .or_(page.locator(f'flt-semantics[role=group][aria-label="{text}\\a {text}"]'))
+               .last.wait_for())
         await self.page.wait_for_timeout(800)
 
     async def swipe(self, target) -> None:
@@ -433,7 +446,11 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.tab("Messages")
     await phone.tap(phone.button("Close"))
     await phone.tap(phone.button("All messages"))
-    await phone.tap(phone.button("New message"))
+    # By role: the toolbar's row is labelled "New message" too.
+    # Dispatched to the node itself: elementsFromPoint puts the status
+    # bar's TX button over it, so a pointer click toggles transmit instead.
+    await phone.page.get_by_role("button", name="New message").last.dispatch_event("click")
+    await phone.page.wait_for_timeout(600)
     await phone.enter_field("To", "WLNK-1")
     await phone.enter_field("Message", "L")
     await phone.tap(phone.button("Send"))
@@ -489,8 +506,7 @@ async def drive(phone: Phone, core, tb) -> None:
         archive.writestr("roster.txt", "W1AW-7\nN1ABC-1\n")
     (core.mail.downloads_dir() / "bulletins.zip").write_bytes(pack.getvalue())
     await phone.tab("Mail")
-    # The segments' labels are not in the accessibility tree: tapped where drawn.
-    await phone.page.mouse.click(302, 91)
+    await phone.tap(phone.page.get_by_role("tab", name="Files"))
     await phone.page.wait_for_timeout(800)
     await phone.tap(phone.page.get_by_text("Attachments").first)
     await phone.shown("Downloads")

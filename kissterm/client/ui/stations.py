@@ -16,6 +16,7 @@ import flet as ft
 
 from . import sheets
 from .messages import ago
+from .toolbar import Action, Toolbar
 
 RIGHT = ft.DismissDirection.START_TO_END
 LEFT = ft.DismissDirection.END_TO_START
@@ -40,16 +41,17 @@ class StationsView:
         self.heard = ft.ListView(expand=True)
         self.contacts = ft.ListView(expand=True)
         self.book: dict[str, dict] = {}
+        #: The one toolbar (`toolbar.py`): Contacts and Heard, then New contact.
+        self.toolbar = Toolbar(app, tabs=ft.TabBar(
+            scrollable=False, tabs=[ft.Tab(label="Contacts"), ft.Tab(label="Heard")]))
+        self.toolbar.set([Action(ft.Icons.PERSON_ADD, "New contact", self._new_contact,
+                                 primary=True)])
         self.control = ft.Tabs(
             length=2, selected_index=0, expand=True,
             content=ft.Column(expand=True, spacing=0, controls=[
-                ft.TabBar(tabs=[ft.Tab(label="Contacts"), ft.Tab(label="Heard")]),
+                self.toolbar.row,
                 ft.TabBarView(expand=True, controls=[self.contacts, self.heard])]))
         self._stale = False
-
-    def fab(self):
-        return ft.FloatingActionButton(icon=ft.Icons.PERSON_ADD, tooltip="New contact",
-                                       on_click=self._new_contact, mini=True)
 
     async def shown(self) -> None:
         await self.reload()

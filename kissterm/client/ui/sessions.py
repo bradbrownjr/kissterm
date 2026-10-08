@@ -31,6 +31,7 @@ from datetime import datetime
 import flet as ft
 
 from . import sheets
+from .toolbar import Action, Toolbar
 from .reference import ReferenceSheet, Suggestions
 from .text import MONO, MONO_BOLD, Look, runs, split_lines
 
@@ -201,6 +202,20 @@ class SessionsView:
         self.app = app
         self.terminals: dict[str, Terminal] = {}
         self.broadcast = BroadcastPage(self)
+        #: The one toolbar (`toolbar.py`): the session tabs, then Disconnect or
+        #: Reconnect, Send beacon and Clear, and Connect last.
+        self.actions = {
+            "disconnect": Action(ft.Icons.LINK_OFF, "Disconnect", self.disconnect,
+                                 tooltip="Disconnect this session", visible=False),
+            "reconnect": Action(ft.Icons.REFRESH, "Reconnect", self.reconnect,
+                                tooltip="Connect this session again", visible=False),
+            "beacon": Action(ft.Icons.RSS_FEED, "Send beacon", self._send_beacon),
+            "clear": Action(ft.Icons.CLEAR_ALL, "Clear", self._clear,
+                            tooltip="Clear what this tab shows"),
+            "connect": Action(ft.Icons.ADD_LINK, "Connect", self._connect_sheet, primary=True),
+        }
+        self.toolbar = Toolbar(app)
+        self.toolbar.set(list(self.actions.values()))
         #: False until the operator picks a tab: until then a session that
         #: appears (a late join's replay, an incoming call) comes forward.
         self._chose = False
@@ -223,11 +238,6 @@ class SessionsView:
         self.control = ft.Column(expand=True, spacing=0, controls=[
             self.pages, self.suggestions.column, self.send_row])
         self._rebuild()
-
-    def fab(self):
-        # Connect ends the tab strip: a floating button would sit on the
-        # Send button, where a thumb already is.
-        return None
 
     async def shown(self) -> None:
         await self.refresh_broadcast()
@@ -294,18 +304,13 @@ class SessionsView:
         self.send_row.visible = True
         self.tab_bar = ft.TabBar(scrollable=True, tabs=[], expand=True,
                                  tab_alignment=ft.TabAlignment.START)
+        self.toolbar.tabs = self.tab_bar
+        self.toolbar.paint()
         self.pages.content = ft.Tabs(
             length=len(self.keys), selected_index=self.selected, expand=True,
             on_change=self._tab_changed,
             content=ft.Column(expand=True, spacing=0, controls=[
-                ft.Row(spacing=0, controls=[
-                    self.tab_bar,
-                    ft.IconButton(icon=ft.Icons.RSS_FEED, tooltip="Send beacon",
-                                  on_click=self._send_beacon),
-                    ft.IconButton(icon=ft.Icons.CLEAR_ALL, tooltip="Clear",
-                                  on_click=self._clear),
-                    ft.IconButton(icon=ft.Icons.ADD_LINK, tooltip="Connect",
-                                  on_click=self._connect_sheet)]),
+                self.toolbar.row,
                 ft.TabBarView(expand=True, controls=[
                     self.broadcast.control if k == "" else self.terminals[k].control
                     for k in self.keys])]))
@@ -399,6 +404,16 @@ class SessionsView:
             self.input.value = ""
             self.suggestions.column.visible = False
         self.app.page.update()
+
+    def paint_actions(self) -> None:
+        """Disconnect while the session shown is connected, Reconnect once it
+        has dropped (`shell.session_chips`)."""
+        from .shell import TERMINAL, session_chips
+
+        disconnect, reconnect = session_chips(TERMINAL, self.current_session)
+        self.actions["disconnect"].visible = disconnect
+        self.actions["reconnect"].visible = reconnect
+        self.toolbar.paint()
 
     async def disconnect(self, _e=None) -> None:
         """The Disconnect chip beside the transmit switch (`shell.py`)."""

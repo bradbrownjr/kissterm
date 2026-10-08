@@ -13,10 +13,11 @@ it on asks first and buzzes the phone; turning it off never asks
 (stopping is always safe). It sends the protocol's `transmit` command:
 the station reports it on every screen.
 
-**Disconnect sits beside it** (`disconnect_chip`), on Terminal while the
-session shown is connected, and **Reconnect** in its place once that
-session has dropped (`reconnect_chip`, Ctrl+R in the terminal): the row that used to repeat the session's
-name above the terminal is gone, and its height is the terminal's.
+**Disconnect and Reconnect are in Terminal's toolbar** (`sessions.py`), not
+the top bar: Disconnect while the session shown is connected, Reconnect in
+its place once it has dropped (Ctrl+R in the terminal). The row that used
+to repeat the session's name above the terminal is gone, and its height is
+the terminal's. Every place's actions are one toolbar row (`toolbar.py`).
 
 **A connect runs in the background** (`start_connect`): Terminal comes to
 the front at once and the session shows its hourglass there, never a
@@ -128,19 +129,9 @@ class ClientApp:
         self.questions = QuestionSheets(self)
         self.gate_button = ft.Container(on_click=self._gate_clicked, border_radius=16,
                                         padding=ft.Padding.symmetric(horizontal=12, vertical=6))
-        self.disconnect_chip = ft.Container(
-            visible=False, on_click=self._disconnect_clicked, border_radius=16,
-            border=ft.Border.all(1, ft.Colors.OUTLINE), tooltip="Disconnect this session",
-            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-            content=ft.Row(tight=True, spacing=6, controls=[
-                ft.Icon(ft.Icons.LINK_OFF, size=18), ft.Text("Disconnect")]))
-        #: Reconnect, in the same place, while the session shown has dropped.
-        self.reconnect_chip = ft.Container(
-            visible=False, on_click=self._reconnect_clicked, border_radius=16,
-            border=ft.Border.all(1, ft.Colors.OUTLINE), tooltip="Connect this session again",
-            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
-            content=ft.Row(tight=True, spacing=6, controls=[
-                ft.Icon(ft.Icons.REFRESH, size=18), ft.Text("Reconnect")]))
+        #: Every place's toolbar (`toolbar.py`), repainted when the width
+        #: crosses `WIDE`, which decides whether its buttons carry words.
+        self.toolbars: list = []
         views = {MAIL: MailView(self), MESSAGES: MessagesView(self),
                  TERMINAL: SessionsView(self), STATIONS: StationsView(self),
                  MORE: MoreView(self)}
@@ -170,7 +161,7 @@ class ClientApp:
         page.padding = 0
         page.appbar = ft.AppBar(title=ft.Text("kissterm"), center_title=False, actions=[
             ft.Container(padding=ft.Padding.only(right=12), content=ft.Row(
-                tight=True, spacing=8, controls=[self.disconnect_chip, self.reconnect_chip, self.gate_button]))])
+                tight=True, spacing=8, controls=[self.gate_button]))])
         page.on_resize = self._on_resize
         self._paint_gate()
         self._place()
@@ -250,6 +241,8 @@ class ClientApp:
         was = self.page.navigation_bar is None
         if was != self.wide:
             self._place()
+            for toolbar in self.toolbars:
+                toolbar.paint()
             self.views[MAIL].relayout()
             self.page.update()
 
@@ -269,7 +262,6 @@ class ClientApp:
         self.rail.selected_index = rail_index(index, self.views[MAIL].section)
         view = self.views[index]
         self.body.content = view.control
-        self.page.floating_action_button = view.fab()
         self.page.appbar.title = ft.Text(self._title())
         self.paint_actions()
         if self.connected:
@@ -292,21 +284,13 @@ class ClientApp:
         """Mail's switch moved: the title and the rail follow."""
         self.rail.selected_index = rail_index(self.index, self.views[MAIL].section)
         self.page.appbar.title = ft.Text(self._title())
-        self.page.floating_action_button = self.views[self.index].fab()
 
     def paint_actions(self) -> None:
-        """Disconnect beside the transmit switch while Terminal shows a
-        connected session."""
+        """Disconnect or Reconnect in the Terminal's toolbar, by the state of
+        the session shown."""
         views = getattr(self, "views", None)  # None while they are built
-        session = views[TERMINAL].current_session if views else None
-        self.disconnect_chip.visible, self.reconnect_chip.visible = session_chips(
-            self.index, session)
-
-    async def _disconnect_clicked(self, _e) -> None:
-        await self.views[TERMINAL].disconnect()
-
-    async def _reconnect_clicked(self, _e) -> None:
-        await self.views[TERMINAL].reconnect()
+        if views:
+            views[TERMINAL].paint_actions()
 
     def start_connect(self, **args) -> None:
         """Ask the station to connect, without waiting on it here: Terminal
