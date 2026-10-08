@@ -22,6 +22,7 @@ import logging
 from dataclasses import dataclass, field
 
 from ..ax25.address import AX25Address
+from .. import identity
 from ..config import SECRET_LOGINS, credential_store, set_credential
 from . import settings_schema as schema
 
@@ -115,7 +116,14 @@ class Settings:
         if station is None:
             return
         try:
-            station.mycall = AX25Address.parse(config.mycall)
+            wanted = identity.parse_air_call(config) or AX25Address.parse(config.mycall)
+            if str(wanted) == str(station.mycall):
+                pass
+            elif self.core.identifier.sessions_up():
+                # The call is in every frame of an established link.
+                self.core.identifier.defer()
+            else:
+                station.mycall = wanted
             station.aliases = tuple(AX25Address.parse(a) for a in config.mycall_aliases)
         except Exception:  # noqa: BLE001 - a bad call must not stop the rest
             log.exception("could not apply callsign settings")

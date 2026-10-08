@@ -346,10 +346,16 @@ changes.
   text or a bad destination.
 
 ### Unattended transmission
-- **Answering calls and beaconing are the only unattended transmitters.** Both
-  off by default, both shown in the status bar (`ANSWERING`, `BEACON`) while
-  armed; every transmission shows in the Monitor tab and is logged to
-  kissterm.log (not the Terminal, DESIGN.md section 6).
+- **Answering calls and beaconing are the only unattended transmitters,
+  plus one that only follows the operator's own transmission:** the tactical
+  call identification (`core/identifier.py`, operator 2026-10-08: "an
+  automatic transmission of the station's call after on air transmission").
+  It sends only while operating as a tactical call, when a link made under
+  it ends and every 10 minutes while one is up, and says in words when the
+  gate stops it. Answering and beaconing are off by default, both shown in
+  the status bar (`ANSWERING`, `BEACON`) while armed; every transmission
+  shows in the Monitor tab and is logged to kissterm.log (not the
+  Terminal, DESIGN.md section 6).
 - **A login script or hop chain rides the connect the operator confirmed**
   (`Connector.run_connect_script`, `hop_through`): each line echoed, stops if the
   gate closes or the link drops, and the login runs only if the whole chain

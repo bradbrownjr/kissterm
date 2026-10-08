@@ -76,6 +76,10 @@ class AX25Station:
         #: and a node that keeps polling looks like an unexplained caller
         #: (operator, 2026-09-29, after relaunching mid-connection).
         self.on_stray_poll: list[Callable[[AX25Address, int], None]] = []
+        #: Every link as it is made, outgoing (before the first SABM) or
+        #: incoming (after the UA): the identification after a transmission
+        #: made under a tactical call watches each one (`core/identifier.py`).
+        self.on_link_created: list[Callable[[AX25Link], None]] = []
 
         self._unsubscribe = transport.subscribe(self._on_frame)
 
@@ -139,6 +143,8 @@ class AX25Station:
             port=port,
         )
         self.links[key] = link
+        for cb in list(self.on_link_created):
+            cb(link)
         ok = await link.connect(timeout=timeout)
         return link if ok else None
 
@@ -277,6 +283,8 @@ class AX25Station:
             port=port,
         )
         self.links[key] = link
+        for cb in list(self.on_link_created):
+            cb(link)
         await link.handle(frame)  # sends the UA and enters CONNECTED
         log.info("incoming connection from %s", path.destination)
         for cb in list(self.on_incoming):

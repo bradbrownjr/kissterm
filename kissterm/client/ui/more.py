@@ -190,7 +190,8 @@ class MoreView:
         state = self.app.state
         transport = state.transport or {}
         lines = [
-            ("Station", state.callsign or "(not set)"),
+            ("Station", f"{state.on_air} (ID {state.callsign})"
+             if state.on_air and state.on_air != state.callsign else state.callsign or "(not set)"),
             ("kissterm", state.version),
             ("Transport", transport.get("detail") or transport.get("name") or "none open"),
             ("Transmit", "ON" if state.gate else "off"),

@@ -39,6 +39,20 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   `ABC-1P: <your title>` with ABC the last three of your call, BPQMail
   keeps it whole, and the next message is `ABC-2P`. Bulletins use `B`.
 
+## Tactical call (2026-10-08)
+
+- [ ] **Connect as CCEMA and be identified.** Settings > Station: Tactical
+  call CCEMA, Operate as the tactical call on. With transmit on, connect
+  to the BBS (it needs a CCEMA account), then disconnect. Expected: the
+  Monitor shows the SABM from CCEMA, and after the DISC one UI frame from
+  your callsign to `ID` reading `DE <your call> (CCEMA)`; the Terminal
+  notice "Identified: ...". A node that decodes UI frames should show it.
+- [ ] **A failed connect is identified too**, and **a session left up past
+  ten minutes** is identified at ten (shorten nothing; just watch the
+  Monitor).
+- [ ] **Transmit off**: end a session with transmit off. Expected: no
+  frame, and a notice saying you must identify yourself.
+
 ## Delivery and read receipts (2026-10-07)
 
 - [ ] **Ask and answer between two stations.** Station A: Settings > Mail

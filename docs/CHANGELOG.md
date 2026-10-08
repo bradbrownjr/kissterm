@@ -5,6 +5,34 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-08] — Operating as a tactical call (P11)
+
+### New Features
+
+- **Tactical call** (Settings > Station): `tactical_call` (`CCEMA`),
+  **Operate as the tactical call**, and **Identify with my callsign**
+  (on). Operating as it makes the AX.25 source of connects and the call
+  answered on the tactical call; the status bar shows `CCEMA` and `ID
+  KC1JMH`; the phone's More shows the same (`welcome.station.on_air`).
+  A change waits until no session is up. APRS, Winlink and VARA keep the
+  real call.
+- **Automatic identification** (`core/identifier.py`): `DE KC1JMH-7
+  (CCEMA)` as a UI frame to `ID` from the real call when a link made under
+  the tactical call ends (including one that never came up) and every 10
+  minutes while one is up; debounced, only while operating as tactical,
+  and a closed gate is said in words, never reported as sent. AGENTS.md's
+  unattended-transmitter rule names it.
+- `AX25Station.on_link_created` (each link as it is made); a Settings
+  `optional` callsign field.
+
+**Files:** `kissterm/identity.py`, `kissterm/core/identifier.py`,
+`kissterm/ax25/station.py`, `kissterm/core/service.py`,
+`kissterm/core/settings.py`, `kissterm/core/settings_schema.py`,
+`kissterm/config.py`, `kissterm/serve/server.py`, `kissterm/ui/app.py`,
+`kissterm/client/state.py`, `kissterm/client/ui/more.py`,
+`config.toml.example`, `AGENTS.md`, `docs/GUIDE.md`, `docs/PROTOCOL.md`,
+`docs/ON-AIR-TESTS.md`
+
 ## [2026-10-07] — Delivery and read receipts (P11)
 
 ### New Features

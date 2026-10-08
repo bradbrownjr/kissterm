@@ -38,6 +38,7 @@ from collections.abc import Callable
 
 from ..ax25 import AX25Station, LinkParams
 from ..ax25.address import AX25Address
+from .. import identity
 from ..tx import TransmitGate
 from .events import ActivityChanged, ConfigChanged, EventBus, GateChanged, TransportChanged
 from .operator import NullOperator, Notice, Operator, Severity
@@ -64,7 +65,7 @@ def build_station(config, transport, max_links: int = MAX_LINKS) -> AX25Station:
     cannot drift between the two.
     """
     return AX25Station(
-        AX25Address.parse(config.mycall),
+        identity.parse_air_call(config) or AX25Address.parse(config.mycall),
         transport,
         LinkParams(
             paclen=config.paclen,
@@ -160,6 +161,11 @@ class Core:
         #: has an entry before the APRS decode adds a position to it.
         self.channel = Channel(self)
         self.restarter = Restarter(self)
+        from .identifier import Identifier
+
+        #: Identifies the licensed call after a transmission made under a
+        #: tactical call (`identifier.py`).
+        self.identifier = Identifier(self)
         self.frame_subscribers += [self.channel.on_received, self.aprs.on_frame]
         self.sent_subscribers.append(self.channel.on_sent)
 
@@ -227,7 +233,7 @@ class Core:
         if self.station is not None:
             # The live station too, not just the file: otherwise the change
             # silently waits for the next launch.
-            self.station.mycall = AX25Address.parse(new_call)
+            self.station.mycall = identity.parse_air_call(self.config) or AX25Address.parse(new_call)
         saved = self.save_config()
         self.events.publish(ConfigChanged())
         where = "saved" if saved else "applied for this session only (could not write config)"
@@ -260,6 +266,7 @@ class Core:
         # The station's own hooks survive a transport switch, so they are
         # attached here and not in `attach_transport`.
         self.station.on_incoming.extend(self.incoming_subscribers)
+        self.station.on_link_created.append(self.identifier.watch)
         self.station.on_stray_poll.extend(self.stray_poll_subscribers)
 
     def attach_transport(self, transport) -> None:

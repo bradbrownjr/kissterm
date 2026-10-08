@@ -404,6 +404,19 @@ class Config:
     #: mailbox listening on -1 while the main session sits on the bare call,
     #: for instance.
     mycall_aliases: list[str] = field(default_factory=list)
+    #: A tactical call, an assignment's name the net knows instead of any
+    #: one operator's callsign (`CCEMA` for the EOC): the AX.25 address
+    #: (at most 6 letters or digits, SSID 0-15). While `operate_as_tactical`
+    #: is on it is what this station connects and answers as; the real call
+    #: stays in `mycall` and is identified after each transmission
+    #: (`tactical_id`, `kissterm/core/identifier.py`). APRS, Winlink and
+    #: VARA keep the real call. Empty means none.
+    tactical_call: str = ""
+    operate_as_tactical: bool = False
+    #: Identify with the real call when a link made under the tactical call
+    #: ends, and every 10 minutes while one is up. On: it is the station's
+    #: legal identification. Only ever happens while operating as tactical.
+    tactical_id: bool = True
     transports: list[dict[str, Any]] = field(default_factory=list)
     #: `name` of the transport in `transports` that should be opened on
     #: startup. Empty means "ask" (or use whatever discovery finds).
@@ -985,6 +998,10 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
             raw = {}
     cfg.mycall = _load_callsign(raw.get("mycall", ""), "mycall", warnings)
     cfg.mycall_aliases = _load_callsign_list(raw.get("mycall_aliases", []), warnings)
+    cfg.tactical_call = _load_callsign(raw.get("tactical_call", ""), "tactical_call", warnings)
+    cfg.operate_as_tactical = _load_bool(
+        raw, "operate_as_tactical", cfg.operate_as_tactical, warnings)
+    cfg.tactical_id = _load_bool(raw, "tactical_id", cfg.tactical_id, warnings)
     cfg.transports = _load_dict_list(raw.get("transports", []), "transports", warnings)
     cfg.active_transport = _load_str(raw, "active_transport", cfg.active_transport, warnings)
     cfg.credentials = _load_dict_list(raw.get("credentials", []), "credentials", warnings)

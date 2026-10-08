@@ -29,6 +29,16 @@ mycall = "N0CALL-1"
 # uses the bare callsign.
 mycall_aliases = ["N0CALL-2"]
 
+# A tactical call: the name of an assignment (an EOC) instead of one
+# operator's callsign. At most 6 letters or digits and an SSID 0-15, since
+# it goes in the AX.25 address field. With operate_as_tactical on, the
+# station connects and answers as this call; mycall (your licensed call)
+# is identified after each transmission and every 10 minutes while a link
+# is up, when tactical_id is on. APRS, Winlink and VARA keep mycall.
+tactical_call = ""
+operate_as_tactical = false
+tactical_id = true
+
 # The name (see [[transports]] below) of the transport to open automatically
 # on startup. Leave blank to have kissterm ask, or to auto-select whatever
 # discovery finds.

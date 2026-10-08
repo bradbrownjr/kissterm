@@ -666,73 +666,11 @@ Forms (ICS-213, radiograms, strips, check-ins, the whole bpq-apps set,
 vden and Winlink forms) moved to P2's Forms subsection, which carries
 everything that was here.
 
-- [ ] **Tactical call / assignment identity.** Outpost's "Setups for
-      Tactical Operations" is a distinct, well-established ARES/RACES
-      convention worth its own item, not a variant of the P9 mailbox
-      alt-SSID idea: an operator logs into the BBS and addresses traffic
-      under an assignment name (`CUPEOC`, `K6SJC-1`) rather than their
-      personal callsign, so the *assignment* keeps a stable identity across
-      shift changes without every operator re-teaching the net their own
-      call. This is a real station-identification question, not a cosmetic
-      label: the TNC's MYCALL is set to the tactical call for BBS
-      interaction, and the *actual* licensed callsign still has to be
-      legally identified on the air periodically -- Outpost does this with
-      a scheduled unproto transmission of the real call. **Read this
-      project's own P9 regulatory-constraint note before building this** --
-      the same "needs checking against current rules by someone qualified"
-      caveat applies, and the periodic legal-ID transmission has to follow
-      every rule this file already has for unattended transmission
-      (opt-in, visible status marker, never silent, re-checked at send time
-      -- `kissterm/beacon.py` is the existing pattern to copy, not
-      reinvent). `Config.mycall_aliases`/`AX25Station.aliases`, already
-      used for P9's alt-SSID mailbox, is the wrong precedent to reach for
-      here -- that is a second *reachable* identity on the same station,
-      while a tactical call is what the *primary* connect and
-      mail-addressing identity resolves to until the operator changes it,
-      layered on top of (not replacing) the real MYCALL the state machine
-      still identifies with. Needs scoping against `ax25/session.py`'s
-      handling of `mycall` before estimating size. Medium-large.
-      **Scoped 2026-10-08, not started; waiting on the operator's answers
-      below.** What the code says:
-      - The link layer is not the obstacle. `ax25/session.py` never reads
-        `mycall`; the only two uses are `AX25Station._path_to` (the source
-        address of what we send) and `_is_mine` (what we accept), and
-        `core/service.py` already assigns `station.mycall` at runtime when
-        the callsign setting changes. Switching the on-air identity is a
-        few lines; `mycall_aliases` already makes a station answer to
-        another call.
-      - The size is in everything else that reads the callsign. Pinned to
-        the **real** call whatever is active: APRS (`Config.aprs.source_for`
-        reads `station.mycall`, and an ack addressed to the tactical call
-        would not match; LinBPQ wants an exact SSID, AGENTS.md), Winlink
-        (its account is the real call, `config.winlink_account`), VARA
-        (its own `mycall`), session logs and transcripts. Following the
-        tactical call: the AX.25 source of connects, the BBS login (a BBS
-        knows a user by source call, so the tactical call needs its own
-        BBS account, as in Outpost), the sender of mail written, and the
-        numbering prefix.
-      - A tactical name must be a valid AX.25 address: at most 6 letters or
-        digits and a 0-15 SSID (`CUPEOC`, `CCEMA-1`). `WSSM-ECT` cannot
-        go on the air as a source address.
-      - The legal ID is the hard part (not an authority: see P9's note).
-        The real call has to be identified by the rules' schedule while
-        the tactical call is in use. Outpost does it with a periodic UI
-        frame from the real call. kissterm's beacon sends from
-        `station.mycall` and has a 10-minute floor, so a source override
-        on `Beaconer` would do it, but that makes it a **third unattended
-        transmitter** (AGENTS.md lists answering and beaconing only):
-        opt-in, a status-bar marker (`ID`), re-checked at send time, every
-        frame in the Monitor. A cheaper alternative is no automatic ID: a
-        persistent "Operating as CCEMA: identify as KC1JMH" reminder in the
-        status bar and a one-key ID-now, leaving the schedule to the
-        operator. Neither is built.
-      - Questions for the operator: (1) does the team actually use tactical
-        calls on packet, and which ("CCEMA"? a BBS login per assignment?);
-        (2) automatic ID or reminder plus ID-now; (3) one tactical call or
-        a list to pick from; (4) should mail written under it be numbered
-        and filed under it, or stay the operator's. Size once decided:
-        medium (identity switch in both front ends, ID, pinning the real
-        call, tests).
+
+**P11's three items shipped:** message-ID numbering and delivery/read
+receipts 2026-10-07, the tactical call with its automatic identification
+2026-10-08 (CHANGELOG). This section stays for the Outpost research the
+notes below rest on.
 
 ### Adjacent nuance for the existing BBS/mailbox items above
 

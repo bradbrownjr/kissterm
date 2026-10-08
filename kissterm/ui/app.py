@@ -122,7 +122,7 @@ from textual.containers import Vertical
 from textual.widgets import Footer, Static, TabbedContent, TabPane, Tabs
 from textual.widgets._footer import FooterKey
 
-from .. import __version__
+from .. import __version__, identity
 from ..addressbook import adopt_internet_transports
 from ..ax25 import AX25Station
 from ..core import TRANSPORT_SKIPPED, Core, GateChanged, TransportChanged
@@ -2641,6 +2641,10 @@ class KissTermApp(App):
             parts.append(f"TX OFF{blocked}")
         if self.station is not None:
             parts.append(str(self.station.mycall))
+            if identity.tactical_active(self.config) and str(self.station.mycall) == \
+                    self.config.tactical_call:
+                # The tactical name is on the air; whose station it is stays on screen.
+                parts.append(f"ID {self.config.mycall}")
         elif self.session_transport is not None:
             # No AX25Station on this tier to read a callsign off, but the
             # operator's own callsign is still `config.mycall` regardless.

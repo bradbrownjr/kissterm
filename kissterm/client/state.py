@@ -105,6 +105,8 @@ class Question:
 class StationState:
     def __init__(self) -> None:
         self.callsign = ""
+        #: The call on the air: the tactical call while operating as one.
+        self.on_air = ""
         self.version = ""
         self.gate = False
         self.transport: dict = {}
@@ -162,6 +164,7 @@ class StationState:
         station = message.get("station") or {}
         snapshot = message.get("snapshot") or {}
         self.callsign = station.get("callsign", "")
+        self.on_air = station.get("on_air", "")
         self.version = station.get("kissterm", "")
         self.gate = bool(snapshot.get("gate"))
         self.transport = snapshot.get("transport") or {}

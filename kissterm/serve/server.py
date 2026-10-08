@@ -36,7 +36,7 @@ import json
 import logging
 from typing import Any
 
-from .. import __version__
+from .. import __version__, identity
 from ..core import events as ev
 from ..core import wording
 from ..core.operator import Notice, Severity
@@ -243,7 +243,8 @@ class RemoteServer:
 
     def welcome(self) -> dict:
         return {"type": "welcome", "version": wire.VERSION, "seq": self.core.events.seq,
-                "station": {"callsign": self.core.config.mycall or "", "kissterm": __version__},
+                "station": {"callsign": self.core.config.mycall or "", "kissterm": __version__,
+                            "on_air": identity.air_call(self.core.config) or ""},
                 "snapshot": self.snapshot()}
 
     # ------------------------------------------------------------------

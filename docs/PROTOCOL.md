@@ -52,9 +52,11 @@ the same transmit-gate rules as the terminal.
 
 ```json
 {"type": "welcome", "version": 1, "seq": 1234,
- "station": {"callsign": "KC1JMH-1", "kissterm": "0.1.405"},
+ "station": {"callsign": "KC1JMH-1", "kissterm": "0.1.405", "on_air": "CCEMA"},
  "snapshot": {"gate": false, "transport": {}, "sessions": [], "connecting": [], "mail_running": false, "activity": ""} }
 ```
+
+`on_air` is the call the station is on the air as: the tactical call while operating as one, else `callsign`.
 
 `seq` is the last event sequence number included in `snapshot`. Events
 after it follow.

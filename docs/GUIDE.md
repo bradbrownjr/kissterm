@@ -510,6 +510,27 @@ it on, never sent empty, with a ten-minute floor. Settings shows what your
 interval costs the channel. The timer waits a full interval before its
 first transmission; F10 > Session > Send beacon sends one now.
 
+## Operating as a tactical call
+
+A tactical call names an assignment instead of one operator, so the net
+keeps the same address as people change shifts: **CCEMA** for the EOC.
+In Settings > Station, set **Tactical call** (at most 6 letters or digits
+and an SSID, since it goes in the AX.25 address; `CCEMA` or `CCEMA-1`, not
+`WSSM-ECT`) and turn on **Operate as the tactical call**. Connections then
+go out as CCEMA and the station answers on it, and the status bar shows
+`CCEMA` and `ID KC1JMH`. It takes effect when no session is up.
+
+APRS, Winlink and VARA keep your own callsign, and a BBS knows a user by
+the call it hears, so the BBS needs an account for the tactical call. Your
+own callsign still has to be identified: with **Identify with my
+callsign** on (the default), kissterm sends `DE KC1JMH-7 (CCEMA)` to `ID`
+when a link made under the tactical call ends, whether it was used or
+never came up, and every 10 minutes while one stays up. It is sent only
+while operating as the tactical call and only with transmit on; if
+transmit is off it says in words that you must identify yourself. It is
+your station's identification, and you remain responsible for the
+schedule the rules require.
+
 ## Settings
 
 **Nothing you answer at setup is locked in.** Settings (F9) lists its

@@ -72,6 +72,8 @@ class Field:
     #: right for 1200-baud VHF (operator, 2026-09-25: "new user
     #: approachable, not overwhelming").
     advanced: bool = False
+    #: A "callsign" field that may be left empty (none).
+    optional: bool = False
     #: `(path, value)`: shown only while that other field is set to that
     #: value -- the custom theme colours, while Theme is Custom. Still saved
     #: while hidden, so nothing is lost by switching back and forth.
@@ -107,6 +109,36 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "separated -- a personal mailbox on -1, for instance.",
                 apply="live",
                 placeholder="N1ABC-1, N1ABC-2",
+            ),
+            Field(
+                "tactical_call",
+                "Tactical call",
+                "callsign",
+                "The name of an assignment the net knows, such as CCEMA for the EOC: at "
+                "most 6 letters or digits and an SSID. Leave empty for none.",
+                apply="live",
+                optional=True,
+                placeholder="CCEMA",
+            ),
+            Field(
+                "operate_as_tactical",
+                "Operate as the tactical call",
+                "bool",
+                "On: connections go out as the tactical call and it is what this station "
+                "answers on. Your callsign above is identified after each transmission. "
+                "APRS, Winlink and VARA keep your own call. Takes effect when no session "
+                "is up.",
+                apply="live",
+            ),
+            Field(
+                "tactical_id",
+                "Identify with my callsign",
+                "bool",
+                "While operating as the tactical call: send your callsign (DE call "
+                "(tactical)) when a link ends and every 10 minutes while one is up. "
+                "It is the station's identification: you stay responsible for it if "
+                "this is off, or transmit is.",
+                apply="live",
             ),
             Field(
                 "update_check",
@@ -1176,6 +1208,8 @@ def coerce(field_spec: Field, raw: Any) -> Any:
     if kind == "callsign":
         from ..ax25.address import AX25Address, AX25AddressError
 
+        if not text and field_spec.optional:
+            return ""
         if not text:
             raise ValidationError("a callsign is required")
         try:
@@ -1251,4 +1285,6 @@ def cross_check(config: Any) -> list[str]:
             "T1 should be longer than T2, or an acknowledgement is still "
             "being held when the sender gives up waiting for it."
         )
+    if config.operate_as_tactical and not config.tactical_call:
+        problems.append("Operate as the tactical call is on but no tactical call is set.")
     return problems
