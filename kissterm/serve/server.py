@@ -669,6 +669,14 @@ class RemoteServer:
         "monitor" ("" is Mail). A client opens on it, as the terminal does."""
         return str(getattr(self.core.config, "start_tab", "") or "")
 
+    async def cmd_gps_scan(self) -> list[dict]:
+        """Settings > APRS > GPS device > Scan: the local serial ports,
+        GPS-labelled first (the terminal's "Scan" button). Reads local
+        ports only; nothing is sent on the air or the network."""
+        from ..gps import discover_serial_gps
+
+        return [{"label": d.label, "detail": d.detail} for d in await discover_serial_gps()]
+
     async def cmd_theme(self) -> dict:
         """What the phone and browser draw in: the station's `theme` as one
         palette (hex colours and whether it is dark). The terminal-ANSI

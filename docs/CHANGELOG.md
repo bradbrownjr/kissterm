@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-08] — Phone and web: Clear icon, GPS Scan, Open on Monitor
+
+### Improvements
+
+- **Clear is a broom**, not the stacked lines that read as a menu (operator,
+  2026-10-08).
+- **Settings > APRS > GPS device has the terminal's Scan**: lists the
+  station's local serial ports (GPS first) and fills the field (`gps_scan`).
+- **Open on > Monitor opens More with its Monitor section expanded.**
+
+**Files:** `kissterm/client/ui/sessions.py`, `settings.py`, `more.py`,
+`shell.py`, `kissterm/serve/server.py`, `docs/PROTOCOL.md`
+
 ## [2026-10-08] — Phone and web: one toolbar design
 
 ### Improvements

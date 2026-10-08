@@ -55,6 +55,10 @@ class MoreView:
         self.swatches = ft.Row(wrap=True, spacing=12, run_spacing=8)
         self.preview = ft.Container(border_radius=8, padding=ft.Padding.all(12))
         self.transcripts = TranscriptsSection(app, self._over)
+        self.monitor_tile = ft.ExpansionTile(title=ft.Text("Monitor"), subtitle=ft.Text(
+            "Every frame the station hears or sends", size=12),
+            controls=[ft.Container(padding=ft.Padding.symmetric(horizontal=16),
+                                   content=self.monitor_controls), self.monitor])
         self.list = ft.ListView(expand=True, padding=ft.Padding.all(12), controls=[
             ft.Card(content=ft.Container(padding=ft.Padding.all(16), content=ft.Column(
                 tight=True, spacing=12, controls=[
@@ -68,10 +72,7 @@ class MoreView:
                                           on_click=self._restart),
                         ft.OutlinedButton(content="Shut down", icon=ft.Icons.POWER_SETTINGS_NEW,
                                           on_click=self._shutdown)])]))),
-            ft.ExpansionTile(title=ft.Text("Monitor"), subtitle=ft.Text(
-                "Every frame the station hears or sends", size=12),
-                controls=[ft.Container(padding=ft.Padding.symmetric(horizontal=16),
-                                       content=self.monitor_controls), self.monitor]),
+            self.monitor_tile,
             ft.ExpansionTile(title=ft.Text("Notices"), controls=[self.notices]),
             self.transcripts.tile,
             ft.ExpansionTile(title=ft.Text("Terminal"), subtitle=ft.Text(
@@ -96,6 +97,11 @@ class MoreView:
     def _over(self, page: ft.Control | None) -> None:
         self.control.content = page if page is not None else self.list
         self.app.page.update()
+
+    def open_monitor(self) -> None:
+        """Settings > Appearance > Open on > Monitor: More with its Monitor
+        section open (the terminal opens on its Monitor tab)."""
+        self.monitor_tile.expanded = True
 
     async def shown(self) -> None:
         self._paint()

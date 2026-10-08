@@ -940,6 +940,11 @@ own client.
 
 ![More > Settings: Appearance with the theme list, then Radio with its transports](../assets/screenshot-phone-settings.png)
 
+Settings > APRS > GPS device has a Scan button as the terminal does: it lists
+the station's local serial ports, GPS first, and a pick fills the field.
+Settings > Appearance > Open on > Monitor opens More with the Monitor
+section expanded.
+
 ![More > Monitor with its filters, then narrowed to one callsign with Supervisory frames hidden](../assets/screenshot-phone-monitor.png)
 
 On a wider screen (a laptop's browser, a tablet) the places run down the

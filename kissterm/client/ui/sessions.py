@@ -210,7 +210,7 @@ class SessionsView:
             "reconnect": Action(ft.Icons.REFRESH, "Reconnect", self.reconnect,
                                 tooltip="Connect this session again", visible=False),
             "beacon": Action(ft.Icons.RSS_FEED, "Send beacon", self._send_beacon),
-            "clear": Action(ft.Icons.CLEAR_ALL, "Clear", self._clear,
+            "clear": Action(ft.Icons.CLEANING_SERVICES, "Clear", self._clear,
                             tooltip="Clear what this tab shows"),
             "connect": Action(ft.Icons.ADD_LINK, "Connect", self._connect_sheet, primary=True),
         }

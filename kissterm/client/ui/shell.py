@@ -192,6 +192,8 @@ class ClientApp:
         self._opened_on_start = True
         place = self.START_PLACE.get(await self.command("start_tab") or "")
         if place is not None and self.index == MAIL:
+            if place == MORE:
+                self.views[MORE].open_monitor()
             self.go(place)
 
     async def load_theme(self) -> None:

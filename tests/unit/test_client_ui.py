@@ -1966,3 +1966,31 @@ def test_every_action_has_a_word_on_a_wide_screen_and_only_the_primary_on_a_phon
     bar.paint()
     assert [type(c).__name__ for c in bar.buttons.controls] == ["TextButton", "FilledButton"]
     assert bar.buttons.controls[0].content == "Map"
+
+
+@pytest.mark.asyncio
+async def test_open_on_monitor_opens_mores_monitor_section():
+    from kissterm.client.ui.more import MoreView
+
+    more = MoreView(MailApp({}))
+    assert not more.monitor_tile.expanded
+    more.open_monitor()
+    assert more.monitor_tile.expanded
+
+
+@pytest.mark.asyncio
+async def test_gps_device_has_a_scan_that_fills_the_field():
+    from kissterm.client.ui.settings import SettingsEditor
+
+    app = MailApp({"gps_scan": [{"label": "/dev/ttyUSB0", "detail": "u-blox GPS"}]})
+    editor = SettingsEditor(app)
+    row = editor._field({"path": "aprs.gps_device", "kind": "text", "label": "GPS device",
+                         "value": ""})
+    scan = next(c for c in _walk(row) if getattr(c, "content", None) == "Scan")
+    await scan.on_click(None)
+    assert app.commands[-1] == ("gps_scan", {})
+    picker = next(c for c in _walk(row) if isinstance(c, ft.Dropdown))
+    assert picker.visible and picker.options[0].key == "/dev/ttyUSB0"
+    picker.value = "/dev/ttyUSB0"
+    await picker.on_select(type("E", (), {"control": picker})())
+    assert editor.draft["aprs.gps_device"] == "/dev/ttyUSB0"

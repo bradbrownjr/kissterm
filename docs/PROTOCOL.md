@@ -174,6 +174,7 @@ lighter path around a rule the terminal follows.
 | `settings_save` `{draft, active_transport}` | `Settings.save`; a new transport is opened | no |
 | `radio_info`, `radio_save` `{entry, original}`, `radio_forget` `{name}`, `radio_use` `{name}`, `radio_scan`, `radio_test` `{name}` | `Core.radio` (`core/radio.py`): the transports and the form each kind needs, proven with `build_transport` before saving; Scan and Test transmit nothing; `radio_use` opens the radio as saving the choice does (refused while connected) | no |
 | `logins`, `login_save` `{name, username, password, original}`, `login_forget`; `scripts`, `script_save` `{name, text, original}`, `script_forget` | saved logins and scripts: a password and a script's text never come back, and an empty one on an edit keeps what is saved | no |
+| `gps_scan` | Settings > APRS > GPS device > Scan: local serial ports as `[{label, detail}]`, GPS first | no |
 | `start_tab` | Settings > Appearance > Open on: "", "terminal", "aprs" or "monitor" | no |
 | `addressbook` / `addressbook_save` `{entry}` | `Core.addressbook` | no |
 | `heard` | `Core.heard.entries` | no |

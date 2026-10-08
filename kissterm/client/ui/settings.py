@@ -161,6 +161,8 @@ class SettingsEditor:
                 keyboard_type=ft.KeyboardType.NUMBER if numeric else None,
                 capitalization=ft.TextCapitalization.CHARACTERS if kind in (
                     "callsign", "calllist") else None)
+        if path == "aprs.gps_device":
+            extra = self._gps_scan(control)
         self.inputs[path] = entry if kind == "color" else control
         notes = [field.get("help", ""), APPLY_NOTE.get(field.get("apply", ""), "")]
         row = ft.Container(padding=ft.Padding.symmetric(vertical=6), content=ft.Column(
@@ -169,6 +171,29 @@ class SettingsEditor:
                                           for n in notes if n]))
         self.rows[path] = row
         return row
+
+    def _gps_scan(self, entry: ft.TextField) -> list[ft.Control]:
+        """The terminal's "Scan" beside the GPS device: list the station's
+        local serial ports and put the pick in the field."""
+        picker = ft.Dropdown(label="Serial ports found", dense=True, visible=False)
+        note = ft.Text("", size=12, color=ft.Colors.OUTLINE)
+
+        async def picked(e) -> None:
+            entry.value = e.control.value
+            self._changed("aprs.gps_device", entry.value)
+
+        picker.on_select = picked
+
+        async def scan(_e) -> None:
+            found = await self.app.command("gps_scan") or []
+            picker.options = [ft.DropdownOption(key=d["label"], text=f"{d['label']} -- {d['detail']}")
+                              for d in found]
+            picker.visible = bool(found)
+            note.value = "" if found else "No local serial ports found"
+            self.app.page.update()
+
+        return [ft.Row(controls=[ft.OutlinedButton(content="Scan", icon=ft.Icons.SEARCH,
+                                                   on_click=scan), note]), picker]
 
     @staticmethod
     def _limits(field: dict) -> str | None:
