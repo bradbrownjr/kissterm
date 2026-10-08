@@ -472,8 +472,7 @@ back end, so a protocol fix or a new transport lands everywhere at once.
   desktop front end; no native desktop GUI and no separate binaries of it.
 - [ ] **Parity gaps left in Settings (2026-10-08):** the terminal's Settings
   pane still edits `config.transports`, `credentials` and `scripts` itself;
-  move it onto `core.radio` so the two cannot drift. On the phone: a contact
-  dropdown has no "New contact..." entry, the APRS symbol is a searchable dropdown and not the terminal's
+  move it onto `core.radio` so the two cannot drift. On the phone: the APRS symbol is a searchable dropdown and not the terminal's
   picker, Test cannot probe a serial or Bluetooth TNC (the terminal cannot
   either), and an Address Book contact's own editor is not reached from
   Settings.

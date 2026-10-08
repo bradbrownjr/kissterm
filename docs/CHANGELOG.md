@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-08] — Phone and web: New contact and New login in Settings lists
+
+### Improvements
+
+- **Contact and login dropdowns in Settings end "New contact..." / "New
+  login..."**, as the terminal's do: a short form (a station; or name, Telnet
+  or SSH, host and port for an Internet contact; a login's name, user and
+  password) saves through `addressbook_save` / `login_save` and picks the new
+  entry. Cancelling leaves the field as it was.
+
+**Files:** `kissterm/client/ui/settings.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-08] — Phone and web: Clear icon, GPS Scan, Open on Monitor
 
 ### Improvements

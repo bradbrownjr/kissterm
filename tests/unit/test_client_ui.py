@@ -1994,3 +1994,41 @@ async def test_gps_device_has_a_scan_that_fills_the_field():
     picker.value = "/dev/ttyUSB0"
     await picker.on_select(type("E", (), {"control": picker})())
     assert editor.draft["aprs.gps_device"] == "/dev/ttyUSB0"
+
+
+@pytest.mark.asyncio
+async def test_contact_and_login_dropdowns_end_in_new_and_pick_what_they_make(monkeypatch):
+    from kissterm.client.ui import settings as settings_ui
+    from kissterm.client.ui.settings import NEW, SettingsEditor
+
+    sheets_seen = []
+    monkeypatch.setattr(settings_ui.sheets, "form",
+                        lambda page, title, fields, label, go, detail="": sheets_seen.append(
+                            (title, fields, go)))
+    app = MailApp({"addressbook_save": {"target": "W1AW-7"}, "login_save": {"error": ""},
+                   "logins": [], "scripts": []})
+    editor = SettingsEditor(app)
+    row = editor._field({"path": "home_bbs", "kind": "contact", "label": "Home BBS",
+                         "contacts": "radio", "value": "",
+                         "options": [["(none)", ""], ["N1QFY", "N1QFY"]]})
+    dropdown = next(c for c in _walk(row) if isinstance(c, ft.Dropdown))
+    assert dropdown.options[-1].key == NEW and dropdown.options[-1].text == "New contact..."
+    dropdown.value = NEW
+    await dropdown.on_select(type("E", (), {"control": dropdown})())
+    title, fields, go = sheets_seen[-1]
+    assert title == "New contact" and dropdown.value == "0", "cancelling leaves the pick alone"
+    fields[0].value = "w1aw-7"
+    await go()
+    assert app.commands[-1] == ("addressbook_save", {"entry": {"target": "W1AW-7"}})
+    assert editor.draft["home_bbs"] == "W1AW-7" and dropdown.options[-2].text == "W1AW-7"
+
+    row = editor._field({"path": "winlink.login", "kind": "login", "label": "Login",
+                         "value": "", "options": [["(none)", ""]]})
+    dropdown = next(c for c in _walk(row) if isinstance(c, ft.Dropdown))
+    assert dropdown.options[-1].text == "New login..."
+    dropdown.value = NEW
+    await dropdown.on_select(type("E", (), {"control": dropdown})())
+    title, fields, go = sheets_seen[-1]
+    fields[0].value = "bbs"
+    await go()
+    assert editor.draft["winlink.login"] == "bbs"

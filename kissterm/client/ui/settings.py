@@ -33,6 +33,7 @@ from .radio import LoginsSection, RadioSection
 APPLY_NOTE = {"live": "", "connect": "Used from the next connection.", "restart": "Needs a restart."}
 
 CUSTOM = "__custom__"
+NEW = "__new__"
 
 
 def display(field: dict) -> str:
@@ -219,12 +220,89 @@ class SettingsEditor:
         current = field.get("value")
         index = next((str(i) for i, (_t, v) in enumerate(pairs) if v == current), None)
 
+        kind = field.get("kind")
+        options = [ft.DropdownOption(key=str(i), text=t) for i, (t, _v) in enumerate(pairs)]
+        if kind in ("contact", "login"):
+            # The terminal's lists end "New contact..." / "New login...": a
+            # station with none yet can make one without leaving Settings.
+            options.append(ft.DropdownOption(
+                key=NEW, text="New contact..." if kind == "contact" else "New login..."))
+        dropdown = ft.Dropdown(
+            label=field["label"], value=index, dense=True,
+            enable_filter=len(pairs) > 12, editable=len(pairs) > 12, options=options)
+
+        chosen = [index]
+
+        def added(name: str) -> None:
+            """The new entry joins the list, is picked, and is the edit."""
+            pairs.append((name, name))
+            dropdown.options.insert(len(pairs) - 1, ft.DropdownOption(
+                key=str(len(pairs) - 1), text=name))
+            dropdown.value = chosen[0] = str(len(pairs) - 1)
+            self._changed(path, name)
+
         async def picked(e, path=path, pairs=pairs) -> None:
+            if e.control.value == NEW:
+                e.control.value = chosen[0]  # until a save: cancelling leaves it as it was
+                if kind == "contact":
+                    self._new_contact(field.get("contacts") == "internet", added)
+                else:
+                    self._new_login(added)
+                self.app.page.update()
+                return
+            chosen[0] = e.control.value
             self._changed(path, pairs[int(e.control.value)][1])
-        return ft.Dropdown(
-            label=field["label"], value=index, on_select=picked, dense=True,
-            enable_filter=len(pairs) > 12, editable=len(pairs) > 12,
-            options=[ft.DropdownOption(key=str(i), text=t) for i, (t, _v) in enumerate(pairs)])
+        dropdown.on_select = picked
+        return dropdown
+
+    def _new_contact(self, internet: bool, done) -> None:
+        """A contact made from the dropdown that asked for one: the radio
+        kind is a station, the Internet kind a host (Telnet or SSH)."""
+        name = ft.TextField(label="Name" if internet else "Station", autofocus=True,
+                            capitalization=None if internet else ft.TextCapitalization.CHARACTERS)
+        fields: list[ft.Control] = [name]
+        kind = host = port = None
+        if internet:
+            kind = ft.Dropdown(label="Connect by", value="telnet", options=[
+                ft.DropdownOption(key="telnet", text="Telnet"),
+                ft.DropdownOption(key="ssh", text="SSH")])
+            host = ft.TextField(label="Host", hint_text="e.g. bbs.example.org")
+            port = ft.TextField(label="Port", hint_text="23 for Telnet, 22 for SSH",
+                                keyboard_type=ft.KeyboardType.NUMBER)
+            fields += [kind, host, port]
+
+        async def go() -> None:
+            target = (name.value or "").strip()
+            target = target if internet else target.upper()
+            if not target or (internet and not (host.value or "").strip()):
+                sheets.snack(self.app.page, "Fill in the name" + (" and host." if internet else "."),
+                             error=True)
+                return
+            entry = {"target": target}
+            if internet:
+                entry.update(connect_by=kind.value, host=host.value.strip(), port=port.value or "")
+            if await self.app.command("addressbook_save", entry=entry):
+                done(target)
+
+        sheets.form(self.app.page, "New contact", fields, "Save", go)
+
+    def _new_login(self, done) -> None:
+        name = ft.TextField(label="Name", autofocus=True)
+        user = ft.TextField(label="Username", autocorrect=False, enable_suggestions=False)
+        password = ft.TextField(label="Password", password=True, can_reveal_password=True)
+
+        async def go() -> None:
+            result = await self.app.command(
+                "login_save", name=name.value or "", username=user.value or "",
+                password=password.value or "", original="")
+            if result and result["error"]:
+                sheets.snack(self.app.page, result["error"], error=True)
+                return
+            if result:
+                done((name.value or "").strip())
+                await self.logins.load()
+
+        sheets.form(self.app.page, "New login", [name, user, password], "Save", go)
 
     def _custom_choice(self, field: dict) -> tuple[ft.Control, list[ft.Control]]:
         """A dropdown of presets ending "Custom...", which shows a text field
