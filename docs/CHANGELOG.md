@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-08] — Phone and web: Clear
+
+### Improvements
+
+- **A Clear button on the phone and web Terminal** (the terminal's `Ctrl+L`):
+  empties the shown session or the Broadcast page. The view only; the
+  station keeps the transcript and nothing is sent.
+
+**Files:** `kissterm/client/ui/sessions.py`, `tests/unit/test_client_ui.py`,
+`docs/GUIDE.md`
+
 ## [2026-10-08] — Broadcast: free text with no connection
 
 ### New Features

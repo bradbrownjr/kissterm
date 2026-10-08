@@ -1614,6 +1614,40 @@ async def test_add_file_sends_a_picked_file_up_in_pieces_and_never_transmits():
     assert ups == [], "a file over the limit is refused before it is read up"
 
 
+def test_clearing_the_terminal_hides_what_was_shown_and_keeps_what_comes_next():
+    session = Session(key="WS1EC-7")
+    terminal = Terminal("WS1EC-7")
+    session.add(Chunk("one\ntwo\n"))
+    terminal.sync(session)
+    terminal.clear(session)
+    assert terminal.list.controls == []
+    session.add(Chunk("three\n"))
+    terminal.sync(session)
+    assert len(terminal.list.controls) == 1
+    terminal.restyle(terminal.look, session)
+    assert len(terminal.list.controls) == 1, "a new look does not bring cleared lines back"
+
+
+@pytest.mark.asyncio
+async def test_clear_on_the_broadcast_tab_hides_what_was_heard_and_sends_nothing():
+    from kissterm.client.ui.sessions import SessionsView
+
+    heard = [{"source": "W1BKW", "to": "CQ", "text": "old", "at": 5.0, "own": False}]
+    info = {"destinations": ["CQ"], "cost": "", "heard": heard}
+    sent: list = []
+    app = MailApp({"broadcast_info": info, "broadcast_send": lambda **a: sent.append(a) or {"error": ""}})
+    view = SessionsView(app)
+    await view.shown()
+    assert "old" in "".join(sp.text for sp in view.broadcast.list.controls[0].spans)
+    await view._clear(None)
+    assert "Nothing heard" in view.broadcast.list.controls[0].value
+    heard.append({"source": "W1AW", "to": "ALL", "text": "new", "at": 9.0, "own": False})
+    await view.refresh_broadcast()
+    assert len(view.broadcast.list.controls) == 1
+    assert "new" in "".join(sp.text for sp in view.broadcast.list.controls[0].spans)
+    assert sent == []
+
+
 @pytest.mark.asyncio
 async def test_the_broadcast_tab_is_first_sends_only_on_send_and_a_tap_fills_connect():
     from kissterm.client.ui.sessions import SessionsView

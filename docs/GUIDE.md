@@ -841,7 +841,7 @@ own client.
     Connect filled in; a line typed there goes out once to ALL, or to the address you prefix,
     only when you press Send), then one page per session, swiped or tapped
     across the top, and a line to type. A line goes only when you press
-    Send. Connect is at the end of the session tabs; **Disconnect** sits
+    Send. **Clear** (beside Connect, at the end of the session tabs) empties what the shown page displays, as `Ctrl+L` does in the terminal: the view only, the transcript stays, and nothing is sent. Connect is there too; **Disconnect** sits
     beside the transmit switch while the session shown is connected.
     Both ask first. Once a session has dropped, **Reconnect** takes
     Disconnect's place (Ctrl+R in the terminal): after asking, the

@@ -77,7 +77,16 @@ class Terminal:
                                     bgcolor=ft.Colors.with_opacity(0.55, ft.Colors.BLACK),
                                     alignment=ft.Alignment.CENTER)
         self.control = ft.Stack(expand=True, controls=[self.panel, self.waiting])
+        #: Lines received before the operator cleared this view; the station
+        #: keeps its transcript (Ctrl+L in the terminal clears the view only).
+        self.cleared = 0
         self._reset()
+
+    def clear(self, session) -> None:
+        """Empty the view; later lines still arrive (`TerminalPane.clear`)."""
+        self.cleared = session.received
+        self._reset()
+        self.rendered = session.received
 
     def show_connecting(self, session, on_cancel) -> None:
         """The hourglass and Cancel while `session` is connecting."""
@@ -107,7 +116,7 @@ class Terminal:
         self.look = look
         self.panel.bgcolor = look.bgcolor
         self._reset()
-        self.rendered = session.received - len(session.chunks)
+        self.rendered = max(session.received - len(session.chunks), self.cleared)
         self.sync(session)
 
     def sync(self, session) -> None:
@@ -156,12 +165,21 @@ class BroadcastPage:
                                 padding=ft.Padding.all(10))
         self.control = ft.Container(expand=True, content=self.list,
                                     bgcolor=view.app.look.bgcolor)
+        #: Lines at or before this time are hidden (a view clear, as Ctrl+L
+        #: on the terminal's Broadcast tab); the station keeps them.
+        self.cleared_at = -1.0
+        self.heard: list[dict] = []
+
+    def clear(self) -> None:
+        self.cleared_at = max((h["at"] for h in self.heard), default=self.cleared_at)
+        self.paint(self.heard)
 
     def paint(self, heard: list[dict]) -> None:
         look = self.view.app.look
         self.control.bgcolor = look.bgcolor
+        self.heard = heard
         rows = []
-        for h in heard[-200:]:
+        for h in [h for h in heard if h["at"] > self.cleared_at][-200:]:
             stamp = datetime.fromtimestamp(h["at"]).strftime("%H:%M")
             spans = [ft.TextSpan(f"{stamp} ")]
             if h["own"]:
@@ -282,6 +300,8 @@ class SessionsView:
             content=ft.Column(expand=True, spacing=0, controls=[
                 ft.Row(spacing=0, controls=[
                     self.tab_bar,
+                    ft.IconButton(icon=ft.Icons.CLEAR_ALL, tooltip="Clear",
+                                  on_click=self._clear),
                     ft.IconButton(icon=ft.Icons.ADD_LINK, tooltip="Connect",
                                   on_click=self._connect_sheet)]),
                 ft.TabBarView(expand=True, controls=[
@@ -307,6 +327,15 @@ class SessionsView:
         self._chose = True
         self.selected = int(e.control.selected_index)
         self.app.paint_actions()
+        self.app.page.update()
+
+    async def _clear(self, _e) -> None:
+        """Clear what this tab shows (the terminal's Ctrl+L): the view only."""
+        key = self.current
+        if key == "":
+            self.broadcast.clear()
+        elif key in self.terminals and key in self.app.state.sessions:
+            self.terminals[key].clear(self.app.state.sessions[key])
         self.app.page.update()
 
     def _canceller(self, key: str):
