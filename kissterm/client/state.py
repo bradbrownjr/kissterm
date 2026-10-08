@@ -47,6 +47,7 @@ STALE = {
     "AprsAcked": "aprs",
     "AprsRetried": "aprs",
     "AprsBulletinHeard": "aprs",
+    "BroadcastHeard": "broadcast",
     "AddressBookChanged": "addressbook",
     "ConfigChanged": "config",
     "KnownNodesChanged": "nodes",

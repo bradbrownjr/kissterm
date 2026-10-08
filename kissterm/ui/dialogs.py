@@ -4017,6 +4017,92 @@ class RemotePairingScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
+class BroadcastScreen(ModalScreen[None]):
+    """Session > Broadcast: type a line and send it once to CQ, QST, ALL...
+    with no connection, and read the broadcasts heard (`core/broadcast.py`).
+
+    The Send button is the commitment (it arms the transmit gate, as a
+    connect does) and shows what it costs the channel first. Suggestions
+    never send: nothing here transmits on Enter in the heard list, on
+    selecting a destination, or on opening the screen.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Close")]
+
+    def __init__(self, broadcast) -> None:
+        super().__init__()
+        self._broadcast = broadcast
+
+    def compose(self) -> ComposeResult:
+        from ..core.broadcast import DESTINATIONS
+
+        with Vertical(id="broadcast-box"):
+            yield Label("Broadcast", id="connect-title")
+            yield Select([(d, d) for d in DESTINATIONS], value="CQ", id="broadcast-to",
+                         allow_blank=False)
+            yield Input(placeholder="Text to send to everyone listening", id="broadcast-text",
+                        max_length=200)
+            yield Static("", id="broadcast-cost")
+            yield Label("Heard and sent", id="broadcast-heard-title")
+            yield Static("Nothing heard yet.", id="broadcast-heard")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Send", variant="primary", id="broadcast-send")
+                yield Button("Close", id="broadcast-close")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.refresh_heard()
+        self._cost()
+        self.query_one("#broadcast-text", Input).focus()
+
+    def _cost(self) -> None:
+        from ..core.broadcast import cost
+
+        text = self.query_one("#broadcast-text", Input).value
+        self.query_one("#broadcast-cost", Static).update(
+            f"Sends once, now, to nobody in particular: {cost(text)}. "
+            "No answer is expected or acknowledged.")
+
+    def refresh_heard(self) -> None:
+        from datetime import datetime
+
+        from rich.text import Text
+
+        lines = Text()
+        for h in self._broadcast.recent()[-12:]:
+            stamp = datetime.fromtimestamp(h["at"]).strftime("%H:%M")
+            who = "you" if h["own"] else h["source"]
+            lines.append(f"{stamp} {who} > {h['to']}: {h['text']}\n")
+        if not lines:
+            lines = Text("Nothing heard yet.")
+        self.query_one("#broadcast-heard", Static).update(lines)
+
+    @on(Input.Changed, "#broadcast-text")
+    def _changed(self) -> None:
+        self._cost()
+
+    @on(Input.Submitted, "#broadcast-text")
+    def _enter(self) -> None:
+        # Enter only moves to the button: sending is a button press.
+        self.query_one("#broadcast-send", Button).focus()
+
+    @on(Button.Pressed, "#broadcast-close")
+    def _close(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#broadcast-send")
+    def _send(self) -> None:
+        self._do_send()
+
+    @work
+    async def _do_send(self) -> None:
+        box = self.query_one("#broadcast-text", Input)
+        to = str(self.query_one("#broadcast-to", Select).value)
+        if not await self._broadcast.send(to, box.value):
+            box.value = ""
+        self.refresh_heard()
+
+
 class RestartScreen(ModalScreen[bool]):
     """Confirm Session > Restart kissterm (`core.restart`): what it will
     disconnect and drop, from `Restarter.plan()`."""

@@ -39,6 +39,19 @@ Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
   `ABC-1P: <your title>` with ABC the last three of your call, BPQMail
   keeps it whole, and the next message is `ABC-2P`. Bulletins use `B`.
 
+## Broadcast (2026-10-08)
+
+- [ ] **Send a broadcast and hear one.** Transmit on, F10 > Session >
+  Broadcast (or More > Broadcast on the phone), To CQ, type a line, Send.
+  Expected: one UI frame from your callsign to `CQ` with that text in the
+  Monitor, the gate armed with a notice, and the line listed as sent. A
+  second station should see it in its Monitor (and in its Broadcast list
+  if it runs kissterm). Have that station send one back to CQ: it should
+  list under Heard.
+- [ ] **No connection is needed, and nothing is sent by opening it.**
+  Open the sheet, type, change To: the Monitor shows no transmission
+  until Send.
+
 ## Tactical call (2026-10-08)
 
 - [ ] **Connect as CCEMA and be identified.** Settings > Station: Tactical

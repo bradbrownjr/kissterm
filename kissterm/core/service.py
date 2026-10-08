@@ -166,7 +166,12 @@ class Core:
         #: Identifies the licensed call after a transmission made under a
         #: tactical call (`identifier.py`).
         self.identifier = Identifier(self)
-        self.frame_subscribers += [self.channel.on_received, self.aprs.on_frame]
+        from .broadcast import Broadcast
+
+        #: Free-text unproto sending and the broadcasts heard (`broadcast.py`).
+        self.broadcast = Broadcast(self)
+        self.frame_subscribers += [self.channel.on_received, self.aprs.on_frame,
+                                   self.broadcast.on_frame]
         self.sent_subscribers.append(self.channel.on_sent)
 
     def attach_view(self, view):

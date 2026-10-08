@@ -452,6 +452,21 @@ class RemoteServer:
             return {"problems": problems, "sent": False}
         return {"problems": [], "sent": await self.core.aprs.send_object_now(request)}
 
+    async def cmd_broadcast_info(self, text: str = "") -> dict:
+        """Where a broadcast may go, what `text` costs the channel, and the
+        broadcasts heard and sent (`core/broadcast.py`)."""
+        from ..core import broadcast
+
+        return {"destinations": list(broadcast.DESTINATIONS), "cost": broadcast.cost(str(text)),
+                "heard": [{k: wire.clean(v) if isinstance(v, str) else v for k, v in h.items()}
+                          for h in self.core.broadcast.recent()]}
+
+    async def cmd_broadcast_send(self, to: str, text: str) -> dict:
+        """`Broadcast.send`: one unproto text to `to`, now. The operator's
+        Send press is the commitment that arms the gate. `error` is "" when
+        it went out."""
+        return {"error": await self.core.broadcast.send(str(to), str(text))}
+
     async def cmd_beacon_now(self) -> None:
         await self.core.aprs.beacon_now()
 

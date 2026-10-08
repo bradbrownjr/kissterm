@@ -53,6 +53,7 @@ class MoreView:
         self.swatches = ft.Row(wrap=True, spacing=12, run_spacing=8)
         self.preview = ft.Container(border_radius=8, padding=ft.Padding.all(12))
         self.transcripts = TranscriptsSection(app, self._over)
+        self.broadcast = None  # the open Broadcast sheet, if any
         self.list = ft.ListView(expand=True, padding=ft.Padding.all(12), controls=[
             ft.Card(content=ft.Container(padding=ft.Padding.all(16), content=ft.Column(
                 tight=True, spacing=12, controls=[
@@ -61,6 +62,9 @@ class MoreView:
                     ft.Row(wrap=True, controls=[
                         ft.OutlinedButton(content="Send beacon", icon=ft.Icons.CAMPAIGN,
                                           on_click=self._send_beacon),
+                        # Session > Broadcast in the terminal: free text, no connection.
+                        ft.OutlinedButton(content="Broadcast", icon=ft.Icons.RECORD_VOICE_OVER,
+                                          on_click=self._broadcast),
                         # Session > Restart kissterm in the terminal.
                         ft.OutlinedButton(content="Restart station",
                                           icon=ft.Icons.RESTART_ALT,
@@ -116,6 +120,8 @@ class MoreView:
             del self.notices.controls[20:]
         elif kind == "stale" and data == "config":
             self.app.page.run_task(self.settings.load)
+        elif kind == "stale" and data == "broadcast" and self.broadcast is not None:
+            self.app.page.run_task(self.broadcast.refresh)
 
     @staticmethod
     def _monitor_line(data: dict) -> ft.Control:
@@ -202,6 +208,14 @@ class MoreView:
         self.station.controls = [ft.Row(controls=[
             ft.Text(name, width=100, color=ft.Colors.OUTLINE), ft.Text(value, expand=True)])
             for name, value in lines]
+
+    async def _broadcast(self, _e) -> None:
+        """Free text to CQ, QST or ALL with no connection, and what was
+        heard: the terminal's Session > Broadcast (`broadcast.py`)."""
+        from .broadcast import BroadcastSheet
+
+        self.broadcast = BroadcastSheet(self)
+        await self.broadcast.show()
 
     async def _send_beacon(self, _e) -> None:
         """Which beacon: the packet beacon text (the terminal's Session >

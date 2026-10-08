@@ -1612,3 +1612,34 @@ async def test_add_file_sends_a_picked_file_up_in_pieces_and_never_transmits():
     view._picker = BigPicker()
     await view._add_file(None)
     assert ups == [], "a file over the limit is refused before it is read up"
+
+
+@pytest.mark.asyncio
+async def test_broadcast_sends_only_on_send_shows_the_cost_and_the_heard_list():
+    from kissterm.client.ui.broadcast import BroadcastSheet
+
+    info = {"destinations": ["CQ", "QST"], "cost": "about 2 seconds of channel", "heard": [
+        {"source": "W1BKW", "to": "CQ", "text": "Anyone on?", "at": 0.0, "own": False}]}
+    sent: list[dict] = []
+
+    def send(**a):
+        sent.append(a)
+        return {"error": ""}
+
+    app = MailApp({"broadcast_info": info, "broadcast_send": send})
+    view = type("V", (), {"app": app})()
+    sheet = BroadcastSheet(view)
+    await sheet.show()
+    assert sent == [] and "about 2 seconds" in sheet.cost.value, "opening transmits nothing"
+    assert [o.key for o in sheet.to.options] == ["CQ", "QST"] and sheet.open
+    assert "W1BKW > CQ: Anyone on?" in sheet.heard.controls[0].value
+    sheet.to.value = "QST"
+    sheet.text.value = "Net at 7"
+    await sheet._edited(None)
+    assert sent == [], "typing and choosing do not send"
+    await sheet._send(None)
+    assert sent == [{"to": "QST", "text": "Net at 7"}] and sheet.text.value == ""
+    app.answers["broadcast_send"] = lambda **a: {"error": "Send to one of: CQ."}
+    sheet.text.value = "again"
+    await sheet._send(None)
+    assert sheet.text.value == "again", "a refusal keeps the text"

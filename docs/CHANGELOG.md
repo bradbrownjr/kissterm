@@ -5,6 +5,31 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-08] — Broadcast: free text with no connection
+
+### New Features
+
+- **Session > Broadcast** (F10) in the terminal and **More > Broadcast**
+  on the phone and web client: type a line, pick CQ, QST, ALL, TEST,
+  BEACON, ID or MAIL, and Send it once as an unproto frame with nobody
+  connected: an announcement, a test, an ad hoc chat on a frequency
+  (operator, 2026-10-08). The sheet shows what it costs the channel and
+  lists the plain-text broadcasts heard to those addresses (APRS reports
+  are left to the APRS tab) and the ones sent. Send is the commitment and
+  arms the transmit gate; opening it, typing or choosing a destination
+  transmits nothing. Under a tactical call the licensed call is
+  identified after it. (`core/broadcast.py`, commands `broadcast_info`
+  and `broadcast_send`, event `BroadcastHeard`, `BroadcastScreen`.)
+
+**Files:** `kissterm/core/broadcast.py`, `kissterm/core/events.py`,
+`kissterm/core/service.py`, `kissterm/serve/server.py`,
+`kissterm/ui/dialogs.py`, `kissterm/ui/commands.py`, `kissterm/ui/app.py`,
+`kissterm/ui/styles.py`, `kissterm/client/ui/broadcast.py`,
+`kissterm/client/ui/more.py`, `kissterm/client/state.py`,
+`scripts/generate_phone_screenshots.py`,
+`assets/screenshot-phone-broadcast.png`, `docs/GUIDE.md`,
+`docs/PROTOCOL.md`, `docs/ON-AIR-TESTS.md`
+
 ## [2026-10-08] — Operating as a tactical call (P11)
 
 ### New Features

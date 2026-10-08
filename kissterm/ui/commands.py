@@ -191,6 +191,9 @@ COMMANDS: tuple[Command, ...] = (
             priority=True, short="Close"),
     Command("beacon_now", "Send beacon", "Session", "B",
             "Send your beacon text once, now"),
+    Command("broadcast", "Broadcast", "Session", "O",
+            "Send a line of text once to CQ, QST or ALL with no connection, and "
+            "read the broadcasts heard"),
     Command("file_transfer", "File transfer", "Session", "F",
             "Send or receive a file (YAPP or AutoBIN) on the connected session",
             tabs=("terminal",)),

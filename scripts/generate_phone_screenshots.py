@@ -516,6 +516,20 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.page.wait_for_timeout(800)
     await phone.frame()
 
+    # More > Broadcast: free text with no connection, the cost, and what was
+    # heard. A station answers on CQ before the sheet opens; nothing is sent
+    # until Send.
+    heard = AX25Frame.u_frame(
+        AX25Path(AX25Address.parse("CQ"), AX25Address.parse("W1BKW"), ()), UType.UI,
+        command=False, info=b"Net control standing by on 147.09, anyone hear me?")
+    core.broadcast.on_frame(heard)
+    await phone.tab("More")
+    await phone.tap(phone.button("Broadcast"))
+    await phone.shown("Heard and sent")
+    await phone.enter_field("Text to send to everyone listening", "KC1JMH here, 7 PM net check-in")
+    await phone.page.wait_for_timeout(600)
+    await phone.frame()
+
 
 FILE_HTML = ("<html><head><title>Net bulletin</title></head><body><h1>Weekly net</h1>"
              "<p>Thursday 7 PM on <b>147.09</b> MHz. Bring a <i>go kit</i> and a pencil.</p>"
@@ -560,6 +574,7 @@ async def main() -> int:
         await shot("screenshot-phone-forms", phone.frames[15:17])
         await shot("screenshot-phone-files", phone.frames[17:19])
         await shot("screenshot-phone-templates", phone.frames[11:13])
+        await shot("screenshot-phone-broadcast", phone.frames[21:22])
         await shot("screenshot-desktop", desktop.frames)
     finally:
         await server.stop()

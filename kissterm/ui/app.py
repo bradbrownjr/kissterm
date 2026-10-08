@@ -141,6 +141,7 @@ from ..core.events import (
     ConfigChanged,
     ConnectingChanged,
     LineSent,
+    BroadcastHeard,
     MailChanged,
     SessionData,
     SessionOpened,
@@ -186,6 +187,7 @@ from .dialogs import (
     TranscriptsScreen,
     FileTransferScreen,
     RemotePairingScreen,
+    BroadcastScreen,
     RestartScreen,
     UpdateScreen,
 )
@@ -654,6 +656,9 @@ class KissTermApp(App):
                 pane.note_bulletin(event.source, event.addressee, event.text, event.at)
         elif isinstance(event, FrameSeen):
             self._monitor(event.frame, event.port, event.outgoing)
+        elif isinstance(event, BroadcastHeard):
+            if isinstance(self.screen, BroadcastScreen):
+                self.screen.refresh_heard()
         elif isinstance(event, KnownNodesChanged):
             for pane in self._base_query(TerminalPane):
                 pane.refresh_known_nodes()
@@ -977,6 +982,11 @@ class KissTermApp(App):
         """Start, stop or restart the remote-control server to match
         Settings > Remote (`ui/remote.py`)."""
         await self.remote.reconcile()
+
+    def action_broadcast(self) -> None:
+        """Session > Broadcast: free text to the channel, no connection
+        (`core/broadcast.py`). Opens the sheet; only its Send button transmits."""
+        self.push_screen(BroadcastScreen(self.core.broadcast))
 
     def action_remote_pairing(self) -> None:
         """Session > Remote pairing: the link and QR code, and Rotate."""

@@ -510,6 +510,16 @@ it on, never sent empty, with a ten-minute floor. Settings shows what your
 interval costs the channel. The timer waits a full interval before its
 first transmission; F10 > Session > Send beacon sends one now.
 
+**Broadcast** (F10 > Session > Broadcast) is for a line you type now, with
+nobody connected: an announcement, a test, an ad hoc chat on a frequency.
+Pick CQ, QST, ALL, TEST, BEACON, ID or MAIL, type up to 200 characters, and
+press Send: one unproto frame goes out once, with no acknowledgement. The
+box says what it costs the channel, and lists the plain-text broadcasts
+heard to those addresses and the ones you sent (APRS reports stay on the
+APRS tab). Send arms transmit, as a connect does; opening it, typing or
+choosing an address sends nothing. While operating as a tactical call your
+own callsign is identified after it.
+
 ## Operating as a tactical call
 
 A tactical call names an assignment instead of one operator, so the net
@@ -851,7 +861,9 @@ own client.
     choosing one, after asking, puts it in the Address Book as the Winlink
     Dial and sends nothing. **Refresh** fetches the list from winlink.org
     over the Internet and waits on kissterm's Winlink API key.
-  - **More** shows the station (with **Send beacon**, which asks which:
+  - **More** has **Broadcast** (the terminal's Session > Broadcast: free
+    text to CQ, QST or ALL with no connection, what it costs, and what was
+    heard; Send is what transmits), and shows the station (with **Send beacon**, which asks which:
     **Packet beacon** sends the beacon text once, as Session > Send
     beacon does, and needs transmit already on; **APRS position** sends
     one position report, as APRS > Send position does, and **Restart
@@ -895,6 +907,8 @@ own client.
 ![Terminal > Commands for a BPQ node, then the suggestions shown while typing nod](../assets/screenshot-phone-commands.png)
 
 ![A conversation with WLNK-1: the Templates sheet with the gateway's commands, then SP chosen into the message box, unsent](../assets/screenshot-phone-templates.png)
+
+![More > Broadcast: the destination, the text, what it costs the channel, and a broadcast heard from W1BKW](../assets/screenshot-phone-broadcast.png)
 
 ![More > Monitor with its filters, then narrowed to one callsign with Supervisory frames hidden](../assets/screenshot-phone-monitor.png)
 

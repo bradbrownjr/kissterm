@@ -211,6 +211,18 @@ class AprsBulletinHeard(Event):
 
 
 @dataclass(frozen=True, slots=True)
+class BroadcastHeard(Event):
+    """A plain-text broadcast (an unproto frame to CQ, QST, ALL...) was heard
+    or sent: `own` for one this station sent."""
+
+    source: str
+    to: str
+    text: str
+    at: float
+    own: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class AprsRetried(Event):
     """The retry check ran: an ack may have landed or a retry gone out, so
     the outgoing status of a conversation may have changed."""
