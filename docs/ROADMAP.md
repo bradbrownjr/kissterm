@@ -528,18 +528,9 @@ outside the gate and the form says so, as P12 says of fldigi.
   closes, a beacon timer then sends nothing, Ctrl+T asks before re-arming,
   the latch survives a restart. AGENTS.md gains the rule ("an SWR trip
   closes the gate and only the operator re-arms it").
-- [ ] **M6 [Sonnet, Opus reviews the `core/connect.py` hunk] Frequency.**
-  Status bar shows the rig's frequency and mode (polled from `rigctld`
-  every few seconds, local only; hidden with no rig), both front ends. An
-  Address Book contact's existing `frequency` field, and an RMS gateway's
-  `frequency_hz`, tune the rig on a deliberate connect only: shown in the
-  `RadioReminderScreen` ("Tunes IC-7300 to 7.101.500 USB-D"), done after
-  the operator confirms and before the connect, never on selection. A
-  transport may name a home frequency and mode (a packet channel on 2 m)
-  that is set when it opens. Program entries in cases 1 and 2 above only;
-  case 3 waits for M6b. The Winlink convention of dial = centre - 1500 Hz
-  for USB-D is a RESEARCH item against Winlink Express's documentation,
-  not a guess.
+- [ ] **M6c [Sonnet] Leftovers of M6.** A transport's home frequency and
+  mode set when it opens; tuning on the session-tier connect (VARA has no
+  contact, so it needs the frequency from its transport entry).
 - [ ] **M6b [Opus] Port hand-off and the tuner.** The case 3 sequence
   (stop program, `rigctld`, tune, stop `rigctld`, restart program, reopen
   transport) as one core method with a `finally` that always restarts the

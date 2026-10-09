@@ -283,12 +283,23 @@ class Connector:
         station = self.core.station
         addressbook = self.core.addressbook
         reminder = entry or (addressbook.find(request.target) if addressbook else None)
+        # A radio set up for the transport is tuned to the contact's frequency,
+        # but only after this confirmation, which says so (ROADMAP P3a M6).
+        tuning = self.core.rigwatch.plan(reminder)
         if reminder is not None and (
-            reminder.frequency or reminder.connection_type or reminder.note
+            reminder.frequency or reminder.connection_type or reminder.note or tuning
         ):
             proceed = await self.core.operator.ask(
-                RadioReminder(reminder.frequency, reminder.connection_type, reminder.note))
+                RadioReminder(reminder.frequency, reminder.connection_type, reminder.note,
+                              tune=self.core.rigwatch.describe(tuning) if tuning else ""))
             if not proceed:
+                return
+        if tuning is not None:
+            problem = await self.core.rigwatch.tune(tuning)
+            if problem:
+                # Connecting anyway would call on whatever the radio was left on.
+                self._problem(report, f"Not connecting: could not tune the radio to "
+                              f"{tuning.describe()}: {problem}")
                 return
         target = request.target
         # Node hops replace the "via DIGI" path entirely rather than

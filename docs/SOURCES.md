@@ -172,6 +172,14 @@ the node's APRS command.
   search (winlink.org/sites/default/files/RMSE_FORMS/vara_fm_for_winlink_with_signalink_on_windows_v4_0.pdf,
   vccomm.org VARA FM quick setup guide); EA5HVK's own documentation was not
   read. UZ7HO SoundModem's path is still a guess.
+- Winlink dial = published centre - 1500 Hz, upper sideband (read
+  2026-10-09, secondary sources only; Winlink Express's own manual not
+  read): ema.arrl.org/how-to-set-up-vara-to-access-dtn-hub-stations ("the
+  Winlink published frequency is the centre frequency; the dial is 1500 Hz
+  lower"), winlink.org/content/kh6dk_20m_vara_hf_rms_gateway,
+  ohd3ares.org/wp/?page_id=4493. Applied to HF channels whose modes name
+  VARA, Pactor, ARDOP, WINMOR or Robust packet (`rig/frequency.py`,
+  `dial_from_centre`); VHF channels are not offset. # UNVERIFIED on the air.
 - Hamlib `include/hamlib/rig.h` (`enum rig_errcode_e`, RIG_OK to
   RIG_EACCESS = 22; `RIG_LEVEL_SWR` "arg float [0.0 ... infinite]",
   read-only) and `tests/rigctl_parse.c` (`print_model_list`'s format;

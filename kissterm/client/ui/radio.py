@@ -411,6 +411,10 @@ class ProgramsSection:
                             dense=True, autocorrect=False, enable_suggestions=False)
         args = ft.TextField(label="Arguments", value=entry.get("args", ""), dense=True,
                             autocorrect=False, enable_suggestions=False)
+        keying = ft.Dropdown(label="How it keys the radio", dense=True,
+                             value=entry.get("keying") or "own",
+                             options=[ft.DropdownOption(key=k["key"], text=k["label"])
+                                      for k in form.get("keying", [])])
         wine = ft.Checkbox(label="Run under Wine", value=bool(entry.get("wine")))
         cwd = ft.TextField(label="Working folder", value=entry.get("cwd", ""), dense=True,
                            hint_text="its own folder")
@@ -437,7 +441,7 @@ class ProgramsSection:
         async def save() -> None:
             body = {"name": name.value or "", "preset": preset.value or "custom",
                     "path": path.value or "", "args": args.value or "", "wine": bool(wine.value),
-                    "cwd": cwd.value or "", "start_timeout": timeout.value or "",
+                    "keying": keying.value or "own", "cwd": cwd.value or "", "start_timeout": timeout.value or "",
                     "stop_on_exit": bool(stop.value)}
             result = await self.app.command("program_save", entry=body, original=original)
             if result is None:
@@ -452,7 +456,7 @@ class ProgramsSection:
                     [name, preset, note, path,
                      ft.OutlinedButton(content="Browse the station's files", icon=ft.Icons.FOLDER_OPEN,
                                        on_click=browse),
-                     args, wine, cwd, timeout, stop], "Save", save)
+                     args, keying, wine, cwd, timeout, stop], "Save", save)
 
     async def _browse(self, target: ft.TextField) -> None:
         """Walk the station's folders (executables only) and put the chosen

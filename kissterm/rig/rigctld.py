@@ -146,6 +146,11 @@ class RigctldClient:
         self._failures += 1
         log.warning("rigctld %s: %s", self.name, why)
 
+    def reset_backoff(self) -> None:
+        """Try the next call at once (`rigctld` was just started)."""
+        self._failures = 0
+        self._next_try = 0.0
+
     async def close(self) -> None:
         writer, self._reader, self._writer = self._writer, None, None
         if writer is not None:

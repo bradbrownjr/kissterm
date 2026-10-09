@@ -69,6 +69,17 @@ def connecting_keys(core) -> list[str]:
     return sorted({*connector.connecting, *connector.internet_connecting})
 
 
+def rig_summary(core) -> dict:
+    """The radio's last reading for a welcome snapshot; {} with none."""
+    watch = getattr(core, "rigwatch", None)
+    state = watch.state if watch is not None else None
+    rig = watch.active_rig() if watch is not None else None
+    if state is None or not state.frequency or rig is None:
+        return {}
+    return {"name": str(rig.get("name", "")), "frequency": state.frequency,
+            "mode": state.mode, "ptt": state.ptt}
+
+
 def session_summary(core, key: str) -> dict:
     """What a client shows about session `key`."""
     session = core.sessions.get(key) if core.sessions is not None else None

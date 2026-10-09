@@ -209,6 +209,38 @@ class Supervisor:
             except Exception as exc:  # noqa: BLE001 - keep waiting
                 failure = exc
 
+    async def ensure_rigctld(self, rig: dict[str, Any]) -> str:
+        """Make sure a `rigctld` answers for a Rigs entry: "" when one does
+        (already running, or started now), else why not. Only for a rigctld
+        on this computer: a host that is not loopback is somebody else's to
+        run, and is only ever connected to. A running `rigctld` that kissterm
+        did not start is used and left alone."""
+        import shlex
+
+        from ..rig.rigctld import DEFAULT_PORT, rigctld_command
+
+        host = str(rig.get("host") or "127.0.0.1")
+        port = int(rig.get("port") or DEFAULT_PORT)
+        if await _answers(host, port):
+            return ""
+        if host not in ("127.0.0.1", "localhost", "::1"):
+            return f"Nothing answers at {host}:{port}, and rigctld is only started on this computer."
+        argv = rigctld_command(rig)
+        program = {"name": f"rigctld {rig.get('name', '')}".strip(), "path": argv[0],
+                   "args": shlex.join(argv[1:]), "stop_on_exit": True}
+        try:
+            managed = await self.start(program)
+        except ProgramError as exc:
+            return str(exc)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if not managed.running:
+                return self._exited_message(managed)
+            if await _answers(host, port):
+                return ""
+            await asyncio.sleep(0.3)
+        return f"Started rigctld, but nothing answered at {host}:{port} within 10 s."
+
     # -- starting and stopping ---------------------------------------------
     async def start(self, program: dict[str, Any]) -> Managed:
         """Start a Programs entry; `ProgramError` says why not."""
@@ -331,6 +363,19 @@ class Supervisor:
             pass
         except OSError as exc:
             log.warning("%s: could not signal it: %s", managed.name, exc)
+
+
+async def _answers(host: str, port: int) -> bool:
+    """Whether something accepts a TCP connection at host:port (a plain
+    connect; nothing is sent)."""
+    try:
+        _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), 1.0)
+    except (OSError, asyncio.TimeoutError):
+        return False
+    writer.close()
+    with contextlib.suppress(OSError):
+        await writer.wait_closed()
+    return True
 
 
 _shared: Supervisor | None = None

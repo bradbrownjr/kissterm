@@ -39,7 +39,8 @@ from ..core.questions import (
 def _radio_reminder(question: RadioReminder) -> Screen:
     from .dialogs import RadioReminderScreen
 
-    return RadioReminderScreen(question.frequency, question.connection_type, question.note)
+    return RadioReminderScreen(question.frequency, question.connection_type, question.note,
+                               tune=question.tune)
 
 
 def _trust_host_key(question: TrustHostKey) -> Screen:

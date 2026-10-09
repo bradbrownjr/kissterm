@@ -16,6 +16,7 @@ from dataclasses import replace
 import flet as ft
 
 from . import sheets
+from ...rig.frequency import Tuning
 from ..monitorfilter import MonitorFilter
 from .transcripts import TranscriptsSection
 from .settings import SettingsEditor
@@ -113,7 +114,7 @@ class MoreView:
         self.app.page.update()
 
     def on_state(self, kind: str, data) -> None:
-        if kind in ("station", "transport", "gate", "activity"):
+        if kind in ("station", "transport", "gate", "activity", "rig"):
             self._paint()
         elif kind == "monitor":
             self._note_port(data)
@@ -206,6 +207,10 @@ class MoreView:
             ("Transmit", "ON" if state.gate else "off"),
             ("Connection", self.app.conn.status),
         ]
+        if state.rig:
+            lines.append(("Radio", f"{state.rig.get('name', '')} "
+                          f"{Tuning(state.rig.get('frequency', 0), state.rig.get('mode', '')).describe()}"
+                          f"{' TX' if state.rig.get('ptt') else ''}".strip()))
         if state.activity:
             lines.append(("Doing", state.activity))
         self.station.controls = [ft.Row(controls=[

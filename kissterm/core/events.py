@@ -52,6 +52,18 @@ class GateChanged(Event):
     enabled: bool
 
 
+@dataclass(frozen=True, slots=True)
+class RigStateChanged(Event):
+    """What the active transport's radio (Hamlib `rigctld`) reads: its dial
+    frequency in hertz and Hamlib mode token. `frequency` 0 means no reading
+    (no radio, or `rigctld` not answering). `name` is the Rigs entry."""
+
+    name: str
+    frequency: int
+    mode: str
+    ptt: bool | None = None
+
+
 Subscriber = Callable[[int, Event], None]
 
 

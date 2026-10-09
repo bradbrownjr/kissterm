@@ -165,6 +165,7 @@ async def run(config, station=None, session_transport=None, transport_problem=No
     core.attach_view(HeadlessView(core))
     core.attach_station()
     core.aprs.start()
+    core.rigwatch.start()
     core.settings.apply_runtime()
     try:
         await server.start()
@@ -216,6 +217,7 @@ async def _shutdown(core, server) -> None:
     the radio while the station is going away."""
     core.aprs.shutdown()
     core.transfers.shutdown()
+    await core.rigwatch.shutdown()
     core.detach_transport()
     core.connector.cancel_tasks()
     core.sessions.shutdown()

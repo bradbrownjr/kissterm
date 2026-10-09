@@ -4,7 +4,7 @@ messages alone (docs/PROTOCOL.md), with no UI.
 **Separate from the widgets so it can be tested without Flutter**, and so
 the phone, desktop and browser layouts read one model. `apply` takes every
 message in order; listeners (`subscribe`) hear `(kind, data)` for what
-changed: "station", "gate", "transport", "activity", "mail_running", "session",
+changed: "station", "gate", "transport", "activity", "rig", "mail_running", "session",
 "session_closed", "notice", "question", "question_closed", "monitor",
 "alert", "setup", or "stale" with what to re-read ("mail", "aprs",
 "heard", "addressbook", "config", "nodes").
@@ -112,6 +112,9 @@ class StationState:
         self.gate = False
         self.transport: dict = {}
         self.activity = ""
+        #: The radio's reading, `{"name", "frequency", "mode", "ptt"}`; empty
+        #: with no radio or no answer from it.
+        self.rig: dict = {}
         #: A Send/Receive (or bulletins, files) is running on the station.
         self.mail_running = False
         self.sessions: dict[str, Session] = {}
@@ -170,6 +173,7 @@ class StationState:
         self.gate = bool(snapshot.get("gate"))
         self.transport = snapshot.get("transport") or {}
         self.activity = snapshot.get("activity", "")
+        self.rig = snapshot.get("rig") or {}
         self.mail_running = bool(snapshot.get("mail_running"))
         # Questions are sent again after every welcome: start clean.
         self.questions.clear()
@@ -221,6 +225,9 @@ class StationState:
         elif name == "ActivityChanged":
             self.activity = data.get("text", "")
             self._tell("activity", self.activity)
+        elif name == "RigStateChanged":
+            self.rig = data if data.get("frequency") else {}
+            self._tell("rig", self.rig)
         elif name == "MailRunChanged":
             self.mail_running = bool(data.get("running"))
             self._tell("mail_running", self.mail_running)

@@ -601,8 +601,10 @@ names a radio by its Hamlib model number (*Pick from Hamlib's list* needs
 Hamlib's `rigctl` on the station) and how its `rigctld` is reached; Test
 reads the frequency and mode and never transmits. A rig's SWR limit (3.0
 by default) and the bands to tune the antenna tuner on before a connect (none
-by default) are saved now; the SWR trip, the tuner and frequency display come
-in later releases. A transport's form then names the program and radio it
+by default) are saved now; the SWR trip and the tuner come in later releases. With a
+radio named, the status bar (and the phone's More page) shows its dial, and
+a confirmed connect to a contact with a `frequency` tunes it first (the
+reminder says so; declining leaves the dial alone). A transport's form then names the program and radio it
 uses. A paired phone can change a program's file, arguments and working
 folder; the pairing link is what proves it is you at the station.
 

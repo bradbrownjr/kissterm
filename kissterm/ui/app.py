@@ -125,9 +125,11 @@ from textual.widgets._footer import FooterKey
 from .. import __version__, identity
 from ..addressbook import adopt_internet_transports
 from ..ax25 import AX25Station
+from ..rig.frequency import Tuning
 from ..core import TRANSPORT_SKIPPED, Core, GateChanged, TransportChanged
 from ..core.events import (
     ActivityChanged,
+    RigStateChanged,
     MailRunChanged,
     FrameSeen,
     KnownNodesChanged,
@@ -641,6 +643,8 @@ class KissTermApp(App):
             self._refresh_context_footer()
         elif isinstance(event, ActivityChanged):
             self._set_activity(event.text)
+        elif isinstance(event, RigStateChanged):
+            self._refresh_status()
         elif isinstance(event, MailRunChanged):
             # G starts a run, or cancels the one going: the Footer says which.
             self.screen.refresh_bindings()
@@ -819,6 +823,7 @@ class KissTermApp(App):
         self.set_interval(2.0, self._refresh_heard)
         self._attach_station()
         self.core.aprs.start()
+        self.core.rigwatch.start()
         if self._check_updates and getattr(self.config, "update_check", True):
             # After the first screen, so the check never competes with it.
             self.set_timer(3.0, lambda: self._update_check_worker(False))
@@ -2718,6 +2723,12 @@ class KissTermApp(App):
             mycall = getattr(self.config, "mycall", "") or ""
             if mycall:
                 parts.append(mycall)
+        rig = self.core.rigwatch.state
+        if rig is not None and rig.frequency:
+            # The radio's dial, from Hamlib's rigctld; absent with no radio
+            # or no answer (the reason is in Settings and the log).
+            parts.append(Tuning(rig.frequency, rig.mode).describe()
+                         + (" TX" if rig.ptt else ""))
         if self.link is not None:
             # The LOGICAL peer, which is the link's own until a hop through
             # it is confirmed (`_commit_hop`). After a hop the link is still

@@ -20,7 +20,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, DataTable, Footer, Input, Label, Select, SelectionList, Static
 
 from ..launch.presets import DARWIN, LINUX, PRESETS, WINDOWS, default_args, default_path, needs_wine
-from ..transport.forms import BANDS
+from ..transport.forms import BANDS, KEYING_LABELS
 
 
 def platform_name() -> str:
@@ -135,6 +135,10 @@ class ProgramEntryScreen(ModalScreen["str | None"]):
                                  classes="settings-row")
                 yield self._row("Arguments", Input(str(e.get("args", "")), compact=True,
                                                    id="prog-args"))
+                yield self._row("Keys the radio", Select(
+                    [(label, key) for key, label in KEYING_LABELS.items()],
+                    value=str(e.get("keying") or "own"), allow_blank=False, compact=True,
+                    id="prog-keying"))
                 wine = Checkbox("Run under Wine", bool(e.get("wine")), compact=True, id="prog-wine")
                 wine.display = self._platform != WINDOWS
                 yield wine
@@ -204,6 +208,7 @@ class ProgramEntryScreen(ModalScreen["str | None"]):
         entry.update(
             name=q("#prog-name", Input).value.strip(), preset=self._preset,
             path=q("#prog-path", Input).value.strip(), args=q("#prog-args", Input).value.strip(),
+            keying=str(q("#prog-keying", Select).value),
             wine=q("#prog-wine", Checkbox).value, cwd=q("#prog-cwd", Input).value.strip(),
             start_timeout=q("#prog-timeout", Input).value.strip(),
             stop_on_exit=q("#prog-stop", Checkbox).value)

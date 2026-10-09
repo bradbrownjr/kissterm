@@ -1481,9 +1481,10 @@ class RadioReminderScreen(ModalScreen[bool]):
     BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
 
     def __init__(
-        self, frequency: str = "", connection_type: str = "", note: str = ""
+        self, frequency: str = "", connection_type: str = "", note: str = "", tune: str = ""
     ) -> None:
         super().__init__()
+        self._tune = tune
         self._frequency = frequency
         self._connection_type = connection_type
         self._note = note
@@ -1498,9 +1499,12 @@ class RadioReminderScreen(ModalScreen[bool]):
                 lines.append(f"Connection: {self._connection_type}")
             if self._note:
                 lines.append(f"Note: {self._note}")
+            if self._tune:
+                lines.append(self._tune)
             yield Static("\n".join(lines), id="reminder-detail")
             yield Label(
-                "Turn on or tune the radio/modem, then Connect.",
+                "Connect tunes the radio, then connects." if self._tune
+                else "Turn on or tune the radio/modem, then Connect.",
                 id="connect-hint",
             )
             with Horizontal(id="connect-buttons"):

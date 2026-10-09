@@ -99,6 +99,10 @@ class Core:
         self.operator: Operator = operator or NullOperator()
         from ..launch.supervisor import shared
 
+        from .rigwatch import RigWatch
+
+        #: The active transport's radio, read through rigctld (ROADMAP P3a).
+        self.rigwatch = RigWatch(self)
         #: Modem programs started beside the radio (`kissterm/launch`).
         self.supervisor = shared()
         self.supervisor.notify = lambda text, severity: self.operator.notice(

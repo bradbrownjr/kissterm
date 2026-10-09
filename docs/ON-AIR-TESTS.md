@@ -734,6 +734,18 @@ and then your Winlink password, before dialing. The password is saved
   the modem. Expected: an error notice naming it and its exit code, and the
   status bar transport shows DOWN with the same words, not an RF message.
 
+- [ ] **Frequency in the status bar, and tuning on connect** (tuning is
+  silent; the connect itself transmits). With a Rigs entry named on the
+  transport and rigctld reachable, the status bar (and the phone's More
+  page) shows the radio's dial, e.g. `7.101.500 USB-D`. Give an Address
+  Book contact `7.1015 MHz USB-D`, connect to it: the reminder says "Tunes
+  <radio> to 7.101.500 USB-D", the dial moves only after you confirm. Cancel
+  must leave the dial alone. Say what you saw.
+- [ ] **Winlink dial offset.** Use a VARA HF gateway from the RMS list
+  (Use as Winlink Dial): the Address Book frequency should be 1.5 kHz below
+  the listed centre, USB-D. Say whether the VARA signal then lands on the
+  gateway.
+
 ## Standing verifications (from AGENTS.md section 8)
 
 - [ ] **Mic-E** decoding against a real off-air packet.

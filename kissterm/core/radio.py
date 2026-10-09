@@ -35,7 +35,7 @@ from ..config import (
     set_credential,
 )
 from ..launch.presets import PRESETS
-from ..transport.forms import BANDS, PROGRAM_FORM, RIG_FORM, TRANSPORT_FORMS
+from ..transport.forms import BANDS, KEYING_LABELS, PROGRAM_FORM, RIG_FORM, TRANSPORT_FORMS
 from .events import ConfigChanged
 
 log = logging.getLogger(__name__)
@@ -295,6 +295,7 @@ class Radio:
     def programs_form(self) -> dict:
         """What a Programs entry asks for, and the presets it starts from."""
         return {"fields": [_field_dict(f) for f in PROGRAM_FORM],
+                "keying": [{"key": k, "label": v} for k, v in KEYING_LABELS.items()],
                 "presets": [{"key": p.key, "label": p.label, "transport_kind": p.transport_kind,
                              "source": p.source, "note": p.note, "runs_under_wine": p.runs_under_wine}
                             for p in PRESETS.values()]}
@@ -497,6 +498,8 @@ def _coerce(entry: dict, form) -> dict | str:
             out[f.key] = list(items)
             continue
         text = str(raw if raw is not None else "").strip()
+        if f.kind == "choice" and f.choices and text not in f.choices:
+            return f"{f.label} must be one of: {', '.join(f.choices)}."
         if not text:
             if f.optional:
                 continue

@@ -105,12 +105,25 @@ class EntryField:
 BANDS = ("160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m",
          "6m", "2m", "70cm")
 
+#: What each `keying` choice means (ROADMAP P3a, "One owner per serial port").
+#: `own`: the program keys the radio by its own PTT port, VOX or sound card, so
+#: kissterm may use the radio's CAT port through rigctld. `rigctld`: it keys
+#: through kissterm's rig control. `cat`: it owns the CAT port itself, so
+#: kissterm does not touch the radio (the hand-off is ROADMAP M6b).
+KEYING_LABELS = {
+    "own": "Its own PTT port, VOX or sound card",
+    "rigctld": "Through kissterm's rig control",
+    "cat": "The radio's CAT port itself",
+}
+
 #: A Programs entry. `path`, `args` and `cwd` decide what runs on the
 #: station computer, so M2 decides who may edit them remotely.
 PROGRAM_FORM: tuple[EntryField, ...] = (
     EntryField("preset", "Program", "choice"),
     EntryField("path", "Program file", placeholder="browse to the executable"),
     EntryField("args", "Arguments", optional=True),
+    EntryField("keying", "How it keys the radio", "choice", default="own",
+               choices=("own", "rigctld", "cat")),
     EntryField("wine", "Run under Wine", "bool", default="false", optional=True),
     EntryField("cwd", "Working folder", optional=True, advanced=True),
     EntryField("start_timeout", "Seconds to wait for it", "number", default="30",

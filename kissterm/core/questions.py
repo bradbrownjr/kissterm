@@ -21,6 +21,9 @@ class RadioReminder(Question):
     frequency: str = ""
     connection_type: str = ""
     note: str = ""
+    #: What the radio will be tuned to once the operator says Connect
+    #: ("Tunes IC-7300 to 7.101.500 USB-D"), or "" with no radio to tune.
+    tune: str = ""
 
 
 @dataclass(frozen=True, slots=True)

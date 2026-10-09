@@ -53,6 +53,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from ..rig.frequency import dial_from_centre, parse_frequency
 from ..ax25 import parse_path
 from ..ax25.address import AX25Address
 from ..config import (
@@ -278,6 +279,15 @@ class Mail:
         Winlink route. Nothing is dialed or sent. Returns the notice."""
         if self.core.addressbook.find(callsign) is None:
             note = f"Winlink RMS, {modes}" + (f", {grid}" if grid else "")
+            # Winlink lists a digital channel's CENTRE; the dial is 1500 Hz
+            # below it in USB data (docs/SOURCES.md, Winlink). Stored as the
+            # dial so a tuned rig lands on it; the centre stays in the note.
+            listed = parse_frequency(frequency)
+            if listed is not None and not listed.mode:
+                dial = dial_from_centre(listed.hz, modes)
+                if dial.hz != listed.hz:
+                    note += f", listed centre {frequency}"
+                    frequency = dial.as_contact_text()
             self.core.addressbook.upsert(callsign, frequency=frequency, note=note)
             self._publish(AddressBookChanged())
         self.config.winlink.route = callsign

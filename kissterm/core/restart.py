@@ -198,6 +198,8 @@ class Restarter:
         # The modem kissterm started goes after the links it carried; bounded,
         # and the watchdog still fires if even that hangs.
         with contextlib.suppress(Exception):
+            await core.rigwatch.shutdown()
+        with contextlib.suppress(Exception):
             await core.supervisor.stop_all()
         if self.on_restart is not None:
             self.on_restart()

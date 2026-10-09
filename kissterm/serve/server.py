@@ -230,6 +230,7 @@ class RemoteServer:
             "connecting": wire.connecting_keys(core),
             "mail_running": bool(core.mail.collecting),
             "activity": self._activity,
+            "rig": wire.rig_summary(core),
         }
 
     def _transport_now(self) -> dict:

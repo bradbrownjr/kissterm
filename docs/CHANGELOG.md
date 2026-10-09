@@ -5,6 +5,33 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — The radio's frequency: status bar and tune on connect (P3a M6)
+
+### New Features
+
+- **The status bar shows the radio's dial** (`7.101.500 USB-D`, `TX` while
+  keyed) when the active transport names a Rigs entry; the phone and web
+  More page shows it as "Radio". It is read from `rigctld` every few
+  seconds, starting `rigctld` on the station if need be, and hidden when
+  there is no radio or no answer. A modem program whose keying is "the
+  radio's CAT port itself" is left alone (one owner per serial port).
+- **A confirmed connect tunes the radio** to the contact's `frequency`
+  (units and mode words understood: `7.1015 MHz USB-D`). The reminder says
+  so first ("Tunes IC-7300 to 7.101.500 USB-D"); declining leaves the dial
+  alone, and a failed tune stops the connect rather than calling on
+  whatever the radio was left on. Silent: no carrier.
+- **Program forms gain "How it keys the radio"**, in both front ends.
+
+### Improvements
+
+- Using an HF digital Winlink gateway as the Dial stores its dial (listed
+  centre - 1500 Hz, USB-D) with the centre in the note.
+
+**Files:** `kissterm/core/rigwatch.py`, `rig/frequency.py`, `core/connect.py`,
+`core/mail.py`, `core/events.py`, `serve/wire.py`, `serve/server.py`,
+`client/state.py`, `client/ui/more.py`, `client/ui/radio.py`,
+`ui/app.py`, `ui/launch_screens.py`, `ui/dialogs.py`, `tests/unit/test_rigwatch.py`
+
 ## [2026-10-09] — Settings for Programs and Rigs, terminal and phone (P3a M3)
 
 ### New Features

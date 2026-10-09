@@ -105,7 +105,7 @@ class QuestionSheets:
         d = q.data
         lines = [t for t in (d.get("frequency") and f"Frequency: {d['frequency']}",
                              d.get("connection_type") and f"Connection: {d['connection_type']}",
-                             d.get("note")) if t]
+                             d.get("note"), d.get("tune")) if t]
         return ("Check the radio before connecting",
                 [ft.Text("\n".join(lines), size=16)],
                 self._buttons(q, "Connect", True, cancel_value=False))
