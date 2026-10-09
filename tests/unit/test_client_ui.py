@@ -681,14 +681,69 @@ def test_the_reader_offers_reply_all_only_with_others_and_restore_in_deleted():
 
     view = MailView(MailApp({}))
     assert _icons(view.reader_actions("r", {"reply_all": False})) == [
-        "Reply with quote", "Delete", "Reply"], "Reply is the primary, so it is last"
+        "Reply with quote", "Save as text", "Delete", "Reply"], "Reply is the primary, so it is last"
     assert _icons(view.reader_actions("r", {"reply_all": True})) == [
-        "Reply all", "Reply with quote", "Delete", "Reply"]
+        "Reply all", "Reply with quote", "Save as text", "Delete", "Reply"]
     view.folder = "Mail/Winlink/Deleted"
     tips = _icons(view.reader_actions("r", {}))
     assert "Restore" in tips and "Delete" not in tips
     view.folder = "Files/Downloads"
     assert _icons(view.reader_actions("r", {})) == ["Delete"]
+
+
+class FakePicker:
+    def __init__(self) -> None:
+        self.saved: list = []
+
+    async def save_file(self, **args):
+        self.saved.append(args)
+        return None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["mail", "aprs", "session"])
+async def test_save_as_text_hands_the_stations_text_to_the_device(kind):
+    from kissterm.client.ui.mail import MailView
+    from kissterm.client.ui.messages import MessagesView
+    from kissterm.client.ui.sessions import SessionsView
+
+    made = {"name": "mail-w1aw-2026-10-09-net.txt", "text": "From: W1AW\n\nTen check-ins.\n"}
+    app = MailApp({"export_text": made, "aprs_thread": []})
+    app.page.web = True
+    app.page.services = []
+    picker = FakePicker()
+    app._save_picker = picker
+    if kind == "mail":
+        [save] = [a for a in MailView(app).reader_actions("Mail/BBS/Inbox/a.msg", {})
+                  if a.label == "Save as text"]
+        await save.on_click(None)
+        assert app.commands[-1] == ("export_text", {"kind": "mail",
+                                                    "ref": "Mail/BBS/Inbox/a.msg"})
+    elif kind == "aprs":
+        view = MessagesView(app)
+        await view.open("W1AW-7")
+        [button] = [c for c in _walk(view.control) if isinstance(c, ft.IconButton)
+                    and c.tooltip == "Save as text"]
+        await button.on_click(None)
+        assert app.commands[-1] == ("export_text", {"kind": "aprs", "ref": "W1AW-7"})
+    else:
+        view = SessionsView(app)
+        assert view.current == "", "Broadcast is the first tab"
+        await view.actions["save"].on_click(None)
+        assert app.commands[-1] == ("export_text", {"kind": "session", "ref": ""})
+    [saved] = picker.saved
+    assert saved["file_name"] == made["name"] and saved["src_bytes"] == made["text"].encode()
+    assert app.page.services == [], "the app's one picker is reused, not added again"
+
+
+@pytest.mark.asyncio
+async def test_save_as_text_does_nothing_when_the_station_refuses():
+    from kissterm.client.ui import download
+
+    app = MailApp({})
+    app._save_picker = FakePicker()
+    await download.save_text(app, "aprs", "N0ONE")
+    assert app._save_picker.saved == []
 
 
 @pytest.mark.asyncio

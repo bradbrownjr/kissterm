@@ -865,7 +865,12 @@ own client.
     Disconnect's place (Ctrl+R in the terminal): after asking, the
     station dials it again the same way, route, port and login.
     A drag (or a long press on a phone) selects across lines, to copy part
-    of a session or a bulletin into a report.
+    of a session or a bulletin into a report. **Save as text** (the
+    download arrow) saves the whole tab on screen, Broadcast included, as a
+    .txt file on the phone or computer you are using: a browser puts it in
+    its Downloads folder. The same arrow is on an open mail message or
+    bulletin and on an APRS conversation. It is the file the terminal's X
+    saves, and nothing is sent.
     The **Commands** button (a book, beside the line; F1 in the terminal)
     lists what the node or BBS in effect understands, with each line's
     source and whether it needs the sysop, a **Glossary** of packet terms,

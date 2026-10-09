@@ -706,6 +706,10 @@ and do not apply there; these do.
   changes the page and nothing else. A phone in a pocket swipes by
   accident; the radio must not key because of it
   (`tests/unit/test_client_ui.py`).
+- **Save as text is a download arrow** (`Icons.DOWNLOAD`, never the
+  primary): in the reader's row, the APRS thread's title row and
+  Terminal's toolbar. It downloads to this device and never asks, since
+  nothing goes on the air (`download.py`).
 - **Anything that puts a frame on the air asks first** in a sheet:
   connect, disconnect, Send/Receive, Get bulletins and files, Send
   position, Send beacon (the packet beacon; the APRS position is Position on Messages). **Where there is more than one way, the sheet

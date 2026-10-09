@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Phone and web: Save as text downloads a message, conversation or session
+
+### New Features
+
+- **A download arrow saves the text to this device**: on an open mail
+  message or bulletin, an APRS conversation, and Terminal's toolbar (the
+  tab on screen, Broadcast included). The station makes the text
+  (`export_text`, the file the terminal's X saves); a browser downloads it,
+  the desktop client opens a Save dialog. Checked in Chromium at phone and
+  desktop size.
+
+**Files:** `kissterm/client/ui/download.py`, `kissterm/client/ui/mail.py`,
+`kissterm/client/ui/messages.py`, `kissterm/client/ui/sessions.py`,
+`DESIGN.md`, `docs/GUIDE.md`, `tests/unit/test_client_ui.py`, `assets/`
+
 ## [2026-10-09] — Save as text: a message, an APRS conversation or a session as a file
 
 ### New Features
@@ -15,8 +30,7 @@ you need the history of a specific change.
   Session > Save as text the Terminal tab on screen (Broadcast included).
   It asks where, starting in ~/Downloads, and warns before replacing a
   file. One core method makes the text (`core.export`), sanitized, and the
-  server offers it as `export_text`; the phone and browser's download
-  follows in the next change.
+  server offers it as `export_text` to the phone and browser.
 - A session keeps what its tab shows in memory (`LiveSession.screen`, the
   last megabyte), so it can be saved with transcripts off.
 

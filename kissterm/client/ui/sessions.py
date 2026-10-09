@@ -31,7 +31,7 @@ from datetime import datetime
 
 import flet as ft
 
-from . import sheets
+from . import download, sheets
 from .toolbar import Action, Toolbar
 from .reference import ReferenceSheet, Suggestions
 from .text import MONO, MONO_BOLD, Look, runs, split_lines
@@ -234,6 +234,9 @@ class SessionsView:
             "beacon": Action(ft.Icons.RSS_FEED, "Send beacon", self._send_beacon),
             "clear": Action(ft.Icons.CLEANING_SERVICES, "Clear", self._clear,
                             tooltip="Clear what this tab shows"),
+            # The terminal's Session > Save as text: this tab as a .txt file.
+            "save": Action(ft.Icons.DOWNLOAD, "Save as text", self._save_text,
+                           tooltip="Save this tab as a text file"),
             "connect": Action(ft.Icons.ADD_LINK, "Connect", self._connect_sheet, primary=True),
         }
         self.toolbar = Toolbar(app)
@@ -263,6 +266,10 @@ class SessionsView:
 
     async def shown(self) -> None:
         await self.refresh_broadcast()
+
+    async def _save_text(self, _e) -> None:
+        if self.current is not None:
+            await download.save_text(self.app, "session", self.current)
 
     async def refresh_broadcast(self) -> None:
         info = await self.app.command("broadcast_info", text="")

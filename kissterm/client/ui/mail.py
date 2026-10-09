@@ -51,7 +51,7 @@ from datetime import datetime
 
 import flet as ft
 
-from . import sheets
+from . import download, sheets
 from .toolbar import Action, Toolbar
 from .text import MONO
 
@@ -705,6 +705,11 @@ class MailView:
             if on.get("strip"):
                 # The terminal's Answer strip: the request strip as a form.
                 actions.append(Action(ft.Icons.FACT_CHECK, "Answer strip", answer(on["strip"])))
+            # The terminal's X: the message as a .txt file on this device.
+            async def save(_e) -> None:
+                await download.save_text(self.app, "mail", ref)
+
+            actions.append(Action(ft.Icons.DOWNLOAD, "Save as text", save))
         if in_deleted(self.folder):
             actions.append(Action(ft.Icons.RESTORE_FROM_TRASH, "Restore", discard,
                                   primary=not in_files and not any(a.primary for a in actions)))

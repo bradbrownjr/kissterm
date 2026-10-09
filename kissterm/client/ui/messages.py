@@ -23,7 +23,7 @@ import time
 
 import flet as ft
 
-from . import sheets
+from . import download, sheets
 from .toolbar import Action, Toolbar
 
 
@@ -208,7 +208,11 @@ class MessagesView:
         self.control.content = ft.Column(expand=True, spacing=0, controls=[
             ft.Row(controls=[ft.IconButton(icon=ft.Icons.ARROW_BACK, tooltip="All messages",
                                            on_click=self._back),
-                             ft.Text(callsign, theme_style=ft.TextThemeStyle.TITLE_MEDIUM)]),
+                             ft.Text(callsign, theme_style=ft.TextThemeStyle.TITLE_MEDIUM,
+                                     expand=True),
+                             # The terminal's X: the conversation as a .txt file.
+                             ft.IconButton(icon=ft.Icons.DOWNLOAD, tooltip="Save as text",
+                                           on_click=self._save_text)]),
             self.thread,
             ft.Container(padding=ft.Padding.all(8), content=ft.Row(controls=[
                 # The terminal's Ctrl+R: what to say to a gateway, and saved messages.
@@ -217,6 +221,10 @@ class MessagesView:
                 self.compose, ft.IconButton(icon=ft.Icons.SEND, tooltip="Send",
                                             on_click=self._send)]))])
         self.app.page.update()
+
+    async def _save_text(self, _e) -> None:
+        if self.thread_of is not None:
+            await download.save_text(self.app, "aprs", self.thread_of)
 
     async def _templates(self, _e) -> None:
         await self.open_templates()
