@@ -446,10 +446,7 @@ async def drive(phone: Phone, core, tb) -> None:
     await phone.tab("Messages")
     await phone.tap(phone.button("Close"))
     await phone.tap(phone.button("All messages"))
-    # By role: the toolbar's row is labelled "New message" too.
-    # Dispatched to the node itself: elementsFromPoint puts the status
-    # bar's TX button over it, so a pointer click toggles transmit instead.
-    await phone.page.get_by_role("button", name="New message").last.dispatch_event("click")
+    await phone.tap(phone.button("New message"))
     await phone.page.wait_for_timeout(600)
     await phone.enter_field("To", "WLNK-1")
     await phone.enter_field("Message", "L")

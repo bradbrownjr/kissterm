@@ -8,8 +8,9 @@ with a word on it ("Connect", "Write", "New").
 
 **Width decides the labels** (operator, 2026-10-08): from `shell.WIDE` up
 (a desktop browser) every action carries its word, so someone new to packet
-radio is never left guessing at an icon; on a phone in portrait only the
-primary does and the rest are icons with a tooltip. The tooltip is also the
+radio is never left guessing at an icon; on a phone in portrait **none does**
+(operator, 2026-10-09: words crowded the tabs, "difficult to navigate between
+tabs"): icons only, the primary filled, each with a tooltip. The tooltip is also the
 action's accessible name, so a test or a screen reader reaches it the same
 way at either width.
 
@@ -84,14 +85,15 @@ class Toolbar:
 
     def _button(self, action: Action) -> ft.Control:
         tip = action.tooltip or action.label
-        if action.primary:
-            return ft.FilledButton(content=action.label, icon=action.icon, tooltip=tip,
-                                   on_click=action.on_click)
         if self.wide:
+            if action.primary:
+                return ft.FilledButton(content=action.label, icon=action.icon, tooltip=tip,
+                                       on_click=action.on_click)
             return ft.TextButton(content=action.label, icon=action.icon, tooltip=tip,
                                  on_click=action.on_click)
         # Named on a wrapper: beside other icon buttons Flutter's own tooltip
         # label was left out of the page's accessibility tree, so a screen
         # reader (and the screenshot script) found nothing to call it by.
-        return ft.Semantics(label=tip, container=True, content=ft.IconButton(
+        button = ft.FilledIconButton if action.primary else ft.IconButton
+        return ft.Semantics(label=tip, container=True, content=button(
             icon=action.icon, tooltip=tip, on_click=action.on_click))

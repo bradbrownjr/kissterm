@@ -242,6 +242,7 @@ class ClientApp:
             self._place()
             for toolbar in self.toolbars:
                 toolbar.paint()
+            self._paint_gate()
             self.views[MAIL].relayout()
             self.page.update()
 
@@ -332,11 +333,13 @@ class ClientApp:
         on = self.state.gate
         chip.bgcolor = ft.Colors.ERROR if on else None
         chip.border = None if on else ft.Border.all(1, ft.Colors.OUTLINE)
-        chip.content = ft.Row(tight=True, spacing=6, controls=[
-            ft.Icon(ft.Icons.CELL_TOWER if on else ft.Icons.PORTABLE_WIFI_OFF, size=18,
-                    color=ft.Colors.ON_ERROR if on else None),
-            ft.Text("TX ON" if on else "TX OFF", weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.ON_ERROR if on else None)])
+        icon = ft.Icon(ft.Icons.CELL_TOWER if on else ft.Icons.PORTABLE_WIFI_OFF, size=18,
+                       color=ft.Colors.ON_ERROR if on else None)
+        # On a phone the icon alone (red and filled when on); the word is
+        # for the width that has room (`toolbar.py`).
+        chip.content = ft.Row(tight=True, spacing=6, controls=[icon] + (
+            [ft.Text("TX ON" if on else "TX OFF", weight=ft.FontWeight.BOLD,
+                     color=ft.Colors.ON_ERROR if on else None)] if getattr(self.page, "width", None) and self.wide else []))
         chip.tooltip = ("Transmit is on: tap to turn it off" if on
                         else "Transmit is off: tap to turn it on")
 

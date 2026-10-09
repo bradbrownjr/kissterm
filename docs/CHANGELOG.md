@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Phone and web: icons only on a phone
+
+### Improvements
+
+- **On a phone in portrait no toolbar button carries a word**, the primary
+  included (a filled icon), and the TX chip is its icon alone; the words
+  return from 720 px up. Words crowded the tabs (operator, 2026-10-09:
+  "difficult to navigate between tabs"). Tooltips still name every button.
+
+**Files:** `kissterm/client/ui/toolbar.py`, `shell.py`, `DESIGN.md`
+
 ## [2026-10-08] — Phone and web: the TX chip joins each place's toolbar row
 
 ### Improvements

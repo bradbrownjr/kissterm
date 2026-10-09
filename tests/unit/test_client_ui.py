@@ -438,7 +438,8 @@ def test_contacts_come_before_heard():
     view = StationsView(FakeApp())
     [bar] = [c for c in _walk(view.control) if isinstance(c, ft.TabBar)]
     assert [t.label for t in bar.tabs] == ["Contacts", "Heard"]
-    assert [b.content for b in _walk(view.toolbar.row) if isinstance(b, ft.FilledButton)] == ["New contact"]
+    assert [b.tooltip for b in _walk(view.toolbar.row)
+            if isinstance(b, ft.FilledIconButton)] == ["New contact"]
 
 
 def _walk(control) -> list:
@@ -1068,10 +1069,10 @@ async def test_map_opens_beside_send_position_and_never_transmits():
     app = MailApp({"map_points": MAP_POINTS})
     messages = MessagesView(app)
     await messages.reload()
-    buttons = [c.tooltip for c in _controls(messages.toolbar.row) if isinstance(c, ft.IconButton)]
+    buttons = [c.tooltip for c in _controls(messages.toolbar.row) if isinstance(c, ft.IconButton) and not isinstance(c, ft.FilledIconButton)]
     assert buttons == ["Send position", "Map", "New object"]
-    assert [c.content for c in _walk(messages.toolbar.row)
-            if isinstance(c, ft.FilledButton)] == ["New message"], "the primary is last, with a word"
+    assert [c.tooltip for c in _walk(messages.toolbar.row)
+            if isinstance(c, ft.FilledIconButton)] == ["New message"], "the primary is last"
     open_map = next(c for c in _walk(messages.toolbar.row) if getattr(c, "tooltip", "") == "Map")
     await open_map.on_click(None)
     assert isinstance(messages.map, MapPage)
@@ -1945,7 +1946,7 @@ async def test_a_change_elsewhere_does_not_throw_away_what_is_typed_here():
     assert editor.column.controls is not before
 
 
-def test_every_action_has_a_word_on_a_wide_screen_and_only_the_primary_on_a_phone():
+def test_every_action_has_a_word_on_a_wide_screen_and_none_on_a_phone():
     from kissterm.client.ui.toolbar import Action, Toolbar
 
     async def noop(_e) -> None:
@@ -1959,7 +1960,7 @@ def test_every_action_has_a_word_on_a_wide_screen_and_only_the_primary_on_a_phon
     assert app.toolbars == [bar]
     kinds = [type(c.content if isinstance(c, ft.Semantics) else c).__name__
              for c in bar.buttons.controls]
-    assert kinds == ["IconButton", "FilledButton"], "secondary icons first, the primary last"
+    assert kinds == ["IconButton", "FilledIconButton"], "secondary icons first, the primary last"
     assert bar.buttons.controls[0].label == "Map", "an icon keeps its name for a screen reader"
     assert bar.buttons.controls[0].content.tooltip == "Map"
     app.wide = True
