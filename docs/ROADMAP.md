@@ -418,6 +418,224 @@ closed by a coding session.
   only over AX/IP) and BPQ32's own wire-format documentation. Node-to-node
   backbone linking is not a terminal's job.
 
+## P3a — Beside the radio: starting the modem, and rig control (planned 2026-10-09)
+
+**Why.** Today kissterm runs on one machine and reaches a modem on another
+(the operator's Debian LXC to KC1JMH-RR's TNC software over the LAN). Once it
+runs on the shack computer itself, it should do what Winlink Express does:
+start the modem program when its transport opens (VARA HF/FM, UZ7HO
+SoundModem, QtSoundModem, Direwolf, Mercury), and drive the rig over CAT
+through Hamlib (key PTT for VARA, set the dial frequency for a contact or an
+RMS gateway, show frequency, mode and PTT). This is a "New Features" item:
+under rule 1 it starts after P0 is clear, or when the operator asks for a
+milestone by name. Approve each milestone before it starts (as P7a).
+
+**Who builds what.** Each milestone is labelled with the model that should
+write it:
+
+- **[Sonnet]** -- follows a pattern that already exists in the repo
+  (the transport list in `core/radio.py`, `transport/forms.py`, the
+  Settings list rows, the phone's sheets) or is a small protocol client
+  written against a published spec. Hand Sonnet the milestone text, the
+  files it names, and the package `AGENTS.md`.
+- **[Opus]** -- anything on the transmit path (PTT is a transmission),
+  process lifetime across three operating systems, `core/restart.py`, or
+  a security boundary. Opus writes the module and its docstring; Sonnet
+  may then fill the UI around it.
+- **[Operator]** -- needs the radio, Windows or a Mac; goes to
+  `docs/ON-AIR-TESTS.md` the day the code ships.
+
+### The design in one place (read before any milestone)
+
+**No new Settings section.** All of it lives in the existing
+**Settings > Radio**, which already holds "Radio in use" and the transport
+list. Radio gains two more lists built exactly like the transport list
+(New / Edit / Forget, a form per entry, saved through `core/radio.py`):
+
+```
+Settings > Radio
+  Radio in use        [ vara-hf          v ]
+  Transports          vara-hf, direwolf-local, ...     New  Edit  Forget
+  Programs            VARA HF, Direwolf                New  Edit  Forget
+  Rigs                IC-7300                          New  Edit  Forget
+```
+
+A transport's form gains two optional choices, folded under "On this
+computer" and shown only for kinds that reach a local program (`tcp`,
+`agwpe`, `vara`, `varafm`, `mercury`): **Start program** (a Programs entry,
+or none) and **Rig** (a Rigs entry, or none). A transport with neither
+behaves exactly as today. Nothing goes into `SETTINGS_SCHEMA`: like
+transports these are lists of dicts (`settings_schema`'s docstring says why).
+
+Config shape (`config.toml.example`, all below the top-level settings):
+
+```toml
+[[programs]]
+name = "VARA HF"
+preset = "vara-hf"          # fills path/args defaults per platform
+path = 'C:\VARA\VARA.exe'   # this computer's path; ~ and $VAR/%VAR% expanded
+args = []                   # a list, never a shell string
+cwd = ""                    # empty = the program's own folder
+wine = false                # POSIX only: run a Windows .exe under Wine
+stop_on_exit = true         # stop it when kissterm closes, only if kissterm started it
+
+[[rigs]]
+name = "IC-7300"
+model = 3073                # Hamlib model number (rigctl -l)
+device = "/dev/ttyUSB0"     # or COM4
+baud = 19200
+ptt = "cat"                 # cat | rts | dtr | none (VOX, or the modem keys)
+ptt_device = ""             # RTS/DTR on a different port (a DigiRig, say)
+ptt_timeout = 60            # seconds; the watchdog unkeys after this
+# or, to use a rigctld something else already runs:
+# rigctld = "127.0.0.1:4532"
+
+[[transports]]
+name = "vara-hf"
+kind = "vara"
+host = "127.0.0.1"
+cmd_port = 8300
+data_port = 8301
+program = "VARA HF"
+rig = "IC-7300"
+```
+
+**Paths are the station computer's.** One config file belongs to one
+machine, so a program entry stores one path. "POSIX and Windows" is handled
+by the **presets** (`kissterm/launch/presets.py`): each knows its default
+install path and arguments per platform (`win32`, `darwin`, `linux`/BSD),
+including VARA under Wine on Linux/macOS, and the form pre-fills them for
+the platform kissterm is running on. A phone editing the station's
+Settings is editing the *station's* paths, and the form says so.
+
+**One owner per serial port: kissterm runs `rigctld`, everything else
+shares it.** Two programs cannot open the same COM port. So each Rigs entry
+starts one `rigctld` (or attaches to one already running), and every
+consumer talks to it over TCP: kissterm itself, Mercury (`-R 2 -A
+127.0.0.1:4532`, Hamlib's NET rigctl model; Mercury README, branch
+`mercuryv2`), Direwolf (`PTT RIG 2 127.0.0.1:4532`). VARA has no Hamlib, so
+for VARA kissterm keys the rig itself from VARA's `PTT ON`/`PTT OFF`
+notifications (already parsed in `transport/vara.py`, `self.ptt`). Talking
+to `rigctld` instead of linking Hamlib's Python bindings avoids a
+dependency that pip cannot install: `rigctld` is a separate binary on every
+platform (`apt install libhamlib-utils`, `brew install hamlib`, the
+hamlib-w64 installer), found on PATH or at a path in the rig's Advanced
+fold, and reported by `--doctor`.
+
+**Launch timing.** A program starts when its transport is opened (made
+"Radio in use", or at launch if it is the active transport and the program
+entry says so), never on a timer and never during discovery. Order: try the
+transport's own connect; if refused, start the program and retry the
+connect with backoff until `start_timeout`; if something else is already
+listening, use it and leave it alone at exit (only a process kissterm
+started is ever stopped). That is the transport's normal connect, not a
+probe, so "VARA's ports are never touched" by discovery still holds.
+
+**What does not change.** kissterm stays a terminal (section 1). Every
+transmission still passes the gate: kissterm keys PTT only while the gate
+is open and a modem it is talking to asked for it. A modem that transmits
+by itself (Direwolf's own beacons, VARA answering while `LISTEN ON`) is
+outside the gate and the form says so, as P12 says of fldigi.
+
+### Milestones
+
+- [ ] **M1 [Sonnet] Config and forms for Programs and Rigs.** `Config`
+  loaders for `[[programs]]` and `[[rigs]]`, `program`/`rig` keys on a
+  transport (added to `_ENTRY_ONLY_KEYS` so `build_transport` does not
+  forward them), `config.toml.example` entries,
+  `PROGRAM_FORMS`/`RIG_FORMS` beside `TRANSPORT_FORMS` in
+  `transport/forms.py`, and `Radio.programs()/save_program()/
+  forget_program()` and the rig equivalents in `core/radio.py`, refusing a
+  name a transport still uses. Presets in `kissterm/launch/presets.py` as
+  pure data plus `default_path(preset, platform)`, tested with the platform
+  as a parameter (no `sys.platform` patching). Nothing runs yet. Tests:
+  `tests/unit/test_config.py`, a new `test_launch_presets.py`,
+  `test_transport_factory.py` for the stripped keys.
+  RESEARCH each preset's default install path and command line from the
+  program's own documentation, cite it in `docs/SOURCES.md`; mark guesses
+  `# UNVERIFIED:`.
+- [ ] **M2 [Opus] The program supervisor** (`kissterm/launch/supervisor.py`).
+  `asyncio.create_subprocess_exec`, never a shell; Wine wrapping on POSIX;
+  Windows `CREATE_NEW_PROCESS_GROUP` and a polite stop before kill; stdout
+  and stderr to the `kissterm.launch` logger; "already running" detection;
+  stop-on-exit only for what it started; the transport-connect retry
+  described above; a program that dies while its transport is open shows
+  `DOWN` with the program's exit code, never an RF message
+  (`_transport_status`). Hooks into `Core` shutdown and `core/restart.py`
+  (restart never waits on a child; the watchdog still fires). Also decides
+  the **remote-edit boundary**: a remote client that can set `path` can run
+  any program on the station computer, so Programs' `path`, `args` and
+  `cwd` are edited only at the station (terminal UI or config file); the
+  phone can choose a program for a transport and start or stop it, but not
+  change what it runs. That is a deliberate parity gap, named in P7a and
+  the reply, and needs the operator's yes before M2 ships. Tests against a
+  small Python script as the "modem" (starts, listens on a port, exits on
+  signal), on Linux; Windows behaviour goes to ON-AIR-TESTS.
+- [ ] **M3 [Sonnet] Settings UI for Programs, both front ends.** Terminal:
+  two list rows in Radio's hand-built section (`ui/settings_pane.py`
+  `_compose_transports`), each with an entry screen modelled on
+  `TransportEntryScreen`; preset first, then path/args pre-filled,
+  `wine` shown only off Windows, Advanced fold for `cwd`, `start_timeout`,
+  `stop_on_exit`. Phone/web: the same lists in `client/ui/settings.py`
+  following the transport sheet, read-only path per M2's boundary. A Start
+  / Stop button on a program row (a core method, `Radio.start_program`).
+  The transport form's "On this computer" fold. Screenshots
+  (`scripts/generate_screenshot.py`, `generate_phone_screenshots.py`),
+  GUIDE.md and SETUP.md in the same commit.
+- [ ] **M4 [Sonnet] The `rigctld` client** (`kissterm/rig/rigctld.py`).
+  RESEARCH first: the rigctld protocol from Hamlib's `rigctld(1)` man page
+  and `tests/rigctl_parse.c` (extended response mode `+`, `RPRT n` codes),
+  cited in `docs/SOURCES.md`. Async client for `f`/`F`, `m`/`M`, `t`/`T`,
+  `\chk_vfo`, `\dump_state`; reconnect like a TCP transport; every
+  exception counted and logged, never raised out of a background task.
+  Starting `rigctld` for a Rigs entry goes through M2's supervisor (`-m`,
+  `-r`, `-s`, `-P`, `-p`, `-t`). The model list for the picker from
+  `rigctl -l`, run once on demand and cached (a local command, no
+  airtime), shown as a `filtered_choice`. Rig form Test button reads
+  frequency and mode and never keys. Tests against a fake rigctld server,
+  plus an optional test against Hamlib's dummy rig (`rigctld -m 1`) skipped
+  when `rigctld` is absent. Rigs UI (terminal and phone) as in M3.
+- [ ] **M5 [Opus] PTT for VARA, through the gate.** `transport/vara.py`'s
+  `PTT ON`/`PTT OFF` drive `T 1`/`T 0` on the transport's rig. Keys only
+  while the gate is open, re-checked at the moment of keying (AGENTS.md
+  "Re-check at the moment of transmission"); a refused key is logged `TX
+  BLOCKED` and announced. Unkey on every exit path: `PTT OFF`, the modem
+  socket closing, the transport closing, the gate closing mid-transmission,
+  `ptt_timeout` (watchdog), Restart, Shut down, a crash (`atexit` and
+  signal handlers). Status bar `PTT` while keyed (both front ends). Mercury
+  and Direwolf entries pass the shared `rigctld` on their command line
+  instead (M2's preset arguments), so only one keying path exists per
+  modem. RESEARCH before writing: VARA's documented PTT setting (whether
+  `PTT ON` is sent only when VARA's own PTT is set to the TCP client) from
+  EA5HVK's VARA TNC command document; mark what stays inferred
+  `# UNVERIFIED:`. Tests on the loopback with a fake VARA and a fake
+  rigctld, including the watchdog and gate-closes-while-keyed cases.
+  AGENTS.md's unattended-transmission rules gain one line for it.
+- [ ] **M6 [Sonnet, Opus reviews the `core/connect.py` hunk] Frequency.**
+  Status bar shows the rig's frequency and mode (polled from `rigctld`
+  every few seconds, local only; hidden with no rig), both front ends. An
+  Address Book contact's existing `frequency` field, and an RMS gateway's
+  `frequency_hz`, tune the rig on a deliberate connect only: shown in the
+  `RadioReminderScreen` ("Tunes IC-7300 to 7.101.500 USB-D"), done after
+  the operator confirms and before the connect, never on selection. The
+  Winlink convention of dial = centre - 1500 Hz for USB-D is a RESEARCH
+  item against Winlink Express's documentation, not a guess.
+- [ ] **M7 [Operator] On the air at KC1JMH-RR.** ON-AIR-TESTS entries, one
+  per milestone as it ships: VARA HF started by kissterm on Windows; VARA
+  under Wine on Linux; Direwolf and QtSoundModem started on Linux; Mercury
+  with the shared `rigctld`; PTT keyed and released on a VARA connect; the
+  watchdog unkeys a held PTT; frequency set from a contact.
+
+**Decisions for the operator before M2** (recommendation first):
+
+1. Program paths editable only at the station, not from the phone (M2).
+   Recommended: yes; the alternative is remote code execution by anyone
+   paired with the station.
+2. Start a modem when its transport opens (recommended), or also start
+   every program at kissterm's launch.
+3. Hamlib through `rigctld` only (recommended), or also flrig's XML-RPC for
+   stations that already run flrig.
+
 ## P4 — APRS
 
 - [ ] **GPS against physical receivers** (USB and Bluetooth `rfcomm`).
