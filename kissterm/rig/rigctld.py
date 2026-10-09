@@ -247,6 +247,17 @@ class RigctldClient:
         values = await self.command("\\chk_vfo", one_line=True)
         return any(v.strip() == "1" for v in values.values())
 
+    async def set_functions(self) -> set[str]:
+        """What `U` can set on this rig (`U ?`: `rig_sprintf_func` of
+        `has_set_func`, one line of names, `rigctl_parse.c` `set_func`).
+        `TUNER` is a built-in ATU that can be switched in."""
+        return {w for v in (await self.command("U ?")).values() for w in v.split()}
+
+    async def vfo_ops(self) -> set[str]:
+        """What `G` can do on this rig (`G ?`: `rig_sprintf_vfop` of
+        `vfo_ops`, `rigctl_parse.c` `vfo_op`). `TUNE` starts an ATU cycle."""
+        return {w for v in (await self.command("G ?")).values() for w in v.split()}
+
     async def dump_state(self) -> list[str]:
         """The raw `\\dump_state` records; M6b reads tuner capability from it."""
         return list((await self.command("\\dump_state")).values())

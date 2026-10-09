@@ -778,6 +778,18 @@ and then your Winlink password, before dialing. The password is saved
   radio's own meter said (this proves Hamlib's number is a ratio on your
   radio), and whether a Direwolf transmission keyed by RTS was seen at all.
 
+- [ ] **The ATU** (the cycle transmits; low power). FT-991A with 40m ticked
+  under *Tune the ATU before connecting on*. Connect to a 40 m contact:
+  the reminder says "and tunes the ATU: a few seconds of carrier", the
+  tuner cycles, then the connect goes on. Say whether the radio reported
+  PTT during the cycle (kissterm waits for it to end; otherwise 5 s), and
+  that a 20 m connect (not ticked) only switched the tuner in.
+- [ ] **A CAT port hand-off** (silent until the connect). A modem kissterm
+  starts, keying "The radio's CAT port itself" (VARA keying by CAT, or
+  SoundModem on an IC-7300). Dial a contact with a frequency: the reminder
+  says it stops and restarts the modem; the notices say stopping, back;
+  the dial moved; the connect then goes out. Say how long the modem took.
+
 ## Standing verifications (from AGENTS.md section 8)
 
 - [ ] **Mic-E** decoding against a real off-air packet.

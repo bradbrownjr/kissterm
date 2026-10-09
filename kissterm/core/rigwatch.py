@@ -12,11 +12,13 @@ radio frequency is used, no network beyond `rigctld`'s own socket.
 mode, which is silent. It is called only from a connect the operator has
 confirmed (`Connector.connect`), after the confirmation that shows it
 ("Tunes IC-7300 to 7.101.500 USB-D"), never on selecting a contact. The
-antenna tuner's carrier (`rig.tune()`) is not here: that is ROADMAP M6b.
+antenna tuner (switched in after a tune, and its opt-in carrier) and the CAT
+port hand-off are `core/tuner.py`'s.
 
 **One owner per serial port.** A program whose `keying` is `cat` owns the
 radio's CAT port, so kissterm neither starts `rigctld` nor reads the radio
-while it is the transport's program (the hand-off is M6b); the field says so.
+while it is the transport's program; tuning then goes through the hand-off
+(`Tuner.handoff`), which stops and restarts that program.
 
 **The home channel** (ROADMAP P3a M6c). A transport entry may carry a
 `frequency`: where its radio belongs. It is set once each time the transport
@@ -157,6 +159,7 @@ class RigWatch:
                         client.reset_backoff()
                         state = await client.poll()
                 if state is not None:
+                    await self.core.tuner.learn(client, rig)
                     state = await self._go_home(client, state)
                     self._set(state, "", name)
                     await asyncio.sleep(self.poll_seconds)
@@ -188,6 +191,9 @@ class RigWatch:
             await client.set_frequency(tuning.hz)
             if tuning.mode:
                 await client.set_mode(tuning.mode, 0)
+            rig = self.active_rig() or {}
+            await self.core.tuner.learn(client, rig)
+            await self.core.tuner.atu_on(client, rig, tuning)
         except RigError as exc:
             log.warning("could not tune to the home channel %s: %s", tuning.describe(), exc)
             return state
@@ -223,8 +229,10 @@ class RigWatch:
         """Where the active radio would be tuned for `contact` (its
         `frequency`), or None: no radio, its modem owns the CAT port, or no
         number on file. Reading only; nothing is changed."""
-        if contact is None or self.active_rig() is None or self.owns_cat_port():
+        if contact is None or self.active_rig() is None:
             return None
+        if self.owns_cat_port() and self.core.tuner.handoff_problem():
+            return None  # the modem owns the port and cannot be handed it back
         return parse_frequency(getattr(contact, "frequency", ""))
 
     def plan_session(self, contact=None) -> Tuning | None:
@@ -233,8 +241,15 @@ class RigWatch:
         return self.plan(contact) or self.home()
 
     def describe(self, tuning: Tuning) -> str:
+        """The reminder's line for `tuning`: where, the hand-off (it restarts
+        the modem) and the ATU cycle (a carrier) when they happen."""
         rig = self.active_rig() or {}
-        return f"Tunes {rig.get('name', 'the radio')} to {tuning.describe()}"
+        text = f"Tunes {rig.get('name', 'the radio')} to {tuning.describe()}"
+        if self.owns_cat_port():
+            text += f" ({self.core.tuner.describe_handoff()})"
+        if self.core.tuner.will_cycle(tuning):
+            text += ", and tunes the ATU: a few seconds of carrier"
+        return text
 
     async def tune(self, tuning: Tuning) -> str:
         """Set the dial (and mode, when `tuning` names one); "" when done,
@@ -242,6 +257,8 @@ class RigWatch:
         rig = self.active_rig()
         if rig is None:
             return "No radio is set up for this transport."
+        if self.owns_cat_port():
+            return await self.core.tuner.handoff(tuning)
         client = self._client or RigctldClient.from_rig(rig)
         try:
             problem = await self.core.supervisor.ensure_rigctld(rig)
@@ -250,6 +267,8 @@ class RigWatch:
             await client.set_frequency(tuning.hz)
             if tuning.mode:
                 await client.set_mode(tuning.mode, 0)
+            await self.core.tuner.learn(client, rig)
+            await self.core.tuner.atu_on(client, rig, tuning)
             state = await client.poll()
         except RigError as exc:
             return str(exc)

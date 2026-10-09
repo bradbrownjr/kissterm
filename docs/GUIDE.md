@@ -600,9 +600,12 @@ hand. A program that transmits by itself (Direwolf's own beacons, VARA
 answering while listening) is outside the transmit switch. *Radio (Hamlib)*
 names a radio by its Hamlib model number (*Pick from Hamlib's list* needs
 Hamlib's `rigctl` on the station) and how its `rigctld` is reached; Test
-reads the frequency and mode and never transmits. A rig's SWR limit (3.0
-by default) and the bands to tune the antenna tuner on before a connect (none
-by default) are saved now; the SWR trip and the tuner come in later releases. With a
+reads the frequency and mode and never transmits. A rig with a built-in
+antenna tuner has it switched in after every tune (silent; most recall the
+match for that frequency). *Tune the ATU before connecting on* runs a
+tuning cycle, a few seconds of carrier, before a confirmed connect on the
+bands you tick (none by default); the reminder says so, transmit is turned
+on for that connect, and it never runs past an SWR trip. With a
 radio named, the status bar (and the phone's More page) shows its dial, and
 a confirmed connect to a contact with a `frequency` tunes it first (the
 reminder says so; declining leaves the dial alone). A transport's form then names the program and radio it
@@ -625,6 +628,14 @@ Restart, Shut down and Quit, and after the radio's *Unkey after* time (120 s
 by default; then VARA is not keyed again until it lets go). Set VARA's own
 PTT so that it does not also key the radio (experimental: not yet tried
 with a real VARA).
+
+**A modem that owns the CAT port** ("How it keys the radio" = *The radio's
+CAT port itself*: VARA keying by CAT, or SoundModem on an IC-7300's one
+port) leaves kissterm no port to tune through. Tuning then *hands the port
+over*: with nothing connected, kissterm stops the modem, tunes, and starts it
+again (the reminder says so; it costs the modem's startup time). Only for a
+modem kissterm started; one you started yourself is left alone and you tune
+by hand. SETUP.md section 6b says how to avoid this.
 
 **The SWR trip** (experimental). While the radio is keyed, by VARA through
 kissterm or by a modem the radio reports as transmitting, kissterm reads its

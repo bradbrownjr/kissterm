@@ -503,15 +503,6 @@ outside the gate and the form says so, as P12 says of fldigi.
   control" should get `-R 2 -A 127.0.0.1:4532` (Mercury) or `PTT RIG 2
   127.0.0.1:4532` (Direwolf's config) from its rig, so each modem has one
   keying path. RESEARCH both against their docs first.
-- [ ] **M6b [Opus] Port hand-off and the tuner.** The case 3 sequence
-  (stop program, `rigctld`, tune, stop `rigctld`, restart program, reopen
-  transport) as one core method with a `finally` that always restarts the
-  program, refused while any session is up, and its progress shown as
-  notices. The ATU: capability from `rigctld`'s `\dump_caps`/`U ?`,
-  ATU-on after every tune (no SWR watch here: that is M5b), and the
-  opt-in tune-before-connect cycle through the gate as described above.
-  Tests with the fake modem script from M2 and a fake `rigctld`, including
-  a `rigctld` that fails mid-tune (the program must still come back).
 - [ ] **M7 [Operator] On the air at KC1JMH-RR.** ON-AIR-TESTS entries, one
   per milestone as it ships: VARA HF started by kissterm on Windows; VARA
   under Wine on Linux; Direwolf and QtSoundModem started on Linux; Mercury

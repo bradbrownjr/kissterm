@@ -193,6 +193,14 @@ the node's APRS command.
   table points, clamped at the ends, the raw value when a backend has no
   table). Used by `kissterm/core/swr.py`. # UNVERIFIED on the air, and per
   rig for backends without a table.
+- Hamlib tuner (read 2026-10-09): `tests/rigctl_parse.c` (`U ?` prints
+  `rig_sprintf_func(has_set_func)` and `G ?` `rig_sprintf_vfop(vfo_ops)`,
+  one line after the `set_func: ?`/`vfo_op: ?` header; the extended header
+  is `name:` plus the arguments), `rigs/yaesu/ft991.h` (`FT991_FUNCS` has
+  `RIG_FUNC_TUNER`, `FT991_VFO_OPS` has `RIG_OP_TUNE`), `rigs/yaesu/newcat.c`
+  (`U TUNER n` sends `AC00n;`, `G TUNE` sends `AC002;` and returns at once).
+  Used by `kissterm/core/tuner.py`. # UNVERIFIED: when a cycle ends, and
+  whether the FT-991A reports PTT during it.
 - EA5HVK, "VARA Protocol Native TNC Commands" (Jose Alberto Nieto Ros,
   November 2021; a 3-page PDF, the copy attached to the pat-users group:
   groups.google.com/group/pat-users/attach/5ccf955e0cbf0), read 2026-10-09:

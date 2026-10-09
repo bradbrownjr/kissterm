@@ -371,6 +371,25 @@ a transport you are not using, and discovery never starts anything. A modem
 that transmits by itself (Direwolf's own beacons, VARA answering while
 listening) is outside kissterm's transmit switch.
 
+## 6b. Radio control through Hamlib (experimental)
+
+kissterm reads and tunes the radio through Hamlib's `rigctld`: install it
+(`apt install libhamlib-utils`, `brew install hamlib`, or the hamlib-w64
+installer on Windows), add the radio in Settings > Radio > Radio (Hamlib),
+and name it on the transport. Then say, on the modem program, how it keys the
+radio, in this order of preference:
+
+1. **Its own PTT port, VOX or sound card** (a SignaLink, a DigiRig's RTS, an
+   FT-991A's "Standard" COM port while `rigctld` has the "Enhanced" one).
+   Nothing is shared.
+2. **Through kissterm's rig control**: VARA's PTT orders key the radio
+   through `rigctld`, only while transmit is on. Set VARA's own PTT so it
+   does not also key the radio.
+3. **The radio's CAT port itself**: the modem must own the radio's only
+   port, so each tune stops the modem, tunes and starts it again. It works,
+   slowly; reach 1 or 2 instead where the radio allows (a second USB port, a
+   separate PTT interface).
+
 ## 6. Linux kernel AX.25 as an alternative
 
 If you already have a working `kissattach`/`ax25d` setup — an `axports`

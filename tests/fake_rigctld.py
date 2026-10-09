@@ -1,5 +1,7 @@
 """A fake `rigctld` for tests: the Extended Response Protocol subset kissterm
-speaks (`+f`, `+m`, `+t`, `+l SWR`, `+F`, `+M`, `+T`, `+U`, `+G`, `+\\chk_vfo`).
+speaks (`+f`, `+m`, `+t`, `+l SWR`, `+F`, `+M`, `+T`, `+U`, `+G`, `+U ?`, `+G ?`,
+`+\\chk_vfo`). The `?` replies are `rigctl_parse.c`'s: the header, one line
+of names, `RPRT 0`.
 
 State lives on the instance so a test can watch what a client changed, and
 `swr` may be a list the server walks through, one reading per `l SWR`."""
@@ -17,6 +19,11 @@ class FakeRigctld:
         self.ptt = 0
         self.swr: list[float] = [1.2]
         self.tuner = 0
+        #: What `U ?` and `G ?` list; an ATU cycle keys for `tune_seconds`.
+        self.funcs = {"TUNER", "VOX"}
+        self.ops = {"TUNE", "CPY"}
+        self.tune_seconds = 0.2
+        self.tunes = 0
         self.fail: dict[str, int] = {}  # command letter -> RPRT code
         self.silent: set[str] = set()   # commands that never answer
         self.log: list[str] = []
@@ -73,6 +80,10 @@ class FakeRigctld:
         if command == "l" and rest == "SWR":
             value = self.swr.pop(0) if len(self.swr) > 1 else self.swr[0]
             return f"get_level: SWR\nLevel Value: {value}\nRPRT 0\n"
+        if command == "U" and rest == "?":
+            return f"set_func: ?\n{' '.join(sorted(self.funcs))}\nRPRT 0\n"
+        if command == "G" and rest == "?":
+            return f"vfo_op: ?\n{' '.join(sorted(self.ops))}\nRPRT 0\n"
         if command == "\\chk_vfo":
             return "ChkVFO: 0\n"  # no header, no RPRT: rigctl_parse.c, cmd 0xf0
         if command == "F":
@@ -84,7 +95,10 @@ class FakeRigctld:
         elif command == "U" and rest.startswith("TUNER"):
             self.tuner = int(rest.split()[1])
         elif command == "G" and rest == "TUNE":
-            pass
+            # The rig keys a carrier for the cycle, then drops it by itself.
+            self.tunes += 1
+            self.ptt = 1
+            asyncio.get_running_loop().call_later(self.tune_seconds, setattr, self, "ptt", 0)
         else:
             return "RPRT -4\n"
         return f"set: {rest}\nRPRT 0\n"

@@ -306,12 +306,17 @@ class Connector:
                               tune=self.core.rigwatch.describe(tuning) if tuning else ""))
             if not proceed:
                 return
+        armed_early = False
         if tuning is not None:
             problem = await self.core.rigwatch.tune(tuning)
             if problem:
                 # Connecting anyway would call on whatever the radio was left on.
                 self._problem(report, f"Not connecting: could not tune the radio to "
                               f"{tuning.describe()}: {problem}")
+                return
+            problem, armed_early = await self._atu_cycle(tuning, request.target, announce)
+            if problem:
+                self._problem(report, problem)
                 return
         target = request.target
         # Node hops replace the "via DIGI" path entirely rather than
@@ -363,7 +368,7 @@ class Connector:
             self._problem(report, f"Not connecting: transmit is held off ({self.gate.latch}). "
                           "Check the antenna; {key:toggle_transmit} asks before turning it on.")
             return
-        armed = self.arm_for(f"connect to {path.destination}", key, toast=not announce)
+        armed = self.arm_for(f"connect to {path.destination}", key, toast=not announce) or armed_early
         if announce:
             self.core.operator.notice(Notice(
                 announce + (" Transmit ENABLED; {key:toggle_transmit} turns it back off." if armed else "")))
@@ -452,6 +457,23 @@ class Connector:
     # ------------------------------------------------------------------
     # The Internet and the session tier
     # ------------------------------------------------------------------
+    async def _atu_cycle(self, tuning, target: str, announce: str) -> tuple[str, bool]:
+        """The opt-in ATU cycle of a confirmed connect (`Tuner.will_cycle`):
+        a carrier, so it arms the gate this connect would arm anyway, and
+        never past an SWR trip. (why not, or "", and whether it armed)."""
+        tuner = self.core.tuner
+        if not tuner.will_cycle(tuning):
+            return "", False
+        if self.gate.latch:
+            return (f"Not connecting: transmit is held off ({self.gate.latch}). Check the "
+                    "antenna; {key:toggle_transmit} asks before turning it on.", False)
+        what = f"tuning the ATU before connecting to {target}" if target else "tuning the ATU"
+        armed = self.arm_for(what, toast=not announce)
+        problem = await tuner.cycle(tuning)
+        if problem:
+            return f"Not connecting: the ATU cycle on {tuning.describe()} did not finish: {problem}", armed
+        return "", armed
+
     async def session_connect(self, transport, path=None):
         """`transport.connect(path)`, asking the operator to trust an SSH
         server seen for the first time (kissterm/transport/ssh.py). Not
@@ -591,6 +613,14 @@ class Connector:
                 self.core.operator.notice(Notice(
                     f"Not connecting: could not tune the radio to {tuning.describe()}: {problem}",
                     Severity.ERROR))
+                return
+            problem, _ = await self._atu_cycle(tuning, getattr(entry, "target", ""), "")
+            if problem:
+                self.core.operator.notice(Notice(problem, Severity.ERROR))
+                return
+            # A CAT port hand-off reopened the transport: connect through the new one.
+            transport = self.core.session_transport
+            if transport is None:
                 return
         path = None
         if entry is not None and transport.info.kind in CALLING_KINDS:

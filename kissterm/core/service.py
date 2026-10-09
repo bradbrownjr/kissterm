@@ -104,6 +104,10 @@ class Core:
         #: The active transport's radio, read through rigctld (ROADMAP P3a).
         self.rigwatch = RigWatch(self)
         from .ptt import PttKeyer
+        from .tuner import Tuner
+
+        #: The ATU and the CAT port hand-off (P3a M6b).
+        self.tuner = Tuner(self)
 
         #: Keys the radio on VARA's PTT orders, through the gate (P3a M5).
         self.ptt = PttKeyer(self)

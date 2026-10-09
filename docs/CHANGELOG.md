@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — The antenna tuner and the CAT port hand-off (P3a M6b)
+
+### New Features
+
+- **The ATU is switched in after every tune** on rigs whose Hamlib driver
+  has one (`U ?` lists TUNER), HF and 6 m. Silent.
+- **Tune the ATU before connecting**, per band (none by default): after the
+  reminder says "a few seconds of carrier", a confirmed connect arms
+  transmit, checks it again, runs the rig's tuning cycle (`G TUNE`) with
+  the SWR watch paused, then connects. Never past an SWR trip.
+- **The CAT port hand-off**: when the modem owns the radio's only CAT port,
+  tuning stops the modem kissterm started, tunes through `rigctld`, and
+  reopens the transport, which starts the modem again, on every path
+  (a failed tune included). Refused while a session is up or for a modem
+  kissterm did not start. Notices say each step; the reminder says it.
+
+**Files:** `kissterm/core/tuner.py`, `core/rigwatch.py`, `core/connect.py`,
+`core/service.py`, `rig/rigctld.py`, `tests/fake_rigctld.py`,
+`tests/fake_modem.py`, `tests/unit/test_tuner.py`, `SETUP.md`
+
 ## [2026-10-09] — The SWR watch and trip (P3a M5b)
 
 ### New Features
