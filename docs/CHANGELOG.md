@@ -12,7 +12,8 @@ you need the history of a specific change.
 - **On a phone in portrait no toolbar button carries a word**, the primary
   included (a filled icon), and the TX chip is its icon alone; the words
   return from 720 px up. Words crowded the tabs (operator, 2026-10-09:
-  "difficult to navigate between tabs"). Tooltips still name every button.
+  "difficult to navigate between tabs"). Tooltips still name every button. The TX chip is the same 40 px circle as
+  the primary, not a pill (operator: "three different shapes, sizes").
 
 **Files:** `kissterm/client/ui/toolbar.py`, `shell.py`, `DESIGN.md`
 

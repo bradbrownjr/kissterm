@@ -724,7 +724,7 @@ and do not apply there; these do.
   decides the labels** (operator, 2026-10-08, 2026-10-09): from 720 px up
   every action, and the TX chip, has its word beside its icon; on a phone
   in portrait **none does** (words crowded the tabs): icons, the primary a
-  filled one, each with a **tooltip as its name** (it is also
+  filled one, the TX chip a circle of the same 40 px, each with a **tooltip as its name** (it is also
   what a screen reader and `generate_phone_screenshots.py` find them by).
   Never an outlined chip row above a list, an icon strip at the end of a
   tab bar, a mini and a full-size FAB stacked, or a chip beside the

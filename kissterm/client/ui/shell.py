@@ -320,6 +320,7 @@ class ClientApp:
         in the tree, so each toolbar gets its own, all painted together."""
         chip = ft.Container(on_click=self._gate_clicked, border_radius=16,
                             margin=ft.Margin.only(left=4, right=8),
+                            alignment=ft.Alignment.CENTER,
                             padding=ft.Padding.symmetric(horizontal=12, vertical=6))
         self.gate_chips.append(chip)
         self._paint_chip(chip)
@@ -333,7 +334,12 @@ class ClientApp:
         on = self.state.gate
         chip.bgcolor = ft.Colors.ERROR if on else None
         chip.border = None if on else ft.Border.all(1, ft.Colors.OUTLINE)
-        icon = ft.Icon(ft.Icons.CELL_TOWER if on else ft.Icons.PORTABLE_WIFI_OFF, size=18,
+        narrow = not (getattr(self.page, "width", None) and self.wide)
+        # On a phone it is the same 40 px circle as the buttons beside it.
+        chip.width, chip.height = (40, 40) if narrow else (None, 36)
+        chip.padding = ft.Padding.all(0) if narrow else ft.Padding.symmetric(horizontal=12, vertical=6)
+        chip.border_radius = 20 if narrow else 18
+        icon = ft.Icon(ft.Icons.CELL_TOWER if on else ft.Icons.PORTABLE_WIFI_OFF, size=24 if narrow else 18,
                        color=ft.Colors.ON_ERROR if on else None)
         # On a phone the icon alone (red and filled when on); the word is
         # for the width that has room (`toolbar.py`).
