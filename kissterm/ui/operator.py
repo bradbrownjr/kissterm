@@ -59,7 +59,8 @@ def _winlink_gateway(q: WinlinkGateway) -> Screen:
     from .dialogs import WinlinkGatewayScreen
 
     return WinlinkGatewayScreen(list(q.contacts), q.favourite, gateway_list=q.gateway_list,
-                                all_note=q.all_note, skip=q.skip)
+                                all_note=q.all_note, skip=q.skip,
+                                remember_skip=q.remember_skip)
 
 
 def _login_ask(q: LoginAsk) -> Screen:
@@ -67,7 +68,7 @@ def _login_ask(q: LoginAsk) -> Screen:
 
     return LoginAskScreen(q.title, q.detail, q.name, secret=q.secret, all_note=q.all_note,
                           skip=q.skip, go_label=q.go_label, username=q.username,
-                          where=q.where)
+                          where=q.where, remember_skip=q.remember_skip)
 
 
 def _internet_login(q: InternetLoginAsk) -> Screen:

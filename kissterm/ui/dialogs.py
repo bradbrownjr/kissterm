@@ -41,6 +41,7 @@ from ..core.connect import ConnectRequest  # noqa: F401
 from ..core.questions import (  # noqa: F401 - the answer types, defined by the core
     SETUP_GO,
     SETUP_SKIP,
+    SETUP_SKIP_ALWAYS,
     Credential,
     GatewayChoice,
     InternetLogin,
@@ -1584,7 +1585,9 @@ class HomeBbsSetupScreen(ModalScreen[str | None]):
 
     @on(Button.Pressed, "#setup-skip")
     def _skip_it(self) -> None:
-        self.dismiss(SETUP_SKIP)
+        # "Don't ask again" exists only on the Winlink questions.
+        always = list(self.query("#setup-skip-always").results(Checkbox))
+        self.dismiss(SETUP_SKIP_ALWAYS if always and always[0].value else SETUP_SKIP)
 
     @on(Button.Pressed, "#setup-go")
     def _go_there(self) -> None:
@@ -1618,8 +1621,9 @@ class WinlinkGatewayScreen(ModalScreen["GatewayChoice | str | None"]):
     BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
 
     def __init__(self, contacts: list[str], favourite: str = "", *, gateway_list: bool = False,
-                 all_note: str = "", skip: str = "") -> None:
+                 all_note: str = "", skip: str = "", remember_skip: bool = False) -> None:
         super().__init__()
+        self._remember_skip = remember_skip
         self._contacts = contacts
         self._favourite = favourite
         self._gateway_list = gateway_list
@@ -1648,6 +1652,8 @@ class WinlinkGatewayScreen(ModalScreen["GatewayChoice | str | None"]):
             yield Label("", id="gateway-error")
             yield Checkbox("Remember as my gateway", value=bool(self._favourite),
                            compact=True, id="gateway-remember")
+            if self._skip and self._remember_skip:
+                yield Checkbox("Don't ask again", compact=True, id="setup-skip-always")
             with Horizontal(id="connect-buttons"):
                 yield Button("Gateway list...", id="gateway-list", disabled=not self._gateway_list, compact=True)
                 yield Button("Connect", variant="primary", id="connect-go", compact=True)
@@ -1694,7 +1700,9 @@ class WinlinkGatewayScreen(ModalScreen["GatewayChoice | str | None"]):
 
     @on(Button.Pressed, "#setup-skip")
     def _skip_it(self) -> None:
-        self.dismiss(SETUP_SKIP)
+        # "Don't ask again" exists only on the Winlink questions.
+        always = list(self.query("#setup-skip-always").results(Checkbox))
+        self.dismiss(SETUP_SKIP_ALWAYS if always and always[0].value else SETUP_SKIP)
 
     @on(Button.Pressed, "#connect-go")
     @on(Input.Submitted, "#gateway-call")
@@ -1739,8 +1747,9 @@ class LoginAskScreen(ModalScreen["str | Credential | None"]):
     def __init__(self, title: str, detail: str, name: str, *, secret: bool = True,
                  all_note: str = "", skip: str = "",
                  go_label: str = "Send/Receive", username: str | None = None,
-                 where: str = "") -> None:
+                 where: str = "", remember_skip: bool = False) -> None:
         super().__init__()
+        self._remember_skip = remember_skip
         self._go_label = go_label
         #: None: the password only. Else the username field's starting text.
         self._username = username
@@ -1779,6 +1788,8 @@ class LoginAskScreen(ModalScreen["str | Credential | None"]):
                     else "No system keyring here: the password is kept in config.toml.",
                     id="credential-where")
             yield Label("", id="login-ask-error")
+            if self._skip and self._remember_skip:
+                yield Checkbox("Don't ask again", compact=True, id="setup-skip-always")
             with Horizontal(id="connect-buttons"):
                 yield Button(self._go_label, variant="primary", id="connect-go", compact=True)
                 if self._skip:
@@ -1796,7 +1807,9 @@ class LoginAskScreen(ModalScreen["str | Credential | None"]):
 
     @on(Button.Pressed, "#setup-skip")
     def _skip_it(self) -> None:
-        self.dismiss(SETUP_SKIP)
+        # "Don't ask again" exists only on the Winlink questions.
+        always = list(self.query("#setup-skip-always").results(Checkbox))
+        self.dismiss(SETUP_SKIP_ALWAYS if always and always[0].value else SETUP_SKIP)
 
     @on(Button.Pressed, "#connect-go")
     @on(Input.Submitted, "#login-ask-text, #login-ask-username")
@@ -1924,7 +1937,9 @@ class InternetLoginScreen(ModalScreen["InternetLogin | str | None"]):
 
     @on(Button.Pressed, "#setup-skip")
     def _skip_it(self) -> None:
-        self.dismiss(SETUP_SKIP)
+        # "Don't ask again" exists only on the Winlink questions.
+        always = list(self.query("#setup-skip-always").results(Checkbox))
+        self.dismiss(SETUP_SKIP_ALWAYS if always and always[0].value else SETUP_SKIP)
 
     @on(Button.Pressed, "#connect-go")
     @on(Input.Submitted, "#internet-username, #internet-password")

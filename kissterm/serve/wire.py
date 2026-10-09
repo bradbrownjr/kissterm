@@ -150,6 +150,8 @@ def answer(question: q.Question, value: Any) -> Any:
     # words: the core's sentinels are not meant to be typed.
     if value == "skip":
         return q.SETUP_SKIP
+    if value == "skip-always":
+        return q.SETUP_SKIP_ALWAYS
     if value == "go":
         return q.SETUP_GO
     try:

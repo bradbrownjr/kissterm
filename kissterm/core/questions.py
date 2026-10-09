@@ -47,6 +47,8 @@ class TrustHostKey(Question):
 #: there"). On SETUP_GO the core cancels the run and publishes
 #: `events.SetupRequested`; the client goes there.
 SETUP_SKIP = "\x00skip"
+#: Skip, with "Don't ask again" ticked (Winlink on All Inboxes only).
+SETUP_SKIP_ALWAYS = "\x00skip-always"
 SETUP_GO = "\x00go"
 
 
@@ -108,6 +110,8 @@ class WinlinkGateway(Question):
     gateway_list: bool = False
     all_note: str = ""
     skip: str = ""
+    #: Offer "Don't ask again" beside Skip (answer SETUP_SKIP_ALWAYS).
+    remember_skip: bool = False
 
 
 @dataclass(frozen=True)
@@ -126,6 +130,8 @@ class LoginAsk(Question):
     go_label: str = "Send/Receive"
     username: str | None = None
     where: str = ""
+    #: Offer "Don't ask again" beside Skip (answer SETUP_SKIP_ALWAYS).
+    remember_skip: bool = False
 
 
 @dataclass(frozen=True)

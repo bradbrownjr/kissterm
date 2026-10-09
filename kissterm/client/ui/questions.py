@@ -15,7 +15,7 @@ from . import sheets
 from .text import MONO
 
 #: A setup question's words for "leave this service out" and "go there".
-SKIP, GO = "skip", "go"
+SKIP, SKIP_ALWAYS, GO = "skip", "skip-always", "go"
 
 
 class QuestionSheets:
@@ -72,16 +72,27 @@ class QuestionSheets:
         return handler
 
     def _buttons(self, question, go_label: str, value_of, *, cancel: str = "Cancel",
-                 cancel_value=None) -> list[ft.Control]:
+                 cancel_value=None, skip_always=None) -> list[ft.Control]:
+        """`skip_always`: a Checkbox ("Don't ask again") that turns Skip into
+        a skip that is remembered."""
         data = question.data
         buttons: list[ft.Control] = [ft.TextButton(
             content=cancel, on_click=self.answer(question.qid, cancel_value))]
         if data.get("skip"):
             buttons.append(ft.TextButton(content=data["skip"],
-                                         on_click=self.answer(question.qid, SKIP)))
+                                         on_click=self.answer(
+                                             question.qid,
+                                             (lambda: SKIP_ALWAYS if skip_always.value else SKIP)
+                                             if skip_always is not None else SKIP)))
         buttons.append(ft.FilledButton(content=go_label,
                                        on_click=self.answer(question.qid, value_of)))
         return buttons
+
+    @staticmethod
+    def _dont_ask(data: dict) -> "ft.Checkbox | None":
+        if data.get("skip") and data.get("remember_skip"):
+            return ft.Checkbox(label="Don't ask again", value=False)
+        return None
 
     @staticmethod
     def _note(data: dict) -> list[ft.Control]:
@@ -124,9 +135,10 @@ class QuestionSheets:
         d = q.data
         pick = self._pick("Gateway", list(d.get("contacts") or []), d.get("favourite", ""))
         remember = ft.Checkbox(label="Make it the favourite", value=False)
-        return ("Which Winlink gateway?", self._note(d) + [pick, remember],
+        always = self._dont_ask(d)
+        return ("Which Winlink gateway?", self._note(d) + [pick, remember] + ([always] if always else []),
                 self._buttons(q, "Connect", lambda: {"target": pick.value, "remember": remember.value}
-                              if pick.value else None))
+                              if pick.value else None, skip_always=always))
 
     def _LoginAsk(self, q):
         d = q.data
@@ -147,10 +159,12 @@ class QuestionSheets:
 
         where = {"keyring": "Saved in the station's keyring.",
                  "config": "Saved in the station's config file."}.get(d.get("where", ""), "")
+        always = self._dont_ask(d)
         body = self._note(d) + [ft.Text(d.get("detail", ""))] + fields + (
-            [ft.Text(where, size=12, color=ft.Colors.OUTLINE)] if where else [])
+            [ft.Text(where, size=12, color=ft.Colors.OUTLINE)] if where else []) + (
+            [always] if always else [])
         return (d.get("title") or "Login needed", body,
-                self._buttons(q, d.get("go_label") or "Continue", value))
+                self._buttons(q, d.get("go_label") or "Continue", value, skip_always=always))
 
     def _InternetLoginAsk(self, q):
         d = q.data

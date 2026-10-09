@@ -31,6 +31,7 @@ from kissterm.core import Core, Notice  # noqa: E402
 from kissterm.core import events as ev  # noqa: E402
 from kissterm.core.questions import (  # noqa: E402
     SETUP_SKIP,
+    SETUP_SKIP_ALWAYS,
     ChooseCategories,
     HowManyBulletins,
     GatewayChoice,
@@ -315,6 +316,7 @@ def test_answers_become_what_the_flow_expects():
     assert wire.answer(gateway, {"target": "W1AW-10", "remember": True}) == \
         GatewayChoice("W1AW-10", True)
     assert wire.answer(gateway, "skip") == SETUP_SKIP
+    assert wire.answer(gateway, "skip-always") == SETUP_SKIP_ALWAYS
     assert wire.answer(ChooseCategories("W1AW", {"ARES": 2}), {"categories": ["ARES"]}) == \
         (["ARES"], False)
     with pytest.raises(wire.BadAnswer):

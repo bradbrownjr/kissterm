@@ -128,7 +128,14 @@ never touch the transmit switch.
 
 Winlink's production servers refuse programs they do not recognise, and
 kissterm is not recognised yet. Until it is, the Internet server setting
-in Settings > Mail can use Winlink's test server.
+in Settings > Mail can use Winlink's test server, or "None" to turn
+Winlink over the Internet off: I then skips Winlink, and on a Winlink
+folder says so. Winlink by radio is unaffected (clear the Gateway contact
+to turn that off).
+When G or I on All Inboxes asks about Winlink, "Don't ask again" beside
+Skip Winlink leaves Winlink out of All Inboxes from then on; turn it back
+on with "Leave Winlink out of All Inboxes" in Settings > Mail. A Winlink
+folder still runs Winlink.
 That setting is only for kissterm's own Internet connection. Over the
 radio, the gateway (WS1EC-10, say) makes its own connection to the
 production servers, and kissterm cannot redirect it: the refusal comes

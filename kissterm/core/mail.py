@@ -84,6 +84,7 @@ from .operator import Notice, Severity
 from .questions import (
     SETUP_GO,
     SETUP_SKIP,
+    SETUP_SKIP_ALWAYS,
     ChooseCategories,
     Credential,
     GatewayChoice,
@@ -305,6 +306,9 @@ class Mail:
             home, winlink_config = self.config.home_bbs, self.config.winlink
             bbs = bool(home.route.strip() or home.internet.strip())
             winlink = bool(winlink_config.route.strip() or winlink_config.credential.strip())
+            if winlink_config.skip_on_all_inboxes or (
+                    internet and winlink_config.server == "none"):
+                winlink = False
             if bbs and winlink:
                 return "all"
             if winlink:
@@ -359,6 +363,10 @@ class Mail:
             return
         try:
             kind = self.send_receive_kind(folder, internet=internet)
+            if internet and kind == "winlink" and self.config.winlink.server == "none":
+                self._notice("Winlink over the Internet is off (Settings > Mail > "
+                             "Internet server).")
+                return
             if internet:
                 runs = await self._prepare_runs(kind, "I", (
                     ("Home BBS", self._bbs_internet_prepare, self._bbs_internet_run),
@@ -455,6 +463,11 @@ class Mail:
             self._notice("Nothing to send or receive: every service was skipped.")
         return runs
 
+    def _remember_skip(self) -> bool:
+        """Whether the question being asked offers "Don't ask again": only
+        for Winlink on All Inboxes."""
+        return self._all_inboxes is not None and self._all_inboxes[1] == "Winlink"
+
     def _all_inboxes_ask(self) -> tuple[str, str]:
         """(note, skip label) for a question asked on All Inboxes, else ("", "")."""
         if self._all_inboxes is None:
@@ -473,6 +486,12 @@ class Mail:
         SETUP_GO asks the client to show `place` and returns None (the run
         is cancelled), anything else is returned."""
         if answer == SETUP_SKIP:
+            raise SkipService
+        if answer == SETUP_SKIP_ALWAYS:
+            self.config.winlink.skip_on_all_inboxes = True
+            self._config_saved()
+            self._notice("Winlink is left out of All Inboxes. Turn it back on in "
+                         "Settings > Mail.")
             raise SkipService
         if answer == SETUP_GO:
             self._publish(SetupRequested(place))
@@ -498,7 +517,8 @@ class Mail:
         has_list = bool(gateways.ACCESS_KEY) or gateways.load_cached(self.gateway_cache()) is not None
         answer = self._setup_answer(await self._ask(WinlinkGateway(
             tuple(e.target for e in addressbook.entries if not e.is_internet), favourite,
-            gateway_list=has_list, all_note=note, skip=skip)), "winlink")
+            gateway_list=has_list, all_note=note, skip=skip,
+            remember_skip=self._remember_skip())), "winlink")
         if not isinstance(answer, GatewayChoice):
             return None
         entry = addressbook.find(answer.target)
@@ -551,7 +571,8 @@ class Mail:
         answer = self._setup_answer(await self._ask(LoginAsk(
             title, detail, name, secret=secret, all_note=note, skip=skip,
             username=credential_username(self.config, name) if username else None,
-            where=login_where() if username else "")), "")
+            where=login_where() if username else "",
+            remember_skip=self._remember_skip())), "")
         if not answer:
             return None
         text = answer.text if isinstance(answer, Credential) else answer

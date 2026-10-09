@@ -303,10 +303,17 @@ class WinlinkConfig:
     #: production CMS pointed kissterm at (ROADMAP, Blockers; operator,
     #: 2026-09-28). See `winlink_collect.cms_host`.
     server: str = "production"
+    #: Leave Winlink out of All Inboxes: G and I there skip it without
+    #: asking, until this is turned off. Set by "Don't ask again" on the
+    #: Skip Winlink button (operator, 2026-10-09); a Winlink folder still
+    #: runs Winlink.
+    skip_on_all_inboxes: bool = False
 
 
-#: `WinlinkConfig.server`'s values.
-WINLINK_SERVERS = ("production", "test")
+#: `WinlinkConfig.server`'s values. "none" turns Winlink over the Internet
+#: off (I never reaches a CMS), for the time kissterm is not yet an
+#: approved client (ROADMAP Blockers; operator, 2026-10-09).
+WINLINK_SERVERS = ("production", "test", "none")
 
 
 @dataclass
@@ -1447,6 +1454,8 @@ def _load_winlink(value: Any, warnings: list[str]) -> WinlinkConfig:
                         f"got {server!r}; using {default.server!r}")
         server = default.server
     winlink.server = server
+    winlink.skip_on_all_inboxes = _load_bool(
+        value, "skip_on_all_inboxes", default.skip_on_all_inboxes, warnings)
     return winlink
 
 

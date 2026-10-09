@@ -495,6 +495,77 @@ async def test_all_inboxes_says_why_winlink_is_asked_and_skip_runs_the_bbs(tmp_p
 
 
 @pytest.mark.asyncio
+async def test_dont_ask_again_leaves_winlink_out_of_all_inboxes(tmp_path):
+    """Skip Winlink with "Don't ask again" ticked (operator, 2026-10-09): the
+    BBS runs alone, the choice is saved, and the next G never asks."""
+    from textual.widgets import Checkbox
+
+    from kissterm.mail.store import ALL_INBOXES
+    from kissterm.ui.dialogs import WinlinkGatewayScreen
+    from tests.pilot.test_get_mail import BBS, _bpqmail
+
+    app, station, tb = await _app(tmp_path)
+    app.config.home_bbs.route = "WS1EC-2"
+    app.addressbook.forget("WS1EC-10")
+    app.addressbook.record_attempt("WS1EC-2")
+    bbs = AX25Station(BBS, tb, FAST)
+    _bpqmail(bbs, [])
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _all_inboxes_with_winlink_gone(app, pilot)
+        box = app.screen.query_one("#setup-skip-always", Checkbox)
+        assert not box.value
+        box.value = True
+        await pilot.pause()
+        await pilot.click("#setup-skip")
+        await wait_for(lambda: app.mail_store.list(BBS_INBOX), "the BBS run alone", timeout=30)
+        await wait_for(lambda: not app._collecting, "the run to finish", timeout=20)
+        assert app.config.winlink.skip_on_all_inboxes
+        assert app.core.mail.send_receive_kind(ALL_INBOXES) == "bbs"
+        assert not isinstance(app.screen, WinlinkGatewayScreen)
+    bbs.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_a_plain_skip_is_not_remembered(tmp_path):
+    from tests.pilot.test_get_mail import BBS, _bpqmail
+
+    app, station, tb = await _app(tmp_path)
+    app.config.home_bbs.route = "WS1EC-2"
+    app.addressbook.forget("WS1EC-10")
+    app.addressbook.record_attempt("WS1EC-2")
+    bbs = AX25Station(BBS, tb, FAST)
+    _bpqmail(bbs, [])
+    async with app.run_test(size=(120, 40)) as pilot:
+        await _all_inboxes_with_winlink_gone(app, pilot)
+        await pilot.click("#setup-skip")
+        await wait_for(lambda: not app._collecting and app.mail_store.list(BBS_INBOX),
+                       "the BBS run", timeout=30)
+        assert not app.config.winlink.skip_on_all_inboxes
+    bbs.close()
+    station.close()
+
+
+@pytest.mark.asyncio
+async def test_winlink_internet_server_none_turns_i_off(tmp_path):
+    from kissterm.mail.store import ALL_INBOXES
+
+    app, station, _tb = await _app(tmp_path)
+    mail = app.core.mail
+    app.config.home_bbs.route = "WS1EC-2"
+    app.config.winlink.server = "none"
+    assert mail.send_receive_kind(ALL_INBOXES, internet=True) == "bbs"
+    assert mail.send_receive_kind(ALL_INBOXES) == "all"  # by radio is unaffected
+    assert mail.send_receive_kind("Mail/Winlink/Inbox", internet=True) == "winlink"
+    notices = []
+    mail._notice = lambda text, *a, **k: notices.append(text)
+    await mail.send_receive("Mail/Winlink/Inbox", internet=True)
+    assert any("Winlink over the Internet is off" in n for n in notices)
+    assert not mail.collecting
+    station.close()
+
+
+@pytest.mark.asyncio
 async def test_the_bbs_question_goes_to_the_setting_it_names(tmp_path):
     from kissterm.ui.dialogs import HomeBbsSetupScreen
 

@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Winlink: Internet server "None", and "Don't ask again" on Skip Winlink
+
+### Improvements
+
+- **Settings > Mail > Internet server has a "None" choice** that turns
+  Winlink over the Internet off until kissterm is an approved client; I
+  skips Winlink on All Inboxes and says so on a Winlink folder. Radio
+  Winlink is untouched (operator, 2026-10-09).
+- **Skip Winlink on All Inboxes has a "Don't ask again" box** (the gateway
+  and password questions, terminal and phone/web). Ticked, it leaves
+  Winlink out of All Inboxes (`winlink.skip_on_all_inboxes`, shown in
+  Settings > Mail) and says where to undo it. The phone sheet is untested
+  in a browser.
+
+**Files:** `kissterm/config.py`, `kissterm/core/mail.py`,
+`kissterm/core/questions.py`, `kissterm/core/settings_schema.py`,
+`kissterm/ui/dialogs.py`, `kissterm/ui/operator.py`, `kissterm/serve/wire.py`,
+`kissterm/client/ui/questions.py`, `docs/GUIDE.md`,
+`tests/pilot/test_winlink_send_receive.py`, `tests/unit/test_serve.py`
+
 ## [2026-10-09] — Programs and Rigs entries (P3a M1)
 
 ### New Features

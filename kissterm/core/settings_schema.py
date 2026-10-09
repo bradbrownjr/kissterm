@@ -467,7 +467,16 @@ SETTINGS_SCHEMA: tuple[Section, ...] = (
                 "not accept kissterm yet; its test server does, to try kissterm "
                 "out. Mail sent through the test server may not reach anyone.",
                 choices=(("Winlink (server.winlink.org)", "production"),
-                         ("Test (cms-z.winlink.org)", "test")),
+                         ("Test (cms-z.winlink.org)", "test"),
+                         ("None (Winlink over the Internet off)", "none")),
+                apply="live",
+            ),
+            Field(
+                "winlink.skip_on_all_inboxes",
+                "Leave Winlink out of All Inboxes",
+                "bool",
+                "G and I on All Inboxes skip Winlink without asking. A Winlink "
+                "folder still runs it.",
                 apply="live",
             ),
             Field(
