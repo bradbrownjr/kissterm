@@ -489,6 +489,7 @@ ptt = "cat"                 # cat | rts | dtr | none (VOX, or the modem keys)
 ptt_device = ""             # RTS/DTR on a different port (a DigiRig, say)
 ptt_timeout = 60            # seconds; the watchdog unkeys after this
 swr_warn = 2.0              # warn above this during a transmission (if the rig reports SWR)
+swr_trip = 3.0              # unkey and close the transmit gate above this; 0 = off
 tune_before_connect = false # a carrier: opt-in, gated (see below)
 # or, to use a rigctld something else already runs:
 # rigctld = "127.0.0.1:4532"
@@ -564,12 +565,50 @@ using. So, by cost:
   stored for that frequency. The default.
 - **SWR watched during real transmissions**: read `l SWR` while the modem
   already has the rig keyed, warn when it is above a limit set on the
-  rig. Free in airtime. The default.
+  rig. Free in airtime. The default. Above a second, higher limit it
+  **trips** (next section).
 - **Tune before connect**: off by default, a per-rig choice; runs only
   as part of a connect the operator confirmed, with the gate open,
   re-checked when it keys, shown in `RadioReminderScreen` ("Tunes the ATU:
   a few seconds of carrier on 7.101.500"), logged and in the Monitor like
   any transmission. Never automatic on an SWR warning.
+
+**The SWR trip: stop transmitting into a broken antenna.** A wire antenna
+that comes down in a storm should not be fed for the rest of an unattended
+mail session. When SWR read during a transmission passes `swr_trip`,
+kissterm:
+
+1. unkeys the rig (`T 0`) when it is the one keying it (VARA, or a modem
+   in case 2), and otherwise stops the modem program if kissterm started
+   it (stopping Direwolf or SoundModem drops its RTS); a modem kissterm
+   cannot stop is named in the notice as still able to key;
+2. **closes the transmit gate** (`tx.py`), so nothing of kissterm's
+   transmits again, unattended transmitters included (beacon, answering,
+   the tactical ID), and tells a VARA or Mercury modem `ABORT` (a local
+   command, no RF) so it stops retrying;
+3. **latches**: the status bar shows `SWR TRIP` (with the reading,
+   frequency and time) in the error colour until the operator re-arms with
+   Ctrl+T, which first asks "SWR tripped at 4.8:1 on 7.101.500 at 14:02.
+   Check the antenna. Transmit anyway?" A restart does not clear it
+   silently either; the trip is saved to state and shown at the next
+   launch.
+4. raises a notice, a desktop notification and an Alerts entry, and
+   records it in the session transcript and kissterm.log.
+
+Honest limits, stated in GUIDE.md and the setting's help: it is **not
+hardware protection**. It reacts at the polling rate (a few readings a
+second over CAT, so roughly half a second), most modern rigs already fold
+back power at high SWR on their own, and it works only on rigs whose
+Hamlib backend reads SWR while transmitting. What it adds is that the
+*station stops trying*, which a rig's foldback does not. To avoid false
+trips: ignore readings for a moment after key-up and during an ATU cycle,
+and trip only on several consecutive readings over the limit. Knowing the
+rig is keyed when the modem keys it on its own port (case 1) means polling
+`t`; whether a rig reports PTT it did not key over CAT is a RESEARCH item
+per rig, and where it does not, the trip covers only transmissions kissterm
+keys. Because no other packet or Winlink client is known to do this, it is
+a candidate headline for README.md, **once proven on the air**; until then
+it is "experimental" there, as AGENTS.md requires.
 
 **Launch timing.** A program starts when its transport is opened (made
 "Radio in use", or at launch if it is the active transport and the program
@@ -660,6 +699,20 @@ outside the gate and the form says so, as P12 says of fldigi.
   `# UNVERIFIED:`. Tests on the loopback with a fake VARA and a fake
   rigctld, including the watchdog and gate-closes-while-keyed cases.
   AGENTS.md's unattended-transmission rules gain one line for it.
+- [ ] **M5b [Opus] The SWR watch and trip.** Needs M4 and M5. SWR and
+  warning read during any PTT kissterm knows of; the trip sequence above;
+  the latched `SWR TRIP` state in `tx.py` or beside it (a closed gate with
+  a reason, so every existing gate check honours it unchanged); the re-arm
+  question, through the `Operator` port so the phone asks it too; the
+  status bar field in both front ends, placed under DESIGN.md's status-bar
+  rules. RESEARCH first: Hamlib's `RIG_LEVEL_SWR` (which backends
+  implement it, whether the value is a ratio or a raw meter reading; the
+  FT-991A's `RM6` meter read), and `T 0`'s effect on a rig keyed by RTS on
+  another port. Tests with a fake `rigctld` that reports a rising SWR: a
+  spike right after key-up does not trip, a sustained one does, the gate
+  closes, a beacon timer then sends nothing, Ctrl+T asks before re-arming,
+  the latch survives a restart. AGENTS.md gains the rule ("an SWR trip
+  closes the gate and only the operator re-arms it").
 - [ ] **M6 [Sonnet, Opus reviews the `core/connect.py` hunk] Frequency.**
   Status bar shows the rig's frequency and mode (polled from `rigctld`
   every few seconds, local only; hidden with no rig), both front ends. An
@@ -677,7 +730,7 @@ outside the gate and the form says so, as P12 says of fldigi.
   transport) as one core method with a `finally` that always restarts the
   program, refused while any session is up, and its progress shown as
   notices. The ATU: capability from `rigctld`'s `\dump_caps`/`U ?`,
-  ATU-on after every tune, the passive SWR watch during PTT, and the
+  ATU-on after every tune (no SWR watch here: that is M5b), and the
   opt-in tune-before-connect cycle through the gate as described above.
   Tests with the fake modem script from M2 and a fake `rigctld`, including
   a `rigctld` that fails mid-tune (the program must still come back).
@@ -687,7 +740,9 @@ outside the gate and the form says so, as P12 says of fldigi.
   with the shared `rigctld`; PTT keyed and released on a VARA connect;
   tuning the FT-991A over its Enhanced port while Direwolf keys over the
   Standard port; a port hand-off on a single-port rig; ATU on and SWR
-  read during a VARA transmission; the
+  read during a VARA transmission; an SWR trip, tested safely at low power
+  by setting `swr_trip` just under the antenna's normal SWR (never by
+  transmitting into an open or shorted feedline); the
   watchdog unkeys a held PTT; frequency set from a contact.
 
 **Decisions for the operator before M2** (recommendation first):
@@ -699,7 +754,9 @@ outside the gate and the form says so, as P12 says of fldigi.
    every program at kissterm's launch.
 3. Hamlib through `rigctld` only (recommended), or also flrig's XML-RPC for
    stations that already run flrig.
-4. Tune-before-connect (a carrier) available but off by default
+4. The SWR trip on by default at 3.0:1 when the rig reports SWR
+   (recommended), or off until the operator sets a limit.
+5. Tune-before-connect (a carrier) available but off by default
    (recommended), or never offered, leaving tuning to the operator at the
    rig.
 
