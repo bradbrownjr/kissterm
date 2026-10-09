@@ -416,6 +416,7 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
         app_owned_glyphs = "╭╮╰╯─│┌┐└┘━┃"
         for tab in ("terminal", "monitor", "aprs", "settings"):
             app.action_show_tab(tab)
+            await wait_for(lambda: app.query_one("#main-tabs").active == tab, f"the {tab} tab")
             await pilot.pause()
             svg = app.export_screenshot()
             assert not ({char for char in svg if char in app_owned_glyphs}), tab
@@ -423,14 +424,16 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
         # Inspect the dialogs' actual modal renders instead of treating the main tabs
         # as evidence for supported dialog paths.
         await pilot.press("ctrl+n")
+        await wait_for(lambda: isinstance(app.screen, ConnectScreen), "the Connect dialog")
         await pilot.pause()
-        assert isinstance(app.screen, ConnectScreen)
         # No lines box (operator, 2026-09-29); a saved login disables the
         # script dropdown. Render that actual state.
         assert not app.screen.query(TextArea)
         app.screen.query_one("#connect-credential", Select).value = "Saved login"
-        await pilot.pause()
-        assert app.screen.query_one("#connect-script-name", Select).disabled
+        await wait_for(
+            lambda: app.screen.query_one("#connect-script-name", Select).disabled,
+            "the saved login to disable the script dropdown",
+        )
         assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
         await app.screen.dismiss(None)
         await pilot.pause()
@@ -440,11 +443,17 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
                 {"kind": "vara"}, credentials=[{"name": "Saved login", "text": "password"}]
             )
         )
+        await wait_for(
+            lambda: app.screen.query_one("#transport-credential", Select),
+            "the transport entry dialog",
+        )
         await pilot.pause()
         app.screen.query_one("#transport-credential", Select).value = "Saved login"
-        await pilot.pause()
+        await wait_for(
+            lambda: app.screen.query_one("#transport-script-name", Select).disabled,
+            "the saved login to disable the script dropdown",
+        )
         assert not app.screen.query(TextArea)
-        assert app.screen.query_one("#transport-script-name", Select).disabled
         assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
         await app.screen.dismiss(None)
         await pilot.pause()
@@ -456,8 +465,8 @@ async def test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filter
         settings = app.query_one(SettingsPane)
         settings.set_field("theme", "custom")  # shows the colours
         settings.open_field("custom_theme.primary")
+        await wait_for(lambda: app.query_one(".settings-swatch").display, "the colour swatch")
         await pilot.pause()
-        assert app.query_one(".settings-swatch").display
         assert not ({char for char in app.export_screenshot() if char in app_owned_glyphs})
         assert sanitize(b"remote\x1b[2Jtext") == "remotetext"
     station.close()

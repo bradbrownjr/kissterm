@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — P0.1 cleared; ASCII-safe screenshot test waits on conditions
+
+### Improvements
+
+- **P0.1 holds only the Winlink client-name item.** The operator closed
+  the items awaiting confirmation (2026-10-09: "we've long resolved
+  them"); `kissterm.log` since 2026-10-07 shows none of their symptoms.
+  The stray-poll check stays in `docs/ON-AIR-TESTS.md`. The one-off
+  screenshot test failure (2026-10-05, assertion not kept, never
+  reproduced in 12 loaded runs) left the roadmap; the test now waits on
+  each dialog, tab and swatch it inspects instead of a single
+  `pilot.pause()`.
+
+**Files:** `docs/ROADMAP.md`, `tests/pilot/test_app_mounts.py`
+
 ## [2026-10-09] — Phone and web: an open message's buttons are in the title bar
 
 ### Improvements

@@ -119,69 +119,13 @@ Everything from P9 on comes after milestone 2.
 
 A live bug the operator reports goes here first, under rule 2 above, with
 the date and their words. A bug reported and fixed the same day goes to
-CHANGELOG only. As of 2026-10-04: one item open outside the code
-(Winlink's client list), the rest awaiting the operator's re-test.
+CHANGELOG only. As of 2026-10-09: one item open, outside the code
+(Winlink's client list); the operator closed the rest.
 
 ### P0.1 Reported bugs
 
 Status values: `open`, `fix attempted N` (N attempts, still reported
 broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
-
-- **A screenshot test failed once under full-suite load** (2026-10-05,
-  `open`; found by the suite). `tests/pilot/test_app_mounts.py::
-  test_ascii_safe_mode_uses_ascii_chrome_without_changing_payload_filters`
-  reads a screenshot after one `pilot.pause()`. Which assertion failed
-  was not kept. Not reproduced since: 4 runs alone and 8 at once, all
-  with every core busy (2026-10-06), passed. Next time it fails, keep
-  the assertion line, then wait on that condition rather than a pause.
-
-- **Relaunch after closing mid-connection: stray polls, no way to see or
-  end them** (2026-09-29, `awaiting confirmation`): "I closed the application and must've
-  still had a connection opened. Relaunching the application, the
-  application went into ANSWERING mode as the node was calling it back
-  ... it's stuck in the ANSWERING mode and ^D doesn't appear to be an
-  option." Evidence (`kissterm.log`, 20:04:25-20:05:23): WS1EC-2 sent
-  `RR R0 P` about every 7 s; kissterm held no link and answered each
-  with `DM F` (per spec), nine times, until the node gave up. Findings:
-  ANSWERING is the standing `accept_incoming = true` label, not a state
-  that was entered; there was never an incoming link, so Ctrl+D had
-  nothing to end ("Not connected."). The gap is that the DMs appear only
-  in the DEBUG log: the operator saw a node calling and no explanation.
-  Fix: one Terminal-pane note per peer when a stray poll is refused.
-  Quit already sends DISC on live links (`disconnect_all`); a hard kill
-  cannot. Check in docs/ON-AIR-TESTS.md, "Stray polls".
-
-- **A saved login is a plaintext text box, not a username and password**
-  (2026-09-28, `awaiting confirmation`): "This isn't saving credentials,
-  this is a plaintext textarea field. I want to save a username and a
-  password, and have the password securely saved. Further, if I omit this
-  and attempt a send/receive to an Internet station, it should prompt me
-  for the credentials to save and provide the remote system." Fix: a
-  login is a name, a username (config.toml) and a masked password (the
-  keyring); older logins are split at launch. Mail's BBS and node logins
-  and an SSH contact's sign-in are saved-login lists ending with "New
-  login...". I with no contact or no password asks for the contact, the
-  username and the password in one dialog and saves them as one login;
-  G's Home BBS login question asks a username and a password too.
-  DESIGN.md section 8, "A login is one thing". Checks in
-  docs/ON-AIR-TESTS.md, "Saved logins".
-
-- **Settings: a wordy note above every section's box** (2026-09-28,
-  `awaiting confirmation`): "I thought we had updated our design
-  documentation to avoid adding text above the box that squishes the box
-  down, losing symmetry and alignment. Further it's that wordy slop I
-  want to avoid, and is duplicated below." It had been decided for the
-  APRS pane and Address Book (2026-09-10) but never written down. Fix:
-  the notes are gone, the box lines up with the section list, and
-  DESIGN.md section 4 has the rule ("Nothing above the box"). Two safety
-  statements moved into their fields' help (Alerts, Answering).
-
-- **I on All Inboxes skipped the BBS without asking** (2026-09-28,
-  `awaiting confirmation`): "App didn't ask for BBS over internet
-  settings when I hit I from All Inboxes." Winlink had a saved password,
-  the Home BBS no Internet contact, so I ran Winlink alone. Fix: All
-  Inboxes runs both once either is set up, and asks for the other with
-  its Skip button (`send_receive_kind`), for G as well as I.
 
 - **Winlink over the Internet: "unknown client"** (2026-09-28, `open`,
   outside the code): "tested, unknown client." The CMS answered "Unknown
@@ -189,79 +133,6 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   cms-z.winlink.org": it does not know kissterm's SID name (Blockers).
   kissterm now says so in plain words. The same session's log held the `;PR:` answer beside the `;PQ:`
   challenge; the answer is no longer logged.
-
-- **No way to make a contact or login from the list that asks for one**
-  (2026-09-27, `awaiting confirmation`): "I'm looking to add telnet over
-  SSH to my node configuration. It's a dropdown, and I can't go to the
-  address book to set it up from here. Add new should be an option.
-  Likewise with the saved credentials." Fix: every list of contacts,
-  logins or scripts ends with "New ...", which opens that editor over the
-  form (DESIGN.md section 8).
-
-- **Winlink setup dialog wordy; a missing gateway leaves no way on**
-  (2026-09-27, `awaiting confirmation`): "the Set Up Winlink dialog is way
-  too wordy, very AI slop... if the saved station isn't in the address
-  book, the options should be to either change the default Winlink
-  gateway, add it to the address book, or select from a list of available
-  gateways. This should be more fluid like Pat Winlink and Winlink RMS
-  Express." Fix: G on a Winlink folder dials the favourite gateway when it
-  is in the Address Book; otherwise a short "Winlink gateway" dialog offers
-  the favourite (added back on Connect), any contact, another callsign, or
-  the gateway list, with "Remember as my gateway". The Home BBS and
-  password prompts were cut down too.
-
-- **Settings: edits below the list, Save easy to miss** (2026-09-27,
-  `awaiting confirmation`): "I hit G and clicked go to winlink settings. The prompts aren't
-  inline, they're below the window, and on a widescreen, I barely noticed
-  the Save and Cancel buttons." The 2026-09-27 list-and-editor redesign
-  put the one editor under the list and Save/Reload at the far right of
-  the bar. Fix: Enter opens the editor on the row itself (Enter keeps,
-  Esc puts the old value back); an unsaved change says "(unsaved)" on its
-  row and stars its section; Save and Discard changes sit at the left
-  under the list with the count beside them. Tests in
-  `tests/pilot/test_settings.py`.
-- **Settings: Radio unboxed, headings without their rule, unclear
-  labels** (2026-09-27, `awaiting confirmation`): "Settings > Radio seems
-  to break from the theme of using a box around settings ... When there
-  are Advanced sections, it looses the <hr> like line across the page,
-  which on Mail, makes it hard to understand really what's going on. I
-  don't understand what 'Internet contact' means. Is that the hostname?"
-  Fix: Radio and Logins have the same box and note line as every other
-  section; each heading has its rule again (a blank row instead in
-  ASCII-safe mode), and an Advanced field sits under "Advanced: <its
-  group>" (Winlink's grid square had been under the BBS heading). The
-  contact fields are chosen from the Address Book (Telnet/SSH contact,
-  BBS contact, Gateway contact), and labels are plain words (Node
-  username, Command after login, Account password, Grid square, Radio
-  in use...). Tests in `tests/pilot/test_settings.py`.
-- **APRS contacts and Terminal Address Book off the screen at 80x24**
-  (2026-09-27, `awaiting confirmation`): found by a layout sweep, "Good
-  catches, let's hit those." The APRS contacts' Forget ran off the right
-  edge; the Terminal tab's "Use node" sat below the bottom. Fix: both
-  button rows are a `ButtonRow` (`ui/button_row.py`), two by two when
-  narrow; the known-nodes section gives way when the Address Book is too
-  short for it. `tests/pilot/test_layout_fits.py` checks every tab at
-  80x24, 100x33 and 160x40.
-- **Winlink password shown on screen** (2026-09-27, `awaiting
-  confirmation`): "why is this showing my winlink password on the
-  screen?" The Winlink password was typed into Settings' "Password login",
-  a plain text field that wanted a saved login's name; it sat in
-  config.toml and the password dialog showed it as that name. Fix: the
-  three login fields are masked password fields saved in the keyring under
-  fixed names, a password found in one is moved there at launch, and a
-  name that is no saved login is never shown.
-- **Dialogs in the top-left corner** (2026-09-27, `awaiting confirmation`):
-  "Let's center the dialog boxes" -- the Winlink setup question on All
-  Inboxes, and about twenty other dialogs with no centring rule. Fix: one
-  `ModalScreen` rule (`styles.py`); the question now also says G on All
-  Inboxes is including Winlink, offers Skip Winlink, and has a button to
-  the setting it names. Tests in `tests/pilot/test_winlink_send_receive.py`.
-- **Address Book buttons cut off** (2026-09-26, `awaiting confirmation`):
-  "Buttons are getting cut off on the address book." Mail tab, Ctrl+G
-  slide-out at 100 columns: the pane has 27 columns for four buttons that
-  need 43, so Edit and Forget ran off the screen. Fix: the row becomes a
-  2x2 grid when it does not fit (`ui/button_row.py`); geometry test in
-  `tests/pilot/test_app_mounts.py`.
 
 ---
 
