@@ -757,6 +757,16 @@ and then your Winlink password, before dialing. The password is saved
   settles whether VARA's lines end in a bare CR as its command document
   says: if kissterm hangs at "Connecting", say so.
 
+- [ ] **VARA keys the radio through kissterm** (transmits, low power into a
+  dummy load first). Program entry for VARA HF with "How it keys the radio"
+  = Through kissterm's rig control, a radio on the transport, VARA's own PTT
+  set so it does not key the radio itself. With transmit on, connect to a
+  VARA station: the radio keys and unkeys with VARA's bursts, the status
+  bar shows `PTT` after the dial. Then: turn transmit off mid-connect (the
+  radio unkeys at once); quit kissterm while it is keyed (it unkeys). Say
+  which of VARA's PTT settings made it send PTT ON at all (its document does
+  not say), and whether keying was quick enough for VARA's timing.
+
 ## Standing verifications (from AGENTS.md section 8)
 
 - [ ] **Mic-E** decoding against a real off-air packet.

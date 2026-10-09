@@ -498,22 +498,11 @@ outside the gate and the form says so, as P12 says of fldigi.
 
 ### Milestones
 
-- [ ] **M5 [Opus] PTT for VARA, through the gate.** `transport/vara.py`'s
-  `PTT ON`/`PTT OFF` drive `T 1`/`T 0` on the transport's rig. Keys only
-  while the gate is open, re-checked at the moment of keying (AGENTS.md
-  "Re-check at the moment of transmission"); a refused key is logged `TX
-  BLOCKED` and announced. Unkey on every exit path: `PTT OFF`, the modem
-  socket closing, the transport closing, the gate closing mid-transmission,
-  `ptt_timeout` (watchdog), Restart, Shut down, a crash (`atexit` and
-  signal handlers). Status bar `PTT` while keyed (both front ends). Mercury
-  and Direwolf entries pass the shared `rigctld` on their command line
-  instead (M2's preset arguments), so only one keying path exists per
-  modem. RESEARCH before writing: VARA's documented PTT setting (whether
-  `PTT ON` is sent only when VARA's own PTT is set to the TCP client) from
-  EA5HVK's VARA TNC command document; mark what stays inferred
-  `# UNVERIFIED:`. Tests on the loopback with a fake VARA and a fake
-  rigctld, including the watchdog and gate-closes-while-keyed cases.
-  AGENTS.md's unattended-transmission rules gain one line for it.
+- [ ] **M5c [Sonnet] Mercury and Direwolf given the shared rigctld.**
+  M5 keys only for VARA; a program whose keying is "Through kissterm's rig
+  control" should get `-R 2 -A 127.0.0.1:4532` (Mercury) or `PTT RIG 2
+  127.0.0.1:4532` (Direwolf's config) from its rig, so each modem has one
+  keying path. RESEARCH both against their docs first.
 - [ ] **M5b [Opus] The SWR watch and trip.** Needs M4 and M5. SWR and
   warning read during any PTT kissterm knows of; the trip sequence above;
   the latched `SWR TRIP` state in `tx.py` or beside it (a closed gate with

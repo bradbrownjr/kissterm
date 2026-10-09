@@ -103,6 +103,10 @@ class Core:
 
         #: The active transport's radio, read through rigctld (ROADMAP P3a).
         self.rigwatch = RigWatch(self)
+        from .ptt import PttKeyer
+
+        #: Keys the radio on VARA's PTT orders, through the gate (P3a M5).
+        self.ptt = PttKeyer(self)
         #: Modem programs started beside the radio (`kissterm/launch`).
         self.supervisor = shared()
         self.supervisor.notify = lambda text, severity: self.operator.notice(

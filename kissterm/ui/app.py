@@ -824,6 +824,7 @@ class KissTermApp(App):
         self._attach_station()
         self.core.aprs.start()
         self.core.rigwatch.start()
+        self.core.ptt.start()
         if self._check_updates and getattr(self.config, "update_check", True):
             # After the first screen, so the check never competes with it.
             self.set_timer(3.0, lambda: self._update_check_worker(False))
@@ -1077,6 +1078,11 @@ class KissTermApp(App):
         screen to show it -- and nowhere to show it.
         """
         self.remote.close_now()
+        # The radio first: nothing after this may leave it keyed, and the
+        # loop may not run another task (`core/ptt.py`).
+        from ..core.ptt import unkey_all_now
+
+        unkey_all_now()
         self.core.aprs.shutdown()
         self.core.transfers.shutdown()
         self.core.detach_transport()
@@ -2737,7 +2743,7 @@ class KissTermApp(App):
             # The radio's dial, from Hamlib's rigctld; absent with no radio
             # or no answer (the reason is in Settings and the log).
             parts.append(Tuning(rig.frequency, rig.mode).describe()
-                         + (" TX" if rig.ptt else ""))
+                         + (" PTT" if rig.ptt else ""))
         if self.link is not None:
             # The LOGICAL peer, which is the link's own until a hop through
             # it is confirmed (`_commit_hop`). After a hop the link is still

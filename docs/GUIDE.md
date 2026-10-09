@@ -611,7 +611,20 @@ there once when the transport becomes Radio in use or kissterm starts with
 it, and left alone after that if you turn the dial. VARA, Mercury and
 kernel AX.25 call the station you dial from the Address Book (or type in
 Ctrl+N, or the phone's Connect), tuned to its frequency, else to the home
-frequency, after the reminder. A paired phone can change a program's file, arguments and working
+frequency, after the reminder.
+
+**VARA keys the radio through kissterm** when its program's "How it keys
+the radio" is *Through kissterm's rig control* and its transport names a
+radio: VARA's own PTT orders key that radio over Hamlib, but only while
+transmit is on (Ctrl+T, or the phone's switch). With transmit off nothing is
+keyed and a notice says VARA asked; this puts VARA's own transmissions,
+answering included, behind the switch. The status bar and the phone's More
+page show `PTT` after the dial while it is keyed. It is unkeyed when VARA
+says so, when VARA or its transport closes, when transmit is turned off, on
+Restart, Shut down and Quit, and after the radio's *Unkey after* time (120 s
+by default; then VARA is not keyed again until it lets go). Set VARA's own
+PTT so that it does not also key the radio (experimental: not yet tried
+with a real VARA). A paired phone can change a program's file, arguments and working
 folder; the pairing link is what proves it is you at the station.
 
 **Changing your callsign** is Session > My callsign in the menu, or

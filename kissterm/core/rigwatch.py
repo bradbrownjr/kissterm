@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import dataclasses
 import logging
 
 from ..rig.frequency import Tuning, parse_frequency
@@ -193,7 +194,21 @@ class RigWatch:
         log.info("tuned to the home channel %s", tuning.describe())
         return await client.poll() or state
 
+    def note_ptt(self, keyed: bool) -> None:
+        """kissterm keyed or unkeyed the radio (`core/ptt.py`): shown at
+        once, not at the next reading."""
+        if self.state is not None:
+            self._set(self.state, self.problem, str((self.active_rig() or {}).get("name", "")))
+
     def _set(self, state: RigState | None, problem: str, name: str = "") -> None:
+        ptt = getattr(self.core, "ptt", None)
+        if state is not None and ptt is not None and ptt.keyed and not state.ptt:
+            # A rig that does not report PTT, or a reading taken before the
+            # key: kissterm knows it is keyed.
+            state = dataclasses.replace(state, ptt=True)
+        elif state is not None and ptt is not None and not ptt.keyed and state.ptt \
+                and self.state is state:
+            state = dataclasses.replace(state, ptt=False)
         changed = (state != self.state)
         self.state, self.problem = state, problem
         if problem:

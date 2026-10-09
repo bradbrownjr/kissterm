@@ -210,7 +210,7 @@ class MoreView:
         if state.rig:
             lines.append(("Radio", f"{state.rig.get('name', '')} "
                           f"{Tuning(state.rig.get('frequency', 0), state.rig.get('mode', '')).describe()}"
-                          f"{' TX' if state.rig.get('ptt') else ''}".strip()))
+                          f"{' PTT' if state.rig.get('ptt') else ''}".strip()))
         if state.activity:
             lines.append(("Doing", state.activity))
         self.station.controls = [ft.Row(controls=[

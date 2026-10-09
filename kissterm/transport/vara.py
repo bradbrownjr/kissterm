@@ -38,6 +38,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import enum
+import logging
+from collections.abc import Callable
 
 from ..ax25.address import AX25Path
 from .base import (
@@ -49,6 +51,8 @@ from .base import (
     TransportState,
     open_connection,
 )
+
+log = logging.getLogger(__name__)
 
 # -- ports -----------------------------------------------------------------
 
@@ -166,6 +170,11 @@ class VaraTransport(SessionTransport):
 
         self.buffer_bytes = 0  # last BUFFER n notification value
         self.ptt = False
+        #: Called with True on `PTT ON` and False on `PTT OFF`, and with
+        #: False whenever VARA can no longer say so (its command socket
+        #: closed, the transport closed): `core/ptt.py` keys the radio from
+        #: these. A listener must not raise; one that does is logged.
+        self.ptt_listeners: list[Callable[[bool], None]] = []
         self.busy = False
         self.registered: bool | None = None
 
@@ -216,6 +225,7 @@ class VaraTransport(SessionTransport):
         self.state = TransportState.OPEN
 
     async def close(self) -> None:
+        self._set_ptt(False)
         if self._session is not None:
             with contextlib.suppress(Exception):
                 await self._session.close()
@@ -274,6 +284,7 @@ class VaraTransport(SessionTransport):
                 except asyncio.IncompleteReadError:
                     self._error = "VARA command socket closed by peer"
                     self.state = TransportState.ERROR
+                    self._set_ptt(False)  # VARA can no longer say PTT OFF
                     return
                 line = raw.decode("ascii", "replace").strip("\r\n")
                 if line:
@@ -283,6 +294,7 @@ class VaraTransport(SessionTransport):
         except Exception as exc:  # noqa: BLE001 -- must not crash the app
             self._error = f"VARA command read loop failed: {exc}"
             self.state = TransportState.ERROR
+            self._set_ptt(False)
 
     def _handle_command_line(self, line: str) -> None:
         # UNVERIFIED: this dispatch assumes every notification/reply is a
@@ -304,7 +316,7 @@ class VaraTransport(SessionTransport):
             with contextlib.suppress(ValueError):
                 self.buffer_bytes = int(rest.strip())
         elif word == _NOTE_PTT:
-            self.ptt = rest.strip().upper() == "ON"
+            self._set_ptt(rest.strip().upper() == "ON")
         elif word == _NOTE_BUSY:
             self.busy = rest.strip().upper() == "ON"
         elif word == _NOTE_REGISTERED:
@@ -318,6 +330,19 @@ class VaraTransport(SessionTransport):
         # Anything unrecognized is silently ignored rather than raised: a
         # future VARA version adding a notification this module does not
         # know about must not be fatal.
+
+    def _set_ptt(self, on: bool) -> None:
+        """VARA's order to key (or unkey) the radio, to every listener.
+        False is always passed on, even when VARA already said so: unkeying
+        twice is harmless, a missed unkey is a stuck transmitter."""
+        if on == self.ptt and on:
+            return
+        self.ptt = on
+        for listener in list(self.ptt_listeners):
+            try:
+                listener(on)
+            except Exception:  # noqa: BLE001 - a listener must not stop the read loop
+                log.exception("VARA PTT listener failed")
 
     def _resolve_next_waiter(self, reply: str) -> None:
         if self._reply_waiters:

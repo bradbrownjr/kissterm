@@ -5,6 +5,25 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — VARA keys the radio through the transmit gate (P3a M5)
+
+### New Features
+
+- **VARA's PTT orders key the radio** when its program's keying is
+  "Through kissterm's rig control": `PTT ON`/`PTT OFF` (EA5HVK's command
+  document) become Hamlib `T 1`/`T 0` on the transport's radio, only
+  while transmit is on, checked again at the moment of keying. A refused
+  key is logged `TX BLOCKED` with one notice per run of refusals. Unkeyed
+  on PTT OFF, VARA or its transport closing, transmit turned off, the
+  `ptt_timeout` watchdog, Restart, Shut down and Quit, and from `atexit`
+  and an unhandled SIGTERM/SIGHUP. `PTT` shows after the dial in the
+  status bar and the phone's More page.
+
+**Files:** `kissterm/core/ptt.py`, `core/rigwatch.py`, `core/service.py`,
+`core/restart.py`, `transport/vara.py`, `rig/rigctld.py`,
+`serve/headless.py`, `ui/app.py`, `client/ui/more.py`,
+`tests/unit/test_ptt.py`, `AGENTS.md`
+
 ## [2026-10-09] — A transport's home frequency; VARA calls the station dialled (P3a M6c)
 
 ### New Features

@@ -35,6 +35,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import socket
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -294,6 +295,24 @@ class RigctldClient:
         """Start the ATU's tuning cycle (`G TUNE`): a few seconds of CARRIER.
         The caller has checked the transmit gate at this moment."""
         await self.command("G TUNE")
+
+
+def unkey_now(host: str, port: int, timeout: float = 0.5) -> bool:
+    """`T 0`, synchronously, on a connection of its own: the last resort of
+    `atexit` and a signal handler (`core/ptt.py`), where no event loop runs.
+    True when `rigctld` answered `RPRT 0`. Never raises."""
+    try:
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            sock.sendall(b"+T 0\n")
+            reply = b""
+            while b"RPRT" not in reply:
+                chunk = sock.recv(256)
+                if not chunk:
+                    break
+                reply += chunk
+            return b"RPRT 0" in reply
+    except OSError:
+        return False
 
 
 _MODEL_ROW = re.compile(

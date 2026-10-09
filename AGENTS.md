@@ -401,6 +401,13 @@ changes.
   after `SHUTDOWN_WAIT` if the shutdown hangs. It is the station's
   remote reset; never make it wait on a live link. Shut down (the
   phone's) is the same sequence without starting again.
+- **kissterm keys a radio only on a modem's own order, through the gate**
+  (`core/ptt.py`): VARA's `PTT ON` keys the transport's rig only when its
+  program's keying is "Through kissterm's rig control", only while the
+  gate is open at the moment of `T 1`, and is unkeyed on every exit path
+  (PTT OFF, the modem or transport closing, the gate closing, the
+  `ptt_timeout` watchdog, Restart and Quit, `atexit`). `T 0` never asks
+  the gate (`tests/unit/test_ptt.py`).
 - **Remote control is off by default**, and while its server runs inside
   the terminal the status bar shows `REMOTE` (`ui/remote.py`): another
   screen can key this radio.
