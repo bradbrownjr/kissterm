@@ -698,3 +698,34 @@ async def test_a_client_uploads_a_file_in_pieces_and_a_lost_place_starts_over():
     await client.ws.close()
     await server.stop()
     core.sessions.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_programs_and_rigs_are_set_from_a_paired_client_with_every_field(tmp_path):
+    import sys
+
+    core, server, ta, peer = await _serve()
+    client = await _join(server)
+    await client.next()
+
+    async def run(cmd, /, **args):
+        cid = f"c-{cmd}"
+        await client.send({"type": "command", "id": cid, "name": cmd, "args": args})
+        reply = await client.next(lambda m: m.get("type") == "result" and m.get("id") == cid)
+        return reply["value"]
+
+    saved = await run("program_save", entry={"name": "py", "preset": "custom", "path": sys.executable,
+                                             "args": "-c pass", "cwd": str(tmp_path)})
+    assert saved["error"] == ""
+    [program] = core.config.programs
+    assert program["args"] == "-c pass" and program["cwd"] == str(tmp_path)
+    assert "not a file" in (await run("program_save", entry={"name": "x", "path": "/no/such"}))["error"]
+    listing = await run("program_browse", path=str(tmp_path))
+    assert set(listing) >= {"path", "folders", "programs", "roots"} and listing["error"] == ""
+    info = await run("radio_info")
+    assert info["programs"][0]["name"] == "py" and info["program_form"]["presets"]
+    assert (await run("rig_save", entry={"name": "r", "model": "1035", "tune_bands": ["40m"]}))["error"] == ""
+    assert core.config.rigs[0]["tune_bands"] == ["40m"] and core.config.rigs[0]["swr_trip"] == 3.0
+    assert "no radio named" in (await run("rig_forget", name="ghost"))["error"]
+    assert (await run("rig_forget", name="r"))["error"] == ""
+    assert (await run("program_forget", name="py"))["error"] == ""

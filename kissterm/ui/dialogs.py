@@ -2384,9 +2384,13 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
         credentials: list[dict] | None = None,
         scripts: list[dict] | None = None,
         existing_names: tuple[str, ...] = (),
+        programs: tuple[str, ...] = (),
+        rigs: tuple[str, ...] = (),
     ) -> None:
         super().__init__()
         self._entry = dict(entry) if entry else {}
+        self._programs = programs
+        self._rigs = rigs
         self._credentials = credentials or []
         self._scripts = scripts or []
         # Names already in use, for the "pick a different name" check --
@@ -2448,6 +2452,19 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
                     allow_blank=True,
                     prompt="Saved script",
                 )
+                # ROADMAP P3a: the modem program started with this transport
+                # and the radio it keys, from Settings > Radio's lists.
+                yield Label("On this computer (optional)", id="transport-local-title")
+                yield Select(
+                    [(n, n) for n in self._programs],
+                    value=self._entry.get("program", Select.NULL)
+                    if self._entry.get("program") in self._programs else Select.NULL,
+                    id="transport-program", allow_blank=True, prompt="Start this program when it opens")
+                yield Select(
+                    [(n, n) for n in self._rigs],
+                    value=self._entry.get("rig", Select.NULL)
+                    if self._entry.get("rig") in self._rigs else Select.NULL,
+                    id="transport-rig", allow_blank=True, prompt="Radio read through Hamlib")
             with Horizontal(id="connect-buttons"):
                 yield Button("Save", variant="primary", id="transport-save")
                 yield Button("Cancel", id="transport-cancel")
@@ -2592,6 +2609,12 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
         entry.update(values)
         entry["name"] = name
         entry["kind"] = self._kind
+        for key, widget in (("program", "#transport-program"), ("rig", "#transport-rig")):
+            chosen = self.query_one(widget, Select)
+            if _select_has_value(chosen):
+                entry[key] = str(chosen.value)
+            else:
+                entry.pop(key, None)
         if session_tier:
             credential_select = self.query_one("#transport-credential", Select)
             credential = str(credential_select.value) if _select_has_value(credential_select) else ""

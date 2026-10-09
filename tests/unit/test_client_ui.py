@@ -2187,3 +2187,136 @@ def test_every_place_ends_its_title_row_buttons_with_the_transmit_chip():
     assert bar.bar[-1] is app.made[0], "the chip is the last thing beside the title"
     assert bar.row.controls == [], "the row under the title holds only tabs"
     assert Toolbar(app, gate=False).gate is None
+
+
+_LAUNCH = {**_RADIO,
+           "programs": [{"name": "py", "preset": "custom", "path": "/usr/bin/python3", "args": "-c pass",
+                         "wine": False, "start_timeout": 30, "stop_on_exit": True,
+                         "running": False, "started_by_kissterm": False, "exit_code": None, "pid": None}],
+           "rigs": [{"name": "ft991a", "model": 1035, "device": "/dev/ttyUSB0", "swr_trip": 3.0,
+                     "host": "127.0.0.1", "port": 4532, "tune_bands": ["40m"]}],
+           "program_form": {"fields": [], "presets": [
+               {"key": "custom", "label": "Another program", "note": "", "source": "documented",
+                "transport_kind": "", "runs_under_wine": False},
+               {"key": "mercury", "label": "Mercury", "note": "-p is the ARQ base port.",
+                "source": "documented", "transport_kind": "mercury", "runs_under_wine": False}]},
+           "rig_form": {"fields": [], "bands": ["80m", "40m", "20m"]}}
+
+
+@pytest.mark.asyncio
+async def test_programs_are_listed_edited_and_saved_with_every_field():
+    from kissterm.client.ui.radio import ProgramsSection
+
+    saved: list = []
+    app = MailApp({"radio_info": _LAUNCH,
+                   "program_save": lambda **a: saved.append(a) or {"error": ""}})
+    section = ProgramsSection(app)
+    section.load(_LAUNCH)
+    assert "-c pass" in str(_controls(section.rows)[1].subtitle.value)
+    await section._edit(_LAUNCH["programs"][0])(None)
+    [sheet] = app.page.dialogs
+    fields = {c.label: c for c in _controls(sheet) if isinstance(c, (ft.TextField, ft.Dropdown, ft.Checkbox))}
+    # Everything the terminal edits, the phone edits: path, arguments and
+    # working folder included (operator, 2026-10-09).
+    assert {"Name", "Program file (on the station)", "Arguments", "Working folder",
+            "Seconds to wait", "Run under Wine", "Stop it when kissterm exits"} <= set(fields)
+    fields["Arguments"].value = "-c print(1)"
+    [go] = [c for c in _controls(sheet) if isinstance(c, ft.FilledButton)]
+    await go.on_click(None)
+    assert saved[0]["original"] == "py"
+    assert saved[0]["entry"]["args"] == "-c print(1)" and saved[0]["entry"]["path"] == "/usr/bin/python3"
+
+
+@pytest.mark.asyncio
+async def test_a_refused_program_shows_the_stations_words_and_reopens_the_sheet():
+    from kissterm.client.ui.radio import ProgramsSection
+
+    app = MailApp({"radio_info": _LAUNCH,
+                   "program_save": {"error": "'/x' is not a file on this computer."}})
+    section = ProgramsSection(app)
+    section.load(_LAUNCH)
+    await section._new(None)
+    [sheet] = app.page.dialogs
+    [go] = [c for c in _controls(sheet) if isinstance(c, ft.FilledButton)]
+    app.page.dialogs.clear()
+    await go.on_click(None)
+    assert app.page.dialogs, "the sheet closed with Save: it is shown again"
+
+
+@pytest.mark.asyncio
+async def test_the_phone_browses_the_stations_files():
+    from kissterm.client.ui.radio import ProgramsSection
+
+    listings = {"": {"path": "/opt", "parent": "/", "folders": ["bin"], "programs": ["mercury"],
+                     "truncated": False, "error": "", "roots": ["/"]}}
+    app = MailApp({"radio_info": _LAUNCH, "program_browse": lambda path="": listings[""]})
+    section = ProgramsSection(app)
+    target = ft.TextField(value="")
+    await section._browse(target)
+    [dialog] = app.page.dialogs
+    titles = [c.title.value for c in _controls(dialog) if isinstance(c, ft.ListTile)]
+    assert titles == ["..", "bin/", "mercury"]
+    [pick] = [c for c in _controls(dialog) if isinstance(c, ft.ListTile) and c.title.value == "mercury"]
+    await pick.on_click(None)
+    assert target.value == "/opt/mercury"
+
+
+@pytest.mark.asyncio
+async def test_rigs_are_saved_with_bands_and_tested_without_keying():
+    from kissterm.client.ui.radio import RigsSection
+
+    saved: list = []
+    app = MailApp({"radio_info": _LAUNCH,
+                   "rig_save": lambda **a: saved.append(a) or {"error": ""},
+                   "rig_test": {"ok": True, "text": "OK  --  7.1015 MHz USB"}})
+    section = RigsSection(app)
+    section.load(_LAUNCH)
+    await section._edit(_LAUNCH["rigs"][0])(None)
+    [sheet] = app.page.dialogs
+    boxes = {c.label: c for c in _controls(sheet) if isinstance(c, ft.Checkbox)}
+    assert set(boxes) == {"80m", "40m", "20m"} and boxes["40m"].value and not boxes["20m"].value
+    boxes["20m"].value = True
+    [go] = [c for c in _controls(sheet) if isinstance(c, ft.FilledButton)]
+    await go.on_click(None)
+    assert saved[0]["entry"]["tune_bands"] == ["40m", "20m"] and saved[0]["entry"]["model"] == "1035"
+    test = [c for c in section.rows.controls[0].trailing.controls if c.tooltip == "Test ft991a"][0]
+    await test.on_click(None)
+    assert ("rig_test", {"name": "ft991a"}) in app.commands
+
+
+@pytest.mark.asyncio
+async def test_the_phone_picks_a_radio_from_hamlibs_list():
+    from kissterm.client.ui.radio import RigsSection
+
+    models = [{"model": 1035, "make": "Yaesu", "name": "FT-991A", "status": "Stable"},
+              {"model": 3073, "make": "Icom", "name": "IC-7300", "status": "Stable"}]
+    app = MailApp({"radio_info": _LAUNCH, "rig_models": models})
+    section = RigsSection(app)
+    target = ft.TextField(value="")
+    await section._pick_model(target)
+    [dialog] = app.page.dialogs
+    [filter_box] = [c for c in _controls(dialog) if isinstance(c, ft.TextField)]
+    filter_box.value = "7300"
+    await filter_box.on_change(None)
+    tiles = [c for c in _controls(dialog) if isinstance(c, ft.ListTile)]
+    assert [t.title.value for t in tiles] == ["Icom IC-7300"]
+    await tiles[0].on_click(None)
+    assert target.value == "3073"
+
+
+@pytest.mark.asyncio
+async def test_a_transport_sheet_names_a_program_and_a_rig_when_there_are_some():
+    from kissterm.client.ui.radio import RadioSection
+
+    saved: list = []
+    app = MailApp({"radio_info": _LAUNCH, "radio_save": lambda **a: saved.append(a) or {"error": ""}})
+    section = RadioSection(app)
+    await section.load()
+    await section._edit(None)
+    [form] = app.page.dialogs
+    drops = {c.label: c for c in _controls(form) if isinstance(c, ft.Dropdown)}
+    assert "Start this program when it opens" in drops and "Radio read through Hamlib" in drops
+    drops["Start this program when it opens"].value = "py"
+    [go] = [c for c in _controls(form) if isinstance(c, ft.FilledButton)]
+    await go.on_click(None)
+    assert saved[0]["entry"]["program"] == "py" and saved[0]["entry"]["rig"] == ""

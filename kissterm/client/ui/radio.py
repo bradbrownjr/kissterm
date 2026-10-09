@@ -154,6 +154,14 @@ class RadioSection:
                     size=12, color=ft.Colors.OUTLINE), login, script])
         inputs: dict[str, ft.TextField] = {}
         state = {"kind": kind}
+        programs = [p["name"] for p in self.info.get("programs", [])]
+        rigs = [r["name"] for r in self.info.get("rigs", [])]
+        program = _dropdown("Start this program when it opens", programs, entry.get("program", ""))
+        rig = _dropdown("Radio read through Hamlib", rigs, entry.get("rig", ""))
+        local = ft.Column(tight=True, spacing=8, visible=bool(programs or rigs or entry.get("program")
+                                                              or entry.get("rig")),
+                          controls=[ft.Text("On this computer (optional)", size=12,
+                                            color=ft.Colors.OUTLINE), program, rig])
 
         def draw(prefill: dict) -> None:
             spec = kinds[state["kind"]]
@@ -183,6 +191,8 @@ class RadioSection:
                     **{k: c.value or "" for k, c in inputs.items()}}
             if kinds[state["kind"]]["session_tier"]:
                 body["credential"], body["script_name"] = _picked(login), _picked(script)
+            if local.visible:
+                body["program"], body["rig"] = _picked(program), _picked(rig)
             result = await self.app.command("radio_save", entry=body, original=original)
             if result is None:
                 return
@@ -194,7 +204,7 @@ class RadioSection:
             self.app.page.update()
 
         sheets.form(self.app.page, "Edit transport" if original else "New transport",
-                    [name, picker, error, fields, auto], "Save", save)
+                    [name, picker, error, fields, auto, local], "Save", save)
 
 
 class LoginsSection:
@@ -311,3 +321,344 @@ class LoginsSection:
 
         sheets.form(self.app.page, "Edit script" if original else "New script",
                     [name, text], "Save", save)
+
+
+
+class ProgramsSection:
+    """Modem programs kissterm starts beside a transport: list, New, Edit,
+    Start, Stop, Forget, and a browser over the STATION's files. Every
+    field is editable from here, as at the terminal."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+        self.info: dict = {}
+        self.rows = ft.Column(tight=True, spacing=0)
+        self.control = ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=4),
+                                    content=ft.Column(tight=True, spacing=8, controls=[
+            ft.Text("Modem programs", theme_style=ft.TextThemeStyle.TITLE_SMALL),
+            ft.Text("A program kissterm starts when a transport that names it opens (Mercury, "
+                    "Direwolf, VARA...), and stops when kissterm exits. It runs on the station.",
+                    size=12, color=ft.Colors.OUTLINE),
+            self.rows,
+            ft.OutlinedButton(content="New program", icon=ft.Icons.ADD, on_click=self._new)]))
+
+    def load(self, info: dict) -> None:
+        self.info = info
+        programs = info.get("programs", [])
+        self.rows.controls = [self._row(p) for p in programs] or [
+            ft.Text("No programs saved yet.", size=12)]
+
+    def _row(self, p: dict) -> ft.Control:
+        state = ("running" if p.get("running")
+                 else f"exited with code {p['exit_code']}" if p.get("started_by_kissterm")
+                 else "not started by kissterm")
+        used = [t["name"] for t in self.info.get("transports", []) if t.get("program") == p["name"]]
+        return ft.ListTile(
+            title=ft.Text(p["name"]), dense=True,
+            subtitle=ft.Text(f"{p.get('path', '')} {p.get('args', '')}".strip() + f"  --  {state}"
+                             + (f"; used by {', '.join(used)}" if used else ""), size=12),
+            trailing=ft.Row(tight=True, spacing=0, controls=[
+                ft.IconButton(icon=ft.Icons.STOP if p.get("running") else ft.Icons.PLAY_ARROW,
+                              tooltip=("Stop " if p.get("running") else "Start ") + p["name"],
+                              on_click=self._run(p)),
+                ft.IconButton(icon=ft.Icons.EDIT, tooltip=f"Edit {p['name']}",
+                              on_click=self._edit(p)),
+                ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, tooltip=f"Forget {p['name']}",
+                              on_click=self._forget(p))]))
+
+    async def _reload(self) -> None:
+        self.load(await self.app.command("radio_info") or {})
+        self.app.page.update()
+
+    def _run(self, p: dict):
+        async def go(_e) -> None:
+            command = "program_stop" if p.get("running") else "program_start"
+            result = await self.app.command(command, name=p["name"])
+            if result and result["error"]:
+                sheets.snack(self.app.page, result["error"], error=True)
+            await self._reload()
+        return go
+
+    def _forget(self, p: dict):
+        async def ask(_e) -> None:
+            async def go() -> None:
+                result = await self.app.command("program_forget", name=p["name"])
+                if result and result["error"]:
+                    sheets.snack(self.app.page, result["error"], error=True)
+                await self._reload()
+            sheets.confirm(self.app.page, f"Forget {p['name']}?",
+                           "The program file is not touched.", "Forget", go, danger=True)
+        return ask
+
+    async def _new(self, _e) -> None:
+        self._sheet({})
+
+    def _edit(self, p: dict):
+        async def open_sheet(_e) -> None:
+            self._sheet(p)
+        return open_sheet
+
+    def _sheet(self, entry: dict) -> None:
+        form = self.info.get("program_form", {})
+        presets = {p["key"]: p for p in form.get("presets", [])}
+        original = entry.get("name", "")
+        preset = ft.Dropdown(label="Program", dense=True, value=entry.get("preset") or "custom",
+                             options=[ft.DropdownOption(key=k, text=v["label"])
+                                      for k, v in presets.items()])
+        name = ft.TextField(label="Name", value=original, dense=True,
+                            hint_text="e.g. mercury, vara-hf")
+        path = ft.TextField(label="Program file (on the station)", value=entry.get("path", ""),
+                            dense=True, autocorrect=False, enable_suggestions=False)
+        args = ft.TextField(label="Arguments", value=entry.get("args", ""), dense=True,
+                            autocorrect=False, enable_suggestions=False)
+        wine = ft.Checkbox(label="Run under Wine", value=bool(entry.get("wine")))
+        cwd = ft.TextField(label="Working folder", value=entry.get("cwd", ""), dense=True,
+                           hint_text="its own folder")
+        timeout = ft.TextField(label="Seconds to wait", dense=True,
+                               value=str(entry.get("start_timeout", 30)),
+                               keyboard_type=ft.KeyboardType.NUMBER)
+        stop = ft.Checkbox(label="Stop it when kissterm exits", value=bool(entry.get("stop_on_exit", True)))
+        note = ft.Text("", size=12, color=ft.Colors.OUTLINE)
+
+        def show_note() -> None:
+            p = presets.get(preset.value)
+            note.value = f"{p['note']} (path: {p['source']})" if p and p.get("note") else ""
+
+        async def changed(_e) -> None:
+            show_note()
+            self.app.page.update()
+
+        preset.on_select = changed
+        show_note()
+
+        async def browse(_e) -> None:
+            await self._browse(path)
+
+        async def save() -> None:
+            body = {"name": name.value or "", "preset": preset.value or "custom",
+                    "path": path.value or "", "args": args.value or "", "wine": bool(wine.value),
+                    "cwd": cwd.value or "", "start_timeout": timeout.value or "",
+                    "stop_on_exit": bool(stop.value)}
+            result = await self.app.command("program_save", entry=body, original=original)
+            if result is None:
+                return
+            if result["error"]:
+                sheets.snack(self.app.page, result["error"], error=True)
+                self._sheet({**entry, **body})  # the sheet closed with Save: show it again
+                return
+            await self._reload()
+
+        sheets.form(self.app.page, "Edit program" if original else "New program",
+                    [name, preset, note, path,
+                     ft.OutlinedButton(content="Browse the station's files", icon=ft.Icons.FOLDER_OPEN,
+                                       on_click=browse),
+                     args, wine, cwd, timeout, stop], "Save", save)
+
+    async def _browse(self, target: ft.TextField) -> None:
+        """Walk the station's folders (executables only) and put the chosen
+        file in `target`. Names only; the station filters the listing."""
+        import os
+
+        start = os.path.dirname(target.value) if target.value and os.path.isabs(target.value) else ""
+        listing = await self.app.command("program_browse", path=start) or {}
+        heading = ft.Text(listing.get("path", ""), size=12, selectable=True)
+        column = ft.Column(tight=True, spacing=0, scroll=ft.ScrollMode.AUTO, height=320)
+
+        async def show(path: str) -> None:
+            nonlocal listing
+            listing = await self.app.command("program_browse", path=path) or {}
+            heading.value = listing.get("error") or listing.get("path", "")
+            rows: list[ft.Control] = []
+            if listing.get("parent"):
+                rows.append(self._entry_tile("..", ft.Icons.ARROW_UPWARD, show, listing["parent"]))
+            else:
+                rows += [self._entry_tile(r, ft.Icons.FOLDER, show, r) for r in listing.get("roots", [])
+                         if r != listing.get("path")]
+            join = lambda n: os.path.join(listing["path"], n)  # noqa: E731
+            rows += [self._entry_tile(n + "/", ft.Icons.FOLDER, show, join(n))
+                     for n in listing.get("folders", [])]
+
+            async def choose(full: str) -> None:
+                target.value = full
+                self.app.page.pop_dialog()
+                self.app.page.update()
+
+            rows += [self._entry_tile(n, ft.Icons.SETTINGS_APPLICATIONS, choose, join(n))
+                     for n in listing.get("programs", [])]
+            if listing.get("truncated"):
+                rows.append(ft.Text("(list cut short)", size=12))
+            column.controls = rows
+            self.app.page.update()
+
+        await show(listing.get("path", start))
+        self.app.page.show_dialog(sheets.sheet([
+            ft.Text("Choose the program file", theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
+            heading, column,
+            ft.Row(alignment=ft.MainAxisAlignment.END, controls=[
+                ft.TextButton(content="Cancel", on_click=self._close)])], scrollable=True))
+
+    async def _close(self, _e) -> None:
+        self.app.page.pop_dialog()
+
+    @staticmethod
+    def _entry_tile(label: str, icon, action, argument: str) -> ft.Control:
+        async def tapped(_e) -> None:
+            await action(argument)
+        return ft.ListTile(leading=ft.Icon(icon), title=ft.Text(label), dense=True, on_click=tapped)
+
+
+class RigsSection:
+    """Radios kissterm reads through Hamlib's rigctld: list, New, Edit, Test,
+    Forget, and Hamlib's model list as a filtered picker."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+        self.info: dict = {}
+        self.rows = ft.Column(tight=True, spacing=0)
+        self.control = ft.Container(padding=ft.Padding.symmetric(horizontal=16, vertical=4),
+                                    content=ft.Column(tight=True, spacing=8, controls=[
+            ft.Text("Radios (Hamlib)", theme_style=ft.TextThemeStyle.TITLE_SMALL),
+            ft.Text("A radio kissterm reads and tunes through Hamlib's rigctld. Test reads its "
+                    "frequency and mode and never transmits.", size=12, color=ft.Colors.OUTLINE),
+            self.rows,
+            ft.OutlinedButton(content="New radio", icon=ft.Icons.ADD, on_click=self._new)]))
+
+    def load(self, info: dict) -> None:
+        self.info = info
+        self.rows.controls = [self._row(r) for r in info.get("rigs", [])] or [
+            ft.Text("No radios saved yet.", size=12)]
+
+    def _row(self, r: dict) -> ft.Control:
+        bands = ", ".join(r.get("tune_bands") or []) or "never"
+        where = r.get("device") or f"rigctld {r.get('host')}:{r.get('port')}"
+        return ft.ListTile(
+            title=ft.Text(r["name"]), dense=True,
+            subtitle=ft.Text(f"Hamlib model {r.get('model')} on {where}; stops above SWR "
+                             f"{r.get('swr_trip')}; tunes the ATU on: {bands}", size=12),
+            trailing=ft.Row(tight=True, spacing=0, controls=[
+                ft.IconButton(icon=ft.Icons.NETWORK_CHECK, tooltip=f"Test {r['name']}",
+                              on_click=self._test(r)),
+                ft.IconButton(icon=ft.Icons.EDIT, tooltip=f"Edit {r['name']}", on_click=self._edit(r)),
+                ft.IconButton(icon=ft.Icons.DELETE_OUTLINE, tooltip=f"Forget {r['name']}",
+                              on_click=self._forget(r))]))
+
+    async def _reload(self) -> None:
+        self.load(await self.app.command("radio_info") or {})
+        self.app.page.update()
+
+    def _test(self, r: dict):
+        async def go(_e) -> None:
+            result = await self.app.command("rig_test", name=r["name"])
+            if result:
+                sheets.snack(self.app.page, result["text"], error=not result["ok"])
+        return go
+
+    def _forget(self, r: dict):
+        async def ask(_e) -> None:
+            async def go() -> None:
+                result = await self.app.command("rig_forget", name=r["name"])
+                if result and result["error"]:
+                    sheets.snack(self.app.page, result["error"], error=True)
+                await self._reload()
+            sheets.confirm(self.app.page, f"Forget {r['name']}?",
+                           "The radio is not touched.", "Forget", go, danger=True)
+        return ask
+
+    async def _new(self, _e) -> None:
+        self._sheet({})
+
+    def _edit(self, r: dict):
+        async def open_sheet(_e) -> None:
+            self._sheet(r)
+        return open_sheet
+
+    def _sheet(self, entry: dict) -> None:
+        original = entry.get("name", "")
+        bands = self.info.get("rig_form", {}).get("bands", [])
+        name = ft.TextField(label="Name", value=original, dense=True, hint_text="e.g. ft991a")
+        model = ft.TextField(label="Hamlib model number", value=str(entry.get("model", "")),
+                             dense=True, keyboard_type=ft.KeyboardType.NUMBER)
+        device = ft.TextField(label="CAT device (on the station)", value=entry.get("device", ""),
+                              dense=True, hint_text="/dev/ttyUSB0 or COM3")
+        speed = ft.TextField(label="CAT baud rate", value=str(entry.get("speed", "")), dense=True,
+                             hint_text="rig default", keyboard_type=ft.KeyboardType.NUMBER)
+        swr = ft.TextField(label="Stop transmitting above SWR", dense=True,
+                           value=str(entry.get("swr_trip", 3.0)),
+                           keyboard_type=ft.KeyboardType.NUMBER)
+        chosen = set(entry.get("tune_bands") or [])
+        boxes = {b: ft.Checkbox(label=b, value=b in chosen) for b in bands}
+        host = ft.TextField(label="rigctld host", value=str(entry.get("host", "127.0.0.1")), dense=True)
+        port = ft.TextField(label="rigctld port", value=str(entry.get("port", 4532)), dense=True,
+                            keyboard_type=ft.KeyboardType.NUMBER)
+        path = ft.TextField(label="rigctld program", value=entry.get("rigctld_path", ""), dense=True,
+                            hint_text="rigctld on PATH")
+        ptt = ft.TextField(label="Unkey after (seconds)", value=str(entry.get("ptt_timeout", 120)),
+                           dense=True, keyboard_type=ft.KeyboardType.NUMBER)
+
+        async def pick(_e) -> None:
+            await self._pick_model(model)
+
+        async def save() -> None:
+            body = {"name": name.value or "", "model": model.value or "", "device": device.value or "",
+                    "speed": speed.value or "", "swr_trip": swr.value or "", "host": host.value or "",
+                    "port": port.value or "", "rigctld_path": path.value or "",
+                    "ptt_timeout": ptt.value or "", "tune_bands": [b for b, c in boxes.items() if c.value]}
+            result = await self.app.command("rig_save", entry=body, original=original)
+            if result is None:
+                return
+            if result["error"]:
+                sheets.snack(self.app.page, result["error"], error=True)
+                self._sheet({**entry, **body})
+                return
+            await self._reload()
+
+        sheets.form(self.app.page, "Edit radio" if original else "New radio",
+                    [name, model,
+                     ft.OutlinedButton(content="Pick from Hamlib's list", icon=ft.Icons.SEARCH,
+                                       on_click=pick),
+                     device, speed, swr,
+                     ft.Text("Tune the ATU before connecting on (none = never):", size=12,
+                             color=ft.Colors.OUTLINE),
+                     ft.Row(wrap=True, spacing=8, controls=list(boxes.values())),
+                     host, port, path, ptt], "Save", save)
+
+    async def _pick_model(self, target: ft.TextField) -> None:
+        models = await self.app.command("rig_models") or []
+        filter_box = ft.TextField(label="Filter", dense=True, hint_text="e.g. FT-991 or IC-7300",
+                                  autofocus=True)
+        column = ft.Column(tight=True, spacing=0, scroll=ft.ScrollMode.AUTO, height=320)
+
+        def draw() -> None:
+            words = (filter_box.value or "").lower().split()
+            rows = []
+            for m in models:
+                label = f"{m['make']} {m['name']}"
+                if all(w in label.lower() for w in words):
+                    rows.append(self._model_tile(label, m, target))
+                    if len(rows) >= 200:
+                        break
+            column.controls = rows or [ft.Text(
+                "No match." if models else "Hamlib's rigctl was not found on the station, so "
+                "there is no list. Type the model number instead.", size=12)]
+
+        async def changed(_e) -> None:
+            draw()
+            self.app.page.update()
+
+        filter_box.on_change = changed
+        draw()
+        self.app.page.show_dialog(sheets.sheet([
+            ft.Text("Choose your radio", theme_style=ft.TextThemeStyle.TITLE_MEDIUM), filter_box,
+            column, ft.Row(alignment=ft.MainAxisAlignment.END, controls=[
+                ft.TextButton(content="Cancel", on_click=self._close)])], scrollable=True))
+
+    async def _close(self, _e) -> None:
+        self.app.page.pop_dialog()
+
+    def _model_tile(self, label: str, m: dict, target: ft.TextField) -> ft.Control:
+        async def chosen(_e) -> None:
+            target.value = str(m["model"])
+            self.app.page.pop_dialog()
+            self.app.page.update()
+        return ft.ListTile(title=ft.Text(label), subtitle=ft.Text(f"{m['model']}  {m.get('status', '')}",
+                                                                  size=12), dense=True, on_click=chosen)

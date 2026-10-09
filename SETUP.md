@@ -353,21 +353,23 @@ does not run its AX.25 state machine over it. A local socket-level test covers
 the documented TNC interface, but this setup still needs real-radio
 verification.
 
-### Letting kissterm start the modem (experimental, config file only)
+### Letting kissterm start the modem (experimental)
 
-A transport may name a program to start: in `config.toml` add a
-`[[programs]]` entry (see `config.toml.example`) and `program = "its name"`
-on the transport. When that transport is opened, kissterm connects first; if
-nothing answers it starts the program and retries until `start_timeout`
-seconds. A modem you started yourself is used and left running; only one
-kissterm started is stopped when it exits (`stop_on_exit`, default on) or on
-Restart and Shut down. A program that exits before the transport answers is
-reported with its exit code and last output, and one that dies later shows the
-transport DOWN with its exit code, never as an RF problem. Nothing is started
-at launch for a transport you are not using, and discovery never starts
-anything. A modem that transmits by itself (Direwolf's own beacons, VARA
-answering while listening) is outside kissterm's transmit switch. There is no
-Settings screen for this yet.
+In Settings > Radio, add a *Modem program* (pick Mercury, Direwolf, VARA or
+"Another program", then *Browse* to its file), then edit the transport and
+choose the program under "On this computer". The same screens exist on the
+phone and web client. In `config.toml` it is a `[[programs]]` entry
+(see `config.toml.example`) and `program = "its name"` on the transport.
+When that transport is opened, kissterm connects first; if nothing answers it
+starts the program and retries until `start_timeout` seconds. A modem you
+started yourself is used and left running; only one kissterm started is
+stopped when it exits (`stop_on_exit`, default on) or on Restart and Shut
+down. A program that exits before the transport answers is reported with its
+exit code and last output, and one that dies later shows the transport DOWN
+with its exit code, never as an RF problem. Nothing is started at launch for
+a transport you are not using, and discovery never starts anything. A modem
+that transmits by itself (Direwolf's own beacons, VARA answering while
+listening) is outside kissterm's transmit switch.
 
 ## 6. Linux kernel AX.25 as an alternative
 

@@ -109,8 +109,11 @@ class Radio:
             "transports": [{k: v for k, v in t.items() if k not in ("script", "text")}
                            for t in config.transports],
             "kinds": self.kinds(),
-            "programs": [dict(p) for p in config.programs],
+            "programs": [{**p, **self.program_status(str(p.get("name", "")))}
+                         for p in config.programs],
             "rigs": [dict(r) for r in config.rigs],
+            "program_form": self.programs_form(),
+            "rig_form": self.rigs_form(),
             "logins": [c["name"] for c in config.credentials if c.get("name")],
             "scripts": [s["name"] for s in config.scripts if s.get("name")],
         }

@@ -26,7 +26,7 @@ from __future__ import annotations
 import flet as ft
 
 from . import colourpicker, sheets
-from .radio import LoginsSection, RadioSection
+from .radio import LoginsSection, ProgramsSection, RadioSection, RigsSection
 
 #: Added under a field's help only where Save alone is not the whole story
 #: (the terminal's `APPLY_NOTE`).
@@ -59,6 +59,8 @@ class SettingsEditor:
         #: The terminal's two hand-built sections (`radio.py`): the radio
         #: comes straight after Station, logins and scripts last.
         self.radio = RadioSection(app)
+        self.programs = ProgramsSection(app)
+        self.rigs = RigsSection(app)
         self.logins = LoginsSection(app)
         #: Sections left open, so a reload (the station saved something, in
         #: Radio say) does not fold them shut under the operator.
@@ -73,9 +75,11 @@ class SettingsEditor:
         self.rows.clear()
         self.fields = {f["path"]: f for section in schema for f in section["fields"]}
         await self.radio.load()
+        self.programs.load(self.radio.info)
+        self.rigs.load(self.radio.info)
         await self.logins.load()
         tiles = [self._section(section) for section in schema]
-        radio = self._tile("Radio", [self.radio.control])
+        radio = self._tile("Radio", [self.radio.control, self.programs.control, self.rigs.control])
         logins = self._tile("Logins", [self.logins.control])
         after = next((i for i, sec in enumerate(schema) if sec["title"] == "Station"), -1)
         tiles.insert(after + 1, radio)

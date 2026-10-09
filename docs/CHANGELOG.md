@@ -5,6 +5,29 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Settings for Programs and Rigs, terminal and phone (P3a M3)
+
+### New Features
+
+- **Settings > Radio lists modem programs and Hamlib radios** (New, Edit,
+  Start/Stop, Forget; Test for a radio), and a transport's form names the
+  program and radio it uses. Terminal dialogs: the program form with
+  presets and a file browser over the station's executables, the radio form
+  with Hamlib's model list and band choices. The phone and web client have
+  the same screens over new station commands (`program_save`, `program_browse`,
+  `rig_save`, `rig_models`, ...), every field editable from both, the
+  program's path, arguments and working folder included (operator,
+  2026-10-09, full parity). One core method behind each (`core/radio.py`).
+  No screenshot of the Radio section was made: none of the committed images
+  shows it.
+
+**Files:** `kissterm/ui/launch_screens.py`, `kissterm/ui/settings_pane.py`,
+`kissterm/ui/dialogs.py`, `kissterm/ui/styles.py`, `kissterm/client/ui/radio.py`,
+`kissterm/client/ui/settings.py`, `kissterm/serve/server.py`,
+`kissterm/core/radio.py`, `docs/PROTOCOL.md`, `docs/GUIDE.md`, `SETUP.md`,
+`tests/pilot/test_launch_settings.py`, `tests/unit/test_client_ui.py`,
+`tests/unit/test_serve.py`
+
 ## [2026-10-09] — kissterm starts the modem program (P3a M2)
 
 ### New Features

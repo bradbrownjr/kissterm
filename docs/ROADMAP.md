@@ -498,24 +498,6 @@ outside the gate and the form says so, as P12 says of fldigi.
 
 ### Milestones
 
-- [ ] **M3 [Sonnet] Settings UI for Programs, both front ends.** Terminal:
-  two list rows in Radio's hand-built section (`ui/settings_pane.py`
-  `_compose_transports`), each with an entry screen modelled on
-  `TransportEntryScreen`; preset first, then path/args pre-filled,
-  `wine` shown only off Windows, Advanced fold for `cwd`, `start_timeout`,
-  `stop_on_exit`. Phone/web: the same lists in `client/ui/settings.py`
-  following the transport sheet, with a file browser over
-  `Radio.browse_programs` (decision 1 below) and wire commands for browse,
-  save, start, stop and status; every field is editable from both front
-  ends. A Start
-  / Stop button on a program row (a core method, `Radio.start_program`).
-  The Rigs list too (the `rigctld` client is built, M4): a model picker
-  from `Radio.rig_models()` shown as a `filtered_choice`, a Test button on
-  `Radio.test_rig` (reads, never keys), `tune_bands` as band checkboxes.
-  M2's supervisor starts `rigctld` from `rig.rigctld.rigctld_command`.
-  The transport form's "On this computer" fold. Screenshots
-  (`scripts/generate_screenshot.py`, `generate_phone_screenshots.py`),
-  GUIDE.md and SETUP.md in the same commit.
 - [ ] **M5 [Opus] PTT for VARA, through the gate.** `transport/vara.py`'s
   `PTT ON`/`PTT OFF` drive `T 1`/`T 0` on the transport's rig. Keys only
   while the gate is open, re-checked at the moment of keying (AGENTS.md

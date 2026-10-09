@@ -904,6 +904,38 @@ class SettingsPane(Vertical):
             yield Button("Test", compact=True, id="settings-test")
             yield Button("Forget", compact=True, id="settings-forget")
         yield Static("", id="settings-transport-detail", classes="settings-detail")
+        # Programs and radios (ROADMAP P3a): what kissterm may start beside a
+        # transport, and the radio it reads through Hamlib's rigctld.
+        row = self._register_row(
+            "set-program-row", "Modem program",
+            "A program kissterm starts when a transport that names it opens "
+            "(Mercury, Direwolf, VARA...) and stops when kissterm exits.", "live",
+            "set-program",
+        )
+        with Horizontal(classes="settings-row", id=row):
+            yield Label("Modem program", classes="settings-label")
+            yield Select([], id="set-program", allow_blank=True, compact=True)
+        with Horizontal(classes="settings-row settings-buttons"):
+            yield Button("New", compact=True, id="program-new")
+            yield Button("Edit", compact=True, id="program-edit")
+            yield Button("Start", compact=True, id="program-start")
+            yield Button("Stop", compact=True, id="program-stop")
+            yield Button("Forget", compact=True, id="program-forget")
+        yield Static("", id="settings-program-detail", classes="settings-detail")
+        row = self._register_row(
+            "set-rig-row", "Radio (Hamlib)",
+            "A radio kissterm reads and tunes through Hamlib's rigctld. Test "
+            "reads its frequency and mode and never transmits.", "live", "set-rig",
+        )
+        with Horizontal(classes="settings-row", id=row):
+            yield Label("Radio (Hamlib)", classes="settings-label")
+            yield Select([], id="set-rig", allow_blank=True, compact=True)
+        with Horizontal(classes="settings-row settings-buttons"):
+            yield Button("New", compact=True, id="rig-new")
+            yield Button("Edit", compact=True, id="rig-edit")
+            yield Button("Test", compact=True, id="rig-test")
+            yield Button("Forget", compact=True, id="rig-forget")
+        yield Static("", id="settings-rig-detail", classes="settings-detail")
 
     def _compose_credentials(self) -> ComposeResult:
         """Saved logins, referenced by name from a station's Connect entry.
@@ -972,6 +1004,7 @@ class SettingsPane(Vertical):
         self._show_unsaved()
 
         self._render_transports(config)
+        self._render_launch(config)
         self._render_credentials(config)
         self._render_scripts(config)
         self._render_banner(config)
@@ -1035,6 +1068,158 @@ class SettingsPane(Vertical):
             f"{k} = {v}" for k, v in sorted(entry.items()) if k not in ("name",)
         )
         detail.update(keys or "(no settings)")
+
+    # -- Programs and radios (ROADMAP P3a) ----------------------------------
+    def _render_launch(self, config) -> None:
+        for select_id, items in (("#set-program", config.programs), ("#set-rig", config.rigs)):
+            select = self.query_one(select_id, Select)
+            names = [i.get("name", "") for i in items if i.get("name")]
+            select.set_options((n, n) for n in names)
+            if select.value not in names:
+                select.value = names[0] if names else Select.NULL
+        self._render_program_detail(config)
+        self._render_rig_detail(config)
+
+    def _render_program_detail(self, config) -> None:
+        name = self.query_one("#set-program", Select).value
+        entry = next((p for p in config.programs if p.get("name") == name), None)
+        detail = self.query_one("#settings-program-detail", Static)
+        if entry is None:
+            detail.update("No program saved. New adds one; a transport's form can then "
+                          "name it, and kissterm starts it when that transport opens.")
+            return
+        status = self.app.core.supervisor.status(str(name))  # type: ignore[attr-defined]
+        state = ("running (started by kissterm)" if status["running"]
+                 else f"exited with code {status['exit_code']}" if status["started_by_kissterm"]
+                 else "not started by kissterm")
+        used = [t.get("name", "") for t in config.transports if t.get("program") == name]
+        detail.update(f"{entry.get('path', '')} {entry.get('args', '')}".strip()
+                      + f"  --  {state}" + (f"; used by {', '.join(used)}" if used else ""))
+
+    def _render_rig_detail(self, config) -> None:
+        name = self.query_one("#set-rig", Select).value
+        entry = next((r for r in config.rigs if r.get("name") == name), None)
+        detail = self.query_one("#settings-rig-detail", Static)
+        if entry is None:
+            detail.update("No radio saved. New adds one by its Hamlib model; kissterm then "
+                          "reads its frequency and mode through rigctld.")
+            return
+        bands = ", ".join(entry.get("tune_bands") or []) or "never"
+        detail.update(
+            f"Hamlib model {entry.get('model')} on {entry.get('device') or 'rigctld ' + str(entry.get('host')) + ':' + str(entry.get('port'))}"
+            f"; stops above SWR {entry.get('swr_trip')}; tunes the ATU on: {bands}")
+
+    @on(Select.Changed, "#set-program")
+    def _program_changed(self) -> None:
+        self._render_program_detail(self.app.config)  # type: ignore[attr-defined]
+
+    @on(Select.Changed, "#set-rig")
+    def _rig_changed(self) -> None:
+        self._render_rig_detail(self.app.config)  # type: ignore[attr-defined]
+
+    def _selected_entry(self, select_id: str, items: list[dict], what: str) -> dict | None:
+        name = self.query_one(select_id, Select).value
+        entry = next((i for i in items if i.get("name") == name), None)
+        if entry is None:
+            self.app.notify(f"Select a {what} first.", severity="warning")  # type: ignore[attr-defined]
+        return entry
+
+    @work
+    async def _edit_program(self, new: bool) -> None:
+        from .launch_screens import ProgramEntryScreen
+
+        config = self.app.config  # type: ignore[attr-defined]
+        entry = None if new else self._selected_entry("#set-program", config.programs, "program")
+        if not new and entry is None:
+            return
+        name = await self.app.push_screen_wait(  # type: ignore[attr-defined]
+            ProgramEntryScreen(self.app.core.radio, entry))  # type: ignore[attr-defined]
+        if name:
+            self._render_launch(config)
+            self.query_one("#set-program", Select).value = name
+            self._render_program_detail(config)
+
+    @on(Button.Pressed, "#program-new")
+    def _program_new(self) -> None:
+        self._edit_program(True)
+
+    @on(Button.Pressed, "#program-edit")
+    def _program_edit(self) -> None:
+        self._edit_program(False)
+
+    @on(Button.Pressed, "#program-forget")
+    def _program_forget(self) -> None:
+        name = self.query_one("#set-program", Select).value
+        if not name or name == Select.NULL:
+            return
+        error = self.app.core.radio.forget_program(str(name))  # type: ignore[attr-defined]
+        if error:
+            self.app.notify(error, severity="warning")  # type: ignore[attr-defined]
+        self._render_launch(self.app.config)  # type: ignore[attr-defined]
+
+    @work
+    async def _program_run(self, start: bool) -> None:
+        name = self.query_one("#set-program", Select).value
+        if not name or name == Select.NULL:
+            return
+        radio = self.app.core.radio  # type: ignore[attr-defined]
+        error = await (radio.start_program(str(name)) if start else radio.stop_program(str(name)))
+        self.app.notify(error or f"{name} {'started' if start else 'stopped'}.",  # type: ignore[attr-defined]
+                        severity="warning" if error else "information")
+        self._render_program_detail(self.app.config)  # type: ignore[attr-defined]
+
+    @on(Button.Pressed, "#program-start")
+    def _program_start(self) -> None:
+        self._program_run(True)
+
+    @on(Button.Pressed, "#program-stop")
+    def _program_stop(self) -> None:
+        self._program_run(False)
+
+    @work
+    async def _edit_rig(self, new: bool) -> None:
+        from .launch_screens import RigEntryScreen
+
+        config = self.app.config  # type: ignore[attr-defined]
+        entry = None if new else self._selected_entry("#set-rig", config.rigs, "radio")
+        if not new and entry is None:
+            return
+        name = await self.app.push_screen_wait(  # type: ignore[attr-defined]
+            RigEntryScreen(self.app.core.radio, entry))  # type: ignore[attr-defined]
+        if name:
+            self._render_launch(config)
+            self.query_one("#set-rig", Select).value = name
+            self._render_rig_detail(config)
+
+    @on(Button.Pressed, "#rig-new")
+    def _rig_new(self) -> None:
+        self._edit_rig(True)
+
+    @on(Button.Pressed, "#rig-edit")
+    def _rig_edit(self) -> None:
+        self._edit_rig(False)
+
+    @on(Button.Pressed, "#rig-forget")
+    def _rig_forget(self) -> None:
+        name = self.query_one("#set-rig", Select).value
+        if not name or name == Select.NULL:
+            return
+        error = self.app.core.radio.forget_rig(str(name))  # type: ignore[attr-defined]
+        if error:
+            self.app.notify(error, severity="warning")  # type: ignore[attr-defined]
+        self._render_launch(self.app.config)  # type: ignore[attr-defined]
+
+    @work
+    async def _rig_test(self) -> None:
+        name = self.query_one("#set-rig", Select).value
+        if not name or name == Select.NULL:
+            return
+        result = await self.app.core.radio.test_rig(str(name))  # type: ignore[attr-defined]
+        self.app.notify(result["text"], severity="information" if result["ok"] else "warning")  # type: ignore[attr-defined]
+
+    @on(Button.Pressed, "#rig-test")
+    def _rig_test_pressed(self) -> None:
+        self._rig_test()
 
     def _render_credentials(self, config) -> None:
         select = self.query_one("#set-credential", Select)
@@ -1277,7 +1462,9 @@ class SettingsPane(Vertical):
         )
         result = await self.app.push_screen_wait(  # type: ignore[attr-defined]
             TransportEntryScreen(
-                entry, config.credentials, config.scripts, existing_names
+                entry, config.credentials, config.scripts, existing_names,
+                programs=tuple(p.get("name", "") for p in config.programs if p.get("name")),
+                rigs=tuple(r.get("name", "") for r in config.rigs if r.get("name")),
             )
         )
         if result is None:

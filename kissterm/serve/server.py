@@ -756,6 +756,44 @@ class RemoteServer:
     async def cmd_radio_test(self, name: str) -> dict:
         return await self.core.radio.test(str(name))
 
+    # -- Programs and radios (ROADMAP P3a). The station is the one place
+    # these run, and a paired phone sets every field the terminal does
+    # (operator, 2026-10-09: no extra barriers; the pairing link is the proof).
+    async def cmd_program_save(self, entry: dict, original: str = "") -> dict:
+        if not isinstance(entry, dict):
+            raise CommandError("entry must be an object")
+        return {"error": self.core.radio.save_program(entry, str(original))}
+
+    async def cmd_program_forget(self, name: str) -> dict:
+        return {"error": self.core.radio.forget_program(str(name))}
+
+    async def cmd_program_start(self, name: str) -> dict:
+        return {"error": await self.core.radio.start_program(str(name))}
+
+    async def cmd_program_stop(self, name: str) -> dict:
+        return {"error": await self.core.radio.stop_program(str(name))}
+
+    async def cmd_program_browse(self, path: str = "") -> dict:
+        """Folders and executables on the STATION computer
+        (`launch/browse.py`): names only, scripts left out."""
+        return self.core.radio.browse_programs(str(path or ""))
+
+    async def cmd_rig_save(self, entry: dict, original: str = "") -> dict:
+        if not isinstance(entry, dict):
+            raise CommandError("entry must be an object")
+        return {"error": self.core.radio.save_rig(entry, str(original))}
+
+    async def cmd_rig_forget(self, name: str) -> dict:
+        return {"error": self.core.radio.forget_rig(str(name))}
+
+    async def cmd_rig_test(self, name: str) -> dict:
+        """Read the radio's frequency and mode through rigctld; never keys."""
+        return await self.core.radio.test_rig(str(name))
+
+    async def cmd_rig_models(self) -> list:
+        """The radios this station's Hamlib supports (`rigctl -l`)."""
+        return await self.core.radio.rig_models()
+
     async def cmd_logins(self) -> list:
         """Saved logins by name and username; a password never leaves."""
         return self.core.radio.logins()

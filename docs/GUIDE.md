@@ -586,6 +586,26 @@ and a web server or SSH banner is reported as what it is. A port that is
 open and silent stays "unconfirmed", since that is exactly what a working
 KISS TNC looks like on a quiet channel.
 
+**Starting your modem, and reading your radio (experimental).** Settings >
+Radio has two more lists under the transports, the same on the phone and
+web client as in the terminal. *Modem program* is something kissterm starts
+when a transport that names it opens (Mercury, Direwolf, VARA, QtSoundModem);
+pick Mercury or another preset and its usual file and arguments are filled
+in, or choose "Another program" and *Browse* the station's files (folders
+and executables only; on the phone the list is the station's, not the
+phone's). A modem that already answers is used and left alone; only one
+kissterm started is stopped when it exits. Start and Stop on its row do it by
+hand. A program that transmits by itself (Direwolf's own beacons, VARA
+answering while listening) is outside the transmit switch. *Radio (Hamlib)*
+names a radio by its Hamlib model number (*Pick from Hamlib's list* needs
+Hamlib's `rigctl` on the station) and how its `rigctld` is reached; Test
+reads the frequency and mode and never transmits. A rig's SWR limit (3.0
+by default) and the bands to tune the antenna tuner on before a connect (none
+by default) are saved now; the SWR trip, the tuner and frequency display come
+in later releases. A transport's form then names the program and radio it
+uses. A paired phone can change a program's file, arguments and working
+folder; the pairing link is what proves it is you at the station.
+
 **Changing your callsign** is Session > My callsign in the menu, or
 `kissterm --callsign W1AW-9`; neither re-runs the setup wizard. It is
 refused while a link is up.

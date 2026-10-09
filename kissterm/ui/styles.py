@@ -502,7 +502,8 @@ WinlinkGatewayScreen #setup-route-label { width: 12; }
    SSH's four fields plus name/kind/error/auto-login is taller than a
    typical terminal, and an un-capped `#connect-box` (every shorter dialog's
    choice) pushed Save/Cancel off the bottom, unreachable. */
-TransportEntryScreen { align: center middle; }
+TransportEntryScreen, ProgramEntryScreen, RigEntryScreen,
+ProgramFileScreen, RigModelScreen { align: center middle; }
 #transport-box {
     width: 72; height: auto; max-height: 90%; padding: 1 2;
     border: thick $primary; background: $surface;
@@ -512,6 +513,11 @@ TransportEntryScreen { align: center middle; }
 #transport-fields { margin-top: 1; height: auto; }
 #transport-script-title { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
 #transport-script-hint { color: $text-muted; width: 100%; height: auto; }
+#transport-local-title { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
+#transport-program, #transport-rig { width: 100%; margin-top: 1; }
+#prog-note { color: $text-muted; width: 100%; height: auto; }
+#rig-bands { height: 8; }
+#rig-model-table, #program-file-table { height: 12; }
 #transport-credential { width: 100%; }
 #transport-script-name { width: 100%; margin-top: 1; }
 
