@@ -5,6 +5,19 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Phone and web: an open message's buttons are in the title bar
+
+### Improvements
+
+- **A mail message's actions sit in the title bar beside the transmit chip**
+  like every other place's, not in a row of their own under its subject
+  (operator, 2026-10-09). **Reply with quote is now right next to Reply**
+  (Delete, Save as text, the form replies, Reply all, Reply with quote,
+  then Reply last); closing the message puts the list's buttons back.
+
+**Files:** `kissterm/client/ui/mail.py`, `kissterm/client/ui/toolbar.py`,
+`DESIGN.md`, `tests/unit/test_client_ui.py`, `assets/`
+
 ## [2026-10-09] — Phone and web: Save as text downloads a message, conversation or session
 
 ### New Features

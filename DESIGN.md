@@ -707,7 +707,7 @@ and do not apply there; these do.
   accident; the radio must not key because of it
   (`tests/unit/test_client_ui.py`).
 - **Save as text is a download arrow** (`Icons.DOWNLOAD`, never the
-  primary): in the reader's row, the APRS thread's title row and
+  primary): in the reader's title-bar actions, the APRS thread's title row and
   Terminal's toolbar. It downloads to this device and never asks, since
   nothing goes on the air (`download.py`).
 - **Anything that puts a frame on the air asks first** in a sheet:
@@ -743,8 +743,11 @@ and do not apply there; these do.
   tab bar, a mini and a full-size FAB stacked, or a chip beside the
   transmit switch: that was four designs. **The transmit switch is the
   top bar's only button.** A place's actions are an `Action` list, hidden
-  by `visible`, never a second row; a reader (a mail message) is the same
-  row under its title with Reply as the primary. **Buttons inside a
+  by `visible`, never a second row; a reader (a mail message) puts its
+  actions in the same title bar in the place of the list's, with Reply as
+  the primary and Reply with quote just before it (operator, 2026-10-09:
+  "they aren't up with the TX ON button"; "reply with quote should be
+  right next to reply"). **Buttons inside a
   section's content** (More's Restart station and Shut down, Radio's
   Scan, New, Edit) are outlined and always labelled: the toolbar is for
   what the place does, not for what a section does. The map's zoom

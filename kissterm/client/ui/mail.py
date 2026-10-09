@@ -263,7 +263,17 @@ class MailView:
             "add_file": Action(ft.Icons.UPLOAD_FILE, "Add file", self._add_file, visible=False),
             "write": Action(ft.Icons.EDIT, "Write", self._write_new, primary=True),
         }
-        self.toolbar = Toolbar(app)
+        self.list_bar = Toolbar(app)
+        #: An open message's actions, a bar of their own that takes the title
+        #: bar's place while it is read: made new for each message, since a
+        #: bar put back in the title bar with other buttons was not redrawn.
+        self.reader_bar = Toolbar(app)
+        #: No buttons, only the transmit chip: while a message is written or a
+        #: file viewed. A bar is swapped, never hidden and shown again: a
+        #: control put back in the title bar with a changed `visible` was
+        #: not redrawn.
+        self.blank_bar = Toolbar(app)
+        self.toolbar = self.list_bar
         self._ticking = False
         self._dots = 0
         self._paint_button()
@@ -276,7 +286,7 @@ class MailView:
         sync = self.actions["sync"]
         sync.label = what
         sync.tooltip = "Running: tap to cancel" if running else what
-        self.toolbar.set(list(self.actions.values()))
+        self.list_bar.set(list(self.actions.values()))
 
     async def shown(self) -> None:
         await self.reload()
@@ -319,16 +329,25 @@ class MailView:
         # The dots in a fixed width, so the line does not shuffle as they count.
         self.activity.value = f"{text}{dots:<3}" if text else ""
 
+    def _use(self, bar: Toolbar) -> None:
+        """Put `bar` in the title bar if this is the place on screen."""
+        self.toolbar = bar
+        from .shell import MAIL
+
+        appbar = getattr(self.app.page, "appbar", None)  # None while the app is built
+        if appbar is not None and getattr(self.app, "index", None) == MAIL:
+            appbar.actions = bar.bar
+
     def _show_list(self) -> None:
         self.reader = None
+        self._use(self.list_bar)
         self._paint_activity()
         self._paint_toolbar()
         self.paint_switch()
-        self.toolbar.show(True)
         self.control.content = ft.Column(
             expand=True, spacing=0, controls=[
                 ft.Container(padding=ft.Padding.symmetric(horizontal=8, vertical=2),
-                             content=self.toolbar.row),
+                             content=self.list_bar.row),
                 ft.Container(padding=ft.Padding.symmetric(horizontal=12, vertical=6),
                              content=ft.Row(controls=[self.folders])),
                 self.panel,
@@ -439,7 +458,7 @@ class MailView:
         # 2026-10-09: "three tabs, different connect buttons"); the primary is
         # the tab's own making action: Write, or Add file.
         self.actions["add_file"].primary = True
-        self.toolbar.paint()
+        self.list_bar.set(list(self.actions.values()))
 
     async def _add_file(self, _e) -> None:
         """Pick a file on this device and send it up to Files > Uploads
@@ -580,8 +599,8 @@ class MailView:
         """The section tabs lead the toolbar on a phone; a wide screen has a
         rail place for each, so they go."""
         self.switch.selected_index = [v for v, *_ in SECTIONS].index(self.section)
-        self.toolbar.tabs = None if getattr(self.app, "wide", False) else self.switch
-        self.toolbar.paint()
+        self.list_bar.tabs = None if getattr(self.app, "wide", False) else self.switch
+        self.list_bar.paint()
 
     def set_section(self, section: str) -> None:
         """Show Mail, Bulletins or Files, at the folder last shown there."""
@@ -619,8 +638,6 @@ class MailView:
                                            on_click=self._back),
                              ft.Text(message.get("subject", ""), expand=True, max_lines=2,
                                      theme_style=ft.TextThemeStyle.TITLE_MEDIUM)]),
-            ft.Container(padding=ft.Padding.symmetric(horizontal=8), content=self._reader_toolbar(
-                self.reader_actions(ref, message))),
             ft.Container(expand=True, padding=ft.Padding.all(16), content=ft.Column(
                 scroll=ft.ScrollMode.AUTO, controls=[
                     ft.Column(spacing=2, tight=True, controls=[
@@ -628,7 +645,13 @@ class MailView:
                         *routing_section(message.get("routing") or [])]),
                     ft.Divider(),
                     ft.Text(message.get("body", ""), selectable=True)]))])
-        self.toolbar.show(False)
+        # The reader's actions take the place's spot in the title bar, beside
+        # the transmit chip (operator, 2026-10-09); the list repaints its own.
+        previous, self.reader_bar = self.reader_bar, Toolbar(self.app)
+        self.reader_bar.set(self.reader_actions(ref, message))
+        self._use(self.reader_bar)
+        if previous is not None:
+            previous.close()
         self.control.content = self.reader
         self.app.page.update()
 
@@ -636,21 +659,15 @@ class MailView:
         from .files import FileViewer
 
         async def close() -> None:
-            self.toolbar.show(False)
+            self._use(self.reader_bar)
             self.control.content = self.reader
             self.app.page.update()
 
         viewer = FileViewer(self, ref, close)
         await viewer.show()
-        self.toolbar.show(False)
+        self._use(self.blank_bar)
         self.control.content = viewer.control
         self.app.page.update()
-
-    def _reader_toolbar(self, actions: list[Action]) -> ft.Control:
-        """The reader's one row of actions (`toolbar.py`): the primary last."""
-        bar = Toolbar(self.app, register=False, gate=False)
-        bar.set(actions)
-        return bar.inline()
 
     def reader_actions(self, ref: str, message: dict) -> list[Action]:
         """Reply (the primary), Reply all, Reply with quote, Delete or Restore:
@@ -687,11 +704,19 @@ class MailView:
                              current=self.app.views[TERMINAL].current)
 
             actions.append(Action(ft.Icons.UPLOAD_FILE, "Send over the radio", send_file))
+        # Delete and Save first, then the replies, so Reply with quote sits
+        # beside Reply, the primary, which the toolbar puts last (operator,
+        # 2026-10-09).
+        if in_deleted(self.folder):
+            actions.append(Action(ft.Icons.RESTORE_FROM_TRASH, "Restore", discard))
+        else:
+            actions.append(Action(ft.Icons.DELETE_OUTLINE, "Delete", discard))
         if not self.folder.startswith("Files"):
-            actions.append(Action(ft.Icons.REPLY, "Reply", reply(None), primary=True))
-            if message.get("reply_all"):
-                actions.append(Action(ft.Icons.REPLY_ALL, "Reply all", reply(None, everyone=True)))
-            actions.append(Action(ft.Icons.FORMAT_QUOTE, "Reply with quote", reply(True)))
+            # The terminal's X: the message as a .txt file on this device.
+            async def save(_e) -> None:
+                await download.save_text(self.app, "mail", ref)
+
+            actions.append(Action(ft.Icons.DOWNLOAD, "Save as text", save))
             on = message.get("reply_on") or {}
 
             def answer(form_id: str):
@@ -705,16 +730,10 @@ class MailView:
             if on.get("strip"):
                 # The terminal's Answer strip: the request strip as a form.
                 actions.append(Action(ft.Icons.FACT_CHECK, "Answer strip", answer(on["strip"])))
-            # The terminal's X: the message as a .txt file on this device.
-            async def save(_e) -> None:
-                await download.save_text(self.app, "mail", ref)
-
-            actions.append(Action(ft.Icons.DOWNLOAD, "Save as text", save))
-        if in_deleted(self.folder):
-            actions.append(Action(ft.Icons.RESTORE_FROM_TRASH, "Restore", discard,
-                                  primary=not in_files and not any(a.primary for a in actions)))
-        else:
-            actions.append(Action(ft.Icons.DELETE_OUTLINE, "Delete", discard))
+            if message.get("reply_all"):
+                actions.append(Action(ft.Icons.REPLY_ALL, "Reply all", reply(None, everyone=True)))
+            actions.append(Action(ft.Icons.FORMAT_QUOTE, "Reply with quote", reply(True)))
+            actions.append(Action(ft.Icons.REPLY, "Reply", reply(None), primary=True))
         return actions
 
     async def _back(self, _e) -> None:
@@ -812,7 +831,7 @@ class MailView:
         self._writing = {"to": to, "at": at, "title": title, "body": body, "kind": kind,
                          "problems": problems, "save": save, "close": close}
         self.reader = None
-        self.toolbar.show(False)
+        self._use(self.blank_bar)
         self.control.content = ft.Column(expand=True, spacing=0, controls=[
             ft.Container(padding=ft.Padding.only(right=12), content=ft.Row(controls=[
                 ft.IconButton(icon=ft.Icons.CLOSE, tooltip="Close", on_click=close),
@@ -872,7 +891,7 @@ class MailView:
         page = FormPage(self, start, next_)
         self._writing = {"form": page}
         self.reader = None
-        self.toolbar.show(False)
+        self._use(self.blank_bar)
         self.control.content = page.control()
         self.app.page.update()
 
@@ -886,7 +905,7 @@ class MailView:
         form = RadiogramForm(self, start, ics213)
         self._writing = {"radiogram": form}
         self.reader = None
-        self.toolbar.show(False)
+        self._use(self.blank_bar)
         self.control.content = form.control()
         self.app.page.update()
 

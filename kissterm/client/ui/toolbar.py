@@ -20,6 +20,12 @@ way at either width.
 whole page down in the top bar): a place's primary action sits just before
 it, and the chip is always in the same corner.
 
+**A page over the list takes the title bar** with a `Toolbar` of its own,
+swapped into `appbar.actions` (`MailView._use`), as an open mail message
+does: Delete, Save as text, the replies, Reply last; the list's goes back
+when it closes. Swapped, not repainted in place: repainting the list's own
+buttons with the reader's was never drawn by the page.
+
 An action is data (`Action`); the buttons are drawn from it by `paint`, which
 the shell calls again when the width crosses `WIDE`. Hide one by setting
 `visible` and painting. Nothing here sends anything: an action only calls
@@ -72,6 +78,16 @@ class Toolbar:
         self.bar = [self.buttons] + ([self.gate] if self.gate else [])
         self.paint()
 
+    def close(self) -> None:
+        """Forget a toolbar made for one page (an open message): its
+        repaints and its transmit chip, which the app would paint forever."""
+        registry = getattr(self.app, "toolbars", None)
+        if registry is not None and self in registry:
+            registry.remove(self)
+        chips = getattr(self.app, "gate_chips", None)
+        if chips is not None and self.gate is not None:
+            chips[:] = [c for c in chips if c is not self.gate]
+
     def show(self, on: bool) -> None:
         """Hide the actions while a page over the place's list (a message
         being read, a thread) has its own; the transmit chip stays."""
@@ -93,11 +109,6 @@ class Toolbar:
         if self.tabs is not None:
             self.tabs.expand = True
         self.row.controls = [self.tabs] if self.tabs is not None else []
-
-    def inline(self) -> ft.Control:
-        """The actions in a row of their own, for a page with no app bar
-        beside it (the mail reader)."""
-        return ft.Row(controls=[ft.Container(expand=True), self.buttons], spacing=4)
 
     def _button(self, action: Action) -> ft.Control:
         tip = action.tooltip or action.label

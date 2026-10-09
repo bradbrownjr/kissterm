@@ -681,14 +681,43 @@ def test_the_reader_offers_reply_all_only_with_others_and_restore_in_deleted():
 
     view = MailView(MailApp({}))
     assert _icons(view.reader_actions("r", {"reply_all": False})) == [
-        "Reply with quote", "Save as text", "Delete", "Reply"], "Reply is the primary, so it is last"
+        "Delete", "Save as text", "Reply with quote", "Reply"], "Reply is last, the quote beside it"
     assert _icons(view.reader_actions("r", {"reply_all": True})) == [
-        "Reply all", "Reply with quote", "Save as text", "Delete", "Reply"]
+        "Delete", "Save as text", "Reply all", "Reply with quote", "Reply"]
     view.folder = "Mail/Winlink/Deleted"
     tips = _icons(view.reader_actions("r", {}))
     assert "Restore" in tips and "Delete" not in tips
     view.folder = "Files/Downloads"
     assert _icons(view.reader_actions("r", {})) == ["Delete"]
+
+
+@pytest.mark.asyncio
+async def test_an_open_message_takes_the_title_bar_and_closing_it_gives_it_back():
+    from kissterm.client.ui.mail import MailView
+
+    entry = {"ref": "Mail/BBS/Inbox/a.msg", "subject": "Hi"}
+    app = MailApp({"mail_folders": ["Mail/BBS/Inbox"], "mail_list": [entry],
+                   "mail_read": {**entry, "sender": "W1AW", "body": "Hello",
+                                 "reply_all": True}})
+    app.index = 0
+    app.page.appbar = ft.AppBar()
+    app.toolbars, app.gate_chips = [], []
+    app.gate_chip = lambda: app.gate_chips.append(ft.Container()) or app.gate_chips[-1]
+    view = MailView(app)
+    await view.reload()
+    assert app.page.appbar.actions is view.list_bar.bar
+    await view.open(entry["ref"])
+    assert app.page.appbar.actions is view.reader_bar.bar, "the reader's are in the title bar"
+    assert [a.label for a in view.reader_bar.actions] == [
+        "Delete", "Save as text", "Reply all", "Reply with quote", "Reply"]
+    assert view.reader_bar.buttons.visible
+    await view._back(None)
+    assert app.page.appbar.actions is view.list_bar.bar and view.toolbar is view.list_bar
+    first = view.reader_bar
+    await view.open(entry["ref"])
+    assert view.reader_bar is not first, "each message gets a bar of its own"
+    assert all(t is not first for t in app.toolbars)
+    assert all(c is not first.gate for c in app.gate_chips)
 
 
 class FakePicker:
