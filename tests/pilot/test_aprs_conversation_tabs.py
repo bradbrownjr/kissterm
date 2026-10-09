@@ -515,3 +515,33 @@ async def test_a_conversation_closes_from_its_x_and_ctrl_w(tmp_path):
         await wait_for(lambda: tabs.active == _ALL_TAB, "closed with Ctrl+W")
     mine.close()
     theirs.close()
+
+
+@pytest.mark.asyncio
+async def test_x_on_the_conversation_strip_saves_the_conversation_on_screen(
+        tmp_path, monkeypatch):
+    from kissterm.core import export
+    from kissterm.ui.dialogs import SaveTextScreen
+
+    monkeypatch.setattr(export, "default_folder", lambda: tmp_path)
+    app, mine, theirs = await _app(tmp_path)
+    async with app.run_test(size=(140, 40)) as pilot:
+        await _aprs_tab(app, pilot)
+        strip = app.query_one("#aprs-convo-tabs", Tabs)
+        strip.focus()
+        await pilot.pause()
+        assert "x" not in app.active_bindings, "nothing to save on All"
+        app.core.aprs.conversations.record_incoming("W1AW-7", "Net at 7", number="1")
+        pane = app.query_one(AprsPane)
+        pane.select_conversation("W1AW-7", "W1AW-7")
+        strip.focus()
+        await pilot.pause()
+        await pilot.press("x")
+        await pilot.pause()
+        assert isinstance(app.screen, SaveTextScreen)
+        await pilot.press("enter")
+        await pilot.pause()
+        [saved] = list(tmp_path.glob("aprs-w1aw-7-*.txt"))
+        assert "W1AW-7: Net at 7" in saved.read_text()
+    mine.close()
+    theirs.close()

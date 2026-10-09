@@ -220,3 +220,18 @@ async def test_the_bbs_helper_renders_a_command_and_refuses_a_bad_argument():
     assert core.sessions.bbs_render("nope", "x", {})["text"] == ""
     station.close()
     peer.close()
+
+
+@pytest.mark.asyncio
+async def test_a_session_keeps_its_screen_clean_for_save_as_text_and_a_reconnect_keeps_it():
+    core, operator, station, peer, events = await _setup()
+    core.gate.set(True)
+    link = await station.connect(AX25Path(PEER, MYCALL))
+    key = core.sessions.bind(link)
+    core.sessions.on_link_data(key, b"\x1b[1mHello\x1b[0m\r\nde WS1EC>")
+    assert await core.sessions.send_line(key, "B")
+    assert core.sessions.get(key).screen == "Hello\nde WS1EC>\nB\n"
+    core.sessions.bind(link, key)
+    assert core.sessions.get(key).screen == "Hello\nde WS1EC>\nB\n", "the tab still shows it"
+    station.close()
+    peer.close()

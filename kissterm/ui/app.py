@@ -188,6 +188,7 @@ from .dialogs import (
     FileTransferScreen,
     RemotePairingScreen,
     RestartScreen,
+    SaveTextScreen,
     UpdateScreen,
 )
 from .heard_pane import HeardPane
@@ -1749,6 +1750,8 @@ class KissTermApp(App):
                     return "no conversation open"
             elif not self._active_key():
                 return "no session open"
+        if action == "save_text" and self._save_text_export() is None:
+            return {"aprs": "no conversation open"}.get(self.active_tab(), "nothing to save")
         if action == "rms_gateways":
             from ..winlink import gateways
 
@@ -2494,6 +2497,41 @@ class KissTermApp(App):
         now, since `SessionLog` is line-buffered.
         """
         await self.push_screen_wait(TranscriptsScreen(self._transcript_directory()))
+
+    def _save_text_export(self, callsign: str = ""):
+        """What Save as text would save on the tab on screen, as a
+        `core.export` `Export`, or None with nothing to save. `callsign`
+        is an APRS contact's, from the contacts table's X."""
+        core = self.core
+        tab = self.active_tab()
+        try:
+            if tab in ("mail", "bulletins"):
+                browser = self.query_one(f"#{tab}-browser", MessageBrowser)
+                ref = browser.selected_ref()
+                return core.export.mail(ref) if ref else None
+            if tab == "aprs":
+                call = callsign or next(
+                    (p.shown_callsign() for p in self._base_query(AprsPane)), "")
+                return core.export.aprs(call) if call else None
+            if tab == "terminal":
+                return core.export.session(self._active_key())
+        except (KeyError, OSError):
+            return None
+        return None
+
+    @work
+    async def action_save_text(self, callsign: str = "") -> None:
+        """Save as text (X; F10 > Session): the highlighted message, the open
+        APRS conversation or the Terminal tab on screen, as a file on this
+        computer (`core/export.py`). Nothing is sent."""
+        export = self._save_text_export(callsign)
+        if export is None:
+            self.notify("Nothing to save here: highlight a message or open a conversation.",
+                        severity="warning")
+            return
+        written = await self.push_screen_wait(SaveTextScreen(export))
+        if written is not None:
+            self.notify(f"Saved to {written}")
 
     def _downloads_dir(self) -> Path:
         """Files > Downloads in the message store (`Mail.downloads_dir`)."""

@@ -184,6 +184,7 @@ class MessageList(DataTable):
         Binding("i", "get_internet", "By Internet"),
         Binding("v", "toggle_form", "Form/text"),
         Binding("t", "toggle_routing", "Routing"),
+        Binding("x", "save_text", "Save as text"),
         *_BULLETIN_BINDINGS,
         _FILES_GET,
         _CANCEL_RUN,
@@ -216,7 +217,7 @@ class MessageList(DataTable):
             return browser.id == "mail-browser" and browser.g_kind() == _G_KIND[action]
         if action in ("new_message", "get_internet"):
             return browser.id == "mail-browser"
-        if action in ("reply", "reply_quoted"):
+        if action in ("reply", "reply_quoted", "save_text"):
             return self.row_count > 0 and not browser.files
         if action == "reply_all":
             return self.row_count > 0 and not browser.files and browser.showing_reply_all_message()
@@ -228,6 +229,9 @@ class MessageList(DataTable):
 
     def action_toggle_form(self) -> None:
         self._browser().toggle_form_view()
+
+    def action_save_text(self) -> None:
+        self.app.action_save_text()  # type: ignore[attr-defined]
 
     def action_cancel_run(self) -> None:
         self.app.action_cancel_mail_run()  # type: ignore[attr-defined]

@@ -445,6 +445,25 @@ async def test_aprs_threads_are_read_with_off_air_text_filtered():
 
 
 @pytest.mark.asyncio
+async def test_export_text_saves_a_conversation_and_refuses_what_is_not_there():
+    core, server, ta, peer = await _serve()
+    core.aprs.conversations.record_incoming("W1AW-7", "net \x1b[31mstarts now", number="7")
+    client = await _join(server)
+    await client.next()
+    made = (await client.command("e1", "export_text", kind="aprs", ref="w1aw-7"))["value"]
+    assert made["name"].startswith("aprs-w1aw-7-") and made["name"].endswith(".txt")
+    assert "W1AW-7: net starts now" in made["text"] and "\x1b" not in made["text"]
+    assert (await client.command("e2", "export_text", kind="aprs", ref="N0ONE"))["ok"] is False
+    assert (await client.command("e3", "export_text", kind="mail",
+                                 ref="../../config.toml"))["ok"] is False
+    assert (await client.command("e4", "export_text", kind="disk"))["ok"] is False
+    broadcast = (await client.command("e5", "export_text", kind="session", ref=""))["value"]
+    assert broadcast["name"].startswith("broadcast-")
+    await client.ws.close()
+    await server.stop()
+
+
+@pytest.mark.asyncio
 async def test_a_contact_script_never_leaves_and_an_edit_keeps_it():
     core, server, ta, peer = await _serve()
     core.addressbook.upsert("W1AW-2", script="BBS\nPASSWORD hunter2", note="home")

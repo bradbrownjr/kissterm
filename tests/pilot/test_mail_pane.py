@@ -281,3 +281,79 @@ async def test_g_cancels_a_run_that_is_going_as_the_phones_button_does(tmp_path)
         await app.workers.wait_for_complete()
         assert cancelled == [True]
         app.core.mail.collecting = False
+
+
+@pytest.mark.asyncio
+async def test_x_saves_the_highlighted_message_as_text_and_asks_before_replacing(
+        tmp_path, monkeypatch):
+    from textual.widgets import Input, Label
+
+    from kissterm.core import export
+    from kissterm.ui.dialogs import SaveTextScreen
+
+    out = tmp_path / "Downloads"
+    out.mkdir()
+    monkeypatch.setattr(export, "default_folder", lambda: out)
+    app, _store = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.query_one("#main-tabs", TabbedContent).active = "bulletins"
+        await pilot.pause()
+        bulletins = _browser(app, "bulletins")
+        bulletins.show_folder("Bulletins/WX")
+        await pilot.pause()
+        bulletins.query_one(MessageList).focus()
+        await pilot.pause()
+        assert app.active_bindings["x"].binding.description == "Save as text"
+        await pilot.press("x")
+        await pilot.pause()
+        assert isinstance(app.screen, SaveTextScreen)
+        path = app.screen.query_one("#save-text-path", Input).value
+        assert path.startswith(str(out)) and "bulletin-n4sd-" in path
+        await pilot.click("#save-text-go")
+        await pilot.pause()
+        assert not isinstance(app.screen, SaveTextScreen)
+        [saved] = list(out.iterdir())
+        text = saved.read_text()
+        assert text.startswith("From: N4SD\nTo: WX\n") and "\x1b" not in text
+        assert "red [b]not markup[/b]" in text
+
+        await pilot.press("x")
+        await pilot.pause()
+        await pilot.click("#save-text-go")
+        await pilot.pause()
+        assert isinstance(app.screen, SaveTextScreen), "a file already there is not replaced at once"
+        assert "already there" in str(app.screen.query_one("#save-text-error", Label).render())
+        await pilot.pause(0.5)  # two clicks this close are a double click
+        await pilot.click("#save-text-go")
+        await pilot.pause()
+        assert not isinstance(app.screen, SaveTextScreen)
+        assert len(list(out.iterdir())) == 1
+
+
+@pytest.mark.asyncio
+async def test_save_as_text_on_the_terminal_saves_the_tab_on_screen(tmp_path, monkeypatch):
+    from textual.widgets import Input
+
+    from kissterm.core import export
+    from kissterm.ui import commands
+    from kissterm.ui.dialogs import SaveTextScreen
+
+    monkeypatch.setattr(export, "default_folder", lambda: tmp_path)
+    app, _store = _app(tmp_path)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.action_show_tab("terminal")
+        await pilot.pause()
+        save = next(c for c in commands.COMMANDS if c.action == "save_text")
+        assert save.group == "Session" and app.command_unavailable(save) == ""
+        assert app.active_tab() == "terminal"
+        app.action_save_text()
+        await pilot.pause()
+        assert isinstance(app.screen, SaveTextScreen)
+        assert "broadcast-" in app.screen.query_one("#save-text-path", Input).value
+        await pilot.press("escape")
+        await pilot.pause()
+        app.action_show_tab("aprs")
+        await pilot.pause()
+        assert app.command_unavailable(save) == "no conversation open"

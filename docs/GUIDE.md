@@ -37,6 +37,14 @@ deliver. The full table is in the [README](../README.md#keys).
   APRS or mail reader; it is copied when you let go (`Ctrl+C` copies it
   again). The copy reaches your clipboard through the terminal (OSC 52); a
   multiplexer such as tmux has to be set to pass that through.
+- **Saving as a text file** (for an ARES report, say): **X** on the Mail
+  or Bulletins list saves the highlighted message, and on the APRS
+  conversation tabs or contacts list that conversation; Session > Save as
+  text in the F10 menu saves the Terminal tab on screen, Broadcast
+  included, or whichever of these is on screen. It asks where, starting in
+  your Downloads folder, and says before it replaces a file. The text is
+  plain, with colour codes removed; a session is what its tab shows, from
+  the moment it opened. Nothing is sent.
 - **Closing a tab:** each Terminal connection and each APRS correspondent
   gets a tab. Close the one on screen with `Ctrl+W`, the small **X** at the
   end of the tab row, the menu, or Delete while the tab row has focus. A

@@ -113,6 +113,10 @@ HARVEST_POLL_INTERVAL = 0.5
 #: for hours.
 HARVEST_CAPTURE_LIMIT = 4096
 
+#: Most characters of a session's text kept for Save as text
+#: (`LiveSession.screen`, `core/export.py`); the oldest go first.
+SCREEN_LIMIT = 1024 * 1024
+
 
 @dataclass
 class LiveSession:
@@ -180,6 +184,11 @@ class LiveSession:
     #: Until when (`time.monotonic()`) a YAPP send init on this session is
     #: the download the operator asked for; 0 when none was asked.
     download_until: float = 0.0
+    #: The session as its Terminal tab shows it, as plain text: what the
+    #: far end sent (sanitized) and each line sent to it, never a record
+    #: (DESIGN.md section 6). Kept whether or not transcripts are on, for
+    #: Save as text (`core/export.py`); at most `SCREEN_LIMIT` characters.
+    screen: str = ""
 
 
 class Sessions:
@@ -252,7 +261,10 @@ class Sessions:
         self.cancel_reply_timer(key)
         self.cancel_hop_watch(key)
         self.close_transcript(key)
+        previous = self.by_key.get(key)
         session = LiveSession(link=link)
+        # A reconnect keeps its tab and what the tab shows.
+        session.screen = previous.screen if previous is not None else ""
         # A fresh connection is talking to the link's own peer; any logical
         # peer a previous hop chain established belonged to the session that
         # just ended (`LiveSession.current_node`, `commit_hop`).
@@ -460,7 +472,19 @@ class Sessions:
         """Show `shown` as sent on `key` and log `sent` as the line that
         went (a password is shown masked, logged masked too)."""
         self._publish(LineSent(key, shown))
+        session = self.by_key.get(key)
+        if session is not None:
+            # On a line of its own, as the Terminal shows it.
+            lead = "\n" if session.screen and not session.screen.endswith("\n") else ""
+            self.keep_screen(session, f"{lead}{shown}\n")
         self.log_sent(key, sent, watch_hop=watch_hop)
+
+    @staticmethod
+    def keep_screen(session: LiveSession, text: str) -> None:
+        """Add to `session.screen`, dropping the oldest past `SCREEN_LIMIT`."""
+        session.screen += text
+        if len(session.screen) > SCREEN_LIMIT:
+            session.screen = session.screen[-SCREEN_LIMIT:]
 
     def log_sent(self, key: str, text: str, *, watch_hop: bool = True) -> None:
         """Record a line transmitted on `key`, and (re)arm its reply watch:
@@ -586,6 +610,8 @@ class Sessions:
         self.cancel_reply_timer(key)
         self._publish(SessionData(key, data))
         session = self.by_key.get(key)
+        if session is not None:
+            self.keep_screen(session, sanitize(data))
         if session is not None and session.transcript is not None:
             # Sanitized, never raw: `cat` on a transcript would run the
             # escape sequences the terminal's filter removes.

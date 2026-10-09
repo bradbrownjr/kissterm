@@ -74,7 +74,6 @@ from ..transport.base import TransportError
 from .events import (
     AddressBookChanged,
     ConfigChanged,
-    LineSent,
     MailChanged,
     MailRunChanged,
     SessionData,
@@ -643,8 +642,8 @@ class Mail:
 
     def _sent(self, key: str, text: str) -> None:
         """Echo a line Send/Receive sent, as a typed line is echoed."""
-        self._publish(LineSent(key, self.core.connector.masked(text)))
-        self.core.sessions.log_sent(key, text, watch_hop=False)
+        self.core.sessions.echo_sent(key, self.core.connector.masked(text), text,
+                                     watch_hop=False)
 
     def _received(self, key: str, text: str) -> None:
         """A line from the Winlink gateway, shown and kept in the
@@ -652,6 +651,8 @@ class Mail:
         data = (text + "\r").encode("latin-1", errors="replace")
         self._publish(SessionData(key, data))
         session = self.core.sessions.get(key)
+        if session is not None:
+            self.core.sessions.keep_screen(session, sanitize(data))
         if session is not None and session.transcript is not None:
             session.transcript.received_stream(data, sanitize)
 

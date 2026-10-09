@@ -5,6 +5,27 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Save as text: a message, an APRS conversation or a session as a file
+
+### New Features
+
+- **Save as text** (operator, 2026-10-09, for ARES reports): X on the Mail
+  or Bulletins list saves the highlighted message, X on the APRS
+  conversation strip or contacts table that conversation, and F10 >
+  Session > Save as text the Terminal tab on screen (Broadcast included).
+  It asks where, starting in ~/Downloads, and warns before replacing a
+  file. One core method makes the text (`core.export`), sanitized, and the
+  server offers it as `export_text`; the phone and browser's download
+  follows in the next change.
+- A session keeps what its tab shows in memory (`LiveSession.screen`, the
+  last megabyte), so it can be saved with transcripts off.
+
+**Files:** `kissterm/core/export.py`, `kissterm/core/sessions.py`,
+`kissterm/core/mail.py`, `kissterm/core/service.py`, `kissterm/serve/server.py`,
+`kissterm/ui/app.py`, `kissterm/ui/dialogs.py`, `kissterm/ui/mail_pane.py`,
+`kissterm/ui/aprs_pane.py`, `kissterm/ui/commands.py`, `docs/PROTOCOL.md`,
+`DESIGN.md`, `docs/GUIDE.md`, tests
+
 ## [2026-10-09] — Phone and web: Terminal lines in order; select across lines
 
 ### Fixes

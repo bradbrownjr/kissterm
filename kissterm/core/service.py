@@ -175,6 +175,10 @@ class Core:
         self.frame_subscribers += [self.channel.on_received, self.aprs.on_frame,
                                    self.broadcast.on_frame]
         self.sent_subscribers.append(self.channel.on_sent)
+        from .export import Exporter
+
+        #: Save as text: a message, conversation or session as a file (`export.py`).
+        self.export = Exporter(self)
 
     def attach_view(self, view):
         """Build the sessions and the connect flow, with `view` (a client's

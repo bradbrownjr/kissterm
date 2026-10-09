@@ -211,6 +211,10 @@ COMMANDS: tuple[Command, ...] = (
     Command("compose_mail", "New message", "Session", "N",
             "Write a BBS message; it waits in the Outbox until sent",
             tabs=("mail",), list_key="insert"),
+    Command("save_text", "Save as text", "Session", "X",
+            "Save the highlighted message, the open APRS conversation or the "
+            "Terminal tab on screen as a text file on this computer",
+            tabs=("mail", "bulletins", "terminal", "aprs")),
     Command("show_transcripts", "Transcripts", "Session", "R",
             "Read saved session transcripts"),
     Command("set_callsign", "My callsign", "Session", "M",

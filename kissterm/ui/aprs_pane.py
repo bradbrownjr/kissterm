@@ -248,7 +248,18 @@ class _AprsContactTable(DataTable):
         Binding("insert", "new_contact", "New"),
         Binding("e", "edit_contact", "Edit"),
         Binding("delete", "forget_contact", "Forget"),
+        Binding("x", "save_text", "Save as text"),
     ]
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        if action == "save_text":
+            return bool(self.app.query_one(AprsPane).selected_conversation())
+        return True
+
+    def action_save_text(self) -> None:
+        call = self.app.query_one(AprsPane).selected_conversation()
+        if call:
+            self.app.action_save_text(call)  # type: ignore[attr-defined]
 
     def on_resize(self) -> None:
         # `events.Resize` carries no `control`, so it cannot be routed with
@@ -281,10 +292,19 @@ class _ConvoTabs(Tabs):
     (`kissterm/ui/commands.py`).
     """
 
-    BINDINGS = [Binding("delete", "close_tab", "Close tab")]
+    BINDINGS = [Binding("delete", "close_tab", "Close tab"),
+                Binding("x", "save_text", "Save as text")]
+
+    def check_action(self, action: str, parameters: tuple) -> bool | None:
+        if action == "save_text":
+            return bool(self.app.query_one(AprsPane).shown_callsign())
+        return True
 
     def action_close_tab(self) -> None:
         self.app.query_one(AprsPane).close_active_tab()
+
+    def action_save_text(self) -> None:
+        self.app.action_save_text()  # type: ignore[attr-defined]
 
 
 class AprsPane(Horizontal):
@@ -984,6 +1004,28 @@ class AprsPane(Horizontal):
 
     def _contacts(self) -> list[dict]:
         return self.app.config.aprs_contacts  # type: ignore[attr-defined]
+
+    def shown_callsign(self) -> str:
+        """Whose conversation is on screen; "" on the merged All view."""
+        return self._shown_callsign
+
+    def selected_conversation(self) -> str:
+        """The highlighted contact's callsign when there is a conversation
+        with it to save (X on the contacts table), else ""."""
+        key = self._selected_key()
+        if key is None:
+            return ""
+        if key.startswith("service:"):
+            service = aprs_services.lookup(key.split(":", 1)[1])
+            call = service.callsign if service is not None else ""
+        else:
+            index = self._selected_index()
+            raw = self._contacts()
+            call = (Contact.from_dict(raw[index]).callsign
+                    if index is not None and 0 <= index < len(raw) else "")
+        call = call.strip().upper()
+        conversations = self.app.core.aprs.conversations.conversations  # type: ignore[attr-defined]
+        return call if call and call in conversations else ""
 
     def _selected_key(self) -> str | None:
         table = self.query_one("#aprs-contact-table", DataTable)

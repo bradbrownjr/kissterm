@@ -28,6 +28,7 @@ same tests passing unchanged.
 | `transfers.py` | `Transfers` (`core.transfers`): YAPP/AutoBIN on a session -- the requested-download window, the byte interceptor, explicit transfers (which arm). |
 | `questions.py` | The typed questions: `RadioReminder`, `TrustHostKey`, `ChooseSessionTransport`, `CallsignAsk`; Send/Receive's `HomeBbsRoute`, `WinlinkGateway`, `LoginAsk`, `InternetLoginAsk`, `ChooseCategories`, `HowManyBulletins`, `PickFiles`; their answer types (`Credential`, `GatewayChoice`, `InternetLogin`, `SETUP_SKIP`, `SETUP_GO`). |
 | `restart.py` | `Restarter` (`core.restarter`): Restart from either front end -- stop the unattended transmitters, disconnect every session, force an unanswered DISC after `DISCONNECT_WAIT`, then the front end's `on_restart`; `__main__` re-executes on `RESTART_EXIT`, a watchdog after `SHUTDOWN_WAIT`. `again=False` is Shut down (no re-exec; the watchdog `halt`s). Never refuses. |
+| `export.py` | `Exporter` (`core.export`): Save as text -- a message or bulletin, an APRS conversation, a session (`LiveSession.screen`) or Broadcast as `Export(name, text)`, sanitized; `save` writes one on the station for the terminal UI, `export_text` serves it to a client. Never transmits. |
 | `hops.py` | `HopConfirmation` and `HOP_TIMEOUT`: the one definition of "the hop came up". |
 | `wording.py` | Key and view tokens in notice text, and their neutral rendering (`neutral`); `TRANSMIT_DISABLED`. |
 | `links.py` | `SessionLinkAdapter`: a session-tier `Session` in `AX25Link`'s shape. |

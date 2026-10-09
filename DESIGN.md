@@ -267,7 +267,10 @@ is the enforcement.
    says "Cancel run"), as the phone's turning button does; T shows or folds
    away a BBS message's routing (its `R:` lines, folded by default as on
    the phone), R replies, A replies to all (a Winlink message with other
-   recipients only) and Q replies with the original quoted. None of them transmits; Files' S
+   recipients only) and Q replies with the original quoted; X saves the
+   highlighted message as a text file (Save as text, also F10 > Session,
+   which on Terminal saves the tab on screen and on APRS the conversation;
+   X does the same on the APRS conversation strip and contacts table). None of them transmits; Files' S
    only opens the transfer dialog, which transmits on Start.
    On the APRS map's list (F10 > APRS > Map) I zooms in, O out, F shows
    everything and Enter centres the highlighted point; Insert places a

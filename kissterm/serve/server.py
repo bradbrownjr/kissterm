@@ -525,6 +525,25 @@ class RemoteServer:
         except FileNotFoundError:
             raise CommandError(f"No transcript named {file!r}.") from None
 
+    async def cmd_export_text(self, kind: str, ref: str = "") -> dict:
+        """Save as text (`core/export.py`): `kind` "mail" (a message or
+        bulletin by its ref), "aprs" (a conversation by callsign) or
+        "session" (a session by key; "" is Broadcast). `{name, text}`, for
+        the client to hand to its browser as a download."""
+        export = self.core.export
+        try:
+            if kind == "mail":
+                made = export.mail(str(ref))
+            elif kind == "aprs":
+                made = export.aprs(str(ref))
+            elif kind == "session":
+                made = export.session(str(ref))
+            else:
+                raise CommandError(f"Nothing to save as {kind!r}.")
+        except (KeyError, FileNotFoundError, ValueError):
+            raise CommandError(f"Nothing to save for {ref!r}.") from None
+        return {"name": made.name, "text": wire.clean(made.text)}
+
     async def cmd_session_reference(self, key: str) -> dict:
         """`Sessions.reference_view`: the command reference for session `key`."""
         return wire.jsonable(self._sessions().reference_view(str(key)))

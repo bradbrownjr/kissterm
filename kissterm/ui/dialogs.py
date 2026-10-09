@@ -3853,6 +3853,67 @@ class TranscriptsScreen(ModalScreen[None]):
         self.dismiss(None)
 
 
+class SaveTextScreen(ModalScreen[Path | None]):
+    """Save as text: a message, an APRS conversation or a Terminal tab as a
+    file on this computer (`core/export.py`, which made the text). The path
+    starts as ~/Downloads (or home) and the suggested name, and can be
+    edited; a file already there is replaced only on a second Save, after
+    the dialog has said so. Dismisses with the path written, or None.
+    """
+
+    BINDINGS = [Binding("escape", "dismiss(None)", "Cancel")]
+
+    def __init__(self, export) -> None:
+        super().__init__()
+        self._export = export
+        #: The path the dialog last warned already exists.
+        self._warned = ""
+
+    def compose(self) -> ComposeResult:
+        from ..core.export import default_folder
+
+        with Vertical(id="connect-box"):
+            yield Label("Save as text", id="connect-title")
+            yield Input(value=str(default_folder() / self._export.name), id="save-text-path")
+            yield Label("A plain-text file on this computer. Nothing is sent.",
+                        id="save-text-hint")
+            yield Label("", id="save-text-error")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Save", variant="primary", id="save-text-go")
+                yield Button("Cancel", id="save-text-cancel")
+
+    def on_mount(self) -> None:
+        field = self.query_one("#save-text-path", Input)
+        field.focus()
+        field.action_end()
+
+    @on(Button.Pressed, "#save-text-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(None)
+
+    @on(Button.Pressed, "#save-text-go")
+    @on(Input.Submitted, "#save-text-path")
+    def _save(self) -> None:
+        from ..core.export import save
+
+        text = self.query_one("#save-text-path", Input).value.strip()
+        error = self.query_one("#save-text-error", Label)
+        if not text:
+            error.update("Enter where to save it.")
+            return
+        path = Path(text).expanduser()
+        if path.is_file() and str(path) != self._warned:
+            self._warned = str(path)
+            error.update(f"{path.name} is already there. Save again to replace it.")
+            return
+        try:
+            written = save(self._export, path)
+        except OSError as exc:
+            error.update(f"Could not save: {exc.strerror or exc}")
+            return
+        self.dismiss(written)
+
+
 class RemotePairingScreen(ModalScreen[None]):
     """Session > Remote pairing: this station's link for a phone, laptop or
     browser (ROADMAP P7a M7), as a QR code and as text.
