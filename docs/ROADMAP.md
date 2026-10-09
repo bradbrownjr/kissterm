@@ -506,8 +506,8 @@ outside the gate and the form says so, as P12 says of fldigi.
   `stop_on_exit`. Phone/web: the same lists in `client/ui/settings.py`
   following the transport sheet, with a file browser over
   `Radio.browse_programs` (decision 1 below) and wire commands for browse,
-  save, start, stop and status; `args` and `cwd` remote or station-only
-  per the open part of decision 1. A Start
+  save, start, stop and status; every field is editable from both front
+  ends. A Start
   / Stop button on a program row (a core method, `Radio.start_program`).
   The Rigs list too (the `rigctld` client is built, M4): a model picker
   from `Radio.rig_models()` shown as a `filtered_choice`, a Test button on
@@ -588,11 +588,12 @@ outside the gate and the form says so, as P12 says of fldigi.
    help some of the security concerns."). The pairing (QR code or link,
    `serve/`) is the authentication; the browse is filtered to what a program
    could be (executables, per platform, plus the folders to reach them);
-   the saved path must be an existing executable file. Still open for the
-   operator: whether `args` and `cwd` are also settable from the phone
-   (the recommendation is station-only, since arguments can turn any
-   program into a shell), and whether a changed path asks for a yes at the
-   station.
+   the saved path must be an existing executable file. **Full parity**
+   (operator, 2026-10-09: "I don't want to give the user unnecessary
+   barriers or they won't use the product"): the phone and web client set
+   everything the terminal does, `args` and working folder included, with no
+   extra confirmation at the station. The web UI may run on the station
+   itself, and the hashed pairing link already proves the user is at it.
 2. A modem starts when its transport opens. The operator adds that this
    "should probably change how the application starts and tries to find
    the transport modem": launch tries the transport, starts the program if
