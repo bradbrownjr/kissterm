@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 
 from kissterm import _isolate
@@ -23,7 +24,8 @@ def _radio():
 
 
 def _program(**over):
-    entry = {"name": "dw", "preset": "direwolf", "path": "/usr/bin/direwolf"}
+    # Saving checks the file is a real executable (ROADMAP P3a decision 1).
+    entry = {"name": "dw", "preset": "direwolf", "path": sys.executable}
     entry.update(over)
     return entry
 
@@ -40,7 +42,9 @@ def test_a_program_is_saved_with_typed_defaults():
 def test_a_program_needs_a_name_a_path_and_a_known_preset():
     radio, core, _ = _radio()
     assert "Name" in radio.save_program(_program(name=""))
-    assert "file" in radio.save_program(_program(path=""))
+    assert "required" in radio.save_program(_program(path=""))
+    assert "not a file" in radio.save_program(_program(path="/no/such/file"))
+    assert "not an executable" in radio.save_program(_program(path=__file__))
     assert "Not a known" in radio.save_program(_program(preset="nope"))
     assert core.config.programs == []
 
@@ -48,9 +52,9 @@ def test_a_program_needs_a_name_a_path_and_a_known_preset():
 def test_a_name_in_use_is_refused_but_an_edit_may_keep_its_own():
     radio, core, _ = _radio()
     radio.save_program(_program())
-    assert "already in use" in radio.save_program(_program(path="/other"))
-    assert radio.save_program(_program(path="/other"), original="dw") == ""
-    assert [p["path"] for p in core.config.programs] == ["/other"]
+    assert "already in use" in radio.save_program(_program(args="-x"))
+    assert radio.save_program(_program(args="-x"), original="dw") == ""
+    assert [p["args"] for p in core.config.programs] == ["-x"]
 
 
 def test_a_program_a_transport_uses_cannot_be_forgotten_and_renames_follow():

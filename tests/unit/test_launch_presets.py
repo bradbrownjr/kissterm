@@ -19,7 +19,7 @@ def test_every_preset_has_a_known_provenance():
 def test_mercury_paths_follow_its_readme():
     assert default_path("mercury", LINUX) == "/usr/bin/mercury"
     assert default_path("mercury", WINDOWS) == "mercury.exe"
-    assert default_args("mercury") == "-p {port}"
+    assert default_args("mercury") == "-p 8300"
 
 
 def test_a_windows_only_program_answers_its_wine_prefix_elsewhere():

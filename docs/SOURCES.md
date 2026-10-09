@@ -153,6 +153,11 @@ the node's APRS command.
   the listen address (default ANY): `rigctld_command` always passes it.
   Used by `kissterm/rig/rigctld.py`. Checked against the source, below; no
   capture from a running `rigctld` yet (ON-AIR-TESTS).
+- Python `subprocess` documentation: `CREATE_NEW_PROCESS_GROUP` is needed to
+  send `CTRL_C_EVENT`/`CTRL_BREAK_EVENT` on Windows; `start_new_session`
+  calls `setsid()` on POSIX. Used by `kissterm/launch/supervisor.py`.
+  UNVERIFIED: that a Windows GUI modem (VARA) reacts to CTRL_BREAK; the
+  supervisor falls back to `kill()` after `STOP_WAIT` either way.
 - Direwolf `man/direwolf.1` and `src/config.c` (github.com/wb2osz/direwolf):
   `-c file` ("rather than the default locations"; default `direwolf.conf`
   in the working folder) and `-t n` (text colours, 0 disabled). Its binary

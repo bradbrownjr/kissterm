@@ -2679,6 +2679,16 @@ class KissTermApp(App):
         detail = _without_port(transport.info.detail)
         if state is TransportState.OPEN:
             return detail
+        # A modem program that kissterm started and that has died is why the
+        # transport is not carrying frames; say so in the program's words,
+        # never as an RF problem.
+        config = self.core.config
+        entry = next((t for t in config.transports
+                      if t.get("name") == config.active_transport),
+                     config.transports[0] if config.transports else None)
+        died = self.core.supervisor.status_note(self.core.config, entry)
+        if died and state in (TransportState.OPENING, TransportState.ERROR):
+            return f"{detail} DOWN ({died})"
         if state is TransportState.OPENING:
             return f"{detail} RECONNECTING"
         if state is TransportState.ERROR:

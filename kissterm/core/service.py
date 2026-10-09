@@ -97,6 +97,12 @@ class Core:
     ) -> None:
         self.config = config
         self.operator: Operator = operator or NullOperator()
+        from ..launch.supervisor import shared
+
+        #: Modem programs started beside the radio (`kissterm/launch`).
+        self.supervisor = shared()
+        self.supervisor.notify = lambda text, severity: self.operator.notice(
+            Notice(text, Severity.ERROR if severity == "error" else Severity.WARNING))
         self.events = EventBus()
         #: Exactly one of `station`/`session_transport` is set while a
         #: transport is open; both None without one.
@@ -347,7 +353,7 @@ class Core:
 
         try:
             transport = transport_mod.build_transport(entry)
-            await transport.open()
+            await self.supervisor.open_transport(self.config, entry, transport)
         except Exception as exc:  # noqa: BLE001 - reported to the operator
             log.exception("could not open initial transport %s", name)
             self._notice(f"Saved {name}, but could not open it: {exc}", Severity.ERROR)
@@ -390,7 +396,7 @@ class Core:
         try:
             new_transport = transport_mod.build_transport(entry)
             new_transport.gate = self.gate
-            await new_transport.open()
+            await self.supervisor.open_transport(self.config, entry, new_transport)
         except Exception as exc:  # noqa: BLE001 - reported to the operator
             log.exception("could not open %s", name)
             self._notice(f"Could not open {name}: {exc}", Severity.ERROR)
@@ -440,7 +446,7 @@ class Core:
         try:
             new_transport = transport_mod.build_transport(entry)
             new_transport.gate = self.gate
-            await new_transport.open()
+            await self.supervisor.open_transport(self.config, entry, new_transport)
         except Exception as exc:  # noqa: BLE001 - reported to the operator
             log.exception("could not open %s", name)
             self._notice(f"Could not open {name}: {exc}", Severity.ERROR)

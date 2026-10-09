@@ -498,30 +498,16 @@ outside the gate and the form says so, as P12 says of fldigi.
 
 ### Milestones
 
-- [ ] **M2 [Opus] The program supervisor** (`kissterm/launch/supervisor.py`).
-  `asyncio.create_subprocess_exec`, never a shell; Wine wrapping on POSIX;
-  Windows `CREATE_NEW_PROCESS_GROUP` and a polite stop before kill; stdout
-  and stderr to the `kissterm.launch` logger; "already running" detection;
-  stop-on-exit only for what it started; the transport-connect retry
-  described above; a program that dies while its transport is open shows
-  `DOWN` with the program's exit code, never an RF message
-  (`_transport_status`). Hooks into `Core` shutdown and `core/restart.py`
-  (restart never waits on a child; the watchdog still fires). Also decides
-  the **remote-edit boundary**: a remote client that can set `path` can run
-  any program on the station computer, so Programs' `path`, `args` and
-  `cwd` are edited only at the station (terminal UI or config file); the
-  phone can choose a program for a transport and start or stop it, but not
-  change what it runs. That is a deliberate parity gap, named in P7a and
-  the reply, and needs the operator's yes before M2 ships. Tests against a
-  small Python script as the "modem" (starts, listens on a port, exits on
-  signal), on Linux; Windows behaviour goes to ON-AIR-TESTS.
 - [ ] **M3 [Sonnet] Settings UI for Programs, both front ends.** Terminal:
   two list rows in Radio's hand-built section (`ui/settings_pane.py`
   `_compose_transports`), each with an entry screen modelled on
   `TransportEntryScreen`; preset first, then path/args pre-filled,
   `wine` shown only off Windows, Advanced fold for `cwd`, `start_timeout`,
   `stop_on_exit`. Phone/web: the same lists in `client/ui/settings.py`
-  following the transport sheet, read-only path per M2's boundary. A Start
+  following the transport sheet, with a file browser over
+  `Radio.browse_programs` (decision 1 below) and wire commands for browse,
+  save, start, stop and status; `args` and `cwd` remote or station-only
+  per the open part of decision 1. A Start
   / Stop button on a program row (a core method, `Radio.start_program`).
   The Rigs list too (the `rigctld` client is built, M4): a model picker
   from `Radio.rig_models()` shown as a `filtered_choice`, a Test button on

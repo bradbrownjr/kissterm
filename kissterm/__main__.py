@@ -454,7 +454,8 @@ def _skip_key(stdin):
     return pressed, stop
 
 
-async def _open_with_progress(transport, entry: dict, stream=None, stdin=None) -> None:
+async def _open_with_progress(transport, entry: dict, stream=None, stdin=None,
+                              opener=None) -> None:
     """Open `transport`, telling the operator what we are waiting on.
 
     This runs before the TUI exists, so without it a TNC that is down leaves a
@@ -464,6 +465,11 @@ async def _open_with_progress(transport, entry: dict, stream=None, stdin=None) -
     long it will wait (`connect_timeout`), elapsed time when it does not.
     Piped or redirected, it prints the one line and skips the animation, so a
     log file does not fill with carriage returns.
+
+    `opener` replaces `transport.open` (the launch passes the supervisor's,
+    which starts the entry's modem program if the transport is refused,
+    ROADMAP P3a); the wait is then the program's `start_timeout`, so the
+    countdown shows elapsed time instead.
 
     On a terminal, Enter skips the wait and raises `OpenSkipped` (operator,
     2026-10-06: started with the radio room's modem off, and should have been
@@ -482,17 +488,21 @@ async def _open_with_progress(transport, entry: dict, stream=None, stdin=None) -
     if hint:
         print(f"{hint} Start it first if it is not.", file=stream, flush=True)
     timeout = getattr(transport, "connect_timeout", None)
+    if entry.get("program"):
+        timeout = None
+        label = f"Connecting to {what} {entry.get('name')!r} (starting {entry['program']} if needed)..."
+    open_it = opener or transport.open
     live = hasattr(stream, "isatty") and stream.isatty()
     if not live:
         print(label, file=stream, flush=True)
-        await transport.open()
+        await open_it()
         return
 
     skip = _skip_key(stdin) if stdin.isatty() and what == "modem" else None
     if skip is not None:
         print("Press Enter to start without it; Internet (Telnet/SSH) contacts "
               "still work.", file=stream, flush=True)
-    task = asyncio.ensure_future(transport.open())
+    task = asyncio.ensure_future(open_it())
     waits = {task} if skip is None else {task, skip[0]}
     loop = asyncio.get_running_loop()
     started = loop.time()
@@ -704,7 +714,11 @@ async def _amain(args) -> int:
 
         try:
             transport = build_transport(entry)
-            await _open_with_progress(transport, entry)
+            from .launch.supervisor import shared
+
+            await _open_with_progress(
+                transport, entry,
+                opener=lambda: shared().open_transport(config, entry, transport))
         except OpenSkipped:
             from .core import TRANSPORT_SKIPPED
 
@@ -763,6 +777,10 @@ async def _amain(args) -> int:
 
             return RESTART_EXIT
     finally:
+        from .launch.supervisor import shared
+
+        # Links first (above, in the app), then the modem kissterm started.
+        await shared().stop_all()
         if station is not None:
             await station.disconnect_all()
             station.close()

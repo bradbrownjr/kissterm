@@ -5,6 +5,35 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — kissterm starts the modem program (P3a M2)
+
+### New Features
+
+- **A transport can name a modem program that kissterm starts when it
+  opens** (`program` on the transport, a `[[programs]]` entry; config file
+  only until M3's screens). The transport is tried first and a modem that
+  already answers is left alone; if refused, the program starts and the
+  connect is retried until `start_timeout`. A program that exits early ends
+  the wait with its exit code and last output; one that dies later shows the
+  transport DOWN with its exit code. Commands run without a shell, stop is
+  polite (SIGTERM to its group, CTRL_BREAK on Windows) then kill, output goes
+  to the `kissterm.launch` log, and only what kissterm started, with
+  `stop_on_exit`, is stopped, at quit, Restart and Shut down (bounded; the
+  watchdog still fires) and by `atexit` after a crash.
+- **A program file browser on the station** (`Radio.browse_programs`),
+  filtered to folders and executables (no scripts), and saving a program now
+  requires an existing executable file. The paired phone may use both
+  (operator, 2026-10-09; the wire commands come with M3's screens).
+- Tested with a small Python script as the modem; Windows behaviour is in
+  ON-AIR-TESTS. Known: four tests in `tests/pilot/test_session_transport.py`
+  fail with or without this change (found while testing it).
+
+**Files:** `kissterm/launch/` (`supervisor.py`, `browse.py`, presets),
+`kissterm/core/service.py`, `kissterm/core/restart.py`, `kissterm/core/radio.py`,
+`kissterm/ui/app.py`, `kissterm/__main__.py`, `SETUP.md`, `docs/SOURCES.md`,
+`docs/ON-AIR-TESTS.md`, `tests/fake_modem.py`, `tests/unit/test_supervisor.py`,
+`tests/unit/test_launch_browse.py`, `tests/unit/test_radio_programs.py`
+
 ## [2026-10-09] — The rigctld client (P3a M4)
 
 ### New Features

@@ -720,6 +720,20 @@ and then your Winlink password, before dialing. The password is saved
   available" error on rigs that read SWR only while transmitting). Say what
   each returned.
 
+- [ ] **kissterm starts your modem** (not a transmission by itself). Add a
+  `[[programs]]` entry for Mercury (or Direwolf) and `program = "..."` on its
+  transport (see SETUP.md), quit any copy of the modem, launch kissterm.
+  Expected: "starting ... if needed" on the launch line, the modem comes up,
+  the status bar shows it connected. Then quit kissterm: the modem stops too.
+  Say what you saw.
+- [ ] **VARA HF under Wine, and on Windows, started by kissterm.** Same, for a
+  `wine = true` entry on Linux and a plain `C:\VARA\VARA.exe` entry on
+  Windows. Say whether VARA stops when kissterm exits (a Windows GUI program
+  may ignore the polite stop and be killed after 4 s).
+- [ ] **A modem that dies.** With kissterm running a modem it started, kill
+  the modem. Expected: an error notice naming it and its exit code, and the
+  status bar transport shows DOWN with the same words, not an RF message.
+
 ## Standing verifications (from AGENTS.md section 8)
 
 - [ ] **Mic-E** decoding against a real off-air packet.

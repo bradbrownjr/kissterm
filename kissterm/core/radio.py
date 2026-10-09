@@ -311,8 +311,11 @@ class Radio:
         if preset not in PRESETS:
             return f"Not a known program: {preset!r}."
         path = str(entry.get("path", "")).strip()
-        if not path:
-            return "Program file is required."
+        from ..launch.browse import validate_path
+
+        problem = validate_path(path)
+        if problem:
+            return problem
         values = _coerce(entry, PROGRAM_FORM)
         if isinstance(values, str):
             return values
@@ -339,6 +342,37 @@ class Radio:
         config.programs = [p for p in config.programs if p.get("name") != name]
         self._saved()
         return ""
+
+    def browse_programs(self, path: str = "") -> dict:
+        """The folders and executables in `path` on the STATION computer
+        ("" is its home folder), for choosing a program's file from any
+        front end. Filtered to what a program could be (`launch/browse.py`).
+        Reads the listing only; starts nothing."""
+        from ..launch.browse import list_dir, roots
+
+        return {**list_dir(path).to_dict(), "roots": roots()}
+
+    async def start_program(self, name: str) -> str:
+        """Start a Programs entry now; "" when it is running, else why not."""
+        from ..launch.supervisor import ProgramError
+
+        program = next((p for p in self.core.config.programs if p.get("name") == name), None)
+        if program is None:
+            return f"There is no program named {name!r}."
+        try:
+            await self.core.supervisor.start(program)
+        except ProgramError as exc:
+            return str(exc)
+        return ""
+
+    async def stop_program(self, name: str) -> str:
+        """Stop a program kissterm started; "" when stopped, else why not."""
+        if await self.core.supervisor.stop(name):
+            return ""
+        return f"{name!r} was not started by kissterm, or is not running."
+
+    def program_status(self, name: str) -> dict:
+        return self.core.supervisor.status(name)
 
     def save_rig(self, entry: dict, original: str = "") -> str:
         """Add or replace a Rigs entry; "" when saved, else why not."""

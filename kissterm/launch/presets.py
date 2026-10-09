@@ -19,7 +19,7 @@ first thing the operator should check.
 
 The passing of PTT to the program (Mercury `-R`/`-A`, Direwolf `PTT RIG`)
 belongs to the rig entry and M2's argument building; `args` here are the
-program's own, with `{port}` and `{conf}` placeholders the supervisor fills.
+program's own, literal (the operator edits them; no placeholders).
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ PRESETS: dict[str, Preset] = {
             WINDOWS: ("mercury.exe",),
             DARWIN: ("/Applications/Mercury",),
         },
-        args="-p {port}",
+        args="-p 8300",
         source="documented",
         note="/usr/bin from the Debian package, /usr/local/bin from make "
              "install; -p is the ARQ base port (default 8300).",
@@ -92,7 +92,7 @@ PRESETS: dict[str, Preset] = {
             WINDOWS: (r"C:\direwolf\direwolf.exe",),
             DARWIN: ("/usr/local/bin/direwolf",),
         },
-        args="-t 0 -c {conf}",
+        args="-t 0",
         source="documented",
         note="Options from direwolf(1): -c file (default direwolf.conf in the "
              "working folder), -t n (0 turns colours off). The path is a guess "
