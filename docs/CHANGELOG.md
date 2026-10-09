@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Phone and web: Terminal lines in order; select across lines
+
+### Fixes
+
+- **A reconnect's banner no longer sticks at the bottom of the Terminal tab**
+  while the session draws above it (operator, 2026-10-09). Flet controls are
+  equal by value, so a partial line was removed by equality (taking an
+  earlier, identical prompt) and the page diff matched repeated lines to
+  old ones; every line now has its own key and the tail is removed by
+  identity.
+- **A drag selects across lines** in a session and on Broadcast, to copy a
+  bulletin or a session into a report: the panel is one selection area,
+  not one selectable line each.
+
+**Files:** `kissterm/client/ui/sessions.py`, `tests/unit/test_client_ui.py`
+
 ## [2026-10-09] — Phone and web: Mail's three tabs share one run button
 
 ### Improvements

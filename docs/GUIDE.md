@@ -856,6 +856,8 @@ own client.
     Both ask first. Once a session has dropped, **Reconnect** takes
     Disconnect's place (Ctrl+R in the terminal): after asking, the
     station dials it again the same way, route, port and login.
+    A drag (or a long press on a phone) selects across lines, to copy part
+    of a session or a bulletin into a report.
     The **Commands** button (a book, beside the line; F1 in the terminal)
     lists what the node or BBS in effect understands, with each line's
     source and whether it needs the sysop, a **Glossary** of packet terms,

@@ -26,6 +26,7 @@ confirming: stopping never transmits more.
 
 from __future__ import annotations
 
+import itertools
 from datetime import datetime
 
 import flet as ft
@@ -48,12 +49,25 @@ def span_style(props: dict, look: Look) -> ft.TextStyle:
         decoration=ft.TextDecoration.UNDERLINE if props.get("underline") else None)
 
 
+#: Each line's own key. Flet compares controls by value, so two lines with
+#: the same text (a node's prompt, a banner seen on every connect) were
+#: "equal": `list.remove` took out the first of them, not the tail, and the
+#: page diff matched new lines to old ones, so a reconnect's banner stayed
+#: at the bottom while everything after it was drawn above (operator,
+#: 2026-10-09). A key makes every line distinct.
+_line_keys = itertools.count()
+
+
 def line_control(text: str, spans: list, look: Look, *, outgoing: bool = False) -> ft.Text:
+    """One line. Not selectable on its own: the panel's `SelectionArea`
+    selects across lines, where a selectable `Text` kept a drag to the line
+    it started on (operator, 2026-10-09)."""
+    key = f"line-{next(_line_keys)}"
     if outgoing:
-        return ft.Text(text, font_family=MONO_BOLD, size=13, selectable=True,
+        return ft.Text(text, font_family=MONO_BOLD, size=13, key=key,
                        text_align=ft.TextAlign.LEFT, color=look.outgoing)
     return ft.Text(spans=[ft.TextSpan(piece, span_style(props, look)) for piece, props in runs(text, spans)],
-                   font_family=MONO, size=13, selectable=True, text_align=ft.TextAlign.LEFT,
+                   font_family=MONO, size=13, text_align=ft.TextAlign.LEFT, key=key,
                    color=look.color)
 
 
@@ -72,7 +86,8 @@ class Terminal:
         self.look = look or Look()
         self.list = ft.ListView(expand=True, auto_scroll=True, spacing=0,
                                 padding=ft.Padding.all(10))
-        self.panel = ft.Container(expand=True, content=self.list, bgcolor=self.look.bgcolor)
+        self.panel = ft.Container(expand=True, content=ft.SelectionArea(content=self.list),
+                                  bgcolor=self.look.bgcolor)
         #: The hourglass over the panel while a connect is in progress.
         self.waiting = ft.Container(visible=False, expand=True,
                                     bgcolor=ft.Colors.with_opacity(0.55, ft.Colors.BLACK),
@@ -140,7 +155,10 @@ class Terminal:
         spans = self._tail_spans + [[a + offset, b + offset, s] for a, b, s in spans]
         lines = split_lines(text, spans)
         if self._tail_control is not None:
-            self.list.controls.remove(self._tail_control)
+            # By identity: the tail is the last line drawn (see `_line_keys`).
+            controls = self.list.controls
+            if controls and controls[-1] is self._tail_control:
+                controls.pop()
             self._tail_control = None
         for line, line_spans in lines[:-1]:
             self.list.controls.append(line_control(line, line_spans, self.look, outgoing=outgoing))
@@ -164,7 +182,8 @@ class BroadcastPage:
         self.view = view
         self.list = ft.ListView(expand=True, auto_scroll=True, spacing=0,
                                 padding=ft.Padding.all(10))
-        self.control = ft.Container(expand=True, content=self.list,
+        # Selectable across lines, as a session's panel (`line_control`).
+        self.control = ft.Container(expand=True, content=ft.SelectionArea(content=self.list),
                                     bgcolor=view.app.look.bgcolor)
         #: Lines at or before this time are hidden (a view clear, as Ctrl+L
         #: on the terminal's Broadcast tab); the station keeps them.
@@ -180,7 +199,7 @@ class BroadcastPage:
         self.control.bgcolor = look.bgcolor
         self.heard = heard
         rows = []
-        for h in [h for h in heard if h["at"] > self.cleared_at][-200:]:
+        for index, h in enumerate([h for h in heard if h["at"] > self.cleared_at][-200:]):
             stamp = datetime.fromtimestamp(h["at"]).strftime("%H:%M")
             spans = [ft.TextSpan(f"{stamp} ")]
             if h["own"]:
@@ -190,7 +209,10 @@ class BroadcastPage:
                     h["source"], ft.TextStyle(decoration=ft.TextDecoration.UNDERLINE),
                     on_click=self.view.dial_filler(h["source"])))
             spans.append(ft.TextSpan(f" > {h['to']}: {h['text']}"))
-            rows.append(ft.Text(spans=spans, font_family=MONO, size=13, color=look.color))
+            # Keyed: a beacon heard twice is two lines, not one "equal" control
+            # the page diff could match to the wrong row (`_line_keys`).
+            rows.append(ft.Text(spans=spans, font_family=MONO, size=13, color=look.color,
+                                key=f"heard-{h['at']}-{index}"))
         self.list.controls = rows or [ft.Text(
             "Nothing heard yet. A line typed below goes to ALL once (CQ: or QST: first "
             "to address it elsewhere); nothing is sent until you press Send.",

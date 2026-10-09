@@ -126,6 +126,29 @@ def test_the_terminal_appends_only_what_is_new_and_joins_a_split_line():
     assert texts == ["Welcome to the node", "prompt> "]
 
 
+def test_a_prompt_seen_before_does_not_take_an_earlier_line_with_it():
+    """Operator, 2026-10-09: after a reconnect the banner stayed at the
+    bottom while the rest of the session drew above it. Flet controls are
+    equal by value, so the partial tail was removed by equality, taking the
+    first "de WS1EC#>" in the list; each line is now its own (a key)."""
+    session = Session(key="WS1EC-2")
+    terminal = Terminal("WS1EC-2")
+    session.add(Chunk("de WS1EC#>\nB\nQRT de WS1EC\n[BPQ]\nde WS1EC#>"))
+    terminal.sync(session)
+    session.add(Chunk("LB> ALERT 3210-\n", outgoing=True))
+    session.add(Chunk("de WS1EC#>"))
+    terminal.sync(session)
+    session.add(Chunk("\n3070 DTN\n"))
+    terminal.sync(session)
+    texts = [c.spans[0].text if c.spans else c.value for c in terminal.list.controls]
+    assert texts == ["de WS1EC#>", "B", "QRT de WS1EC", "[BPQ]", "de WS1EC#>",
+                     "LB> ALERT 3210-", "de WS1EC#>", "3070 DTN"]
+    assert len({c.key for c in terminal.list.controls}) == len(texts)
+    # Selectable across lines: one SelectionArea, not a selectable Text each.
+    assert isinstance(terminal.panel.content, ft.SelectionArea)
+    assert not any(c.selectable for c in terminal.list.controls)
+
+
 def test_kissterms_own_icons_replace_flets_splash_and_home_screen_icon():
     """Operator, 2026-10-06: the splash showed Flet's logo. The server
     looks in our assets first, so these names replace Flet's."""
