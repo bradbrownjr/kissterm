@@ -144,6 +144,7 @@ kissterm/
   session_log.py  transcripts.py  heard.py  locator.py
   addressbook.py  harvested.py  bbs.py  glossary.py  guides.py
   nodes/ aprs_services/   SHIPPED references (data/*.toml)
+  rig/   rigctld client (Hamlib), reads never key (ROADMAP P3a)
   launch/ modem programs started beside the radio (presets; supervisor is ROADMAP P3a M2)
   geo/   the APRS map: SHIPPED outlines (data/*.json.gz), projection,
          placemarks, braille; distance/bearing (no UI, no station)

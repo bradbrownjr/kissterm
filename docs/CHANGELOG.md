@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — The rigctld client (P3a M4)
+
+### New Features
+
+- **`kissterm/rig/rigctld.py` talks to Hamlib's `rigctld`**: frequency,
+  mode, PTT, SWR (`l SWR`), the ATU and `chk_vfo`, in the Extended Response
+  Protocol so every reply ends in `RPRT n`. Reads never key; `set_ptt` and
+  `tune` are separate calls whose callers hold the transmit gate. A dropped
+  connection reopens on the next call with backoff; `poll` never raises.
+  `rigctld_command` builds the argv the supervisor will run and always
+  passes `-T` with the rig's host, because `rigctld` listens on every
+  interface otherwise. `Radio.test_rig` (frequency and mode, never keys)
+  and `Radio.rig_models` (`rigctl -l`, once) are the core methods the
+  Settings screens (M3) will use. Tested against a fake server and, when
+  Hamlib is installed, its dummy rig (skipped here: not installed).
+  Nothing in the app uses it yet.
+
+**Files:** `kissterm/rig/`, `kissterm/core/radio.py`, `docs/SOURCES.md`,
+`tests/fake_rigctld.py`, `tests/unit/test_rigctld.py`
+
 ## [2026-10-09] — Winlink: Internet server "None", and "Don't ask again" on Skip Winlink
 
 ### Improvements

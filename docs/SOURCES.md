@@ -145,6 +145,14 @@ the node's APRS command.
   model, rigctl endpoint, PTT method), install at `/usr/bin/mercury` (Debian
   package) or `/usr/local/bin/mercury` (`make install`), `mercury.exe` on
   Windows. Used by `kissterm/launch/presets.py`.
+- Hamlib `rigctld(1)` and `rigctl(1)` man pages
+  (github.com/Hamlib/Hamlib, `doc/man1/`): the Extended Response Protocol
+  (a leading `+`; the echoed command, `Key: value` records, a final
+  `RPRT n`), `f`/`F`, `m`/`M`, `t`/`T` (0 RX, 1 TX), `l SWR`, `U TUNER`,
+  `G TUNE`, `\chk_vfo`, and `rigctld`'s `-m -r -s -P -p -T -t`. `-T` sets
+  the listen address (default ANY): `rigctld_command` always passes it.
+  Used by `kissterm/rig/rigctld.py`. The error names and the `rigctl -l`
+  column layout are recalled, not captured; both are marked `UNVERIFIED`.
 - Direwolf (`-c`, `-t`): recalled from use, not re-read; the Windows,
   VARA, QtSoundModem and UZ7HO install paths are `unverified` defaults the
   operator checks with the file browser.

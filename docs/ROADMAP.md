@@ -523,22 +523,13 @@ outside the gate and the form says so, as P12 says of fldigi.
   `stop_on_exit`. Phone/web: the same lists in `client/ui/settings.py`
   following the transport sheet, read-only path per M2's boundary. A Start
   / Stop button on a program row (a core method, `Radio.start_program`).
+  The Rigs list too (the `rigctld` client is built, M4): a model picker
+  from `Radio.rig_models()` shown as a `filtered_choice`, a Test button on
+  `Radio.test_rig` (reads, never keys), `tune_bands` as band checkboxes.
+  M2's supervisor starts `rigctld` from `rig.rigctld.rigctld_command`.
   The transport form's "On this computer" fold. Screenshots
   (`scripts/generate_screenshot.py`, `generate_phone_screenshots.py`),
   GUIDE.md and SETUP.md in the same commit.
-- [ ] **M4 [Sonnet] The `rigctld` client** (`kissterm/rig/rigctld.py`).
-  RESEARCH first: the rigctld protocol from Hamlib's `rigctld(1)` man page
-  and `tests/rigctl_parse.c` (extended response mode `+`, `RPRT n` codes),
-  cited in `docs/SOURCES.md`. Async client for `f`/`F`, `m`/`M`, `t`/`T`,
-  `\chk_vfo`, `\dump_state`; reconnect like a TCP transport; every
-  exception counted and logged, never raised out of a background task.
-  Starting `rigctld` for a Rigs entry goes through M2's supervisor (`-m`,
-  `-r`, `-s`, `-P`, `-p`, `-t`). The model list for the picker from
-  `rigctl -l`, run once on demand and cached (a local command, no
-  airtime), shown as a `filtered_choice`. Rig form Test button reads
-  frequency and mode and never keys. Tests against a fake rigctld server,
-  plus an optional test against Hamlib's dummy rig (`rigctld -m 1`) skipped
-  when `rigctld` is absent. Rigs UI (terminal and phone) as in M3.
 - [ ] **M5 [Opus] PTT for VARA, through the gate.** `transport/vara.py`'s
   `PTT ON`/`PTT OFF` drive `T 1`/`T 0` on the transport's rig. Keys only
   while the gate is open, re-checked at the moment of keying (AGENTS.md

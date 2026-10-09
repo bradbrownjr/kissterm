@@ -375,6 +375,34 @@ class Radio:
         self._saved()
         return ""
 
+    async def test_rig(self, name: str) -> dict:
+        """Read a radio's frequency and mode through its `rigctld`; never
+        keys. `{"ok", "text"}`, text for the Test button. Needs `rigctld` to
+        be running already (starting it is the supervisor's, ROADMAP P3a M2)."""
+        from ..rig.rigctld import RigctldClient
+
+        rig = next((r for r in self.core.config.rigs if r.get("name") == name), None)
+        if rig is None:
+            return {"ok": False, "text": f"There is no radio named {name!r}."}
+        client = RigctldClient.from_rig(rig)
+        try:
+            state = await client.state()
+        except Exception as exc:  # noqa: BLE001 - whatever it is, it is the result
+            return {"ok": False, "text": f"FAILED  --  {exc}"}
+        finally:
+            await client.close()
+        mhz = f"{state.frequency / 1e6:.6f}".rstrip("0").rstrip(".")
+        return {"ok": True, "text": f"OK  --  {mhz} MHz {state.mode}"}
+
+    async def rig_models(self, rigctl_path: str = "") -> list[dict]:
+        """The radios this computer's Hamlib supports (`rigctl -l`, run once
+        and kept): a local command, no airtime. [] when Hamlib is missing."""
+        from ..rig.rigctld import list_models
+
+        if not hasattr(self, "_rig_models"):
+            self._rig_models = await list_models(rigctl_path or "rigctl")
+        return self._rig_models
+
     # -- scripts --------------------------------------------------------------
     def scripts(self) -> list[dict]:
         """Each script by name and line count: its text may hold a password
