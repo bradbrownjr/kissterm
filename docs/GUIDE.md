@@ -821,7 +821,7 @@ own client.
     information strip offers **Answer strip**; both open the form, and Next
     writes the reply addressed as any reply. **Information strip (paste)**
     in the Type list takes a pasted strip and goes on to its questions.
-  - **Messages** (titled APRS messages) is APRS as conversations, in
+  - **Messages** (titled APRS) is APRS as conversations, in
     bubbles, with a new message limited to the 67 characters APRS
     carries. **Templates**, beside the message box in a conversation (the
     terminal's `Ctrl+R`), lists what to say to that gateway, with how far

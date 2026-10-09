@@ -17,7 +17,7 @@ the station reports it on every screen.
 the top bar: Disconnect while the session shown is connected, Reconnect in
 its place once it has dropped (Ctrl+R in the terminal). The row that used
 to repeat the session's name above the terminal is gone, and its height is
-the terminal's. Every place's actions are one toolbar row (`toolbar.py`).
+the terminal's. Every place's actions sit in the app bar beside its title (`toolbar.py`).
 
 **A connect runs in the background** (`start_connect`): Terminal comes to
 the front at once and the session shows its hourglass there, never a
@@ -29,7 +29,7 @@ screen three places in the rail, where there is room (operator,
 2026-10-06: "Desktop will have room for the additional section
 buttons"). The bottom bar stays at five.
 
-**Titles name the place, not the station** ("APRS messages", not
+**Titles name the place, not the station** ("APRS", not
 "KC1JMH Messages", and "BBS Mail" for Mail): the callsign is in More,
 and the room is the title's (operator, 2026-10-06).
 
@@ -72,7 +72,7 @@ WIDE = 720
 
 #: The top bar's title on each destination, where the bar's label is
 #: too short to say it (Mail's comes from its section: `MailView.title`).
-TITLES = {"Messages": "APRS messages", "Mail": "BBS Mail"}
+TITLES = {"Messages": "APRS", "Mail": "BBS Mail"}
 
 #: The places, in the bar's order (operator, 2026-10-06: "Mail, Messages,
 #: Terminal (renamed from Sessions), Stations"; More stays last). The app
@@ -263,6 +263,7 @@ class ClientApp:
         view = self.views[index]
         self.body.content = view.control
         self.page.appbar.title = ft.Text(self._title())
+        self.page.appbar.actions = self.views[index].toolbar.bar
         self.paint_actions()
         if self.connected:
             # Otherwise it loads when the connection comes up (`on_status`):

@@ -136,8 +136,7 @@ class MessagesView:
     async def reload(self) -> None:
         convos = await self.app.command("aprs_conversations") or []
         unread = self.app.state.unread_aprs
-        self.list.controls = [ft.Container(padding=ft.Padding.symmetric(horizontal=8, vertical=4),
-                                          content=self.toolbar.row)] + [ft.ListTile(
+        self.list.controls = [ft.ListTile(
             leading=ft.CircleAvatar(content=ft.Text(c["callsign"][:2])),
             title=ft.Text(c["callsign"], weight=ft.FontWeight.BOLD if c["callsign"] in unread else None),
             subtitle=ft.Text(c.get("last", ""), max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
@@ -163,6 +162,7 @@ class MessagesView:
         from .aprs_map import MapPage
 
         self.map = MapPage(self)
+        self.toolbar.show(False)
         self.control.content = self.map.root
         self.app.page.update()
         await self.map.reload()
@@ -183,6 +183,7 @@ class MessagesView:
         if not start:
             return
         self.object_form = ObjectForm(self, start, moving=bool(name))
+        self.toolbar.show(False)
         self.control.content = self.object_form.control()
         self.app.page.update()
 
@@ -190,6 +191,7 @@ class MessagesView:
         """Back to where the form was opened from: the map, else the list."""
         self.object_form = None
         if self.map is not None:
+            self.toolbar.show(False)
             self.control.content = self.map.root
             self.app.page.update()
             await self.map.reload()
@@ -202,6 +204,7 @@ class MessagesView:
         self.thread_of = callsign
         self.app.state.unread_aprs.discard(callsign)
         await self._load_thread()
+        self.toolbar.show(False)
         self.control.content = ft.Column(expand=True, spacing=0, controls=[
             ft.Row(controls=[ft.IconButton(icon=ft.Icons.ARROW_BACK, tooltip="All messages",
                                            on_click=self._back),
@@ -241,6 +244,7 @@ class MessagesView:
         self.thread_of = None
         self.map = None
         self.object_form = None
+        self.toolbar.show(True)
         self.control.content = self.list
 
     async def _send(self, _e) -> None:

@@ -714,7 +714,13 @@ and do not apply there; these do.
   whole UI down"), outlined "TX OFF", filled red "TX ON". Turning it off never asks; turning it on
   does, with a heavy haptic. Same rule as the terminal: the gate is never
   silent.
-- **One toolbar row per place, no floating buttons** (operator,
+- **The place's buttons sit in the app bar beside its title; its tabs get the
+  row under it** (operator, 2026-10-09: "move all the icons into the same row
+  as the section title to give the tabs more space"), so a title is short
+  ("APRS", not "APRS messages"). A page over the list (a message being read,
+  a thread) hides the place's buttons and keeps the TX chip. The rest of this
+  rule says what the buttons are.
+- **One toolbar per place, no floating buttons** (operator,
   2026-10-08: "3 or 4 competing interface designs ... we really need to
   settle on a design scheme"; `client/ui/toolbar.py`). **Left** the
   place's tabs, if it has any (Terminal's sessions, Stations' Contacts and

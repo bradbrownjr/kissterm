@@ -438,7 +438,7 @@ def test_contacts_come_before_heard():
     view = StationsView(FakeApp())
     [bar] = [c for c in _walk(view.control) if isinstance(c, ft.TabBar)]
     assert [t.label for t in bar.tabs] == ["Contacts", "Heard"]
-    assert [b.tooltip for b in _walk(view.toolbar.row)
+    assert [b.tooltip for b in _walk(ft.Row(controls=view.toolbar.bar))
             if isinstance(b, ft.FilledIconButton)] == ["New contact"]
 
 
@@ -556,7 +556,7 @@ async def test_send_position_and_send_beacon_ask_first():
     app = FakeApp()
     messages = MessagesView(app)
     await messages.reload()
-    position = next(c for c in _walk(messages.toolbar.row)
+    position = next(c for c in _walk(ft.Row(controls=messages.toolbar.bar))
                     if getattr(c, "tooltip", "") == "Send position")
     await position.on_click(None)
     assert app.commands == [("aprs_conversations", {})], "Send position sent before asking"
@@ -1066,11 +1066,11 @@ async def test_map_opens_beside_send_position_and_never_transmits():
     app = MailApp({"map_points": MAP_POINTS})
     messages = MessagesView(app)
     await messages.reload()
-    buttons = [c.tooltip for c in _controls(messages.toolbar.row) if isinstance(c, ft.IconButton) and not isinstance(c, ft.FilledIconButton)]
+    buttons = [c.tooltip for c in _controls(ft.Row(controls=messages.toolbar.bar)) if isinstance(c, ft.IconButton) and not isinstance(c, ft.FilledIconButton)]
     assert buttons == ["Send position", "Map", "New object"]
-    assert [c.tooltip for c in _walk(messages.toolbar.row)
+    assert [c.tooltip for c in _walk(ft.Row(controls=messages.toolbar.bar))
             if isinstance(c, ft.FilledIconButton)] == ["New message"], "the primary is last"
-    open_map = next(c for c in _walk(messages.toolbar.row) if getattr(c, "tooltip", "") == "Map")
+    open_map = next(c for c in _walk(ft.Row(controls=messages.toolbar.bar)) if getattr(c, "tooltip", "") == "Map")
     await open_map.on_click(None)
     assert isinstance(messages.map, MapPage)
     assert [name for name, _ in app.commands] == ["aprs_conversations", "map_points"]
@@ -2060,7 +2060,7 @@ async def test_contact_field_edits_the_selected_contact(monkeypatch):
         "hops": "", "note": "club"}})
 
 
-def test_every_place_ends_its_toolbar_row_with_the_transmit_chip():
+def test_every_place_ends_its_title_row_buttons_with_the_transmit_chip():
     from kissterm.client.ui.toolbar import Toolbar
 
     class Shell(FakeApp):
@@ -2077,5 +2077,6 @@ def test_every_place_ends_its_toolbar_row_with_the_transmit_chip():
     bar = Toolbar(app)
     from kissterm.client.ui.toolbar import Action
     bar.set([Action(ft.Icons.ADD, "New", None, primary=True)])
-    assert bar.row.controls[-1] is app.made[0], "the chip is the last thing in the row"
+    assert bar.bar[-1] is app.made[0], "the chip is the last thing beside the title"
+    assert bar.row.controls == [], "the row under the title holds only tabs"
     assert Toolbar(app, gate=False).gate is None

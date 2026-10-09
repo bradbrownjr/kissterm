@@ -324,6 +324,7 @@ class MailView:
         self._paint_activity()
         self._paint_toolbar()
         self.paint_switch()
+        self.toolbar.show(True)
         self.control.content = ft.Column(
             expand=True, spacing=0, controls=[
                 ft.Container(padding=ft.Padding.symmetric(horizontal=8, vertical=2),
@@ -625,6 +626,7 @@ class MailView:
                         *routing_section(message.get("routing") or [])]),
                     ft.Divider(),
                     ft.Text(message.get("body", ""), selectable=True)]))])
+        self.toolbar.show(False)
         self.control.content = self.reader
         self.app.page.update()
 
@@ -632,11 +634,13 @@ class MailView:
         from .files import FileViewer
 
         async def close() -> None:
+            self.toolbar.show(False)
             self.control.content = self.reader
             self.app.page.update()
 
         viewer = FileViewer(self, ref, close)
         await viewer.show()
+        self.toolbar.show(False)
         self.control.content = viewer.control
         self.app.page.update()
 
@@ -644,7 +648,7 @@ class MailView:
         """The reader's one row of actions (`toolbar.py`): the primary last."""
         bar = Toolbar(self.app, register=False, gate=False)
         bar.set(actions)
-        return bar.row
+        return bar.inline()
 
     def reader_actions(self, ref: str, message: dict) -> list[Action]:
         """Reply (the primary), Reply all, Reply with quote, Delete or Restore:
@@ -801,6 +805,7 @@ class MailView:
         self._writing = {"to": to, "at": at, "title": title, "body": body, "kind": kind,
                          "problems": problems, "save": save, "close": close}
         self.reader = None
+        self.toolbar.show(False)
         self.control.content = ft.Column(expand=True, spacing=0, controls=[
             ft.Container(padding=ft.Padding.only(right=12), content=ft.Row(controls=[
                 ft.IconButton(icon=ft.Icons.CLOSE, tooltip="Close", on_click=close),
@@ -860,6 +865,7 @@ class MailView:
         page = FormPage(self, start, next_)
         self._writing = {"form": page}
         self.reader = None
+        self.toolbar.show(False)
         self.control.content = page.control()
         self.app.page.update()
 
@@ -873,6 +879,7 @@ class MailView:
         form = RadiogramForm(self, start, ics213)
         self._writing = {"radiogram": form}
         self.reader = None
+        self.toolbar.show(False)
         self.control.content = form.control()
         self.app.page.update()
 

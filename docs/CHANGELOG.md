@@ -5,6 +5,18 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Phone and web: the buttons move up beside the title
+
+### Improvements
+
+- **Every place's buttons and the TX chip are in the title bar**, and its tabs
+  have the whole row beneath (operator, 2026-10-09). "APRS messages" is
+  "APRS" to make room. A message being read or a thread open hides the
+  place's buttons, not the chip.
+
+**Files:** `kissterm/client/ui/toolbar.py`, `shell.py`, `mail.py`,
+`messages.py`, `more.py`, `DESIGN.md`
+
 ## [2026-10-09] — Phone and web: Send beacon is the packet beacon only
 
 ### Improvements

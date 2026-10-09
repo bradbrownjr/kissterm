@@ -94,14 +94,13 @@ class MoreView:
         self.page_slot = ft.Container(expand=True, content=self.list)
         #: More has no actions of its own: its one row holds the transmit chip.
         self.toolbar = Toolbar(app)
-        self.control = ft.Column(expand=True, spacing=0, controls=[
-            ft.Container(padding=ft.Padding.symmetric(horizontal=8, vertical=4),
-                         content=self.toolbar.row), self.page_slot])
+        self.control = self.page_slot
         self._paint()
         self.look_changed()
 
     def _over(self, page: ft.Control | None) -> None:
         self.page_slot.content = page if page is not None else self.list
+        self.toolbar.show(page is None)
         self.app.page.update()
 
     def open_monitor(self) -> None:
