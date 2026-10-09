@@ -72,9 +72,9 @@ class FakeRigctld:
             return f"get_ptt:\nPTT: {self.ptt}\nRPRT 0\n"
         if command == "l" and rest == "SWR":
             value = self.swr.pop(0) if len(self.swr) > 1 else self.swr[0]
-            return f"get_level: SWR\nSWR: {value}\nRPRT 0\n"
+            return f"get_level: SWR\nLevel Value: {value}\nRPRT 0\n"
         if command == "\\chk_vfo":
-            return "chk_vfo:\n0\nRPRT 0\n"
+            return "ChkVFO: 0\n"  # no header, no RPRT: rigctl_parse.c, cmd 0xf0
         if command == "F":
             self.frequency = int(float(rest))
         elif command == "M":

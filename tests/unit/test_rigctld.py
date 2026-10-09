@@ -79,9 +79,12 @@ async def test_a_negative_rprt_is_a_rig_error_with_its_code(rig):
 
 
 @pytest.mark.asyncio
-async def test_chk_vfo_is_read_leniently(rig):
+async def test_chk_vfo_answers_one_line_without_rprt(rig):
+    """rigctl_parse.c sends no header and no RPRT for \\chk_vfo; waiting for
+    one would hang until the timeout."""
     _, client = rig
     assert await client.chk_vfo() is False
+    assert await client.get_frequency() == 7101500  # the stream is still in step
 
 
 @pytest.mark.asyncio
@@ -135,13 +138,28 @@ def test_rigctld_is_started_bound_to_the_rig_host_only():
     assert "-T" in rigctld_command({"model": 1}, path="/opt/hamlib/rigctld")
 
 
-def test_the_model_list_is_parsed_from_rigctl_dash_l():
-    text = (" Rig #  Mfg                    Model                   Version        Status      Macro\n"
-            "     1  Hamlib                 Dummy                   20230801.0     Stable      RIG_MODEL_DUMMY\n"
-            "  1035  Yaesu                  FT-991A                 20211030.0     Stable      RIG_MODEL_FT991\n")
+def test_the_model_list_is_parsed_from_hamlibs_own_format():
+    """Rows built with print_model_list's format string (rigctl_parse.c):
+    macro before status, and a macro longer than its column pushes the rest."""
+    def row(i, mfg, model, version, macro, status):
+        return "%6d  %-23s%-24s%-16s%-12s%s" % (i, mfg, model, version, macro, status)
+
+    text = "\n".join([
+        " Rig #  Mfg                    Model                   Version         Status      Macro",
+        row(1, "Hamlib", "Dummy", "20230801.0", "RIG_MODEL_DUMMY", "Stable"),
+        row(1035, "Yaesu", "FT-991A", "20211030.0", "RIG_MODEL_FT991", "Stable"),
+        row(3073, "Icom", "IC-7300", "20240101.0", "RIG_MODEL_IC7300", "Stable"),
+        row(2, "Hamlib", "NET rigctl", "20230101.0", "RIG_MODEL_NETRIGCTL", "Beta"),
+    ])
     rows = parse_model_list(text)
-    assert [r["model"] for r in rows] == [1, 1035]
-    assert rows[1]["make"] == "Yaesu" and rows[1]["name"] == "FT-991A"
+    assert [r["model"] for r in rows] == [1, 1035, 3073, 2]
+    ft = rows[1]
+    assert (ft["make"], ft["name"], ft["macro"], ft["status"]) == (
+        "Yaesu", "FT-991A", "RIG_MODEL_FT991", "Stable")
+    assert rows[3]["name"] == "NET rigctl" and rows[3]["status"] == "Beta"
+    # Older Hamlib has no macro column.
+    old = parse_model_list("  1035  Yaesu                  FT-991A                 20211030.0      Stable\n")
+    assert old[0]["name"] == "FT-991A" and old[0]["macro"] == "" and old[0]["status"] == "Stable"
 
 
 @pytest.mark.asyncio

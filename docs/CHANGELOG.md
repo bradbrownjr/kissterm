@@ -20,7 +20,10 @@ you need the history of a specific change.
   and `Radio.rig_models` (`rigctl -l`, once) are the core methods the
   Settings screens (M3) will use. Tested against a fake server and, when
   Hamlib is installed, its dummy rig (skipped here: not installed).
-  Nothing in the app uses it yet.
+  Checked against Hamlib's source: `chk_vfo` sends no `RPRT` under `+`
+  (reading one would have hung), the error names are `rig.h`'s, and the
+  `rigctl -l` parser follows `print_model_list` (macro before status, run
+  together when the macro is long). Nothing in the app uses it yet.
 
 **Files:** `kissterm/rig/`, `kissterm/core/radio.py`, `docs/SOURCES.md`,
 `tests/fake_rigctld.py`, `tests/unit/test_rigctld.py`

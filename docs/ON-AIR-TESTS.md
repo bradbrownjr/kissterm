@@ -709,6 +709,17 @@ and then your Winlink password, before dialing. The password is saved
   exchange should start only when the `[WL2K-` line arrives; the node's
   own lines before it should show as normal session text.
 
+## Radio control (ROADMAP P3a)
+
+- [ ] **`rigctld` against your radio, receive only** (not a transmission).
+  With Hamlib installed, run `rigctld -m 1035 -r /dev/ttyUSB0 -s 38400 -T
+  127.0.0.1` (your FT-991A's Enhanced port) and, in a Python shell,
+  `RigctldClient("127.0.0.1").state()` from `kissterm.rig.rigctld`. Expected:
+  your dial frequency and mode, PTT False. Also `chk_vfo()` (False unless
+  you started `rigctld` with `-o`) and `get_swr()` (a ratio, or a "not
+  available" error on rigs that read SWR only while transmitting). Say what
+  each returned.
+
 ## Standing verifications (from AGENTS.md section 8)
 
 - [ ] **Mic-E** decoding against a real off-air packet.

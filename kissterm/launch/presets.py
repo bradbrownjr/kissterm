@@ -46,8 +46,11 @@ class Preset:
     runs_under_wine: bool = False
     #: Where the Wine prefix keeps a Windows install (POSIX paths, `~` kept).
     wine_paths: tuple[str, ...] = ()
-    #: documented | recalled | unverified
+    #: documented | recalled | unverified -- of the path and arguments
     source: str = "unverified"
+    #: The program reads its settings from its working folder, so the
+    #: supervisor starts it in the program's own folder unless `cwd` is set.
+    cwd_is_program_folder: bool = False
     note: str = ""
 
 
@@ -57,16 +60,18 @@ PRESETS: dict[str, Preset] = {
         {WINDOWS: (r"C:\VARA\VARA.exe",)},
         runs_under_wine=True,
         wine_paths=("~/.wine/drive_c/VARA/VARA.exe",),
-        source="unverified",
-        note="Windows program; its ports are set in VARA's own Settings.",
+        source="documented",
+        note="The installer's default folder, from VARA setup guides (not "
+             "EA5HVK's own pages); its ports are set in VARA's Settings.",
     ),
     "vara-fm": Preset(
         "vara-fm", "VARA FM", "varafm",
-        {WINDOWS: (r"C:\VARA FM\VARAFM.exe",)},
+        {WINDOWS: (r"C:\VARA FM\VaraFM.exe",)},
         runs_under_wine=True,
-        wine_paths=("~/.wine/drive_c/VARA FM/VARAFM.exe",),
-        source="unverified",
-        note="Windows program; its ports are set in VARA's own Settings.",
+        wine_paths=("~/.wine/drive_c/VARA FM/VaraFM.exe",),
+        source="documented",
+        note="The installer's default folder, from VARA setup guides (not "
+             "EA5HVK's own pages); its ports are set in VARA's Settings.",
     ),
     "mercury": Preset(
         "mercury", "Mercury", "mercury",
@@ -88,8 +93,10 @@ PRESETS: dict[str, Preset] = {
             DARWIN: ("/usr/local/bin/direwolf",),
         },
         args="-t 0 -c {conf}",
-        source="recalled",
-        note="-c names direwolf.conf, whose KISSPORT is the transport's port.",
+        source="documented",
+        note="Options from direwolf(1): -c file (default direwolf.conf in the "
+             "working folder), -t n (0 turns colours off). The path is a guess "
+             "from a package or `make install`; check it.",
     ),
     "qtsoundmodem": Preset(
         "qtsoundmodem", "QtSoundModem", "tcp",
@@ -98,7 +105,10 @@ PRESETS: dict[str, Preset] = {
             WINDOWS: (r"C:\QtSoundModem\QtSoundModem.exe",),
         },
         source="unverified",
-        note="Its KISS port is set in its own configuration.",
+        cwd_is_program_folder=True,
+        note="Built from source (github.com/g8bpq/QtSoundModem), so no standard "
+             "path. It reads QtSoundModem.ini from its working folder, so it "
+             "starts in its own folder; its KISS and AGW ports are in that file.",
     ),
     "uz7ho": Preset(
         "uz7ho", "UZ7HO SoundModem", "agwpe",

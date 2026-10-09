@@ -39,3 +39,8 @@ def test_unknown_and_custom_presets_answer_nothing():
     for key in ("custom", "no-such-program"):
         assert default_path(key, LINUX) == ""
         assert default_args(key) == ""
+
+
+def test_a_program_that_reads_settings_from_its_folder_says_so():
+    assert PRESETS["qtsoundmodem"].cwd_is_program_folder
+    assert not PRESETS["mercury"].cwd_is_program_folder

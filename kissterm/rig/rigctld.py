@@ -9,16 +9,16 @@ protocol (no `+`) ends a `get` after its values with no marker, which cannot
 be told from a slow rig.
 
     -> +f            <- get_freq:  /  Frequency: 14074000  /  RPRT 0
-    -> +\\chk_vfo     <- chk_vfo:   /  1                    /  RPRT 0   (see below)
     -> +T 1          <- set_ptt: 1 /  RPRT 0
 
 The long command name keeps its backslash (`+\\get_freq`); the one-letter
 commands take only the `+`.
 
-# UNVERIFIED: `chk_vfo`'s reply layout under `+` (some Hamlib versions answer
-# `CHKVFO 0` without a header). `chk_vfo` is read leniently: any record
-# holding a bare 0 or 1 counts. Check against a real rigctld on the first
-# on-air session (ON-AIR-TESTS).
+**`chk_vfo` is the one exception** (`rigctl_parse.c`, `rigctl_parse`'s
+"Don't send command header on '\\chk_vfo' command" and the `cmd != 0xf0`
+tests): under `+` it sends no header and no `RPRT`, only `ChkVFO: 0` (or 1,
+when `rigctld` runs with `-o`). Waiting for an `RPRT` there would hang, so
+`chk_vfo` reads one line. `0xf0` is rigctld's code for it.
 
 **Reads never key.** The `set_*` methods change the rig; `set_ptt` and
 `tune` transmit. Their callers hold the transmit gate (AGENTS.md); this
@@ -41,14 +41,18 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
-#: Hamlib's error numbers (`rig.h` `RIG_E*`), by absolute value.
-# RESEARCH: recalled from rig.h, not re-read; the names are for the log only.
+#: Hamlib's error numbers by absolute value: `enum rig_errcode_e` in
+#: `include/hamlib/rig.h` (Hamlib master, read 2026-10-09), the comment on
+#: each, shortened.
 ERROR_NAMES = {
-    1: "invalid parameter", 2: "invalid configuration", 3: "out of memory",
-    4: "not implemented", 5: "timeout", 6: "I/O error", 7: "internal error",
-    8: "protocol error", 9: "command rejected", 10: "argument truncated",
-    11: "not available", 12: "VFO not targetable", 13: "bus error",
-    14: "bus busy", 15: "invalid argument", 16: "invalid VFO", 17: "argument out of domain",
+    1: "invalid parameter", 2: "invalid configuration (serial...)", 3: "memory shortage",
+    4: "function not implemented", 5: "communication timed out",
+    6: "IO error, including open failed", 7: "internal Hamlib error", 8: "protocol error",
+    9: "command rejected by the rig", 10: "performed, but argument truncated",
+    11: "function not available", 12: "VFO not targetable", 13: "error talking on the bus",
+    14: "collision on the bus", 15: "invalid pointer argument", 16: "invalid VFO",
+    17: "argument out of domain", 18: "function deprecated", 19: "security error",
+    20: "rig not powered on", 21: "limit exceeded", 22: "access denied (port in use?)",
 }
 
 DEFAULT_PORT = 4532
@@ -152,8 +156,10 @@ class RigctldClient:
                 pass
 
     # -- the protocol -------------------------------------------------------
-    async def command(self, text: str) -> dict[str, str]:
+    async def command(self, text: str, *, one_line: bool = False) -> dict[str, str]:
         """Send one command in extended mode; its `Key: value` records.
+
+        `one_line`: `\\chk_vfo`, whose reply is a single line with no `RPRT`.
 
         Raises `RigError` on a negative RPRT, a timeout or a dropped
         connection (which is closed, so the next call reconnects)."""
@@ -164,16 +170,19 @@ class RigctldClient:
             try:
                 self._writer.write(f"+{text}\n".encode("ascii"))
                 await self._writer.drain()
-                records = await asyncio.wait_for(self._read_block(), COMMAND_TIMEOUT)
+                records = await asyncio.wait_for(self._read_block(one_line), COMMAND_TIMEOUT)
             except (OSError, asyncio.TimeoutError, asyncio.IncompleteReadError) as exc:
                 await self.close()
                 why = ("rigctld closed the connection"
                        if isinstance(exc, asyncio.IncompleteReadError) else exc or "no reply")
                 self._fail(f"{text.split()[0]}: {why}")
                 raise RigError(self.last_error) from exc
+        if one_line:
+            key, sep, value = records[0].partition(": ")
+            return {key if sep else "#0": value if sep else records[0]}
         return self._parse(text, records)
 
-    async def _read_block(self) -> list[str]:
+    async def _read_block(self, one_line: bool = False) -> list[str]:
         assert self._reader is not None
         lines: list[str] = []
         while True:
@@ -183,7 +192,7 @@ class RigctldClient:
             line = raw.decode("ascii", "replace").rstrip("\r\n")
             log.debug("rigctld %s <- %s", self.name, line)
             lines.append(line)
-            if line.startswith("RPRT "):
+            if one_line or line.startswith("RPRT "):
                 return lines
 
     def _parse(self, text: str, lines: list[str]) -> dict[str, str]:
@@ -217,8 +226,8 @@ class RigctldClient:
         return next(iter(values.values())).strip() not in ("0", "")
 
     async def get_level(self, level: str) -> float:
-        """A level such as `SWR` (a ratio, 1.0 or more, where the backend
-        reads it) or `STRENGTH`. Raises `RigError` when unsupported."""
+        """A level such as `SWR` (a float, `RIG_LEVEL_SWR` in rig.h: "arg
+        float [0.0 ... infinite]", read-only, where the backend has it) or `STRENGTH`. Raises `RigError` when unsupported."""
         values = await self.command(f"l {level}")
         return float(next(iter(values.values())))
 
@@ -226,7 +235,10 @@ class RigctldClient:
         return await self.get_level("SWR")
 
     async def chk_vfo(self) -> bool:
-        values = await self.command("\\chk_vfo")
+        """Whether `rigctld` runs in VFO mode (`-o`), where every command
+        takes a VFO argument. kissterm starts it without `-o`; a `rigctld` the
+        operator started with it cannot be driven by these commands."""
+        values = await self.command("\\chk_vfo", one_line=True)
         return any(v.strip() == "1" for v in values.values())
 
     async def dump_state(self) -> list[str]:
@@ -279,21 +291,31 @@ class RigctldClient:
         await self.command("G TUNE")
 
 
-_MODEL_ROW = re.compile(r"^\s*(\d+)\s+(.+?)\s{2,}(.+?)\s{2,}(\S+)\s+(\S+)")
+_MODEL_ROW = re.compile(
+    r"^\s*(\d+)\s+(.+?)\s{2,}(.+?)\s+(\d{8}\S*)\s*(?:(\S+?)\s*)?"
+    r"(Alpha|Untested|Beta|Stable|Buggy)\s*$")
 
 
 def parse_model_list(text: str) -> list[dict[str, Any]]:
-    """`rigctl -l` as `{"model", "make", "name", "status"}` rows.
+    """`rigctl -l` as `{"model", "make", "name", "version", "macro", "status"}`.
 
-    # UNVERIFIED: the column layout (Rig #, Mfg, Model, Version, Status),
-    read from Hamlib's documentation, not a capture; rows that do not match
-    are skipped."""
+    `print_model_list` in Hamlib's `tests/rigctl_parse.c` prints
+    `"%6d  %-23s%-24s%-16s%-12s%s"` for id, manufacturer, model, version,
+    **macro** then **status** (`rig_strstatus` in `src/misc.c`: Alpha,
+    Untested, Beta, Stable, Buggy), though its header line says Status before
+    Macro. Padding never truncates, so a macro longer than 12 characters
+    (`RIG_MODEL_FT991`) runs straight into the status with no space. Older
+    Hamlib prints no macro column at all. Rows are therefore split on the
+    shape of the line, not on columns: a version starts with eight digits (a
+    date), the status is one of the five words at the end, and whatever lies
+    between is the macro. The header and any other line are skipped."""
     rows = []
     for line in text.splitlines():
         match = _MODEL_ROW.match(line)
         if match:
             rows.append({"model": int(match[1]), "make": match[2].strip(),
-                         "name": match[3].strip(), "status": match[5]})
+                         "name": match[3].strip(), "version": match[4],
+                         "macro": match[5] or "", "status": match[6]})
     return rows
 
 

@@ -151,8 +151,24 @@ the node's APRS command.
   `RPRT n`), `f`/`F`, `m`/`M`, `t`/`T` (0 RX, 1 TX), `l SWR`, `U TUNER`,
   `G TUNE`, `\chk_vfo`, and `rigctld`'s `-m -r -s -P -p -T -t`. `-T` sets
   the listen address (default ANY): `rigctld_command` always passes it.
-  Used by `kissterm/rig/rigctld.py`. The error names and the `rigctl -l`
-  column layout are recalled, not captured; both are marked `UNVERIFIED`.
-- Direwolf (`-c`, `-t`): recalled from use, not re-read; the Windows,
-  VARA, QtSoundModem and UZ7HO install paths are `unverified` defaults the
-  operator checks with the file browser.
+  Used by `kissterm/rig/rigctld.py`. Checked against the source, below; no
+  capture from a running `rigctld` yet (ON-AIR-TESTS).
+- Direwolf `man/direwolf.1` and `src/config.c` (github.com/wb2osz/direwolf):
+  `-c file` ("rather than the default locations"; default `direwolf.conf`
+  in the working folder) and `-t n` (text colours, 0 disabled). Its binary
+  path is not documented (a package puts it in `/usr/bin`, `make install` in
+  `/usr/local/bin`; the Windows folder is a guess). Used by `launch/presets.py`.
+- QtSoundModem (github.com/g8bpq/QtSoundModem, `QtSoundModem.cpp`):
+  settings are read through `QSettings("QtSoundModem.ini", IniFormat)`, a
+  path relative to the working folder, hence `cwd_is_program_folder`. No
+  install path or command-line options were found; its path stays a guess.
+- VARA HF and VARA FM: the default install folders `C:\VARA\VARA.exe` and
+  `C:\VARA FM\VaraFM.exe` from the Winlink and club setup guides found by
+  search (winlink.org/sites/default/files/RMSE_FORMS/vara_fm_for_winlink_with_signalink_on_windows_v4_0.pdf,
+  vccomm.org VARA FM quick setup guide); EA5HVK's own documentation was not
+  read. UZ7HO SoundModem's path is still a guess.
+- Hamlib `include/hamlib/rig.h` (`enum rig_errcode_e`, RIG_OK to
+  RIG_EACCESS = 22; `RIG_LEVEL_SWR` "arg float [0.0 ... infinite]",
+  read-only) and `tests/rigctl_parse.c` (`print_model_list`'s format;
+  `chk_vfo` sends no header and no `RPRT` under `+`; `rig_strstatus` in
+  `src/misc.c`), read 2026-10-09.
