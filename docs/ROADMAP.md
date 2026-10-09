@@ -478,6 +478,7 @@ args = []                   # a list, never a shell string
 cwd = ""                    # empty = the program's own folder
 wine = false                # POSIX only: run a Windows .exe under Wine
 stop_on_exit = true         # stop it when kissterm closes, only if kissterm started it
+keying = "rig_control"      # own_port | rig_control | cat_port (see below)
 
 [[rigs]]
 name = "IC-7300"
@@ -487,6 +488,8 @@ baud = 19200
 ptt = "cat"                 # cat | rts | dtr | none (VOX, or the modem keys)
 ptt_device = ""             # RTS/DTR on a different port (a DigiRig, say)
 ptt_timeout = 60            # seconds; the watchdog unkeys after this
+swr_warn = 2.0              # warn above this during a transmission (if the rig reports SWR)
+tune_before_connect = false # a carrier: opt-in, gated (see below)
 # or, to use a rigctld something else already runs:
 # rigctld = "127.0.0.1:4532"
 
@@ -498,6 +501,7 @@ cmd_port = 8300
 data_port = 8301
 program = "VARA HF"
 rig = "IC-7300"
+frequency = ""              # optional home channel set when it opens, e.g. "145.050 FM"
 ```
 
 **Paths are the station computer's.** One config file belongs to one
@@ -508,19 +512,64 @@ including VARA under Wine on Linux/macOS, and the form pre-fills them for
 the platform kissterm is running on. A phone editing the station's
 Settings is editing the *station's* paths, and the form says so.
 
-**One owner per serial port: kissterm runs `rigctld`, everything else
-shares it.** Two programs cannot open the same COM port. So each Rigs entry
-starts one `rigctld` (or attaches to one already running), and every
-consumer talks to it over TCP: kissterm itself, Mercury (`-R 2 -A
-127.0.0.1:4532`, Hamlib's NET rigctl model; Mercury README, branch
-`mercuryv2`), Direwolf (`PTT RIG 2 127.0.0.1:4532`). VARA has no Hamlib, so
-for VARA kissterm keys the rig itself from VARA's `PTT ON`/`PTT OFF`
-notifications (already parsed in `transport/vara.py`, `self.ptt`). Talking
-to `rigctld` instead of linking Hamlib's Python bindings avoids a
+**One owner per serial port.** Two programs cannot open the same COM port,
+and tuning matters even when the modem keys the radio itself (Direwolf,
+SoundModem): kissterm still has to put the rig on the channel. Each Rigs
+entry starts one `rigctld` (or attaches to one already running) on the
+rig's CAT port, and a program entry says how that program keys the radio,
+one choice, three answers, in order of preference:
+
+1. **"Its own port"** -- a separate PTT port, VOX, or the sound
+   interface's own PTT (CM108, a SignaLink). Nothing is shared, nothing
+   to coordinate. The FT-991A works this way over one USB cable: Yaesu's
+   driver gives an "Enhanced" COM port for CAT and a "Standard" one whose
+   RTS/DTR keys the rig, so `rigctld` takes the first and Direwolf or
+   SoundModem the second. This is not universal: an IC-7300 has one COM
+   port carrying both, and an FT-817ND has one CAT port on its ACC jack,
+   with PTT on the DATA jack keyed by whatever interface is plugged in (a
+   second COM port there belongs to the interface cable, not the radio).
+   RESEARCH each named rig against its manual before the form says so.
+2. **"Through kissterm's rig control"** -- the program talks to the shared
+   `rigctld`: Mercury (`-R 2 -A 127.0.0.1:4532`, Hamlib's NET rigctl model;
+   Mercury README, branch `mercuryv2`), Direwolf (`PTT RIG 2
+   127.0.0.1:4532`), QtSoundModem and UZ7HO SoundModem if they support it
+   (RESEARCH, not assumed). For VARA, which has no Hamlib, kissterm keys
+   the rig itself from VARA's `PTT ON`/`PTT OFF` notifications (already
+   parsed in `transport/vara.py`, `self.ptt`).
+3. **"The rig's CAT port itself"** -- the program must own the only port
+   (VARA set to key by CAT, SoundModem's RTS on an IC-7300's single port).
+   Then kissterm **hands the port off**: with no session up, it stops the
+   program, starts `rigctld`, tunes, stops `rigctld`, starts the program
+   again and reopens the transport. Only for a program kissterm started
+   (it cannot stop one it does not own; it says so instead); the program
+   is restarted on every path, failure included. It costs the program's
+   startup time (VARA takes seconds) on every channel change, which is why
+   it is the last choice and SETUP.md says how to reach 1 or 2 instead.
+
+Talking to `rigctld` instead of linking Hamlib's Python bindings avoids a
 dependency that pip cannot install: `rigctld` is a separate binary on every
 platform (`apt install libhamlib-utils`, `brew install hamlib`, the
 hamlib-w64 installer), found on PATH or at a path in the rig's Advanced
 fold, and reported by `--doctor`.
+
+**The antenna tuner and SWR.** Hamlib exposes both (`U TUNER 1` turns a
+built-in ATU on, `G TUNE` starts a tuning cycle, `l SWR` reads SWR), but
+only some rigs support them (the FT-991A has an internal ATU on HF and
+6 m; the FT-817ND has none), so the controls appear only when the rig
+reports the capability. **A tuning cycle and most SWR readings are
+transmissions**: the rig keys a carrier, on a channel a gateway may be
+using. So, by cost:
+
+- **ATU on** after tuning: no RF. Most internal ATUs then recall the match
+  stored for that frequency. The default.
+- **SWR watched during real transmissions**: read `l SWR` while the modem
+  already has the rig keyed, warn when it is above a limit set on the
+  rig. Free in airtime. The default.
+- **Tune before connect**: off by default, a per-rig choice; runs only
+  as part of a connect the operator confirmed, with the gate open,
+  re-checked when it keys, shown in `RadioReminderScreen` ("Tunes the ATU:
+  a few seconds of carrier on 7.101.500"), logged and in the Monitor like
+  any transmission. Never automatic on an SWR warning.
 
 **Launch timing.** A program starts when its transport is opened (made
 "Radio in use", or at launch if it is the active transport and the program
@@ -617,13 +666,28 @@ outside the gate and the form says so, as P12 says of fldigi.
   Address Book contact's existing `frequency` field, and an RMS gateway's
   `frequency_hz`, tune the rig on a deliberate connect only: shown in the
   `RadioReminderScreen` ("Tunes IC-7300 to 7.101.500 USB-D"), done after
-  the operator confirms and before the connect, never on selection. The
-  Winlink convention of dial = centre - 1500 Hz for USB-D is a RESEARCH
-  item against Winlink Express's documentation, not a guess.
+  the operator confirms and before the connect, never on selection. A
+  transport may name a home frequency and mode (a packet channel on 2 m)
+  that is set when it opens. Program entries in cases 1 and 2 above only;
+  case 3 waits for M6b. The Winlink convention of dial = centre - 1500 Hz
+  for USB-D is a RESEARCH item against Winlink Express's documentation,
+  not a guess.
+- [ ] **M6b [Opus] Port hand-off and the tuner.** The case 3 sequence
+  (stop program, `rigctld`, tune, stop `rigctld`, restart program, reopen
+  transport) as one core method with a `finally` that always restarts the
+  program, refused while any session is up, and its progress shown as
+  notices. The ATU: capability from `rigctld`'s `\dump_caps`/`U ?`,
+  ATU-on after every tune, the passive SWR watch during PTT, and the
+  opt-in tune-before-connect cycle through the gate as described above.
+  Tests with the fake modem script from M2 and a fake `rigctld`, including
+  a `rigctld` that fails mid-tune (the program must still come back).
 - [ ] **M7 [Operator] On the air at KC1JMH-RR.** ON-AIR-TESTS entries, one
   per milestone as it ships: VARA HF started by kissterm on Windows; VARA
   under Wine on Linux; Direwolf and QtSoundModem started on Linux; Mercury
-  with the shared `rigctld`; PTT keyed and released on a VARA connect; the
+  with the shared `rigctld`; PTT keyed and released on a VARA connect;
+  tuning the FT-991A over its Enhanced port while Direwolf keys over the
+  Standard port; a port hand-off on a single-port rig; ATU on and SWR
+  read during a VARA transmission; the
   watchdog unkeys a held PTT; frequency set from a contact.
 
 **Decisions for the operator before M2** (recommendation first):
@@ -635,6 +699,9 @@ outside the gate and the form says so, as P12 says of fldigi.
    every program at kissterm's launch.
 3. Hamlib through `rigctld` only (recommended), or also flrig's XML-RPC for
    stations that already run flrig.
+4. Tune-before-connect (a carrier) available but off by default
+   (recommended), or never offered, leaving tuning to the operator at the
+   rig.
 
 ## P4 — APRS
 
