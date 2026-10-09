@@ -204,7 +204,8 @@ class MoreView:
              if state.on_air and state.on_air != state.callsign else state.callsign or "(not set)"),
             ("kissterm", state.version),
             ("Transport", transport.get("detail") or transport.get("name") or "none open"),
-            ("Transmit", "ON" if state.gate else "off"),
+            ("Transmit", "ON" if state.gate
+             else f"off: {state.gate_latch}" if state.gate_latch else "off"),
             ("Connection", self.app.conn.status),
         ]
         if state.rig:

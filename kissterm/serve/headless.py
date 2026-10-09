@@ -167,6 +167,7 @@ async def run(config, station=None, session_transport=None, transport_problem=No
     core.aprs.start()
     core.rigwatch.start()
     core.ptt.start()
+    core.swr.start()
     core.settings.apply_runtime()
     try:
         await server.start()
@@ -218,6 +219,7 @@ async def _shutdown(core, server) -> None:
     the radio while the station is going away."""
     core.aprs.shutdown()
     core.transfers.shutdown()
+    await core.swr.shutdown()
     await core.ptt.shutdown()
     await core.rigwatch.shutdown()
     core.detach_transport()

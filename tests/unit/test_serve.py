@@ -129,7 +129,7 @@ async def test_the_right_token_gets_a_welcome_then_live_events():
     await _until(server.has_clients)
     core.gate.set(True)
     event = await client.next(lambda m: m["type"] == "event")
-    assert (event["name"], event["data"]) == ("GateChanged", {"enabled": True})
+    assert (event["name"], event["data"]) == ("GateChanged", {"enabled": True, "latch": ""})
     await client.ws.close()
     await server.stop()
 

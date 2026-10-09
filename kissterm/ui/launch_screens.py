@@ -323,8 +323,13 @@ class RigEntryScreen(ModalScreen["str | None"]):
                                                     placeholder="/dev/ttyUSB0 or COM3"))
                 yield self._row("CAT baud rate", Input(str(e.get("speed", "")), compact=True,
                                                        id="rig-speed", placeholder="rig default"))
+                yield self._row("Warn above SWR", Input(str(e.get("swr_warn", 2.0)), compact=True,
+                                                        id="rig-swr-warn"))
                 yield self._row("Stop above SWR", Input(str(e.get("swr_trip", 3.0)), compact=True,
                                                         id="rig-swr"))
+                yield Label("Read while transmitting; above it transmit is turned off until "
+                            "you turn it on. 0 = off. Not hardware protection.",
+                            id="rig-swr-hint")
                 yield Label("Tune the ATU before connecting on these bands (none = never):",
                             id="transport-script-hint")
                 chosen = set(e.get("tune_bands") or [])
@@ -365,6 +370,7 @@ class RigEntryScreen(ModalScreen["str | None"]):
             name=q("#rig-name", Input).value.strip(), model=q("#rig-model", Input).value.strip(),
             device=q("#rig-device", Input).value.strip(), speed=q("#rig-speed", Input).value.strip(),
             swr_trip=q("#rig-swr", Input).value.strip(), host=q("#rig-host", Input).value.strip(),
+            swr_warn=q("#rig-swr-warn", Input).value.strip(),
             port=q("#rig-port", Input).value.strip(), rigctld_path=q("#rig-path", Input).value.strip(),
             ptt_timeout=q("#rig-ptt", Input).value.strip(),
             tune_bands=[b for b in q("#rig-bands", SelectionList).selected])

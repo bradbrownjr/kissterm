@@ -27,6 +27,15 @@ class RadioReminder(Question):
 
 
 @dataclass(frozen=True, slots=True)
+class SwrRearm(Question):
+    """Transmit is held off by an SWR trip (`core/swr.py`): turn it on
+    anyway? `trip` says what tripped ("SWR tripped at 4.8:1 on 7.101.500 at
+    14:02"). Answer: bool (True = clear the trip and turn transmit on)."""
+
+    trip: str
+
+
+@dataclass(frozen=True, slots=True)
 class TrustHostKey(Question):
     """First contact with an SSH server: trust the key it offered?
     (`transport/ssh.py`.) Answer: bool (True = trust and save it)."""

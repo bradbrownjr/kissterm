@@ -185,6 +185,14 @@ the node's APRS command.
   read-only) and `tests/rigctl_parse.c` (`print_model_list`'s format;
   `chk_vfo` sends no header and no `RPRT` under `+`; `rig_strstatus` in
   `src/misc.c`), read 2026-10-09.
+- Hamlib SWR (read 2026-10-09): `rigs/yaesu/newcat.c` (`RIG_LEVEL_SWR`
+  reads `RM6`, `RM09` on the FTDX9000, through `yaesu_default_swr_cal`,
+  raw 12..242 -> 1.0..5.0), `rigs/yaesu/ft991.h` (`FT991_LEVELS` includes
+  `RIG_LEVEL_SWR`), `rigs/icom/icom.c` and `ic7300.c` (`IC7300_SWR_CAL`,
+  0..240 -> 1.0..6.0), `src/cal.c` (`rig_raw2val_float`: linear between
+  table points, clamped at the ends, the raw value when a backend has no
+  table). Used by `kissterm/core/swr.py`. # UNVERIFIED on the air, and per
+  rig for backends without a table.
 - EA5HVK, "VARA Protocol Native TNC Commands" (Jose Alberto Nieto Ros,
   November 2021; a 3-page PDF, the copy attached to the pat-users group:
   groups.google.com/group/pat-users/attach/5ccf955e0cbf0), read 2026-10-09:

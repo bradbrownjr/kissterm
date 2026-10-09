@@ -408,6 +408,10 @@ changes.
   (PTT OFF, the modem or transport closing, the gate closing, the
   `ptt_timeout` watchdog, Restart and Quit, `atexit`). `T 0` never asks
   the gate (`tests/unit/test_ptt.py`).
+- **An SWR trip closes the gate and only the operator re-arms it**
+  (`core/swr.py`, `TransmitGate.latch_closed`): no connect, send, beacon
+  or restart opens a latched gate; turning transmit on asks `SwrRearm`
+  first, in either front end (`tests/unit/test_swr.py`).
 - **Remote control is off by default**, and while its server runs inside
   the terminal the status bar shows `REMOTE` (`ui/remote.py`): another
   screen can key this radio.

@@ -225,6 +225,7 @@ class RemoteServer:
             sessions = [wire.session_summary(core, key) for key in core.sessions.by_key if key]
         return {
             "gate": core.gate.enabled,
+            "gate_latch": core.gate.latch,
             "transport": transport,
             "sessions": sessions,
             "connecting": wire.connecting_keys(core),
@@ -353,6 +354,8 @@ class RemoteServer:
         as Ctrl+T and as loudly reported, on every screen."""
         if not isinstance(enabled, bool):
             raise CommandError("enabled must be true or false")
+        if enabled and self.core.gate.latch and not await self.core.swr.ask_rearm():
+            return False  # an SWR trip, and the operator said not yet
         now = self.core.gate.set(enabled)
         if now:
             self.operator_notice("Transmit ENABLED from a remote client. "

@@ -47,9 +47,11 @@ class TransportChanged(Event):
 
 @dataclass(frozen=True, slots=True)
 class GateChanged(Event):
-    """The transmit gate opened or closed (`kissterm/tx.py`)."""
+    """The transmit gate opened or closed (`kissterm/tx.py`). `latch` is why
+    it is held closed (an SWR trip, `core/swr.py`), "" when it is not."""
 
     enabled: bool
+    latch: str = ""
 
 
 @dataclass(frozen=True, slots=True)

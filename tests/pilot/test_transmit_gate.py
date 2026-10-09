@@ -431,3 +431,31 @@ async def test_a_line_on_the_broadcast_tab_arms_the_gate_and_goes_out_once():
         assert app.gate.enabled is True
         assert len(ta.sent) == 1
     station.close()
+
+
+@pytest.mark.asyncio
+async def test_after_an_swr_trip_ctrl_t_asks_before_transmitting():
+    """ROADMAP P3a M5b: the trip latches the gate; Ctrl+T asks first, and
+    Cancel leaves it off."""
+    from kissterm.ui.dialogs import SwrRearmScreen
+
+    app, station, _ = await _app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        app.gate.latch_closed("SWR tripped at 4.8:1 at 14:02")
+        app._refresh_status()
+        await pilot.pause()
+        assert "SWR TRIP" in _plain(app.query_one("#status-bar"))
+        await pilot.press("ctrl+t")
+        await wait_for(lambda: isinstance(app.screen, SwrRearmScreen), "the question")
+        await pilot.pause()
+        await pilot.press("enter")  # Cancel has the focus
+        await wait_for(lambda: not isinstance(app.screen, SwrRearmScreen), "the answer")
+        assert app.gate.enabled is False and app.gate.latch
+        await pilot.press("ctrl+t")
+        await wait_for(lambda: isinstance(app.screen, SwrRearmScreen), "the question again")
+        await pilot.pause()
+        app.screen.query_one("#connect-go").press()
+        await wait_for(lambda: app.gate.enabled, "transmit on")
+        assert not app.gate.latch
+    station.close()

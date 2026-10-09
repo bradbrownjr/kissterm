@@ -214,6 +214,13 @@ class Connector:
         notice, not two. True if it armed now."""
         if self.gate.enabled:
             return False
+        if self.gate.latch:
+            # An SWR trip: only the operator's own re-arm opens it
+            # (`core/swr.py`), never a connect or a send.
+            self.core.operator.notice(Notice(
+                f"Transmit stays off: {self.gate.latch}. Check the antenna; "
+                "{key:toggle_transmit} asks before turning it on.", Severity.ERROR))
+            return False
         self.gate.set(True)
         self.core.sessions.record(self.view.active_key() if key is None else key,
                          f"Transmit enabled automatically for: {what}")
@@ -351,6 +358,10 @@ class Connector:
                 report, f"Not connecting: the link to the TNC at {where} is {state.value}, "
                 "so nothing would reach the air. This is not an RF problem -- check the "
                 "TNC, then {view:settings/Radio} > Test.")
+            return
+        if self.gate.latch:
+            self._problem(report, f"Not connecting: transmit is held off ({self.gate.latch}). "
+                          "Check the antenna; {key:toggle_transmit} asks before turning it on.")
             return
         armed = self.arm_for(f"connect to {path.destination}", key, toast=not announce)
         if announce:
@@ -588,6 +599,11 @@ class Connector:
             except ValueError as exc:
                 self.core.operator.notice(Notice(f"{entry.target}: {exc}", Severity.ERROR))
                 return
+        if self.gate.latch:
+            self.core.operator.notice(Notice(
+                f"Not connecting: transmit is held off ({self.gate.latch}). Check the antenna; "
+                "{key:toggle_transmit} asks before turning it on.", Severity.ERROR))
+            return
         key_before = self.view.active_key()
         self.view.open_session("", kind="session", focus=True)
         self.arm_for(f"connect via {transport.info.detail}", key_before)

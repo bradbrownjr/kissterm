@@ -3294,6 +3294,37 @@ class TrustHostKeyScreen(ModalScreen[bool]):
         self.dismiss(True)
 
 
+class SwrRearmScreen(ModalScreen[bool]):
+    """Transmit is held off by an SWR trip (`core/swr.py`): turn it on
+    anyway? Cancel is focused, so a stray Enter keys nothing."""
+
+    BINDINGS = [Binding("escape", "dismiss(False)", "Cancel")]
+
+    def __init__(self, trip: str) -> None:
+        super().__init__()
+        self._trip = trip
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="connect-box"):
+            yield Label("Transmit anyway?", id="connect-title")
+            yield Static(f"{self._trip}. Check the antenna and feedline before "
+                         "transmitting again.", id="reminder-detail")
+            with Horizontal(id="connect-buttons"):
+                yield Button("Transmit anyway", variant="error", id="connect-go")
+                yield Button("Cancel", id="connect-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#connect-cancel", Button).focus()
+
+    @on(Button.Pressed, "#connect-cancel")
+    def _cancel(self) -> None:
+        self.dismiss(False)
+
+    @on(Button.Pressed, "#connect-go")
+    def _go(self) -> None:
+        self.dismiss(True)
+
+
 class CommandReferenceScreen(ModalScreen[str | None]):
     """The shipped command reference for the node we are talking to, plus a
     glossary of packet terminology in the same pane.

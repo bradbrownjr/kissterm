@@ -432,7 +432,7 @@ class Config:
     programs: list[dict[str, Any]] = field(default_factory=list)
     #: Radios kissterm may read and tune through Hamlib's `rigctld`:
     #: `{"name", "model", "device", "speed", "host", "port", "rigctld_path",
-    #: "swr_trip", "ptt_timeout", "tune_bands"}`. A transport names one in
+    #: "swr_warn", "swr_trip", "ptt_timeout", "tune_bands"}`. A transport names one in
     #: its `rig` key.
     rigs: list[dict[str, Any]] = field(default_factory=list)
     #: `name` of the transport in `transports` that should be opened on

@@ -141,6 +141,7 @@ RIG_FORM: tuple[EntryField, ...] = (
     EntryField("host", "rigctld host", default="127.0.0.1", advanced=True),
     EntryField("port", "rigctld port", "number", default="4532", advanced=True),
     EntryField("rigctld_path", "rigctld program", optional=True, advanced=True),
+    EntryField("swr_warn", "Warn above SWR", "decimal", default="2.0"),
     EntryField("swr_trip", "Stop transmitting above SWR", "decimal", default="3.0"),
     EntryField("ptt_timeout", "Unkey after (seconds)", "number", default="120",
                advanced=True),

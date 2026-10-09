@@ -29,6 +29,12 @@ a broken program. The gate that is closed by default is the one
 `KissTermApp` installs from `Config.tx_armed_at_start`, because the app is
 the thing that has an operator. `tests/pilot/test_transmit_gate.py` asserts a
 freshly mounted app cannot transmit.
+
+**A latch holds it closed with a reason** (ROADMAP P3a M5b, the SWR trip):
+`latch_closed(reason)` closes the gate and refuses every `set(True)` until
+`clear_latch()`, so every existing gate check -- the transports, the beacon,
+answering, `Connector.arm_for` -- honours a trip unchanged. Only the
+operator's own re-arm clears it (`core/swr.py`).
 """
 
 from __future__ import annotations
@@ -49,6 +55,9 @@ class TransmitGate:
         #: tells the operator nothing about the state they are in now.
         self.blocked = 0
         self.on_change: list[Callable[[bool], None]] = []
+        #: Why the gate is held closed ("" when it is not): see the module
+        #: docstring.
+        self.latch = ""
 
     @property
     def enabled(self) -> bool:
@@ -56,20 +65,43 @@ class TransmitGate:
 
     def set(self, enabled: bool) -> bool:
         """Open or close the gate. Returns the new state."""
+        if enabled and self.latch:
+            log.warning("transmit stays off: %s", self.latch)
+            return self._enabled
         if enabled == self._enabled:
             return self._enabled
         self._enabled = enabled
         if enabled:
             self.blocked = 0
         log.info("transmit %s", "enabled" if enabled else "disabled")
+        # A listener that throws must not be able to jam the switch in
+        # whichever position it happened to be in (`_tell` logs it).
+        self._tell(enabled)
+        return self._enabled
+
+    def latch_closed(self, reason: str) -> None:
+        """Close the gate and hold it closed until `clear_latch`."""
+        self.latch = reason
+        log.warning("transmit latched off: %s", reason)
+        if self._enabled:
+            self.set(False)
+        else:
+            self._tell(False)
+
+    def clear_latch(self) -> None:
+        """The operator's re-arm: `set(True)` works again. The gate stays
+        closed until it is set."""
+        if self.latch:
+            self.latch = ""
+            log.warning("transmit latch cleared")
+            self._tell(self._enabled)
+
+    def _tell(self, enabled: bool) -> None:
         for callback in list(self.on_change):
             try:
                 callback(enabled)
             except Exception:
-                # A listener that throws must not be able to jam the switch
-                # in whichever position it happened to be in.
                 log.exception("transmit gate listener failed")
-        return self._enabled
 
     def toggle(self) -> bool:
         return self.set(not self._enabled)
@@ -88,4 +120,6 @@ class TransmitGate:
 
     def __repr__(self) -> str:
         state = "open" if self._enabled else f"closed, {self.blocked} blocked"
+        if self.latch:
+            state += f", latched: {self.latch}"
         return f"<TransmitGate {state}>"

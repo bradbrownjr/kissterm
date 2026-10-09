@@ -125,7 +125,13 @@ class Core:
             station.transport.gate = self.gate
         elif session_transport is not None:
             session_transport.gate = self.gate
-        self.gate.on_change.append(lambda enabled: self.events.publish(GateChanged(enabled)))
+        self.gate.on_change.append(
+            lambda enabled: self.events.publish(GateChanged(enabled, self.gate.latch)))
+        from .swr import SwrWatch
+
+        #: The SWR watch and trip (ROADMAP P3a M5b); a saved trip latches
+        #: the gate here, before anything can open it.
+        self.swr = SwrWatch(self)
         #: `(frame, port)` for every frame received, link-owned or not.
         self.frame_subscribers: list[Callable] = []
         #: `(frame)` for every frame the transport accepted for sending.

@@ -767,6 +767,17 @@ and then your Winlink password, before dialing. The password is saved
   which of VARA's PTT settings made it send PTT ON at all (its document does
   not say), and whether keying was quick enough for VARA's timing.
 
+- [ ] **The SWR trip, safely** (transmits; low power, a good antenna or a
+  dummy load; never by transmitting into an open or shorted feedline).
+  Note the antenna's normal SWR, then set the radio's *Stop transmitting
+  above SWR* just under it (say 1.1) and *Warn above* to 0. Connect over
+  VARA (or key Direwolf). Expected: within a second or two of key-up the
+  radio unkeys, `SWR TRIP` shows in red, a notice and desktop notification
+  say the reading; restart kissterm and it is still held off; Ctrl+T asks
+  before turning transmit on. Say the reading kissterm showed and what the
+  radio's own meter said (this proves Hamlib's number is a ratio on your
+  radio), and whether a Direwolf transmission keyed by RTS was seen at all.
+
 ## Standing verifications (from AGENTS.md section 8)
 
 - [ ] **Mic-E** decoding against a real off-air packet.

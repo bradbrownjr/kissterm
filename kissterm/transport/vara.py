@@ -441,6 +441,13 @@ class VaraTransport(SessionTransport):
             self._data_writer.write(data)
             await self._data_writer.drain()
 
+    async def abort(self) -> None:
+        """`ABORT`: "Disconnect the link immediately (dirty disconnect)", a
+        local command to the modem, so it stops calling or retrying (the SWR
+        trip, `core/swr.py`). Nothing when the command socket is closed."""
+        with contextlib.suppress(TransportError):
+            await self._send_command(_CMD_ABORT)
+
     async def _disconnect(self) -> None:
         with contextlib.suppress(TransportError):
             await self._send_command(_CMD_DISCONNECT)

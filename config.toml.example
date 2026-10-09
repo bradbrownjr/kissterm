@@ -612,7 +612,8 @@ transport = "direwolf-local"
 # speed = 38400
 # host = "127.0.0.1"
 # port = 4532
-# swr_trip = 3.0          # stop transmitting above this SWR
+# swr_warn = 2.0          # say so above this SWR while transmitting (0 = off)
+# swr_trip = 3.0          # turn transmit off above this SWR, until you re-arm (0 = off)
 # ptt_timeout = 120
 # tune_bands = ["40m"]    # tune the ATU before a connect on these bands only
 

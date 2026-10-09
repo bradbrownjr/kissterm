@@ -110,6 +110,8 @@ class StationState:
         self.on_air = ""
         self.version = ""
         self.gate = False
+        #: Why transmit is held off (an SWR trip), "" when it is not.
+        self.gate_latch = ""
         self.transport: dict = {}
         self.activity = ""
         #: The radio's reading, `{"name", "frequency", "mode", "ptt"}`; empty
@@ -171,6 +173,7 @@ class StationState:
         self.on_air = station.get("on_air", "")
         self.version = station.get("kissterm", "")
         self.gate = bool(snapshot.get("gate"))
+        self.gate_latch = snapshot.get("gate_latch", "")
         self.transport = snapshot.get("transport") or {}
         self.activity = snapshot.get("activity", "")
         self.rig = snapshot.get("rig") or {}
@@ -218,6 +221,7 @@ class StationState:
     def _event(self, name: str, data: dict) -> None:
         if name == "GateChanged":
             self.gate = bool(data.get("enabled"))
+            self.gate_latch = data.get("latch", "")
             self._tell("gate", self.gate)
         elif name == "TransportChanged":
             self.transport = data

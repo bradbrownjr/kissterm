@@ -146,8 +146,9 @@ class PttKeyer:
                 elif isinstance(event, GateChanged) and event.enabled:
                     self._refusal_said = False
                 elif isinstance(event, GateChanged) and self.keyed:
-                    self._say(f"Transmit turned off: unkeying {self._rig_name()}.",
-                              Severity.WARNING)
+                    if not event.latch:  # an SWR trip says so in its own notice
+                        self._say(f"Transmit turned off: unkeying {self._rig_name()}.",
+                                  Severity.WARNING)
                     self._order(False)
 
             self._unsubscribe = self.core.events.subscribe(changed)
@@ -294,6 +295,12 @@ class PttKeyer:
         _KEYED.discard((client.host, client.port))
         log.info("PTT off: %s unkeyed", name)
         self.core.rigwatch.note_ptt(False)
+
+    def stop_for_trip(self) -> None:
+        """The SWR trip (`core/swr.py`): unkey now and hold off, like the
+        watchdog. The trip's latched gate keeps it off after that."""
+        self._held_off = True
+        self._order(False)
 
     def _held_too_long(self, timeout: float) -> None:
         self._watchdog = None

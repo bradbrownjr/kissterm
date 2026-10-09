@@ -110,6 +110,12 @@ class QuestionSheets:
                 [ft.Text("\n".join(lines), size=16)],
                 self._buttons(q, "Connect", True, cancel_value=False))
 
+    def _SwrRearm(self, q):
+        return ("Transmit anyway?",
+                [ft.Text(f"{q.data.get('trip', 'SWR tripped')}. Check the antenna and "
+                         "feedline before transmitting again.", size=16)],
+                self._buttons(q, "Transmit anyway", True, cancel_value=False))
+
     def _TrustHostKey(self, q):
         d = q.data
         return (f"Trust {d.get('host', '')}?",

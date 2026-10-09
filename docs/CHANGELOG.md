@@ -5,6 +5,34 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — The SWR watch and trip (P3a M5b)
+
+### New Features
+
+- **SWR is watched while the radio is keyed** (kissterm's own keying, or
+  the rig reporting PTT): a warning above *Warn above SWR* (2.0, new on
+  the radio's form in both front ends), and above *Stop transmitting above
+  SWR* (3.0) for three readings in a row a **trip**: the radio unkeyed (or
+  the modem kissterm started stopped), VARA told `ABORT`, transmit turned
+  off and latched, saved across restarts, with a notice, a desktop/phone
+  alert and the transcripts. `SWR TRIP 4.8:1 14:02` in red in the status
+  bar; the phone's transmit button outlined in red. Turning transmit on
+  asks first (`SwrRearm`, in either front end); nothing else opens it.
+  0 turns either limit off. Experimental: not hardware protection.
+
+### Improvements
+
+- PROTOCOL.md documents `RigStateChanged` and the snapshot's `rig` (M6
+  left them out), and `GateChanged`'s new `latch`.
+
+**Files:** `kissterm/core/swr.py`, `tx.py`, `core/ptt.py`, `core/connect.py`,
+`core/questions.py`, `core/events.py`, `core/service.py`, `core/restart.py`,
+`core/radio.py`, `transport/vara.py`, `transport/forms.py`, `serve/server.py`,
+`serve/wire.py`, `serve/headless.py`, `ui/app.py`, `ui/dialogs.py`,
+`ui/operator.py`, `ui/launch_screens.py`, `ui/styles.py`, `client/state.py`,
+`client/ui/shell.py`, `client/ui/more.py`, `client/ui/questions.py`,
+`client/ui/radio.py`, `tests/unit/test_swr.py`, `docs/PROTOCOL.md`, `AGENTS.md`
+
 ## [2026-10-09] — VARA keys the radio through the transmit gate (P3a M5)
 
 ### New Features

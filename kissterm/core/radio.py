@@ -398,8 +398,10 @@ class Radio:
         values = _coerce(entry, RIG_FORM)
         if isinstance(values, str):
             return values
-        if values["swr_trip"] <= 1.0:
-            return "Stop transmitting above SWR must be more than 1.0."
+        if values["swr_trip"] != 0 and values["swr_trip"] <= 1.0:
+            return "Stop transmitting above SWR must be more than 1.0 (0 turns it off)."
+        if values["swr_warn"] != 0 and values["swr_warn"] <= 1.0:
+            return "Warn above SWR must be more than 1.0 (0 turns it off)."
         values.update(name=name)
         config.rigs = [r for r in config.rigs if r.get("name") not in (original, name)]
         config.rigs.append(values)

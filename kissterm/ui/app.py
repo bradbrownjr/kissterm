@@ -825,6 +825,7 @@ class KissTermApp(App):
         self.core.aprs.start()
         self.core.rigwatch.start()
         self.core.ptt.start()
+        self.core.swr.start()
         if self._check_updates and getattr(self.config, "update_check", True):
             # After the first screen, so the check never competes with it.
             self.set_timer(3.0, lambda: self._update_check_worker(False))
@@ -1581,7 +1582,12 @@ class KissTermApp(App):
         underneath the operator: this is operational state for the session in
         front of them, the way "Enable Tx" is. `tx_armed_at_start` decides
         where it begins and nothing else writes to it.
+
+        An SWR trip holds it off (`core/swr.py`): turning it on asks first.
         """
+        if not self.gate.enabled and self.gate.latch:
+            self._rearm_after_trip()
+            return
         enabled = self.gate.toggle()
         if enabled:
             self.notify("Transmit ENABLED. This station can now key the radio.")
@@ -1594,6 +1600,12 @@ class KissTermApp(App):
             )
             self._record(self._active_key(), "Transmit disabled")
         self._refresh_status()
+
+    @work
+    async def _rearm_after_trip(self) -> None:
+        """`SwrWatch.ask_rearm`, then Ctrl+T as usual."""
+        if await self.core.swr.ask_rearm():
+            self.action_toggle_transmit()
 
     def _connect_problem(self, report, text: str, severity: str = "error") -> None:
         """Why a connect did not happen: a toast, or handed to `report` when
@@ -2401,6 +2413,13 @@ class KissTermApp(App):
         except Exception:  # noqa: BLE001 -- before the theme is applied
             return "green"
 
+    def _error_colour(self) -> str:
+        """The theme's `$error`, as `_success_colour`."""
+        try:
+            return self.get_css_variables().get("error", "") or "red"
+        except Exception:  # noqa: BLE001 -- before the theme is applied
+            return "red"
+
     def _masked(self, text: str) -> str:
         """`text`, or `********` when it is a saved login's password
         (`Connector.masked`)."""
@@ -2725,7 +2744,15 @@ class KissTermApp(App):
             # a menu -- this is the state that explains a failed connect, a
             # silent send line and a beacon that never fires.
             blocked = f" ({self.gate.blocked} held)" if self.gate.blocked else ""
-            parts.append(f"TX OFF{blocked}")
+            trip = self.core.swr.trip
+            if self.gate.latch:
+                # Held off by an SWR trip until the operator re-arms
+                # (`core/swr.py`): the reading and time, in the error colour.
+                field = (f"SWR TRIP {trip.swr:.1f}:1 {trip.at[11:16]}" if trip is not None
+                         else "SWR TRIP")
+                parts.append(Text(field + blocked, style=f"bold {self._error_colour()}"))
+            else:
+                parts.append(f"TX OFF{blocked}")
         if self.station is not None:
             parts.append(str(self.station.mycall))
             if identity.tactical_active(self.config) and str(self.station.mycall) == \

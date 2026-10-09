@@ -512,7 +512,7 @@ ProgramFileScreen, RigModelScreen { align: center middle; }
 #transport-kind { margin-top: 1; width: 100%; }
 #transport-fields { margin-top: 1; height: auto; }
 #transport-script-title { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
-#transport-script-hint { color: $text-muted; width: 100%; height: auto; }
+#transport-script-hint, #rig-swr-hint { color: $text-muted; width: 100%; height: auto; }
 #transport-local-title { color: $text-muted; width: 100%; height: auto; margin-top: 1; }
 #transport-program, #transport-rig { width: 100%; margin-top: 1; }
 #prog-note { color: $text-muted; width: 100%; height: auto; }

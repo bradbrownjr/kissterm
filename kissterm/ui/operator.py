@@ -31,6 +31,7 @@ from ..core.questions import (
     LoginAsk,
     PickFiles,
     RadioReminder,
+    SwrRearm,
     TrustHostKey,
     WinlinkGateway,
 )
@@ -41,6 +42,12 @@ def _radio_reminder(question: RadioReminder) -> Screen:
 
     return RadioReminderScreen(question.frequency, question.connection_type, question.note,
                                tune=question.tune)
+
+
+def _swr_rearm(question: SwrRearm) -> Screen:
+    from .dialogs import SwrRearmScreen
+
+    return SwrRearmScreen(question.trip)
 
 
 def _trust_host_key(question: TrustHostKey) -> Screen:
@@ -115,6 +122,7 @@ def _session_transport(q: ChooseSessionTransport) -> Screen:
 SCREENS: dict[type[Question], Callable[[Any], Screen]] = {
     RadioReminder: _radio_reminder,
     TrustHostKey: _trust_host_key,
+    SwrRearm: _swr_rearm,
     HomeBbsRoute: _home_bbs_route,
     WinlinkGateway: _winlink_gateway,
     LoginAsk: _login_ask,

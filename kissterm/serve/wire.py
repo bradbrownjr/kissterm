@@ -166,7 +166,7 @@ def answer(question: q.Question, value: Any) -> Any:
     if value == "go":
         return q.SETUP_GO
     try:
-        if isinstance(question, (q.RadioReminder, q.TrustHostKey)):
+        if isinstance(question, (q.RadioReminder, q.TrustHostKey, q.SwrRearm)):
             return bool(value)
         if isinstance(question, q.WinlinkGateway):
             return q.GatewayChoice(str(value["target"]), bool(value.get("remember", False)))

@@ -503,20 +503,6 @@ outside the gate and the form says so, as P12 says of fldigi.
   control" should get `-R 2 -A 127.0.0.1:4532` (Mercury) or `PTT RIG 2
   127.0.0.1:4532` (Direwolf's config) from its rig, so each modem has one
   keying path. RESEARCH both against their docs first.
-- [ ] **M5b [Opus] The SWR watch and trip.** Needs M4 and M5. SWR and
-  warning read during any PTT kissterm knows of; the trip sequence above;
-  the latched `SWR TRIP` state in `tx.py` or beside it (a closed gate with
-  a reason, so every existing gate check honours it unchanged); the re-arm
-  question, through the `Operator` port so the phone asks it too; the
-  status bar field in both front ends, placed under DESIGN.md's status-bar
-  rules. RESEARCH first: Hamlib's `RIG_LEVEL_SWR` (which backends
-  implement it, whether the value is a ratio or a raw meter reading; the
-  FT-991A's `RM6` meter read), and `T 0`'s effect on a rig keyed by RTS on
-  another port. Tests with a fake `rigctld` that reports a rising SWR: a
-  spike right after key-up does not trip, a sustained one does, the gate
-  closes, a beacon timer then sends nothing, Ctrl+T asks before re-arming,
-  the latch survives a restart. AGENTS.md gains the rule ("an SWR trip
-  closes the gate and only the operator re-arms it").
 - [ ] **M6b [Opus] Port hand-off and the tuner.** The case 3 sequence
   (stop program, `rigctld`, tune, stop `rigctld`, restart program, reopen
   transport) as one core method with a `finally` that always restarts the

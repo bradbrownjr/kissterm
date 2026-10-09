@@ -348,11 +348,21 @@ class ClientApp:
             [ft.Text("TX ON" if on else "TX OFF", weight=ft.FontWeight.BOLD,
                      color=ft.Colors.ON_ERROR if on else None)] if getattr(self.page, "width", None) and self.wide else []))
         chip.tooltip = ("Transmit is on: tap to turn it off" if on
+                        else f"Transmit is held off: {self.state.gate_latch}" if self.state.gate_latch
                         else "Transmit is off: tap to turn it on")
+        if self.state.gate_latch and not on:
+            # An SWR trip: the chip in the error colour, outlined, until re-armed.
+            chip.border = ft.Border.all(2, ft.Colors.ERROR)
 
     async def _gate_clicked(self, _e) -> None:
         if self.state.gate:
             await self.command("transmit", enabled=False)
+            return
+        if self.state.gate_latch:
+            # The station asks its own question (an SWR trip, `SwrRearm`);
+            # a second confirmation here would only be in the way.
+            if await self.command("transmit", enabled=True):
+                await self.haptic()
             return
 
         async def arm() -> None:

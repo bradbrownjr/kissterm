@@ -53,7 +53,7 @@ the same transmit-gate rules as the terminal.
 ```json
 {"type": "welcome", "version": 1, "seq": 1234,
  "station": {"callsign": "KC1JMH-1", "kissterm": "0.1.405", "on_air": "CCEMA"},
- "snapshot": {"gate": false, "transport": {}, "sessions": [], "connecting": [], "mail_running": false, "activity": ""} }
+ "snapshot": {"gate": false, "gate_latch": "", "transport": {}, "sessions": [], "connecting": [], "mail_running": false, "activity": ""} }
 ```
 
 `on_air` is the call the station is on the air as: the tactical call while operating as one, else `callsign`.
@@ -102,7 +102,8 @@ transmits nothing. Inside the terminal UI the station's own screen asks
 too, and whichever answers first wins. A client that connects while a
 question is open is sent it after the welcome.
 
-The answer forms: `RadioReminder`, `TrustHostKey`: true or false.
+The answer forms: `RadioReminder`, `TrustHostKey`, `SwrRearm` (`data`:
+`trip`, what tripped): true or false.
 `HomeBbsRoute`, `CallsignAsk`, `ChooseSessionTransport`: a string.
 `WinlinkGateway`: `{target, remember}`. `InternetLoginAsk`: `{target,
 username, password}`. `LoginAsk`: the password, or with `username` set
@@ -225,7 +226,8 @@ it as history, if at all, and never raises it again.
 | Event | data |
 |---|---|
 | `TransportChanged` | `name, tier, detail` |
-| `GateChanged` | `enabled` |
+| `RigStateChanged` | The active transport's radio, read through Hamlib's `rigctld`: `name` (its Rigs entry), `frequency` (dial, hertz; 0 = no reading), `mode` (Hamlib's token, `PKTUSB`...), `ptt` (true while keyed, null when not reported). The snapshot's `rig` is the same, `{}` with no reading |
+| `GateChanged` | `enabled`; `latch`: why transmit is held off ("" when it is not): an SWR trip, cleared only by `transmit` with `enabled` true, which first asks `SwrRearm` |
 | `SessionOpened` | `key, peer, activate, incoming` |
 | `SessionData` | `key, text` (see below), `raw` (base64) |
 | `LineSent` | `key, text` |

@@ -590,7 +590,13 @@ class RigsSection:
                               dense=True, hint_text="/dev/ttyUSB0 or COM3")
         speed = ft.TextField(label="CAT baud rate", value=str(entry.get("speed", "")), dense=True,
                              hint_text="rig default", keyboard_type=ft.KeyboardType.NUMBER)
+        warn = ft.TextField(label="Warn above SWR", dense=True,
+                            value=str(entry.get("swr_warn", 2.0)),
+                            keyboard_type=ft.KeyboardType.NUMBER)
         swr = ft.TextField(label="Stop transmitting above SWR", dense=True,
+                           helper="Read while transmitting; above it transmit is turned off "
+                                  "until you turn it on. 0 = off. Not hardware protection.",
+                           helper_max_lines=3,
                            value=str(entry.get("swr_trip", 3.0)),
                            keyboard_type=ft.KeyboardType.NUMBER)
         chosen = set(entry.get("tune_bands") or [])
@@ -609,6 +615,7 @@ class RigsSection:
         async def save() -> None:
             body = {"name": name.value or "", "model": model.value or "", "device": device.value or "",
                     "speed": speed.value or "", "swr_trip": swr.value or "", "host": host.value or "",
+                    "swr_warn": warn.value or "",
                     "port": port.value or "", "rigctld_path": path.value or "",
                     "ptt_timeout": ptt.value or "", "tune_bands": [b for b, c in boxes.items() if c.value]}
             result = await self.app.command("rig_save", entry=body, original=original)
@@ -624,7 +631,7 @@ class RigsSection:
                     [name, model,
                      ft.OutlinedButton(content="Pick from Hamlib's list", icon=ft.Icons.SEARCH,
                                        on_click=pick),
-                     device, speed, swr,
+                     device, speed, warn, swr,
                      ft.Text("Tune the ATU before connecting on (none = never):", size=12,
                              color=ft.Colors.OUTLINE),
                      ft.Row(wrap=True, spacing=8, controls=list(boxes.values())),

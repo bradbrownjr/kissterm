@@ -624,7 +624,22 @@ says so, when VARA or its transport closes, when transmit is turned off, on
 Restart, Shut down and Quit, and after the radio's *Unkey after* time (120 s
 by default; then VARA is not keyed again until it lets go). Set VARA's own
 PTT so that it does not also key the radio (experimental: not yet tried
-with a real VARA). A paired phone can change a program's file, arguments and working
+with a real VARA).
+
+**The SWR trip** (experimental). While the radio is keyed, by VARA through
+kissterm or by a modem the radio reports as transmitting, kissterm reads its
+SWR a few times a second. Above the radio's *Warn above SWR* (2.0) it says
+so once per transmission. Above *Stop transmitting above SWR* (3.0) for
+three readings in a row it unkeys the radio (or stops the modem program
+kissterm started), tells VARA to abort, and turns transmit off with
+`SWR TRIP 4.8:1 14:02` in red in the status bar (the phone's transmit
+button is outlined in red, and More says why). It stays off, through a
+restart, until you turn transmit on, which asks first. Set either to 0 to
+turn it off. It is **not hardware protection**: it reacts in about a
+second, it needs a radio whose Hamlib driver reads SWR while transmitting
+(the FT-991 and IC-7300 drivers do; a driver that does not is named in the
+log), and readings in the first second after key-up are ignored. What it
+adds is that the station stops trying. A paired phone can change a program's file, arguments and working
 folder; the pairing link is what proves it is you at the station.
 
 **Changing your callsign** is Session > My callsign in the menu, or
