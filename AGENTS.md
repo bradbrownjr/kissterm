@@ -277,6 +277,16 @@ changes.
   GitHub, `g8bpq/linbpq`) before routing a protocol through it; skipping
   that cost two releases and two operator test sessions on Winlink
   through BPQ's Telnet port (2026-10-02).
+- **Never assume or build from memory: research, then develop**
+  (operator, 2026-10-09: "Don't assume or build from memory, research, then
+  develop"). This is for anything outside this repo -- a protocol, a command
+  line, a file format, an install path, an error code, a library's behaviour.
+  Read the published documentation or source first (`gh`/`curl` the raw file,
+  WebFetch, WebSearch), cite it in the docstring and `docs/SOURCES.md`, and
+  write the test from what it says. Memory and a hand-written fake are not
+  evidence: the `rigctld` client's fake, written from memory, hid a hang
+  (`chk_vfo` sends no `RPRT`) that Hamlib's source showed in minutes. If it
+  cannot be found, say so and mark it `# UNVERIFIED:`, never present it as fact.
 - **Mark inferred protocol details `# UNVERIFIED:` or `# RESEARCH:`.** Never
   present a guessed wire format as fact.
 
