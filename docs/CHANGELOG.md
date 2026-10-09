@@ -5,6 +5,16 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Phone and web: Send beacon is the packet beacon only
+
+### Improvements
+
+- **Terminal's Send beacon no longer offers the APRS position**: that is
+  Position on Messages, as on the terminal's APRS tab (operator, 2026-10-09).
+  It asks first, then sends the beacon text once.
+
+**Files:** `kissterm/client/ui/sessions.py`, `docs/GUIDE.md`, `DESIGN.md`
+
 ## [2026-10-09] — Phone and web: icons only on a phone
 
 ### Improvements

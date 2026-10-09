@@ -337,21 +337,16 @@ class SessionsView:
         self.app.page.update()
 
     async def _send_beacon(self, _e) -> None:
-        """Which beacon: the packet beacon text (the terminal's Session >
-        Send beacon) or an APRS position (APRS > Send position); each its
-        own button, asked first (operator, 2026-10-06: "Beacon ... should ask Packet or APRS"; on
-        Terminal, not More, since 2026-10-08)."""
+        """The packet beacon text, once (the terminal's Session > Send
+        beacon), asked first. The APRS position is not here: it is Position
+        on Messages, as APRS > Send position is on the terminal's APRS tab
+        (operator, 2026-10-09: "aprs beacon is on the APRS tab")."""
         async def packet() -> None:
             await self.app.command("beacon_now")
 
-        async def aprs() -> None:
-            await self.app.command("aprs_position")
-
-        sheets.choose(self.app.page, "Send a beacon now?",
-                      "Packet sends the station's beacon text once, and only while "
-                      "transmit is on. APRS sends one position report. Neither "
-                      "changes a beacon timer.",
-                      [("APRS position", aprs), ("Packet beacon", packet)])
+        sheets.confirm(self.app.page, "Send the beacon now?",
+                       "Sends the station's beacon text once, and only while transmit is "
+                       "on. The beacon timer is not changed.", "Send", packet)
 
     async def _clear(self, _e) -> None:
         """Clear what this tab shows (the terminal's Ctrl+L): the view only."""

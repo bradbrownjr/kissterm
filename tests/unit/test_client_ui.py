@@ -568,13 +568,10 @@ async def test_send_position_and_send_beacon_ask_first():
     await more._send_beacon(None)
     await _choose(app, "Cancel")
     assert app.commands == []
-    # Beacon asks Packet or APRS (operator, 2026-10-06).
+    # The beacon is the packet text only; the APRS position is on Messages.
     await more._send_beacon(None)
-    await _choose(app, "Packet beacon")
+    await _choose(app, "Send")
     assert app.commands == [("beacon_now", {})]
-    await more._send_beacon(None)
-    await _choose(app, "APRS position")
-    assert app.commands[-1] == ("aprs_position", {})
 
 
 # ----------------------------------------------------------------------

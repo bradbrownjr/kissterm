@@ -848,9 +848,9 @@ own client.
     across the top, and a line to type. A line goes only when you press
     Send. The row of buttons at the right of the tab strip (**the toolbar**,
     the same one on every place) has **Send beacon** (the antenna icon, F10 >
-    Session > Send beacon), which asks which: **Packet beacon** sends the beacon
-    text once and needs transmit already on, **APRS position** sends one position
-    report; **Clear** empties what the shown page displays, as `Ctrl+L` does in the
+    Session > Send beacon), which asks first and sends the beacon
+    text once (transmit must already be on; the APRS position is **Position** on
+    Messages); **Clear** empties what the shown page displays, as `Ctrl+L` does in the
     terminal (the view only, the transcript stays, and nothing is sent);
     **Disconnect** while the session shown is connected; and **Connect** last.
     Both ask first. Once a session has dropped, **Reconnect** takes

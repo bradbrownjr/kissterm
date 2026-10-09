@@ -705,7 +705,7 @@ and do not apply there; these do.
   (`tests/unit/test_client_ui.py`).
 - **Anything that puts a frame on the air asks first** in a sheet:
   connect, disconnect, Send/Receive, Get bulletins and files, Send
-  position, Send beacon (which asks Packet or APRS). **Where there is more than one way, the sheet
+  position, Send beacon (the packet beacon; the APRS position is Position on Messages). **Where there is more than one way, the sheet
   offers each** (By Internet, By radio: `sheets.choose`), the usual one
   last and filled, never a second screen. Typing a line and pressing Send is
   already the deliberate commit, as Enter is in the terminal.
