@@ -594,15 +594,19 @@ outside the gate and the form says so, as P12 says of fldigi.
 
 **Decisions of 2026-10-09** (operator):
 
-1. Program paths: the operator wants to browse the station computer's
-   files to find the executable "wherever they sit", from both front ends.
-   This is the opposite of the recommendation (path edits at the station
-   only; a remote client that sets `path` can run any program there). OPEN
-   until M2: ask which was meant -- browse at the station only, or also
-   from a paired phone -- and if from the phone, what guards it (at least:
-   remote control off by default, the path must be an existing executable
-   file, `args` and `cwd` stay station-only, and the station asks to
-   confirm a changed path).
+1. Program paths: **a paired phone may browse the station's files and set
+   the path too** (operator, 2026-10-09: "Phone too, understanding that the
+   user must use a QR code or hashed link to essentially authenticate that
+   they are the owner and have direct access to the station. If we can
+   intelligently filter the browse for the expected executables, that may
+   help some of the security concerns."). The pairing (QR code or link,
+   `serve/`) is the authentication; the browse is filtered to what a program
+   could be (executables, per platform, plus the folders to reach them);
+   the saved path must be an existing executable file. Still open for the
+   operator: whether `args` and `cwd` are also settable from the phone
+   (the recommendation is station-only, since arguments can turn any
+   program into a shell), and whether a changed path asks for a yes at the
+   station.
 2. A modem starts when its transport opens. The operator adds that this
    "should probably change how the application starts and tries to find
    the transport modem": launch tries the transport, starts the program if
