@@ -5,6 +5,17 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Phone and web: Mail's three tabs share one run button
+
+### Improvements
+
+- **Send/Receive, Get bulletins and Get files are the same plain icon in the
+  same place on Mail, Bulletins and Files**; the primary is each tab's own
+  making action (Write, Add file). The run icon had been the filled primary
+  on two tabs, drawn grey on pale purple and unreadable (operator, 2026-10-09).
+
+**Files:** `kissterm/client/ui/mail.py`
+
 ## [2026-10-09] — Phone and web: the buttons move up beside the title
 
 ### Improvements

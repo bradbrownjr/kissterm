@@ -254,8 +254,8 @@ class MailView:
                                  animate_rotation=ft.Animation(int(TICK * 1000), ft.AnimationCurve.LINEAR))
         #: The one toolbar (`toolbar.py`): the section tabs on a phone, then
         #: what this folder offers, and Write last on Mail. Send/Receive (Get
-        #: bulletins, Get files) is the icon that turns while a run is going;
-        #: on Bulletins and Files it is the primary.
+        #: bulletins, Get files) is the icon that turns while a run is going,
+        #: the same plain icon on all three tabs.
         self.actions = {
             "sync": Action(self.sync_icon, "Send/Receive", self._send_receive),
             "categories": Action(ft.Icons.CHECKLIST, "Categories", self._categories,
@@ -435,8 +435,10 @@ class MailView:
         self.actions["write"].visible = mail
         self.actions["categories"].visible = in_section(self.folder, "Bulletins")
         self.actions["add_file"].visible = in_section(self.folder, "Files")
-        # Away from Mail the run is the page's main action, as Write is on Mail.
-        self.actions["sync"].primary = not mail
+        # The run is the same plain icon on all three tabs (operator,
+        # 2026-10-09: "three tabs, different connect buttons"); the primary is
+        # the tab's own making action: Write, or Add file.
+        self.actions["add_file"].primary = True
         self.toolbar.paint()
 
     async def _add_file(self, _e) -> None:
