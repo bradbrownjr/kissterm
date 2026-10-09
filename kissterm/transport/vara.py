@@ -20,19 +20,17 @@ no state machine to run above it, exactly the same shape as
 `kernel_ax25.KernelAx25Transport` for the same underlying reason (see
 `kissterm.transport.base`).
 
-**Everything protocol-level in this module is UNVERIFIED against a running
-VARA instance.** It is written against EA5HVK's published VARA HF and VARA FM
-command-set documentation as commonly summarized by third-party VARA/Winlink
-integration write-ups (the "VARA TNC command set" that FLDIGI, YAAC, and
-similar programs implement against), targeting the VARA 4.x command set.
-VARA has changed its wire behaviour across versions before, EA5HVK does not
-publish a versioned protocol spec, and this has not been run against real
-VARA software. Every place a specific command, reply, or notification is used
-below is commented ``# UNVERIFIED:`` where its exact spelling or behaviour is
-inferred rather than confirmed. Treat this module as a starting point for
-testing against real VARA, not as a finished, trustworthy implementation --
-get it in front of actual VARA HF and VARA FM instances before relying on it
-for real traffic.
+**The command set is EA5HVK's "VARA Protocol Native TNC Commands"**
+(Jose Alberto Nieto Ros, November 2021; cited in `docs/SOURCES.md`, read
+2026-10-09): every line ends in a bare CR, a command is answered `OK` or
+`WRONG`, `CONNECT Source Destination` (HF; `via Digi1 Digi2` on FM only),
+and VARA sends `PTT ON`/`PTT OFF` as an "order for switching PTT" to the
+application that keys the radio. Pat-Vara (`n8jja/Pat-Vara`, `vara/vara.go`)
+was read beside it: it splits the command stream on CR and hands `PTT ON`
+and `PTT OFF` to its rig control. What the document does not say -- which
+of VARA's own PTT settings make it send `PTT ON`, the bandwidth commands
+for VARA FM, timing -- stays marked ``# UNVERIFIED:``, and nothing here has
+run against a real VARA yet (ROADMAP P3).
 """
 
 from __future__ import annotations
@@ -267,8 +265,13 @@ class VaraTransport(SessionTransport):
         assert self._cmd_reader is not None
         try:
             while True:
-                raw = await self._cmd_reader.readline()
-                if not raw:
+                # VARA ends a line with a bare CR (EA5HVK's command document
+                # writes every line `<cr>`; Pat-Vara splits on "\r"), so
+                # `readline()`, which waits for LF, would never return. A
+                # CRLF sender's LF is stripped from the start of the next line.
+                try:
+                    raw = await self._cmd_reader.readuntil(b"\r")
+                except asyncio.IncompleteReadError:
                     self._error = "VARA command socket closed by peer"
                     self.state = TransportState.ERROR
                     return
@@ -324,23 +327,26 @@ class VaraTransport(SessionTransport):
 
     # -- connecting ----------------------------------------------------------
 
-    async def connect(self, path: AX25Path) -> Session:
+    async def connect(self, path: AX25Path | None = None) -> Session:
         if self.state is not TransportState.OPEN:
             raise TransportError("VARA transport is not open")
+        if path is None:
+            raise TransportError(
+                "VARA calls a station: dial one from the Address Book")
         if self._session is not None:
             raise TransportError("VARA is single-channel: a session is already active")
 
         self._connected_event.clear()
         self._disconnected_event.clear()
 
-        # UNVERIFIED: digipeater path syntax on the CONNECT line. Omitted
-        # entirely when there is no path, since guessing VARA's separator
-        # (space vs comma vs "VIA") without a reference is worse than
-        # leaving direct-only connects working correctly.
+        # EA5HVK's command document: "CONNECT Source Destination" (VARA HF),
+        # "CONNECT Source Destination via Digi1 Digi2" (VARA FM only).
         target = str(path.destination)
+        if path.repeaters and self.band is not VaraBand.FM:
+            raise TransportError("VARA HF connects direct: it has no digipeaters")
         if path.repeaters:
-            via = ",".join(str(r) for r in path.repeaters)
-            cmd = f"{_CMD_CONNECT} {self.mycall} {target} VIA {via}"
+            via = " ".join(str(r) for r in path.repeaters)
+            cmd = f"{_CMD_CONNECT} {self.mycall} {target} via {via}"
         else:
             cmd = f"{_CMD_CONNECT} {self.mycall} {target}"
 

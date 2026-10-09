@@ -592,7 +592,9 @@ transport = "direwolf-local"
 # --- Modem programs and radios (ROADMAP P3a) ---------------------------------
 # Not started yet: these entries are saved and checked, and a later release
 # starts the program when its transport opens. A transport names them with
-# `program = "..."` and `rig = "..."`. Edit them from Settings > Radio.
+# `program = "..."` and `rig = "..."`, and may add `frequency = "145.050 FM"`:
+# its home channel, where the rig is tuned when the transport opens.
+# Edit them from Settings > Radio.
 #
 # [[programs]]
 # name = "mercury"

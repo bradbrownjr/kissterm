@@ -382,9 +382,17 @@ class RemoteServer:
             return
         if not target:
             raise CommandError("Say what to connect to.")
+        target = str(target).strip().upper()
         if self.core.station is None:
-            raise CommandError("No radio transport is open.")
-        await connector.connect(ConnectRequest(str(target).strip().upper(), port=int(port)))
+            if self.core.session_transport is None:
+                raise CommandError("No radio transport is open.")
+            # The session tier (VARA, Mercury) calls the station typed, as a
+            # contact with nothing on file would be (`dial_entry`).
+            from ..addressbook import Entry
+
+            await connector.dial_entry(self.core.addressbook.find(target) or Entry(target))
+            return
+        await connector.connect(ConnectRequest(target, port=int(port)))
 
     async def cmd_reconnect(self, key: str = "") -> None:
         """`Connector.reconnect`: session `key`'s own last request again,

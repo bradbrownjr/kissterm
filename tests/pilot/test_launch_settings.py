@@ -164,32 +164,44 @@ async def test_a_transport_form_can_name_a_program_and_a_rig():
         await _settings_tab(app, pilot)
         app.query_one(SettingsPane)._new_transport()
         await _screen(app, TransportEntryScreen)
+        await pilot.pause()
         screen = app.screen
         screen.query_one("#transport-name", Input).value = "kiss"
         screen.query_one("#transport-kind", Select).value = "tcp"
-        await pilot.pause()
-        await pilot.pause()
+        await wait_for(lambda: screen.query_one("#transport-field-host", Input), "the tcp fields")
         screen.query_one("#transport-field-host", Input).value = "127.0.0.1"
         screen.query_one("#transport-program", Select).value = "py"
         screen.query_one("#transport-rig", Select).value = "ft991a"
+        screen.query_one("#transport-frequency", Input).value = "a home"
         await pilot.pause()
-        await pilot.click("#transport-save")
+        screen.query_one("#transport-save", Button).press()
+        await wait_for(lambda: "No frequency" in str(screen.query_one("#transport-error").render()),
+                       "the refusal of a home that is no frequency")
+        assert isinstance(app.screen, TransportEntryScreen)
+        screen.query_one("#transport-frequency", Input).value = "145.050 FM"
+        await pilot.pause()
+        screen.query_one("#transport-save", Button).press()
         await wait_for(lambda: not isinstance(app.screen, TransportEntryScreen), "the dialog")
         entry = app.config.transports[0]
         assert entry["program"] == "py" and entry["rig"] == "ft991a"
+        assert entry["frequency"] == "145.050 FM"
     station.close()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("size", [(80, 24), (100, 33)])
 async def test_the_new_dialogs_keep_their_buttons_on_screen(size):
+    from kissterm.ui.dialogs import TransportEntryScreen
+
     app, station = await _app(Config(mycall=str(MYCALL)))
     async with app.run_test(size=size) as pilot:
         await _settings_tab(app, pilot)
         for opener, cls, save in ((lambda: app.query_one(SettingsPane)._edit_program(True),
                                    ProgramEntryScreen, "#prog-save"),
                                   (lambda: app.query_one(SettingsPane)._edit_rig(True),
-                                   RigEntryScreen, "#rig-save")):
+                                   RigEntryScreen, "#rig-save"),
+                                  (lambda: app.query_one(SettingsPane)._new_transport(),
+                                   TransportEntryScreen, "#transport-save")):
             opener()
             await _screen(app, cls)
             await pilot.pause()

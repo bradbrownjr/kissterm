@@ -93,9 +93,11 @@ class KernelAx25Transport(SessionTransport):
         self.state = TransportState.OPEN
         self._error = ""
 
-    async def connect(self, path: AX25Path) -> Session:
+    async def connect(self, path: AX25Path | None = None) -> Session:
         if self.state is not TransportState.OPEN:
             raise TransportError("kernel AX.25 transport is not open")
+        if path is None:
+            raise TransportError("kernel AX.25 calls a station: dial one from the Address Book")
 
         loop = asyncio.get_running_loop()
         session = Session(path=path, transport=self, state=SessionState.CONNECTING)

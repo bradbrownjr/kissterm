@@ -18,6 +18,14 @@ antenna tuner's carrier (`rig.tune()`) is not here: that is ROADMAP M6b.
 radio's CAT port, so kissterm neither starts `rigctld` nor reads the radio
 while it is the transport's program (the hand-off is M6b); the field says so.
 
+**The home channel** (ROADMAP P3a M6c). A transport entry may carry a
+`frequency`: where its radio belongs. It is set once each time the transport
+becomes the one in use (made "Radio in use", or at launch), on the first
+reading, and not again while it stays in use, so moving the dial by hand is
+not undone every few seconds. The session tier (VARA, Mercury) connects to
+whatever station the operator dialled with no contact of its own on the
+Ctrl+N path, so its connect falls back to this channel (`plan_session`).
+
 A rig that cannot be reached is not an error to shout about: the status field
 is hidden and the reason is in `problem`, for Settings and the log.
 """
@@ -50,6 +58,9 @@ class RigWatch:
         self._client: RigctldClient | None = None
         self._task: asyncio.Task | None = None
         self._key: tuple = ()
+        #: (transport name, frequency) last tuned home, so a reading loop
+        #: restarted by a Settings save does not retune.
+        self._homed: tuple = ()
         self._unsubscribe = None
         #: Seconds, overridable by tests.
         self.poll_seconds = POLL_SECONDS
@@ -97,6 +108,8 @@ class RigWatch:
             return
         self._cancel()
         self._key = key
+        if (self._entry() or {}).get("name") != (self._homed or ("",))[0]:
+            self._homed = ()  # another transport: its own home, when it opens
         if rig is None:
             self._set(None, "")
             return
@@ -143,6 +156,7 @@ class RigWatch:
                         client.reset_backoff()
                         state = await client.poll()
                 if state is not None:
+                    state = await self._go_home(client, state)
                     self._set(state, "", name)
                     await asyncio.sleep(self.poll_seconds)
                 else:
@@ -153,6 +167,31 @@ class RigWatch:
         except Exception as exc:  # noqa: BLE001 - never raise out of a background task
             log.warning("reading the radio stopped: %s", exc)
             self._set(None, str(exc), name)
+
+    def home(self) -> Tuning | None:
+        """The active transport's home channel (its `frequency`), or None."""
+        if self.active_rig() is None or self.owns_cat_port():
+            return None
+        return parse_frequency(str((self._entry() or {}).get("frequency") or ""))
+
+    async def _go_home(self, client: RigctldClient, state: RigState) -> RigState:
+        """Tune to the home channel once per opening; the reading after it.
+        No carrier. A failure is logged and left: the status field shows
+        where the radio really is."""
+        tuning = self.home()
+        mark = (str((self._entry() or {}).get("name", "")), tuning)
+        if tuning is None or mark == self._homed:
+            return state
+        self._homed = mark
+        try:
+            await client.set_frequency(tuning.hz)
+            if tuning.mode:
+                await client.set_mode(tuning.mode, 0)
+        except RigError as exc:
+            log.warning("could not tune to the home channel %s: %s", tuning.describe(), exc)
+            return state
+        log.info("tuned to the home channel %s", tuning.describe())
+        return await client.poll() or state
 
     def _set(self, state: RigState | None, problem: str, name: str = "") -> None:
         changed = (state != self.state)
@@ -172,6 +211,11 @@ class RigWatch:
         if contact is None or self.active_rig() is None or self.owns_cat_port():
             return None
         return parse_frequency(getattr(contact, "frequency", ""))
+
+    def plan_session(self, contact=None) -> Tuning | None:
+        """The session tier's connect: the contact's frequency, else the
+        transport's home channel (`home`). Reading only."""
+        return self.plan(contact) or self.home()
 
     def describe(self, tuning: Tuning) -> str:
         rig = self.active_rig() or {}

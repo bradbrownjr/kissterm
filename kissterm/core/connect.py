@@ -56,6 +56,11 @@ log = logging.getLogger(__name__)
 #: answer" / "check the Monitor tab" wording meant for a genuine timeout.
 CANCELLED_REASON = "cancelled by operator"
 
+#: Session-tier kinds whose modem calls a station by callsign, so a contact's
+#: target becomes the path they connect to. Telnet and SSH have their far
+#: end in their own entry.
+CALLING_KINDS = frozenset({"vara", "varafm", "mercury", "kernel"})
+
 #: Pause between auto-login lines (`Connector.run_connect_script`). A
 #: login sequence is normally two or three short commands, not a burst --
 #: pacing them gives a BBS's own line handling a moment to catch up rather
@@ -249,7 +254,7 @@ class Connector:
                     core.save_config()
                     if not await core.switch_session_transport(chosen):
                         return
-            await self.connect_session_transport()
+            await self.connect_session_transport(entry)
             return
         request = ConnectRequest(
             entry.target, entry.script, entry.hops, entry.credential, entry.script_name)
@@ -436,14 +441,16 @@ class Connector:
     # ------------------------------------------------------------------
     # The Internet and the session tier
     # ------------------------------------------------------------------
-    async def session_connect(self, transport):
-        """`transport.connect()`, asking the operator to trust an SSH server
-        seen for the first time (kissterm/transport/ssh.py). Not trusting
-        it is a `TransportError` like any other failed connect."""
+    async def session_connect(self, transport, path=None):
+        """`transport.connect(path)`, asking the operator to trust an SSH
+        server seen for the first time (kissterm/transport/ssh.py). Not
+        trusting it is a `TransportError` like any other failed connect.
+        `path` is the station a modem calls (VARA, kernel AX.25); Telnet and
+        SSH have their far end in their own entry and take none."""
         from ..transport.ssh import UnknownHostKey, trust_host_key
 
         try:
-            return await transport.connect()
+            return await (transport.connect(path) if path is not None else transport.connect())
         except UnknownHostKey as unknown:
             trusted = await self.core.operator.ask(TrustHostKey(
                 unknown.host, unknown.port, unknown.key_type, unknown.fingerprint,
@@ -457,7 +464,7 @@ class Connector:
             except OSError as exc:
                 raise TransportError(
                     f"could not save the host key to {unknown.path}: {exc}") from exc
-            return await transport.connect()
+            return await (transport.connect(path) if path is not None else transport.connect())
 
     async def dial_internet(self, entry, *, on_link=None, on_reached=None,
                             focus: bool = True, report=None) -> None:
@@ -538,19 +545,49 @@ class Connector:
             self.run_connect_script(link, key, login)
         reached(True)
 
-    async def connect_session_transport(self) -> None:
+    async def connect_session_transport(self, entry=None) -> None:
         """Connect through the session-tier transport (Telnet, SSH, VARA,
-        Mercury, kernel AX.25): one destination, the one it was configured
-        with, so no target, hop chain or Address Book. The auto-login comes
-        from the transport's own config entry (`Transport.script`); its last
-        line can be "C <node>" like a hand-typed hop. Always the permanent
-        `""` session: this tier never has more than one.
+        Mercury, kernel AX.25). Always the permanent `""` session: this tier
+        never has more than one. The auto-login comes from the transport's
+        own config entry (`Transport.script`); its last line can be
+        "C <node>" like a hand-typed hop.
+
+        `entry` is the Address Book contact dialled, if any: a modem that
+        calls a station (VARA, Mercury, kernel AX.25) calls its target,
+        where Telnet and SSH reach the far end in their own entry. Its
+        reminder is shown, and the transport's radio is tuned to its
+        frequency, else to the transport's home channel, only after the
+        operator confirms (ROADMAP P3a M6c, as `connect` does).
         """
         transport = self.core.session_transport
         current = self.core.sessions.link(self.view.active_key())
         if current is not None and current.connected:
             self.core.operator.notice(Notice("Already connected.", Severity.WARNING))
             return
+        rigwatch = self.core.rigwatch
+        tuning = rigwatch.plan_session(entry)
+        if tuning is not None or (entry is not None and (
+                entry.frequency or entry.connection_type or entry.note)):
+            proceed = await self.core.operator.ask(RadioReminder(
+                getattr(entry, "frequency", "") or (tuning.describe() if tuning else ""),
+                getattr(entry, "connection_type", ""), getattr(entry, "note", ""),
+                tune=rigwatch.describe(tuning) if tuning else ""))
+            if not proceed:
+                return
+        if tuning is not None:
+            problem = await rigwatch.tune(tuning)
+            if problem:
+                self.core.operator.notice(Notice(
+                    f"Not connecting: could not tune the radio to {tuning.describe()}: {problem}",
+                    Severity.ERROR))
+                return
+        path = None
+        if entry is not None and transport.info.kind in CALLING_KINDS:
+            try:
+                path = parse_path(entry.target)
+            except ValueError as exc:
+                self.core.operator.notice(Notice(f"{entry.target}: {exc}", Severity.ERROR))
+                return
         key_before = self.view.active_key()
         self.view.open_session("", kind="session", focus=True)
         self.arm_for(f"connect via {transport.info.detail}", key_before)
@@ -560,7 +597,7 @@ class Connector:
         self.session_connect_task = connect_task
         self.core.events.publish(ConnectingChanged())
         try:
-            session = await self.session_connect(transport)
+            session = await self.session_connect(transport, path)
         except asyncio.CancelledError:
             # A disconnect is an operator decision, not a failed connection.
             # SessionTransport implementations clean up their partly-open

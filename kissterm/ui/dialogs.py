@@ -46,6 +46,7 @@ from ..core.questions import (  # noqa: F401 - the answer types, defined by the 
     GatewayChoice,
     InternetLogin,
 )
+from ..rig.frequency import parse_frequency
 from ..transport.forms import TRANSPORT_FORMS as _TRANSPORT_KINDS
 from ..transport.forms import TransportField as _TransportField  # noqa: F401
 from .button_row import ButtonRow
@@ -2469,6 +2470,10 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
                     value=self._entry.get("rig", Select.NULL)
                     if self._entry.get("rig") in self._rigs else Select.NULL,
                     id="transport-rig", allow_blank=True, prompt="Radio read through Hamlib")
+                yield Input(
+                    value=str(self._entry.get("frequency", "")),
+                    placeholder="Home frequency, e.g. 7.1015 MHz USB-D (optional)",
+                    id="transport-frequency")
             with Horizontal(id="connect-buttons"):
                 yield Button("Save", variant="primary", id="transport-save")
                 yield Button("Cancel", id="transport-cancel")
@@ -2619,6 +2624,16 @@ class TransportEntryScreen(_NewFromList, ModalScreen[dict | None]):
                 entry[key] = str(chosen.value)
             else:
                 entry.pop(key, None)
+        # The rig's home channel, tuned when this transport opens (P3a M6c).
+        home = self.query_one("#transport-frequency", Input).value.strip()
+        if home and parse_frequency(home) is None:
+            error.update(f"[red]No frequency in {home!r}: write it as 7.1015 MHz USB-D "
+                         "or 145.050 FM.[/red]")
+            return
+        if home:
+            entry["frequency"] = home
+        else:
+            entry.pop("frequency", None)
         if session_tier:
             credential_select = self.query_one("#transport-credential", Select)
             credential = str(credential_select.value) if _select_has_value(credential_select) else ""

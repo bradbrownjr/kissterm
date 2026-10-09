@@ -35,6 +35,7 @@ from ..config import (
     set_credential,
 )
 from ..launch.presets import PRESETS
+from ..rig.frequency import parse_frequency
 from ..transport.forms import BANDS, KEYING_LABELS, PROGRAM_FORM, RIG_FORM, TRANSPORT_FORMS
 from .events import ConfigChanged
 
@@ -160,6 +161,14 @@ class Radio:
                 result[key] = wanted
             else:
                 result.pop(key, None)
+        # The home channel: tuned when the transport opens (ROADMAP P3a M6c).
+        home = str(entry.get("frequency", result.get("frequency", "")) or "").strip()
+        if home and parse_frequency(home) is None:
+            return f"No frequency in {home!r}: write it as 7.1015 MHz USB-D or 145.050 FM."
+        if home:
+            result["frequency"] = home
+        else:
+            result.pop("frequency", None)
         result["name"], result["kind"] = name, kind
         if session_tier:
             credential = str(entry.get("credential", ""))

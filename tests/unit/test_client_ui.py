@@ -2317,6 +2317,10 @@ async def test_a_transport_sheet_names_a_program_and_a_rig_when_there_are_some()
     drops = {c.label: c for c in _controls(form) if isinstance(c, ft.Dropdown)}
     assert "Start this program when it opens" in drops and "Radio read through Hamlib" in drops
     drops["Start this program when it opens"].value = "py"
+    [home] = [c for c in _controls(form)
+              if isinstance(c, ft.TextField) and c.label == "Home frequency (optional)"]
+    home.value = " 145.050 FM "
     [go] = [c for c in _controls(form) if isinstance(c, ft.FilledButton)]
     await go.on_click(None)
     assert saved[0]["entry"]["program"] == "py" and saved[0]["entry"]["rig"] == ""
+    assert saved[0]["entry"]["frequency"] == "145.050 FM"

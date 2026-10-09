@@ -158,10 +158,13 @@ class RadioSection:
         rigs = [r["name"] for r in self.info.get("rigs", [])]
         program = _dropdown("Start this program when it opens", programs, entry.get("program", ""))
         rig = _dropdown("Radio read through Hamlib", rigs, entry.get("rig", ""))
+        home = ft.TextField(label="Home frequency (optional)", dense=True,
+                            value=str(entry.get("frequency", "")),
+                            hint_text="e.g. 7.1015 MHz USB-D, tuned when it opens")
         local = ft.Column(tight=True, spacing=8, visible=bool(programs or rigs or entry.get("program")
                                                               or entry.get("rig")),
                           controls=[ft.Text("On this computer (optional)", size=12,
-                                            color=ft.Colors.OUTLINE), program, rig])
+                                            color=ft.Colors.OUTLINE), program, rig, home])
 
         def draw(prefill: dict) -> None:
             spec = kinds[state["kind"]]
@@ -193,6 +196,7 @@ class RadioSection:
                 body["credential"], body["script_name"] = _picked(login), _picked(script)
             if local.visible:
                 body["program"], body["rig"] = _picked(program), _picked(rig)
+                body["frequency"] = (home.value or "").strip()
             result = await self.app.command("radio_save", entry=body, original=original)
             if result is None:
                 return

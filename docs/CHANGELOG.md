@@ -5,6 +5,29 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — A transport's home frequency; VARA calls the station dialled (P3a M6c)
+
+### New Features
+
+- **A transport's home frequency** (its form, "On this computer", both front
+  ends): the radio is tuned there once when the transport becomes Radio in
+  use or at launch, and not again while it stays in use.
+- **The session tier calls the station dialled.** VARA, Mercury and kernel
+  AX.25 connect to the Address Book contact (or a callsign typed in Ctrl+N
+  or the phone's Connect), after its reminder, tuned to its frequency or
+  else the home frequency. Before, they had no station to call and failed.
+
+### Improvements
+
+- VARA's command lines are read to a bare CR, as EA5HVK's command document
+  and Pat-Vara do; `readline()` waited for an LF VARA never sends. VARA FM
+  digipeaters follow `via`, space-separated; VARA HF refuses them.
+
+**Files:** `kissterm/core/rigwatch.py`, `core/connect.py`, `core/radio.py`,
+`transport/vara.py`, `transport/kernel_ax25.py`, `transport/__init__.py`,
+`serve/server.py`, `ui/app.py`, `ui/dialogs.py`, `client/ui/radio.py`,
+`tests/fake_vara.py`, `tests/unit/test_rigwatch.py`, `docs/SOURCES.md`
+
 ## [2026-10-09] — The radio's frequency: status bar and tune on connect (P3a M6)
 
 ### New Features

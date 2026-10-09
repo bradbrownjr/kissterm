@@ -528,9 +528,6 @@ outside the gate and the form says so, as P12 says of fldigi.
   closes, a beacon timer then sends nothing, Ctrl+T asks before re-arming,
   the latch survives a restart. AGENTS.md gains the rule ("an SWR trip
   closes the gate and only the operator re-arms it").
-- [ ] **M6c [Sonnet] Leftovers of M6.** A transport's home frequency and
-  mode set when it opens; tuning on the session-tier connect (VARA has no
-  contact, so it needs the frequency from its transport entry).
 - [ ] **M6b [Opus] Port hand-off and the tuner.** The case 3 sequence
   (stop program, `rigctld`, tune, stop `rigctld`, restart program, reopen
   transport) as one core method with a `finally` that always restarts the

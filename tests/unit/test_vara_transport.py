@@ -77,3 +77,26 @@ async def test_cancelling_kernel_ax25_connect_closes_the_partial_socket(monkeypa
         await task
 
     assert fake_socket.closed
+
+
+@pytest.mark.asyncio
+async def test_vara_lines_end_in_a_bare_cr_and_fm_digipeaters_follow_via():
+    """EA5HVK's command document: `<cr>` line ends, `CONNECT a b via d1 d2`
+    on VARA FM only. A reader waiting for LF would hang on the first `OK`."""
+    from kissterm.transport.base import TransportError
+    from kissterm.transport.vara import VaraFmTransport
+    from tests.fake_vara import FakeVara
+
+    modem = await FakeVara().start()
+    fm = VaraFmTransport("127.0.0.1", "N1ABC", cmd_port=modem.cmd_port, data_port=modem.data_port)
+    await asyncio.wait_for(fm.open(), 5)
+    assert modem.commands[0] == "MYCALL N1ABC"
+    await asyncio.wait_for(fm.connect(parse_path("K1ABC VIA W1AW-1,W1XYZ")), 5)
+    assert "CONNECT N1ABC K1ABC via W1AW-1 W1XYZ" in modem.commands
+    await fm.close()
+    hf = VaraHfTransport("127.0.0.1", "N1ABC", cmd_port=modem.cmd_port, data_port=modem.data_port)
+    await asyncio.wait_for(hf.open(), 5)
+    with pytest.raises(TransportError, match="direct"):
+        await hf.connect(parse_path("K1ABC VIA W1AW-1"))
+    await hf.close()
+    await modem.stop()

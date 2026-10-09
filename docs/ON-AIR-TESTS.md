@@ -745,6 +745,17 @@ and then your Winlink password, before dialing. The password is saved
   (Use as Winlink Dial): the Address Book frequency should be 1.5 kHz below
   the listed centre, USB-D. Say whether the VARA signal then lands on the
   gateway.
+- [ ] **A transport's home frequency** (silent). Give the transport a home
+  frequency in its form (On this computer), e.g. `145.050 FM`, and make it
+  Radio in use (or launch with it). Expected: the dial moves there once;
+  turn the dial by hand and it stays where you put it.
+- [ ] **VARA calls the station you dial** (transmits). With VARA HF as Radio
+  in use, dial a VARA gateway from the Address Book (or Ctrl+N and type
+  its callsign; on the phone, type it in Connect). Expected: the reminder
+  says where it tunes (the contact's frequency, else the transport's home
+  frequency), then VARA calls that station. A first real VARA connect also
+  settles whether VARA's lines end in a bare CR as its command document
+  says: if kissterm hangs at "Connecting", say so.
 
 ## Standing verifications (from AGENTS.md section 8)
 

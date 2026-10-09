@@ -117,8 +117,10 @@ SESSION_TIER_KINDS = frozenset({"kernel", "vara", "varafm", "mercury", "telnet",
 #: transport opens) and a Rigs entry (the radio it keys and tunes) in
 #: `Config.programs`/`Config.rigs` (ROADMAP P3a); they too belong to the
 #: entry, and the supervisor reads them from config, not from the transport.
+#: `frequency` is the transport's home channel, where its rig is tuned when
+#: it opens and before a session-tier connect with no contact (`RigWatch`).
 _ENTRY_ONLY_KEYS = frozenset(
-    {"kind", "name", "script", "credential", "script_name", "program", "rig"}
+    {"kind", "name", "script", "credential", "script_name", "program", "rig", "frequency"}
 )
 
 #: Config ``kind`` values `build_transport` accepts, kept as a tuple (rather

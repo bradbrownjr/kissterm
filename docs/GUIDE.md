@@ -459,9 +459,10 @@ carry:
   are kept in your system keyring (GNOME Keyring, KWallet, macOS Keychain,
   Windows Credential Locker) when there is one; `config.toml` holds only
   the login's name and username.
-- **A frequency and connection type**, as a reminder: kissterm cannot tune
-  a radio, but it asks you to confirm both are set before a connect that
-  has them on file.
+- **A frequency and connection type**, as a reminder: kissterm asks you
+  to confirm both before a connect that has them on file, and tunes the
+  radio to the frequency once you do when the transport names a radio
+  (Settings > Radio).
 
 ## APRS, Heard, Monitor and beacons
 
@@ -605,7 +606,12 @@ by default) are saved now; the SWR trip and the tuner come in later releases. Wi
 radio named, the status bar (and the phone's More page) shows its dial, and
 a confirmed connect to a contact with a `frequency` tunes it first (the
 reminder says so; declining leaves the dial alone). A transport's form then names the program and radio it
-uses. A paired phone can change a program's file, arguments and working
+uses, and optionally a *home frequency* (`145.050 FM`): the radio is tuned
+there once when the transport becomes Radio in use or kissterm starts with
+it, and left alone after that if you turn the dial. VARA, Mercury and
+kernel AX.25 call the station you dial from the Address Book (or type in
+Ctrl+N, or the phone's Connect), tuned to its frequency, else to the home
+frequency, after the reminder. A paired phone can change a program's file, arguments and working
 folder; the pairing link is what proves it is you at the station.
 
 **Changing your callsign** is Session > My callsign in the menu, or

@@ -123,7 +123,7 @@ from textual.widgets import Footer, Static, TabbedContent, TabPane, Tabs
 from textual.widgets._footer import FooterKey
 
 from .. import __version__, identity
-from ..addressbook import adopt_internet_transports
+from ..addressbook import Entry, adopt_internet_transports
 from ..ax25 import AX25Station
 from ..rig.frequency import Tuning
 from ..core import TRANSPORT_SKIPPED, Core, GateChanged, TransportChanged
@@ -151,7 +151,7 @@ from ..core.events import (
     SessionUpdated,
     SetupRequested,
 )
-from ..core.connect import ConnectRequest
+from ..core.connect import CALLING_KINDS, ConnectRequest
 from ..core.connect import session_key as _session_key_of
 from ..core.hops import HopConfirmation as _HopConfirmation
 from ..core.links import SessionLinkAdapter as _SessionLinkAdapter
@@ -2091,7 +2091,16 @@ class KissTermApp(App):
                         self._save_config()
                         if not await self._switch_session_transport(chosen):
                             return
-                await self._connect_session_transport()
+                if contact is None and self.session_transport.info.kind in CALLING_KINDS:
+                    # A modem that calls a station needs one: the same dialog
+                    # as the frame tier, its target dialled as a contact.
+                    request = await self.push_screen_wait(ConnectScreen(
+                        self.addressbook, self.config.credentials, self.config.scripts,
+                        target=target))
+                    if not request:
+                        return
+                    contact = self.addressbook.find(request.target) or Entry(request.target)
+                await self._connect_session_transport(contact)
                 return
             self._connect_problem(report, "No transport is open.")
             return
@@ -2139,9 +2148,9 @@ class KissTermApp(App):
         await self.core.connector.dial_internet(
             entry, on_link=on_link, on_reached=on_reached, focus=focus_session, report=report)
 
-    async def _connect_session_transport(self) -> None:
+    async def _connect_session_transport(self, entry=None) -> None:
         """`Connector.connect_session_transport`: the session tier's one far end."""
-        await self.core.connector.connect_session_transport()
+        await self.core.connector.connect_session_transport(entry)
 
     async def _await_hop_confirmation(self, link, node: str, timeout: float | None = None,
                                       watch: _HopConfirmation | None = None) -> tuple[bool, str]:

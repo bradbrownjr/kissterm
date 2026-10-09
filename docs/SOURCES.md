@@ -185,3 +185,17 @@ the node's APRS command.
   read-only) and `tests/rigctl_parse.c` (`print_model_list`'s format;
   `chk_vfo` sends no header and no `RPRT` under `+`; `rig_strstatus` in
   `src/misc.c`), read 2026-10-09.
+- EA5HVK, "VARA Protocol Native TNC Commands" (Jose Alberto Nieto Ros,
+  November 2021; a 3-page PDF, the copy attached to the pat-users group:
+  groups.google.com/group/pat-users/attach/5ccf955e0cbf0), read 2026-10-09:
+  every line ends `<cr>`; `CONNECT Source Destination` (HF, SAT) and
+  `CONNECT Source Destination via Digi1 Digi2` (FM); `OK`/`WRONG`;
+  `PTT ON`/`PTT OFF` "Order for switching PTT"; `IAMALIVE` every 60 s;
+  `ABORT` a dirty disconnect. Used by `kissterm/transport/vara.py` and
+  `tests/fake_vara.py`. It does not say which of VARA's PTT settings make
+  it send `PTT ON` (# UNVERIFIED, ON-AIR-TESTS).
+- Pat-Vara (github.com/n8jja/Pat-Vara, `vara/vara.go`), read 2026-10-09:
+  splits VARA's command stream on `\r`; `PTT ON`/`PTT OFF` go to its
+  `PTTController`, and it unkeys again when the modem closes "as a backup".
+  Pat's `cfg/config.go` makes that keying opt-in per VARA config
+  (`ptt_ctrl`, "SignaLink=false"), as kissterm's program `keying` does.

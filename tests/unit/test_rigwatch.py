@@ -166,3 +166,109 @@ def test_the_phone_follows_the_radio_reading():
     state.apply({"type": "event", "seq": 2, "name": "RigStateChanged",
                  "data": {"name": "ic7300", "frequency": 0, "mode": "", "ptt": None}})
     assert state.rig == {} and "rig" in heard
+
+
+# -- M6c: the transport's home channel, and the session tier's connect -------
+
+async def _wait(condition, tries: int = 150) -> None:
+    for _ in range(tries):
+        if condition():
+            return
+        await asyncio.sleep(0.02)
+
+
+@pytest.mark.asyncio
+async def test_the_home_channel_is_set_once_when_the_transport_opens(fake):
+    core, host, station, peer, ta = await _core(_Operator(answer=True))
+    _configure(core, fake)
+    core.config.transports[0]["frequency"] = "145.050 FM"
+    core.rigwatch.poll_seconds = 0.02
+    core.rigwatch.start()
+    await _wait(lambda: fake.frequency == 145_050_000)
+    assert fake.mode == "FM"
+    fake.frequency = 146_520_000  # the operator turns the dial by hand
+    await asyncio.sleep(0.15)
+    assert fake.frequency == 146_520_000, "the home channel undid a hand-tuned dial"
+    assert sum(line.startswith("+F") for line in fake.log) == 1
+    await core.rigwatch.shutdown()
+    station.close()
+    peer.close()
+
+
+def test_a_home_channel_that_is_not_a_frequency_is_refused():
+    core = Core(Config(mycall="N1ABC-1"))
+    core.config.rigs = [{"name": "ic7300", "model": 3073}]
+    entry = {"name": "hf", "kind": "tcp", "host": "127.0.0.1", "port": "8001", "rig": "ic7300"}
+    assert "No frequency" in core.radio.save_transport({**entry, "frequency": "home"})
+    assert core.radio.save_transport({**entry, "frequency": "7.1015 MHz USB-D"}) == ""
+    assert core.config.transports[-1]["frequency"] == "7.1015 MHz USB-D"
+    assert core.radio.save_transport({**entry, "frequency": ""}, original="hf") == ""
+    assert "frequency" not in core.config.transports[-1]
+
+
+async def _vara_core(operator, fake, vara, home: str = ""):
+    from kissterm.transport.vara import VaraHfTransport
+    from tests.unit.test_core_connect import _View
+
+    transport = VaraHfTransport("127.0.0.1", "N1ABC-1", cmd_port=vara.cmd_port,
+                                data_port=vara.data_port)
+    await transport.open()
+    core = Core(Config(mycall="N1ABC-1"), session_transport=transport, operator=operator)
+    core.attach_view(_View())
+    core.config.rigs = [{"name": "ic7300", "model": 3073, "host": "127.0.0.1", "port": fake.port}]
+    core.config.transports = [{"name": "vara-hf", "kind": "vara", "rig": "ic7300",
+                               **({"frequency": home} if home else {})}]
+    core.config.active_transport = "vara-hf"
+    return core, transport
+
+
+@pytest_asyncio.fixture
+async def vara():
+    from tests.fake_vara import FakeVara
+
+    modem = await FakeVara().start()
+    yield modem
+    await modem.stop()
+
+
+@pytest.mark.asyncio
+async def test_a_vara_dial_tunes_to_the_contact_then_calls_it(fake, vara):
+    operator = _Operator(answer=True)
+    core, transport = await _vara_core(operator, fake, vara, home="14.1035 MHz USB-D")
+    await core.connector.dial_entry(Entry("W1AW-10", frequency="7.1015 MHz USB-D"))
+    assert "7.101.500 USB-D" in operator.asked[0].tune
+    assert fake.frequency == 7_101_500 and fake.mode == "PKTUSB"
+    assert "CONNECT N1ABC-1 W1AW-10" in vara.commands
+    await transport.close()
+
+
+@pytest.mark.asyncio
+async def test_a_vara_contact_with_no_frequency_goes_to_the_home_channel(fake, vara):
+    operator = _Operator(answer=True)
+    core, transport = await _vara_core(operator, fake, vara, home="14.1035 MHz USB-D")
+    await core.connector.dial_entry(Entry("W1AW-10"))
+    assert "14.103.500 USB-D" in operator.asked[0].tune
+    assert fake.frequency == 14_103_500
+    await transport.close()
+
+
+@pytest.mark.asyncio
+async def test_a_declined_vara_reminder_neither_tunes_nor_calls(fake, vara):
+    core, transport = await _vara_core(_Operator(answer=False), fake, vara)
+    await core.connector.dial_entry(Entry("W1AW-10", frequency="7.1015 MHz"))
+    assert fake.frequency == 7_101_500 - 0 and not any(l.startswith("+F") for l in fake.log)
+    assert not any(c.startswith("CONNECT ") for c in vara.commands)
+    await transport.close()
+
+
+@pytest.mark.asyncio
+async def test_vara_with_no_station_to_call_says_so(vara):
+    from kissterm.transport.base import TransportError
+    from kissterm.transport.vara import VaraHfTransport
+
+    transport = VaraHfTransport("127.0.0.1", "N1ABC-1", cmd_port=vara.cmd_port,
+                                data_port=vara.data_port)
+    await transport.open()
+    with pytest.raises(TransportError, match="Address Book"):
+        await transport.connect()
+    await transport.close()
