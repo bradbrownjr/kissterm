@@ -262,3 +262,14 @@ def test_doctor_says_an_unverified_transport_is_experimental():
     tcp = asyncio.run(doctor._check_one_transport(
         {"name": "tnc", "kind": "tcp", "host": "127.0.0.1", "port": 1}))
     assert "experimental" not in tcp.detail
+
+
+def test_program_and_rig_names_are_not_forwarded_to_a_constructor():
+    """A transport names its modem program and rig (ROADMAP P3a); neither is a
+    constructor argument, so they are entry-only keys like `name`."""
+    assert {"program", "rig"} <= _ENTRY_ONLY_KEYS
+    transport = build_transport(
+        {"kind": "tcp", "name": "kiss", "host": "127.0.0.1", "port": 8001,
+         "program": "dw", "rig": "ft991a"}
+    )
+    assert isinstance(transport, Transport)

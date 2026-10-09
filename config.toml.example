@@ -589,6 +589,31 @@ target = "W1AW-1"
 path = "WIDE1-1"
 transport = "direwolf-local"
 
+# --- Modem programs and radios (ROADMAP P3a) ---------------------------------
+# Not started yet: these entries are saved and checked, and a later release
+# starts the program when its transport opens. A transport names them with
+# `program = "..."` and `rig = "..."`. Edit them from Settings > Radio.
+#
+# [[programs]]
+# name = "mercury"
+# preset = "mercury"
+# path = "/usr/bin/mercury"
+# args = "-p 8300"
+# wine = false
+# start_timeout = 30
+# stop_on_exit = true
+#
+# [[rigs]]
+# name = "ft991a"
+# model = 1035            # Hamlib's number; `rigctl -l` lists them
+# device = "/dev/ttyUSB0"
+# speed = 38400
+# host = "127.0.0.1"
+# port = 4532
+# swr_trip = 3.0          # stop transmitting above this SWR
+# ptt_timeout = 120
+# tune_bands = ["40m"]    # tune the ATU before a connect on these bands only
+
 # --- Saved credentials ------------------------------------------------------
 # Reusable login snippets, managed from Settings > Credentials. An
 # address-book entry can reference one by NAME (its `credential` field)

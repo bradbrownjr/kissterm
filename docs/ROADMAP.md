@@ -498,21 +498,6 @@ outside the gate and the form says so, as P12 says of fldigi.
 
 ### Milestones
 
-- [ ] **M1 [Sonnet] Config and forms for Programs and Rigs.** `Config`
-  loaders for `[[programs]]` and `[[rigs]]`, `program`/`rig` keys on a
-  transport (added to `_ENTRY_ONLY_KEYS` so `build_transport` does not
-  forward them), `config.toml.example` entries,
-  `PROGRAM_FORMS`/`RIG_FORMS` beside `TRANSPORT_FORMS` in
-  `transport/forms.py`, and `Radio.programs()/save_program()/
-  forget_program()` and the rig equivalents in `core/radio.py`, refusing a
-  name a transport still uses. Presets in `kissterm/launch/presets.py` as
-  pure data plus `default_path(preset, platform)`, tested with the platform
-  as a parameter (no `sys.platform` patching). Nothing runs yet. Tests:
-  `tests/unit/test_config.py`, a new `test_launch_presets.py`,
-  `test_transport_factory.py` for the stripped keys.
-  RESEARCH each preset's default install path and command line from the
-  program's own documentation, cite it in `docs/SOURCES.md`; mark guesses
-  `# UNVERIFIED:`.
 - [ ] **M2 [Opus] The program supervisor** (`kissterm/launch/supervisor.py`).
   `asyncio.create_subprocess_exec`, never a shell; Wine wrapping on POSIX;
   Windows `CREATE_NEW_PROCESS_GROUP` and a polite stop before kill; stdout
@@ -616,20 +601,27 @@ outside the gate and the form says so, as P12 says of fldigi.
   transmitting into an open or shorted feedline); the
   watchdog unkeys a held PTT; frequency set from a contact.
 
-**Decisions for the operator before M2** (recommendation first):
+**Decisions of 2026-10-09** (operator):
 
-1. Program paths editable only at the station, not from the phone (M2).
-   Recommended: yes; the alternative is remote code execution by anyone
-   paired with the station.
-2. Start a modem when its transport opens (recommended), or also start
-   every program at kissterm's launch.
-3. Hamlib through `rigctld` only (recommended), or also flrig's XML-RPC for
-   stations that already run flrig.
-4. The SWR trip on by default at 3.0:1 when the rig reports SWR
-   (recommended), or off until the operator sets a limit.
-5. Tune-before-connect (a carrier) available but off by default
-   (recommended), or never offered, leaving tuning to the operator at the
-   rig.
+1. Program paths: the operator wants to browse the station computer's
+   files to find the executable "wherever they sit", from both front ends.
+   This is the opposite of the recommendation (path edits at the station
+   only; a remote client that sets `path` can run any program there). OPEN
+   until M2: ask which was meant -- browse at the station only, or also
+   from a paired phone -- and if from the phone, what guards it (at least:
+   remote control off by default, the path must be an existing executable
+   file, `args` and `cwd` stay station-only, and the station asks to
+   confirm a changed path).
+2. A modem starts when its transport opens. The operator adds that this
+   "should probably change how the application starts and tries to find
+   the transport modem": launch tries the transport, starts the program if
+   refused, and discovery stays passive (it never starts anything).
+3. Hamlib through `rigctld`: `rigctld` is Hamlib's own daemon, so this is
+   the widest radio support there is; flrig is not added.
+4. SWR trip on by default at 3.0:1 (done in M1's defaults).
+5. Tune-before-connect available, off by default, **chosen per band** (a
+   rig's `tune_bands`; 20 m and 40 m usually fine, 40 m sometimes wants it,
+   80 m best without). M6b reads it per band.
 
 ## P4 — APRS
 

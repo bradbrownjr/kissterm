@@ -34,7 +34,8 @@ from ..config import (
     forget_credential,
     set_credential,
 )
-from ..transport.forms import TRANSPORT_FORMS
+from ..launch.presets import PRESETS
+from ..transport.forms import BANDS, PROGRAM_FORM, RIG_FORM, TRANSPORT_FORMS
 from .events import ConfigChanged
 
 log = logging.getLogger(__name__)
@@ -108,6 +109,8 @@ class Radio:
             "transports": [{k: v for k, v in t.items() if k not in ("script", "text")}
                            for t in config.transports],
             "kinds": self.kinds(),
+            "programs": [dict(p) for p in config.programs],
+            "rigs": [dict(r) for r in config.rigs],
             "logins": [c["name"] for c in config.credentials if c.get("name")],
             "scripts": [s["name"] for s in config.scripts if s.get("name")],
         }
@@ -145,6 +148,15 @@ class Radio:
         before = next((t for t in config.transports if t.get("name") == original), None)
         result = dict(before) if before and before.get("kind") == kind else {}
         result.update(values)
+        for key, entries, what in (("program", config.programs, "program"),
+                                   ("rig", config.rigs, "rig")):
+            wanted = str(entry.get(key, result.get(key, "")) or "")
+            if wanted and not any(e.get("name") == wanted for e in entries):
+                return f"There is no {what} named {wanted!r}. Add it first, or choose none."
+            if wanted:
+                result[key] = wanted
+            else:
+                result.pop(key, None)
         result["name"], result["kind"] = name, kind
         if session_tier:
             credential = str(entry.get("credential", ""))
@@ -276,6 +288,93 @@ class Radio:
         self._saved()
         return True
 
+    # -- programs and rigs ----------------------------------------------------
+    def programs_form(self) -> dict:
+        """What a Programs entry asks for, and the presets it starts from."""
+        return {"fields": [_field_dict(f) for f in PROGRAM_FORM],
+                "presets": [{"key": p.key, "label": p.label, "transport_kind": p.transport_kind,
+                             "source": p.source, "note": p.note, "runs_under_wine": p.runs_under_wine}
+                            for p in PRESETS.values()]}
+
+    def rigs_form(self) -> dict:
+        return {"fields": [_field_dict(f) for f in RIG_FORM], "bands": list(BANDS)}
+
+    def save_program(self, entry: dict, original: str = "") -> str:
+        """Add or replace a Programs entry; "" when saved, else why not."""
+        config = self.core.config
+        name = str(entry.get("name", "")).strip()
+        if not name:
+            return "Name this program something: transports find it by that name."
+        if name != original and any(p.get("name") == name for p in config.programs):
+            return f"{name!r} is already in use. Pick another name."
+        preset = str(entry.get("preset", "custom") or "custom")
+        if preset not in PRESETS:
+            return f"Not a known program: {preset!r}."
+        path = str(entry.get("path", "")).strip()
+        if not path:
+            return "Program file is required."
+        values = _coerce(entry, PROGRAM_FORM)
+        if isinstance(values, str):
+            return values
+        if values["start_timeout"] < 1:
+            return "Seconds to wait for it must be at least 1."
+        values.update(name=name, preset=preset, path=path)
+        config.programs = [p for p in config.programs if p.get("name") not in (original, name)]
+        config.programs.append(values)
+        if original and original != name:
+            for transport in config.transports:
+                if transport.get("program") == original:
+                    transport["program"] = name
+        self._saved()
+        return ""
+
+    def forget_program(self, name: str) -> str:
+        """Remove a Programs entry; "" when removed, else why not."""
+        config = self.core.config
+        if not any(p.get("name") == name for p in config.programs):
+            return f"There is no program named {name!r}."
+        using = [t.get("name", "") for t in config.transports if t.get("program") == name]
+        if using:
+            return f"{name!r} is still used by {', '.join(using)}. Change that transport first."
+        config.programs = [p for p in config.programs if p.get("name") != name]
+        self._saved()
+        return ""
+
+    def save_rig(self, entry: dict, original: str = "") -> str:
+        """Add or replace a Rigs entry; "" when saved, else why not."""
+        config = self.core.config
+        name = str(entry.get("name", "")).strip()
+        if not name:
+            return "Name this radio something: transports find it by that name."
+        if name != original and any(r.get("name") == name for r in config.rigs):
+            return f"{name!r} is already in use. Pick another name."
+        values = _coerce(entry, RIG_FORM)
+        if isinstance(values, str):
+            return values
+        if values["swr_trip"] <= 1.0:
+            return "Stop transmitting above SWR must be more than 1.0."
+        values.update(name=name)
+        config.rigs = [r for r in config.rigs if r.get("name") not in (original, name)]
+        config.rigs.append(values)
+        if original and original != name:
+            for transport in config.transports:
+                if transport.get("rig") == original:
+                    transport["rig"] = name
+        self._saved()
+        return ""
+
+    def forget_rig(self, name: str) -> str:
+        """Remove a Rigs entry; "" when removed, else why not."""
+        config = self.core.config
+        if not any(r.get("name") == name for r in config.rigs):
+            return f"There is no radio named {name!r}."
+        using = [t.get("name", "") for t in config.transports if t.get("rig") == name]
+        if using:
+            return f"{name!r} is still used by {', '.join(using)}. Change that transport first."
+        config.rigs = [r for r in config.rigs if r.get("name") != name]
+        self._saved()
+        return ""
+
     # -- scripts --------------------------------------------------------------
     def scripts(self) -> list[dict]:
         """Each script by name and line count: its text may hold a password
@@ -306,3 +405,42 @@ class Radio:
         config.scripts = [s for s in config.scripts if s.get("name") != name]
         self._saved()
         return True
+
+
+def _field_dict(f) -> dict:
+    return {"key": f.key, "label": f.label, "kind": f.kind, "placeholder": f.placeholder,
+            "default": f.default, "optional": f.optional, "advanced": f.advanced,
+            "choices": list(f.choices)}
+
+
+def _coerce(entry: dict, form) -> dict | str:
+    """The typed values of `entry` for `form`, or the first reason it will not do.
+
+    A key the form does not show is dropped; a blank optional value is
+    omitted so the file stays short."""
+    out: dict = {}
+    for f in form:
+        raw = entry.get(f.key, f.default)
+        if f.kind == "bool":
+            out[f.key] = raw if isinstance(raw, bool) else str(raw).strip().lower() in ("1", "true", "yes", "on")
+            continue
+        if f.kind == "bands":
+            items = raw if isinstance(raw, (list, tuple)) else [b for b in str(raw).replace(",", " ").split()]
+            bad = [b for b in items if b not in BANDS]
+            if bad:
+                return f"Not a band: {', '.join(map(str, bad))}."
+            out[f.key] = list(items)
+            continue
+        text = str(raw if raw is not None else "").strip()
+        if not text:
+            if f.optional:
+                continue
+            if f.kind in ("number", "decimal") and f.default:
+                text = f.default
+            elif f.kind != "choice":
+                return f"{f.label} is required."
+        try:
+            out[f.key] = int(text) if f.kind == "number" else float(text) if f.kind == "decimal" else text
+        except ValueError:
+            return f"{f.label} must be a number."
+    return out

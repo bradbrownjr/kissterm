@@ -153,6 +153,16 @@ def _fully_populated_config() -> kconfig.Config:
         {"name": "direwolf", "kind": "tcp", "host": "127.0.0.1", "port": 8001},
         {"name": "kantronics", "kind": "serial", "device": "/dev/ttyUSB0", "baud": 9600},
     ]
+    cfg.programs = [
+        {"name": "dw", "preset": "direwolf", "path": "/usr/bin/direwolf",
+         "args": "-t 0 -c /etc/direwolf.conf", "wine": False, "start_timeout": 30,
+         "stop_on_exit": True},
+    ]
+    cfg.rigs = [
+        {"name": "ft991a", "model": 1035, "device": "/dev/ttyUSB0", "speed": 38400,
+         "host": "127.0.0.1", "port": 4532, "swr_trip": 3.0, "ptt_timeout": 120,
+         "tune_bands": ["40m"]},
+    ]
     cfg.active_transport = "direwolf"
     cfg.home_bbs = kconfig.HomeBbsConfig(
         route="WS1EC-2", call="WS1EC", software="bpqmail", ready_text="BBS>",
@@ -927,3 +937,12 @@ def test_launch_moves_telnet_and_ssh_to_the_address_book(tmp_path, capsys):
     book = AddressBook()
     book.load()
     assert book.find("ws1ec").is_internet
+
+
+def test_programs_and_rigs_load_as_tables_and_warn_when_malformed(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('programs = ["nope"]\nrigs = 3\n', encoding="utf-8")
+    cfg = kconfig.load_config(path)
+    assert cfg.programs == [] and cfg.rigs == []
+    assert any("programs" in w for w in cfg.warnings)
+    assert any("rigs" in w for w in cfg.warnings)

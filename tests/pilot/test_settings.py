@@ -63,6 +63,10 @@ NOT_IN_SCHEMA = {
     "transports",
     "active_transport",
     "autoconnect",
+    # Modem programs and rigs (ROADMAP P3a): lists of dicts edited through
+    # core.radio like transports, not scalars this schema can render.
+    "programs",
+    "rigs",
     # Its own hand-built tab, like transports -- a list of dicts, not a
     # scalar or two, and Add/Edit/Forget need real widgets a schema entry
     # cannot generate.

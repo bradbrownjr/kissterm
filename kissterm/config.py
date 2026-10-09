@@ -418,6 +418,16 @@ class Config:
     #: legal identification. Only ever happens while operating as tactical.
     tactical_id: bool = True
     transports: list[dict[str, Any]] = field(default_factory=list)
+    #: Modem programs kissterm may start beside the radio (ROADMAP P3a):
+    #: `{"name", "preset", "path", "args", "cwd", "wine", "start_timeout",
+    #: "stop_on_exit"}`. A transport names one in its `program` key. Edited
+    #: through `core.radio`, never as a Settings field.
+    programs: list[dict[str, Any]] = field(default_factory=list)
+    #: Radios kissterm may read and tune through Hamlib's `rigctld`:
+    #: `{"name", "model", "device", "speed", "host", "port", "rigctld_path",
+    #: "swr_trip", "ptt_timeout", "tune_bands"}`. A transport names one in
+    #: its `rig` key.
+    rigs: list[dict[str, Any]] = field(default_factory=list)
     #: `name` of the transport in `transports` that should be opened on
     #: startup. Empty means "ask" (or use whatever discovery finds).
     active_transport: str = ""
@@ -1003,6 +1013,8 @@ def load_config(path: Path | None = None, *, profile: str = DEFAULT_PROFILE) -> 
         raw, "operate_as_tactical", cfg.operate_as_tactical, warnings)
     cfg.tactical_id = _load_bool(raw, "tactical_id", cfg.tactical_id, warnings)
     cfg.transports = _load_dict_list(raw.get("transports", []), "transports", warnings)
+    cfg.programs = _load_dict_list(raw.get("programs", []), "programs", warnings)
+    cfg.rigs = _load_dict_list(raw.get("rigs", []), "rigs", warnings)
     cfg.active_transport = _load_str(raw, "active_transport", cfg.active_transport, warnings)
     cfg.credentials = _load_dict_list(raw.get("credentials", []), "credentials", warnings)
     cfg.scripts = _load_dict_list(raw.get("scripts", []), "scripts", warnings)

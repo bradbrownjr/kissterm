@@ -5,6 +5,28 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-09] — Programs and Rigs entries (P3a M1)
+
+### New Features
+
+- **Config and core methods for modem programs and radios.** `[[programs]]`
+  and `[[rigs]]` load and save like transports; a transport names one in
+  its `program` and `rig` keys (entry-only, never forwarded to a
+  constructor). `Radio.save_program/forget_program/save_rig/forget_rig`
+  validate, refuse a name still in use and follow a rename. A rig's SWR trip
+  defaults to 3.0:1 and its ATU tuning to no band (per band, off), the
+  operator's decisions of 2026-10-09. Presets for VARA, Mercury, Direwolf,
+  QtSoundModem and UZ7HO live in `kissterm/launch/presets.py`, each marked
+  documented, recalled or unverified. Nothing starts a program yet and no
+  screen shows them (M2, M3).
+
+**Files:** `kissterm/config.py`, `kissterm/launch/`,
+`kissterm/transport/forms.py`, `kissterm/transport/__init__.py`,
+`kissterm/core/radio.py`, `config.toml.example`, `docs/SOURCES.md`,
+`tests/unit/test_launch_presets.py`, `tests/unit/test_radio_programs.py`,
+`tests/unit/test_config.py`, `tests/unit/test_transport_factory.py`,
+`tests/pilot/test_settings.py`
+
 ## [2026-10-09] — P0.1 cleared; ASCII-safe screenshot test waits on conditions
 
 ### Improvements

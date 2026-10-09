@@ -137,3 +137,14 @@ the node's APRS command.
   `DELIVERED:` and `READ:` titles and bodies), and
   `wppsvr/analyze/testdata/invalid/delivrcpt.yaml` (a sample message). Used
   by `kissterm/mail/receipts.py`. No capture from Outpost itself.
+
+## Modem programs (2026-10-09)
+
+- Mercury README (github.com/rhizomatica/mercury): `mercury` options `-p`
+  (ARQ base port, default 8300, data on base+1), `-R`/`-A`/`-P` (Hamlib
+  model, rigctl endpoint, PTT method), install at `/usr/bin/mercury` (Debian
+  package) or `/usr/local/bin/mercury` (`make install`), `mercury.exe` on
+  Windows. Used by `kissterm/launch/presets.py`.
+- Direwolf (`-c`, `-t`): recalled from use, not re-read; the Windows,
+  VARA, QtSoundModem and UZ7HO install paths are `unverified` defaults the
+  operator checks with the file browser.

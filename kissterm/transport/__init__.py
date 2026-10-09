@@ -112,7 +112,14 @@ SESSION_TIER_KINDS = frozenset({"kernel", "vara", "varafm", "mercury", "telnet",
 #: needs), not to any transport class's wire-level constructor -- see
 #: `Transport.script`'s docstring in `base.py`. `_named` below copies them
 #: onto the built transport instead of forwarding them as keywords.
-_ENTRY_ONLY_KEYS = frozenset({"kind", "name", "script", "credential", "script_name"})
+#:
+#: `program`/`rig` name a Programs entry (the modem to start when this
+#: transport opens) and a Rigs entry (the radio it keys and tunes) in
+#: `Config.programs`/`Config.rigs` (ROADMAP P3a); they too belong to the
+#: entry, and the supervisor reads them from config, not from the transport.
+_ENTRY_ONLY_KEYS = frozenset(
+    {"kind", "name", "script", "credential", "script_name", "program", "rig"}
+)
 
 #: Config ``kind`` values `build_transport` accepts, kept as a tuple (rather
 #: than derived from a dict of already-imported classes) precisely so this
