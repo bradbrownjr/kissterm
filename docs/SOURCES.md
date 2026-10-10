@@ -145,6 +145,13 @@ the node's APRS command.
   model, rigctl endpoint, PTT method), install at `/usr/bin/mercury` (Debian
   package) or `/usr/local/bin/mercury` (`make install`), `mercury.exe` on
   Windows. Used by `kissterm/launch/presets.py`.
+- Mercury `main`/`radio_io/radio_io.c` (branch `mercuryv2`) and README "PTT
+  control notes": `-R` selects the model and Hamlib PTT, `-A` is the device
+  or `ip:port`; `RIG_MODEL_NETRIGCTL` (model 2) is handled explicitly. Direwolf
+  `src/config.c` (`PTT RIG model port`, "when model is 2, port would host:port
+  like 127.0.0.1:4532", applies to the most recent `CHANNEL`; no include
+  directive; "Windows version of direwolf does not support HAMLIB"). Used by
+  `kissterm/launch/rigkeying.py`. Not run against either program.
 - Hamlib `rigctld(1)` and `rigctl(1)` man pages
   (github.com/Hamlib/Hamlib, `doc/man1/`): the Extended Response Protocol
   (a leading `+`; the echoed command, `Key: value` records, a final

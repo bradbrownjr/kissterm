@@ -629,6 +629,16 @@ by default; then VARA is not keyed again until it lets go). Set VARA's own
 PTT so that it does not also key the radio (experimental: not yet tried
 with a real VARA).
 
+**Mercury and Direwolf key through kissterm too** when their program's
+"How it keys the radio" is *Through kissterm's rig control* and the transport
+names a radio. kissterm makes sure `rigctld` answers, then starts Mercury with
+`-R 2 -A host:port`, or Direwolf on a copy of your configuration file with
+`PTT RIG 2 host:port` added (your own file is not changed; the copy is in
+kissterm's state folder). These modems key the radio themselves, so the
+transmit switch does not hold them; only VARA's keying passes through it.
+Direwolf for Windows cannot do this (it has no Hamlib) and kissterm says so
+instead of starting it. Experimental: not yet tried with a real modem.
+
 **A modem that owns the CAT port** ("How it keys the radio" = *The radio's
 CAT port itself*: VARA keying by CAT, or SoundModem on an IC-7300's one
 port) leaves kissterm no port to tune through. Tuning then *hands the port

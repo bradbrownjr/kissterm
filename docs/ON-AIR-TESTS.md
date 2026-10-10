@@ -757,6 +757,16 @@ and then your Winlink password, before dialing. The password is saved
   settles whether VARA's lines end in a bare CR as its command document
   says: if kissterm hangs at "Connecting", say so.
 
+- [ ] **Mercury and Direwolf key through kissterm's rigctld** (transmits, low
+  power into a dummy load first). Program entry for Mercury, then for
+  Direwolf, with "How it keys the radio" = Through kissterm's rig control and
+  a radio on the transport. Open the transport: `rigctld` starts if it was
+  not running, Mercury's output shows PTT method Hamlib (model 2), and
+  Direwolf's shows no config error. Send a frame or connect: the radio keys
+  and unkeys. Check `~/.local/state/kissterm/launch/direwolf-*.conf` ends
+  with `CHANNEL 0` and `PTT RIG 2 127.0.0.1:4532`. Say whether Mercury's
+  `-Q` key test works against the same `rigctld`.
+
 - [ ] **VARA keys the radio through kissterm** (transmits, low power into a
   dummy load first). Program entry for VARA HF with "How it keys the radio"
   = Through kissterm's rig control, a radio on the transport, VARA's own PTT

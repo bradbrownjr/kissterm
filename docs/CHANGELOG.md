@@ -5,6 +5,22 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-10-10] — Mercury and Direwolf given the shared rigctld (P3a M5c)
+
+### New Features
+
+- **One keying path per modem**: a Mercury or Direwolf program whose keying is
+  "Through kissterm's rig control" is started with the transport's `rigctld`
+  (made sure it answers first). Mercury gets `-R 2 -A host:port`; Direwolf gets
+  `-c` pointing at a copy of the operator's file with `PTT RIG 2 host:port`
+  appended, as it has no command-line PTT and no include. Windows Direwolf has
+  no Hamlib, so it is refused with that reason. Researched from Mercury's
+  README and `radio_io.c` and Direwolf's `config.c`.
+
+**Files:** `kissterm/launch/rigkeying.py`, `launch/supervisor.py`,
+`tests/unit/test_rigkeying.py`, `docs/GUIDE.md`, `docs/SOURCES.md`,
+`docs/ON-AIR-TESTS.md`
+
 ## [2026-10-09] — The antenna tuner and the CAT port hand-off (P3a M6b)
 
 ### New Features

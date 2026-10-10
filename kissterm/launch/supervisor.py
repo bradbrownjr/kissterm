@@ -174,6 +174,8 @@ class Supervisor:
         transport is refused (module docstring). Raises what `open()` raises
         when there is no program to start, else `ProgramError`."""
         program = program_for(config, entry)
+        rig = next((r for r in config.rigs if r.get("name") == entry.get("rig")), None) \
+            if entry.get("rig") else None
         try:
             await transport.open()
             if program is not None and program["name"] not in self._running:
@@ -189,7 +191,7 @@ class Supervisor:
             failure: BaseException = first
         managed = self._running.get(program["name"])
         if managed is None or not managed.running:
-            managed = await self.start(program)
+            managed = await self.start(await self._with_rig_keying(program, rig))
         timeout = float(program.get("start_timeout") or DEFAULT_START_TIMEOUT)
         deadline = time.monotonic() + timeout
         attempt = 0
@@ -208,6 +210,26 @@ class Supervisor:
                 return
             except Exception as exc:  # noqa: BLE001 - keep waiting
                 failure = exc
+
+    async def _with_rig_keying(self, program: dict[str, Any], rig: dict[str, Any] | None
+                               ) -> dict[str, Any]:
+        """`program` given the shared rigctld to key through (`rigkeying.py`),
+        when its keying says so and its transport names a rig; else as is."""
+        from . import rigkeying
+
+        if rig is None or not rigkeying.wants_rigctld(program):
+            return program
+        problem = await self.ensure_rigctld(rig)
+        if problem:
+            raise ProgramError(f"{program['name']} keys through {rig.get('name')}'s rig "
+                               f"control, which is not available: {problem}")
+        from ..config import _STATE_DIR
+
+        try:
+            return rigkeying.keyed_program(program, rig, _STATE_DIR / "launch",
+                                           platform=sys.platform)
+        except rigkeying.KeyingError as exc:
+            raise ProgramError(f"{program['name']}: {exc}") from exc
 
     async def ensure_rigctld(self, rig: dict[str, Any]) -> str:
         """Make sure a `rigctld` answers for a Rigs entry: "" when one does
