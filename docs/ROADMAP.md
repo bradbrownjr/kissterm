@@ -52,6 +52,14 @@ still has to try on the air.
   `ACCESS_KEY` in `kissterm/winlink/gateways.py`, press Refresh once to
   check the request against the live API, and add that reply's shape to
   the tests.
+  **When it arrives, consider keeping it out of the package** (noted
+  2026-10-13): HTCommander builds a 12 KB offline gateway file in a
+  scheduled GitHub Action, twice a week, and the app downloads that static
+  file ([Winlink-Gateways.md](https://github.com/Ylianst/HTCommander/blob/main/docs/Winlink-Gateways.md)).
+  The key would then live in a CI secret, and a station with no Internet
+  still gets a list. Do not copy their key: it is the one embedded in
+  winlink.org's own RMSChannels page, not one issued to them, the same
+  reason Pat's key is not ours.
 
 ## How to work this file -- read before picking anything up
 
@@ -119,8 +127,8 @@ Everything from P9 on comes after milestone 2.
 
 A live bug the operator reports goes here first, under rule 2 above, with
 the date and their words. A bug reported and fixed the same day goes to
-CHANGELOG only. As of 2026-10-09: one item open, outside the code
-(Winlink's client list); the operator closed the rest.
+CHANGELOG only. As of 2026-11-17: two items open, one outside the code
+(Winlink's client list) and one waiting on evidence (the number pad).
 
 ### P0.1 Reported bugs
 
@@ -133,6 +141,18 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   cms-z.winlink.org": it does not know kissterm's SID name (Blockers).
   kissterm now says so in plain words. The same session's log held the `;PR:` answer beside the `;PQ:`
   challenge; the answer is no longer logged.
+- **The number pad types something other than digits** (2026-11-17,
+  `open`, needs evidence): "number pad produces hex values it seems rather
+  than actual numbers." Not reproduced. Textual 8.2.8's parser turns every
+  keypad encoding a terminal sends into the right digit, checked by feeding
+  each one through `XTermParser`: a plain `1`, application keypad
+  (`ESC O q`), Kitty (`CSI 57400 u`, with and without Num Lock or the text
+  field), and xterm modifyOtherKeys (`CSI 27;1;49 ~`). Windows'
+  win32-input-mode (`CSI 97;79;49;1;0;1 _`) is the only one tried that
+  comes out as text, as `[97;79;49;1;0;1_`, and kissterm does not turn it
+  on. **Needed:** `scripts/keycheck.py` run in the same terminal (and
+  multiplexer, SSH hop) as kissterm, with each pad key pressed with Num Lock
+  on, plus what appeared and where (send line, a form, the phone).
 
 ---
 
@@ -285,6 +305,23 @@ closed by a coding session.
   Local control/data socket test passes; an ARQ contact has not been made.
 - [ ] **BLE KISS (Mobilinkd-class) against real hardware.** Needs: a BLE
   TNC. Shipped 2026-09-17 against mocks only.
+- [ ] **The BTech UV-Pro family as a KISS TNC** (UV-Pro, UV-50Pro,
+  Vero VR-N76/VR-N7500, Radioddity GA-5WB; noted 2026-10-13 after
+  KM4ACK's HTCommander video brought these radios a packet audience).
+  BTech's UV-Pro changelog says firmware 0.7.11 (December 2024) put a KISS
+  TNC in the radio, reached over Bluetooth, and 0.9.2 (2026-01-29) added
+  separate TX/RX frequencies and TX power for the KISS profile. If that is
+  plain KISS, kissterm's Bluetooth transport already covers it, and the
+  work is a SETUP.md section and an on-air test, not code.
+  # UNVERIFIED: classic SPP or BLE, the service UUIDs if BLE, whether
+  the radio's TNC answers connected mode (it is sold for APRS), and the
+  menu path. Needs: a radio on current firmware.
+  Read first: BTech's [UV-Pro firmware changelog](https://baofengtech.com/?p=335104),
+  G7JJF's [KISS Mode Radios](https://www.g7jjf.com/kissradio.htm), and
+  [benlink](https://github.com/khusmann/benlink) (the radio's own Bluetooth
+  protocol, decoded) for what the radio exposes. kissterm does not take on
+  the radio's proprietary control protocol (channel programming, audio):
+  that is HTCommander's job and the reason it supports one radio family.
 - [ ] **AX/IP** -- post-1.0, and only with a named use case (a node reachable
   only over AX/IP) and BPQ32's own wire-format documentation. Node-to-node
   backbone linking is not a terminal's job.
@@ -548,6 +585,23 @@ outside the gate and the form says so, as P12 says of fldigi.
 - [ ] **Service directory currency** -- periodic manual re-check of each
   `kissterm/aprs_services/` entry against its `source` URL. No liveness
   probe, by design.
+- [ ] **Authenticated APRS messages** (noted 2026-10-13, from
+  HTCommander). A per-contact shared secret in the Address Book; a message
+  to that contact carries a 6-character token, `text}TOKEN{msgid`, the
+  first 6 Base64 characters of HMAC-SHA256(SHA256(secret), "minutes since
+  1970 UTC:source:destination:text{msgid"); the receiver tries the minute
+  before, two before and one after, and acks with its own token. It signs,
+  never hides the text, so it stays within the no-encryption rule. Shown
+  as "verified", "failed" or nothing per message, in both front ends. It
+  is the first thing that would make a callsign more than a claim, for one
+  peer who holds the secret (AGENTS.md: "a callsign is a claim"), and it
+  interoperates with HTCommander, the only other implementation. Limits to
+  say plainly: a 36-bit token, clocks within about two minutes, and a
+  station without it sees `}TOKEN` as text. Draft spec:
+  [Aprs-Auth-Specification.md](https://github.com/Ylianst/HTCommander/blob/main/docs/Aprs-Auth-Specification.md);
+  read HTCommander's source for it and test against messages it sent
+  before building (the spec leaves `}` inside the text, and the `{MM}AA`
+  reply-ack form of APRS 1.1, unaddressed).
 - **Out of scope:** igate and digipeater operation. A separate tool if ever.
 
 ## P6 — UX (post-1.0)
@@ -556,6 +610,15 @@ outside the gate and the form says so, as P12 says of fldigi.
   instead of a macro DSL. Needs a security design before any plugin can
   transmit or touch files. Distinct from the shipped per-station auto-login
   and hop chains.
+- [ ] **Save and open captures from the Monitor** (noted 2026-10-13,
+  from HTCommander's Packet Capture tab, which saves CSV and reopens a
+  file in its own window). Save the frames heard and sent, or a selected
+  range, to a file the operator can attach to a bug report; open one to
+  read it through the same decoder. That is ROADMAP rule 3's "real
+  evidence" without the debug log. Prefer a format Wireshark opens
+  (pcap with an AX.25 or KISS link type) over CSV.
+  # RESEARCH: the link-type number and its framing, from tcpdump.org's
+  LINKTYPE list, before choosing.
 
 ## P7 — Packaging (1.0)
 
