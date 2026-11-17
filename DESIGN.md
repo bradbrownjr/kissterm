@@ -374,6 +374,11 @@ from the Address Book.
   Tab fills without sending, Esc hides the list until the line changes, and
   Enter sends only what is in the line. Tab with nothing suggested moves
   focus as usual.
+- **Up and Down on the send line recall lines sent** when no suggestion
+  list shows, and keep walking history while a recalled line is in the
+  field (its suggestions stay hidden). A recall only fills the line. The
+  history is the core's (`Sessions.history`), so the phone's History sheet
+  shows the same list.
 
 ### Slide-out panels
 

@@ -1479,6 +1479,28 @@ async def test_suggestions_follow_the_typing_and_a_tap_fills_the_box():
 
 
 @pytest.mark.asyncio
+async def test_history_lists_lines_sent_newest_first_and_a_tap_fills_the_box():
+    """The terminal's Up and Down, on a phone: a tap fills, never sends."""
+    from kissterm.client.ui.sessions import SessionsView
+
+    app = MailApp({"session_history": ["BBS", "L", "R 12"]})
+    view = SessionsView(app)
+    view.keys, view.selected = ["WS1EC-15"], 0
+    await view._history(None)
+    sheet = app.page.dialogs[-1]
+    tiles = [c for c in sheet.content.content.controls if isinstance(c, ft.ListTile)]
+    assert [t.title.value for t in tiles] == ["R 12", "L", "BBS"]
+    await tiles[1].on_click(None)
+    assert view.input.value == "L" and sheet not in app.page.dialogs
+    assert [name for name, _ in app.commands] == ["session_history"], "nothing sent"
+
+    empty = MailApp({"session_history": []})
+    view = SessionsView(empty)
+    await view._history(None)
+    assert "Nothing sent yet" in empty.page.dialogs[-1].content.value
+
+
+@pytest.mark.asyncio
 async def test_a_zip_opens_a_member_a_level_deeper_and_back_goes_up_one_level():
     from kissterm.client.ui.files import FileViewer
 

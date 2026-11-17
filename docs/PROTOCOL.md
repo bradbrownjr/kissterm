@@ -151,6 +151,7 @@ lighter path around a rule the terminal follows.
 | `disconnect` `{key}` | `Connector.disconnect` | no |
 | `reconnect` `{key}` | `Connector.reconnect`: that session's own last request again | yes, after the reminder |
 | `send_line` `{key, text}` | `Sessions.send_line` | yes, while connected |
+| `session_history` | `Sessions.history`: the lines the operator sent from any front end (Terminal and Broadcast), oldest first, at most 100, never a saved password; kept in memory only. A client puts a chosen line in its message box; nothing here sends | no |
 | `aprs_send` `{to, text}` | `Aprs.compose` | yes |
 | `aprs_position` | `Aprs.send_position_now` | yes |
 | `aprs_conversations` / `aprs_thread` `{callsign}` | `Aprs.conversations` | no |

@@ -258,6 +258,9 @@ class SessionsView:
             # The terminal's command reference (F1): what to say to this node.
             ft.IconButton(icon=ft.Icons.MENU_BOOK, tooltip="Commands",
                           on_click=self._commands),
+            # The terminal's Up and Down: a line sent before, put back.
+            ft.IconButton(icon=ft.Icons.HISTORY, tooltip="History",
+                          on_click=self._history),
             self.input,
             ft.IconButton(icon=ft.Icons.SEND, tooltip="Send", on_click=self._send)]))
         self.control = ft.Column(expand=True, spacing=0, controls=[
@@ -409,6 +412,29 @@ class SessionsView:
         data = await self.app.command("session_reference", key=key)
         if data:
             await ReferenceSheet(self, key, data).show()
+
+    async def _history(self, _e) -> None:
+        """The lines sent from any screen (`session_history`), newest first;
+        a tap puts one in the message box and sends nothing, as Up does in
+        the terminal."""
+        lines = await self.app.command("session_history") or []
+        if not lines:
+            sheets.snack(self.app.page, "Nothing sent yet.")
+            return
+
+        def filler(text: str):
+            async def fill(_e) -> None:
+                self.app.page.pop_dialog()
+                self.input.value = text
+                self.suggestions.column.visible = False
+                self.app.page.update()
+            return fill
+
+        self.app.page.show_dialog(sheets.sheet([
+            ft.Text("Sent before", theme_style=ft.TextThemeStyle.TITLE_MEDIUM),
+            *[ft.ListTile(dense=True, title=ft.Text(text, font_family=MONO, size=13),
+                          on_click=filler(text)) for text in reversed(lines)],
+        ], scrollable=True))
 
     async def _send(self, _e) -> None:
         key = self.current

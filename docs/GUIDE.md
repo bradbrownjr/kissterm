@@ -376,6 +376,14 @@ URL in it. The send line at the bottom is the only thing that transmits,
 and only when you press Enter or click Send. Suggestions fill the line;
 they never send it.
 
+**Up and Down recall lines you sent**, as in a shell: Up puts the previous
+one in the send line, Down the next, and Down past the newest gives back
+what you were typing. Enter still sends it. While the suggestion list shows,
+Up and Down choose in the list instead. The history is one list for every
+session and the Broadcast tab, shared with the phone and web client, at
+most 100 lines; a repeated line moves to the end, and a saved login's
+password is never kept. It lasts until kissterm restarts.
+
 **Remote colour, not remote control.** Text from a BBS passes an allowlist:
 colour, bold and underline survive (turn them off with
 `remote_color = false`); cursor movement, screen erase, window titles,
@@ -960,7 +968,9 @@ own client.
     source and whether it needs the sysop, a **Glossary** of packet terms,
     and a search; a choice fills the line and nothing is sent. As you
     type, matching commands appear over the line (the terminal's
-    suggestion strip); tap one to fill it. **Learn from node** asks the
+    suggestion strip); tap one to fill it. The **History** button (a clock,
+    beside it; Up and Down in the terminal) lists the lines sent from any
+    screen, newest first; a tap fills the line and nothing is sent. **Learn from node** asks the
     node for its own list, once, after showing its airtime, and **Forget
     learned** drops it. **Receive file** starts receiving one by AutoBIN
     or YAPP, after asking; it is saved in Files > Downloads.

@@ -292,8 +292,8 @@ class _SendInput(WordInput):
 
     BINDINGS = [
         Binding("tab", "accept_suggestion", show=False),
-        Binding("up", "previous_suggestion", show=False),
-        Binding("down", "next_suggestion", show=False),
+        Binding("up", "line_up", show=False),
+        Binding("down", "line_down", show=False),
     ]
 
     def action_accept_suggestion(self) -> None:
@@ -312,13 +312,23 @@ class _SendInput(WordInput):
         if not pane.accept_suggestion():
             self.screen.focus_next()
 
-    def action_previous_suggestion(self) -> None:
-        """Move the stacked suggestion highlight up, without filling it."""
-        self.app.query_one(TerminalPane).move_suggestion(-1)
+    def action_line_up(self) -> None:
+        """Up: walk the suggestion list while it shows, otherwise recall
+        the previous line sent (`TerminalPane.recall_history`). Neither
+        sends."""
+        self._line_key(-1)
 
-    def action_next_suggestion(self) -> None:
-        """Move the stacked suggestion highlight down, without filling it."""
-        self.app.query_one(TerminalPane).move_suggestion(1)
+    def action_line_down(self) -> None:
+        """Down: the suggestion list, or the next line sent, as Up."""
+        self._line_key(1)
+
+    def _line_key(self, direction: int) -> None:
+        # History first while a recalled line is in the field: Changed
+        # recomputes suggestions for it, and Up must keep walking history
+        # rather than jump into a list the operator never asked for.
+        pane = self.app.query_one(TerminalPane)
+        if pane.browsing_history() or not pane.move_suggestion(direction):
+            pane.recall_history(direction)
 
     def _on_paste(self, event: events.Paste) -> None:
         """Sanitize a paste before `Input`'s own handler ever sees it.
@@ -425,6 +435,11 @@ class TerminalPane(Container):
         self._suggestion_matches: tuple = ()
         self._suggestion_index = 0
         self._cycling_value: str | None = None
+        #: Where Up/Down are in `Sessions.history` (`None`: not browsing),
+        #: the line they filled, and what was typed before the first Up.
+        self._history_index: int | None = None
+        self._history_value: str | None = None
+        self._history_draft = ""
         # A slide-out changes the scrollback's usable width after this pane's
         # Resize handler runs.  A generation lets the one post-layout replay
         # for the newest resize win when a window is dragged continuously.
@@ -1251,6 +1266,44 @@ class TerminalPane(Container):
         # newly chosen index instead of recomputing/resetting them.
         self._cycling_value = self.query_one("#session-input", Input).value
         self._update_suggestions(self._cycling_value)
+        return True
+
+    def browsing_history(self) -> bool:
+        """Whether the send line still holds the line Up/Down recalled.
+        Typing over it ends the walk; the next Up starts from the newest."""
+        return (self._history_index is not None
+                and self.query_one("#session-input", Input).value == self._history_value)
+
+    def recall_history(self, direction: int) -> bool:
+        """Fill the send line with the line sent before (-1) or after (+1)
+        the one showing, the way a shell's Up and Down do. Never sends.
+
+        The history is the core's (`Sessions.history`), one list for every
+        session and front end. Down past the newest line puts back what was
+        typed before the first Up. The suggestion list stays hidden for a
+        recalled line, as Escape hides it, until the operator edits it.
+        Returns whether the line changed."""
+        history = self.app.core.sessions.history()  # type: ignore[attr-defined]
+        field = self.query_one("#session-input", Input)
+        if self.browsing_history():
+            index = self._history_index + direction  # type: ignore[operator]
+        elif direction < 0 and history:
+            self._history_draft = field.value
+            index = len(history) - 1
+        else:
+            return False
+        if index < 0:
+            return False
+        if index >= len(history):
+            self._history_index = None
+            self._history_value = None
+            text = self._history_draft
+        else:
+            self._history_index = index
+            text = self._history_value = history[index]
+        self._suggestions_dismissed_for = text
+        field.value = text
+        field.action_end()
         return True
 
     def dismiss_suggestions(self) -> bool:

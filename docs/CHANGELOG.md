@@ -5,6 +5,21 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-11-17] — Up and Down recall lines sent
+
+### Improvements
+
+- **The send line has a history** (operator: "up arrow in terminal to
+  scroll through previous commands"). Up and Down walk the lines sent, as
+  a shell's do, when no suggestion list shows; the phone and web client
+  get a History button with the same list. One list for the station, 100
+  lines, in memory only, never a saved password. A recall only fills the
+  line. New `session_history` command on the wire.
+
+**Files:** `kissterm/core/sessions.py`, `ui/terminal_pane.py`,
+`client/ui/sessions.py`, `serve/server.py`, `docs/PROTOCOL.md`,
+`docs/GUIDE.md`, `DESIGN.md`, tests
+
 ## [2026-10-10] — Mercury and Direwolf given the shared rigctld (P3a M5c)
 
 ### New Features

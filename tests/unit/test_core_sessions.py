@@ -235,3 +235,25 @@ async def test_a_session_keeps_its_screen_clean_for_save_as_text_and_a_reconnect
     assert core.sessions.get(key).screen == "Hello\nde WS1EC>\nB\n", "the tab still shows it"
     station.close()
     peer.close()
+
+
+@pytest.mark.asyncio
+async def test_lines_sent_are_kept_for_recall_once_each_and_never_a_password():
+    """Up/Down in the terminal and History on the phone read this list."""
+    core, operator, station, peer, events = await _setup()
+    core.config.credentials = [{"name": "bbs", "text": "hunter2"}]
+    core.gate.set(True)
+    link = await station.connect(AX25Path(PEER, MYCALL))
+    key = core.sessions.bind(link)
+    for line in ("BBS", "L", "", "hunter2", "BBS"):
+        await core.sessions.send_line(key, line)
+    assert core.sessions.history() == ["L", "BBS"], \
+        "a repeat moves to the end; blank lines and saved passwords are not kept"
+    await core.sessions.send_line("NOBODY", "LOST")
+    assert "LOST" not in core.sessions.history(), "a line that did not go is not history"
+    for n in range(sessions_module.HISTORY_LIMIT + 5):
+        core.sessions.remember(f"line {n}")
+    assert len(core.sessions.history()) == sessions_module.HISTORY_LIMIT
+    assert core.sessions.history()[-1] == f"line {sessions_module.HISTORY_LIMIT + 4}"
+    station.close()
+    peer.close()

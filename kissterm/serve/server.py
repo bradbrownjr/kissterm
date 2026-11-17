@@ -479,11 +479,17 @@ class RemoteServer:
         reads the destination from a `QST:` prefix on `text`, as the
         terminal's Broadcast tab does. `error` is "" when it went out."""
         to, text = str(to), str(text)
+        typed = "" if to else text
         if not to:
             from ..core import broadcast
 
             to, text = broadcast.split_destination(text)
-        return {"error": await self.core.broadcast.send(to, text)}
+        error = await self.core.broadcast.send(to, text)
+        if typed and not error and self.core.sessions is not None:
+            # The Broadcast tab's line, kept for recall as the terminal's is
+            # (`Sessions.send_line`).
+            self.core.sessions.remember(typed)
+        return {"error": error}
 
     async def cmd_beacon_now(self) -> None:
         await self.core.aprs.beacon_now()
@@ -563,6 +569,11 @@ class RemoteServer:
     async def cmd_session_suggest(self, key: str, text: str = "") -> list:
         """`Sessions.suggest`: commands for the partly-typed `text`."""
         return self._sessions().suggest(str(key), str(text))
+
+    async def cmd_session_history(self) -> list:
+        """`Sessions.history`: the lines the operator sent, oldest first,
+        for the client's History. Never sends."""
+        return self._sessions().history()
 
     async def cmd_session_harvest(self, key: str, context: str = "node") -> dict:
         """`Sessions.harvest_commands`: ask the node's `?` once, the opt-in

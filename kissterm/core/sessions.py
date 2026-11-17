@@ -117,6 +117,10 @@ HARVEST_CAPTURE_LIMIT = 4096
 #: (`LiveSession.screen`, `core/export.py`); the oldest go first.
 SCREEN_LIMIT = 1024 * 1024
 
+#: Most lines `Sessions.history` keeps (Up/Down in the terminal, History on
+#: the phone); the oldest go first.
+HISTORY_LIMIT = 100
+
 
 @dataclass
 class LiveSession:
@@ -217,6 +221,8 @@ class Sessions:
         #: `(key, text, session)` after a line is logged as sent; the
         #: terminal UI's YAPP download watch, until milestone 5.
         self.sent_hooks: list[Callable[[str, str, LiveSession], None]] = []
+        #: Lines the operator typed and sent, oldest first: see `remember`.
+        self.sent_history: list[str] = []
         self._tasks: set[asyncio.Task] = set()
 
     # ------------------------------------------------------------------
@@ -450,7 +456,10 @@ class Sessions:
         if not key:
             # No session: the Terminal's Broadcast tab. A line typed there
             # is an unproto broadcast, sent once (`core/broadcast.py`).
-            return await self.core.broadcast.send_line(text, before_send)
+            sent = await self.core.broadcast.send_line(text, before_send)
+            if sent:
+                self.remember(text)
+            return sent
         link = self.link(key)
         if link is None or not link.connected:
             self._notice("Not connected.", Severity.WARNING)
@@ -466,7 +475,36 @@ class Sessions:
         # node echo a spurious blank line after every command.
         await link.send(text.encode("latin-1", "replace") + b"\r")
         self.echo_sent(key, text, text)
+        self.remember(text)
         return True
+
+    def remember(self, text: str) -> None:
+        """Keep a line the operator sent for recall: Up/Down on the
+        terminal's send line, History on the phone (operator, 2026-11-17:
+        "up arrow in terminal to scroll through previous commands").
+
+        One list for the station, not one per session: the same commands
+        (`BBS`, `L`, `C WS1EC-2`) are typed at every node, and a shell's
+        history works the same way. A repeated line moves to the end
+        rather than filling the list with copies. Never a blank line, and
+        never a saved login's password (`Connector.masked`): recalling it
+        would show it in clear on every screen. Memory only, so it never
+        reaches the disk. Only the operator's own typed lines come here;
+        a login script or hop chain is not history. Recalling a line only
+        fills the send line; the operator still sends it."""
+        if not text.strip():
+            return
+        connector = self.core.connector
+        if connector is not None and connector.masked(text) != text:
+            return
+        if text in self.sent_history:
+            self.sent_history.remove(text)
+        self.sent_history.append(text)
+        del self.sent_history[:-HISTORY_LIMIT]
+
+    def history(self) -> list[str]:
+        """The lines `remember` kept, oldest first."""
+        return list(self.sent_history)
 
     def echo_sent(self, key: str, shown: str, sent: str, *, watch_hop: bool = True) -> None:
         """Show `shown` as sent on `key` and log `sent` as the line that

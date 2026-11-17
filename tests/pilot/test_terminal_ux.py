@@ -463,6 +463,51 @@ async def test_up_down_choose_a_stacked_suggestion_and_tab_fills_it():
 
 
 @pytest.mark.asyncio
+async def test_up_and_down_recall_lines_sent_without_sending():
+    """Up walks back through what was sent, Down forward to what was being
+    typed; neither transmits, and a recalled line keeps the suggestion
+    list out of the way so Up keeps walking history."""
+    app, a, b, incoming = await _connected_app()
+    async with app.run_test(size=(110, 32)) as pilot:
+        await pilot.pause()
+        link = await a.connect(AX25Path(PEER, MYCALL))
+        app._bind_link(link)
+        await asyncio.sleep(0.1)
+        far = incoming[0]
+        app.reference = CommandReference(family=load_family("bpqmail"))
+        field = app.query_one("#session-input", Input)
+        field.focus()
+        await pilot.pause()
+        for line in ("L", "R 12"):
+            field.value = line
+            await pilot.press("enter")
+            await wait_for(lambda: field.value == "", f"{line!r} sent")
+        heard = bytearray()
+
+        def arrived() -> bool:
+            heard.extend(far.read_nowait())
+            return b"R 12\r" in heard
+
+        await wait_for(arrived, "both lines at the far end")
+
+        field.value = "dra"
+        await pilot.press("up")
+        assert field.value == "R 12"
+        await pilot.press("up")
+        await pilot.pause()
+        assert field.value == "L", "Up kept walking history, not the list for L"
+        assert not app.query_one("#suggestion-strip", Static).display
+        await pilot.press("up")
+        assert field.value == "L", "Up stops at the oldest line"
+        await pilot.press("down", "down")
+        assert field.value == "dra", "Down past the newest puts back what was typed"
+        await asyncio.sleep(0.3)
+        assert far.read_nowait() == b"", "recalling a line sent nothing"
+    a.close()
+    b.close()
+
+
+@pytest.mark.asyncio
 async def test_bbs_helpers_explain_empty_learned_command_suggestions():
     """Harvesting tells us a name, while the shipped reference provides its
     meaning -- and the name appears once, not once per source."""

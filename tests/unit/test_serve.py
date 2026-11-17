@@ -219,6 +219,22 @@ async def test_a_beacon_from_a_phone_still_refuses_with_the_gate_closed():
 
 
 @pytest.mark.asyncio
+async def test_a_broadcast_line_from_a_phone_is_history_and_history_sends_nothing():
+    core, server, ta, peer = await _serve()
+    client = await _join(server)
+    await client.next()
+    core.gate.set(True)
+    result = await client.command("c1", "broadcast_send", to="", text="QST: net at 7")
+    assert result["value"] == {"error": ""}
+    sent = len(ta.sent)
+    result = await client.command("c2", "session_history")
+    assert result["value"] == ["QST: net at 7"], "kept as typed, prefix and all"
+    assert len(ta.sent) == sent, "reading the history transmits nothing"
+    await client.ws.close()
+    await server.stop()
+
+
+@pytest.mark.asyncio
 async def test_a_remote_connect_arms_the_gate_visibly_and_opens_the_session():
     core, server, ta, peer = await _serve()
     client = await _join(server)
