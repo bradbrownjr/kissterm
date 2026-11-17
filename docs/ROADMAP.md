@@ -128,7 +128,8 @@ Everything from P9 on comes after milestone 2.
 A live bug the operator reports goes here first, under rule 2 above, with
 the date and their words. A bug reported and fixed the same day goes to
 CHANGELOG only. As of 2026-11-17: two items open, one outside the code
-(Winlink's client list) and one waiting on evidence (the number pad).
+(Winlink's client list) and one in herdr, the operator's multiplexer
+(the number pad).
 
 ### P0.1 Reported bugs
 
@@ -142,17 +143,30 @@ broken), `awaiting confirmation` (fix shipped, operator has not re-tested).
   kissterm now says so in plain words. The same session's log held the `;PR:` answer beside the `;PQ:`
   challenge; the answer is no longer logged.
 - **The number pad types something other than digits** (2026-11-17,
-  `open`, needs evidence): "number pad produces hex values it seems rather
-  than actual numbers." Not reproduced. Textual 8.2.8's parser turns every
-  keypad encoding a terminal sends into the right digit, checked by feeding
-  each one through `XTermParser`: a plain `1`, application keypad
-  (`ESC O q`), Kitty (`CSI 57400 u`, with and without Num Lock or the text
-  field), and xterm modifyOtherKeys (`CSI 27;1;49 ~`). Windows'
-  win32-input-mode (`CSI 97;79;49;1;0;1 _`) is the only one tried that
-  comes out as text, as `[97;79;49;1;0;1_`, and kissterm does not turn it
-  on. **Needed:** `scripts/keycheck.py` run in the same terminal (and
-  multiplexer, SSH hop) as kissterm, with each pad key pressed with Num Lock
-  on, plus what appeared and where (send line, a form, the phone).
+  `open`, outside the code): "number pad produces hex values it seems rather
+  than actual numbers." Then, the same day: "This may be a terminal issue.
+  This is what I'm getting typing into herdr over SSH:
+  `1234529u7829:3u9 12329:3u4567829u29:3u 12345629u829u`". That happens in
+  herdr itself, before kissterm sees anything. The fragments are the tails
+  of Kitty keyboard reports with Num Lock on
+  ([kitty spec](https://sw.kovidgoyal.net/kitty/keyboard-protocol/): pad 1
+  to 9 are `CSI 57400` to `57408 u`, Num Lock is modifier bit 128, so the
+  field is `1+128 = 129`, and `:3` marks a key release). A press arrives
+  as `CSI 574xx;129u`, a release as `CSI 574xx;129:3u`. Every `29u` stands
+  where a digit is missing (6 in the first run, 9 in the second, 7 and 9
+  in the third), and every `29:3u` is an extra release. So herdr loses
+  `ESC [ 574xx ;1` and passes the rest on as text. herdr
+  ([ogulcancelik/herdr](https://github.com/ogulcancelik/herdr) at
+  `ee5bfb5`) asks the outer terminal for Kitty flags 7 or 31
+  (`src/terminal_modes.rs`), and those include release events. Its key
+  parser accepts `129` (`src/input/parse.rs`); the cut is somewhere in its
+  framing (`src/raw_input.rs`), not found, and not reproduced here because
+  herdr builds with Zig, which is not installed. kissterm turns Textual's
+  Kitty protocol off, so it receives whatever herdr passes on. Textual
+  8.2.8 decodes every standard keypad encoding to the right digit
+  (checked through `XTermParser`). **Closes** when the operator agrees it
+  is herdr's. To confirm: run `scripts/keycheck.py` in the same terminal
+  over SSH without herdr, where the pad should give plain digits.
 
 ---
 
