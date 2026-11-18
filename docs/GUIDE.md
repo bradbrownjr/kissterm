@@ -140,8 +140,10 @@ That setting is only for kissterm's own Internet connection. Over the
 radio, the gateway (WS1EC-10, say) makes its own connection to the
 production servers, and kissterm cannot redirect it: the refusal comes
 back through the gateway ("Unknown client types are not allowed on
-production servers") until the gateway's operator or Winlink changes
-something.
+production servers") until Winlink knows kissterm's
+name. Logging in by keyboard at the CMS prompt needs no client name
+(see Help at the prompt), but that is a person reading mail, not
+Send/Receive.
 
 ### Writing messages
 
@@ -353,6 +355,16 @@ anyway, never by asking it anything, and knows that software's commands:
   once the node says `Connected to BBS`, it offers BPQMail's `L`, `LM`,
   `LR` and the rest; `Returned to Node` switches back. At a prompt it
   cannot identify, it suggests nothing rather than guess.
+- **The Winlink CMS by keyboard.** Connect to an RMS gateway (WS1EC-10)
+  from the Terminal and the CMS prompt, `CMS via WS1EC >`, is
+  recognised: LM lists your Winlink mail, R or RM reads it, SP sends a
+  plain-text message, K marks one delivered, H is the help. Type any
+  command and it answers `Login [nnn]:`: send the password characters at
+  those three positions plus any three others, six in all. That one line
+  shows as `******` and never reaches the transcript or the recall list.
+  No attachments, and the CMS discourages scripting this mode, so kissterm
+  only suggests the commands. Winlink mail by G is separate and still
+  waits on the client name (below).
 - **F10 > Help > Node commands** lists every command in reach, each
   marked with where it came from: **published** (the software's own
   documentation), **verified on air**, **recalled, unverified**, or

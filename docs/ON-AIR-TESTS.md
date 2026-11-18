@@ -720,6 +720,13 @@ and then your Winlink password, before dialing. The password is saved
   script line `RMS` (or a hop chain to an upstream gateway). The
   exchange should start only when the `[WL2K-` line arrives; the node's
   own lines before it should show as normal session text.
+- [ ] **The CMS by keyboard (2026-11-18)**: connect to WS1EC-10 from the
+  Terminal (not G). Once `CMS via WS1EC >` arrives, typing `L` should
+  offer `LM` with "List the mail waiting for your callsign", and F10 >
+  Help > Node commands should show "Winlink CMS (keyboard)". Type `LM`,
+  answer `Login [nnn]:`: the Terminal should show `******` for that line,
+  the transcript `(Winlink login answer, not logged)`, and Up should not
+  bring it back. Then `B`.
 
 ## Radio control (ROADMAP P3a)
 

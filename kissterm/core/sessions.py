@@ -117,6 +117,16 @@ HARVEST_CAPTURE_LIMIT = 4096
 #: (`LiveSession.screen`, `core/export.py`); the oldest go first.
 SCREEN_LIMIT = 1024 * 1024
 
+#: The Winlink CMS's keyboard login challenge ("Login [364]:", positions in
+#: the account password; `nodes/data/winlink-cms.toml`). The line typed
+#: next carries three password characters, so it is shown and logged
+#: masked. Matched on the text, not the identified family, so it holds
+#: when the CMS is reached through a node's RMS command too.
+LOGIN_CHALLENGE = re.compile(r"\bLogin \[\d{3}\]:")
+#: What is shown and logged in place of the answer to `LOGIN_CHALLENGE`.
+LOGIN_ANSWER_SHOWN = "******"
+LOGIN_ANSWER_LOGGED = "(Winlink login answer, not logged)"
+
 #: Most lines `Sessions.history` keeps (Up/Down in the terminal, History on
 #: the phone); the oldest go first.
 HISTORY_LIMIT = 100
@@ -193,6 +203,9 @@ class LiveSession:
     #: (DESIGN.md section 6). Kept whether or not transcripts are on, for
     #: Save as text (`core/export.py`); at most `SCREEN_LIMIT` characters.
     screen: str = ""
+    #: The far end just sent `LOGIN_CHALLENGE`: the next line the operator
+    #: sends is its answer, and is masked (`Sessions.send_line`).
+    login_challenge: bool = False
 
 
 class Sessions:
@@ -470,10 +483,19 @@ class Sessions:
             self.core.connector.arm_for(f"sending to {key}")
         if before_send is not None:
             before_send()
+        session = self.by_key.get(key)
+        login_answer = session is not None and session.login_challenge
+        if session is not None:
+            session.login_challenge = False
         # latin-1, not UTF-8: packet is byte-oriented, and a pasted character
         # must not fail to encode mid-session. CR, not LF: LF makes a BPQ32
         # node echo a spurious blank line after every command.
         await link.send(text.encode("latin-1", "replace") + b"\r")
+        if login_answer:
+            # Three password characters at positions the transcript shows
+            # just above: never on screen, in the log or in history.
+            self.echo_sent(key, LOGIN_ANSWER_SHOWN, LOGIN_ANSWER_LOGGED)
+            return True
         self.echo_sent(key, text, text)
         self.remember(text)
         return True
@@ -649,13 +671,28 @@ class Sessions:
         self._publish(SessionData(key, data))
         session = self.by_key.get(key)
         if session is not None:
-            self.keep_screen(session, sanitize(data))
+            text = sanitize(data)
+            self.keep_screen(session, text)
+            self.note_login_challenge(session, text)
         if session is not None and session.transcript is not None:
             # Sanitized, never raw: `cat` on a transcript would run the
             # escape sequences the terminal's filter removes.
             session.transcript.received_stream(data, sanitize)
         self.sniff_node(key, data)
         self.capture_harvest(key, data)
+
+    @staticmethod
+    def note_login_challenge(session: LiveSession, text: str) -> None:
+        """Arm `login_challenge` when `LOGIN_CHALLENGE` ends in the text
+        just received. A little of the screen before it is included, so a
+        challenge split across two frames still counts; one already answered
+        further back does not count again."""
+        if not text:
+            return
+        window = session.screen[-(len(text) + 32):]
+        start = len(window) - len(text)
+        if any(m.end() > start for m in LOGIN_CHALLENGE.finditer(window)):
+            session.login_challenge = True
 
     def sniff_node(self, key: str, data: bytes) -> None:
         """Identify the node family from what it already sent -- passive on

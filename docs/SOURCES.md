@@ -122,6 +122,8 @@ Sessions from real nodes, kept in the operator's transcripts
 | WS1EC-15, 2026-09-13 | The FRMR-to-SABM fallback (`ax25/session.py`) |
 | WS1EC-15 session, 2026-09-22 | The node's prompt arriving last, unterminated (`test_terminal_ux.py` replays it) |
 | WS1EC-2, 2026-09-24 and 09-25 | A SABM whose UA was lost; message 2801 read back (`test_ax25_link.py`, `test_session_log.py`) |
+| Winlink CMS through WS1EC-10, `20261007-003303` and `20261007-032456_KC1JMH_WS1EC-10.log` | The production CMS refuses kissterm's B2F SID through an RMS gateway too ("Unknown client types are not allowed on production servers"), the same as by Internet |
+| Winlink CMS keyboard mode through WS1EC-10, `20261118-232544_KC1JMH_WS1EC-10.log` | The CMS's SID and prompt, its keyboard login challenge and its HELP reply: every command in `winlink-cms.toml`; no client name is asked for |
 | bpq-apps repo, `utilities/nodemap.json`, 2026-08-25 | `?` replies from 15 crawled nodes: the core commands on 12, RMS on 9 |
 
 **Still to capture** (each a checkbox in [ON-AIR-TESTS.md](ON-AIR-TESTS.md)

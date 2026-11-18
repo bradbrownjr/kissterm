@@ -30,8 +30,18 @@ still has to try on the air.
   kissterm filed it. So the test server reads the operator's real mailbox,
   at least for incoming mail; it offered one message where APRSLink had
   reported five pending on 2026-09-21.
-  # UNVERIFIED: whether an RMS gateway over the radio passes the same
-  check to the CMS; whether mail sent through cms-z reaches the Internet;
+  **An RMS gateway does not get around it**: through WS1EC-10 on the
+  radio, the production CMS refused the same SID in the same words
+  (2026-10-07, `20261007-003303` and `20261007-032456_KC1JMH_WS1EC-10.log`).
+  **The CMS's keyboard mode is no exception to the rule** (2026-11-18,
+  `20261118-232544_KC1JMH_WS1EC-10.log`): a person who answers the CMS
+  prompt with a command instead of a SID gets a keyboard login (`Login
+  [364]:`) and LM/R/SP/K, with no client name asked for. That is a human
+  interface ("Automations using this interface are discouraged", in its
+  own HELP; plain text, no attachments), not B2F, so Send/Receive still
+  needs kissterm known to Winlink. kissterm now recognises that prompt
+  and suggests its commands (`nodes/data/winlink-cms.toml`).
+  # UNVERIFIED: whether mail sent through cms-z reaches the Internet;
   and why one message, not five (already collected elsewhere, or the
   test server holds only some). A second I at 14:30 the same day was
   offered nothing, so cms-z had no more for the account.

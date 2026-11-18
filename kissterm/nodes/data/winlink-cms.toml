@@ -1,0 +1,94 @@
+# Winlink CMS keyboard mode: what a person can type at the CMS, reached
+# through an RMS gateway, with no Winlink client program.
+#
+# SOURCE: the CMS's own HELP text, captured 2026-11-18 over the radio
+# through the WS1EC-10 gateway (operator's session transcript
+# 20261118-232544_KC1JMH_WS1EC-10.log). Every command below is quoted from
+# that reply, so all are "verified". No published page for these commands
+# was found; the B2F specification (winlink.org/B2F) covers only the
+# client protocol.
+#
+# What the capture shows:
+#   - The CMS sends its SID "[WL2K-5.0-B2FWIHJM$]", a ";PQ:" challenge for
+#     a B2F client, and the prompt "CMS via WS1EC >". A person who answers
+#     with an ordinary command instead gets the keyboard login: "Login
+#     [364]:", three digits that are positions in the account password. The
+#     answer is six characters: those three password characters plus any
+#     three others, in any order. Then "Hello KC1JMH".
+#   - No client name is sent in keyboard mode, so the production CMS's
+#     "Unknown client types are not allowed" check never runs. That check
+#     is on the B2F SID: the same gateway refused kissterm's SID on
+#     2026-10-07 (20261007-003303 and 20261007-032456_KC1JMH_WS1EC-10.log).
+#   - "?" is not a command here ("*** Command not recognized."); H or HELP
+#     is. "L" is not a command either: LM lists mail.
+#   - "Automations using this interface are discourged" (sic). kissterm
+#     suggests these commands and never drives them.
+
+[family]
+id = "winlink-cms"
+name = "Winlink CMS (keyboard)"
+kind = "application"
+confidence = "verified"
+source = "The CMS's HELP reply through WS1EC-10, captured 2026-11-18"
+harvest_context = "bbs"
+note = """
+The Winlink CMS, reached through an RMS gateway. It is meant for Winlink
+client programs, but a person can log in and handle mail by keyboard. Type
+any command and the CMS answers Login [nnn]: give the password characters
+at those three positions plus any three others, six in all (kissterm keeps
+that answer out of the transcript). Plain text only: no attachments.
+"""
+# The CMS's SID and its prompt as the gateway relays it ("CMS via WS1EC >").
+detect_prompt = ['^\[WL2K-\d+(\.\d+)*-B2F[A-Z0-9$]*\]\s*$', '^CMS via [A-Z0-9]{1,6}(-\d{1,2})? >\s*$']
+
+[[commands]]
+name = "H"
+aliases = ["HELP"]
+summary = "The CMS's keyboard command list"
+usage = "H"
+detail = "About two kilobytes: twenty seconds or more of airtime at 1200 baud."
+
+[[commands]]
+name = "LM"
+summary = "List the mail waiting for your callsign"
+usage = "LM"
+detail = "Shows each message's ID (MID), date, size, sender and subject."
+
+[[commands]]
+name = "R"
+summary = "Read a message by its MID"
+usage = "R <MID>"
+detail = "Example: R 1234_KN6KB. Only messages to or from your callsign. Attachments are not supported."
+
+[[commands]]
+name = "RM"
+summary = "Read all your unread messages"
+usage = "RM"
+
+[[commands]]
+name = "K"
+summary = "Mark a message as delivered"
+usage = "K <MID>"
+detail = "Example: K 1234_KN6KB. It is then no longer offered to your Winlink program."
+
+[[commands]]
+name = "KM"
+summary = "Mark all your messages as delivered"
+usage = "KM"
+
+[[commands]]
+name = "SP"
+summary = "Send a message to callsigns or email addresses"
+usage = "SP <destinations>"
+detail = """
+Destinations are callsigns or SMTP:<address> (with the colon), separated
+by ; or , (SP W4ABC;SMTP:johndoe@example.com). The CMS asks for a subject,
+then the body; end the body with /EX on a line of its own. You get a service
+message if it cannot be delivered.
+"""
+
+[[commands]]
+name = "B"
+aliases = ["BYE"]
+summary = "Disconnect"
+usage = "B"

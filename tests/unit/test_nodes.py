@@ -335,3 +335,18 @@ def test_a_harvest_marks_shipped_commands_and_never_describes_its_own():
     assert ref.tier(by_name["NRR"]) == "published"
     assert ref.tier(by_name["WALL"]) == "harvested only"
     assert by_name["WALL"].summary == ""
+
+
+def test_the_winlink_cms_keyboard_mode_is_recognised_from_its_sid_and_prompt():
+    """As relayed by WS1EC-10, 2026-11-18. Neither shape is a BPQ node's
+    or BPQMail's, and the CMS's commands are not offered anywhere else."""
+    for text in ("[WL2K-5.0-B2FWIHJM$]", "CMS via WS1EC >", "CMS via WS1EC-10 > "):
+        family = identify_family(text)
+        assert family is not None and family.id == "winlink-cms", f"missed {text!r}"
+    cms = load_family("winlink-cms")
+    assert cms.kind == "application"
+    assert {c.name for c in cms.commands} >= {"H", "LM", "R", "RM", "K", "KM", "SP", "B"}
+    assert "?" not in {n for c in cms.commands for n in c.names}, \
+        "the CMS answers ? with Command not recognized"
+    assert identify_family("CCEMA:WS1EC-15} ").id == "bpq32"
+    assert identify_family("[BPQ-6.0.23.1-B2FWIHJM$]").id == "bpqmail"

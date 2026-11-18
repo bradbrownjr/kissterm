@@ -257,3 +257,53 @@ async def test_lines_sent_are_kept_for_recall_once_each_and_never_a_password():
     assert core.sessions.history()[-1] == f"line {sessions_module.HISTORY_LIMIT + 4}"
     station.close()
     peer.close()
+
+
+#: The Winlink CMS through WS1EC-10 as it arrived on 2026-11-18
+#: (20261118-232544_KC1JMH_WS1EC-10.log), up to the keyboard login.
+CMS_GREETING = (
+    b"Trying ec2-50-17-55-168.compute-1.amazonaws.com\r"
+    b"*** KC1JMH Connected to CMS\r"
+    b"[WL2K-5.0-B2FWIHJM$]\r"
+    b";PQ: 47756418\r"
+    b"CMS via WS1EC >\r"
+)
+
+
+@pytest.mark.asyncio
+async def test_the_winlink_cms_is_recognised_and_its_login_answer_is_never_kept(monkeypatch):
+    """The answer to "Login [364]:" holds three password characters whose
+    positions the line above it gives: masked on screen, in the transcript
+    and in history. Only the one line after the challenge."""
+    core, operator, station, peer, events = await _setup()
+    core.gate.set(True)
+    link = await station.connect(AX25Path(PEER, MYCALL))
+    key = core.sessions.bind(link)
+    logged: list[str] = []
+    monkeypatch.setattr(core.sessions, "log_sent",
+                        lambda key, text, **_kw: logged.append(text))
+    heard: list[bytes] = []
+    peer.link_to(MYCALL, 0).on_data.append(heard.append)
+
+    core.sessions.on_link_data(key, CMS_GREETING)
+    assert core.sessions.get(key).reference.family.id == "winlink-cms"
+    assert await core.sessions.send_line(key, "?")
+    # The challenge split across two frames, then the prompt after it.
+    core.sessions.on_link_data(key, b"Login [3")
+    core.sessions.on_link_data(key, b"64]:\rCMS via WS1EC >\r")
+    assert await core.sessions.send_line(key, "VCFACS")
+    core.sessions.on_link_data(key, b"Hello KC1JMH\rCMS via WS1EC >\r")
+    assert await core.sessions.send_line(key, "LM")
+
+    for _ in range(50):
+        if b"LM" in b"".join(heard):
+            break
+        await asyncio.sleep(0.02)
+    assert b"VCFACS\r" in b"".join(heard), "the answer itself still goes to the CMS"
+    assert logged == ["?", sessions_module.LOGIN_ANSWER_LOGGED, "LM"]
+    assert LineSent(key, sessions_module.LOGIN_ANSWER_SHOWN) in events
+    assert "VCFACS" not in core.sessions.get(key).screen
+    assert all(getattr(e, "text", "") != "VCFACS" for e in events)
+    assert "VCFACS" not in core.sessions.history()
+    station.close()
+    peer.close()

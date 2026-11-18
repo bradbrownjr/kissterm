@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-11-18] — The Winlink CMS's keyboard mode recognised; its login answer kept out of the log
+
+### Improvements
+
+- **The CMS prompt is a known application.** Connected to WS1EC-10 from
+  the Terminal, the CMS offers a keyboard login and LM, R, RM, K, KM, SP,
+  B and H (its own HELP, 2026-11-18). kissterm identifies its SID and
+  `CMS via WS1EC >` prompt and suggests those commands; it never drives
+  them (the CMS discourages automating this mode). This mode sends no
+  client name, so it does not answer the "Unknown client types" refusal:
+  B2F through the same gateway was refused on 2026-10-07 (ROADMAP).
+- **The answer to `Login [nnn]:` is masked.** It holds three password
+  characters at the positions the line above gives; it now shows as
+  `******`, is logged as `(Winlink login answer, not logged)` and is not
+  kept for recall, on either front end.
+
+**Files:** `kissterm/nodes/data/winlink-cms.toml`, `kissterm/core/sessions.py`,
+`tests/unit/test_nodes.py`, `tests/unit/test_core_sessions.py`,
+`docs/GUIDE.md`, `docs/ROADMAP.md`, `docs/SOURCES.md`, `docs/ON-AIR-TESTS.md`
+
 ## [2026-11-18] — A warning for another station on your call; quieter APRS retry check
 
 ### Improvements
