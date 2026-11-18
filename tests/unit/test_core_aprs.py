@@ -173,3 +173,14 @@ def test_an_objects_place_can_be_a_grid_square_mgrs_or_utm():
             place_from(mode, "nonsense")
     with pytest.raises(ValueError):
         place_from("decimal", "43 -70")
+
+
+@pytest.mark.asyncio
+async def test_a_retry_check_that_changes_nothing_publishes_nothing():
+    """Every 10-second check published AprsRetried and filled the remote
+    replay buffer (2026-11-18)."""
+    core, operator, station, ta, events = await _core()
+    await core.aprs.check_retries()
+    await core.aprs.check_retries()
+    assert AprsRetried() not in events
+    station.close()

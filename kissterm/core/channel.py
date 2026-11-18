@@ -21,19 +21,51 @@ since a beacon repeats on its own interval. A watched callsign is a
 callsign is a claim"); its notices are rate-limited (`WatchNotifier`) and
 held back while the operator is actively using a client
 (`operator_active`).
+
+**Another station on our own call.** A frame received whose source is
+exactly one of the calls this station sends as (`own_calls`: the call, the
+tactical call, the aliases, the APRS source; the SSID must match, so the
+operator's own node on KC1JMH-15 is another station, not this one) was
+sent by something else: a second program or radio keyed up under the same
+call. It answers DM to traffic on our links and the far node drops them
+(LinBPQ `L2Code.c`, a DM in a connected state: `CLEAROUTLINK`), which looks
+like a bad path. Found the hard way on 2026-11-18, an EasyTerm left open on
+the modem's computer. A copy of our own frame (a digipeater's repeat, a TNC
+that echoes) matches something we sent within `ECHO_WINDOW` seconds and is
+not counted. Every one is logged; the notice repeats at most every
+`OWN_CALL_REPEAT` seconds per call.
 """
 
 from __future__ import annotations
 
+import collections
+import logging
 import time
 from datetime import datetime
 
+from ..ax25.address import AX25Address, AX25AddressError
 from ..ax25.frame import PID_NO_LAYER3, UType
+from ..identity import air_call
 from ..monitor import mail_waiting_for, sanitize
 from ..netrom import KnownNodes
 from ..watched_notify import WatchNotifier, claimed_callsigns, normalize_callsigns
 from .events import Alert, FrameSeen, KnownNodesChanged
-from .operator import Notice
+from .operator import Notice, Severity
+
+log = logging.getLogger(__name__)
+
+#: How long one of our frames can take to come back to us repeated (a
+#: digipeater, a TNC that echoes what it sends). WIDE2-2 is a few seconds.
+ECHO_WINDOW = 120.0
+#: How often the notice about another station on our call may repeat.
+OWN_CALL_REPEAT = 30 * 60.0
+
+
+def _signature(frame) -> tuple:
+    """What a repeat of a frame keeps: everything but the C and H bits."""
+    path = frame.path
+    return (str(path.destination), str(path.source), frame.kind, frame.utype,
+            frame.stype, frame.ns, frame.nr, frame.pf, frame.pid, frame.info)
 
 
 class Channel:
@@ -50,6 +82,10 @@ class Channel:
         #: (`operator_active`) -- active use, not a window left open.
         self.last_operator_activity = time.monotonic()
         self.watch_notifier = self.make_watch_notifier()
+        #: (monotonic time, `_signature`) of frames we sent within `ECHO_WINDOW`.
+        self.recent_sent: collections.deque = collections.deque()
+        #: Call -> monotonic time its "another station" notice last went out.
+        self.own_call_notified: dict[str, float] = {}
 
     @property
     def config(self):
@@ -73,13 +109,63 @@ class Channel:
     def on_received(self, frame, port: int = 0) -> None:
         self.core.heard.record(frame, port)
         self.core.events.publish(FrameSeen(frame, port, False))
+        self.check_own_call(frame)
         self.check_mail_for(frame)
         self.check_watched_callsigns(frame)
         if self.known_nodes.observe(frame):
             self.core.events.publish(KnownNodesChanged())
 
     def on_sent(self, frame, port: int = 0) -> None:
+        now = time.monotonic()
+        self._prune_sent(now)
+        self.recent_sent.append((now, _signature(frame)))
         self.core.events.publish(FrameSeen(frame, port, True))
+
+    def _prune_sent(self, now: float) -> None:
+        while self.recent_sent and now - self.recent_sent[0][0] > ECHO_WINDOW:
+            self.recent_sent.popleft()
+
+    def own_calls(self) -> set[str]:
+        """Every source address this station sends under, SSID included."""
+        config = self.config
+        calls: set[str] = set()
+        candidates = [config.mycall, air_call(config), *config.mycall_aliases]
+        if config.mycall:
+            try:
+                candidates.append(str(config.aprs.source_for(config.mycall)))
+            except (AX25AddressError, ValueError):
+                pass
+        for text in candidates:
+            try:
+                calls.add(str(AX25Address.parse(str(text).strip())))
+            except (AX25AddressError, ValueError):
+                continue
+        return calls
+
+    def check_own_call(self, frame) -> None:
+        """Another station transmitting under exactly one of our calls
+        (module docstring)."""
+        source = str(frame.path.source)
+        if source not in self.own_calls():
+            return
+        now = time.monotonic()
+        self._prune_sent(now)
+        signature = _signature(frame)
+        if any(sent == signature for _, sent in self.recent_sent):
+            return
+        # Built from parsed addresses (validated letters and digits) and the
+        # frame type: kissterm's own words, not remote text.
+        line = frame.summary()
+        log.warning("another station is transmitting as %s: heard %s", source, line)
+        last = self.own_call_notified.get(source)
+        if last is not None and now - last < OWN_CALL_REPEAT:
+            return
+        self.own_call_notified[source] = now
+        self.core.operator.notice(Notice(
+            f"Another station is transmitting as {source} (heard {line}). Two stations "
+            f"on one call answer each other's links and the node drops them. Look for "
+            f"another program or radio using {source}, such as a terminal left open on "
+            f"the modem's computer.", Severity.WARNING))
 
     def check_watched_callsigns(self, frame) -> None:
         """Surface configured source/repeater *claims* from the fan-out."""

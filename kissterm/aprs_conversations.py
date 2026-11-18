@@ -347,6 +347,13 @@ class PendingAcks:
             ):
                 del self._pending[(callsign, number)]
 
+    def state(self) -> frozenset:
+        """What a conversation view shows of this queue: each message still
+        awaiting an ack and how many times it has been retried. Compared
+        before and after a retry check so a check that changed nothing
+        publishes nothing."""
+        return frozenset((key, pending.attempts) for key, pending in self._pending.items())
+
     def attempts_for(self, callsign: str, number: str | None) -> int | None:
         """How many times this message has been retried, or None if it is not
         awaiting an ack (never sent by us, already acked, or given up on).

@@ -5,6 +5,26 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-11-18] — A warning for another station on your call; quieter APRS retry check
+
+### Improvements
+
+- **Another station transmitting as your exact call is announced.** On
+  2026-11-18 links to WS1EC-2 and WS1EC-10 dropped seconds after connecting:
+  EasyTerm, left open on the modem's computer as KC1JMH, answered DM to the
+  node's I-frames, and LinBPQ clears a link on any DM (`L2Code.c`). The
+  channel now warns (notice, both front ends; WARNING in kissterm.log) when
+  it hears a frame from one of the station's own calls, SSID exact, that is
+  not a repeat of one it sent in the last two minutes.
+- **The APRS retry check publishes `AprsRetried` only when the queue
+  changed.** Sent every 10 seconds, it was 85% of the server's 2,000-event
+  replay buffer, so a remote client's history reached back about five
+  hours.
+
+**Files:** `kissterm/core/channel.py`, `core/aprs.py`,
+`kissterm/aprs_conversations.py`, `tests/unit/test_core_channel_settings.py`,
+`tests/unit/test_core_aprs.py`, `docs/GUIDE.md`, `docs/ON-AIR-TESTS.md`
+
 ## [2026-11-17] — Up and Down recall lines sent
 
 ### Improvements

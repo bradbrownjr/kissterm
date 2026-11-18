@@ -632,12 +632,18 @@ class Aprs:
         return "sent"
 
     async def check_retries(self) -> None:
-        """Resend whatever is due and un-acked. Never arms the gate."""
+        """Resend whatever is due and un-acked. Never arms the gate.
+
+        `AprsRetried` goes out only when the queue changed (a retry sent,
+        an acked or given-up message dropped). Published on every 10-second
+        check, it was 85% of the server's 2,000-event replay buffer and cut
+        a remote client's history to about five hours (2026-11-18)."""
+        before = self.pending.state()
         self.pending.discard_acked(self.conversations)
         for callsign, number, text in self.pending.due():
             await self.send_message(callsign, text, number, retry=True)
-        # An ack may have landed and a retry gone out since the last paint.
-        self._publish(AprsRetried())
+        if self.pending.state() != before:
+            self._publish(AprsRetried())
 
     async def _retry_loop(self) -> None:
         while True:

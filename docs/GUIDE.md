@@ -528,6 +528,16 @@ them on a busy channel.
 "MAIL FOR" convention beacon the callsigns they hold mail for; kissterm
 watches for yours and tells you the moment it hears it.
 
+**Another station on your call.** If kissterm hears a frame sent from
+exactly one of your calls (the call, the tactical call, an alias, the APRS
+SSID) that it did not send itself, it warns you, in the terminal and on the
+phone. Two stations on one call answer each other's links, and the node
+drops the connection, which looks like a bad path. The usual cause is
+another terminal left open on the modem's computer. The SSID has to match:
+your own node on `-15` is another station. A digipeater repeating your own
+frame is not counted. The warning repeats at most every 30 minutes;
+`kissterm.log` records every such frame.
+
 **Beacons.** A short text on a timer telling the channel you are there
 (the `BTEXT` convention, separate from APRS beaconing). Off until you turn
 it on, never sent empty, with a ten-minute floor. Settings shows what your

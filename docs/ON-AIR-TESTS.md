@@ -10,6 +10,18 @@ records it.
 Where things are: Settings is F9; the Address Book is Ctrl+G on the
 Terminal, Mail, Bulletins or Files tab (E edits an entry); Mail is F2.
 
+## Another station on your call (2026-11-18)
+
+- [ ] **The warning fires.** Start EasyTerm (or any second program) on
+  the modem's computer as your bare call, leave it running, and connect
+  kissterm to WS1EC-2. Expected: a warning "Another station is
+  transmitting as KC1JMH (heard KC1JMH>... )" in the terminal and on the
+  phone, and a `another station is transmitting as` line in kissterm.log.
+  Close EasyTerm and connect again: the link holds.
+- [ ] **No false alarm.** With nothing else running, send an APRS
+  position (APRS > Send position) through a WIDE1-1 digipeater and connect
+  to your own node on KC1JMH-15. Expected: no warning.
+
 ## The web and phone client's parity features (2026-10-07)
 
 - [ ] **Send a file from the phone (Files > a file > Send over the
