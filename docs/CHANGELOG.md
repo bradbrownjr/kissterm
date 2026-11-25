@@ -5,6 +5,16 @@ long, with a **Files:** line. Entries from before 2026-09-22 (the P0
 stabilization rewrite) are in `docs/CHANGELOG-archive.md`; read it only when
 you need the history of a specific change.
 
+## [2026-11-25] — PROVENANCE.md records code shared with bpq-apps
+
+### Documentation
+
+- **Shared code is listed.** `PROVENANCE.md` names each file taken from
+  bpq-apps (NTS rules, ARL texts, two forms), the commit it came from and
+  what changed here, so fixes on either side can be carried across.
+
+**Files:** `PROVENANCE.md`, `docs/CHANGELOG.md`
+
 ## [2026-11-18] — The Winlink CMS's keyboard mode recognised; its login answer kept out of the log
 
 ### Improvements
